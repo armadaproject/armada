@@ -267,7 +267,7 @@ enum Cause {
     DeadlineExceeded = 3;
 }
 
-// A Docker containers status.
+// A containers status.
 message ContainerStatus {
     string name = 1;
     int32 exitCode = 2;
@@ -309,7 +309,7 @@ message WatchRequest {
 service Event {
 
     // Reports multiple events at once
-    rpc ReportMultiple (EventList) returns (google.protobuf.Empty);#
+    rpc ReportMultiple (EventList) returns (google.protobuf.Empty);
 
     // Reports a single event message
     rpc Report (EventMessage) returns (google.protobuf.Empty);

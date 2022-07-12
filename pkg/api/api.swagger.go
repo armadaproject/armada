@@ -94,6 +94,7 @@ func SwaggerJsonTemplate() string {
 		"        \"tags\": [\n" +
 		"          \"Event\"\n" +
 		"        ],\n" +
+		"        \"summary\": \"Returns an event stream message\",\n" +
 		"        \"operationId\": \"GetJobSetEvents\",\n" +
 		"        \"parameters\": [\n" +
 		"          {\n" +
@@ -453,6 +454,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiCause\": {\n" +
+		"      \"description\": \"The cause for a job to error.\",\n" +
 		"      \"type\": \"string\",\n" +
 		"      \"default\": \"Error\",\n" +
 		"      \"enum\": [\n" +
@@ -463,6 +465,7 @@ func SwaggerJsonTemplate() string {
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiContainerStatus\": {\n" +
+		"      \"description\": \"A containers status.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"cause\": {\n" +
@@ -484,6 +487,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiEventMessage\": {\n" +
+		"      \"description\": \"Represents at least one of the events from the events.proto file.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"cancelled\": {\n" +
@@ -596,6 +600,7 @@ func SwaggerJsonTemplate() string {
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +
+		"      \"description\": \"Represents a single Job and its k8s details.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"annotations\": {\n" +
@@ -701,6 +706,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobCancelledEvent\": {\n" +
+		"      \"description\": \"Represents a job that has been cancelled.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -722,6 +728,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobCancellingEvent\": {\n" +
+		"      \"description\": \"Represents a job that is being cancelled.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -743,6 +750,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobDuplicateFoundEvent\": {\n" +
+		"      \"description\": \"Represents a job is a duplicate of another job.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -764,6 +772,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobFailedEvent\": {\n" +
+		"      \"description\": \"Represents a job that failed to run.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"cause\": {\n" +
@@ -820,6 +829,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobIngressInfoEvent\": {\n" +
+		"      \"description\": \"Represents the infomation on a job from ingress.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -863,6 +873,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobLeaseExpiredEvent\": {\n" +
+		"      \"description\": \"Represents k8s saying a job has expired.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -881,6 +892,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobLeaseReturnedEvent\": {\n" +
+		"      \"description\": \"Represents the data for a job that has been leased to a K8s cluster.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -912,6 +924,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobLeasedEvent\": {\n" +
+		"      \"description\": \"Represents a job being leased to a K8s cluster.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -933,6 +946,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobPendingEvent\": {\n" +
+		"      \"description\": \"Represents a job that is pending in the queue.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -967,6 +981,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobQueuedEvent\": {\n" +
+		"      \"description\": \"Represents a job being queued.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -1019,6 +1034,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobReprioritizedEvent\": {\n" +
+		"      \"description\": \"Represents a job that has been reprioritized.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -1044,6 +1060,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobReprioritizingEvent\": {\n" +
+		"      \"description\": \"Represents a job that is in the process of reprioritizing.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -1070,6 +1087,7 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"apiJobRunningEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Represents a job that is running\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
@@ -1241,6 +1259,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobSubmittedEvent\": {\n" +
+		"      \"description\": \"Represents a job being submitted to the queue.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
@@ -1262,6 +1281,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobSucceededEvent\": {\n" +
+		"      \"description\": \"Represents a job that has been completed.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -1299,6 +1319,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobTerminatedEvent\": {\n" +
+		"      \"description\": \"Represents a job that has been termniated.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -1336,6 +1357,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobUnableToScheduleEvent\": {\n" +
+		"      \"description\": \"Represents a job that failed to schedule in the queue.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"clusterId\": {\n" +
@@ -1377,6 +1399,7 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"apiJobUpdatedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Represents a job that is being updated\",\n" +
 		"      \"properties\": {\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
@@ -1400,6 +1423,7 @@ func SwaggerJsonTemplate() string {
 		"      }\n" +
 		"    },\n" +
 		"    \"apiJobUtilisationEvent\": {\n" +
+		"      \"description\": \"Represents the data about a jobs utilization.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"MaxResourcesForPeriod\": {\n" +

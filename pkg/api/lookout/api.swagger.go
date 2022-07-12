@@ -149,6 +149,7 @@ func SwaggerJsonTemplate() string {
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJob\": {\n" +
+		"      \"description\": \"Represents a single Job and its k8s details.\",\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
 		"        \"annotations\": {\n" +

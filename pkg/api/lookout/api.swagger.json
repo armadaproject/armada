@@ -138,6 +138,7 @@
       ]
     },
     "apiJob": {
+      "description": "Represents a single Job and its k8s details.",
       "type": "object",
       "properties": {
         "annotations": {

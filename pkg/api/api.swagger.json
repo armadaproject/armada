@@ -83,6 +83,7 @@
         "tags": [
           "Event"
         ],
+        "summary": "Returns an event stream message",
         "operationId": "GetJobSetEvents",
         "parameters": [
           {
@@ -442,6 +443,7 @@
       }
     },
     "apiCause": {
+      "description": "The cause for a job to error.",
       "type": "string",
       "default": "Error",
       "enum": [
@@ -452,6 +454,7 @@
       ]
     },
     "apiContainerStatus": {
+      "description": "A containers status.",
       "type": "object",
       "properties": {
         "cause": {
@@ -473,6 +476,7 @@
       }
     },
     "apiEventMessage": {
+      "description": "Represents at least one of the events from the events.proto file.",
       "type": "object",
       "properties": {
         "cancelled": {
@@ -585,6 +589,7 @@
       ]
     },
     "apiJob": {
+      "description": "Represents a single Job and its k8s details.",
       "type": "object",
       "properties": {
         "annotations": {
@@ -690,6 +695,7 @@
       }
     },
     "apiJobCancelledEvent": {
+      "description": "Represents a job that has been cancelled.",
       "type": "object",
       "properties": {
         "created": {
@@ -711,6 +717,7 @@
       }
     },
     "apiJobCancellingEvent": {
+      "description": "Represents a job that is being cancelled.",
       "type": "object",
       "properties": {
         "created": {
@@ -732,6 +739,7 @@
       }
     },
     "apiJobDuplicateFoundEvent": {
+      "description": "Represents a job is a duplicate of another job.",
       "type": "object",
       "properties": {
         "created": {
@@ -753,6 +761,7 @@
       }
     },
     "apiJobFailedEvent": {
+      "description": "Represents a job that failed to run.",
       "type": "object",
       "properties": {
         "cause": {
@@ -809,6 +818,7 @@
       }
     },
     "apiJobIngressInfoEvent": {
+      "description": "Represents the infomation on a job from ingress.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -852,6 +862,7 @@
       }
     },
     "apiJobLeaseExpiredEvent": {
+      "description": "Represents k8s saying a job has expired.",
       "type": "object",
       "properties": {
         "created": {
@@ -870,6 +881,7 @@
       }
     },
     "apiJobLeaseReturnedEvent": {
+      "description": "Represents the data for a job that has been leased to a K8s cluster.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -901,6 +913,7 @@
       }
     },
     "apiJobLeasedEvent": {
+      "description": "Represents a job being leased to a K8s cluster.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -922,6 +935,7 @@
       }
     },
     "apiJobPendingEvent": {
+      "description": "Represents a job that is pending in the queue.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -956,6 +970,7 @@
       }
     },
     "apiJobQueuedEvent": {
+      "description": "Represents a job being queued.",
       "type": "object",
       "properties": {
         "created": {
@@ -1008,6 +1023,7 @@
       }
     },
     "apiJobReprioritizedEvent": {
+      "description": "Represents a job that has been reprioritized.",
       "type": "object",
       "properties": {
         "created": {
@@ -1033,6 +1049,7 @@
       }
     },
     "apiJobReprioritizingEvent": {
+      "description": "Represents a job that is in the process of reprioritizing.",
       "type": "object",
       "properties": {
         "created": {
@@ -1059,6 +1076,7 @@
     },
     "apiJobRunningEvent": {
       "type": "object",
+      "title": "Represents a job that is running",
       "properties": {
         "clusterId": {
           "type": "string"
@@ -1230,6 +1248,7 @@
       }
     },
     "apiJobSubmittedEvent": {
+      "description": "Represents a job being submitted to the queue.",
       "type": "object",
       "properties": {
         "created": {
@@ -1251,6 +1270,7 @@
       }
     },
     "apiJobSucceededEvent": {
+      "description": "Represents a job that has been completed.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -1288,6 +1308,7 @@
       }
     },
     "apiJobTerminatedEvent": {
+      "description": "Represents a job that has been termniated.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -1325,6 +1346,7 @@
       }
     },
     "apiJobUnableToScheduleEvent": {
+      "description": "Represents a job that failed to schedule in the queue.",
       "type": "object",
       "properties": {
         "clusterId": {
@@ -1366,6 +1388,7 @@
     },
     "apiJobUpdatedEvent": {
       "type": "object",
+      "title": "Represents a job that is being updated",
       "properties": {
         "created": {
           "type": "string",
@@ -1389,6 +1412,7 @@
       }
     },
     "apiJobUtilisationEvent": {
+      "description": "Represents the data about a jobs utilization.",
       "type": "object",
       "properties": {
         "MaxResourcesForPeriod": {

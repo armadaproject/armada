@@ -39,6 +39,7 @@ var _ = time.Kitchen
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// Represents a single Job and its k8s details.
 type Job struct {
 	Id                       string            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ClientId                 string            `protobuf:"bytes,13,opt,name=client_id,json=clientId,proto3" json:"clientId,omitempty"`
@@ -225,6 +226,7 @@ func (m *Job) GetK8SService() []*v1.Service {
 	return nil
 }
 
+// Represents a k8s least request for the job.
 type LeaseRequest struct {
 	ClusterId           string                       `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	Pool                string                       `protobuf:"bytes,8,opt,name=pool,proto3" json:"pool,omitempty"`
@@ -406,6 +408,7 @@ func (m *StreamingLeaseRequest) GetReceivedJobIds() []string {
 	return nil
 }
 
+// Represents the k8s node info.
 type NodeInfo struct {
 	Name                 string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Taints               []v1.Taint                   `protobuf:"bytes,2,rep,name=taints,proto3" json:"taints"`
@@ -481,6 +484,7 @@ func (m *NodeInfo) GetAvailableResources() map[string]resource.Quantity {
 	return nil
 }
 
+// Represents the k8s node type.
 type NodeType struct {
 	Taints               []v1.Taint                   `protobuf:"bytes,1,rep,name=taints,proto3" json:"taints"`
 	Labels               map[string]string            `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -540,7 +544,7 @@ func (m *NodeType) GetAllocatableResources() map[string]resource.Quantity {
 	return nil
 }
 
-// Used to store last info in Redis
+// Used to store last info in Redis.
 type ClusterSchedulingInfoReport struct {
 	ClusterId      string                       `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	Pool           string                       `protobuf:"bytes,7,opt,name=pool,proto3" json:"pool,omitempty"`
@@ -616,6 +620,7 @@ func (m *ClusterSchedulingInfoReport) GetMinimumJobSize() map[string]resource.Qu
 	return nil
 }
 
+// Represents a k8s queue report.
 type QueueLeasedReport struct {
 	Name            string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	ResourcesLeased map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources_leased,json=resourcesLeased,proto3" json:"resourcesLeased,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -667,6 +672,7 @@ func (m *QueueLeasedReport) GetResourcesLeased() map[string]resource.Quantity {
 	return nil
 }
 
+// Represents a k8s Cluster report.
 type ClusterLeasedReport struct {
 	ClusterId  string               `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	ReportTime time.Time            `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
@@ -726,6 +732,7 @@ func (m *ClusterLeasedReport) GetQueues() []*QueueLeasedReport {
 	return nil
 }
 
+// Represents k8s compute resources left for jobs.
 type ComputeResource struct {
 	Resources map[string]resource.Quantity `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
@@ -769,6 +776,7 @@ func (m *ComputeResource) GetResources() map[string]resource.Quantity {
 	return nil
 }
 
+// Node label.
 type NodeLabeling struct {
 	Labels map[string]string `protobuf:"bytes,3,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
@@ -812,6 +820,7 @@ func (m *NodeLabeling) GetLabels() map[string]string {
 	return nil
 }
 
+// Job Lease.
 type JobLease struct {
 	Job []*Job `protobuf:"bytes,1,rep,name=job,proto3" json:"job,omitempty"`
 }
@@ -855,6 +864,7 @@ func (m *JobLease) GetJob() []*Job {
 	return nil
 }
 
+// Stream data for a Job Lease.
 type StreamingJobLease struct {
 	Job *Job `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
 	// Total number of jobs being sent over this connection.
@@ -917,6 +927,7 @@ func (m *StreamingJobLease) GetNumAcked() uint32 {
 	return 0
 }
 
+// List of IDs of jobs that have been received.
 type IdList struct {
 	Ids []string `protobuf:"bytes,1,rep,name=ids,proto3" json:"ids,omitempty"`
 }
@@ -960,6 +971,7 @@ func (m *IdList) GetIds() []string {
 	return nil
 }
 
+// List of IDs of jobs that need to have their lease renewed.
 type RenewLeaseRequest struct {
 	ClusterId string   `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	Ids       []string `protobuf:"bytes,2,rep,name=ids,proto3" json:"ids,omitempty"`
@@ -1011,6 +1023,7 @@ func (m *RenewLeaseRequest) GetIds() []string {
 	return nil
 }
 
+// Return message of a least request.
 type ReturnLeaseRequest struct {
 	ClusterId       string            `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	JobId           string            `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
@@ -1070,6 +1083,7 @@ func (m *ReturnLeaseRequest) GetAvoidNodeLabels() *OrderedStringMap {
 	return nil
 }
 
+// Represents an element of a mapping
 type StringKeyValuePair struct {
 	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
@@ -1121,6 +1135,7 @@ func (m *StringKeyValuePair) GetValue() string {
 	return ""
 }
 
+// A list of key-value pairs.
 type OrderedStringMap struct {
 	Entries []*StringKeyValuePair `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 }
@@ -1321,10 +1336,15 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AggregatedQueueClient interface {
+	// K8s lease request. Returns a Job Lease
 	LeaseJobs(ctx context.Context, in *LeaseRequest, opts ...grpc.CallOption) (*JobLease, error)
+	// K8s lease request. Returns a Job Lease
 	StreamingLeaseJobs(ctx context.Context, opts ...grpc.CallOption) (AggregatedQueue_StreamingLeaseJobsClient, error)
+	// K8s renew lease request. Returns a list of ID's that were renewed.
 	RenewLease(ctx context.Context, in *RenewLeaseRequest, opts ...grpc.CallOption) (*IdList, error)
+	// Return job space back to the queue
 	ReturnLease(ctx context.Context, in *ReturnLeaseRequest, opts ...grpc.CallOption) (*types.Empty, error)
+	// Report list of ID's as completed.
 	ReportDone(ctx context.Context, in *IdList, opts ...grpc.CallOption) (*IdList, error)
 }
 
@@ -1405,10 +1425,15 @@ func (c *aggregatedQueueClient) ReportDone(ctx context.Context, in *IdList, opts
 
 // AggregatedQueueServer is the server API for AggregatedQueue service.
 type AggregatedQueueServer interface {
+	// K8s lease request. Returns a Job Lease
 	LeaseJobs(context.Context, *LeaseRequest) (*JobLease, error)
+	// K8s lease request. Returns a Job Lease
 	StreamingLeaseJobs(AggregatedQueue_StreamingLeaseJobsServer) error
+	// K8s renew lease request. Returns a list of ID's that were renewed.
 	RenewLease(context.Context, *RenewLeaseRequest) (*IdList, error)
+	// Return job space back to the queue
 	ReturnLease(context.Context, *ReturnLeaseRequest) (*types.Empty, error)
+	// Report list of ID's as completed.
 	ReportDone(context.Context, *IdList) (*IdList, error)
 }
 

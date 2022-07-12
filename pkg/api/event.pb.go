@@ -38,6 +38,7 @@ var _ = time.Kitchen
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// The cause for a job to error.
 type Cause int32
 
 const (
@@ -69,6 +70,7 @@ func (Cause) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_7758595c3bb8cf56, []int{0}
 }
 
+// Represents a job being submitted to the queue.
 type JobSubmittedEvent struct {
 	JobId    string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -144,6 +146,7 @@ func (m *JobSubmittedEvent) GetJob() Job {
 	return Job{}
 }
 
+// Represents a job being queued.
 type JobQueuedEvent struct {
 	JobId    string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -211,6 +214,7 @@ func (m *JobQueuedEvent) GetCreated() time.Time {
 	return time.Time{}
 }
 
+// Represents a job is a duplicate of another job.
 type JobDuplicateFoundEvent struct {
 	JobId         string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId      string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -286,6 +290,7 @@ func (m *JobDuplicateFoundEvent) GetOriginalJobId() string {
 	return ""
 }
 
+// Represents a job being leased to a K8s cluster.
 type JobLeasedEvent struct {
 	JobId     string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId  string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -361,6 +366,7 @@ func (m *JobLeasedEvent) GetClusterId() string {
 	return ""
 }
 
+// Represents the data for a job that has been leased to a K8s cluster.
 type JobLeaseReturnedEvent struct {
 	JobId        string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId     string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -460,6 +466,7 @@ func (m *JobLeaseReturnedEvent) GetPodNumber() int32 {
 	return 0
 }
 
+// Represents k8s saying a job has expired.
 type JobLeaseExpiredEvent struct {
 	JobId    string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -527,6 +534,7 @@ func (m *JobLeaseExpiredEvent) GetCreated() time.Time {
 	return time.Time{}
 }
 
+// Represents a job that is pending in the queue.
 type JobPendingEvent struct {
 	JobId        string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId     string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -634,6 +642,7 @@ func (m *JobPendingEvent) GetPodNamespace() string {
 	return ""
 }
 
+// Represents a job that is running
 type JobRunningEvent struct {
 	JobId        string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId     string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -749,6 +758,7 @@ func (m *JobRunningEvent) GetPodNamespace() string {
 	return ""
 }
 
+// Represents the infomation on a job from ingress.
 type JobIngressInfoEvent struct {
 	JobId            string           `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId         string           `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -872,6 +882,7 @@ func (m *JobIngressInfoEvent) GetIngressAddresses() map[int32]string {
 	return nil
 }
 
+// Represents a job that failed to schedule in the queue.
 type JobUnableToScheduleEvent struct {
 	JobId        string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId     string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -995,6 +1006,7 @@ func (m *JobUnableToScheduleEvent) GetPodNamespace() string {
 	return ""
 }
 
+// Represents a job that failed to run.
 type JobFailedEvent struct {
 	JobId             string             `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId          string             `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1143,6 +1155,7 @@ func (m *JobFailedEvent) GetCause() Cause {
 	return Cause_Error
 }
 
+// Represents a job that has been completed.
 type JobSucceededEvent struct {
 	JobId        string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId     string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1258,6 +1271,7 @@ func (m *JobSucceededEvent) GetPodNamespace() string {
 	return ""
 }
 
+// Represents the data about a jobs utilization.
 type JobUtilisationEvent struct {
 	JobId                 string                       `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId              string                       `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1389,6 +1403,7 @@ func (m *JobUtilisationEvent) GetTotalCumulativeUsage() map[string]resource.Quan
 	return nil
 }
 
+// Represents a job that is in the process of reprioritizing.
 type JobReprioritizingEvent struct {
 	JobId       string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId    string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1472,6 +1487,7 @@ func (m *JobReprioritizingEvent) GetRequestor() string {
 	return ""
 }
 
+// Represents a job that has been reprioritized.
 type JobReprioritizedEvent struct {
 	JobId       string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId    string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1555,6 +1571,7 @@ func (m *JobReprioritizedEvent) GetRequestor() string {
 	return ""
 }
 
+// Represents a job that is being cancelled.
 type JobCancellingEvent struct {
 	JobId     string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId  string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1630,6 +1647,7 @@ func (m *JobCancellingEvent) GetRequestor() string {
 	return ""
 }
 
+// Represents a job that has been cancelled.
 type JobCancelledEvent struct {
 	JobId     string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId  string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1705,6 +1723,7 @@ func (m *JobCancelledEvent) GetRequestor() string {
 	return ""
 }
 
+// Represents a job that has been termniated.
 type JobTerminatedEvent struct {
 	JobId        string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId     string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1820,6 +1839,7 @@ func (m *JobTerminatedEvent) GetReason() string {
 	return ""
 }
 
+// Represents a job that is being updated
 type JobUpdatedEvent struct {
 	JobId     string    `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
 	JobSetId  string    `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -1903,6 +1923,7 @@ func (m *JobUpdatedEvent) GetJob() Job {
 	return Job{}
 }
 
+// Represents at least one of the events from the events.proto file.
 type EventMessage struct {
 	// Types that are valid to be assigned to Events:
 	//	*EventMessage_Submitted
@@ -2208,6 +2229,7 @@ func (*EventMessage) XXX_OneofWrappers() []interface{} {
 	}
 }
 
+// A containers status.
 type ContainerStatus struct {
 	Name     string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	ExitCode int32  `protobuf:"varint,2,opt,name=exitCode,proto3" json:"exitCode,omitempty"`
@@ -2283,6 +2305,7 @@ func (m *ContainerStatus) GetCause() Cause {
 	return Cause_Error
 }
 
+// A list of event messages covering all events.
 type EventList struct {
 	Events []*EventMessage `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
 }
@@ -2462,6 +2485,7 @@ func (m *JobSetRequest) GetForceRedis() bool {
 	return false
 }
 
+// Represents a request to watch events
 type WatchRequest struct {
 	Queue      string `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
 	JobSetId   string `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -2703,9 +2727,14 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type EventClient interface {
+	// Reports multiple events at once
 	ReportMultiple(ctx context.Context, in *EventList, opts ...grpc.CallOption) (*types.Empty, error)
+	// Reports a single event message
 	Report(ctx context.Context, in *EventMessage, opts ...grpc.CallOption) (*types.Empty, error)
+	// Returns an event stream message
 	GetJobSetEvents(ctx context.Context, in *JobSetRequest, opts ...grpc.CallOption) (Event_GetJobSetEventsClient, error)
+	// Returns an event stream message to watch
+	// (deprecated)
 	Watch(ctx context.Context, in *WatchRequest, opts ...grpc.CallOption) (Event_WatchClient, error)
 }
 
@@ -2802,9 +2831,14 @@ func (x *eventWatchClient) Recv() (*EventStreamMessage, error) {
 
 // EventServer is the server API for Event service.
 type EventServer interface {
+	// Reports multiple events at once
 	ReportMultiple(context.Context, *EventList) (*types.Empty, error)
+	// Reports a single event message
 	Report(context.Context, *EventMessage) (*types.Empty, error)
+	// Returns an event stream message
 	GetJobSetEvents(*JobSetRequest, Event_GetJobSetEventsServer) error
+	// Returns an event stream message to watch
+	// (deprecated)
 	Watch(*WatchRequest, Event_WatchServer) error
 }
 
