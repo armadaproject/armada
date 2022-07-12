@@ -6,9 +6,8 @@ Armada’s API is event driven, preventing it from integrating with tools, such 
 ## Proposed Change
 ### Notes
 - Add an optional caching API and service to Armada
-- Caches job_id:job_status relationship for subscribed (queue,job_set) tuples
-  - Is there other information this cache might need?
-- Probably written in go for performance and to reuse code from armadactl
+- Caches job_id:(job_status, message) relationship for subscribed (queue,job_set) tuples
+- Service is written in Go for performance and to reuse code from armadactl
 - Must not need to run N armada cache services for N Airflow DAGs
   - Run alongside of Armada cluster
     - Upside: It just works as part of a documented deployment of armada.
@@ -20,23 +19,12 @@ Armada’s API is event driven, preventing it from integrating with tools, such 
     - Upside: Armada cache would use creds from the armada user, provided by the human who needs the cache, making security essentially “free”
     - Downside: Much larger setup cost for an airflow user.
 
-### Questions
-- Should armadactl be the client used for the new armada cache service
-  - I think the go grpc client should be used
-- What should the new binary be named (armada-local-cache?)
-  - jobservice
-- Are there other Armada use cases that could benefit from this cache service, should we consider them in our design?
-  - Could any of this be useful for lookout?
-- Do we need armada client libraries to all support caching apis as well?
-  - Probably best to support them in all Armada client libs, but we need to figure out the API first
 
 ### Proposed Airflow Operator flow
 1. Create the job_set
 2. Sub the armada cache to the job_set:queue tuple needed
 3. [do the work to schedule the job]
 4. Status polling loop that talks to armada cache
-5. Maybe unsubscribe?
-   - If we do this, we’d need to reference count subscriptions so one DAG would not unsubscribe from the data other DAGs need.
 
 ## Alternative Options
 
