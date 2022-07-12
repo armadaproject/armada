@@ -76,7 +76,7 @@ Create a job request.
     * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
 
 
-    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
+    * **job_request_items** (*List**[**armada.submit_pb2.JobSubmitRequestItem**]*) – List of Job Request Items
 
 
 
@@ -96,7 +96,7 @@ Create a job request.
     * **priority** (*int*) – The priority of the job
 
 
-    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
+    * **pod_spec** (*k8s.io.api.core.v1.generated_pb2.PodSpec*) – The k8s pod spec of the job
 
 
     * **job_item_params** – All other job_item kwaarg
