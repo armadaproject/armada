@@ -180,6 +180,7 @@ namespace GResearch.Armada.Client
             }
         }
     
+        /// <summary>Returns an event stream message</summary>
         /// <returns>A successful response.(streaming responses)</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
         protected System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string queue, string id, ApiJobSetRequest body)
@@ -188,6 +189,7 @@ namespace GResearch.Armada.Client
         }
     
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>Returns an event stream message</summary>
         /// <returns>A successful response.(streaming responses)</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
         protected async System.Threading.Tasks.Task<FileResponse> GetJobSetEventsCoreAsync(string queue, string id, ApiJobSetRequest body, System.Threading.CancellationToken cancellationToken)
@@ -944,6 +946,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>The cause for a job to error.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public enum ApiCause
     {
@@ -961,6 +964,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>A containers status.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiContainerStatus 
     {
@@ -983,6 +987,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents at least one of the events from the events.proto file.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiEventMessage 
     {
@@ -1092,6 +1097,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a single Job and its k8s details.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJob 
     {
@@ -1172,6 +1178,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that has been cancelled.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobCancelledEvent 
     {
@@ -1193,6 +1200,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that is being cancelled.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobCancellingEvent 
     {
@@ -1214,6 +1222,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job is a duplicate of another job.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobDuplicateFoundEvent 
     {
@@ -1235,6 +1244,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that failed to run.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobFailedEvent 
     {
@@ -1284,6 +1294,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents the infomation on a job from ingress.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobIngressInfoEvent 
     {
@@ -1323,6 +1334,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents k8s saying a job has expired.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobLeaseExpiredEvent 
     {
@@ -1341,6 +1353,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents the data for a job that has been leased to a K8s cluster.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobLeaseReturnedEvent 
     {
@@ -1371,6 +1384,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job being leased to a K8s cluster.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobLeasedEvent 
     {
@@ -1392,6 +1406,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that is pending in the queue.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobPendingEvent 
     {
@@ -1425,6 +1440,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job being queued.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobQueuedEvent 
     {
@@ -1470,6 +1486,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that has been reprioritized.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobReprioritizedEvent 
     {
@@ -1494,6 +1511,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that is in the process of reprioritizing.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobReprioritizingEvent 
     {
@@ -1665,6 +1683,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job being submitted to the queue.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSubmittedEvent 
     {
@@ -1686,6 +1705,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that has been completed.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSucceededEvent 
     {
@@ -1722,6 +1742,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that has been termniated.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobTerminatedEvent 
     {
@@ -1758,6 +1779,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents a job that failed to schedule in the queue.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobUnableToScheduleEvent 
     {
@@ -1821,6 +1843,7 @@ namespace GResearch.Armada.Client
     
     }
     
+    /// <summary>Represents the data about a jobs utilization.</summary>
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobUtilisationEvent 
     {
