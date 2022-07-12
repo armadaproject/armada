@@ -4,12 +4,21 @@ CREATE TABLE queues (
 );
 
 CREATE TABLE jobs (
-    id text PRIMARY KEY,
+    jobId UUID PRIMARY KEY,
     jobSetHash bit(256) NOT NULL,
     queue text NOT NULL,
     priority double precision NOT NULL,
-    atMostOnce boolean NOT NULL,
-    claims json NOT NULL -- Dict mapping resource type to requested resources
+     -- Dict mapping resource type to amount requested.
+    claims json NOT NULL
+);
+
+CREATE TABLE runs (
+    runId UUID PRIMARY KEY,
+    jobId UUID NOT NULL,
+    -- Executor this job run is assigned to.
+    executor text NOT NULL,
+    -- Info of where this job is assigned to run. NULL until assigned to a node.
+    assignment json
 );
 
 CREATE TABLE executors (
@@ -23,9 +32,10 @@ CREATE TABLE executors (
     maxResources json NOT NULL
 );
 
-CREATE TABLE leases (
-    id text PRIMARY KEY,
-    job_id text NOT NULL,
-    executor_id text NOT NULL,
-    state text NOT NULL
+CREATE TABLE pulsar (
+    topic text PRIMARY KEY,
+    ledgerId bigint NOT NULL,
+    entryId bigint NOT NULL,
+    batchIdx int not NULL,
+    partitionIdx int NOT NULL
 );
