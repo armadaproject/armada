@@ -358,14 +358,7 @@ Definition can be found at:
 
 * **Parameters**
 
-    
-    * **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
-
-
-    * **message** – The message to be parsed
-
-
-    * **msg_type** – The type of message
+    **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
 
 
 
