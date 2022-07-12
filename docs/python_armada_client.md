@@ -69,7 +69,6 @@ Create a job request.
 
 * **Parameters**
 
-
     * **queue** (*str*) – The name of the queue
 
 
@@ -91,7 +90,6 @@ Create a job request.
 
 
 * **Parameters**
-
 
     * **priority** (*int*) – The priority of the job
 
