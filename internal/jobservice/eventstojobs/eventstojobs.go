@@ -33,9 +33,6 @@ func NewEventsToJobService(
 		jobServiceRepository: jobServiceRepository}
 }
 
-// TODO: This function will use redis and a pub/sub method.
-// For now, we will use the api for streaming events and allow for clients to treat this as polling.
-// This is not a production usecase yet.*jobservice.JobServiceResponse,
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 	return client.WithEventClient(&eventToJobService.apiConnection, func(c api.EventClient) error {
 		client.WatchJobSet(c, eventToJobService.queue, eventToJobService.jobsetid, true, true, context, func(state *domain.WatchContext, event api.Event) bool {
