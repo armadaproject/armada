@@ -64,12 +64,15 @@ class ArmadaOperator(BaseOperator):
         self.job_set_id = job_set_id
         self.job_request_items = job_request_items
 
-    def execute(self, context):
+    def execute(self, context) -> None:
         """
         Executes the Armada Operator.
 
         Runs an Armada job and calls the job_service_client for polling.
 
+        :param context: The airflow context.
+
+        :return: None
         """
         job = self.armada_client.submit_jobs(
             queue=self.queue,
@@ -79,9 +82,10 @@ class ArmadaOperator(BaseOperator):
 
         try:
             job_id = job.job_response_items[0].job_id
-            armada_logger.info(f"Running Armada job {self.name} with id {job_id}")
+            armada_logger.info("Running Armada job {} with id {}", self.name, job_id)
         except Exception:
             raise AirflowException("Armada has issues submitting job")
+
         job_state, job_message = search_for_job_complete(
             job_service_client=self.job_service,
             queue=self.queue,
@@ -90,8 +94,6 @@ class ArmadaOperator(BaseOperator):
             job_id=job_id,
         )
         armada_logger.info(
-            f"Armada Job finished with {job_state} and message: {job_message}"
+            "Armada Job finished with {} and message: {}", job_state, job_message
         )
         airflow_error(job_state, self.name, job_id)
-
-        return job_message

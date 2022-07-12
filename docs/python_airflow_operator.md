@@ -2,10 +2,10 @@
 docname: python_airflow_operator
 images: {}
 path: /python-airflow-operator
-title: armada package
+title: Armada Airflow Operator
 ---
 
-# armada package
+# Armada Airflow Operator
 
 ## armada.operators.armada module
 
@@ -51,6 +51,24 @@ Airflow operators inherit from BaseOperator.
 Executes the Armada Operator.
 
 Runs an Armada job and calls the job_service_client for polling.
+
+
+* **Parameters**
+
+    **context** – The airflow context.
+
+
+
+* **Returns**
+
+    None
+
+
+
+* **Return type**
+
+    None
+
 
 ## armada.operators.jobservice module
 

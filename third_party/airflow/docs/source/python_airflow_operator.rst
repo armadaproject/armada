@@ -1,7 +1,7 @@
 :orphan:
 
-armada package
-======================
+Armada Airflow Operator
+=======================
 
 armada.operators.armada module
 -----------------------------------

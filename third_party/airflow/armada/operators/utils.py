@@ -15,7 +15,9 @@ def airflow_error(job_state: str, name: str, job_id: str):
     :param name: The name of your armada job
     :param job_id: The job id that armada assigns to it
     :return: No Return or an AirflowFailException.
+
     AirflowFailException tells Airflow Schedule to not reschedule the task
+
     """
     if job_state == "succeeded":
         return
