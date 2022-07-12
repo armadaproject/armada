@@ -16,4 +16,3 @@ armada\_client.event module
 
 .. automodule:: armada_client.event
    :members:
-   :undoc-members:
