@@ -273,7 +273,7 @@ Uses SubmitJobs RPC to submit a job.
 
 
 
-#### unmarshal_event_response(event)
+#### _static_ unmarshal_event_response(event)
 Unmarshal an event response from the gRPC server.
 
 
