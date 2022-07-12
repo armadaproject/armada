@@ -1,8 +1,13 @@
+import enum
 import typing
 from dataclasses import dataclass
-import enum
 
-from armada_client.armada import event_pb2
+import google.protobuf.timestamp_pb2 as timestamp_pb2
+
+from armada_client.armada import event_pb2, queue_pb2
+from armada_client.k8s.io.apimachinery.pkg.api.resource import (
+    generated_pb2 as resource_pb2,
+)
 
 
 class EventType(enum.Enum):
@@ -38,6 +43,8 @@ class EventMessage:
     Based on event_pb2.EventMessage
     """
 
+    job: queue_pb2.Job
+
     job_id: str
     job_set_id: str
     queue: str
@@ -45,15 +52,21 @@ class EventMessage:
     pod_name: str
     pod_namespace: str
     cluster_id: str
-    created: str
     node_name: str
     reason: str
+    requestor: str
+
+    created: timestamp_pb2.Timestamp
 
     pod_number: int
+    new_priority: float
 
-    # TODO
-    container_statuses = "container_statuses"
-    exit_codes = "exit_codes"
+    container_statuses: typing.Iterable[event_pb2.ContainerStatus]
+
+    exit_codes: typing.Mapping[str, int]
+    ingress_addresses: typing.Mapping[int, str]
+    MaxResourcesForPeriod: typing.Mapping[str, resource_pb2.Quantity]
+    total_cumulative_usage: typing.Mapping[str, resource_pb2.Quantity]
 
 
 class Event:
