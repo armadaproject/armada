@@ -82,7 +82,7 @@ class ArmadaOperator(BaseOperator):
 
         try:
             job_id = job.job_response_items[0].job_id
-            armada_logger.info("Running Armada job {} with id {}", self.name, job_id)
+            armada_logger.info("Running Armada job %s with id %s", self.name, job_id)
         except Exception:
             raise AirflowException("Armada has issues submitting job")
 
@@ -94,6 +94,6 @@ class ArmadaOperator(BaseOperator):
             job_id=job_id,
         )
         armada_logger.info(
-            "Armada Job finished with {} and message: {}", job_state, job_message
+            "Armada Job finished with %s and message: %s", job_state, job_message
         )
         airflow_error(job_state, self.name, job_id)
