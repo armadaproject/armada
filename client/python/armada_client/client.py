@@ -69,10 +69,7 @@ class ArmadaClient:
         :return: An Event object.
         """
 
-        msg_type = event.message.WhichOneof("events")
-        message = getattr(event.message, msg_type)
-
-        return Event(event, message, msg_type)
+        return Event(event)
 
     def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
         """Submit a armada job.
