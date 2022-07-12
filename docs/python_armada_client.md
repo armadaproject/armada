@@ -279,7 +279,7 @@ Unmarshal an event response from the gRPC server.
 
 * **Parameters**
 
-    **event** (*EventStreamMessage*) – The event response from the gRPC server.
+    **event** (*armada.event_pb2.EventStreamMessage*) – The event response from the gRPC server.
 
 
 
@@ -291,7 +291,7 @@ Unmarshal an event response from the gRPC server.
 
 * **Return type**
 
-    *Event*
+    armada_client.event.Event
 
 
 
@@ -359,10 +359,10 @@ Definition can be found at:
 * **Parameters**
 
     
-    * **event** (*EventStreamMessage*) – The gRPC proto event
+    * **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
 
 
-    * **message** (*EventMessage*) – The message to be parsed
+    * **message** (*armada.event_pb2.EventMessage*) – The message to be parsed
 
 
     * **msg_type** (*str*) – The type of message
@@ -412,5 +412,50 @@ Based on event_pb2.EventMessage
 
 
 
-### _class_ armada_client.event.EventType(value)
+* **Return type**
+
+    None
+
+
+
+### _enum_ armada_client.event.EventType(value)
 Enum for the event states.
+
+Valid values are as follows:
+
+
+#### submitted(_ = <EventType.submitted: 'submitted'_ )
+
+#### queued(_ = <EventType.queued: 'queued'_ )
+
+#### duplicate_found(_ = <EventType.duplicate_found: 'duplicate_found'_ )
+
+#### leased(_ = <EventType.leased: 'leased'_ )
+
+#### lease_returned(_ = <EventType.lease_returned: 'lease_returned'_ )
+
+#### pending(_ = <EventType.pending: 'pending'_ )
+
+#### running(_ = <EventType.running: 'running'_ )
+
+#### unable_to_schedule(_ = <EventType.unable_to_schedule: 'unable_to_schedule'_ )
+
+#### failed(_ = <EventType.failed: 'failed'_ )
+
+#### succeeded(_ = <EventType.succeeded: 'succeeded'_ )
+
+#### reprioritized(_ = <EventType.reprioritized: 'reprioritized'_ )
+
+#### cancelling(_ = <EventType.cancelling: 'cancelling'_ )
+
+#### cancelled(_ = <EventType.cancelled: 'cancelled'_ )
+
+#### terminated(_ = <EventType.terminated: 'terminated'_ )
+
+#### utilisation(_ = <EventType.utilisation: 'utilisation'_ )
+
+#### ingress_info(_ = <EventType.ingress_info: 'ingress_info'_ )
+
+#### reprioritizing(_ = <EventType.reprioritizing: 'reprioritizing'_ )
+
+#### updated(_ = <EventType.updated: 'updated'_ )
