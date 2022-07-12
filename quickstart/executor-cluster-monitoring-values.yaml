@@ -1,0 +1,5 @@
+additionalLabels:
+  app: prometheus-operator
+  release: prometheus-operator
+
+interval: 5s
