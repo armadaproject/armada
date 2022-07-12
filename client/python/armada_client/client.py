@@ -61,7 +61,8 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
-    def unmarshal_event_response(self, event: event_pb2.EventStreamMessage) -> Event:
+    @staticmethod
+    def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
         """
         Unmarshal an event response from the gRPC server.
 
