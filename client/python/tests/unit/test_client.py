@@ -1,15 +1,16 @@
+from concurrent import futures
+
+import grpc
+import pytest
+
+from server_mock import EventService, SubmitService
+
+from armada_client.armada import event_pb2_grpc, submit_pb2_grpc
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from server_mock import EventService, SubmitService
-
-import grpc
-from concurrent import futures
-from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
-
-import pytest
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -60,7 +61,7 @@ def test_submit_job():
     tester.submit_jobs(
         queue="test",
         job_set_id="test",
-        job_request_items=[submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)],
+        job_request_items=[tester.create_job_request_item(priority=1, pod_spec=pod)],
     )
 
 
