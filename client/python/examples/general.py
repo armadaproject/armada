@@ -47,7 +47,7 @@ def create_dummy_job(client: ArmadaClient):
     """
 
     # For infomation on where this comes from,
-    # see: https://github.com/kubernetes/api/blob/master/core/v1/generated.proto
+    # see https://github.com/kubernetes/api/blob/master/core/v1/generated.proto
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
