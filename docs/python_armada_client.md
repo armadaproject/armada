@@ -322,7 +322,7 @@ Definition can be found at:
 
 
 
-### _class_ armada_client.event.EventMessage(job_id, job_set_id, queue, kubernetes_id, pod_name, pod_namespace, cluster_id, created, node_name, reason, pod_number)
+### _class_ armada_client.event.EventMessage(job, job_id, job_set_id, queue, kubernetes_id, pod_name, pod_namespace, cluster_id, node_name, reason, requestor, created, pod_number, new_priority, container_statuses, exit_codes, ingress_addresses, MaxResourcesForPeriod, total_cumulative_usage)
 EventMessage is the message type for the event stream.
 
 Based on event_pb2.EventMessage
@@ -331,6 +331,9 @@ Based on event_pb2.EventMessage
 * **Parameters**
 
     
+    * **job** (*armada.queue_pb2.Job*) – 
+
+
     * **job_id** (*str*) – 
 
 
@@ -352,16 +355,37 @@ Based on event_pb2.EventMessage
     * **cluster_id** (*str*) – 
 
 
-    * **created** (*str*) – 
-
-
     * **node_name** (*str*) – 
 
 
     * **reason** (*str*) – 
 
 
+    * **requestor** (*str*) – 
+
+
+    * **created** (*google.protobuf.timestamp_pb2.Timestamp*) – 
+
+
     * **pod_number** (*int*) – 
+
+
+    * **new_priority** (*float*) – 
+
+
+    * **container_statuses** (*Iterable**[**armada.event_pb2.ContainerStatus**]*) – 
+
+
+    * **exit_codes** (*Mapping**[**str**, **int**]*) – 
+
+
+    * **ingress_addresses** (*Mapping**[**int**, **str**]*) – 
+
+
+    * **MaxResourcesForPeriod** (*Mapping**[**str**, **k8s.io.apimachinery.pkg.api.resource.generated_pb2.Quantity**]*) – 
+
+
+    * **total_cumulative_usage** (*Mapping**[**str**, **k8s.io.apimachinery.pkg.api.resource.generated_pb2.Quantity**]*) – 
 
 
 
