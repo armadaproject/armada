@@ -7,8 +7,9 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/go-redis/redis"
+
+	"github.com/G-Research/armada/pkg/api/jobservice"
 )
 
 type JobServiceRepository interface {

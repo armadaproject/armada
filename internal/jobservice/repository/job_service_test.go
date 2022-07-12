@@ -8,6 +8,7 @@ import (
 
 	"github.com/G-Research/armada/pkg/api/jobservice"
 )
+
 func TestConstructJobServiceDoesNotExist(t *testing.T) {
 	withJobServiceRepo(func(r *RedisJobServiceRepository) {
 		var responseExpected = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
@@ -36,7 +37,6 @@ func TestConstructJobServiceFailed(t *testing.T) {
 	})
 }
 
-
 func TestConstructJobServiceNoJob(t *testing.T) {
 	withJobServiceRepo(func(r *RedisJobServiceRepository) {
 		var responseExpected = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
@@ -46,7 +46,6 @@ func TestConstructJobServiceNoJob(t *testing.T) {
 
 	})
 }
-
 
 func withJobServiceRepo(action func(r *RedisJobServiceRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6380", DB: 1})

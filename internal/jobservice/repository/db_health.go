@@ -1,8 +1,9 @@
 package repository
 
 import (
-	"github.com/go-redis/redis"
 	"fmt"
+
+	"github.com/go-redis/redis"
 )
 
 func HealthCheck(db redis.UniversalClient) error {

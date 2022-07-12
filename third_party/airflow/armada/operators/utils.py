@@ -70,6 +70,7 @@ def search_for_job_complete(
     while True:
         # The else statement is for testing purposes.
         # We want to allow a test callable to be passed
+        time.sleep(1.0)
         if job_service_client:
             job_status_return = job_status_callable(
                 queue=queue,
@@ -81,7 +82,6 @@ def search_for_job_complete(
             job_status_return = job_status_callable(
                 queue=queue, job_id=job_id, job_set_id=job_set_id
             )
-
         if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
             job_state = "succeeded"
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"

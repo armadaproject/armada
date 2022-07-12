@@ -55,7 +55,7 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 					log.Error(e)
 				}
 			}
-			// Active 
+			// Active
 			return state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
 		})
 		return nil
