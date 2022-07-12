@@ -5,7 +5,7 @@ PWD := $(shell pwd)
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
 # We do not check for 'date', since it's a cmdlet on Windows, which do not show up with where
 # (:= assignment is necessary to force immediate evaluation of expression)
-EXECUTABLES = git docker
+EXECUTABLES = git docker kubectl
 ifeq ($(platform),windows32)
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell where $(exec)),some string,$(error "No $(exec) in PATH")))
 else
