@@ -273,17 +273,25 @@ Uses SubmitJobs RPC to submit a job.
 
 
 
-#### unmarshal_event_message(event)
+#### unmarshal_event_response(event)
+Unmarshal an event response from the gRPC server.
+
 
 * **Parameters**
 
-    **event** (*EventStreamMessage*) – 
+    **event** (*EventStreamMessage*) – The event response from the gRPC server.
+
+
+
+* **Returns**
+
+    An Event object.
 
 
 
 * **Return type**
 
-    *Message*
+    *Event*
 
 
 
@@ -341,48 +349,8 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 ## armada_client.event module
 
 
-### _class_ armada_client.event.EventType(value)
-Enum for the event states.
-
-
-#### cancelled(_ = 'cancelled_ )
-
-#### cancelling(_ = 'cancelling_ )
-
-#### duplicate_found(_ = 'duplicate_found_ )
-
-#### failed(_ = 'failed_ )
-
-#### ingress_info(_ = 'ingress_info_ )
-
-#### lease_returned(_ = 'lease_returned_ )
-
-#### leased(_ = 'leased_ )
-
-#### pending(_ = 'pending_ )
-
-#### queued(_ = 'queued_ )
-
-#### reprioritized(_ = 'reprioritized_ )
-
-#### reprioritizing(_ = 'reprioritizing_ )
-
-#### running(_ = 'running_ )
-
-#### submitted(_ = 'submitted_ )
-
-#### succeeded(_ = 'succeeded_ )
-
-#### terminated(_ = 'terminated_ )
-
-#### unable_to_schedule(_ = 'unable_to_schedule_ )
-
-#### updated(_ = 'updated_ )
-
-#### utilisation(_ = 'utilisation_ )
-
-### _class_ armada_client.event.Message(message, msg_type)
-Represents a gRPC proto event message
+### _class_ armada_client.event.Event(event, message, msg_type)
+Represents a gRPC proto event
 
 Definition can be found at:
 [https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
@@ -391,7 +359,58 @@ Definition can be found at:
 * **Parameters**
 
     
-    * **message** (*EventStreamMessage*) – The message to be parsed
+    * **event** (*EventStreamMessage*) – The gRPC proto event
+
+
+    * **message** (*EventMessage*) – The message to be parsed
 
 
     * **msg_type** (*str*) – The type of message
+
+
+
+### _class_ armada_client.event.EventMessage(job_id, job_set_id, queue, kubernetes_id, pod_name, pod_namespace, cluster_id, created, node_name, reason, pod_number)
+EventMessage is the message type for the event stream.
+
+Based on event_pb2.EventMessage
+
+
+* **Parameters**
+
+    
+    * **job_id** (*str*) – 
+
+
+    * **job_set_id** (*str*) – 
+
+
+    * **queue** (*str*) – 
+
+
+    * **kubernetes_id** (*str*) – 
+
+
+    * **pod_name** (*str*) – 
+
+
+    * **pod_namespace** (*str*) – 
+
+
+    * **cluster_id** (*str*) – 
+
+
+    * **created** (*str*) – 
+
+
+    * **node_name** (*str*) – 
+
+
+    * **reason** (*str*) – 
+
+
+    * **pod_number** (*int*) – 
+
+
+
+### _class_ armada_client.event.EventType(value)
+Enum for the event states.
