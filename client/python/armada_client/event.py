@@ -71,9 +71,10 @@ class Event:
     def __init__(
         self,
         event: event_pb2.EventStreamMessage,
-        message: event_pb2.EventMessage,
-        msg_type: str,
     ):
+        msg_type = event.message.WhichOneof("events")
+        message = getattr(event.message, msg_type)
+
         self.type: EventType = EventType(msg_type)
         self.message: EventMessage = typing.cast(EventMessage, message)
         self.id: int = event.id

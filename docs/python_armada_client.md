@@ -302,7 +302,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 ## armada_client.event module
 
 
-### _class_ armada_client.event.Event(event, message, msg_type)
+### _class_ armada_client.event.Event(event)
 Represents a gRPC proto event
 
 Definition can be found at:
@@ -315,10 +315,10 @@ Definition can be found at:
     * **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
 
 
-    * **message** (*armada.event_pb2.EventMessage*) – The message to be parsed
+    * **message** – The message to be parsed
 
 
-    * **msg_type** (*str*) – The type of message
+    * **msg_type** – The type of message
 
 
 
