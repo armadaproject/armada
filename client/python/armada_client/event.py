@@ -1,11 +1,11 @@
 import typing
 from dataclasses import dataclass
-from enum import Enum
+import enum
 
 from armada_client.armada import event_pb2
 
 
-class EventType(Enum):
+class EventType(enum.Enum):
     """
     Enum for the event states.
     """
