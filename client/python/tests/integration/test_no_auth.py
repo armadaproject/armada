@@ -1,16 +1,15 @@
+import time
 import uuid
-from armada_client.armada import (
-    submit_pb2,
-)
+import os
+import grpc
+import pytest
+
+
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-import grpc
-import time
-import os
-import pytest
 
 
 def client() -> ArmadaClient:
@@ -121,4 +120,4 @@ def submit_sleep_job():
         ],
     )
 
-    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+    return [no_auth_client.create_job_request_item(priority=0, pod_spec=pod)]
