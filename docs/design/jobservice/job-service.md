@@ -53,30 +53,10 @@ This is impractical because we do not have Airflow contributors on staff, and th
   - Redis is likely ideal for this case
 
 ## API (impact/changes?)
-- What should be the API between Armada <-> Armada cache?
-```
-message JobServiceRequest {
-    string job_id = 1;
-    string job_set_id = 2;
-    string queue = 3;
-}
-
-message JobServiceResponse {
-    string state = 1;
-    string error = 2;
-}
-
-service JobService {
-    rpc GetJobStatus (JobServiceRequest) returns (JobServiceResponse) {
-    }
-}
-```
 - What should be the API between Armada cache <-> Airflow?
   - The proto file above will generate a python client where they can call get_job_status with job_id, job_set_id and queue specified.  All of these are known by the Airflow Operator.
   - [API Definition](https://github.com/G-Research/armada/blob/master/pkg/api/jobservice/jobservice.proto)
-- Need some kind of subscription ability; where we pass a job set id + queue to tell the cache to start caching those events.
-  - I don't think we should include an API to start subscription.  I think it should be forced.
-  - JobSet subscription will happen automatically for all tasks in a dag.   
+- JobSet subscription will happen automatically for all tasks in a dag.   
 - Does Armada’s existing API need to be modified or added to at all?
   - No.
 
@@ -88,17 +68,14 @@ We must ensure that the Armada cache is implemented in such a way that it does n
 - Update production deployment guides
 
 ## Use Cases
-A couple of example ways a local Armada cache might be used in context of an Airflow DAG.
 
-### Simple use case, may not scale
-1. Spin up a sidecar container containing armada cache using kubernetes operator
-2. Run armada jobs using armada operator
-3. Kill the sidecar container when job is complete
-
-### Advanced use case, more scalable
-1. Spin up container outside of airflow, save your host:port info for later
-2. For each DAG you need to run, ensure it has the host:port to the externally managed armada cache container
-3. When you are completed running all airflow jobs, terminate the container
+### Airflow Operator
+1) User creates a dag
+2) Dag setup includes ArmadaPythonClient and JobServiceClient
+3) Airflow operator takes both ArmadaPythonClient and JobServiceClient
+4) Airflow operator submits job via ArmadaPythonClient
+5) Airflow operator polls JobServiceClient via GetJobStatus 
+6) Once Armada has a terminal event, the airflow task is complete.
 
 ### Implementation Plan
 
@@ -110,6 +87,7 @@ I have a PR that implements this [plan](https://github.com/G-Research/armada/pul
 - Added ApiConnection and GRPC configuration parameters
 - Implemented the GetJobStatus rpc call that reaches out to events service to get status of job. This is not exactly what we want.
 - Reports Error on failed jobs where Events proto has a Reason field
+
 
 ### Subscription
 
@@ -123,6 +101,19 @@ If we don't have a subscription, create one using the armada go client (grpc api
 - The local redis should just store jobId -> state mappings.  Any messages you get that don't correspond to states we care about (ingresses, unableToSchedule) just ignore.
 - Return the latest state.  If we just subscribed then it's probably "not found"
 The armada operator just polls for the job state. The first poll for a given jobset will cause a subscription to be made for that jobset.
+
+### Airflow Sequence Diagram
+
+![AirflowSequence](./airflow-sequence.svg)
+
+
+### JobService Server Diagram
+
+![JobService](./job-service.svg)
+
+- EventClient is the GRPC public GRPC client for watching events
+
+- The JobService deployment consists of a GRPC Go Server and a redis cache.
 
 ### Open questions:
 
