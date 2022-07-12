@@ -77,8 +77,6 @@ class Event:
     https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284
 
     :param event: The gRPC proto event
-    :param message: The message to be parsed
-    :param msg_type: The type of message
     """
 
     def __init__(
