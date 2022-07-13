@@ -20,6 +20,9 @@ from armada.operators.jobservice import JobServiceClient
 
 
 def submit_sleep_job():
+    """
+    Simple armada job
+    """
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
@@ -45,6 +48,10 @@ def submit_sleep_job():
 
 
 def submit_bad_job():
+    """
+    This job demonstrates a failure.
+    The image name is nonexistant so the ArmadaJob will fail.
+    """
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
@@ -76,6 +83,12 @@ with DAG(
     catchup=False,
     default_args={"retries": 2},
 ) as dag:
+    """
+    This Airflow DAG follows a similar pattern.
+    1) Create your clients and jobservice clients.
+    2) Define your ArmadaOperator tasks that you want to run
+    3) Generate a DAG definition
+    """
     no_auth_client = ArmadaClient(
         channel=grpc.insecure_channel(target="127.0.0.1:50051")
     )
@@ -93,6 +106,9 @@ with DAG(
         armada_client=no_auth_client,
         job_request_items=submit_sleep_job(),
     )
+    """
+    This task is used to verify that if an Armada Job fails we are correctly telling Airflow that it failed.
+    """
     bad_armada = ArmadaOperator(
         task_id="armada_fail",
         name="armada_fail",
@@ -111,4 +127,9 @@ with DAG(
         armada_client=no_auth_client,
         job_request_items=submit_sleep_job(),
     )
+    """
+    Airflow syntax to say
+    Run op first and then run armada and bad_armada in parallel
+    If all jobs are successful, run good_armada.
+    """
     op >> [armada, bad_armada] >> good_armada
