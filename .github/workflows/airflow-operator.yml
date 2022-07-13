@@ -45,14 +45,9 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-      - run: pip install tox poetry
+      - run: pip install tox
       # Generate the proto files for python, required for later steps
       - run: make python
-      # Builds the wheel file for armada python client
-      # This is used as a dependency for airflow.
-      - run: |
-          poetry build
-        working-directory: client/python
       - run: make airflow-operator
       - name: Run tox format environment
         run: tox -e format
@@ -60,7 +55,6 @@ jobs:
       - name: Verify docs updated if needed
         run: tox -e docs-check
         working-directory: third_party/airflow
-
       - name: Run tox python 3.9 unit tests
         run: tox -e py39
         working-directory: third_party/airflow
