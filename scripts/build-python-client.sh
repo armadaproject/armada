@@ -6,10 +6,9 @@ mkdir -p proto/armada
 cp pkg/api/event.proto pkg/api/queue.proto pkg/api/submit.proto pkg/api/usage.proto proto/armada
 sed -i 's/\([^\/]\)pkg\/api/\1armada/g' proto/armada/*.proto
 
-
 # generate python stubs
-cd proto 
-python3 -m grpc_tools.protoc -I. --python_out=../client/python/armada_client --grpc_python_out=../client/python/armada_client \
+cd proto
+python3 -m grpc_tools.protoc -I. --plugin=protoc-gen-mypy=$(which protoc-gen-mypy) --python_out=../client/python/armada_client --grpc_python_out=../client/python/armada_client --mypy_out=../client/python/armada_client \
     google/api/annotations.proto \
     google/api/http.proto \
     armada/event.proto armada/queue.proto armada/submit.proto armada/usage.proto \

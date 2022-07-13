@@ -53,6 +53,7 @@ packages
 client/python/dist
 .python-version
 *_pb2.py
+*_pb2.pyi
 *_pb2_grpc.py
 client/python/armada_client/armada/
 .tox
