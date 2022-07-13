@@ -48,8 +48,9 @@ jobs:
       - run: pip install tox poetry
       # Generate the proto files for python, required for later steps
       - run: make python
+      # Builds the wheel file for armada python client
+      # This is used as a dependency for airflow.
       - run: |
-          poetry install -v
           poetry build
         working-directory: client/python
       - run: make airflow-operator
