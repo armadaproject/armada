@@ -20,6 +20,8 @@ pytest = "^7.1.2"
 tox = "^3.25.0"
 mypy = "^0.961"
 flake8 = "^4.0.1"
+mypy-protobuf = "^3.2.0"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

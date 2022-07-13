@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 project = 'python-armadaairflowoperator'
 copyright = '2022 Armada Project'
-author = 'kevin@gr-oss.io'
+author = 'armada@armadaproject.io'
 
 
 # -- General configuration ---------------------------------------------------
