@@ -9,7 +9,7 @@ sed -i 's/\([^\/]\)pkg\/api/\1jobservice/g' proto-airflow/*.proto
 
 # generate python stubs
 cd proto-airflow 
-python3 -m grpc_tools.protoc -I. --python_out=../third_party/airflow/armada/jobservice --grpc_python_out=../third_party/airflow/armada/jobservice \
+python3 -m grpc_tools.protoc -I. --plugin=protoc-gen-mypy=$(which protoc-gen-mypy) --mypy_out=../third_party/airflow/armada/jobservice --python_out=../third_party/airflow/armada/jobservice --grpc_python_out=../third_party/airflow/armada/jobservice \
     jobservice.proto 
 cd ..
 # This hideous code is because we can't use python package option in grpc.
