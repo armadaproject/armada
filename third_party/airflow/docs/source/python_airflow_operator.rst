@@ -2,6 +2,7 @@
 
 Armada Airflow Operator
 =======================
+This class provides integration with Airflow and Armada
 
 armada.operators.armada module
 -----------------------------------

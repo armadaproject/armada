@@ -107,7 +107,8 @@ with DAG(
         job_request_items=submit_sleep_job(),
     )
     """
-    This task is used to verify that if an Armada Job fails we are correctly telling Airflow that it failed.
+    This task is used to verify that if an Armada Job
+    fails we are correctly telling Airflow that it failed.
     """
     bad_armada = ArmadaOperator(
         task_id="armada_fail",
