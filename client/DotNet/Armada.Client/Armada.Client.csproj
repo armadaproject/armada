@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <PackageId>G-Research.Armada.Client</PackageId>
-    <Version>0.0.1</Version>
+    <Version>0.0.2</Version>
     <Authors>G-Research</Authors>
     <Company>G-Research</Company>    
     <Description>Armada.Client is a .NET core library for communicating with Armada server implemented in C#</Description>
@@ -17,7 +17,11 @@
   </ItemGroup>
 
   <Target Name="NSwag">
-    <Exec Command="nswag openapi2csclient /ProtectedMethods:ArmadaClient.GetJobSetEventsAsync /classname:ArmadaClient /namespace:GResearch.Armada.Client /input:../../../pkg/api/api.swagger.json /output:ClientGenerated.cs" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+          Command="nswag openapi2csclient /ProtectedMethods:ArmadaClient.GetJobSetEventsAsync /classname:ArmadaClient /namespace:GResearch.Armada.Client /input:../../../pkg/api/api.swagger.json /output:ClientGenerated.cs" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+          Command="nswag openapi2csclient /ProtectedMethods:ArmadaClient.GetJobSetEventsAsync /classname:ArmadaClient /namespace:GResearch.Armada.Client /input:../../../pkg/api/api.swagger.json /output:ClientGenerated.cs" />
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+Command="$(NSwagExe_Net60) openapi2csclient /ProtectedMethods:ArmadaClient.GetJobSetEventsAsync /classname:ArmadaClient /namespace:GResearch.Armada.Client /input:../../../pkg/api/api.swagger.json /output:ClientGenerated.cs" />
   </Target>
-  
 </Project>
