@@ -11,12 +11,15 @@ namespace GResearch.Armada.Client.Test
         public static DateTimeOffset now = (DateTimeOffset)DateTime.UtcNow;
         public static string testQueue = "test-" + now.ToUnixTimeSeconds().ToString();
 
-        public static string testServer = "https://armada.dev.armadaproject.io/api";
+        // ARMADA_SERVER should be defined in this process's environment, of the
+        // format  https://armada-server-hostname/api
+        public static string testServer = Environment.GetEnvironmentVariable("ARMADA_SERVER");
 
         [Test]
         [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestWatchingEvents()
         {
+            Assert.That(testServer, Is.Not.Null);
             var client = new ArmadaClient(testServer, new HttpClient());
 
             var jobSet = $"set-{Guid.NewGuid()}";
@@ -54,6 +57,7 @@ namespace GResearch.Armada.Client.Test
         {
             var jobSet = $"set-{Guid.NewGuid()}";
 
+            Assert.That(testServer, Is.Not.Null);
             IArmadaClient client = new ArmadaClient(testServer, new HttpClient());
             await client.CreateQueueAsync(new ApiQueue {Name = testQueue, PriorityFactor = 200});
 
