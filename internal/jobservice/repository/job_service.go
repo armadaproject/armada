@@ -21,15 +21,19 @@ type RedisJobServiceRepository struct {
 }
 
 func NewRedisJobServiceRepository(db redis.UniversalClient) *RedisJobServiceRepository {
-	err := HealthCheck(db)
-	if err != nil {
-		panic(err)
-	}
 	return &RedisJobServiceRepository{db: db}
 }
 
+func (jsr *RedisJobServiceRepository) HealthCheck() bool {
+	err := HealthCheck(jsr.db)
+	if err != nil {
+		panic(err)
+	}
+	return true
+}
 func (jsr *RedisJobServiceRepository) GetJobStatus(jobId string) (*jobservice.JobServiceResponse, error) {
 	val, err := jsr.db.Get(jobId).Result()
+	log.Infof("GetJobStatus jobId: %s value: %s err: %s", jobId, val, err)
 	if err == redis.Nil {
 		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	} else if err != nil {

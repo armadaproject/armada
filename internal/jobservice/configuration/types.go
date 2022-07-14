@@ -17,4 +17,6 @@ type JobServiceConfiguration struct {
 	Redis         redis.UniversalOptions
 	// Configurable value that translates to number of seconds
 	SubscribeJobSetTime int64
+	// Testing for skipping redis
+	SkipRedisCache bool
 }

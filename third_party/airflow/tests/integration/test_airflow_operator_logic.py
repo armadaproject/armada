@@ -88,7 +88,7 @@ def test_success_job():
 
 
 def test_bad_job():
-    job_set_name = f"set-{uuid.uuid1()}"
+    job_set_name = "test-bad-job"
 
     job = no_auth_client.submit_jobs(
         queue="test",
@@ -106,3 +106,43 @@ def test_bad_job():
     )
     assert job_state == "failed"
     assert job_message.startswith(f"Armada test:{job_id} failed")
+
+def test_two_jobs():
+    job_set_name = "test-two-jobs"
+
+    first_job = no_auth_client.submit_jobs(
+        queue="test",
+        job_set_id=job_set_name,
+        job_request_items=sleep_job(),
+    )
+    first_job_id = first_job.job_response_items[0].job_id
+    print(first_job_id)
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=job_service_client,
+        queue="test",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=first_job_id,
+    )
+    assert job_state == "succeeded"
+    assert job_message == f"Armada test:{first_job_id} succeeded"
+
+    second_job = no_auth_client.submit_jobs(
+        queue="test",
+        job_set_id=job_set_name,
+        job_request_items=sleep_job(),
+    )
+    second_job_id = second_job.job_response_items[0].job_id
+    print(second_job_id)
+
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=job_service_client,
+        queue="test",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=second_job_id,
+    )
+    assert job_state == "succeeded"
+    assert job_message == f"Armada test:{second_job_id} succeeded"
