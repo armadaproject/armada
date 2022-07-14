@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
@@ -143,6 +144,11 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 				break // Unrecognised job id
 			}
 
+			// Record terminated jobs.
+			if isTerminalEvent(actual) {
+				jobIds[actualJobId] = true
+			}
+
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
 				i++
@@ -174,6 +180,8 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 	case *api.EventMessage_Succeeded:
 		return true
 	case *api.EventMessage_Cancelled:
+		return true
+	case *api.EventMessage_DuplicateFound:
 		return true
 	}
 	return false
@@ -267,8 +275,13 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 
 func getFromIngress(ctx context.Context, host string) error {
 	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
+	ingressUseTls := strings.TrimSpace(strings.ToLower(os.Getenv("ARMADA_EXECUTOR_USE_TLS")))
 	if ingressUrl == "" {
-		ingressUrl = "http://" + host
+		if ingressUseTls != "" && ingressUseTls != "false" && ingressUseTls != "0" {
+			ingressUrl = "https://" + host
+		} else {
+			ingressUrl = "http://" + host
+		}
 	}
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
