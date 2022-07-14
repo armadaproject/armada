@@ -2,7 +2,7 @@
 name = "armada_airflow"
 version = "0.1.0"
 description = "Armada Airflow Operator"
-requires-python = ">=3.9"
+requires-python = ">=3.7,<3.9"
 # Note(JayF): This dependency value is not suitable for release. Whatever
 # release automation we create will have to change this to a dep on a pypi
 # package, but we can't do that now because it would make development
@@ -10,9 +10,8 @@ requires-python = ">=3.9"
 dependencies = [
 	"armada-client",
 	"apache-airflow~=2.3.1",
-	"grpcio~=1.47.0",
-	"grpcio-tools~=1.47.0",
-	"importlib-metadata~=4.12.0"
+	"grpcio~=1.46.1",
+	"grpcio-tools~=1.46.1",
 ]
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
