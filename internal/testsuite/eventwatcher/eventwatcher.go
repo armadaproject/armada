@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
@@ -269,8 +270,13 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 
 func getFromIngress(ctx context.Context, host string) error {
 	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
+	ingressUseTls := strings.TrimSpace(strings.ToLower(os.Getenv("ARMADA_EXECUTOR_USE_TLS")))
 	if ingressUrl == "" {
-		ingressUrl = "http://" + host
+		if ingressUseTls != "" && ingressUseTls != "false" && ingressUseTls != "0" {
+			ingressUrl = "https://" + host
+		} else {
+			ingressUrl = "http://" + host
+		}
 	}
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
