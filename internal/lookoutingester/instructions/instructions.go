@@ -405,9 +405,11 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 
 			jobRunUpdate := &model.UpdateJobRunInstruction{
 				RunId:     runId,
-				Started:   &ts,
 				Succeeded: pointer.Bool(false),
 				Finished:  &ts,
+			}
+			if runId == eventutil.LEGACY_RUN_ID {
+				jobRunUpdate.Started = &ts
 			}
 
 			switch reason := e.Reason.(type) {
