@@ -292,21 +292,31 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	fmt.Fprint(a.Out, "All job transitions:\n")
 	eventLogger.Log()
 
-	// Cancel any jobs still running.
+	// Cancel any jobs we haven't seen a terminal event for.
 	client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
-		ctx = context.Background()
-		ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-			Queue:    testSpec.GetQueue(),
-			JobSetId: testSpec.GetJobSetId(),
-		})
-		if err != nil {
-			fmt.Fprintf(a.Out, "\nError cancelling jobs: %s\n", err.Error())
-		} else if len(res.GetCancelledIds()) > 0 {
-			fmt.Fprintf(a.Out, "\nCancelled %v\n", res.GetCancelledIds())
+		cancelGroup, ctx := errgroup.WithContext(ctx)
+		for jobId, hasTerminated := range jobIdMap {
+			if hasTerminated {
+				continue
+			}
+			jobId := jobId
+			cancelGroup.Go(func() error {
+				res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
+					Queue:    testSpec.GetQueue(),
+					JobSetId: testSpec.GetJobSetId(),
+					JobId:    jobId,
+				})
+				if err != nil {
+					fmt.Fprintf(a.Out, "\nError cancelling jobs: %s\n", err.Error())
+				} else if len(res.GetCancelledIds()) > 0 {
+					fmt.Fprintf(a.Out, "\nCancelled %v\n", res.GetCancelledIds())
+				}
+				return err
+			})
 		}
-		return err
+		return cancelGroup.Wait()
 	})
 
 	return err
