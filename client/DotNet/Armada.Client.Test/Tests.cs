@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using RichardSzalay.MockHttp;
@@ -9,16 +10,16 @@ namespace GResearch.Armada.Client.Test
     public class Tests
     {
         public static DateTimeOffset now = (DateTimeOffset)DateTime.UtcNow;
-        public static string testQueue = "test-" + now.ToUnixTimeSeconds().ToString();
 
         // ARMADA_SERVER should be defined in this process's environment, of the
         // format  https://armada-server-hostname/api
         public static string testServer = Environment.GetEnvironmentVariable("ARMADA_SERVER");
 
         [Test]
-        [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestWatchingEvents()
         {
+            var testQueue = "test-" + Guid.NewGuid();
+
             Assert.That(testServer, Is.Not.Null);
             var client = new ArmadaClient(testServer, new HttpClient());
 
@@ -29,7 +30,7 @@ namespace GResearch.Armada.Client.Test
             // produce some events
             await client.CreateQueueAsync(new ApiQueue {Name = testQueue, PriorityFactor = 200});
 
-            var request = CreateJobRequest(jobSet);
+            var request = CreateJobRequest(jobSet, testQueue);
             var response = await client.SubmitJobsAsync(request);
             Assert.That(response.JobResponseItems.Count, Is.EqualTo(1));
 
@@ -37,17 +38,17 @@ namespace GResearch.Armada.Client.Test
                 Assert.That(jobRespItem.Error, Is.Null);
             }
 
-            // var cancelResponse =
-            //     await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = testQueue, JobSetId = jobSet});
+            var cancelResponse =
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = testQueue, JobSetId = jobSet});
 
-            // using (var cts = new CancellationTokenSource())
-            // {
-            //     var eventCount = 0;
-            //     Task.Run(() => client.WatchEvents(testQueue, jobSet, null, cts.Token, m => eventCount++, e => throw e));
-            //     await Task.Delay(TimeSpan.FromMinutes(2));
-            //     cts.Cancel();
-            //     Assert.That(eventCount, Is.EqualTo(4));
-            // }
+            using (var cts = new CancellationTokenSource())
+            {
+                var eventCount = 0;
+                Task.Run(() => client.WatchEvents(testQueue, jobSet, null, cts.Token, m => eventCount++, e => throw e));
+                await Task.Delay(TimeSpan.FromMinutes(2));
+                cts.Cancel();
+                Assert.That(eventCount, Is.EqualTo(4));
+            }
 
             client.DeleteQueueAsync(testQueue);
         }
@@ -55,13 +56,14 @@ namespace GResearch.Armada.Client.Test
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
+            var testQueue = "test-" + Guid.NewGuid();
             var jobSet = $"set-{Guid.NewGuid()}";
 
             Assert.That(testServer, Is.Not.Null);
             IArmadaClient client = new ArmadaClient(testServer, new HttpClient());
             await client.CreateQueueAsync(new ApiQueue {Name = testQueue, PriorityFactor = 200});
 
-            var request = CreateJobRequest(jobSet);
+            var request = CreateJobRequest(jobSet, testQueue);
 
             var response = await client.SubmitJobsAsync(request);
             var cancelResponse =
@@ -107,7 +109,7 @@ namespace GResearch.Armada.Client.Test
             Assert.That(n, Is.EqualTo(2));
         }
 
-        private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
+        private static ApiJobSubmitRequest CreateJobRequest(string jobSet, string testQueue)
         {
             var pod = new V1PodSpec
             {
