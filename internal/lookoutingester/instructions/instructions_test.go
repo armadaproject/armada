@@ -295,7 +295,6 @@ var expectedJobReprioritised = model.UpdateJobInstruction{
 var expectedFailed = model.UpdateJobRunInstruction{
 	RunId:     runIdString,
 	Node:      pointer.String(nodeName),
-	Started:   &baseTime,
 	Finished:  &baseTime,
 	Succeeded: pointer.Bool(false),
 	Error:     pointer.String(errMsg),

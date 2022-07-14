@@ -393,7 +393,8 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			// Certain legacy events mean we don't have a valid run id
 			// In this case we have to invent a fake run
 			// TODO: remove this when the legacy messages go away!
-			if runId == eventutil.LEGACY_RUN_ID {
+			isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
+			if isLegacyEvent {
 				jobRun := createFakeJobRun(jobId, ts)
 				runId = jobRun.RunId
 				objectMeta := extractMetaFromError(e)
@@ -408,7 +409,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 				Succeeded: pointer.Bool(false),
 				Finished:  &ts,
 			}
-			if runId == eventutil.LEGACY_RUN_ID {
+			if isLegacyEvent {
 				jobRunUpdate.Started = &ts
 			}
 
