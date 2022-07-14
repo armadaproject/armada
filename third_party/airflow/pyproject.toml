@@ -10,8 +10,8 @@ requires-python = ">=3.7,<3.9"
 dependencies = [
 	"armada-client",
 	"apache-airflow~=2.3.1",
-	"grpcio~=1.46.1",
-	"grpcio-tools~=1.46.1",
+	"grpcio~=1.46.3",
+	"grpcio-tools~=1.46.3",
 ]
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }

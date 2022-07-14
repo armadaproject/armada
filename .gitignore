@@ -49,7 +49,7 @@ packages
 # python
 # Pycache, dist, poetry versions
 # and ignore protoc generated files
-*.egg_info/
+*.egg-info/
 *.pyc
 client/python/dist
 .python-version

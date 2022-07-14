@@ -172,6 +172,12 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
 
 
 
+* **Return type**
+
+    *JobServiceResponse*
+
+
+
 ### armada.operators.utils.search_for_job_complete(queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
 Poll JobService cache until you get a terminated event.
 
