@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc/encoding/gzip"
+
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
@@ -59,7 +61,7 @@ func CreateApiConnectionWithCallOptions(
 		grpc_retry.WithMax(5),
 	}
 
-	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true))
+	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true), grpc.UseCompressor(gzip.Name))
 	defaultCallOptions := grpc.WithDefaultCallOptions(callOptions...)
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
