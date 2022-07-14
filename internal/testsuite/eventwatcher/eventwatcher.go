@@ -144,6 +144,11 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 				break // Unrecognised job id
 			}
 
+			// Record terminated jobs.
+			if isTerminalEvent(actual) {
+				jobIds[actualJobId] = true
+			}
+
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
 				i++
