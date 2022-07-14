@@ -3,6 +3,8 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -394,6 +396,10 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			if runId == eventutil.LEGACY_RUN_ID {
 				jobRun := createFakeJobRun(jobId, ts)
 				runId = jobRun.RunId
+				objectMeta := extractMetaFromError(e)
+				if objectMeta != nil {
+					jobRun.Cluster = objectMeta.ExecutorId
+				}
 				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
 			}
 
@@ -404,6 +410,8 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 				Finished:  &ts,
 			}
 
+			fmt.Println(reflect.TypeOf(e.Reason))
+			fmt.Printf("%v\n", e.Reason)
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
 				truncatedMsg := truncate(reason.PodError.GetMessage(), 2048)
@@ -419,20 +427,37 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 				truncatedMsg := truncate(reason.PodTerminated.GetMessage(), 2048)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 			case *armadaevents.Error_PodUnschedulable:
-				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
+				truncatedMsg := truncate(reason.PodUnschedulable.GetMessage(), 2048)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			case *armadaevents.Error_PodLeaseReturned:
-				jobRunUpdate.Error = pointer.String("Lease Returned")
+				truncatedMsg := truncate(reason.PodLeaseReturned.GetMessage(), 2048)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			default:
+				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
 			break
 		}
+	}
+	return nil
+}
+
+func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
+	switch err := e.Reason.(type) {
+	case *armadaevents.Error_PodError:
+		return err.PodError.ObjectMeta
+	case *armadaevents.Error_PodTerminated:
+		return err.PodTerminated.ObjectMeta
+	case *armadaevents.Error_PodUnschedulable:
+		return err.PodUnschedulable.ObjectMeta
+	case *armadaevents.Error_PodLeaseReturned:
+		return err.PodLeaseReturned.ObjectMeta
 	}
 	return nil
 }
