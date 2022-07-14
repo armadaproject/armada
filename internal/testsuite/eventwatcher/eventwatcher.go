@@ -175,6 +175,8 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 		return true
 	case *api.EventMessage_Cancelled:
 		return true
+	case *api.EventMessage_DuplicateFound:
+		return true
 	}
 	return false
 }
