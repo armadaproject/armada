@@ -11,6 +11,12 @@ jobs:
           resources:
             limits:
               nvidia.com/gpu: 1
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              nvidia.com/gpu: 1
+              memory: 10Mi
+              cpu: 100m
       nodeSelector:
         armada.io/batch: "true"
       tolerations:

@@ -1,0 +1,30 @@
+numBatches: 2
+batchSize: 3
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      containers:
+        - name: cuda-container
+          image: nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda10.2
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              nvidia.com/gpu: 1
+              memory: 10Mi
+              cpu: 100m
+      nodeSelector:
+        armada.io/batch: "true"
+      tolerations:
+        - effect: NoSchedule
+          key: armada.io/batch
+          operator: Exists
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:
