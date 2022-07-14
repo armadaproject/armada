@@ -3,6 +3,8 @@ package eventlogger
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +13,7 @@ import (
 )
 
 type EventsLogger struct {
+	Out                        io.Writer
 	c                          chan *api.EventMessage
 	interval                   time.Duration
 	transitionsByJobId         map[string][]string
@@ -20,6 +23,7 @@ type EventsLogger struct {
 
 func New(c chan *api.EventMessage, interval time.Duration) *EventsLogger {
 	return &EventsLogger{
+		Out:      os.Stdout,
 		c:        c,
 		interval: interval,
 	}
@@ -47,10 +51,9 @@ func (srv *EventsLogger) flushAndLog() {
 
 	// Print the number of jobs for each unique sequence of state transitions.
 	for transitions, counts := range CountJobsByTransitions(continuedTransitionsByJobId) {
-		fmt.Printf("%d:\t%s\n", counts, transitions)
+		fmt.Fprintf(srv.Out, "%d:\t%s\n", counts, transitions)
 	}
-	fmt.Println() // Indicates the end of the interval.
-	// fmt.Printf("> %d active jobs (%d submitted, %d succeded, and %d failed in interval)\n\n", numActive, numSubmitted, numSucceded, numFailed)
+	fmt.Fprintf(srv.Out, "\n") // Indicates the end of the interval.
 
 	// Move transitions over to the global map and reset the interval map.
 	for jobId, transitions := range srv.intervalTransitionsByJobId {
@@ -63,7 +66,7 @@ func (srv *EventsLogger) Log() {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	for transitions, counts := range CountJobsByTransitions(srv.transitionsByJobId) {
-		fmt.Printf("%d:\t%s\n", counts, transitions)
+		fmt.Fprintf(srv.Out, "%d:\t%s\n", counts, transitions)
 	}
 }
 

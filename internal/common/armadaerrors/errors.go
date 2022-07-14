@@ -50,7 +50,7 @@ func (err *ErrNoPermission) Error() (s string) {
 		s = fmt.Sprintf("%s lacks permission %s", err.Principal, err.Permission)
 	}
 	if err.Message != "" {
-		s = s + fmt.Sprintf("; %s", err.Message)
+		s += fmt.Sprintf("; %s", err.Message)
 	}
 	return
 }
@@ -71,9 +71,8 @@ func (err *ErrAlreadyExists) Error() (s string) {
 	}
 	if err.Message != "" {
 		return s + fmt.Sprintf("; %s", err.Message)
-	} else {
-		return s
 	}
+	return s
 }
 
 // ErrNotFound is a generic error to be returned whenever some resource isn't found.
@@ -110,9 +109,8 @@ type ErrInvalidArgument struct {
 func (err *ErrInvalidArgument) Error() string {
 	if err.Message == "" {
 		return fmt.Sprintf("value %q is invalid for field %q", err.Value, err.Name)
-	} else {
-		return fmt.Sprintf("value %q is invalid for field %q; %s", err.Value, err.Name, err.Message)
 	}
+	return fmt.Sprintf("value %q is invalid for field %q; %s", err.Value, err.Name, err.Message)
 }
 
 // ErrMaxRetriesExceeded is an error that indicates we have retried an operation so many times that we have given up
@@ -156,9 +154,8 @@ func (err *ErrCreateResource) Error() string {
 }
 
 // retryablePostgresErrors represents set of postgres errors that can be retried. Fundamentally these are all
-//issues with postgres itself, with the network or with authentication
+// issues with postgres itself, with the network or with authentication
 var retryablePostgresErrors = map[string]bool{
-
 	// Connection issues
 	pgerrcode.ConnectionException:                           true,
 	pgerrcode.ConnectionDoesNotExist:                        true,
@@ -249,7 +246,6 @@ var retryablePostgresErrors = map[string]bool{
 // CodeFromError maps error types to gRPC return codes.
 // Uses errors.As to look through the chain of errors, as opposed to just considering the topmost error in the chain.
 func CodeFromError(err error) codes.Code {
-
 	// Check if the error is a gRPC status and, if so, return the embedded code.
 	// If the error is nil, this returns an OK status code.
 	if s, ok := status.FromError(err); ok {
@@ -314,7 +310,6 @@ var PULSAR_CONNECTION_ERRORS = []pulsar.Result{
 // For details, see
 // https://stackoverflow.com/questions/22761562/portable-way-to-detect-different-kinds-of-network-error
 func IsNetworkError(err error) bool {
-
 	// Return immediately on nil.
 	if err == nil {
 		return false
@@ -460,7 +455,6 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 }
 
 func IsRetryablePostgresError(err error) bool {
-
 	// Return immediately on nil.
 	if err == nil {
 		return false
@@ -509,13 +503,13 @@ func (err *ErrPodUnschedulable) Error() string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "can't schedule pod on any node type; ")
+	_, _ = fmt.Fprintf(&b, "can't schedule pod on any node type: ")
 	i := 0
 	for reason, count := range err.countFromReason {
-		fmt.Fprintf(&b, "%d node type(s) excluded because %s", count, reason)
+		_, _ = fmt.Fprintf(&b, "%d node type(s) excluded because %s", count, reason)
 		i++
 		if i < len(err.countFromReason) {
-			fmt.Fprintf(&b, ", ")
+			_, _ = fmt.Fprintf(&b, ", ")
 		}
 	}
 	return b.String()
