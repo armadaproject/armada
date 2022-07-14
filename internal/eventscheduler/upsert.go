@@ -3,70 +3,56 @@ package eventscheduler
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
-// func ProtoRecordFromSqlRecord(sqlRecord *Record) (*transitions.Record, error) {
-// 	return &transitions.Record{
-// 		Id:      sqlRecord.ID.String(),
-// 		Value:   sqlRecord.Value,
-// 		Payload: sqlRecord.Payload,
-// 	}, nil
-// }
-
-// func SqlRecordFromProtoRecord(protoRecord *transitions.Record) (Record, error) {
-// 	id, err := uuid.Parse(protoRecord.Id)
-// 	if err != nil {
-// 		return Record{}, err
-// 	}
-// 	return Record{
-// 		ID:      id,
-// 		Value:   protoRecord.Value,
-// 		Payload: protoRecord.Payload,
-// 	}, nil
-// }
-
-// UpsertRecord representes a type that can be bulk-upserted using the postgres COPY protocol.
-type UpsertRecord interface {
-	// Names returns the field names. Must be of at least length 2.
-	// The first element must be the unique id of this record.
-	// For example, ["id", "width", "height"]
-	// Names() []string
-	// Values returns a slice containing the values of this record.
-	// Must be of length equal to the slice returned by Names().
-	// For example, [0, 10, 20].
-	// Values() ([]interface{}, error)
-	// Schema returns the string representation of this record's schema.
-	// For example:
-	// (
-	//	id int PRIMARY KEY,
-	//  width int NOT NULL,
-	//  height int NOT NULL,
-	// )
-	Schema() string
-}
-
 // ErrStaleWrite is a custom error type returned by UpsertRecords if the db already contains
-// more recent data than what we're trying to write.
+// data as or more recent than what we're trying to write.
 type ErrStaleWrite struct {
 	// Message id of the most recent message attempted to write.
-	writeMessageId pulsar.MessageID
+	WriteMessageId pulsar.MessageID
 	// Message id stored in the database.
-	dbMessageId pulsar.MessageID
+	DbMessageId pulsar.MessageID
 }
 
 func (err *ErrStaleWrite) Error() string {
-	return fmt.Sprintf("stale write: id %s is less recent than %s", err.writeMessageId, err.dbMessageId)
+	return fmt.Sprintf("stale write: id %s is less recent than %s", err.WriteMessageId, err.DbMessageId)
 }
 
-// UpsertRecords is an optimized hand-written SQL call for upserting many records in a single operation.
-// TODO: We're using Sprintf to create SQL commands. Surely there's a better way.
-// TODO: I didn't get using UUIDs as table names to work. Maybe because there are rules for how table names must be formatted.
+// UpsertRecords is an optimized SQL call for upserting many records in a single operation.
+//
+// For efficiency, this function:
+// 1. Creates an empty temporary SQL table.
+// 2. Inserts all records into the temporary table using the postgres-specific COPY wire protocol.
+// 3. Upserts all records from the temporary table into the table with name tableName.
+//
+// The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
+// https://www.postgresql.org/docs/current/populate.html
+// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
+//
+// The records to write should be structs with fields marked with "db" tags.
+// Field names and values are extracted using the NamesValuesFromRecord function;
+// see its definition for details.
+//
+// The temporary table is created with the provided schema, which should be of the form
+// (
+//   id UUID PRIMARY KEY,
+//   width int NOT NULL,
+//   height int NOT NULL
+// )
+// I.e., it should omit everything before and after the "(" and ")", respectively.
+//
+// This function relies on Pulsar message ids for idempotent writes; the write fails if writeMessageId is stale,
+// i.e., if the message id stored in the database is as or more recent than writeMessageId.
+// If so, the returned error is of type ErrStaleWrite and contains the id stored in the db.
+// The message id is stored with primary key topicName.
 func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutils.PulsarMessageId, tableName string, topicName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
@@ -88,27 +74,21 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutil
 			return errors.WithStack(err)
 		}
 		dbMessageId := pulsarMessageIdFromPulsarRecord(sqlWriteMessageId)
-		// dbMessageId := pulsarutils.New(
-		// 	sqlWriteMessageId.Ledgerid,
-		// 	sqlWriteMessageId.Entryid,
-		// 	sqlWriteMessageId.Partitionidx,
-		// 	sqlWriteMessageId.Batchidx,
-		// )
 
 		// If the id loaded from the database is at least as recent as the one provided, abort the transaction.
-		// Since the data we're trying to write is stale.
+		// Since the data we're trying to write is stale (or at least not new).
 		isGreaterEqual, err := dbMessageId.GreaterEqual(writeMessageId)
 		if err != nil {
 			return err
 		}
 		if dbHasId && isGreaterEqual {
 			return errors.WithStack(&ErrStaleWrite{
-				writeMessageId: writeMessageId,
-				dbMessageId:    dbMessageId,
+				WriteMessageId: writeMessageId,
+				DbMessageId:    dbMessageId,
 			})
 		}
 
-		// Otherwise we have more recent data than what is already stored in the db, which we should write.
+		// Otherwise, we have more recent data than what is already stored in the db that we should write.
 		// We also update the message id stored in the db to reflect these writes.
 		err = queries.UpsertMessageId(ctx, UpsertMessageIdParams{
 			Topic:        topicName,
@@ -125,26 +105,8 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutil
 		// First, create a temporary table for loading data in bulk using the copy protocol.
 		//
 		// We're guaranteed there is at least one record.
-		//
-		// To make this function thread-safe, randomly generate a new table name at each invocation.
-		// This table is automatically dropped at the end of the transaction using the "ON COMMIT" instruction.
-		// Because tables names must start with an alphabetic character, we prepend an "A".
-		// tempTable := "A" + shortuuid.New()
-		// 		tempTable := "foobar"
-		// 		_, err = tx.Exec(ctx, fmt.Sprintf(`
-		// CREATE TEMPORARY TABLE %s (
-		// id uuid PRIMARY KEY,
-		// value integer NOT NULL,
-		// payload text NOT NULL,
-		// deleted boolean NOT NULL
-		// ) ON COMMIT DROP;
-		// `, tempTable))
-		// 		if err != nil {
-		// 			return err
-		// 		}
 		tempTableName := "insert"
 		_, err = tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s %s ON COMMIT DROP;", tempTableName, schema))
-		// _, err = tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s %s ON COMMIT DROP;", tempTableName, records[0].Schema()))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -153,7 +115,6 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutil
 		// The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 		// https://www.postgresql.org/docs/current/populate.html
 		// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
-		// names := records[0].Names()
 		names, _ := NamesValuesFromRecord(records[0])
 		if len(names) < 2 {
 			return errors.Errorf("Names() must return at least 2 elements, but got %v", names)
@@ -161,17 +122,8 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutil
 		n, err := tx.CopyFrom(ctx,
 			pgx.Identifier{tempTableName},
 			names,
-			//[]string{"id", "value", "payload", "deleted"},
 			pgx.CopyFromSlice(len(records), func(i int) ([]interface{}, error) {
-				// Postgres expects UUIDs to be encoded in binary format.
-				//binaryUUID, err := records[i].ID.MarshalBinary()
-				//if err != nil {
-				//	return nil, err
-				//}
-				// return []interface{}{records[i].ID, records[i].Value, records[i].Payload, records[i].Deleted}, nil
-				// return records[i].Values()
 				_, values := NamesValuesFromRecord(records[i])
-				fmt.Println(values)
 				return values, nil
 			}),
 		)
@@ -183,24 +135,17 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutil
 		}
 
 		// Move those rows into the main table, using ON CONFLICT rules to over-write existing rows.
-		// namesWithoutId := names[1:]
 		var b strings.Builder
 		fmt.Fprintf(&b, "INSERT INTO %s SELECT * from %s ", tableName, tempTableName)
 		fmt.Fprintf(&b, "ON CONFLICT (%s) DO UPDATE SET ", names[0])
 		for i, name := range names[1:] {
 			fmt.Fprintf(&b, "%s = EXCLUDED.%s", name, name)
-			fmt.Println(i, " ", len(names))
 			if i != len(names)-2 {
 				fmt.Fprintf(&b, ", ")
 			}
 		}
 		fmt.Fprint(&b, ";")
-		fmt.Println("Copy: ", b.String())
 		_, err = tx.Exec(ctx, b.String())
-		// 		_, err = tx.Exec(ctx, fmt.Sprintf(`
-		// INSERT INTO records SELECT * from %s
-		// ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, payload = EXCLUDED.payload, deleted = EXCLUDED.deleted;
-		// `, tempTable))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -216,4 +161,77 @@ func pulsarMessageIdFromPulsarRecord(pulsarRecord Pulsar) *pulsarutils.PulsarMes
 		pulsarRecord.Partitionidx,
 		pulsarRecord.Batchidx,
 	)
+}
+
+// NamesFromRecord returns a slice composed of the field names in a struct marked with "db" tags.
+//
+// For example, if x is an instance of a struct with definition
+// type Rectangle struct {
+//	Width int  `db:"width"`
+//	Height int `db:"height"`
+// },
+// it returns ["width", "height"].
+func NamesFromRecord(x interface{}) []string {
+	t := reflect.TypeOf(x)
+	names := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name := t.Field(i).Tag.Get("db")
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// ValuesFromRecord returns a slice composed of the values of the fields in a struct marked with "db" tags.
+//
+// For example, if x is an instance of a struct with definition
+// type Rectangle struct {
+//  Name string,
+//	Width int  `db:"width"`
+//	Height int `db:"height"`
+// },
+// where Width = 5 and Height = 10, it returns [5, 10].
+func ValuesFromRecord(x interface{}) []interface{} {
+	t := reflect.TypeOf(x)
+	v := reflect.ValueOf(x)
+	values := make([]interface{}, 0, v.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name := t.Field(i).Tag.Get("db")
+		if name != "" {
+			value := v.Field(i).Interface()
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+// NamesValuesFromRecord returns a slice composed of the field names
+// and another composed of the corresponding values
+// for fields of a struct marked with "db" tags.
+//
+// For example, if x is an instance of a struct with definition
+// type Rectangle struct {
+//	Width int  `db:"width"`
+//	Height int `db:"height"`
+// },
+// where Width = 10 and Height = 5,
+// it returns ["width", "height"], [10, 5].
+//
+// This function does not handle pointers to structs,
+// i.e., x must be Rectangle{} and not &Rectangle{}.
+func NamesValuesFromRecord(x interface{}) ([]string, []interface{}) {
+	t := reflect.TypeOf(x)
+	v := reflect.ValueOf(x)
+	names := make([]string, 0, t.NumField())
+	values := make([]interface{}, 0, v.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name := t.Field(i).Tag.Get("db")
+		if name != "" {
+			names = append(names, name)
+			value := v.Field(i).Interface()
+			values = append(values, value)
+		}
+	}
+	return names, values
 }

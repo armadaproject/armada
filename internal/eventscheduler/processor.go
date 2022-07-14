@@ -62,6 +62,9 @@ import (
 // So it can continously write to the db
 // Once I have this part working, I need
 
+// Upserts are working
+// Let's clean it up a bit
+
 type SchedulerProcessor struct {
 	Consumer pulsar.Consumer
 	// Logger from which the loggers used by this service are derived

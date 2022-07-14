@@ -2,34 +2,27 @@ package eventscheduler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
-// Record type used to test upserts.
+// Used for tests.
 type Record struct {
 	Id      uuid.UUID `db:"id"`
 	Value   int       `db:"value"`
 	Message string    `db:"message"`
+	Notes   string    // Note no db tag
 }
-
-// func (r Record) Names() []string {
-// 	return []string{"id", "value", "message"}
-// }
-
-// func (r Record) Values() ([]interface{}, error) {
-// 	return []interface{}{r.id, r.value, r.message}, nil
-// }
 
 const SCHEMA string = `(
 	id UUID PRIMARY KEY,
@@ -39,6 +32,26 @@ const SCHEMA string = `(
 
 func (r Record) Schema() string {
 	return SCHEMA
+}
+
+func TestNamesFromRecord(t *testing.T) {
+	r := Record{
+		Id:      uuid.New(),
+		Value:   123,
+		Message: "abcö",
+	}
+	names := NamesFromRecord(r)
+	assert.Equal(t, []string{"id", "value", "message"}, names)
+}
+
+func TestValuesFromRecord(t *testing.T) {
+	r := Record{
+		Id:      uuid.New(),
+		Value:   123,
+		Message: "abcö",
+	}
+	values := ValuesFromRecord(r)
+	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message}, values)
 }
 
 func TestNamesValuesFromRecord(t *testing.T) {
@@ -68,7 +81,6 @@ func withSetup(action func(queries *Queries, db *pgx.Conn, tableName string) err
 
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
 	db, err := pgx.Connect(ctx, connectionString)
-	// db, err := pgx.Connect(ctx, "postgres://postgres:pws@localhost:5432/test")
 	if err != nil {
 		return err
 	}
@@ -99,7 +111,6 @@ func withSetup(action func(queries *Queries, db *pgx.Conn, tableName string) err
 		return err
 	}
 
-	fmt.Println(RunsSchema)
 	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE runs %s;", RunsSchema))
 	if err != nil {
 		return err
@@ -113,49 +124,164 @@ func withSetup(action func(queries *Queries, db *pgx.Conn, tableName string) err
 	return action(New(db), db, "runs")
 }
 
-func TestUpsertMany(t *testing.T) {
+func TestUpsert(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
-		// var records []UpsertRecord
-		records := makeRuns(10)
-		// records[0].Schema()
+
+		// Insert rows, read them back, and compare.
+		expected := makeRuns(10)
 		start := time.Now()
-		writeMessageId := pulsarutils.New(0, 0, 0, 0)
-		fmt.Println("tableName ", tableName)
-		err := UpsertRecords(ctx, db, pulsarutils.FromMessageId(writeMessageId), tableName, "topic", RunsSchema, records)
-		// err := UpsertRecords(ctx, db, writeMessageId, records)
+		err := UpsertRecords(ctx, db, pulsarutils.New(0, 0, 0, 0), tableName, "topic", RunsSchema, interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Printf("upserted %d records in %s\n", len(records), time.Since(start))
+		fmt.Printf("upserted %d records in %s\n", len(expected), time.Since(start))
 
-		fetchedRuns, err := queries.ListRuns(ctx)
+		actual, err := queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		expected := make([]Run, len(records))
-		for i, v := range records {
-			foo, ok := v.(Run)
-			if !ok {
-				return errors.New("could not convert")
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		// Change one record, upsert, read back, and compare.
+		expected[0].Executor = "foo"
+		start = time.Now()
+		err = UpsertRecords(ctx, db, pulsarutils.New(0, 1, 0, 0), tableName, "topic", RunsSchema, interfacesFromRuns(expected))
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Printf("updated %d records in %s\n", len(expected), time.Since(start))
+		actual, err = queries.ListRuns(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestIdempotence(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+
+		// Insert rows, read them back, and compare.
+		expected := makeRuns(10)
+		records := expected
+		start := time.Now()
+		writeMessageId := pulsarutils.New(0, 1, 0, 0)
+		err := UpsertRecords(ctx, db, writeMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Printf("upserted %d records in %s\n", len(expected), time.Since(start))
+
+		actual, err := queries.ListRuns(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		// Insert again with the same id and check that it fails.
+		records = makeRuns(1)
+		err = UpsertRecords(ctx, db, writeMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
+		var e *ErrStaleWrite
+		if !assert.ErrorAs(t, err, &e) {
+			return nil
+		}
+		if !assert.NotNil(t, e.WriteMessageId) {
+			return nil
+		}
+		if !assert.NotNil(t, e.DbMessageId) {
+			return nil
+		}
+		ok, err := writeMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
+		assert.NoError(t, err)
+		assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
+		ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
+		assert.NoError(t, err)
+		assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
+
+		actual, err = queries.ListRuns(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		// Insert with a past id and check that it fails.
+		records = makeRuns(1)
+		newWriteMessageId := pulsarutils.New(0, 0, 0, 0)
+		err = UpsertRecords(ctx, db, newWriteMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
+		if !assert.ErrorAs(t, err, &e) {
+			return nil
+		}
+		if !assert.NotNil(t, e.WriteMessageId) {
+			return nil
+		}
+		if !assert.NotNil(t, e.DbMessageId) {
+			return nil
+		}
+		ok, err = newWriteMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
+		assert.NoError(t, err)
+		assert.True(t, ok, "expected %s, but got %s", newWriteMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
+		ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
+		assert.NoError(t, err)
+		assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
+
+		actual, err = queries.ListRuns(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestConcurrency(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+
+		// Each thread inserts non-overlapping rows, reads them back, and compares.
+		for i := 0; i < 100; i++ {
+			i := i
+			expected := makeRuns(10)
+			executor := fmt.Sprintf("executor-%d", i)
+			setRunsExecutor(expected, executor)
+			err := UpsertRecords(ctx, db, pulsarutils.New(0, 0, 0, 0), tableName, fmt.Sprintf("topic-%d", i), RunsSchema, interfacesFromRuns(expected))
+			if !assert.NoError(t, err) {
+				return nil
 			}
-			expected[i] = foo
-			fetchedRuns[i].LastModified = time.Time{}
+
+			runs, err := queries.ListRuns(ctx)
+			if !assert.NoError(t, err) {
+				return nil
+			}
+			actual := make([]Run, 0)
+			for _, run := range runs {
+				if run.Executor == executor {
+					actual = append(actual, run)
+				}
+			}
+			if !assertRunsEqual(t, expected, actual) {
+				return nil
+			}
 		}
-		assert.Equal(t, expected, fetchedRuns)
-
-		// // Test updates
-		// incrementValues(records)
-		// writeMessageId = pulsar.LatestMessageID()
-		// start = time.Now()
-		// err = UpsertRecords(ctx, db, writeMessageId, records)
-		// assert.NoError(t, err)
-		// fmt.Printf("updated %d records in %s\n", len(records), time.Since(start))
-
-		// fetchedRecords, err = queries.ListRecords(ctx)
-		// assert.NoError(t, err)
-		// assert.Equal(t, records, fetchedRecords)
 
 		return nil
 	})
@@ -180,40 +306,53 @@ func makeRecords(nrecords, payloadSize int) []interface{} {
 	rv := make([]interface{}, nrecords)
 	for i, v := range records {
 		rv[i] = v
-		fmt.Println("rv[i] ", i, " ", v)
 	}
 	return rv
 }
 
-// // Increment the values stored in records. Useful to test updates.
-// func incrementValues(records []Record) {
-// 	for _, record := range records {
-// 		record.Value += 1
-// 	}
-// }
+// assertRunsEqual is a utility function for comparing two slices of runs.
+// First sorts both slices.
+func assertRunsEqual(t *testing.T, expected, actual []Run) bool {
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].RunID.String() < expected[j].RunID.String()
+	})
+	sort.Slice(actual, func(i, j int) bool {
+		return actual[i].RunID.String() < actual[j].RunID.String()
+	})
+	return assert.Equal(t, expected, actual)
+}
 
-// Return nrecords records, each with payloadSize bytes of payload.
-// The returned slice is sorted by ID.
-func makeRuns(nrecords int) []interface{} {
-	vs := make([]Run, nrecords)
-	for i := 0; i < nrecords; i++ {
-		vs[i] = Run{
-			RunID:      uuid.New(),
-			JobID:      uuid.New(),
-			Executor:   "executor",
-			Assignment: pgtype.JSON{},
+// makeRuns is a utility functions that returns n randomly generated runs structs.
+func makeRuns(n int) []Run {
+	runs := make([]Run, n)
+	for i := 0; i < n; i++ {
+		runs[i] = Run{
+			RunID:        uuid.New(),
+			JobID:        uuid.New(),
+			Executor:     uuid.NewString(), // A randomly generated string used for tests.
+			Assignment:   pgtype.JSON{},
+			LastModified: time.Date(2022, time.July, 13, 9, 27, 0, 0, time.Local),
 		}
-		vs[i].Assignment.Set(struct {
+		err := runs[i].Assignment.Set(struct { // Upsert fails if the json is empty.
 			Node string `json:"node"`
 		}{Node: "foo"})
+		if err != nil {
+			panic(err)
+		}
 	}
-	sort.Slice(vs, func(i, j int) bool {
-		return vs[i].RunID.String() < vs[j].RunID.String()
-	})
-	rv := make([]interface{}, nrecords)
-	for i, v := range vs {
+	return runs
+}
+
+func setRunsExecutor(runs []Run, executor string) {
+	for i := range runs {
+		runs[i].Executor = executor
+	}
+}
+
+func interfacesFromRuns(runs []Run) []interface{} {
+	rv := make([]interface{}, len(runs))
+	for i, v := range runs {
 		rv[i] = v
-		fmt.Println("rv[i] ", i, " ", v)
 	}
 	return rv
 }

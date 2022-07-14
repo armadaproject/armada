@@ -3,7 +3,6 @@ package eventscheduler
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -19,7 +18,6 @@ func init() {
 		panic(err)
 	}
 	RunsSchema = schema
-	fmt.Println("Read runs schema ", schema)
 
 	schema, err = schemaFromFile("./sql/schema/pulsar.sql", "pulsar")
 	if err != nil {
@@ -100,62 +98,3 @@ func (r Run) Schema() string {
 // 	}
 // 	return values
 // }
-
-// NamesFromRecord returns a slice composed of the field names in a struct marked with "db" tags.
-//
-// For example, if x is an instance of a struct with definition
-// type Rectangle struct {
-//	Width int  `db:"width"`
-//	Height int `db:"height"`
-// },
-// it returns ["width", "height"].
-// TODO: Remove
-func NamesFromRecord(x interface{}) []string {
-	t := reflect.TypeOf(x)
-	names := make([]string, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		names[i] = t.Field(i).Tag.Get("db")
-	}
-	return names
-}
-
-// ValuesFromRecord
-// TODO: Remove
-func ValuesFromRecord(x interface{}) []interface{} {
-	v := reflect.ValueOf(x)
-	values := make([]interface{}, v.NumField())
-	for i := 0; i < v.NumField(); i++ {
-		values[i] = v.Field(i).Interface()
-	}
-	return values
-}
-
-// NamesValuesFromRecord returns a slice composed of the field names
-// and another composed of the corresponding values
-// for fields of a struct marked with "db" tags.
-//
-// For example, if x is an instance of a struct with definition
-// type Rectangle struct {
-//	Width int  `db:"width"`
-//	Height int `db:"height"`
-// },
-// where Width = 10 and Height = 5,
-// it returns ["width", "height"], [10, 5].
-//
-// This function does not handle pointers to structs,
-// i.e., x must be Rectangle{} and not &Rectangle{}.
-func NamesValuesFromRecord(x interface{}) ([]string, []interface{}) {
-	t := reflect.TypeOf(x)
-	v := reflect.ValueOf(x)
-	names := make([]string, 0, t.NumField())
-	values := make([]interface{}, 0, v.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		name := t.Field(i).Tag.Get("db")
-		if name != "" {
-			names = append(names, name)
-			value := v.Field(i).Interface()
-			values = append(values, value)
-		}
-	}
-	return names, values
-}
