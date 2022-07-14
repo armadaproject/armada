@@ -3,8 +3,6 @@ package instructions
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -410,8 +408,6 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 				Finished:  &ts,
 			}
 
-			fmt.Println(reflect.TypeOf(e.Reason))
-			fmt.Printf("%v\n", e.Reason)
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
 				truncatedMsg := truncate(reason.PodError.GetMessage(), 2048)
