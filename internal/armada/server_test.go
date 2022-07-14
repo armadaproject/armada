@@ -20,6 +20,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
 	authConfiguration "github.com/G-Research/armada/internal/common/auth/configuration"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/health"
@@ -205,14 +206,14 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 				Auth: authConfiguration.AuthConfig{
 					AnonymousAuth: true,
 					PermissionGroupMapping: map[permission.Permission][]string{
-						permissions.ExecuteJobs:    {"everyone"},
-						permissions.SubmitJobs:     {"everyone"},
-						permissions.SubmitAnyJobs:  {"everyone"},
-						permissions.CreateQueue:    {"everyone"},
-						permissions.CancelJobs:     {"everyone"},
-						permissions.CancelAnyJobs:  {"everyone"},
-						permissions.WatchEvents:    {"everyone"},
-						permissions.WatchAllEvents: {"everyone"},
+						permissions.ExecuteJobs:    {authorization.EveryoneGroup},
+						permissions.SubmitJobs:     {authorization.EveryoneGroup},
+						permissions.SubmitAnyJobs:  {authorization.EveryoneGroup},
+						permissions.CreateQueue:    {authorization.EveryoneGroup},
+						permissions.CancelJobs:     {authorization.EveryoneGroup},
+						permissions.CancelAnyJobs:  {authorization.EveryoneGroup},
+						permissions.WatchEvents:    {authorization.EveryoneGroup},
+						permissions.WatchAllEvents: {authorization.EveryoneGroup},
 					},
 				},
 				GrpcPort: uint16(port),
