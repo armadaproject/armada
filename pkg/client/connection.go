@@ -6,13 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc/encoding/gzip"
-
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/G-Research/armada/internal/common"
@@ -54,8 +53,8 @@ func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...
 func CreateApiConnectionWithCallOptions(
 	config *ApiConnectionDetails,
 	additionalDefaultCallOptions []grpc.CallOption,
-	additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
-
+	additionalDialOptions ...grpc.DialOption,
+) (*grpc.ClientConn, error) {
 	retryOpts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 		grpc_retry.WithMax(5),
@@ -96,19 +95,14 @@ func CreateApiConnectionWithCallOptions(
 func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredentials, error) {
 	if config.BasicAuth.Username != "" {
 		return &config.BasicAuth, nil
-
 	} else if config.OpenIdAuth.ProviderUrl != "" {
 		return oidc.AuthenticatePkce(config.OpenIdAuth)
-
 	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {
 		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth)
-
 	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)
-
 	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
-
 	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {
 		return oidc.AuthenticateKubernetes(config.OpenIdKubernetesAuth)
 	} else if config.KerberosAuth.Enabled {
