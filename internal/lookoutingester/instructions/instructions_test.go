@@ -48,6 +48,7 @@ const priority = 3
 const newPriority = 4
 const podNumber = 6
 const errMsg = "sample error message"
+const leaseReturnedMsg = "lease returned error message"
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 
@@ -189,7 +190,7 @@ var jobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
-// Job LeaseR eturned
+// Job Lease Returned
 var jobLeaseReturned = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
@@ -199,7 +200,12 @@ var jobLeaseReturned = &armadaevents.EventSequence_Event{
 				{
 					Terminal: true,
 					Reason: &armadaevents.Error_PodLeaseReturned{
-						PodLeaseReturned: &armadaevents.PodLeaseReturned{},
+						PodLeaseReturned: &armadaevents.PodLeaseReturned{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								ExecutorId: executorId,
+							},
+							Message: leaseReturnedMsg,
+						},
 					},
 				},
 			},
@@ -288,6 +294,7 @@ var expectedJobReprioritised = model.UpdateJobInstruction{
 
 var expectedFailed = model.UpdateJobRunInstruction{
 	RunId:     runIdString,
+	Node:      pointer.String(nodeName),
 	Started:   &baseTime,
 	Finished:  &baseTime,
 	Succeeded: pointer.Bool(false),
@@ -425,7 +432,7 @@ func TestFailedWithMissingRunId(t *testing.T) {
 			{
 				JobId:   jobIdString,
 				RunId:   jobRun.RunId,
-				Cluster: "UNKNOWN",
+				Cluster: executorId,
 				Created: baseTime,
 			},
 		},
@@ -435,7 +442,7 @@ func TestFailedWithMissingRunId(t *testing.T) {
 				Started:          &baseTime,
 				Finished:         &baseTime,
 				Succeeded:        pointer.Bool(false),
-				Error:            pointer.String("Lease Returned"),
+				Error:            pointer.String(leaseReturnedMsg),
 				UnableToSchedule: pointer.Bool(true),
 			},
 		},
