@@ -96,7 +96,7 @@ To run NATS Streaming for development you can use docker:
 docker run -d -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
 ```
 
-For armada configuration check end to end test setup:
+For Armada configuration check end to end test setup:
 ```bash
 go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml --config ./e2e/setup/nats/armada-config.yaml
 ```
@@ -183,7 +183,7 @@ make e2e-stop-cluster
 
 This project uses code generation.
 
-The armada api is defined using proto files which are used to generate Go source code (and the c# client) for our gRPC communication.
+The Armada api is defined using proto files which are used to generate Go source code (and the c# client) for our gRPC communication.
 
 To generate source code from proto files:
 

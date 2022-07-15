@@ -1,4 +1,10 @@
-on: [push]
+on:
+  push:
+    branches-ignore:
+      - master
+  pull_request:
+    branches-ignore:
+      - gh-pages
 
 jobs:
   go-lint:

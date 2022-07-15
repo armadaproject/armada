@@ -11,4 +11,6 @@ kubeadmConfigPatches:
         "enable-admission-plugins": "NamespaceLifecycle,LimitRanger,ServiceAccount,TaintNodesByCondition,Priority,DefaultTolerationSeconds,DefaultStorageClass,PersistentVolumeClaimResize,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota"
 nodes:
   - role: control-plane
+    image: "kindest/node:v1.21.10"
   - role: worker
+    image: "kindest/node:v1.21.10"
