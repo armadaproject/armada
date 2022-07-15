@@ -3,7 +3,6 @@ package instructions
 import (
 	"context"
 	"encoding/json"
-	"github.com/G-Research/armada/internal/common/util"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -17,6 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
