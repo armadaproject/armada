@@ -38,8 +38,9 @@ var DefaultNodeSpec = []*NodeSpec{
 		Name:  "worker",
 		Count: 500,
 		Allocatable: map[v1.ResourceName]resource.Quantity{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("128Gi"),
+			"cpu":               resource.MustParse("8"),
+			"memory":            resource.MustParse("128Gi"),
+			"ephemeral-storage": resource.MustParse("256Gi"),
 		},
 	},
 }
