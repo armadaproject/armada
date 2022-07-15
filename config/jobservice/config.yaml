@@ -1,6 +1,6 @@
 grpcPort: 60003
 httpPort: 8090
-SubscribeJobSetTime: 5
+SubscribeJobSetTime: 60
 SkipRedisCache: true
 
 apiConnection:

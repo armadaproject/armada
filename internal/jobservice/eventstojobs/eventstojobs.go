@@ -11,7 +11,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/domain"
 )
 
 type EventsToJobService struct {
@@ -38,84 +37,49 @@ func NewEventsToJobService(
 
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 	return client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
-		client.WatchJobSet(c, eventToJobService.queue, eventToJobService.jobsetid, true, true, context, func(state *domain.WatchContext, event api.Event) bool {
-			duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second
-			t1 := time.NewTimer(duration)
-			eventMessage, err := api.Wrap(event)
-			if err != nil {
-				log.Error(err)
+		jobIdMap, err := eventToJobService.StreamCommon(c, context)
+		for key, element := range jobIdMap {
+			e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(key, element)
+			if e != nil {
+				panic(e)
 			}
-			if !IsEventAJobResponse(*eventMessage) {
-			} else {
-				jobStatus, eventJobErr := EventsToJobResponse(*eventMessage)
-				if eventJobErr != nil {
-					// This can mean that the event type reported from server is unknown to the client
-					log.Error(eventJobErr)
-				}
-				e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(api.JobIdFromApiEvent(eventMessage), jobStatus)
-				if e != nil {
-					log.Error(e)
-				}
-			}
-			// Case 1: End if we hit our configurable timeout for subscription.
-			go func() bool {
-				<-t1.C
-				return true
-			}()
-
-			// Case 2 for exiting: All jobs are finished in job-set
-			return state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
-		})
-		return nil
+		}
+		return err
 	})
 }
 func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context context.Context, jobId string) (*jobservice.JobServiceResponse, error) {
 	jobStatusForId := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 	client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
-		client.WatchJobSet(c, eventToJobService.queue, eventToJobService.jobsetid, true, true, context, func(state *domain.WatchContext, event api.Event) bool {
-			duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second
-			t1 := time.NewTimer(duration)
-
-			eventMessage, err := api.Wrap(event)
-			if err != nil {
-				log.Error(err)
-			}
-			if !IsEventAJobResponse(*eventMessage) {
-			} else {
-				jobStatus, eventJobErr := EventsToJobResponse(*eventMessage)
-				if eventJobErr != nil {
-					// This can mean that the event type reported from server is unknown to the client
-					log.Error(eventJobErr)
-				}
-				if api.JobIdFromApiEvent(eventMessage) == jobId {
-					jobStatusForId = jobStatus
-					log.Infof("Job Id Found Without Redis: %s with State: %s ", jobId, jobStatus.State)
-				} else {
-					log.Infof("Job Id not found: %s", jobId)
-				}
-			}
-			// Case 1: End if we hit our configurable timeout for subscription.
-			go func() bool {
-				<-t1.C
-				return true
-			}()
-
-			// Case 2 for exiting: All jobs are finished in job-set
-			return state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs()
-		})
-		return nil
+		jobIdMap, err := eventToJobService.StreamCommon(c, context)
+		for key, element := range jobIdMap {
+			log.Infof("key %s element: %s", key, element.State)
+		}
+		var ok bool
+		jobStatusForId, ok = jobIdMap[jobId]
+		if ok {
+			log.Infof("JobStatus Found: %s", jobStatusForId.State)
+		} else {
+			jobStatusForId = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
+			log.Infof("JobStatus Not Found %s", jobId)
+		}
+		return err
 	})
+	log.Infof("State is before return: %s", jobStatusForId.State)
 	return jobStatusForId, nil
 }
-func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) error {
+func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) (map[string]*jobservice.JobServiceResponse, error) {
+	jobIdMap := make(map[string]*jobservice.JobServiceResponse)
 	var fromMessageId string
-
+	ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second)
+	defer cancel()
 	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
+
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
-			Id:            eventToJobService.jobsetid,
-			Queue:         eventToJobService.queue,
-			Watch:         true,
-			FromMessageId: fromMessageId,
+			Id:             eventToJobService.jobsetid,
+			Queue:          eventToJobService.queue,
+			Watch:          true,
+			FromMessageId:  fromMessageId,
+			ErrorIfMissing: true,
 		})
 		if err != nil {
 			return err
@@ -126,12 +90,43 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 				return err
 			}
 			fromMessageId = msg.GetId()
+			currentJobId := api.JobIdFromApiEvent(msg.Message)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
+			// This allows us to subscribe for x amount of time
+			case <-ctxTimeout.Done():
+				log.Info("Hit a timeout")
+				return nil
+			default:
 			}
-			
+			if !IsEventAJobResponse(*msg.Message) {
+			} else {
+				jobStatus, eventJobErr := EventsToJobResponse(*msg.Message)
+				if eventJobErr != nil {
+					// This can mean that the event type reported from server is unknown to the client
+					log.Error(eventJobErr)
+				}
+				terminalEventClientId := false
+				if eventToJobService.jobid == currentJobId {
+					if IsEventTerminal(*msg.Message) {
+						terminalEventClientId = true
+					} else {
+						terminalEventClientId = false
+					}
+				}
+				val, ok := jobIdMap[currentJobId]
+				if ok && val.State != jobStatus.State {
+					jobIdMap[currentJobId] = jobStatus
+				} else {
+					jobIdMap[currentJobId] = jobStatus
+				}
+				// If our jobId is finished, we should return.
+				if terminalEventClientId {
+					return nil
+				}
+			}
 		}
 	})
-	return err
+	return jobIdMap, err
 }

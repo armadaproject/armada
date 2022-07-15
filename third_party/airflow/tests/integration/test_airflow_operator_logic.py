@@ -108,7 +108,7 @@ def test_bad_job():
     assert job_message.startswith(f"Armada test:{job_id} failed")
 
 def test_two_jobs():
-    job_set_name = "test-two-jobs"
+    job_set_name = f"test-{uuid.uuid1()}"
 
     first_job = no_auth_client.submit_jobs(
         queue="test",
@@ -116,7 +116,6 @@ def test_two_jobs():
         job_request_items=sleep_job(),
     )
     first_job_id = first_job.job_response_items[0].job_id
-    print(first_job_id)
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
@@ -134,7 +133,6 @@ def test_two_jobs():
         job_request_items=sleep_job(),
     )
     second_job_id = second_job.job_response_items[0].job_id
-    print(second_job_id)
 
 
     job_state, job_message = search_for_job_complete(
