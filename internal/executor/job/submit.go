@@ -5,12 +5,14 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
@@ -217,14 +219,21 @@ func (allocationService *SubmitService) isRecoverable(err error) bool {
 			status.Reason == metav1.StatusReasonForbidden {
 			return false
 		}
-	}
 
-	for _, errorMessage := range allocationService.fatalPodSubmissionErrors {
-		ok, err := regexp.MatchString(errorMessage, err.Error())
-		if err == nil && ok {
-			return false
+		for _, errorMessage := range allocationService.fatalPodSubmissionErrors {
+			ok, err := regexp.MatchString(errorMessage, err.Error())
+			if err == nil && ok {
+				return false
+			}
 		}
+
+		return true
 	}
 
-	return true
+	var e *armadaerrors.ErrCreateResource
+	if errors.As(err, &e) {
+		return true
+	}
+
+	return false
 }
