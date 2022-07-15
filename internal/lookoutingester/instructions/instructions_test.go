@@ -188,7 +188,7 @@ var jobRunFailed = &armadaevents.EventSequence_Event{
 	},
 }
 
-// Job LeaseR eturned
+// Job Lease Returned
 var jobLeaseReturned = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
@@ -443,6 +443,76 @@ func TestFailedWithMissingRunId(t *testing.T) {
 	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
 
+func TestSubmitWithNullChar(t *testing.T) {
+	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_SubmitJob{
+			SubmitJob: &armadaevents.SubmitJob{
+				JobId:           jobIdProto,
+				DeduplicationId: "",
+				Priority:        0,
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Namespace: namespace,
+				},
+				MainObject: &armadaevents.KubernetesMainObject{
+					Object: &armadaevents.KubernetesMainObject_PodSpec{
+						PodSpec: &armadaevents.PodSpecWithAvoidList{
+							PodSpec: &v1.PodSpec{
+								Containers: []v1.Container{
+									{
+										Name:    "container",
+										Command: []string{"/bin/bash \000"},
+										Args:    []string{"hello \000 world"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
+	assert.Len(t, instructions.JobsToCreate, 1)
+	assert.NotContains(t, string(instructions.JobsToCreate[0].JobJson), "\\u0000")
+}
+
+func TestFailedWithNullCharInError(t *testing.T) {
+	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: jobIdProto,
+				RunId: runIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_PodError{
+							PodError: &armadaevents.PodError{
+								Message:  "error message with null char \000",
+								NodeName: nodeName,
+								ContainerErrors: []*armadaevents.ContainerError{
+									{ExitCode: 1},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
+	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
+		{
+			RunId:     runIdString,
+			Started:   &baseTime,
+			Finished:  &baseTime,
+			Succeeded: pointer.Bool(false),
+			Error:     pointer.String("error message with null char "),
+		},
+	}
+	assert.Equal(t, expectedJobRunsToUpdate, instructions.JobRunsToUpdate)
+}
+
 func TestInvalidEvent(t *testing.T) {
 
 	// This event is invalid as it doesn't have a job id or a run id
@@ -462,10 +532,11 @@ func TestInvalidEvent(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
-func TestTruncate(t *testing.T) {
-	assert.Equal(t, "", truncate("", 3))
-	assert.Equal(t, "abc", truncate("abc", 3))
-	assert.Equal(t, "abc", truncate("abcd", 3))
+func TestPreprocessErrorMessage(t *testing.T) {
+	assert.Equal(t, "", preprocessErrorMessage("", 3))
+	assert.Equal(t, "abc", preprocessErrorMessage("abc", 3))
+	assert.Equal(t, "abc", preprocessErrorMessage("abcd", 3))
+	assert.Equal(t, "abcd", preprocessErrorMessage("abcd\000e", 4))
 }
 
 // This message is invalid as it has no payload

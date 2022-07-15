@@ -48,9 +48,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", string(jobJson))
-	preprocessedJobJson := preprocessJobJson(jobJson)
-	fmt.Printf("%s\n", string(preprocessedJobJson))
+	preprocessedJobJson := util.RemoveNullsFromJson(jobJson)
 	return tx.Wrap(func() error {
 		ds := tx.Insert(jobTable).
 			With("run_states", getRunStateCounts(tx, job.Id)).
@@ -296,7 +294,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      preprocessError(event.GetReason()),
+		"error":      util.TruncateAndRemoveNullsFromString(event.GetReason(), 2048),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -344,7 +342,7 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 		"pod_number":         event.GetPodNumber(),
 		"finished":           ToUTC(event.GetCreated()),
 		"unable_to_schedule": true,
-		"error":              preprocessError(event.GetReason()),
+		"error":              util.TruncateAndRemoveNullsFromString(event.GetReason(), 2048),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -368,7 +366,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      preprocessError(event.GetReason()),
+		"error":      util.TruncateAndRemoveNullsFromString(event.GetReason(), 2048),
 	}
 
 	tx, err := r.db.Begin()
@@ -515,17 +513,4 @@ func getRunStateCounts(tx *goqu.TxDatabase, jobId string) *goqu.SelectDataset {
 // Avoid interpolating states
 func stateAsLiteral(state JobState) exp.LiteralExpression {
 	return goqu.L(fmt.Sprintf("%d", JobStateToIntMap[state]))
-}
-
-// Removes null characters
-func preprocessJobJson(jobJson []byte) []byte {
-	jobJsonString := string(jobJson)
-	jobJsonString = strings.ReplaceAll(jobJsonString, "u\\000", "")
-	return []byte(jobJsonString)
-}
-
-// Truncates error and removes null characters
-func preprocessError(err string) string {
-	err = strings.ReplaceAll(err, "\000", "")
-	return fmt.Sprintf("%.2048s", err)
 }

@@ -3,6 +3,7 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"github.com/G-Research/armada/internal/common/util"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -154,7 +155,7 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 		JobSet:    jobSet,
 		Priority:  event.Priority,
 		Submitted: ts,
-		JobJson:   jobJson,
+		JobJson:   util.RemoveNullsFromJson(jobJson),
 		JobProto:  jobProto,
 		State:     repository.JobQueuedOrdinal,
 		Updated:   ts,
@@ -383,7 +384,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
-				truncatedMsg := truncate(reason.PodError.GetMessage(), 2048)
+				truncatedMsg := util.TruncateAndRemoveNullsFromString(reason.PodError.GetMessage(), 2048)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
@@ -393,7 +394,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 					})
 				}
 			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := truncate(reason.PodTerminated.GetMessage(), 2048)
+				truncatedMsg := util.TruncateAndRemoveNullsFromString(reason.PodTerminated.GetMessage(), 2048)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 			case *armadaevents.Error_PodUnschedulable:
 				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
@@ -422,13 +423,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) (string, int) {
 		}
 	}
 	return "UNKNOWN", -1
-}
-
-func truncate(s string, max int) string {
-	if max > len(s) {
-		return s
-	}
-	return s[:max]
 }
 
 func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
