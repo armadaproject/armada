@@ -3,6 +3,7 @@ package eventwatcher
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -295,7 +296,12 @@ func getFromIngress(ctx context.Context, host string) error {
 
 	// Make a get request to test that the ingress works.
 	// This assumes that whatever the ingress points to responds.
-	httpClient := &http.Client{}
+	// We don't care about certificate validity, just if connecting is possible.
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", ingressUrl, ingressPort), http.NoBody)
 	if err != nil {
 		return err
@@ -316,6 +322,7 @@ func getFromIngress(ctx context.Context, host string) error {
 			}
 			return requestErr
 		default:
+			time.Sleep(time.Second)
 			httpRes, err := httpClient.Do(httpReq)
 			if err != nil {
 				requestErr = err
