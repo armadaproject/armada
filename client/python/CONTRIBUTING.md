@@ -3,7 +3,7 @@ How to develop on this python client project
 <hr />
 
 Armada Project welcomes contributions from the opensource community.
-### Note that you need PYTHON 3+ to get this project working and this project does not work on native windows OS.
+### Note that you need PYTHON 3+ to get this project working.
 
 ## Setting up your own fork of this repository on linux, Mac, and WSL OS.
 <hr />
@@ -13,16 +13,16 @@ Armada Project welcomes contributions from the opensource community.
 3) Enter the directory `cd armada`
 4) Add upstream repository [Armada Repo](https://github.com/G-Research/armada.git)
 
-## Install Pyenv/Python and Poetry
+## Install Pyenv/Python and Pip
 <hr />
 
 2) Install [Pyenv](https://github.com/pyenv/pyenv) by following the instructions [here](https://realpython.com/intro-to-pyenv/).
-3) Install [poetry](https://python-poetry.org/) on your local machine by following the instructions on [python poetry documentation](https://python-poetry.org/docs/).
+3) Install [Pip](https://pypi.org/project/pip/) on your local machine by following the instructions on [python pip documentation](https://pip.pypa.io/en/stable/).
 
 ## Setting up your own environment
 <hr />
 
-1) Run `make python` then `cd client/python` and run `poetry install` to pull all necessary dependencies.
+1) Run `make python` then `cd client/python` and run `pip install .` to pull all necessary dependencies.
 
 ## Run test to ensure everything is working
 <hr />
