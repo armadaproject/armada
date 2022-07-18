@@ -1,7 +1,6 @@
 import base64
 import time
 import uuid
-from armada_client.client import unwatch_events
 import grpc
 from armada_client.armada import (
     submit_pb2,
@@ -21,6 +20,7 @@ class GrpcBasicAuth(grpc.AuthMetadataPlugin):
     def __init__(self, username: str, password: str):
         self._username = username
         self._password = password
+        super().__init__()
 
     def __call__(self, context, callback):
         b64encoded_auth = base64.b64encode(
@@ -46,8 +46,7 @@ class BasicAuthTest:
         )
         self.client = ArmadaClient(channel)
 
-    @staticmethod
-    def job_submit_request_items_for_test():
+    def job_submit_request_items_for_test(self):
         pod = core_v1.PodSpec(
             containers=[
                 core_v1.Container(
@@ -69,7 +68,7 @@ class BasicAuthTest:
             ],
         )
 
-        return [submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)]
+        return [self.client.create_job_request_item(priority=1, pod_spec=pod)]
 
     def submit_test_job(self, queue, job_set_id):
         jsr_items = self.job_submit_request_items_for_test()
@@ -99,20 +98,7 @@ class BasicAuthTest:
         time.sleep(1)
 
         print(count)
-        unwatch_events(event_stream)
-
-    def test_simple_job_submit_flow(self):
-        queue_name = "test"
-        job_set_id = f"set-{uuid.uuid1()}"
-
-        self.client.create_queue(name=queue_name, priority_factor=200)
-
-        jsr = self.job_submit_request_items_for_test(
-            queue=queue_name, job_set_id=job_set_id
-        )
-
-        self.client.submit_jobs(jsr)
-        self.client.cancel_jobs(queue=queue_name, job_set_id=job_set_id)
+        self.client.unwatch_events(event_stream)
 
 
 def test_basic_auth():
