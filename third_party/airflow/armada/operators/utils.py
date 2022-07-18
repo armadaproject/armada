@@ -9,7 +9,14 @@ from armada.operators.jobservice import JobServiceClient
 from armada.jobservice import jobservice_pb2
 
 
-def airflow_error(job_state: str, name: str, job_id: str):
+class JobStateEnum(Enum):
+    SUCCEEDED = 1
+    FAILED = 2
+    CANCELLED = 3
+    JOB_ID_NOT_FOUND = 4
+
+
+def airflow_error(job_state: JobStateEnum, name: str, job_id: str):
     """Throw an error on a terminal event if job errored out
 
     :param job_state: A string representation of state
@@ -20,10 +27,15 @@ def airflow_error(job_state: str, name: str, job_id: str):
     AirflowFailException tells Airflow Schedule to not reschedule the task
 
     """
-    if job_state == "succeeded":
+    if job_state == JobStateEnum.SUCCEEDED:
         return
-    if job_state == "failed" or job_state == "cancelled":
-        raise AirflowFailException(f"The Armada job {name}:{job_id} {job_state}")
+    if (
+        job_state == JobStateEnum.FAILED
+        or job_state == JobStateEnum.CANCELLED
+        or job_state == JobStateEnum.JOB_ID_NOT_FOUND
+    ):
+        job_message = job_state.name
+        raise AirflowFailException(f"The Armada job {name}:{job_id} {job_message}")
 
 
 def default_job_status_callable(
@@ -36,13 +48,6 @@ def default_job_status_callable(
     return_value =  job_service_client.get_job_status(
         queue=queue, job_id=job_id, job_set_id=job_set_id)
     return return_value
-
-
-class JobStateEnum(Enum):
-    SUCCEEDED = 1
-    FAILED = 2
-    CANCELLED = 3
-    JOB_ID_NOT_FOUND = 4
 
 
 def search_for_job_complete(
