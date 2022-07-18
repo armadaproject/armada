@@ -150,7 +150,7 @@ Throw an error on a terminal event if job errored out
 * **Parameters**
 
     
-    * **job_state** (*str*) – A string representation of state
+    * **job_state** (*JobStateEnum*) – A string representation of state
 
 
     * **name** (*str*) – The name of your armada job
