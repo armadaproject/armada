@@ -206,6 +206,9 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) (map[*api.Job]error,
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
 
+		// Don't care if deletion fails during compatibility period
+		pipe.SRem(jobSetPrefix+job.Queue+keySeparator+job.JobSetId, job.Id)
+
 		if !deletionResult.expiryAlreadySet {
 			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, repo.retentionPolicy.JobRetentionDuration)
 		}
@@ -1050,7 +1053,12 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 
 func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 	return addJobScript.Run(db,
-		[]string{jobQueuePrefix + job.Queue, jobObjectPrefix + job.Id, jobSetPrefix + job.JobSetId, jobClientIdPrefix + job.Queue + keySeparator + job.ClientId},
+		[]string{
+			jobQueuePrefix + job.Queue,
+			jobObjectPrefix + job.Id,
+			jobSetPrefix + job.JobSetId,
+			jobSetPrefix + job.Queue + keySeparator + job.JobSetId,
+			jobClientIdPrefix + job.Queue + keySeparator + job.ClientId},
 		job.Id, job.Priority, *jobData, job.ClientId)
 }
 
@@ -1060,7 +1068,8 @@ var addJobScript = redis.NewScript(`
 local queueKey = KEYS[1]
 local jobKey = KEYS[2]
 local jobSetKey = KEYS[3]
-local jobClientIdKey = KEYS[4]
+local jobSetQueueKey = KEYS[4]
+local jobClientIdKey = KEYS[5]
 
 local jobId = ARGV[1]
 local jobPriority = ARGV[2]
@@ -1077,6 +1086,7 @@ end
 
 redis.call('SET', jobKey, jobData)
 redis.call('SADD', jobSetKey, jobId)
+redis.call('SADD', jobSetQueueKey, jobId)
 redis.call('ZADD', queueKey, jobPriority, jobId)
 
 return jobId

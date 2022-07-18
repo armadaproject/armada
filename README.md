@@ -23,7 +23,7 @@ For an overview of the architecture and design of Armada, and instructions for s
 - [User guide](./docs/user.md)
 
 For instructions of how to setup and develop Armada, see:
-- [Quickstart](./docs/quickstart.md)
+- [Quickstart](./docs/quickstart/index.md)
 - [Development guide](./docs/developer.md)
 - [Installation in production](./docs/production-install.md)
 
