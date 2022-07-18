@@ -3,6 +3,8 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -25,11 +27,11 @@ import (
 
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, compressor compress.Compressor) chan *model.InstructionSet {
+func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, userAnnotationPrefix string, compressor compress.Compressor) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
-			instructions := ConvertMsg(ctx, msg, compressor)
+			instructions := ConvertMsg(ctx, msg, userAnnotationPrefix, compressor)
 			out <- instructions
 		}
 		close(out)
@@ -42,7 +44,7 @@ func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, buffer
 // resulting InstructionSet will contain all events that could be parsed, along with the mesageId of the original message.
 // In the case that no events can be parsed (e.g. the message is not valid protobuf), an empty InstructionSet containing
 // only the messageId will be returned.
-func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compressor compress.Compressor) *model.InstructionSet {
+func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnotationPrefix string, compressor compress.Compressor) *model.InstructionSet {
 
 	pulsarMsg := msg.Message
 
@@ -80,7 +82,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 	for idx, event := range sequence.Events {
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			err = handleSubmitJob(messageLogger, queue, owner, jobset, ts, event.GetSubmitJob(), compressor, updateInstructions)
+			err = handleSubmitJob(messageLogger, queue, owner, jobset, ts, event.GetSubmitJob(), userAnnotationPrefix, compressor, updateInstructions)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = handleReprioritiseJob(ts, event.GetReprioritisedJob(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelledJob:
@@ -114,7 +116,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 	return updateInstructions
 }
 
-func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, compressor compress.Compressor, update *model.InstructionSet) error {
+func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, userAnnotationPrefix string, compressor compress.Compressor, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -161,19 +163,40 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	for k, v := range event.ObjectMeta.Annotations {
+	annotationInstructions := extractAnnotations(jobId, event.GetObjectMeta().GetAnnotations(), userAnnotationPrefix)
+	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
+
+	return err
+}
+
+func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
+
+	// This intermediate variable exists because we want our output to be deterministic
+	// Iteration over a map in go is non-deterministic so we read everything into annotations
+	// and then sort it.
+	annotations := make([]*model.CreateUserAnnotationInstruction, 0, len(jobAnnotations))
+
+	for k, v := range jobAnnotations {
 		if k != "" {
-			update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, &model.CreateUserAnnotationInstruction{
+			// The annotation will have a key with a prefix.  We want to strip the prefix before storing in the db
+			if strings.HasPrefix(k, userAnnotationPrefix) && len(k) > len(userAnnotationPrefix) {
+				k = k[len(userAnnotationPrefix):]
+			}
+			annotations = append(annotations, &model.CreateUserAnnotationInstruction{
 				JobId: jobId,
 				Key:   k,
 				Value: v,
 			})
 		} else {
-			logger.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
+			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
 		}
 	}
 
-	return err
+	// sort to make output deterministic
+	sort.Slice(annotations, func(i, j int) bool {
+		return annotations[i].Key < annotations[j].Key
+	})
+	return annotations
 }
 
 func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {

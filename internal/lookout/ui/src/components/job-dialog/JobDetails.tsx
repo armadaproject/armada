@@ -6,7 +6,7 @@ import { ExpandMore } from "@material-ui/icons"
 import { Job } from "../../services/JobService"
 import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
-import { RunDetailsRows } from "./RunDetailsRows"
+import RunDetailsRows from "./RunDetailsRows"
 
 import "./Details.css"
 
@@ -60,15 +60,28 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
-            {lastRun && <RunDetailsRows run={lastRun} />}
+            {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&
               Object.entries(props.job.annotations).map(([name, value]) => (
-                <DetailRow key={"annotation-" + name} name={name} value={value} />
+                <DetailRow
+                  key={"annotation-" + name}
+                  detailRowKey={"annotation-" + name}
+                  isAnnotation
+                  name={name}
+                  value={value}
+                />
               ))}
           </TableBody>
         </Table>
       </TableContainer>
-      {initRuns && <PreviousRuns runs={initRuns} expandedItems={expandedItems} onToggleExpand={toggleExpanded} />}
+      {initRuns && (
+        <PreviousRuns
+          runs={initRuns}
+          jobId={props.job.jobId}
+          expandedItems={expandedItems}
+          onToggleExpand={toggleExpanded}
+        />
+      )}
       {props.job.jobYaml && (
         <div className="details-yaml-container">
           <Accordion>

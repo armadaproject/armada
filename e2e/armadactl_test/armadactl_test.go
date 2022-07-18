@@ -255,7 +255,7 @@ jobs:
 
 	out := buf.String()
 	buf.Reset()
-	for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
+	for _, s := range []string{"Submitted job with id", "to job set set1\n"} {
 		if !strings.Contains(out, s) {
 			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}
@@ -266,19 +266,19 @@ jobs:
 		func() error {
 			err = app.Analyze(name, "set1")
 			if err != nil {
-				t.Fatalf("expected no error, but got %s", err)
+				return fmt.Errorf("expected no error, but got %s", err)
 			}
 
 			out = buf.String()
 			buf.Reset()
 
 			if strings.Contains(out, "Found no events associated") {
-				return fmt.Errorf("error calling analyze; got response %s", out)
+				return fmt.Errorf("no events found, got response %s", out)
 			}
 
 			for _, s := range []string{fmt.Sprintf("Querying queue %s for job set set1", name), "api.JobSubmittedEvent", "api.JobQueuedEvent"} {
 				if !strings.Contains(out, s) {
-					t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
+					return fmt.Errorf("expected output to contain '%s', but got '%s'", s, out)
 				}
 			}
 
