@@ -18,7 +18,7 @@ type JobServiceRepository interface {
 	UpdateJobServiceDb(jobId string, jobResponse *jobservice.JobServiceResponse) error
 }
 type RedisJobServiceRepository struct {
-	db redis.UniversalClient
+	db  redis.UniversalClient
 	ttl time.Duration
 }
 

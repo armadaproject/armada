@@ -15,6 +15,7 @@ import (
 
 	"github.com/G-Research/armada/pkg/api/jobservice"
 )
+
 type App struct {
 	// Configuration for jobService
 	Config *configuration.JobServiceConfiguration
@@ -26,7 +27,7 @@ func New(config *configuration.JobServiceConfiguration) *App {
 	}
 }
 
-func (a * App) StartUp() (func(), *sync.WaitGroup) {
+func (a *App) StartUp() (func(), *sync.WaitGroup) {
 	config := a.Config
 	log.Info("Armada jobService service starting")
 
@@ -43,7 +44,7 @@ func (a * App) StartUp() (func(), *sync.WaitGroup) {
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 	log.Info("JobService service listening on ", config.GrpcPort)
 
-	log.Info("JobService using armadaurl of %s", config.ApiConnection)
+	log.Infof("JobService using armadaurl of %s", config.ApiConnection.ArmadaUrl)
 	redisJobRepository := repository.NewRedisJobServiceRepository(db, config.CacheTimeToLive)
 	jobService := server.NewJobService(config, *redisJobRepository)
 	jobservice.RegisterJobServiceServer(grpcServer, jobService)

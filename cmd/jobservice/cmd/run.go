@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/G-Research/armada/internal/jobservice"
+	"github.com/G-Research/armada/pkg/client"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -26,6 +27,7 @@ func runCmd(app *jobservice.App) *cobra.Command {
 }
 func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error {
 	g, ctx := errgroup.WithContext(context.Background())
+	app.Config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
 
 	shutdown, wg := app.StartUp()
 
