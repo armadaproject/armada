@@ -5,6 +5,14 @@ metricsPort: 9000
 corsAllowedOrigins: []
 priorityHalfTime: 20m
 cancelJobsBatchSize: 200
+grpc:
+  keepaliveParams:
+    maxConnectionIdle: 5m
+    time: 2h
+    timeout: 20s
+  keepaliveEnforcementPolicy:
+    minTime: 10s
+    permitWithoutStream: false
 redis:
   addrs:
     - "localhost:6379"

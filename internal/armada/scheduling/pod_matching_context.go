@@ -1,7 +1,7 @@
 package scheduling
 
 import (
-	"fmt"
+	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
@@ -49,10 +49,10 @@ func fits(resourceRequest, availableResources common.ComputeResourcesFloat) (boo
 		}
 		availableResourceQuantity, ok := availableResources[resourceType]
 		if !ok {
-			return false, fmt.Errorf("pod requested resource %s, but none is available", resourceType)
+			return false, errors.Errorf("pod requested resource %s, but none is available", resourceType)
 		}
 		if availableResourceQuantity < requestedResourceQuantity {
-			return false, fmt.Errorf("pod requested %f of resource %s, but only %f is available", requestedResourceQuantity, resourceType, availableResourceQuantity)
+			return false, errors.Errorf("pod requested %f of resource %s, but only %f is available", requestedResourceQuantity, resourceType, availableResourceQuantity)
 		}
 	}
 	return true, nil
@@ -64,10 +64,10 @@ func matchNodeSelector(podSpec *v1.PodSpec, labels map[string]string) (bool, err
 	for label, selectorValue := range podSpec.NodeSelector {
 		nodeValue, ok := labels[label]
 		if labels == nil || !ok {
-			return false, fmt.Errorf("node selector requires labels[%s] = %s, but the node type does not include this label", label, selectorValue)
+			return false, errors.Errorf("node selector requires labels[%s] = %s, but the node type does not include this label", label, selectorValue)
 		}
 		if nodeValue != selectorValue {
-			return false, fmt.Errorf("node selector requires labels[%s] = %s, but labels[%s] = %s for this node type", label, selectorValue, label, nodeValue)
+			return false, errors.Errorf("node selector requires labels[%s] = %s, found labels[%s] = %s for this node type", label, selectorValue, label, nodeValue)
 		}
 	}
 	return true, nil
@@ -75,12 +75,12 @@ func matchNodeSelector(podSpec *v1.PodSpec, labels map[string]string) (bool, err
 
 // tolerates returns true if the pod tolerates all the provided taints.
 func tolerates(podSpec *v1.PodSpec, taints []v1.Taint) (bool, error) {
-	for _, taint := range taints {
+	for i, taint := range taints {
 		if taint.Effect == v1.TaintEffectPreferNoSchedule {
 			continue // Only check hard constraints.
 		}
-		if !tolerationsTolerateTaint(podSpec.Tolerations, &taint) {
-			return false, fmt.Errorf("node type has taint %s of value %s not tolerated by the pod", taint.Key, taint.Value)
+		if !tolerationsTolerateTaint(podSpec.Tolerations, &taints[i]) {
+			return false, errors.Errorf("node type has taint %s of value %s not tolerated by the pod", taint.Key, taint.Value)
 		}
 	}
 	return true, nil
@@ -108,9 +108,8 @@ func matchesRequiredNodeAffinity(nodeSelector *nodeaffinity.LazyErrorNodeSelecto
 	if !match {
 		if err != nil {
 			return match, err
-		} else {
-			return false, fmt.Errorf("unknown reason")
 		}
+		return false, errors.New("node affinity does not match any node selector terms")
 	}
 	return match, err
 }

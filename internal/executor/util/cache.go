@@ -33,7 +33,7 @@ type mapPodCache struct {
 	sizeGauge     prometheus.Gauge
 }
 
-func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string) PodCache {
+func NewTimeExpiringPodCache(expiry time.Duration, cleanUpInterval time.Duration, metricName string) *mapPodCache {
 	cache := &mapPodCache{
 		records:       map[string]cacheRecord{},
 		rwLock:        sync.RWMutex{},
@@ -56,7 +56,7 @@ func (podCache *mapPodCache) Add(pod *v1.Pod) {
 	defer podCache.rwLock.Unlock()
 
 	podCache.records[podId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
-	podCache.sizeGauge.Inc()
+	podCache.sizeGauge.Set(float64(len(podCache.records)))
 }
 
 func (podCache *mapPodCache) AddIfNotExists(pod *v1.Pod) bool {
@@ -69,7 +69,7 @@ func (podCache *mapPodCache) AddIfNotExists(pod *v1.Pod) bool {
 	exists := ok && existing.expiry.After(time.Now())
 	if !exists {
 		podCache.records[podId] = cacheRecord{pod: pod.DeepCopy(), expiry: time.Now().Add(podCache.defaultExpiry)}
-		podCache.sizeGauge.Inc()
+		podCache.sizeGauge.Set(float64(len(podCache.records)))
 	}
 	return !exists
 }
@@ -93,7 +93,7 @@ func (podCache *mapPodCache) Delete(podId string) {
 	_, ok := podCache.records[podId]
 	if ok {
 		delete(podCache.records, podId)
-		podCache.sizeGauge.Dec()
+		podCache.sizeGauge.Set(float64(len(podCache.records)))
 	}
 }
 
@@ -131,9 +131,10 @@ func (podCache *mapPodCache) deleteExpired() {
 	for id, c := range podCache.records {
 		if c.expiry.Before(now) {
 			delete(podCache.records, id)
-			podCache.sizeGauge.Dec()
 		}
 	}
+	//Set size here, so it also fixes the value if it ever gets out of sync
+	podCache.sizeGauge.Set(float64(len(podCache.records)))
 }
 
 func (podCache *mapPodCache) runCleanupLoop(interval time.Duration) {

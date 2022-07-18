@@ -3,16 +3,17 @@ package fake
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/pkg/api"
 )
 
 type MockLeaseService struct {
+	NonrenewableJobIds    []string
 	ReturnLeaseCalls      int
 	RequestJobLeasesCalls int
 	ReportDoneCalls       int
@@ -22,11 +23,17 @@ type MockLeaseService struct {
 }
 
 func NewMockLeaseService() *MockLeaseService {
-	return &MockLeaseService{0, 0, 0, nil, nil}
+	return &MockLeaseService{[]string{}, 0, 0, 0, nil, nil}
 }
 
 func (ls *MockLeaseService) RenewJobLeases(jobs []*job.RunningJob) ([]*job.RunningJob, error) {
-	return []*job.RunningJob{}, nil
+	failedRenewJobs := []*job.RunningJob{}
+	for _, j := range jobs {
+		if util.ContainsString(ls.NonrenewableJobIds, j.JobId) {
+			failedRenewJobs = append(failedRenewJobs, j)
+		}
+	}
+	return failedRenewJobs, nil
 }
 
 func (ls *MockLeaseService) ReturnLease(pod *v1.Pod) error {

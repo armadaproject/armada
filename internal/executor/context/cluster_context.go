@@ -290,12 +290,6 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	}
 }
 
-func (c *KubernetesClusterContext) deletePodEvents(pod *v1.Pod) error {
-	deleteOptions := createDeleteOptions()
-	listOptions := createPodEventsListOptions(pod)
-	return c.kubernetesClient.CoreV1().Events(pod.Namespace).DeleteCollection(context.Background(), deleteOptions, listOptions)
-}
-
 func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 	deleteOptions := createDeleteOptions()
 	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(context.Background(), service.Name, deleteOptions)
@@ -336,12 +330,6 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 
 		if err == nil {
 			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(context.Background(), podToDelete.Name, deleteOptions)
-			if err == nil {
-				deletePodEventsErr := c.deletePodEvents(podToDelete)
-				if deletePodEventsErr != nil {
-					log.WithError(deletePodEventsErr).Errorf("Failed to delete pod events for pod %s/%s", podToDelete.Name, podToDelete.Namespace)
-				}
-			}
 		}
 
 		if err == nil || k8s_errors.IsNotFound(err) {
@@ -415,12 +403,6 @@ func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
 
 	selector := labels.NewSelector().Add(*jobIdMatchesSelector, *queueMatchesSelector, *podNumberMatchesSelector)
 	return &selector, nil
-}
-
-func createPodEventsListOptions(pod *v1.Pod) metav1.ListOptions {
-	return metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("involvedObject.uid=%s", string(pod.UID)),
-	}
 }
 
 func createDeleteOptions() metav1.DeleteOptions {

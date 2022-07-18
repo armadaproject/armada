@@ -34,7 +34,7 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	grpcServer := grpc.CreateGrpcServer([]authorization.AuthService{&authorization.AnonymousAuthService{}})
+	grpcServer := grpc.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
 	db, err := postgres.Open(config.Postgres)
 	if err != nil {
