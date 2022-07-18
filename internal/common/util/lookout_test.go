@@ -1,15 +1,25 @@
 package util
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTruncateAndRemoveNullsFromString(t *testing.T) {
-	assert.Equal(t, "", TruncateAndRemoveNullsFromString("", 3))
-	assert.Equal(t, "abc", TruncateAndRemoveNullsFromString("abc", 3))
-	assert.Equal(t, "abc", TruncateAndRemoveNullsFromString("abcd", 3))
-	assert.Equal(t, "abcd", TruncateAndRemoveNullsFromString("abcd\000e", 4))
-	assert.Equal(t, "abc", TruncateAndRemoveNullsFromString("a\000b\000c\000d", 3))
+func TestRemoveNullsFromString(t *testing.T) {
+	s := RemoveNullsFromString("Hello \000 World")
+	assert.NotContains(t, s, "\000")
+}
+
+func TestRemoveNullsFromJson(t *testing.T) {
+	someMap := map[string]string{
+		"hello": "world",
+		"one":   "\000 two",
+	}
+	jsonData, err := json.Marshal(someMap)
+	assert.NoError(t, err)
+
+	s := RemoveNullsFromJson(jsonData)
+	assert.NotContains(t, string(s), "\\u000")
 }

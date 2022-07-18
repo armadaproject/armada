@@ -294,7 +294,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      util.TruncateAndRemoveNullsFromString(event.GetReason(), 2048),
+		"error":      util.Truncate(util.RemoveNullsFromString(event.GetReason()), util.MaxMessageLength),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -342,7 +342,7 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 		"pod_number":         event.GetPodNumber(),
 		"finished":           ToUTC(event.GetCreated()),
 		"unable_to_schedule": true,
-		"error":              util.TruncateAndRemoveNullsFromString(event.GetReason(), 2048),
+		"error":              util.Truncate(util.RemoveNullsFromString(event.GetReason()), util.MaxMessageLength),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -366,7 +366,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      util.TruncateAndRemoveNullsFromString(event.GetReason(), 2048),
+		"error":      util.Truncate(util.RemoveNullsFromString(event.GetReason()), util.MaxMessageLength),
 	}
 
 	tx, err := r.db.Begin()

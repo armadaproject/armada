@@ -407,7 +407,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
-				truncatedMsg := util.TruncateAndRemoveNullsFromString(reason.PodError.GetMessage(), 2048)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
@@ -417,7 +417,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 					})
 				}
 			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := util.TruncateAndRemoveNullsFromString(reason.PodTerminated.GetMessage(), 2048)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 			case *armadaevents.Error_PodUnschedulable:
 				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
