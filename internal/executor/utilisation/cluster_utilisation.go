@@ -278,30 +278,17 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	runningPods := FilterPodsWithPhase(pods, v1.PodRunning)
-
-	allocationByQueue := GetAllocationByQueue(runningPods)
-	usageByQueue := clusterUtilisationService.getUsageByQueue(runningPods)
-
-	queueReports := make([]*api.QueueReport, 0, len(allocationByQueue))
-
-	for queueName, queueUsage := range allocationByQueue {
-		queueUtilisation, present := usageByQueue[queueName]
-		var resourceUsed common.ComputeResources
-		if !present {
-			resourceUsed = *new(common.ComputeResources)
-		} else {
-			resourceUsed = queueUtilisation
-		}
-		podsInQueue := FilterPods(pods, func(pod *v1.Pod) bool {
-			queue, present := pod.Labels[domain.Queue]
-			return present && queueName == queue
-		})
-		phaseSummary := CountPodsByPhase(podsInQueue)
+	podsByQueue := GroupByQueue(pods)
+	queueReports := make([]*api.QueueReport, 0, len(podsByQueue))
+	for queueName, queuePods := range podsByQueue {
+		runningPods := FilterPodsWithPhase(queuePods, v1.PodRunning)
+		resourceAllocated := common.CalculateTotalResourceRequest(runningPods)
+		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
+		phaseSummary := CountPodsByPhase(queuePods)
 
 		queueReport := api.QueueReport{
 			Name:               queueName,
-			Resources:          queueUsage,
+			Resources:          resourceAllocated,
 			ResourcesUsed:      resourceUsed,
 			CountOfPodsByPhase: phaseSummary,
 		}
@@ -310,26 +297,15 @@ func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueue
 	return queueReports
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getUsageByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
-	utilisationByQueue := make(map[string]common.ComputeResources)
+func (clusterUtilisationService *ClusterUtilisationService) getTotalPodUtilisation(pods []*v1.Pod) common.ComputeResources {
+	totalUtilisation := common.ComputeResources{}
 
 	for _, pod := range pods {
-		queue, present := pod.Labels[domain.Queue]
-		if !present {
-			log.Errorf("Pod %s found not belonging to a queue, not reporting its usage", pod.Name)
-			continue
-		}
-
 		podUsage := clusterUtilisationService.queueUtilisationService.GetPodUtilisation(pod)
-
-		if _, ok := utilisationByQueue[queue]; ok {
-			utilisationByQueue[queue].Add(podUsage.CurrentUsage)
-		} else {
-			utilisationByQueue[queue] = podUsage.CurrentUsage
-		}
+		totalUtilisation.Add(podUsage.CurrentUsage)
 	}
 
-	return utilisationByQueue
+	return totalUtilisation
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(labels map[string]string) map[string]string {
