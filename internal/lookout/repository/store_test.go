@@ -8,12 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookout/testutil"
-
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/lookout/testutil"
 	"github.com/G-Research/armada/pkg/api"
 )
 
