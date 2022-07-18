@@ -135,6 +135,7 @@ message ReturnLeaseRequest {
     string job_id = 2;
     OrderedStringMap avoid_node_labels = 4;
     string reason = 5;
+    string kubernetes_id = 6;
 }
 
 service AggregatedQueue {

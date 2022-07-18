@@ -178,7 +178,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	jobsToReturn := jobs[numServerAcks:]
 	var result *multierror.Error
 	for _, job := range jobsToReturn {
-		err := jobLeaseService.ReturnLeaseById(job.Id, nil, "Communication error during leasing")
+		err := jobLeaseService.ReturnLeaseById(job.Id, "", nil, "Communication error during leasing")
 		result = multierror.Append(result, err)
 	}
 	err = result.ErrorOrNil()
@@ -196,10 +196,10 @@ func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string) 
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
 		avoidNodeLabels = emptyOrderedStringMap()
 	}
-	return jobLeaseService.ReturnLeaseById(jobId, avoidNodeLabels, reason)
+	return jobLeaseService.ReturnLeaseById(jobId, string(pod.UID), avoidNodeLabels, reason)
 }
 
-func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string) error {
+func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetesId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 
@@ -214,6 +214,7 @@ func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, nodeLabels
 			JobId:           jobId,
 			AvoidNodeLabels: nodeLabelsToAvoid,
 			Reason:          reason,
+			KubernetesId:    kubernetesId,
 		})
 	return err
 }
