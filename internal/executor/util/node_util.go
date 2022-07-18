@@ -63,13 +63,22 @@ func MergeNodeList(list1 []*v1.Node, list2 []*v1.Node) []*v1.Node {
 }
 
 func FilterNodes(nodes []*v1.Node, filter func(node *v1.Node) bool) []*v1.Node {
-	processingNodes := make([]*v1.Node, 0, len(nodes))
+	filteredNodes := make([]*v1.Node, 0, len(nodes))
 
 	for _, node := range nodes {
 		if filter(node) {
-			processingNodes = append(processingNodes, node)
+			filteredNodes = append(filteredNodes, node)
 		}
 	}
 
-	return processingNodes
+	return filteredNodes
+}
+
+func IsReady(node *v1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == v1.NodeReady && condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
