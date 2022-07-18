@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"time"
+
 	"github.com/go-redis/redis"
 
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
@@ -17,6 +19,8 @@ type JobServiceConfiguration struct {
 	Redis         redis.UniversalOptions
 	// Configurable value that translates to number of seconds
 	SubscribeJobSetTime int64
+	// Duration for redis key expiry
+	CacheTimeToLive time.Duration
 	// Testing for skipping redis
 	SkipRedisCache bool
 }

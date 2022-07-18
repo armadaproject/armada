@@ -32,7 +32,7 @@ func StartUp(config *configuration.JobServiceConfiguration) (func(), *sync.WaitG
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 	log.Info("JobService service listening on ", config.GrpcPort)
 
-	redisJobRepository := repository.NewRedisJobServiceRepository(db)
+	redisJobRepository := repository.NewRedisJobServiceRepository(db, config.CacheTimeToLive)
 	jobService := server.NewJobService(config, *redisJobRepository)
 	jobservice.RegisterJobServiceServer(grpcServer, jobService)
 

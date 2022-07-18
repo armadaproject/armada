@@ -54,6 +54,6 @@ func withJobServiceRepo(action func(r *RedisJobServiceRepository)) {
 
 	client.FlushDB()
 
-	repo := NewRedisJobServiceRepository(client)
+	repo := NewRedisJobServiceRepository(client, 0)
 	action(repo)
 }

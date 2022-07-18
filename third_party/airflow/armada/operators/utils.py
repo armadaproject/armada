@@ -3,6 +3,7 @@ import time
 
 from airflow.exceptions import AirflowFailException
 from typing import Optional, Tuple
+from enum import Enum
 
 from armada.operators.jobservice import JobServiceClient
 from armada.jobservice import jobservice_pb2
@@ -37,6 +38,13 @@ def default_job_status_callable(
     return return_value
 
 
+class JobStateEnum(Enum):
+    SUCCEEDED = 1
+    FAILED = 2
+    CANCELLED = 3
+    JOB_ID_NOT_FOUND = 4
+
+
 def search_for_job_complete(
     queue: str,
     job_set_id: str,
@@ -45,7 +53,7 @@ def search_for_job_complete(
     job_service_client: Optional[JobServiceClient] = None,
     job_status_callable=default_job_status_callable,
     time_out_for_failure: int = 7200,
-) -> Tuple[str, str]:
+) -> Tuple[JobStateEnum, str]:
     """
 
     Poll JobService cache until you get a terminated event.
@@ -61,7 +69,7 @@ def search_for_job_complete(
     :param time_out_for_failure: The amount of time a job
                                     can be in job_id_not_found
                                     before we decide it was a invalid job
-    :return: A tuple of state, message
+    :return: A tuple of JobStateEnum, message
     """
     start_time = time.time()
     # Overwrite time_out_for_failure by environment variable for configuration
@@ -83,13 +91,12 @@ def search_for_job_complete(
             job_status_return = job_status_callable(
                 queue=queue, job_id=job_id, job_set_id=job_set_id
             )
-        print(job_status_return)
         if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
-            job_state = "succeeded"
+            job_state = JobStateEnum.SUCCEEDED
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
             break
         if job_status_return.state == jobservice_pb2.JobServiceResponse.FAILED:
-            job_state = "failed"
+            job_state = JobStateEnum.FAILED
             job_message = (
                 f"Armada {airflow_task_name}:{job_id} failed\n"
                 f"failed with reason {job_status_return.error}"
@@ -97,7 +104,7 @@ def search_for_job_complete(
 
             break
         if job_status_return.state == jobservice_pb2.JobServiceResponse.CANCELLED:
-            job_state = "cancelled"
+            job_state = JobStateEnum.CANCELLED
             job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
             break
         if (
@@ -107,7 +114,7 @@ def search_for_job_complete(
             end_time = time.time()
             time_elasped = int(end_time) - int(start_time)
             if time_elasped > time_out_for_failure:
-                job_state = "job_not_found"
+                job_state = JobStateEnum.JOB_ID_NOT_FOUND
                 job_message = (
                     f"Armada {airflow_task_name}:{job_id} could not find a job id and\n"
                     f"hit a timeout"

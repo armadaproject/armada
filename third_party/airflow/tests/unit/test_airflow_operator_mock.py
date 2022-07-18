@@ -10,7 +10,7 @@ from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
 
 import pytest
 from armada.operators.jobservice import JobServiceClient
-from armada.operators.utils import search_for_job_complete
+from armada.operators.utils import JobStateEnum, search_for_job_complete
 from armada.jobservice import jobservice_pb2_grpc
 from armada_client_mock import SubmitService, EventService
 from job_service_mock import JobService
@@ -51,8 +51,8 @@ def sleep_job():
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
-                name="Container1",
-                image="index.docker.io/library/ubuntu:latest",
+                name="container-1",
+                image="busybox",
                 args=["sleep", "10s"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
@@ -86,7 +86,7 @@ def test_mock_success_job():
         airflow_task_name="test-mock",
         job_id="test_succeeded",
     )
-    assert job_state == "succeeded"
+    assert job_state == JobStateEnum.SUCCEEDED
     assert job_message == "Armada test-mock:test_succeeded succeeded"
 
 
@@ -105,7 +105,7 @@ def test_mock_failed_job():
         airflow_task_name="test-mock",
         job_id="test_failed",
     )
-    assert job_state == "failed"
+    assert job_state == JobStateEnum.FAILED
     assert job_message.startswith("Armada test-mock:test_failed failed")
 
 
@@ -124,5 +124,5 @@ def test_mock_cancelled_job():
         airflow_task_name="test-mock",
         job_id="test_cancelled",
     )
-    assert job_state == "cancelled"
+    assert job_state == JobStateEnum.CANCELLED
     assert job_message == "Armada test-mock:test_cancelled cancelled"

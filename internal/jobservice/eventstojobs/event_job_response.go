@@ -36,10 +36,10 @@ func IsEventAJobResponse(message api.EventMessage) bool {
 }
 func IsEventTerminal(message api.EventMessage) bool {
 	switch message.Events.(type) {
-	case *api.EventMessage_Submitted, *api.EventMessage_DuplicateFound, *api.EventMessage_Running:
-		return false
-	default:
+	case *api.EventMessage_Cancelled, *api.EventMessage_Succeeded, *api.EventMessage_Failed:
 		return true
+	default:
+		return false
 	}
 
 }

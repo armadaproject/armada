@@ -14,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/jobservice"
 	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 const CustomConfigLocation string = "config"
@@ -30,6 +31,7 @@ func main() {
 
 	var config configuration.JobServiceConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
+	config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
 	common.LoadConfig(&config, "./config/jobservice", userSpecifiedConfigs)
 
 	shutdown, wg := jobservice.StartUp(&config)

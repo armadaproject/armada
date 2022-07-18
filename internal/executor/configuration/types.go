@@ -49,6 +49,7 @@ type KubernetesConfiguration struct {
 	MinimumJobSize            common.ComputeResources
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
+	FatalPodSubmissionErrors  []string
 }
 
 type EtcdConfiguration struct {

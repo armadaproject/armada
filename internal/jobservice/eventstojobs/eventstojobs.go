@@ -36,9 +36,11 @@ func NewEventsToJobService(
 }
 
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
+
 	return client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
 		jobIdMap, err := eventToJobService.StreamCommon(c, context)
 		for key, element := range jobIdMap {
+			log.Infof("key %s element: %s", key, element.State)
 			e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(key, element)
 			if e != nil {
 				panic(e)

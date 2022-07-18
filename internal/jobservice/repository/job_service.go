@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
@@ -18,10 +19,11 @@ type JobServiceRepository interface {
 }
 type RedisJobServiceRepository struct {
 	db redis.UniversalClient
+	ttl time.Duration
 }
 
-func NewRedisJobServiceRepository(db redis.UniversalClient) *RedisJobServiceRepository {
-	return &RedisJobServiceRepository{db: db}
+func NewRedisJobServiceRepository(db redis.UniversalClient, ttl time.Duration) *RedisJobServiceRepository {
+	return &RedisJobServiceRepository{db: db, ttl: ttl}
 }
 
 func (jsr *RedisJobServiceRepository) HealthCheck() bool {
@@ -53,7 +55,7 @@ func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobId string, jobRespon
 		return errors.WithStack(err)
 	}
 
-	if err := jsr.db.Set(jobId, data, 0).Err(); err != nil {
+	if err := jsr.db.Set(jobId, data, jsr.ttl).Err(); err != nil {
 		panic(err)
 	}
 	log.Infof("UpdateJobServiceDb jobId: %s jobState: %s", jobId, jobResponse.State)

@@ -3,9 +3,6 @@ httpPort: 8090
 SubscribeJobSetTime: 60
 SkipRedisCache: true
 
-apiConnection:
-  armadaUrl : "localhost:50051"
-
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m

@@ -129,6 +129,20 @@ Uses the GetJobStatus rpc to get a status of your job
 ## armada.operators.utils module
 
 
+### _class_ armada.operators.utils.JobStateEnum(value)
+Bases: `Enum`
+
+An enumeration.
+
+
+#### CANCELLED(_ = _ )
+
+#### FAILED(_ = _ )
+
+#### JOB_ID_NOT_FOUND(_ = _ )
+
+#### SUCCEEDED(_ = _ )
+
 ### armada.operators.utils.airflow_error(job_state, name, job_id)
 Throw an error on a terminal event if job errored out
 
@@ -214,10 +228,10 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Returns**
 
-    A tuple of state, message
+    A tuple of JobStateEnum, message
 
 
 
 * **Return type**
 
-    *Tuple*[str, str]
+    *Tuple*[*JobStateEnum*, str]

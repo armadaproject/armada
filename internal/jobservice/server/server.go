@@ -22,6 +22,7 @@ func NewJobService(config *configuration.JobServiceConfiguration, redisService r
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *jobservice.JobServiceRequest) (*jobservice.JobServiceResponse, error) {
+	// We want to support cases where cache doesn't exist
 	if s.jobServiceConfig.SkipRedisCache || !s.jobRepository.HealthCheck() {
 		return s.GetJobStatusWithNoRedis(ctx, opts)
 	}
