@@ -1,10 +1,13 @@
 package jobservice
 
 import (
-	"sync"
+	"context"
+	"fmt"
+	"net"
 
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
@@ -27,12 +30,12 @@ func New(config *configuration.JobServiceConfiguration) *App {
 	}
 }
 
-func (a *App) StartUp() (func(), *sync.WaitGroup) {
+func (a *App) StartUp(ctx context.Context) error {
 	config := a.Config
 	log.Info("Armada jobService service starting")
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	// Setup an errgroup that cancels on any job failing or there being no active jobs.
+	g, _ := errgroup.WithContext(ctx)
 
 	db := createRedisClient(&config.Redis)
 	defer func() {
@@ -42,21 +45,30 @@ func (a *App) StartUp() (func(), *sync.WaitGroup) {
 	}()
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
-	log.Info("JobService service listening on ", config.GrpcPort)
 
-	log.Infof("JobService using armadaurl of %s", config.ApiConnection.ArmadaUrl)
 	redisJobRepository := repository.NewRedisJobServiceRepository(db, config.CacheTimeToLive)
 	jobService := server.NewJobService(config, *redisJobRepository)
 	jobservice.RegisterJobServiceServer(grpcServer, jobService)
 
-	grpcCommon.Listen(config.GrpcPort, grpcServer, &wg)
-
-	wg.Wait()
-	stop := func() {
-		grpcServer.GracefulStop()
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
+	if err != nil { // TODO Don't call fatal, return an error.
+		return err
 	}
 
-	return stop, &wg
+	g.Go(func() error {
+		defer log.Println("Stopping server.")
+
+		log.Info("JobService service listening on ", config.GrpcPort)
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+			return err
+		}
+		return nil
+	})
+
+	g.Wait()
+
+	return nil
 }
 
 func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {

@@ -18,10 +18,7 @@ func runCmd(app *jobservice.App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test",
 		Short: "Test an Armada deployment by submitting jobs and watching for expected events.",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return initParams(cmd, app)
-		},
-		RunE: runCmdE(app),
+		RunE:  runCmdE(app),
 	}
 
 	return cmd
@@ -30,7 +27,10 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 	g, ctx := errgroup.WithContext(context.Background())
 	app.Config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
 
-	shutdown, wg := app.StartUp()
+	err := app.StartUp(ctx)
+	if err != nil {
+		panic(err)
+	}
 
 	// Cancel the errgroup context on SIGINT and SIGTERM,
 	// which shuts everything down gracefully.
@@ -39,14 +39,12 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 	g.Go(func() error {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case sig := <-stopSignal:
-			wg.Done()
-			shutdown()
+			ctx.Err()
 			return fmt.Errorf("received signal %v", sig)
 		}
 	})
-
-	wg.Wait()
+	g.Wait()
 	return nil
 }
