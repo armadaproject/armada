@@ -168,21 +168,11 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 func (m *JobManager) onStuckPodDeleted(job *job.RunningJob) (resolved bool) {
 	// this method is executed after stuck pod was deleted from the cluster
 	if job.Issue.Retryable {
-		err := m.jobLeaseService.ReturnLease(job.Issue.OriginatingPod)
+		err := m.jobLeaseService.ReturnLease(job.Issue.OriginatingPod, job.Issue.Message)
 		if err != nil {
 			log.Errorf("Failed to return lease for job %s because %s", job.JobId, err)
 			return false
 		}
-
-		leaseReturnedEvent := reporter.CreateJobLeaseReturnedEvent(job.Issue.OriginatingPod, job.Issue.Message, m.clusterIdentity.GetClusterId())
-
-		err = m.eventReporter.Report(leaseReturnedEvent)
-		if err != nil {
-			log.Errorf("Failed to report lease returned for job %s because %s", job.JobId, err)
-			// We should fall through to true here, as we have already returned the lease and the event is just for reporting
-			// If we fail, we'll try again which could be complicated if the same executor leases is again between retries
-		}
-
 	} else {
 		// Reporting failed even can fail with unfortunate timing of executor restarts, in that case lease will expire and job can be retried
 		// This is preferred over returning Failed event early as user could retry based on failed even but the job could be running
