@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPreprocessErrorMessage(t *testing.T) {
+func TestTruncateAndRemoveNullsFromString(t *testing.T) {
 	assert.Equal(t, "", TruncateAndRemoveNullsFromString("", 3))
 	assert.Equal(t, "abc", TruncateAndRemoveNullsFromString("abc", 3))
 	assert.Equal(t, "abc", TruncateAndRemoveNullsFromString("abcd", 3))
