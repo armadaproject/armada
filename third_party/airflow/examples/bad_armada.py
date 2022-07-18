@@ -19,15 +19,16 @@ import pendulum
 from armada.operators.jobservice import JobServiceClient
 
 
-def submit_sleep_job():
+def submit_sleep_container(image: str):
     """
-    Simple armada job
+    Simple armada job where image allows you to control
+    if this container fails or not.
     """
     pod = core_v1.PodSpec(
         containers=[
             core_v1.Container(
                 name="sleep",
-                image="busybox",
+                image=image,
                 args=["sleep", "10s"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
@@ -45,36 +46,6 @@ def submit_sleep_job():
     )
 
     return [submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)]
-
-
-def submit_bad_job():
-    """
-    This job demonstrates a failure.
-    The image name is nonexistant so the ArmadaJob will fail.
-    """
-    pod = core_v1.PodSpec(
-        containers=[
-            core_v1.Container(
-                name="echo",
-                image="NOTCONTAINTER",
-                args=["echo", "hello"],
-                securityContext=core_v1.SecurityContext(runAsUser=1000),
-                resources=core_v1.ResourceRequirements(
-                    requests={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
-                    },
-                    limits={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
-                    },
-                ),
-            )
-        ],
-    )
-
-    return [submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)]
-
 
 with DAG(
     dag_id="error_armada",
@@ -104,7 +75,7 @@ with DAG(
         job_set_id="job-set-1",
         job_service_client=job_service_client,
         armada_client=no_auth_client,
-        job_request_items=submit_sleep_job(),
+        job_request_items=submit_sleep_container(image="busybox"),
     )
     """
     This task is used to verify that if an Armada Job
@@ -117,7 +88,7 @@ with DAG(
         job_set_id="job-set-1",
         job_service_client=job_service_client,
         armada_client=no_auth_client,
-        job_request_items=submit_bad_job(),
+        job_request_items=submit_sleep_container(image="nonexistant"),
     )
     good_armada = ArmadaOperator(
         task_id="good_armada",
@@ -126,7 +97,7 @@ with DAG(
         job_set_id="job-set-1",
         job_service_client=job_service_client,
         armada_client=no_auth_client,
-        job_request_items=submit_sleep_job(),
+        job_request_items=submit_sleep_container(image="busybox"),
     )
     """
     Airflow syntax to say
