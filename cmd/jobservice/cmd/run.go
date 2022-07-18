@@ -7,10 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/jobservice"
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/pkg/client"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -27,13 +24,8 @@ func runCmd(app *jobservice.App) *cobra.Command {
 
 	return cmd
 }
-func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error {	common.ConfigureLogging()
-	common.BindCommandlineArguments()
+func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error {
 	g, ctx := errgroup.WithContext(context.Background())
-
-	var config configuration.JobServiceConfiguration
-	config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
-	common.LoadConfig(&config, "./config/jobservice", []string{})
 
 	shutdown, wg := app.StartUp()
 

@@ -43,6 +43,7 @@ func (a * App) StartUp() (func(), *sync.WaitGroup) {
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 	log.Info("JobService service listening on ", config.GrpcPort)
 
+	log.Info("JobService using armadaurl of %s", config.ApiConnection)
 	redisJobRepository := repository.NewRedisJobServiceRepository(db, config.CacheTimeToLive)
 	jobService := server.NewJobService(config, *redisJobRepository)
 	jobservice.RegisterJobServiceServer(grpcServer, jobService)

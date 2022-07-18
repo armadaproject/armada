@@ -51,7 +51,7 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context context.Context, jobId string) (*jobservice.JobServiceResponse, error) {
 	jobStatusForId := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
-	client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
+	err:= client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
 		jobIdMap, err := eventToJobService.StreamCommon(c, context)
 		for key, element := range jobIdMap {
 			log.Infof("key %s element: %s", key, element.State)
@@ -67,7 +67,7 @@ func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context conte
 		return err
 	})
 	log.Infof("State is before return: %s", jobStatusForId.State)
-	return jobStatusForId, nil
+	return jobStatusForId, err
 }
 func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) (map[string]*jobservice.JobServiceResponse, error) {
 	jobIdMap := make(map[string]*jobservice.JobServiceResponse)
@@ -75,7 +75,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second)
 	defer cancel()
 	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
-
+		log.Infof("Subscribing on %s", eventToJobService.jobsetid)
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
 			Queue:          eventToJobService.queue,
@@ -84,15 +84,18 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 			ErrorIfMissing: true,
 		})
 		if err != nil {
+			log.Error(err)
 			return err
 		}
 		for {
 			msg, err := stream.Recv()
 			if err != nil {
+				log.Error(err)
 				return err
 			}
 			fromMessageId = msg.GetId()
 			currentJobId := api.JobIdFromApiEvent(msg.Message)
+			log.Info("currentJob")
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -103,8 +106,10 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 			default:
 			}
 			if !IsEventAJobResponse(*msg.Message) {
+				log.Infof("Not a valid jobresponse: %s", *msg.Message)
 			} else {
 				jobStatus, eventJobErr := EventsToJobResponse(*msg.Message)
+				log.Infof("id(%s):%s", currentJobId, jobStatus.State)
 				if eventJobErr != nil {
 					// This can mean that the event type reported from server is unknown to the client
 					log.Error(eventJobErr)
@@ -127,6 +132,8 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 				if terminalEventClientId {
 					log.Infof("Found terminate event for %s: %s", eventToJobService.jobid, jobIdMap[eventToJobService.jobid].State)
 					return nil
+				} else {
+					log.Infof("Found non terminate event and continuing")
 				}
 			}
 		}

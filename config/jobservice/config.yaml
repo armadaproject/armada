@@ -3,6 +3,8 @@ httpPort: 8090
 SubscribeJobSetTime: 60
 SkipRedisCache: true
 CacheTimeToLive: 0
+apiConnection:
+  
 
 grpc:
   keepaliveParams:
