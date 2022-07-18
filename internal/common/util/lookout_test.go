@@ -8,6 +8,7 @@ import (
 )
 
 func TestRemoveNullsFromString(t *testing.T) {
+	assert.Equal(t, "", RemoveNullsFromString(""))
 	assert.Equal(t, "", RemoveNullsFromString("\000\000\000"))
 	assert.NotContains(t, RemoveNullsFromString("Hello \000 World"), "\000")
 }
