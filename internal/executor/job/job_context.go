@@ -155,14 +155,18 @@ func groupRunningJobs(pods []*v1.Pod) []*RunningJob {
 	return result
 }
 
-func (c *ClusterJobContext) registerIssue(job *RunningJob, issue *PodIssue) {
-	job.Issue = issue
-
-	record, exists := c.activeJobs[job.JobId]
-	if exists {
+func (c *ClusterJobContext) registerIssue(jobId string, issue *PodIssue) {
+	record, exists := c.activeJobs[jobId]
+	if !exists {
+		record = &jobRecord{
+			jobId: jobId,
+		}
+		c.activeJobs[jobId] = record
+	}
+	if record.issue == nil {
 		record.issue = issue
 	} else {
-		log.Errorf("Resolving issue without existing record (jobId: %s)", job.JobId)
+		log.Warnf("Not registering an issue for job %s as it already has an issue set", jobId)
 	}
 }
 
@@ -212,12 +216,14 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckTerminatingPodExpiry).Before(time.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
 			// its safer to produce failed event than retrying as the job might have run already
-			c.registerIssue(runningJob, &PodIssue{
+			issue := &PodIssue{
 				OriginatingPod: pod.DeepCopy(),
 				Pods:           runningJob.ActivePods,
 				Message:        "pod stuck in terminating phase, this might be due to platform problems",
 				Retryable:      false,
-				Type:           StuckTerminating})
+				Type:           StuckTerminating}
+			runningJob.Issue = issue
+			c.registerIssue(runningJob.JobId, issue)
 			break
 
 		} else if pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending {
@@ -241,13 +247,15 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 
 				log.Warnf("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
-				c.registerIssue(runningJob, &PodIssue{
+				issue := &PodIssue{
 					OriginatingPod: pod.DeepCopy(),
 					Pods:           runningJob.ActivePods,
 					Message:        message,
 					Retryable:      retryable,
 					Type:           UnableToSchedule,
-				})
+				}
+				runningJob.Issue = issue
+				c.registerIssue(runningJob.JobId, issue)
 				break
 			}
 		}
@@ -266,17 +274,16 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 	defer c.activeJobIdsMutex.Unlock()
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
-		record, exists := c.activeJobs[jobId]
-		active := exists && !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
-		if active {
-			record.issue = &PodIssue{
+		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
+		if isUnexpectedDeletion {
+			c.registerIssue(jobId, &PodIssue{
 				OriginatingPod: pod,
 				Pods:           []*v1.Pod{pod},
 				Message:        "Pod of the active job was deleted.",
 				Retryable:      false,
 				Reported:       false,
 				Type:           ExternallyDeleted,
-			}
+			})
 		}
 	}
 }
