@@ -125,6 +125,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 				}
 				// If our jobId is finished, we should return.
 				if terminalEventClientId {
+					log.Infof("Found terminate event for %s: %s", eventToJobService.jobid, jobIdMap[eventToJobService.jobid].State)
 					return nil
 				}
 			}

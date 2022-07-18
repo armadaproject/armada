@@ -15,8 +15,19 @@ import (
 
 	"github.com/G-Research/armada/pkg/api/jobservice"
 )
+type App struct {
+	// Configuration for jobService
+	Config *configuration.JobServiceConfiguration
+}
 
-func StartUp(config *configuration.JobServiceConfiguration) (func(), *sync.WaitGroup) {
+func New(config *configuration.JobServiceConfiguration) *App {
+	return &App{
+		Config: config,
+	}
+}
+
+func (a * App) StartUp() (func(), *sync.WaitGroup) {
+	config := a.Config
 	log.Info("Armada jobService service starting")
 
 	wg := sync.WaitGroup{}
