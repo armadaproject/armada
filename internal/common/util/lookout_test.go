@@ -8,8 +8,8 @@ import (
 )
 
 func TestRemoveNullsFromString(t *testing.T) {
-	s := RemoveNullsFromString("Hello \000 World")
-	assert.NotContains(t, s, "\000")
+	assert.Equal(t, "", RemoveNullsFromString("\000\000\000"))
+	assert.NotContains(t, RemoveNullsFromString("Hello \000 World"), "\000")
 }
 
 func TestRemoveNullsFromJson(t *testing.T) {
