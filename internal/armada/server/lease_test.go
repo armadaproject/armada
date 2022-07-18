@@ -42,6 +42,7 @@ func TestAggregatedQueueServer_ReturnLeaseCallsSendsJobLeaseReturnedEvent(t *tes
 	clusterId := "cluster-1"
 	jobId := "job-id-1"
 	jobSetId := "job-set-id-1"
+	kubernetesId := "kubernetes-id"
 	queueName := "queue-1"
 	reason := "bad lease"
 	job := &api.Job{
@@ -54,9 +55,10 @@ func TestAggregatedQueueServer_ReturnLeaseCallsSendsJobLeaseReturnedEvent(t *tes
 	assert.Nil(t, addJobsErr)
 
 	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
-		ClusterId: clusterId,
-		JobId:     jobId,
-		Reason:    reason,
+		ClusterId:    clusterId,
+		JobId:        jobId,
+		Reason:       reason,
+		KubernetesId: kubernetesId,
 	})
 
 	assert.Nil(t, err)
@@ -66,6 +68,7 @@ func TestAggregatedQueueServer_ReturnLeaseCallsSendsJobLeaseReturnedEvent(t *tes
 	assert.Equal(t, jobSetId, leaseReturnedEvent.JobSetId)
 	assert.Equal(t, queueName, leaseReturnedEvent.Queue)
 	assert.Equal(t, clusterId, leaseReturnedEvent.ClusterId)
+	assert.Equal(t, kubernetesId, leaseReturnedEvent.KubernetesId)
 	assert.Equal(t, reason, leaseReturnedEvent.Reason)
 }
 
