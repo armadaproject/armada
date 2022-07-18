@@ -7,13 +7,16 @@ import "./Details.css"
 
 interface RunDetailsRowsProps {
   run: Run
+  jobId?: string
 }
 
-export function RunDetailsRows(props: RunDetailsRowsProps) {
+export default function RunDetailsRows(props: RunDetailsRowsProps) {
+  const armadaPodName = props.jobId ? `armada-${props.jobId}-${props.run.podNumber.toString()}` : null
   return (
     <>
       <DetailRow name="Cluster" value={props.run.cluster} />
       <DetailRow name="Pod number" value={props.run.podNumber.toString()} />
+      {armadaPodName && <DetailRow name="Pod Name" value={armadaPodName} />}
       <DetailRow name="Kubernetes Id" value={props.run.k8sId} />
       {props.run.node && <DetailRow name="Cluster node" value={props.run.node} />}
       {props.run.podCreationTime && <DetailRow name="Scheduled on cluster" value={props.run.podCreationTime} />}

@@ -3,7 +3,7 @@ name: Deploy GH Pages
 on:
   push:
     branches: 
-      - master 
+      - master
     paths:
       - 'docs/*.md'
       - 'docs/quickstart'
@@ -27,7 +27,8 @@ jobs:
       - name: Copy site files
         run: |
           cp master/docs/*.md gh-pages/
-          cp -r master/docs/quickstart gh-pages/_pages
+          rm gh-pages/docs-readme.md
+          cp -r master/docs/quickstart gh-pages/
           cp master/CODE_OF_CONDUCT.md master/CONTRIBUTING.md gh-pages/_pages/
 
       - name: Commit GH Pages

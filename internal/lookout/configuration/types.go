@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
+	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 )
 
 type NatsConfig struct {
@@ -32,6 +33,8 @@ type LookoutConfiguration struct {
 	HttpPort    uint16
 	GrpcPort    uint16
 	MetricsPort uint16
+
+	Grpc grpcconfig.GrpcConfig
 
 	UIConfig LookoutUIConfig
 
@@ -62,4 +65,7 @@ type LookoutIngesterConfiguration struct {
 	PulsarBackoffTime time.Duration
 	// Number of goroutines to be used for receiving messages and converting them to instructions
 	Paralellism int
+	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
+	// The annotation before storing in the db
+	UserAnnotationPrefix string
 }
