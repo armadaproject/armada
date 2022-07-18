@@ -6,21 +6,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/pulsarutils"
-
-	"golang.org/x/net/context"
-
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -473,7 +471,7 @@ func TestSubmitWithNullChar(t *testing.T) {
 			},
 		},
 	})
-	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
+	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	assert.Len(t, instructions.JobsToCreate, 1)
 	assert.NotContains(t, string(instructions.JobsToCreate[0].JobJson), "\\u0000")
 }
@@ -501,7 +499,7 @@ func TestFailedWithNullCharInError(t *testing.T) {
 			},
 		},
 	})
-	instructions := ConvertMsg(context.Background(), msg, &compress.NoOpCompressor{})
+	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
 		{
 			RunId:     runIdString,
@@ -531,13 +529,6 @@ func TestInvalidEvent(t *testing.T) {
 		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
-}
-
-func TestPreprocessErrorMessage(t *testing.T) {
-	assert.Equal(t, "", preprocessErrorMessage("", 3))
-	assert.Equal(t, "abc", preprocessErrorMessage("abc", 3))
-	assert.Equal(t, "abc", preprocessErrorMessage("abcd", 3))
-	assert.Equal(t, "abcd", preprocessErrorMessage("abcd\000e", 4))
 }
 
 // This message is invalid as it has no payload
