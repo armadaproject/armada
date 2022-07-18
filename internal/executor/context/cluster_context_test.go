@@ -193,24 +193,6 @@ func TestKubernetesClusterContext_SubmitIngress(t *testing.T) {
 	assert.Equal(t, createAction.GetObject(), ingress)
 }
 
-func TestKubernetesClusterContext_DeletePodEvents(t *testing.T) {
-	clusterContext, client := setupTest()
-
-	pod := createSubmittedBatchPod(t, clusterContext)
-	client.Fake.ClearActions()
-
-	err := clusterContext.deletePodEvents(pod)
-	assert.NoError(t, err)
-
-	deleteAction, ok := client.Fake.Actions()[0].(clientTesting.DeleteCollectionAction)
-	assert.True(t, ok)
-	assert.True(t, client.Fake.Actions()[0].Matches("delete-collection", "events"))
-
-	matchedValue, matchesOnField := deleteAction.GetListRestrictions().Fields.RequiresExactMatch("involvedObject.uid")
-	assert.True(t, matchesOnField)
-	assert.Equal(t, matchedValue, string(pod.UID))
-}
-
 func TestKubernetesClusterContext_DeleteIngress(t *testing.T) {
 	clusterContext, client := setupTest()
 
@@ -295,7 +277,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPod
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 	assert.True(t, client.Fake.Actions()[1].Matches("delete", "pods"))
 
 	deleteAction, ok := client.Fake.Actions()[1].(clientTesting.DeleteAction)
@@ -312,7 +294,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallPatchOnClient_WhenPods
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 	assert.True(t, client.Fake.Actions()[0].Matches("patch", "pods"))
 
 	patchAction, ok := client.Fake.Actions()[0].(clientTesting.PatchAction)
@@ -326,25 +308,6 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallPatchOnClient_WhenPods
 	assert.True(t, exists)
 }
 
-func TestKubernetesClusterContext_ProcessPodsToDelete_CallsDeletesPodEvents_WhenPodsMarkedForDeletion(t *testing.T) {
-	clusterContext, client := setupTest()
-
-	pod := createSubmittedBatchPod(t, clusterContext)
-
-	client.Fake.ClearActions()
-	clusterContext.DeletePods([]*v1.Pod{pod})
-	clusterContext.ProcessPodsToDelete()
-
-	assert.Equal(t, len(client.Fake.Actions()), 3)
-	assert.True(t, client.Fake.Actions()[2].Matches("delete-collection", "events"))
-
-	deleteAction, ok := client.Fake.Actions()[2].(clientTesting.DeleteCollectionAction)
-	assert.True(t, ok)
-	matchedValue, matchesOnField := deleteAction.GetListRestrictions().Fields.RequiresExactMatch("involvedObject.uid")
-	assert.True(t, matchesOnField)
-	assert.Equal(t, matchedValue, string(pod.UID))
-}
-
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCallsToClient_WhenPodAlreadyMarkedForDeletion(t *testing.T) {
 	clusterContext, client := setupTest()
 
@@ -355,9 +318,8 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCalls
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
 
-	assert.Equal(t, len(client.Fake.Actions()), 2)
+	assert.Equal(t, len(client.Fake.Actions()), 1)
 	assert.True(t, client.Fake.Actions()[0].Matches("delete", "pods"))
-	assert.True(t, client.Fake.Actions()[1].Matches("delete-collection", "events"))
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCallsToClient_OnDeleteClientSuccess(t *testing.T) {
@@ -368,7 +330,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedDeleteCall
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
@@ -452,7 +414,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 
 	//Wait time required between repeated delete calls
 	time.Sleep(timeBetweenRepeatedDeleteCalls + 200*time.Millisecond)
@@ -461,7 +423,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
-	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 }
 
 func TestKubernetesClusterContext_AddAnnotation(t *testing.T) {
