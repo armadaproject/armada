@@ -45,8 +45,9 @@ def default_job_status_callable(
     job_service_client: Optional[JobServiceClient],
 ) -> jobservice_pb2.JobServiceResponse:
 
-    return_value =  job_service_client.get_job_status(
-        queue=queue, job_id=job_id, job_set_id=job_set_id)
+    return_value = job_service_client.get_job_status(
+        queue=queue, job_id=job_id, job_set_id=job_set_id
+    )
     return return_value
 
 

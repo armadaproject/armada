@@ -83,6 +83,7 @@ def test_bad_job():
     assert job_state == JobStateEnum.FAILED
     assert job_message.startswith(f"Armada test:{job_id} failed")
 
+
 def test_two_jobs():
     job_set_name = f"test-{uuid.uuid1()}"
 
