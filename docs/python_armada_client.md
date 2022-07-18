@@ -63,6 +63,53 @@ job_set_id is required.
 
 
 
+#### create_job_request(queue, job_set_id, job_request_items)
+Create a job request.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
+
+
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
+
+
+
+* **Returns**
+
+    A job request object. See the api definition.
+
+
+
+#### create_job_request_item(pod_spec, priority=1, \*\*job_item_params)
+Create a job request.
+
+
+* **Parameters**
+
+    
+    * **priority** (*int*) – The priority of the job
+
+
+    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
+
+
+    * **job_item_params** – All other job_item kwaarg
+    arguments as specified in the api definition.
+
+
+
+* **Returns**
+
+    A job item request object. See the api definition.
+
+
+
 #### create_queue(name, \*\*queue_params)
 Create the queue by name.
 
@@ -226,6 +273,30 @@ Uses SubmitJobs RPC to submit a job.
 
 
 
+#### _static_ unwatch_events(event_stream)
+Closes gRPC event streams
+
+Closes the provided event_stream.queue
+
+
+* **Parameters**
+
+    **event_stream** – a gRPC event stream
+
+
+
+* **Returns**
+
+    nothing
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### update_queue(name, \*\*queue_params)
 Update the queue of name with values in queue_params
 
@@ -245,30 +316,6 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Returns**
 
     None
-
-
-
-* **Return type**
-
-    None
-
-
-
-### armada_client.client.unwatch_events(event_stream)
-Closes gRPC event streams
-
-Closes the provided event_stream.queue
-
-
-* **Parameters**
-
-    **event_stream** – a gRPC event stream
-
-
-
-* **Returns**
-
-    nothing
 
 
 

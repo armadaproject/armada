@@ -75,7 +75,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 			panic(err)
 		}
 
-		instructionChannels[i] = instructions.Convert(ctx, pulsarMsgs, 2*config.BatchSize, compressor)
+		instructionChannels[i] = instructions.Convert(ctx, pulsarMsgs, 2*config.BatchSize, config.UserAnnotationPrefix, compressor)
 		consumers[i] = consumer
 	}
 
