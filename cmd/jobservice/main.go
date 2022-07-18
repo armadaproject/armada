@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/cmd/jobservice/cmd"
+	"github.com/G-Research/armada/internal/common"
 )
 
 const CustomConfigLocation string = "config"

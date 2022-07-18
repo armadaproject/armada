@@ -230,4 +230,3 @@ func TestIsTerminalEvent(t *testing.T) {
 		assert.Equal(t, jobResponse, eventMessages[i].jobServiceEvent)
 	}
 }
-

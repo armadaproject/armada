@@ -7,10 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/G-Research/armada/internal/jobservice"
-	"github.com/G-Research/armada/pkg/client"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/G-Research/armada/internal/jobservice"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 func runCmd(app *jobservice.App) *cobra.Command {
