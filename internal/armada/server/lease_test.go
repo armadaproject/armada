@@ -36,6 +36,42 @@ func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
 	assert.Equal(t, jobId, mockJobRepository.returnLeaseArg2)
 }
 
+func TestAggregatedQueueServer_ReturnLeaseCallsSendsJobLeaseReturnedEvent(t *testing.T) {
+	mockJobRepository, fakeEventStore, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(5)
+
+	clusterId := "cluster-1"
+	jobId := "job-id-1"
+	jobSetId := "job-set-id-1"
+	kubernetesId := "kubernetes-id"
+	queueName := "queue-1"
+	reason := "bad lease"
+	job := &api.Job{
+		Id:       jobId,
+		JobSetId: jobSetId,
+		Queue:    queueName,
+	}
+
+	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
+	assert.Nil(t, addJobsErr)
+
+	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		ClusterId:    clusterId,
+		JobId:        jobId,
+		Reason:       reason,
+		KubernetesId: kubernetesId,
+	})
+
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(fakeEventStore.events))
+	leaseReturnedEvent := fakeEventStore.events[0].GetLeaseReturned()
+	assert.Equal(t, jobId, leaseReturnedEvent.JobId)
+	assert.Equal(t, jobSetId, leaseReturnedEvent.JobSetId)
+	assert.Equal(t, queueName, leaseReturnedEvent.Queue)
+	assert.Equal(t, clusterId, leaseReturnedEvent.ClusterId)
+	assert.Equal(t, kubernetesId, leaseReturnedEvent.KubernetesId)
+	assert.Equal(t, reason, leaseReturnedEvent.Reason)
+}
+
 func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *testing.T) {
 	maxRetries := 5
 	mockJobRepository, _, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(maxRetries))
@@ -77,11 +113,11 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 	clusterId := "cluster-1"
 	jobId := "job-id-1"
 	jobSetId := "job-set-id-1"
-	queue := "queue-1"
+	queueName := "queue-1"
 	job := &api.Job{
 		Id:       jobId,
 		JobSetId: jobSetId,
-		Queue:    queue,
+		Queue:    queueName,
 	}
 
 	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
@@ -93,6 +129,9 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 			JobId:     jobId,
 		})
 		assert.Nil(t, err)
+		assert.Equal(t, 1, len(fakeEventStore.events))
+		//Reset received events for each lease call
+		fakeEventStore.events = []*api.EventMessage{}
 	}
 
 	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
@@ -100,12 +139,13 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 		JobId:     jobId,
 	})
 	assert.Nil(t, err)
-	assert.Equal(t, 1, len(fakeEventStore.events))
+	assert.Equal(t, 2, len(fakeEventStore.events))
 
-	failedEvent := fakeEventStore.events[0].GetFailed()
+	assert.NotNil(t, fakeEventStore.events[0].GetLeaseReturned())
+	failedEvent := fakeEventStore.events[1].GetFailed()
 	assert.Equal(t, jobId, failedEvent.JobId)
 	assert.Equal(t, jobSetId, failedEvent.JobSetId)
-	assert.Equal(t, queue, failedEvent.Queue)
+	assert.Equal(t, queueName, failedEvent.Queue)
 	assert.Equal(t, clusterId, failedEvent.ClusterId)
 	assert.Equal(t, fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries), failedEvent.Reason)
 }
