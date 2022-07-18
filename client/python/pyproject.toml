@@ -10,6 +10,7 @@ include = ["**/armada_client/**/*.py"]
 python = "^3.7"
 grpcio = "^1.46.1"
 grpcio-tools = "^1.46.1"
+mypy-protobuf = "^3.2.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"

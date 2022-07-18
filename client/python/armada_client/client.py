@@ -1,6 +1,7 @@
 """
 Armada Python GRPC Client
 """
+
 from concurrent.futures import ThreadPoolExecutor
 import os
 from typing import List, Optional
@@ -11,6 +12,7 @@ from armada_client.armada import (
     submit_pb2_grpc,
     submit_pb2,
 )
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 
 
 class ArmadaClient:
@@ -183,13 +185,45 @@ class ArmadaClient:
         response = self.submit_stub.GetQueueInfo(request)
         return response
 
+    @staticmethod
+    def unwatch_events(event_stream) -> None:
+        """Closes gRPC event streams
 
-def unwatch_events(event_stream) -> None:
-    """Closes gRPC event streams
+        Closes the provided event_stream.queue
 
-    Closes the provided event_stream.queue
+        :param event_stream: a gRPC event stream
+        :return: nothing
+        """
+        event_stream.cancel()
 
-    :param event_stream: a gRPC event stream
-    :return: nothing
-    """
-    event_stream.cancel()
+    def create_job_request(
+        self,
+        queue: str,
+        job_set_id: str,
+        job_request_items: List[submit_pb2.JobSubmitRequestItem],
+    ):
+        """Create a job request.
+
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set (a grouping of jobs)
+        :param job_request_items: List of Job Request Items
+        :return: A job request object. See the api definition.
+        """
+        return submit_pb2.JobSubmitRequest(
+            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
+        )
+
+    def create_job_request_item(
+        self, pod_spec: core_v1.PodSpec, priority: int = 1, **job_item_params
+    ):
+        """Create a job request.
+
+        :param priority: The priority of the job
+        :param pod_spec: The k8s pod spec of the job
+        :param job_item_params: All other job_item kwaarg
+               arguments as specified in the api definition.
+        :return: A job item request object. See the api definition.
+        """
+        return submit_pb2.JobSubmitRequestItem(
+            priority=priority, pod_spec=pod_spec, **job_item_params
+        )
