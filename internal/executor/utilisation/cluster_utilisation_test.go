@@ -29,11 +29,11 @@ func TestCreateReportsOfQueueUsages(t *testing.T) {
 		"memory": *resource.NewQuantity(100*1024*1024*1024, resource.DecimalSI),
 	}
 
+	assert.Equal(t, len(reports), 1)
 	assert.Equal(t, reports[0].Name, "queue1")
 	assert.Equal(t, reports[0].CountOfPodsByPhase, map[string]uint32{string(v1.PodRunning): 2})
 	assert.Equal(t, reports[0].Resources, expectedResource)
 	assert.Equal(t, reports[0].ResourcesUsed, map[string]resource.Quantity{})
-	assert.Equal(t, reports[0].Resources, expectedResource)
 }
 
 func TestCreateReportsOfQueueUsages_WhenAllPending(t *testing.T) {
