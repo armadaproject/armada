@@ -10,10 +10,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	commonUtil "github.com/G-Research/armada/internal/common/util"
+	commonutil "github.com/G-Research/armada/internal/common/util"
 	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/internal/executor/context"
-	context2 "github.com/G-Research/armada/internal/executor/context/fake"
+	fakecontext "github.com/G-Research/armada/internal/executor/context/fake"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/podchecks"
@@ -250,7 +250,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 				domain.JobSetId: "job-set-id-1",
 			},
 			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
-			UID:               types.UID(commonUtil.NewULID()),
+			UID:               types.UID(commonutil.NewULID()),
 		},
 		Status: status,
 	}
@@ -264,8 +264,8 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makejobManagerWithTestDoubles() (*context2.SyncFakeClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
-	fakeClusterContext := context2.NewSyncFakeClusterContext()
+func makejobManagerWithTestDoubles() (*fakecontext.SyncFakeClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
+	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := reporter_fake.NewFakeEventReporter()
 	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Minute*3, 1)
