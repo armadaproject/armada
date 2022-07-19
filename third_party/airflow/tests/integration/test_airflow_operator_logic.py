@@ -120,3 +120,40 @@ def test_two_jobs():
     )
     assert job_state == JobStateEnum.SUCCEEDED
     assert job_message == f"Armada test:{second_job_id} succeeded"
+
+def test_two_jobs_good_bad():
+    job_set_name = f"test-{uuid.uuid1()}"
+
+    first_job = no_auth_client.submit_jobs(
+        queue="test",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="busybox"),
+    )
+    first_job_id = first_job.job_response_items[0].job_id
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=job_service_client,
+        queue="test",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=first_job_id,
+    )
+    assert job_state == JobStateEnum.SUCCEEDED
+    assert job_message == f"Armada test:{first_job_id} succeeded"
+
+    second_job = no_auth_client.submit_jobs(
+        queue="test",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="nonexistant"),
+    )
+    second_job_id = second_job.job_response_items[0].job_id
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=job_service_client,
+        queue="test",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=second_job_id,
+    )
+    assert job_state == JobStateEnum.FAILED
+    assert job_message.startswith(f"Armada test:{second_job_id} failed")

@@ -1,6 +1,6 @@
 grpcPort: 60003
 httpPort: 8090
-SubscribeJobSetTime: 60
+SubscribeJobSetTime: 10
 SkipRedisCache: false
 CacheTimeToLive: 0
 grpc:

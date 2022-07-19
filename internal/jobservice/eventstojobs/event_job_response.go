@@ -43,3 +43,14 @@ func IsEventTerminal(message api.EventMessage) bool {
 	}
 
 }
+
+// A Utility function for testing if State is terminal
+func IsStateTerminal(State jobservice.JobServiceResponse_State) bool {
+	switch State {
+	case jobservice.JobServiceResponse_CANCELLED, jobservice.JobServiceResponse_SUCCEEDED, jobservice.JobServiceResponse_FAILED:
+		return true
+	default:
+		return false
+	}
+
+}

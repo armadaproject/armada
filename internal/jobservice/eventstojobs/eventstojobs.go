@@ -81,7 +81,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 			Queue:          eventToJobService.queue,
 			Watch:          true,
 			FromMessageId:  fromMessageId,
-			ErrorIfMissing: true,
+			ErrorIfMissing: false,
 		})
 		if err != nil {
 			log.Error(err)
@@ -113,11 +113,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 				}
 				terminalEventClientId := false
 				if eventToJobService.jobid == currentJobId {
-					if IsEventTerminal(*msg.Message) {
-						terminalEventClientId = true
-					} else {
-						terminalEventClientId = false
-					}
+					terminalEventClientId = IsEventTerminal(*msg.Message)
 				}
 				val, ok := jobIdMap[currentJobId]
 				if ok && val.State != jobStatus.State {

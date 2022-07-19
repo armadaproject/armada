@@ -35,11 +35,10 @@ func (jsr *RedisJobServiceRepository) HealthCheck() bool {
 }
 func (jsr *RedisJobServiceRepository) GetJobStatus(jobId string) (*jobservice.JobServiceResponse, error) {
 	val, err := jsr.db.Get(jobId).Result()
-	log.Infof("GetJobStatus jobId: %s value: %s err: %s", jobId, val, err)
 	if err == redis.Nil {
 		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	} else if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	jobResponse := &jobservice.JobServiceResponse{}
 	e := proto.Unmarshal([]byte(val), jobResponse)
@@ -58,6 +57,5 @@ func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobId string, jobRespon
 	if err := jsr.db.Set(jobId, data, jsr.ttl).Err(); err != nil {
 		panic(err)
 	}
-	log.Infof("UpdateJobServiceDb jobId: %s jobState: %s", jobId, jobResponse.State)
 	return nil
 }
