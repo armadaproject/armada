@@ -53,29 +53,26 @@ func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context conte
 	jobStatusForId := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
 		jobIdMap, err := eventToJobService.StreamCommon(c, context)
-		for key, element := range jobIdMap {
-			log.Infof("key %s element: %s", key, element.State)
-		}
 		var ok bool
 		jobStatusForId, ok = jobIdMap[jobId]
-		if ok {
-			log.Infof("JobStatus Found: %s", jobStatusForId.State)
-		} else {
+		if !ok {
 			jobStatusForId = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
-			log.Infof("JobStatus Not Found %s", jobId)
 		}
 		return err
 	})
-	log.Infof("State is before return: %s", jobStatusForId.State)
 	return jobStatusForId, err
 }
 func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) (map[string]*jobservice.JobServiceResponse, error) {
 	jobIdMap := make(map[string]*jobservice.JobServiceResponse)
 	var fromMessageId string
+	// I found that GRPC will not allow you to run something in background and return a value back to caller.
+	// GRPC will cancel the context once your request returns.
+	// So we are going to introduce a timer for how long to subscribe to event.
+	// This will allow the rpc call to listen for all events in a given job-set
+	// But we will return after SubscribeJobSetTime s
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second)
 	defer cancel()
 	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
-		log.Infof("Subscribing on %s", eventToJobService.jobsetid)
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
 			Queue:          eventToJobService.queue,

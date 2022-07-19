@@ -14,7 +14,8 @@ type JobServiceConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	Grpc          grpcconfig.GrpcConfig
+	Grpc grpcconfig.GrpcConfig
+	// Connection details that we obtain from client
 	ApiConnection client.ApiConnectionDetails
 	Redis         redis.UniversalOptions
 	// Configurable value that translates to number of seconds

@@ -32,7 +32,6 @@ func New(config *configuration.JobServiceConfiguration) *App {
 
 func (a *App) StartUp(ctx context.Context) error {
 	config := a.Config
-	log.Info("Armada jobService service starting")
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)

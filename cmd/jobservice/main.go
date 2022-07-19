@@ -7,8 +7,6 @@ import (
 	"github.com/G-Research/armada/internal/common"
 )
 
-const CustomConfigLocation string = "config"
-
 func main() {
 	common.ConfigureCommandLineLogging()
 	root := cmd.RootCmd()

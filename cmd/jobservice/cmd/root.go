@@ -1,10 +1,6 @@
 package cmd
 
 import (
-	log "github.com/sirupsen/logrus"
-
-	"github.com/pkg/errors"
-
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/common"
@@ -18,7 +14,7 @@ import (
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "jobservice",
-		Short: "jobservice is a used for polling functionality",
+		Short: "jobservice is used for polling functionality",
 	}
 	client.AddArmadaApiConnectionCommandlineArgs(cmd)
 	common.ConfigureLogging()
@@ -32,12 +28,4 @@ func RootCmd() *cobra.Command {
 	)
 
 	return cmd
-}
-func initParams(cmd *cobra.Command, app *jobservice.App) error {
-	if err := client.LoadCommandlineArgs(); err != nil {
-		return errors.Wrap(err, "error loading command line arguments")
-	}
-	log.Info("Extracting CLI from ArmadaCtl")
-	app.Config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
-	return nil
 }
