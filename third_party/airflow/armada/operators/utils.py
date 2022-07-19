@@ -44,11 +44,9 @@ def default_job_status_callable(
     job_id: str,
     job_service_client: Optional[JobServiceClient],
 ) -> jobservice_pb2.JobServiceResponse:
-
-    return_value = job_service_client.get_job_status(
+    return job_service_client.get_job_status(
         queue=queue, job_id=job_id, job_set_id=job_set_id
     )
-    return return_value
 
 
 def search_for_job_complete(
@@ -85,7 +83,6 @@ def search_for_job_complete(
     while True:
         # The else statement is for testing purposes.
         # We want to allow a test callable to be passed
-        time.sleep(1.0)
         if job_service_client:
             job_status_return = job_status_callable(
                 queue=queue,
