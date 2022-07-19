@@ -197,15 +197,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	defer cancel()
 
 	// Submit jobs.
-	submitter := &submitter.Submitter{
-		ApiConnectionDetails: a.Params.ApiConnectionDetails,
-		Jobs:                 testSpec.Jobs,
-		Queue:                testSpec.Queue,
-		JobSetName:           testSpec.JobSetId,
-		NumBatches:           testSpec.NumBatches,
-		BatchSize:            testSpec.BatchSize,
-		Interval:             testSpec.Interval,
-	}
+	submitter := submitter.NewSubmitterFromTestSpec(a.Params.ApiConnectionDetails, testSpec)
 	err := submitter.Run(ctx)
 	if err != nil {
 		return err
@@ -217,37 +209,8 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	}
 
 	// If configured, cancel the submitted jobs.
-	if testSpec.Cancel == api.TestSpec_BY_ID {
-		err := client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
-			for _, jobId := range jobIds {
-				_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-					JobId:    jobId,
-					Queue:    testSpec.GetQueue(),
-					JobSetId: testSpec.GetJobSetId(),
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-	} else if testSpec.Cancel == api.TestSpec_BY_SET {
-		err := client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
-			_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-				Queue:    testSpec.GetQueue(),
-				JobSetId: testSpec.GetJobSetId(),
-			})
-			if err != nil {
-				return err
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
+	if err := tryCancelJobs(ctx, testSpec, a.Params.ApiConnectionDetails, jobIds); err != nil {
+		return err
 	}
 
 	// One channel for each system listening to events.
@@ -285,12 +248,14 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	// Stop all services and wait for them to exit.
 	cancel()
 	groupErr := g.Wait()
-	if err != nil && groupErr != nil && groupErr != context.Canceled {
+	if err != nil && groupErr != nil && !errors.Is(groupErr, context.Canceled) {
 		err = errors.WithMessage(groupErr, err.Error())
 	}
 
 	fmt.Fprint(a.Out, "All job transitions:\n")
 	eventLogger.Log()
+	fmt.Fprint(a.Out, "Benchmark:\n")
+	eventLogger.Benchmark()
 
 	// Cancel any jobs we haven't seen a terminal event for.
 	client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
@@ -301,7 +266,6 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 			if hasTerminated {
 				continue
 			}
-			jobId := jobId
 			cancelGroup.Go(func() error {
 				res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
 					Queue:    testSpec.GetQueue(),
@@ -322,12 +286,13 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	return err
 }
 
-// UnmarshalTestCase unmarshals bytes into a TestSpec.
+// UnmarshalTestCase unmarshalls bytes into a TestSpec.
 func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 	var result *multierror.Error
 	successExpectedEvents := false
 	successEverythingElse := false
-	docs := bytes.Split(yamlBytes, []byte("---"))
+	yamlSpecSeparator := []byte("---")
+	docs := bytes.Split(yamlBytes, yamlSpecSeparator)
 	for _, docYamlBytes := range docs {
 
 		// yaml.Unmarshal can unmarshal everything,
@@ -357,4 +322,37 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 		return result.ErrorOrNil()
 	}
 	return nil
+}
+
+// tryCancelJobs cancels submitted jobs if cancellation is configured
+func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) (err error) {
+	req := &api.JobCancelRequest{
+		Queue:    testSpec.GetQueue(),
+		JobSetId: testSpec.GetJobSetId(),
+	}
+	fCancelByID := func(sc api.SubmitClient) error {
+		for _, jobId := range jobIds {
+			req.JobId = jobId
+			_, err := sc.CancelJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		return nil
+	}
+	fCancelBySet := func(sc api.SubmitClient) error {
+		_, err := sc.CancelJobs(ctx, req)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
+	// If configured, cancel the submitted jobs.
+	switch {
+	case testSpec.Cancel == api.TestSpec_BY_ID:
+		err = client.WithSubmitClient(conn, fCancelByID)
+	case testSpec.Cancel == api.TestSpec_BY_SET:
+		err = client.WithSubmitClient(conn, fCancelBySet)
+	}
+	return err
 }

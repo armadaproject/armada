@@ -31,6 +31,18 @@ type Submitter struct {
 	mu      sync.Mutex
 }
 
+func NewSubmitterFromTestSpec(conn *client.ApiConnectionDetails, testSpec *api.TestSpec) *Submitter {
+	return &Submitter{
+		ApiConnectionDetails: conn,
+		Jobs:                 testSpec.Jobs,
+		Queue:                testSpec.Queue,
+		JobSetName:           testSpec.JobSetId,
+		NumBatches:           testSpec.NumBatches,
+		BatchSize:            testSpec.BatchSize,
+		Interval:             testSpec.Interval,
+	}
+}
+
 func (config *Submitter) Validate() error {
 	if len(config.Jobs) == 0 {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
