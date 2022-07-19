@@ -12,8 +12,8 @@ import (
 	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	clusterContext "github.com/G-Research/armada/internal/executor/context"
+	"github.com/G-Research/armada/internal/executor/context/fake"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/service/fake"
 	"github.com/G-Research/armada/internal/executor/util"
 )
 
