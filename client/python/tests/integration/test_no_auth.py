@@ -16,8 +16,20 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 def client() -> ArmadaClient:
     server_name = os.environ.get("ARMADA_SERVER", "localhost")
     server_port = os.environ.get("ARMADA_PORT", "50051")
+    server_ssl = os.environ.get("ARMADA_SSL", "false")
 
-    return ArmadaClient(channel=grpc.insecure_channel(f"{server_name}:{server_port}"))
+    if server_ssl == "true":
+        channel_credentials = grpc.ssl_channel_credentials()
+        return ArmadaClient(
+            channel=grpc.secure_channel(
+                f"{server_name}:{server_port}", channel_credentials
+            )
+        )
+
+    else:
+        return ArmadaClient(
+            channel=grpc.insecure_channel(f"{server_name}:{server_port}")
+        )
 
 
 no_auth_client = client()
