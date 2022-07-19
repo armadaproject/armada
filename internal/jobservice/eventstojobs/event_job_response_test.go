@@ -232,33 +232,34 @@ func TestIsTerminalEvent(t *testing.T) {
 }
 
 type isStateResponse struct {
-	state *jobservice.JobServiceResponse
+	state         *jobservice.JobServiceResponse
 	terminalState bool
 }
+
 func TestIsTerminalState(t *testing.T) {
 	stateMessages := []isStateResponse{
 		{
-			state:    &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
 			terminalState: true,
 		},
 		{
-			state:    &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED},
 			terminalState: true,
 		},
 		{
-			state:    &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED},
 			terminalState: true,
 		},
 		{
-			state:    &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUBMITTED},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUBMITTED},
 			terminalState: false,
 		},
 		{
-			state:    &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING},
 			terminalState: false,
 		},
 		{
-			state:    &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
 			terminalState: false,
 		},
 	}
@@ -268,6 +269,4 @@ func TestIsTerminalState(t *testing.T) {
 		stateTerminal := IsStateTerminal(stateMessages[i].state.State)
 		assert.Equal(t, stateTerminal, stateMessages[i].terminalState)
 	}
-
 }
-

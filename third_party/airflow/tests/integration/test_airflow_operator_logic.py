@@ -121,6 +121,7 @@ def test_two_jobs():
     assert job_state == JobStateEnum.SUCCEEDED
     assert job_message == f"Armada test:{second_job_id} succeeded"
 
+
 def test_two_jobs_good_bad():
     job_set_name = f"test-{uuid.uuid1()}"
 
