@@ -1,6 +1,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -22,7 +23,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
+	cluster_context "github.com/G-Research/armada/internal/executor/context"
 )
 
 type NodeSpec struct {
@@ -54,7 +55,7 @@ type FakeClusterContext struct {
 	nodeAvailableResource map[string]common.ComputeResources
 }
 
-func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) context.ClusterContext {
+func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
 	c := &FakeClusterContext{
 		clusterId:             appConfig.ClusterId,
 		pool:                  appConfig.Pool,
@@ -267,7 +268,7 @@ func (c FakeClusterContext) GetClusterPool() string {
 	return c.pool
 }
 
-func (c FakeClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
+func (c FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

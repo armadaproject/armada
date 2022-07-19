@@ -18,6 +18,5 @@ const (
 	ReprioritizeAnyJobs                       = "reprioritize_any_jobs"
 	WatchEvents                               = "watch_events"
 	WatchAllEvents                            = "watch_all_events"
-
-	ExecuteJobs = "execute_jobs"
+	ExecuteJobs                               = "execute_jobs"
 )
