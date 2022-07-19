@@ -129,7 +129,7 @@ Uses the GetJobStatus rpc to get a status of your job
 ## armada.operators.utils module
 
 
-### _class_ armada.operators.utils.JobStateEnum(value)
+### _class_ armada.operators.utils.JobState(value)
 Bases: `Enum`
 
 An enumeration.
@@ -150,7 +150,7 @@ Throw an error on a terminal event if job errored out
 * **Parameters**
 
     
-    * **job_state** (*JobStateEnum*) – A string representation of state
+    * **job_state** (*JobState*) – A string representation of state
 
 
     * **name** (*str*) – The name of your armada job
@@ -234,4 +234,4 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Return type**
 
-    *Tuple*[*JobStateEnum*, str]
+    *Tuple*[*JobState*, str]
