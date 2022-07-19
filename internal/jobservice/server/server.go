@@ -9,7 +9,7 @@ import (
 	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 
-	"github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
 type JobServiceServer struct {
@@ -21,7 +21,7 @@ func NewJobService(config *configuration.JobServiceConfiguration, redisService r
 	return &JobServiceServer{jobServiceConfig: config, jobRepository: redisService}
 }
 
-func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *jobservice.JobServiceRequest) (*jobservice.JobServiceResponse, error) {
+func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
 	// We want to support cases where cache doesn't exist
 	if s.jobServiceConfig.SkipRedisCache || !s.jobRepository.HealthCheck() {
 		jobResponse, err := s.GetJobStatusWithNoRedis(ctx, opts)
@@ -46,7 +46,7 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *jobservice.Jo
 	return response, err
 }
 
-func (s *JobServiceServer) GetJobStatusWithNoRedis(ctx context.Context, opts *jobservice.JobServiceRequest) (*jobservice.JobServiceResponse, error) {
+func (s *JobServiceServer) GetJobStatusWithNoRedis(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
 	eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, &s.jobRepository)
 	return eventJob.GetStatusWithoutRedis(ctx, opts.JobId)
 }

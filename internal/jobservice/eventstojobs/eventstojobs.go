@@ -9,7 +9,7 @@ import (
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -40,30 +40,30 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 	return client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
 		jobIdMap, err := eventToJobService.StreamCommon(c, context)
 		for key, element := range jobIdMap {
-			log.Infof("key %s element: %s", key, element.State)
 			e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(key, element)
 			if e != nil {
-				panic(e)
+				log.Error(e)
+				return e
 			}
 		}
 		return err
 	})
 }
-func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context context.Context, jobId string) (*jobservice.JobServiceResponse, error) {
-	jobStatusForId := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
+func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context context.Context, jobId string) (*js.JobServiceResponse, error) {
+	jobStatusForId := &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}
 	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
 		jobIdMap, err := eventToJobService.StreamCommon(c, context)
 		var ok bool
 		jobStatusForId, ok = jobIdMap[jobId]
 		if !ok {
-			jobStatusForId = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
+			jobStatusForId = &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}
 		}
 		return err
 	})
 	return jobStatusForId, err
 }
-func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) (map[string]*jobservice.JobServiceResponse, error) {
-	jobIdMap := make(map[string]*jobservice.JobServiceResponse)
+func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) (map[string]*js.JobServiceResponse, error) {
+	jobIdMap := make(map[string]*js.JobServiceResponse)
 	var fromMessageId string
 	// I found that GRPC will not allow you to run something in background and return a value back to caller.
 	// GRPC will cancel the context once your request returns.

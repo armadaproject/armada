@@ -9,12 +9,12 @@ import (
 
 	"github.com/go-redis/redis"
 
-	"github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
 type JobServiceRepository interface {
-	GetJobStatus(jobId string) (*jobservice.JobServiceResponse, error)
-	UpdateJobServiceDb(jobId string, jobResponse *jobservice.JobServiceResponse) error
+	GetJobStatus(jobId string) (*js.JobServiceResponse, error)
+	UpdateJobServiceDb(jobId string, jobResponse *js.JobServiceResponse) error
 }
 type RedisJobServiceRepository struct {
 	db  redis.UniversalClient
@@ -32,29 +32,29 @@ func (jsr *RedisJobServiceRepository) HealthCheck() bool {
 	}
 	return true
 }
-func (jsr *RedisJobServiceRepository) GetJobStatus(jobId string) (*jobservice.JobServiceResponse, error) {
+func (jsr *RedisJobServiceRepository) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
 	val, err := jsr.db.Get(jobId).Result()
 	if err == redis.Nil {
-		return &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	jobResponse := &jobservice.JobServiceResponse{}
+	jobResponse := &js.JobServiceResponse{}
 	e := proto.Unmarshal([]byte(val), jobResponse)
 	if e != nil {
-		return &jobservice.JobServiceResponse{}, fmt.Errorf("[RedisJobServiceRepository.GetJobStatus] error unmarshalling JobResponse: %s", err)
+		return &js.JobServiceResponse{}, fmt.Errorf("[RedisJobServiceRepository.GetJobStatus] error unmarshalling JobResponse: %s", err)
 	}
 
 	return jobResponse, nil
 }
-func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobId string, jobResponse *jobservice.JobServiceResponse) error {
+func (jsr *RedisJobServiceRepository) UpdateJobServiceDb(jobId string, jobResponse *js.JobServiceResponse) error {
 	data, err := proto.Marshal(jobResponse)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	if err := jsr.db.Set(jobId, data, jsr.ttl).Err(); err != nil {
-		panic(err)
+		return errors.WithStack(err)
 	}
 	return nil
 }

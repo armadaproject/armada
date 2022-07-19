@@ -1,8 +1,8 @@
 grpcPort: 60003
 httpPort: 8090
-SubscribeJobSetTime: 10
-SkipRedisCache: false
-CacheTimeToLive: 0
+subscribeJobSetTime: 10
+skipRedisCache: false
+cacheTimeToLive: 0
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m

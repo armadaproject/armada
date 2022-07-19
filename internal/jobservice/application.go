@@ -16,7 +16,7 @@ import (
 
 	"github.com/G-Research/armada/internal/jobservice/server"
 
-	"github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
 type App struct {
@@ -47,7 +47,7 @@ func (a *App) StartUp(ctx context.Context) error {
 
 	redisJobRepository := repository.NewRedisJobServiceRepository(db, config.CacheTimeToLive)
 	jobService := server.NewJobService(config, *redisJobRepository)
-	jobservice.RegisterJobServiceServer(grpcServer, jobService)
+	js.RegisterJobServiceServer(grpcServer, jobService)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil { // TODO Don't call fatal, return an error.
