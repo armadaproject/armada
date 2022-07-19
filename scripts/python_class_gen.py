@@ -14,7 +14,7 @@ def get_types(module):
 
 types = get_types(event_module)
 
-enum_options = "\n".join(f"    {x} = '{x}'" for x in types)
+enum_options = "\n".join(f'    {x} = "{x}"' for x in types)
 
 docstring = '\n    """\n' + "    Enum for the event states." + '\n    """\n'
 
