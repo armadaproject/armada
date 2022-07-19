@@ -134,7 +134,7 @@ func (e *ErrMaxRetriesExceeded) Unwrap() error {
 	return e.LastError
 }
 
-// ErrCreateResource indicates that some Kubernetes rresource could not be created.
+// ErrCreateResource indicates that some Kubernetes resource could not be created.
 // It's used in the executor.
 type ErrCreateResource struct {
 	// Resource attempting to create, e.g., pod or service.
