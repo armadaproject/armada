@@ -448,6 +448,93 @@ func TestFailedWithMissingRunId(t *testing.T) {
 	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
 
+func TestHandlePodTerminated(t *testing.T) {
+
+	terminatedMsg := "test pod terminated msg"
+
+	podTerminated := &armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: jobIdProto,
+				RunId: runIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_PodTerminated{
+							PodTerminated: &armadaevents.PodTerminated{
+								NodeName: nodeName,
+								ObjectMeta: &armadaevents.ObjectMeta{
+									ExecutorId: executorId,
+								},
+								Message: terminatedMsg,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	msg := NewMsg(baseTime, podTerminated)
+	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+			RunId:     runIdString,
+			Node:      pointer.String(nodeName),
+			Finished:  &baseTime,
+			Succeeded: pointer.Bool(false),
+			Error:     pointer.String(terminatedMsg),
+		}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+	}
+	assert.Equal(t, expected, instructions)
+
+}
+
+func TestHandlePodUnschedulable(t *testing.T) {
+
+	unschedulableMsg := "test pod unschedulable msg"
+
+	podUnschedulable := &armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: jobIdProto,
+				RunId: runIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_PodUnschedulable{
+							PodUnschedulable: &armadaevents.PodUnschedulable{
+								NodeName: nodeName,
+								ObjectMeta: &armadaevents.ObjectMeta{
+									ExecutorId: executorId,
+								},
+								Message: unschedulableMsg,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	msg := NewMsg(baseTime, podUnschedulable)
+	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+			RunId:            runIdString,
+			Node:             pointer.String(nodeName),
+			Finished:         &baseTime,
+			Succeeded:        pointer.Bool(false),
+			UnableToSchedule: pointer.Bool(true),
+			Error:            pointer.String(unschedulableMsg),
+		}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+	}
+	assert.Equal(t, expected, instructions)
+
+}
+
 func TestSubmitWithNullChar(t *testing.T) {
 	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
 		Created: &baseTime,
