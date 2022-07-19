@@ -226,7 +226,7 @@ def main():
 
 if __name__ == "__main__":
     DISABLE_SSL = None
-    HOST = os.environ.get("HOST", "localhost")
-    PORT = os.environ.get("PORT", "50051")
+    HOST = os.environ.get("ARMADA_SERVER", "localhost")
+    PORT = os.environ.get("ARMADA_PORT", "50051")
 
     main()
