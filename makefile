@@ -449,6 +449,13 @@ python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
+airflow-operator: 
+	rm -rf proto-airflow
+	mkdir -p proto-airflow
+
+	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
+	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
+	
 proto: setup-proto
 
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
