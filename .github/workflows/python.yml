@@ -11,6 +11,7 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
+      - 'makefile'
 
   pull_request:
     branches-ignore:
@@ -22,6 +23,7 @@ on:
       - '.github/workflows/python.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
+      - 'makefile'
 
 jobs:
   run-tox:
@@ -30,7 +32,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
         with:
-          python-version: '3.9'
+          python-version: '3.8.10'
       - run: pip install tox
       # Generate the proto files for python, required for later steps
       - run: make python
@@ -40,6 +42,6 @@ jobs:
       - name: Verify docs updated if needed
         run: tox -e docs-check
         working-directory: client/python
-      - name: Run tox python 3.9 unit tests
-        run: tox -e py39
+      - name: Run tox python 3.8 unit tests
+        run: tox -e py38
         working-directory: client/python
