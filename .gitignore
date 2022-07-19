@@ -55,9 +55,9 @@ client/python/dist
 *_pb2.py
 *_pb2.pyi
 *_pb2_grpc.py
-typings.py
 armada/
 .tox
 proto
 client/python/docs/build/
 build/ssl/certs/ca-certificates.crt
+typings.py
