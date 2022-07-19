@@ -392,23 +392,31 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			// Certain legacy events mean we don't have a valid run id
 			// In this case we have to invent a fake run
 			// TODO: remove this when the legacy messages go away!
-			if runId == eventutil.LEGACY_RUN_ID {
+			isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
+			if isLegacyEvent {
 				jobRun := createFakeJobRun(jobId, ts)
 				runId = jobRun.RunId
+				objectMeta := extractMetaFromError(e)
+				if objectMeta != nil && objectMeta.ExecutorId != "" {
+					jobRun.Cluster = objectMeta.ExecutorId
+				}
 				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
 			}
 
 			jobRunUpdate := &model.UpdateJobRunInstruction{
 				RunId:     runId,
-				Started:   &ts,
 				Succeeded: pointer.Bool(false),
 				Finished:  &ts,
+			}
+			if isLegacyEvent {
+				jobRunUpdate.Started = &ts
 			}
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				jobRunUpdate.Node = pointer.String(reason.PodError.NodeName)
 				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
 						RunId:         jobRunUpdate.RunId,
@@ -419,21 +427,40 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			case *armadaevents.Error_PodTerminated:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				jobRunUpdate.Node = pointer.String(reason.PodTerminated.NodeName)
 			case *armadaevents.Error_PodUnschedulable:
-				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				jobRunUpdate.Node = pointer.String(reason.PodUnschedulable.NodeName)
 			case *armadaevents.Error_PodLeaseReturned:
-				jobRunUpdate.Error = pointer.String("Lease Returned")
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			default:
+				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
 			break
 		}
+	}
+	return nil
+}
+
+func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
+	switch err := e.Reason.(type) {
+	case *armadaevents.Error_PodError:
+		return err.PodError.ObjectMeta
+	case *armadaevents.Error_PodTerminated:
+		return err.PodTerminated.ObjectMeta
+	case *armadaevents.Error_PodUnschedulable:
+		return err.PodUnschedulable.ObjectMeta
+	case *armadaevents.Error_PodLeaseReturned:
+		return err.PodLeaseReturned.ObjectMeta
 	}
 	return nil
 }
