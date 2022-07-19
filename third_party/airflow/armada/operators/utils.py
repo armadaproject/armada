@@ -19,7 +19,7 @@ class JobState(Enum):
 def airflow_error(job_state: JobState, name: str, job_id: str):
     """Throw an error on a terminal event if job errored out
 
-    :param job_state: A string representation of state
+    :param job_state: A JobState enum class
     :param name: The name of your armada job
     :param job_id: The job id that armada assigns to it
     :return: No Return or an AirflowFailException.
