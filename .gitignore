@@ -49,14 +49,17 @@ packages
 # python
 # Pycache, dist, poetry versions
 # and ignore protoc generated files
+*.egg-info/
 *.pyc
 client/python/dist
 .python-version
 *_pb2.py
 *_pb2.pyi
 *_pb2_grpc.py
-armada/
+client/python/armada_client/armada/
 .tox
 proto
+proto-airflow
 client/python/docs/build/
+third_party/airflow/docs/build/
 build/ssl/certs/ca-certificates.crt
