@@ -18,14 +18,13 @@ import (
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
-
-const maxMessageLength = 2048
 
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
@@ -158,7 +157,7 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 		JobSet:    jobSet,
 		Priority:  event.Priority,
 		Submitted: ts,
-		JobJson:   jobJson,
+		JobJson:   util.RemoveNullsFromJson(jobJson),
 		JobProto:  jobProto,
 		State:     repository.JobQueuedOrdinal,
 		Updated:   ts,
@@ -415,7 +414,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
-				truncatedMsg := truncate(reason.PodError.GetMessage(), maxMessageLength)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.Node = pointer.String(reason.PodError.NodeName)
 				for _, containerError := range reason.PodError.ContainerErrors {
@@ -426,16 +425,16 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 					})
 				}
 			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := truncate(reason.PodTerminated.GetMessage(), maxMessageLength)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.Node = pointer.String(reason.PodTerminated.NodeName)
 			case *armadaevents.Error_PodUnschedulable:
-				truncatedMsg := truncate(reason.PodUnschedulable.GetMessage(), maxMessageLength)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 				jobRunUpdate.Node = pointer.String(reason.PodUnschedulable.NodeName)
 			case *armadaevents.Error_PodLeaseReturned:
-				truncatedMsg := truncate(reason.PodLeaseReturned.GetMessage(), maxMessageLength)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			case *armadaevents.Error_LeaseExpired:
@@ -474,13 +473,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) (string, int) {
 		}
 	}
 	return "UNKNOWN", -1
-}
-
-func truncate(s string, max int) string {
-	if max > len(s) {
-		return s
-	}
-	return s[:max]
 }
 
 func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {

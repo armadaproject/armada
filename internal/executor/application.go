@@ -113,7 +113,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		pendingPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
 		config.Application.UpdateConcurrencyLimit)
-	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitConcurrencyLimit)
+	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitConcurrencyLimit, config.Kubernetes.FatalPodSubmissionErrors)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
@@ -175,6 +175,7 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
+	grpc_prometheus.EnableClientHandlingTimeHistogram()
 	return client.CreateApiConnectionWithCallOptions(&config.ApiConnection,
 		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
