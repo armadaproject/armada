@@ -509,9 +509,9 @@ func TestFailedWithNullCharInError(t *testing.T) {
 	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
 		{
 			RunId:     runIdString,
-			Started:   &baseTime,
 			Finished:  &baseTime,
 			Succeeded: pointer.Bool(false),
+			Node:      pointer.String(nodeName),
 			Error:     pointer.String("error message with null char "),
 		},
 	}
