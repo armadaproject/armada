@@ -1,6 +1,8 @@
 package eventlogger
 
-import "math"
+import (
+	"math"
+)
 
 type Statistics struct {
 	Min               int64   `json:"min"`
@@ -68,6 +70,9 @@ func avgInt64(input []int64) float64 {
 }
 
 func varianceInt64(numbers []int64) float64 {
+	if len(numbers) < 2 {
+		return 0
+	}
 	var total float64
 	avg := avgInt64(numbers)
 	for _, number := range numbers {
