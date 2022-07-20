@@ -8,15 +8,11 @@ Armada’s API is event driven, preventing it from integrating with tools, such 
 - Add an optional caching API and service to Armada
 - Caches job_id:(job_status, message) relationship for subscribed (queue,job_set) tuples
 - Service is written in Go for performance and to reuse code from armadactl
-  - Run alongside Airflow cluster
-    - Upside: It will already exist for airflow users
-    - Downside: Probably makes security/permissions something that caching has to be aware of and implementing directly, since it would be one cache for all users.
 
 ### Proposed Airflow Operator flow
 1. Create the job_set
-2. Subscribe the armada cache to the job_set:queue tuple needed
-3. [do the work to schedule the job]
-4. Status polling loop that talks to armada cache
+2. [do the work to schedule the job]
+3. Status polling loop that talks to armada cache
 
 ## Alternative Options
 
@@ -101,8 +97,6 @@ I have a PR that implements this [plan](https://github.com/G-Research/armada/pul
 - Created a jobservice cmd that takes an configuration object
 - JobService starts a GRPC server
 - Added ApiConnection and GRPC configuration parameters
-- Implemented the GetJobStatus rpc call that reaches out to events service to get status of job. This is not exactly what we want.
-- Reports Error on failed jobs where Events proto has a Reason field
 
 
 ### Subscription
