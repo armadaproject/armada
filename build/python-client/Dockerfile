@@ -11,4 +11,6 @@ RUN pip install /code\[test\] --use-feature=in-tree-build
 # Creating folders, and files for a project:
 COPY client/python /code
 
+WORKDIR /code
+
 ENTRYPOINT ["/bin/bash"]
