@@ -5,7 +5,8 @@ Armada Python Client
 ## How To Use This Application
 ***
 
-> **Do Not Fork** this application is meant to be used from **[armada_client](https://pypi.org/project/armada-client/)**
+> **These instructions are intended for end-users.** If you wish to develop against armada_client, please see our **[documentation on contributing](CONTRIBUTING.md)**
+
 1) Click on [armada_client](https://pypi.org/project/armada-client/).
 2) Read the file [CONTRIBUTING.md](CONTRIBUTING.md)
 3) Click [here](https://armadaproject.io/libraries) get an overview of Armada client libraries
@@ -20,19 +21,19 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 Prerequisites:
 
 For building the python client:
-In the repo level, run `make python` then `cd client/python` and lastly run `poetry install` to pull all the necessary dependencies.
+In the repo level, run `make python` then `cd client/python` and lastly run `pip install` to install the client from git with all necessary dependencies.
 
 1) pyenv
     - Sets up local python environment for supporting multiple python environments
     - Set up a local python 3.9 environment
-2) poetry
+2) pip
     - Package is defined by pyproject.toml
-    - `poetry install` will pull dependencies and install based on pyproject.toml
+    - `pip install` will pull dependencies and install based on pyproject.toml
 3) tox
-    - `poetry run tox -e format` will check formatting/linter for your code according to default black settings and flake8
-    - `poetry run tox -e py39` will run unit tests with your default python 3.9 environment
+    - `tox -e format` will check formatting/linter for your code according to default black settings and flake8
+    - `tox -e py39` will run unit tests with your default python 3.9 environment
 4) Auto formatting
-    - `poetry run tox -e format-code` will run black formatter on client and testing code.
+    - `tox -e format-code` will run black formatter on client and testing code.
 ## CI
 
 We use tox for running our formatting and testing jobs in github actions.
