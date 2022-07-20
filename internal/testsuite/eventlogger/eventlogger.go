@@ -16,7 +16,7 @@ type EventsLogger struct {
 	Out                        io.Writer
 	c                          chan *api.EventMessage
 	interval                   time.Duration
-	eventDurationsByJobId      map[string][]*EventDuration
+	eventBenchmarksByJobId     map[string]*EventDurationsByJobId
 	transitionsByJobId         map[string][]string
 	intervalTransitionsByJobId map[string][]string
 	mu                         sync.Mutex
@@ -30,7 +30,13 @@ func New(c chan *api.EventMessage, interval time.Duration) *EventsLogger {
 	}
 }
 
+type EventDurationsByJobId struct {
+	JobId  string           `json:"jobId"`
+	Events []*EventDuration `json:"events"`
+}
+
 type EventDuration struct {
+	Received time.Time     `json:"received"`
 	Duration time.Duration `json:"duration"`
 	Event    string        `json:"event"`
 }
@@ -44,7 +50,7 @@ func (srv *EventsLogger) flushAndLog() {
 
 	// For each job for which we already have some state transitions,
 	// add the most recent state to the state transitions seen in this interval.
-	// This makes is more clear what's going on.
+	// This makes it more clear what's going on.
 	continuedTransitionsByJobId := make(map[string][]string)
 	for jobId, transitions := range srv.intervalTransitionsByJobId {
 		if previousTransitions := srv.transitionsByJobId[jobId]; len(previousTransitions) > 0 {
@@ -76,17 +82,6 @@ func (srv *EventsLogger) Log() {
 	}
 }
 
-func (srv *EventsLogger) Benchmark() {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	for jobId, durations := range srv.eventDurationsByJobId {
-		fmt.Fprintf(srv.Out, "%s:\n", jobId)
-		for _, d := range durations {
-			fmt.Fprintf(srv.Out, "\t%v\n", d)
-		}
-	}
-}
-
 // CountJobsByTransitions returns a map from sequences of transitions,
 // e.g., "submitted -> queued" to the number of jobs going through exactly those transitions.
 func CountJobsByTransitions(transitionsByJobId map[string][]string) map[string]int {
@@ -104,7 +99,7 @@ func (srv *EventsLogger) Run(ctx context.Context) error {
 	defer srv.flushAndLog()
 	srv.transitionsByJobId = make(map[string][]string)
 	srv.intervalTransitionsByJobId = make(map[string][]string)
-	srv.eventDurationsByJobId = make(map[string][]*EventDuration)
+	srv.eventBenchmarksByJobId = make(map[string]*EventDurationsByJobId)
 	for {
 		select {
 		case <-ctx.Done():
@@ -118,18 +113,26 @@ func (srv *EventsLogger) Run(ctx context.Context) error {
 			jobId := api.JobIdFromApiEvent(e)
 			s := shortStringFromApiEvent(e)
 			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], s)
-			srv.calculateEventDuration(e)
+			srv.recordEventDuration(e)
 		}
 	}
 }
 
-func (srv *EventsLogger) calculateEventDuration(event *api.EventMessage) {
+func (srv *EventsLogger) recordEventDuration(event *api.EventMessage) {
 	jobId := api.JobIdFromApiEvent(event)
 	shortName := shortStringFromApiEvent(event)
-	created := api.CreatedFromApiEvent(event)
-	duration := time.Since(created)
-	eventDuration := &EventDuration{Event: shortName, Duration: duration}
-	srv.eventDurationsByJobId[jobId] = append(srv.eventDurationsByJobId[jobId], eventDuration)
+	lastEventDuration := &EventDuration{Event: shortName, Received: time.Now()}
+	if srv.eventBenchmarksByJobId[jobId] == nil {
+		entry := &EventDurationsByJobId{JobId: jobId, Events: []*EventDuration{lastEventDuration}}
+		srv.eventBenchmarksByJobId[jobId] = entry
+	} else {
+		srv.eventBenchmarksByJobId[jobId].Events = append(srv.eventBenchmarksByJobId[jobId].Events, lastEventDuration)
+	}
+
+	if len(srv.eventBenchmarksByJobId[jobId].Events) > 1 {
+		index := len(srv.eventBenchmarksByJobId[jobId].Events) - 2
+		srv.eventBenchmarksByJobId[jobId].Events[index].Duration = time.Since(lastEventDuration.Received)
+	}
 }
 
 func shortStringFromApiEvent(msg *api.EventMessage) string {

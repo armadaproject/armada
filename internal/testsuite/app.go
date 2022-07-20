@@ -254,8 +254,15 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 
 	fmt.Fprint(a.Out, "All job transitions:\n")
 	eventLogger.Log()
-	fmt.Fprint(a.Out, "Benchmark:\n")
-	eventLogger.Benchmark()
+
+	// benchmark
+	eventLogger.PrintBenchmarkReport()
+	benchmark, err := eventLogger.GenerateBenchmarkReport(eventlogger.YamlFormatter)
+	if err != nil {
+		fmt.Fprintf(a.Out, "error generating benchmark report: %v", err)
+	} else {
+		fmt.Fprintf(a.Out, string(benchmark))
+	}
 
 	// Cancel any jobs we haven't seen a terminal event for.
 	client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
