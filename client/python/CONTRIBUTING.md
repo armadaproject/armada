@@ -27,7 +27,7 @@ Armada Project welcomes contributions from the opensource community.
 ## Run test to ensure everything is working
 <hr />
 
-From the root folder run python -m pytest
+Run all the unit test int the python client by following the instructions [here](https://tox.wiki/en/latest/).
 
 ## Create a new branch to work on your contribution
 <hr />
