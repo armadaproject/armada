@@ -8,21 +8,13 @@ Armada’s API is event driven, preventing it from integrating with tools, such 
 - Add an optional caching API and service to Armada
 - Caches job_id:(job_status, message) relationship for subscribed (queue,job_set) tuples
 - Service is written in Go for performance and to reuse code from armadactl
-- Must not need to run N armada cache services for N Airflow DAGs
-  - Run alongside of Armada cluster
-    - Upside: It just works as part of a documented deployment of armada.
-    - Downside: Probably makes security/permissions something that caching has to be aware of and implementing directly, since it would be one cache for all users.
   - Run alongside Airflow cluster
     - Upside: It will already exist for airflow users
     - Downside: Probably makes security/permissions something that caching has to be aware of and implementing directly, since it would be one cache for all users.
-  - Run one armada cache per airflow user (single human being or service account)
-    - Upside: Armada cache would use creds from the armada user, provided by the human who needs the cache, making security essentially “free”
-    - Downside: Much larger setup cost for an airflow user.
-
 
 ### Proposed Airflow Operator flow
 1. Create the job_set
-2. Sub the armada cache to the job_set:queue tuple needed
+2. Subscribe the armada cache to the job_set:queue tuple needed
 3. [do the work to schedule the job]
 4. Status polling loop that talks to armada cache
 
@@ -36,17 +28,53 @@ A previous iteration of Armada did provide an endpoint to get status of a runnin
 Airflow could be modified to allow alternate forms of integration which work better with event-based systems.
 This is impractical because we do not have Airflow contributors on staff, and the timeline required to get such a change proposed, approved, and merged upstream is much too long and includes lots of risk.
  
+## Data Access
+- Service will need to insert job-id and state for a given queue and job-set
+- Service will need to delete all jobs for a given queue and job-set.
+- Service will access by job-id for polling loop.
 ## Data Model
-- Preference is to not have to run an additional service, but will have to store at least minimal data persistently for recovery after service restart.
-  - Redis is likely ideal for this case
+ - The Job Service will contain a table of queue, job-set, job-id and latest state.
+ - What database should store this?
+### Redis
+Pros
+  - Fast access
+  - Lightweight
+  - Scalable
+  - Easy to deploy in Kubernetes
+  - Cleanup is simple (Time To Live Configurable values)
+
+Cons
+  - Persistence is tricky
+  - Accessing all jobs in a given job-set is not ideal
+  - Querying more than a key is not performant.
+
+### SQLLite
+Pros
+  - Lightweight
+  - In memory db
+  - Part of service
+  - Persists database to a file
+  - SQL operations for inserting and deleting are simple.
+
+Cons
+  - Writing is single threaded.
+  - Meant for small amount of concurrent users.
+  - Difficult to scale with Kubernetes.
+  - Scaling is only possible by increasing the number of job services
+
+### Postgres
+
+Pros
+  I don't have a clue and I need help!  
+
+Cons
+  I don't have a clue and I need help!
 
 ## API (impact/changes?)
 - What should be the API between Armada cache <-> Airflow?
   - The proto file above will generate a python client where they can call get_job_status with job_id, job_set_id and queue specified.  All of these are known by the Airflow Operator.
   - [API Definition](https://github.com/G-Research/armada/blob/master/pkg/api/jobservice/jobservice.proto)
 - JobSet subscription will happen automatically for all tasks in a dag.   
-- Does Armada’s existing API need to be modified or added to at all?
-  - No.
 
 ## Security Impact
 We must ensure that the Armada cache is implemented in such a way that it does not cross permissions boundaries – we should validate with testing that it’s impossible to get the status to jobs that you don’t have permissions for.
@@ -101,7 +129,7 @@ The armada operator just polls for the job state. The first poll for a given job
 
 - EventClient is the GRPC public GRPC client for watching events
 
-- The JobService deployment consists of a GRPC Go Server and a redis cache.
+- The JobService deployment consists of a GRPC Go Server and a database.
 
 ### Open questions:
 
@@ -113,6 +141,6 @@ The armada operator just polls for the job state. The first poll for a given job
 
 3) Where should we deploy this cache?  Airflow deployment or Armada?
 
-4) Should we limit scope to Airflow or should this be general for any user of Armada?
+4) What are the security implications of this cache?
 
-5) What are the security implications of this cache?
+5) What database should we use?
