@@ -322,6 +322,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return nil, err
 	}
 
+	err = q.reportLeaseReturned(request)
+	if err != nil {
+		return nil, err
+	}
+
 	maxRetries := int(q.schedulingConfig.MaxRetries)
 	if retries >= maxRetries {
 		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
@@ -423,6 +428,20 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 		}
 	}
 	return &api.IdList{cleanedIds}, returnedError
+}
+
+func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {
+	job, err := q.getJobById(leaseReturnRequest.JobId)
+	if err != nil {
+		return err
+	}
+
+	err = reportJobLeaseReturned(q.eventStore, job, leaseReturnRequest)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, reason string) error {

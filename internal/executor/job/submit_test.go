@@ -1,0 +1,85 @@
+package job
+
+import (
+	"testing"
+
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/G-Research/armada/internal/executor/fake/context"
+)
+
+var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+
+func TestIsRecoverable_ArbitraryErrorIsNotRecoverable(t *testing.T) {
+	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{
+		"admission webhook",
+		"hello, [a-z]+!",
+	})
+
+	recoverable := submitter.isRecoverable(newArbitraryError("some error"))
+	assert.False(t, recoverable)
+}
+
+func TestIsRecoverable_KubernetesStatusInvalidIsUnrecoverable(t *testing.T) {
+	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
+
+	recoverable := submitter.isRecoverable(newK8sApiError("", metav1.StatusReasonInvalid))
+	assert.False(t, recoverable)
+}
+
+func TestIsRecoverable_KubernetesStatusForbiddenIsUnrecoverable(t *testing.T) {
+	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
+
+	recoverable := submitter.isRecoverable(newK8sApiError("", metav1.StatusReasonForbidden))
+	assert.False(t, recoverable)
+}
+
+func TestIsRecoverable_K8sApiMatchingRegexIsUnrecoverable(t *testing.T) {
+	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{
+		"admission webhook",
+		"hello, [a-z]+!",
+	})
+
+	recoverable := submitter.isRecoverable(newK8sApiError("admission webhook failure: some webhook failed validation", "other status"))
+	assert.False(t, recoverable)
+
+	recoverable = submitter.isRecoverable(newK8sApiError("Error: hello, john!", "other status"))
+	assert.False(t, recoverable)
+
+	recoverable = submitter.isRecoverable(newK8sApiError("hello world!", "other status"))
+	assert.True(t, recoverable)
+}
+
+func TestIsRecoverable_ArmadaErrCreateResourceIsRecoverable(t *testing.T) {
+	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
+
+	recoverable := submitter.isRecoverable(newArmadaErrCreateResource())
+	assert.True(t, recoverable)
+}
+
+func newK8sApiError(message string, reason metav1.StatusReason) *k8s_errors.StatusError {
+	return &k8s_errors.StatusError{
+		ErrStatus: metav1.Status{
+			Message: message,
+			Reason:  reason,
+		},
+	}
+}
+
+func newArbitraryError(message string) error {
+	return errors.New(message)
+}
+
+func newArmadaErrCreateResource() error {
+	return &armadaerrors.ErrCreateResource{}
+}

@@ -10,15 +10,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/G-Research/armada/internal/common/util"
+	commonutil "github.com/G-Research/armada/internal/common/util"
 	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/internal/executor/context"
+	fakecontext "github.com/G-Research/armada/internal/executor/context/fake"
 	"github.com/G-Research/armada/internal/executor/domain"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/podchecks"
 	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
 	"github.com/G-Research/armada/internal/executor/service/fake"
-	executorUtil "github.com/G-Research/armada/internal/executor/util"
+	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -52,7 +53,7 @@ func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(
 	runningPod := makeRunningPod()
 	addPod(t, fakeClusterContext, runningPod)
 	//Prevent renewal of lease for pod
-	mockLeaseService.NonrenewableJobIds = []string{executorUtil.ExtractJobId(runningPod)}
+	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
 
 	pods, err := fakeClusterContext.GetBatchPods()
 	assert.NoError(t, err)
@@ -73,7 +74,7 @@ func TestJobManager_DoesNothing_IfLeaseRenewalPreventOnFinishedPod(t *testing.T)
 	runningPod := makeSucceededPod()
 	addPod(t, fakeClusterContext, runningPod)
 	//Prevent renewal of lease for pod
-	mockLeaseService.NonrenewableJobIds = []string{executorUtil.ExtractJobId(runningPod)}
+	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
 
 	pods, err := fakeClusterContext.GetBatchPods()
 	assert.NoError(t, err)
@@ -167,6 +168,21 @@ func TestJobManager_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 	assert.Equal(t, retryableStuckPod, mockLeaseService.ReturnLeaseArg)
 }
 
+func TestJobManager_ReportsDoneAndFailed_IfDeletedExternally(t *testing.T) {
+	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
+	runningPod := makeRunningPod()
+	fakeClusterContext.SimulateDeletionEvent(runningPod)
+
+	jobManager.ManageJobLeases()
+
+	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
+	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{util.ExtractJobId(runningPod)})
+
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
+	assert.True(t, ok)
+	assert.Equal(t, failedEvent.JobId, util.ExtractJobId(runningPod))
+}
+
 func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Pod {
 	t.Helper()
 	remainingActivePods, err := clusterContext.GetActiveBatchPods()
@@ -234,7 +250,7 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 				domain.JobSetId: "job-set-id-1",
 			},
 			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
-			UID:               types.UID(util.NewULID()),
+			UID:               types.UID(commonutil.NewULID()),
 		},
 		Status: status,
 	}
@@ -248,8 +264,8 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makejobManagerWithTestDoubles() (context.ClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
-	fakeClusterContext := fake.NewSyncFakeClusterContext()
+func makejobManagerWithTestDoubles() (*fakecontext.SyncFakeClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
+	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
 	mockLeaseService := fake.NewMockLeaseService()
 	eventReporter := reporter_fake.NewFakeEventReporter()
 	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Minute*3, 1)

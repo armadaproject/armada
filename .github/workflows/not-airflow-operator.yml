@@ -1,0 +1,41 @@
+name: Run Python Armada Airflow Operator Linting and Unit Tests
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths-ignore:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths-ignore:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
+
+jobs:
+  run-tox:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No airflow operator code modified, not running airflow operator jobs"'
