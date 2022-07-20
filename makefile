@@ -381,7 +381,7 @@ tests-e2e-no-setup: dotnet-setup
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
 	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
 	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	docker run -v${PWD}/client/python:/code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
+	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
@@ -452,13 +452,13 @@ python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
-airflow-operator: 
+airflow-operator:
 	rm -rf proto-airflow
 	mkdir -p proto-airflow
 
 	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
-	
+
 proto: setup-proto
 
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
