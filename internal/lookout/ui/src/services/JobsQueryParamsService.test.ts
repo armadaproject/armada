@@ -21,6 +21,21 @@ describe("makeQueryString", () => {
     const queryString = makeQueryString(columns)
     assertStringHasQueryParams(["queue=test"], queryString)
   })
+  test("makes string with filter with space", () => {
+    const columns = [
+      {
+        id: "queue",
+        name: "queue",
+        accessor: "queue",
+        isDisabled: false,
+        filter: "test ",
+        defaultFilter: "",
+        width: 1,
+      },
+    ]
+    const queryString = makeQueryString(columns)
+    assertStringHasQueryParams(["queue=test"], queryString)
+  })
 
   test("makes string with job set", () => {
     const columns = [
@@ -36,6 +51,54 @@ describe("makeQueryString", () => {
     ]
     const queryString = makeQueryString(columns)
     assertStringHasQueryParams(["job_set=test-job-set"], queryString)
+  })
+
+  test("makes string with job set with space in filter", () => {
+    const columns = [
+      {
+        id: "jobSet",
+        name: "jobSet",
+        accessor: "jobSet",
+        isDisabled: false,
+        filter: "test-job-set ",
+        defaultFilter: "",
+        width: 1,
+      },
+    ]
+    const queryString = makeQueryString(columns)
+    assertStringHasQueryParams(["job_set=test-job-set"], queryString)
+  })
+
+  test("makes string with owner", () => {
+    const columns = [
+      {
+        id: "owner",
+        name: "owner",
+        accessor: "owner",
+        isDisabled: false,
+        filter: "test-owner",
+        defaultFilter: "",
+        width: 1,
+      },
+    ]
+    const queryString = makeQueryString(columns)
+    assertStringHasQueryParams(["owner=test-owner"], queryString)
+  })
+
+  test("makes string with job set with space in filter", () => {
+    const columns = [
+      {
+        id: "owner",
+        name: "owner",
+        accessor: "owner",
+        isDisabled: false,
+        filter: "test-owner ",
+        defaultFilter: "",
+        width: 1,
+      },
+    ]
+    const queryString = makeQueryString(columns)
+    assertStringHasQueryParams(["owner=test-owner"], queryString)
   })
 
   test("makes string with single job state", () => {
