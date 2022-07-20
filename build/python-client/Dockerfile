@@ -6,7 +6,7 @@ RUN mkdir /proto
 
 # Project Install
 COPY client/python/pyproject.toml pyproject.toml
-RUN pip install .
+RUN pip install --use-feature=in-tree-build .
 
 # Creating folders, and files for a project:
 COPY client/python /code
