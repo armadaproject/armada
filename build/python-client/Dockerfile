@@ -4,6 +4,11 @@ FROM --platform=x86_64 python:${PYTHON_VERSION}-buster
 
 RUN mkdir /proto
 
-RUN pip install grpcio grpcio-tools mypy-protobuf
+# Project Install
+COPY client/python/pyproject.toml pyproject.toml
+RUN pip install .
+
+# Creating folders, and files for a project:
+COPY client/python /code
 
 ENTRYPOINT ["/bin/bash"]
