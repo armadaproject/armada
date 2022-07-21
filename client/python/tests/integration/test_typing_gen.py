@@ -9,13 +9,12 @@ from code_gen.event_typings import (
 
 
 def test_file_gen():
-    event_module = import_module("armada_client.armada.event_pb2")
     typings_file = "./typings.py"
 
-    states = get_event_states(event_module)
+    states = get_event_states()
     print("Done creating EventStates")
 
-    classes = get_all_job_event_classes(event_module)
+    classes = get_all_job_event_classes()
     print("Done creating JobEvent classes")
 
     gen_file(states, classes, typings_file)

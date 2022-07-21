@@ -1,13 +1,16 @@
 import sys
-from importlib import import_module
+
+from armada_client.armada import event_pb2
 
 
-def get_event_states(module):
-    return [x for x in module.EventMessage.DESCRIPTOR.fields_by_name if "__" not in x]
+def get_event_states():
+    return [
+        x for x in event_pb2.EventMessage.DESCRIPTOR.fields_by_name if "__" not in x
+    ]
 
 
-def get_all_job_event_classes(module):
-    return [x for x in module.__dict__ if hasattr(getattr(module, x), "job_id")]
+def get_all_job_event_classes():
+    return [x for x in event_pb2.__dict__ if hasattr(getattr(event_pb2, x), "job_id")]
 
 
 def gen_file(states, classes, file=None):
@@ -33,12 +36,10 @@ def gen_file(states, classes, file=None):
 
 
 def main():
-    event_module = import_module("armada_client.armada.event_pb2")
-
-    states = get_event_states(event_module)
+    states = get_event_states()
     print("Done creating EventStates")
 
-    classes = get_all_job_event_classes(event_module)
+    classes = get_all_job_event_classes()
     print("Done creating JobEvent classes")
 
     gen_file(states, classes, typings_file)
@@ -49,9 +50,6 @@ if __name__ == "__main__":
     root = f"{sys.path[0]}/../"
 
     typings_file = f"{root}/armada_client/typings.py"
-    # append dir
-    sys.path.append(root)
-    sys.path.append(f"{root}/armada_client")
 
     main()
     sys.exit(0)

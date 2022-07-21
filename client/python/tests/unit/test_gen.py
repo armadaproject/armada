@@ -1,11 +1,7 @@
-from importlib import import_module
-
 from code_gen.event_typings import (
     get_all_job_event_classes,
     get_event_states,
 )
-
-event_module = import_module("armada_client.armada.event_pb2")
 
 
 def test_event_states():
@@ -32,7 +28,7 @@ def test_event_states():
         "updated",
     ]
 
-    assert get_event_states(event_module) == expected_event_states
+    assert get_event_states() == expected_event_states
 
 
 def test_union_var():
@@ -59,4 +55,4 @@ def test_union_var():
         "JobUpdatedEvent",
     ]
 
-    assert get_all_job_event_classes(event_module) == expected_events
+    assert get_all_job_event_classes() == expected_events
