@@ -143,12 +143,9 @@ The armada operator just polls for the job state. The first poll for a given job
    - One suggestion: We make the operator tolerant to wait for the subscribe to "catch up"
    - Another suggestion: We fallback to GetJobSetEvents directly without the cache 
 
-3) Where should we deploy this cache?  Airflow deployment or Armada?
-  - General consensus is to deploy alongside Airflow
-
-4) What are the security implications of this cache?
+3) What are the security implications of this cache?
   - For V1, our thoughts are to ignore this.
   - The cache will contain ID, State and potential error message for a job-set.
   - Airflow does not support multitenancy.
 
-5) What database should we use?
+4) What database should we use?
