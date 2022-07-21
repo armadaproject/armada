@@ -76,7 +76,7 @@ Create a job request.
     * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
 
 
-    * **job_request_items** (*List**[**armada.submit_pb2.JobSubmitRequestItem**]*) – List of Job Request Items
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
 
 
 
@@ -96,7 +96,7 @@ Create a job request.
     * **priority** (*int*) – The priority of the job
 
 
-    * **pod_spec** (*k8s.io.api.core.v1.generated_pb2.PodSpec*) – The k8s pod spec of the job
+    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
 
 
     * **job_item_params** – All other job_item kwaarg
@@ -279,7 +279,7 @@ Unmarshal an event response from the gRPC server.
 
 * **Parameters**
 
-    **event** (*armada.event_pb2.EventStreamMessage*) – The event response from the gRPC server.
+    **event** (*EventStreamMessage*) – The event response from the gRPC server.
 
 
 
@@ -291,7 +291,7 @@ Unmarshal an event response from the gRPC server.
 
 * **Return type**
 
-    armada_client.event.Event
+    *Event*
 
 
 
@@ -358,121 +358,4 @@ Definition can be found at:
 
 * **Parameters**
 
-    **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
-
-
-
-### _class_ armada_client.event.EventMessage(job, job_id, job_set_id, queue, kubernetes_id, pod_name, pod_namespace, cluster_id, node_name, reason, requestor, created, pod_number, new_priority, container_statuses, exit_codes, ingress_addresses, MaxResourcesForPeriod, total_cumulative_usage)
-EventMessage is the message type for the event stream.
-
-Based on event_pb2.EventMessage
-
-
-* **Parameters**
-
-    
-    * **job** (*armada.queue_pb2.Job*) – 
-
-
-    * **job_id** (*str*) – 
-
-
-    * **job_set_id** (*str*) – 
-
-
-    * **queue** (*str*) – 
-
-
-    * **kubernetes_id** (*str*) – 
-
-
-    * **pod_name** (*str*) – 
-
-
-    * **pod_namespace** (*str*) – 
-
-
-    * **cluster_id** (*str*) – 
-
-
-    * **node_name** (*str*) – 
-
-
-    * **reason** (*str*) – 
-
-
-    * **requestor** (*str*) – 
-
-
-    * **created** (*google.protobuf.timestamp_pb2.Timestamp*) – 
-
-
-    * **pod_number** (*int*) – 
-
-
-    * **new_priority** (*float*) – 
-
-
-    * **container_statuses** (*Iterable**[**armada.event_pb2.ContainerStatus**]*) – 
-
-
-    * **exit_codes** (*Mapping**[**str**, **int**]*) – 
-
-
-    * **ingress_addresses** (*Mapping**[**int**, **str**]*) – 
-
-
-    * **MaxResourcesForPeriod** (*Mapping**[**str**, **k8s.io.apimachinery.pkg.api.resource.generated_pb2.Quantity**]*) – 
-
-
-    * **total_cumulative_usage** (*Mapping**[**str**, **k8s.io.apimachinery.pkg.api.resource.generated_pb2.Quantity**]*) – 
-
-
-
-* **Return type**
-
-    None
-
-
-
-### _enum_ armada_client.event.EventType(value)
-Enum for the event states.
-
-Valid values are as follows:
-
-
-#### submitted(_ = <EventType.submitted: 'submitted'_ )
-
-#### queued(_ = <EventType.queued: 'queued'_ )
-
-#### duplicate_found(_ = <EventType.duplicate_found: 'duplicate_found'_ )
-
-#### leased(_ = <EventType.leased: 'leased'_ )
-
-#### lease_returned(_ = <EventType.lease_returned: 'lease_returned'_ )
-
-#### pending(_ = <EventType.pending: 'pending'_ )
-
-#### running(_ = <EventType.running: 'running'_ )
-
-#### unable_to_schedule(_ = <EventType.unable_to_schedule: 'unable_to_schedule'_ )
-
-#### failed(_ = <EventType.failed: 'failed'_ )
-
-#### succeeded(_ = <EventType.succeeded: 'succeeded'_ )
-
-#### reprioritized(_ = <EventType.reprioritized: 'reprioritized'_ )
-
-#### cancelling(_ = <EventType.cancelling: 'cancelling'_ )
-
-#### cancelled(_ = <EventType.cancelled: 'cancelled'_ )
-
-#### terminated(_ = <EventType.terminated: 'terminated'_ )
-
-#### utilisation(_ = <EventType.utilisation: 'utilisation'_ )
-
-#### ingress_info(_ = <EventType.ingress_info: 'ingress_info'_ )
-
-#### reprioritizing(_ = <EventType.reprioritizing: 'reprioritizing'_ )
-
-#### updated(_ = <EventType.updated: 'updated'_ )
+    **event** (*EventStreamMessage*) – The gRPC proto event
