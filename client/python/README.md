@@ -5,7 +5,7 @@ Armada Python Client
 ## How To Use This Application
 ***
 
-> **These instructions are intended for end-users.** If you wish to develop against armada_client, please see our **[documentation on contributing](CONTRIBUTING.md)**
+> **These instructions are intended for end-users.** If you wish to develop against armada_client, please see our **[documentation on contributing](CONTRIBUTING.md )**
 
 1) Click on [armada_client](https://pypi.org/project/armada-client/).
 2) Read the file [CONTRIBUTING.md](CONTRIBUTING.md)
