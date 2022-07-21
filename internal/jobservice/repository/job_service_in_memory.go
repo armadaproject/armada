@@ -6,11 +6,12 @@ import (
 )
 
 type InMemoryJobServiceRepository struct {
-	jobMap map[string]*js.JobServiceResponse
+	jobMap            map[string]*js.JobServiceResponse
+	subscribedJobSets map[string]string
 }
 
-func NewInMemoryJobServiceRepository(jobMap map[string]*js.JobServiceResponse) *InMemoryJobServiceRepository {
-	return &InMemoryJobServiceRepository{jobMap: jobMap}
+func NewInMemoryJobServiceRepository(jobMap map[string]*js.JobServiceResponse, subscribedJobSets map[string]string) *InMemoryJobServiceRepository {
+	return &InMemoryJobServiceRepository{jobMap: jobMap, subscribedJobSets : subscribedJobSets}
 }
 
 func (inMem *InMemoryJobServiceRepository) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
@@ -27,6 +28,15 @@ func (inMem *InMemoryJobServiceRepository) UpdateJobServiceDb(jobId string, jobR
 }
 func (inMem *InMemoryJobServiceRepository) HealthCheck() bool {
 	return true
+}
+
+func (inMem *InMemoryJobServiceRepository) IsJobSetAlreadySubscribed(jobSetId string) bool {
+	_, ok := inMem.subscribedJobSets[jobSetId]
+	if ok {
+		return true
+	}
+	inMem.subscribedJobSets[jobSetId] = jobSetId
+	return false
 }
 
 func (inMem *InMemoryJobServiceRepository) PrintAllItems() {

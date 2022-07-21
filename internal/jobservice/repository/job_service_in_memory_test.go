@@ -46,8 +46,18 @@ func TestConstructInMemoryServiceNoJob(t *testing.T) {
 	})
 }
 
+func TestIsJobSubscribed(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		resp := r.IsJobSetAlreadySubscribed("job-set-1")
+		assert.False(t, resp)
+		resp2 := r.IsJobSetAlreadySubscribed("job-set-1")
+		assert.True(t, resp2)
+	})
+}
+
 func WithInMemoryRepo(action func(r *InMemoryJobServiceRepository)) {
 	jobMap := make(map[string]*jobservice.JobServiceResponse)
-	repo := NewInMemoryJobServiceRepository(jobMap)
+	jobSet := make(map[string]string)
+	repo := NewInMemoryJobServiceRepository(jobMap, jobSet)
 	action(repo)
 }

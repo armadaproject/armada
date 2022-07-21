@@ -10,7 +10,7 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 import grpc
 
 from armada.operators.jobservice import JobServiceClient
-from armada.operators.utils import JobStateEnum, search_for_job_complete
+from armada.operators.utils import JobState, search_for_job_complete
 
 no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
 job_service_client = JobServiceClient(
@@ -59,7 +59,7 @@ def test_success_job():
         airflow_task_name="test",
         job_id=job_id,
     )
-    assert job_state == JobStateEnum.SUCCEEDED
+    assert job_state == JobState.SUCCEEDED
     assert job_message == f"Armada test:{job_id} succeeded"
 
 
@@ -80,7 +80,7 @@ def test_bad_job():
         airflow_task_name="test",
         job_id=job_id,
     )
-    assert job_state == JobStateEnum.FAILED
+    assert job_state == JobState.FAILED
     assert job_message.startswith(f"Armada test:{job_id} failed")
 
 
@@ -101,7 +101,7 @@ def test_two_jobs():
         airflow_task_name="test",
         job_id=first_job_id,
     )
-    assert job_state == JobStateEnum.SUCCEEDED
+    assert job_state == JobState.SUCCEEDED
     assert job_message == f"Armada test:{first_job_id} succeeded"
 
     second_job = no_auth_client.submit_jobs(
@@ -118,7 +118,7 @@ def test_two_jobs():
         airflow_task_name="test",
         job_id=second_job_id,
     )
-    assert job_state == JobStateEnum.SUCCEEDED
+    assert job_state == JobState.SUCCEEDED
     assert job_message == f"Armada test:{second_job_id} succeeded"
 
 
@@ -139,7 +139,7 @@ def test_two_jobs_good_bad():
         airflow_task_name="test",
         job_id=first_job_id,
     )
-    assert job_state == JobStateEnum.SUCCEEDED
+    assert job_state == JobState.SUCCEEDED
     assert job_message == f"Armada test:{first_job_id} succeeded"
 
     second_job = no_auth_client.submit_jobs(
@@ -156,5 +156,5 @@ def test_two_jobs_good_bad():
         airflow_task_name="test",
         job_id=second_job_id,
     )
-    assert job_state == JobStateEnum.FAILED
+    assert job_state == JobState.FAILED
     assert job_message.startswith(f"Armada test:{second_job_id} failed")

@@ -37,32 +37,17 @@ func NewEventsToJobService(
 
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 
-	return client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
-		jobIdMap, err := eventToJobService.StreamCommon(c, context)
-		for key, element := range jobIdMap {
-			e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(key, element)
-			if e != nil {
-				log.Error(e)
-				return e
-			}
+	jobIdMap, err := eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
+	for key, element := range jobIdMap {
+		e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(key, element)
+		if e != nil {
+			log.Error(e)
+			return e
 		}
-		return err
-	})
+	}
+	return err
 }
-func (eventToJobService *EventsToJobService) GetStatusWithoutRedis(context context.Context, jobId string) (*js.JobServiceResponse, error) {
-	jobStatusForId := &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}
-	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
-		jobIdMap, err := eventToJobService.StreamCommon(c, context)
-		var ok bool
-		jobStatusForId, ok = jobIdMap[jobId]
-		if !ok {
-			jobStatusForId = &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}
-		}
-		return err
-	})
-	return jobStatusForId, err
-}
-func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx context.Context) (map[string]*js.JobServiceResponse, error) {
+func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) (map[string]*js.JobServiceResponse, error) {
 	jobIdMap := make(map[string]*js.JobServiceResponse)
 	var fromMessageId string
 	// I found that GRPC will not allow you to run something in background and return a value back to caller.
@@ -72,7 +57,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 	// But we will return after SubscribeJobSetTime s
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second)
 	defer cancel()
-	err := client.WithEventClient(&eventToJobService.jobServiceConfig.ApiConnection, func(c api.EventClient) error {
+	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
 			Queue:          eventToJobService.queue,
@@ -101,8 +86,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(c api.EventClient, ctx
 				return nil
 			default:
 			}
-			if !IsEventAJobResponse(*msg.Message) {
-			} else {
+			if IsEventAJobResponse(*msg.Message) {
 				jobStatus, eventJobErr := EventsToJobResponse(*msg.Message)
 				if eventJobErr != nil {
 					// This can mean that the event type reported from server is unknown to the client

@@ -14,39 +14,26 @@ import (
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
-	jobRepository    *repository.InMemoryJobServiceRepository
+	jobRepository    repository.JobServiceRepository
 }
 
-func NewJobService(config *configuration.JobServiceConfiguration, inMemoryService  *repository.InMemoryJobServiceRepository) *JobServiceServer {
+func NewJobService(config *configuration.JobServiceConfiguration, inMemoryService repository.JobServiceRepository) *JobServiceServer {
 	return &JobServiceServer{jobServiceConfig: config, jobRepository: inMemoryService}
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
-	// We want to support cases where cache doesn't exist
-	if s.jobServiceConfig.SkipRedisCache || !s.jobRepository.HealthCheck() {
-		jobResponse, err := s.GetJobStatusWithNoRedis(context.Background(), opts)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return jobResponse, err
-	}
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
 	}
-	var subscribeToJobSet = eventstojobs.IsStateTerminal(response.State)
-	if !subscribeToJobSet {
+	s.jobRepository.IsJobSetAlreadySubscribed(opts.JobSetId)
+	if s.jobRepository.IsJobSetAlreadySubscribed(opts.JobSetId) {
 
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
-		eventJob.SubscribeToJobSetId(ctx)
+		go eventJob.SubscribeToJobSetId(context.Background())
 		return s.jobRepository.GetJobStatus(opts.JobId)
 	}
 
 	return response, err
-}
-
-func (s *JobServiceServer) GetJobStatusWithNoRedis(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
-	eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
-	return eventJob.GetStatusWithoutRedis(ctx, opts.JobId)
 }

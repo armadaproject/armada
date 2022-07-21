@@ -36,16 +36,11 @@ func (a *App) StartUp(ctx context.Context) error {
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	db := createRedisClient(&config.Redis)
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.WithError(err).Error("failed to close Redis client")
-		}
-	}()
-
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
+
 	inMemoryMap := make(map[string]*js.JobServiceResponse)
-	inMemoryJobService := repository.NewInMemoryJobServiceRepository(inMemoryMap)
+	subscribedJobSets := make(map[string]string)
+	inMemoryJobService := repository.NewInMemoryJobServiceRepository(inMemoryMap, subscribedJobSets)
 	jobService := server.NewJobService(config, inMemoryJobService)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
@@ -62,7 +57,6 @@ func (a *App) StartUp(ctx context.Context) error {
 			log.Fatalf("failed to serve: %v", err)
 			return err
 		}
-		inMemoryJobService.PrintAllItems()
 		return nil
 	})
 

@@ -94,6 +94,9 @@ def search_for_job_complete(
             job_status_return = job_status_callable(
                 queue=queue, job_id=job_id, job_set_id=job_set_id
             )
+            
+        time.sleep(3)
+        print(job_status_return)
         if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
             job_state = JobState.SUCCEEDED
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
