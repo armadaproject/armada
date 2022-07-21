@@ -19,7 +19,10 @@ def gen_file(states, classes):
 
     states_docstring = '\n    """\n' + "    Enum for the event states." + '\n    """\n'
 
-    import_text = f"from enum import Enum\nfrom typing import Union\n\nfrom armada_client.armada.event_pb2 import (\n{classes}\n)"
+    import_text = (
+        "from enum import Enum\nfrom typing import Union\n\n"
+        f"from armada_client.armada.event_pb2 import (\n{classes}\n)"
+    )
 
     states_text = (
         f"\n\n\nclass EventType(Enum):{states_docstring}\n" f"{enum_options}\n\n"
