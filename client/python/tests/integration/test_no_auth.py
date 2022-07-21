@@ -37,7 +37,7 @@ def submit_sleep_job(client):
 
 def wait_for(client: ArmadaClient, queue, job_set_id=None):
     """
-    Waits for a queue and/or a job_set_id to be active.
+    Waits for a queue and optionally the job_set_id to be active.
 
     Ensures that following steps will not fail.
     """
@@ -46,18 +46,18 @@ def wait_for(client: ArmadaClient, queue, job_set_id=None):
 
     while True:
         try:
-            if queue:
-                client.get_queue(name=queue)
-                return True
 
-            if job_set_id and queue:
+            # queue active test
+            client.get_queue(name=queue)
+
+            if job_set_id:
                 events = client.get_job_events_stream(
                     queue=queue, job_set_id=job_set_id
                 )
                 for _ in events:
                     break
 
-                return True
+            return True
 
         except grpc.RpcError as e:
             code = e.code()
