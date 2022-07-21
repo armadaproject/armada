@@ -61,24 +61,41 @@ def submit_sleep_job():
     return [no_auth_client.create_job_request_item(priority=0, pod_spec=pod)]
 
 
-def wait_for(queue=None, job_set_id=None):
+def wait_for_queue(queue=None):
 
     timeout = 20
 
     while True:
         try:
-            if queue:
-                no_auth_client.get_queue(name=queue)
-                return True
+            no_auth_client.get_queue(name=queue)
+            return True
 
-            if job_set_id:
-                events = no_auth_client.get_job_events_stream(
-                    queue=queue_name, job_set_id=job_set_id
-                )
-                for _ in events:
-                    break
+        except grpc.RpcError as e:
+            code = e.code()
+            if code != grpc.StatusCode.NOT_FOUND:
+                raise e
 
-                return True
+        timeout -= 1
+
+        time.sleep(1)
+
+        if timeout <= 0:
+            raise Exception("Timeout")
+
+
+def wait_for_job_set(job_set_id=None):
+
+    timeout = 20
+
+    while True:
+        try:
+            events = no_auth_client.get_job_events_stream(
+                queue=queue_name, job_set_id=job_set_id
+            )
+            for _ in events:
+                break
+
+            return True
 
         except grpc.RpcError as e:
             code = e.code()
@@ -97,7 +114,7 @@ def wait_for(queue=None, job_set_id=None):
 def create_queue():
 
     no_auth_client.create_queue(name=queue_name, priority_factor=1)
-    wait_for(queue=queue_name)
+    wait_for_queue(queue=queue_name)
 
 
 def test_get_queue():
@@ -117,7 +134,7 @@ def test_submit_job_and_cancel_by_id():
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
 
-    wait_for(job_set_id=job_set_name)
+    wait_for_job_set(job_set_id=job_set_name)
 
     cancelled_message = no_auth_client.cancel_jobs(
         job_id=jobs.job_response_items[0].job_id
@@ -132,7 +149,7 @@ def test_submit_job_and_cancel_by_queue_job_set():
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
 
-    wait_for(job_set_id=job_set_name)
+    wait_for_job_set(job_set_id=job_set_name)
 
     cancelled_message = no_auth_client.cancel_jobs(
         queue=queue_name, job_set_id=job_set_name
@@ -148,7 +165,7 @@ def test_get_job_events_stream():
         queue=queue_name, job_set_id=job_set_name, job_request_items=submit_sleep_job()
     )
 
-    wait_for(job_set_id=job_set_name)
+    wait_for_job_set(job_set_id=job_set_name)
 
     event_stream = no_auth_client.get_job_events_stream(
         queue=queue_name, job_set_id=job_set_name
