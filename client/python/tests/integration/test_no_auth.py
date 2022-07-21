@@ -62,6 +62,11 @@ def submit_sleep_job():
 
 
 def wait_for(queue=None, job_set_id=None):
+    """
+    Waits for a queue and/or a job_set_id to be active.
+
+    Ensures that following steps will not fail.
+    """
 
     timeout = 20
 
