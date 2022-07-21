@@ -1,4 +1,4 @@
-# Armada local caching
+# Armada Job Service
 
 ## Problem Description
 Armada’s API is event driven, preventing it from integrating with tools, such as Apache Airflow, written with the expectation that it can easily fetch status of a running job. It is not scalable to have Airflow subscribe to the event stream to observe status, so we must implement a caching layer which will expose a friendlier API for individual job querying.
@@ -53,23 +53,24 @@ Pros
   - SQL operations for inserting and deleting are simple.
 
 Cons
-  - Writing is single threaded.
+  - Writing is sequential and blocks.
   - Meant for small amount of concurrent users.
   - Difficult to scale with Kubernetes.
   - Scaling is only possible by increasing the number of job services
   - Logic for deleting is more complicated.
+  - Writing to virtualized file volume will be slow in Kubernetes.
 
 ### Postgres
 
 Pros
-  - Supports wide range of SQL operations
-  - Large amount of concurrent users
-  - Deployed alongside service
-  - Kubernetes can support via Replicas etc
+  - Supports wide range of SQL operations.
+  - Large amount of concurrent users.
+  - Great replica support.
+  - Fast for concurrent writes/reads.
 
 Cons
   - Requires a separate deployment and operational support
-  - TBD
+  - Persistent to virtualized file volumes will be slow.
 
 [Pros/Cons of Relation Databases](https://devathon.com/blog/mysql-vs-postgresql-vs-sqlite/) is a good resource for seeing the Pros/Cons of SQLLite, PostGres and MySQL.
 
