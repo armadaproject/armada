@@ -33,4 +33,4 @@ sed -i 's/from google.api/from armada_client.google.api/g' client/python/armada_
 find client/python/armada_client/ -name '*.py' | xargs sed -i 's/from k8s.io/from armada_client.k8s.io/g'
 
 # Generate better docs for the client
-python3 ./scripts/python_class_gen.py
+python3 client/python/armada_client/gen/event_typings.py
