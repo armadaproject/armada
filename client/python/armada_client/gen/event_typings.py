@@ -47,8 +47,7 @@ def main():
 
 if __name__ == "__main__":
     # get path to this files location
-    root = f"{sys.path[0]}/../"
-
+    root = f"{sys.path[0]}/../../"
     typings_file = f"{root}/armada_client/typings.py"
 
     main()
