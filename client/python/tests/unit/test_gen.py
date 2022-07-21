@@ -1,6 +1,6 @@
 from importlib import import_module
 
-from armada_client.gen.event_typings import (
+from code_gen.event_typings import (
     get_all_job_event_classes,
     get_event_states,
 )

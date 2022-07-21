@@ -17,7 +17,8 @@ def gen_file(states, classes, file=None):
     states_docstring = '\n    """\n' + "    Enum for the event states." + '\n    """\n'
 
     states_text = (
-        f"from enum import Enum\nfrom typing import Union\n\nfrom armada_client.armada.event_pb2 import (\n{classes}\n)\n\n\nclass EventType(Enum):{states_docstring}\n"
+        f"from enum import Enum\nfrom typing import Union\n\nfrom armada_client.armada.event_pb2 import (\n{classes}\n)"
+        f"\n\n\nclass EventType(Enum):{states_docstring}\n"
         f"{enum_options}\n"
     )
 
@@ -45,7 +46,7 @@ def main():
 
 if __name__ == "__main__":
     # get path to this files location
-    root = f"{sys.path[0]}/../../"
+    root = f"{sys.path[0]}/../"
 
     typings_file = f"{root}/armada_client/typings.py"
     # append dir
