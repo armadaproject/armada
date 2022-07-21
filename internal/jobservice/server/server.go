@@ -14,17 +14,17 @@ import (
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
-	jobRepository    repository.RedisJobServiceRepository
+	jobRepository    *repository.InMemoryJobServiceRepository
 }
 
-func NewJobService(config *configuration.JobServiceConfiguration, redisService repository.RedisJobServiceRepository) *JobServiceServer {
-	return &JobServiceServer{jobServiceConfig: config, jobRepository: redisService}
+func NewJobService(config *configuration.JobServiceConfiguration, inMemoryService  *repository.InMemoryJobServiceRepository) *JobServiceServer {
+	return &JobServiceServer{jobServiceConfig: config, jobRepository: inMemoryService}
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
 	// We want to support cases where cache doesn't exist
 	if s.jobServiceConfig.SkipRedisCache || !s.jobRepository.HealthCheck() {
-		jobResponse, err := s.GetJobStatusWithNoRedis(ctx, opts)
+		jobResponse, err := s.GetJobStatusWithNoRedis(context.Background(), opts)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -38,7 +38,7 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 	var subscribeToJobSet = eventstojobs.IsStateTerminal(response.State)
 	if !subscribeToJobSet {
 
-		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, &s.jobRepository)
+		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
 		eventJob.SubscribeToJobSetId(ctx)
 		return s.jobRepository.GetJobStatus(opts.JobId)
 	}
@@ -47,6 +47,6 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 }
 
 func (s *JobServiceServer) GetJobStatusWithNoRedis(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
-	eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, &s.jobRepository)
+	eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
 	return eventJob.GetStatusWithoutRedis(ctx, opts.JobId)
 }

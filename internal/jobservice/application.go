@@ -44,9 +44,9 @@ func (a *App) StartUp(ctx context.Context) error {
 	}()
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
-
-	redisJobRepository := repository.NewRedisJobServiceRepository(db, config.CacheTimeToLive)
-	jobService := server.NewJobService(config, *redisJobRepository)
+	inMemoryMap := make(map[string]*js.JobServiceResponse)
+	inMemoryJobService := repository.NewInMemoryJobServiceRepository(inMemoryMap)
+	jobService := server.NewJobService(config, inMemoryJobService)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
@@ -62,6 +62,7 @@ func (a *App) StartUp(ctx context.Context) error {
 			log.Fatalf("failed to serve: %v", err)
 			return err
 		}
+		inMemoryJobService.PrintAllItems()
 		return nil
 	})
 
