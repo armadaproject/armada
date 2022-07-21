@@ -219,6 +219,10 @@
             "type": "string"
           }
         },
+        "scheduler": {
+          "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
+          "type": "string"
+        },
         "services": {
           "type": "array",
           "items": {

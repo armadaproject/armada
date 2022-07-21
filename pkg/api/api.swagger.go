@@ -677,6 +677,10 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -1208,6 +1212,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +
