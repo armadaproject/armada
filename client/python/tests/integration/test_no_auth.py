@@ -1,11 +1,10 @@
-import uuid
-import time
 import os
+import time
+import uuid
+from enum import Enum
+
 import grpc
-
 import pytest
-
-
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -13,12 +12,17 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 
+class SSL(Enum):
+    ON = "true"
+    OFF = "false"
+
+
 def client() -> ArmadaClient:
     server_name = os.environ.get("ARMADA_SERVER", "localhost")
     server_port = os.environ.get("ARMADA_PORT", "50051")
-    server_ssl = os.environ.get("ARMADA_SSL", "false")
+    server_ssl = os.environ.get("ARMADA_SSL", SSL.OFF)
 
-    if server_ssl == "true":
+    if server_ssl == SSL.ON:
         channel_credentials = grpc.ssl_channel_credentials()
         return ArmadaClient(
             channel=grpc.secure_channel(
@@ -33,7 +37,6 @@ def client() -> ArmadaClient:
 
 
 no_auth_client = client()
-
 queue_name = f"queue-{uuid.uuid1()}"
 
 
