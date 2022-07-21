@@ -141,7 +141,7 @@ def test_union_var():
 def test_file_gen():
 
     import_text, states_text, union_text = gen_file(
-        expected_event_states, expected_events
+        get_event_states(), get_all_job_event_classes()
     )
 
     assert import_text == expected_import_text
