@@ -61,5 +61,6 @@ client/python/armada_client/armada/
 proto
 proto-airflow
 client/python/docs/build/
+typings.py
 third_party/airflow/docs/build/
 build/ssl/certs/ca-certificates.crt
