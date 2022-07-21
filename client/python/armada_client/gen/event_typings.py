@@ -10,7 +10,7 @@ def get_all_job_event_classes(module):
     return [x for x in module.__dict__ if hasattr(getattr(module, x), "job_id")]
 
 
-def gen_file(states, classes):
+def gen_file(states, classes, file=None):
     enum_options = "\n".join(f'    {x} = "{x}"' for x in states)
     classes = ",\n".join(f"    {x}" for x in classes)
 
@@ -25,7 +25,7 @@ def gen_file(states, classes):
 
     union_text = f"{union_docstring}OneOfJobEvent = Union[\n{classes}\n]\n"
 
-    with open(f"{root}/armada_client/typings.py", "w", encoding="utf-8") as f:
+    with open(f"{file}", "w", encoding="utf-8") as f:
         f.write(states_text)
         f.write("\n")
         f.write(union_text)
@@ -40,12 +40,14 @@ def main():
     classes = get_all_job_event_classes(event_module)
     print("Done creating JobEvent classes")
 
-    gen_file(states, classes)
+    gen_file(states, classes, typings_file)
 
 
 if __name__ == "__main__":
     # get path to this files location
     root = f"{sys.path[0]}/../../"
+
+    typings_file = f"{root}/armada_client/typings.py"
     # append dir
     sys.path.append(root)
     sys.path.append(f"{root}/armada_client")
