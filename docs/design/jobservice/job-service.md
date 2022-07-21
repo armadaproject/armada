@@ -12,7 +12,7 @@ Armada’s API is event driven, preventing it from integrating with tools, such 
 ### Proposed Airflow Operator flow
 1. Create the job_set
 2. [do the work to schedule the job]
-3. Status polling loop that talks to armada cache
+3. Status polling loop that talks to job service
 
 ## Alternative Options
 
@@ -57,14 +57,21 @@ Cons
   - Meant for small amount of concurrent users.
   - Difficult to scale with Kubernetes.
   - Scaling is only possible by increasing the number of job services
+  - Logic for deleting is more complicated.
 
 ### Postgres
 
 Pros
-  I don't have a clue and I need help!  
+  - Supports wide range of SQL operations
+  - Large amount of concurrent users
+  - Deployed alongside service
+  - Kubernetes can support via Replicas etc
 
 Cons
-  I don't have a clue and I need help!
+  - Requires a separate deployment and operational support
+  - TBD
+
+[Pros/Cons of Relation Databases](https://devathon.com/blog/mysql-vs-postgresql-vs-sqlite/) is a good resource for seeing the Pros/Cons of SQLLite, PostGres and MySQL.
 
 ## API (impact/changes?)
 - What should be the API between Armada cache <-> Airflow?
@@ -129,12 +136,18 @@ The armada operator just polls for the job state. The first poll for a given job
 
 1) How often do we delete data?
    - One suggestion:  if nobody has asked for a status on any job in the jobset for x mins (x=10?)
+   - With Redis, we can set up a TTL for each key.
+   - With Relation DB, we can delete the job-set after all jobs are complete
 2) What do we need if the cache doesn't exist yet?
    - One suggestion: We make the operator tolerant to wait for the subscribe to "catch up"
    - Another suggestion: We fallback to GetJobSetEvents directly without the cache 
 
 3) Where should we deploy this cache?  Airflow deployment or Armada?
+  - General consensus is to deploy alongside Airflow
 
 4) What are the security implications of this cache?
+  - For V1, our thoughts are to ignore this.
+  - The cache will contain ID, State and potential error message for a job-set.
+  - Airflow does not support multitenancy.
 
 5) What database should we use?
