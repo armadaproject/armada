@@ -6,12 +6,6 @@ import (
 	"net"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
-	"github.com/G-Research/armada/internal/eventapi"
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
-	"github.com/G-Research/armada/internal/eventapi/serving"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -21,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
@@ -36,6 +31,10 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/eventapi"
+	"github.com/G-Research/armada/internal/eventapi/eventdb"
+	"github.com/G-Research/armada/internal/eventapi/serving"
+	"github.com/G-Research/armada/internal/eventscheduler"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -331,6 +330,92 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 				return eventsPrinter.Run(ctx)
 			})
 		}
+
+		// Experimental scheduler based on Pulsar messages.
+		// Runs alongside the default scheduler- only handles jobs that explicitly handles this scheduler.
+		//
+		// Processor
+		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: "pulsar-scheduler-processor",
+			Type:             pulsar.Exclusive,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		defer consumer.Close()
+		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			Name:             "pulsar-scheduler-processor",
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
+		}
+		defer producer.Close()
+		schedulerProcessor := eventscheduler.NewSchedulerProcessor(consumer, producer)
+		services = append(services, func() error {
+			return schedulerProcessor.Run(ctx)
+		})
+
+		// Ingester
+		//
+		// TODO: This won't work if there are several replicas of the server. Since the ingester and scheduler needs to be co-located currently.
+		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+			Topic:            config.Pulsar.JobsetEventsTopic,
+			SubscriptionName: "pulsar-scheduler-ingester",
+			Type:             pulsar.Exclusive,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		defer consumer.Close()
+		// This producer does not need a name; having multiple producers is safe.
+		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
+		}
+		defer producer.Close()
+		schedulerIngester := eventscheduler.NewSchedulerIngester(consumer, producer, schedulerProcessor)
+		services = append(services, func() error {
+			return schedulerIngester.Run(ctx)
+		})
+
+		// Create a separate gRPC server for this scheduler.
+		// Since it needs to listen on another port.
+		authServices := auth.ConfigureAuth(config.Auth)
+		schedulerGrpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+		api.RegisterAggregatedQueueServer(schedulerGrpcServer, schedulerIngester)
+		api.RegisterUsageServer(schedulerGrpcServer, schedulerIngester)
+
+		// Shut down grpcServer if the context is cancelled.
+		// Give the server 5 seconds to shut down gracefully.
+		services = append(services, func() error {
+			<-ctx.Done()
+			go func() {
+				time.Sleep(5 * time.Second)
+				schedulerGrpcServer.Stop()
+			}()
+			schedulerGrpcServer.GracefulStop()
+			return nil
+		})
+
+		// Cancel the errgroup if grpcServer.Serve returns an error.
+		log.Infof("Experimental gRPC server listening on %d", 50052)
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 50052))
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		services = append(services, func() error {
+			return schedulerGrpcServer.Serve(lis)
+		})
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}

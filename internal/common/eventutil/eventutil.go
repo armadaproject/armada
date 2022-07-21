@@ -218,6 +218,7 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 		},
 		MainObject: mainObject,
 		Objects:    objects,
+		Scheduler:  job.Scheduler,
 	}, nil
 }
 

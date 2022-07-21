@@ -320,11 +320,20 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 // For any other error, the jobs are marked as failed and the events are considered to have been processed.
 func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups []string, queueName string, jobSetName string, es []*armadaevents.SubmitJob) (bool, error) {
 
+	// Filter out jobs not indented for this scheduler.
+	// This is the default scheduler, which is indicated by the empty string.
+	schedulerJobs := make([]*armadaevents.SubmitJob, 0, len(es))
+	for _, e := range es {
+		if e.Scheduler == "" {
+			schedulerJobs = append(schedulerJobs, e)
+		}
+	}
+
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
-	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
+	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), schedulerJobs)
 	if err != nil {
 		return true, err
 	}

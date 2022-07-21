@@ -802,6 +802,8 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			Created:                  getTime(), // Replaced with now for mocking unit test
 			Owner:                    owner,
 			QueueOwnershipUserGroups: ownershipGroups,
+
+			Scheduler: item.Scheduler,
 		}
 		jobs = append(jobs, j)
 	}

@@ -6,20 +6,24 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/eventscheduler/sql"
 )
 
 var RunsSchema string
 var PulsarSchema string
 
 func init() {
-	schema, err := schemaFromFile("./sql/schema/runs.sql", "runs")
+	s := sql.SchemaTemplate()
+
+	schema, err := schemaFromString(s, "runs")
 	if err != nil {
 		err = errors.Wrap(err, "failed to read runs schema")
 		panic(err)
 	}
 	RunsSchema = schema
 
-	schema, err = schemaFromFile("./sql/schema/pulsar.sql", "pulsar")
+	schema, err = schemaFromString(s, "pulsar")
 	if err != nil {
 		err = errors.Wrap(err, "failed to read pulsar schema")
 		panic(err)
