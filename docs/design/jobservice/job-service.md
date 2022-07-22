@@ -28,22 +28,13 @@ This is impractical because we do not have Airflow contributors on staff, and th
 - Service will need to insert job-id and state for a given queue and job-set
 - Service will need to delete all jobs for a given queue and job-set.
 - Service will access by job-id for polling loop.
+- We will use in an in memory cache while doing subscription and then write to a persistent DB periodically.
+- We will delete data after a configuration amount of time without an update.
 ## Data Model
- - The Job Service will contain a table of queue, job-set, job-id and latest state.
+ - The Job Service will contain a table of queue, job-set, job-id, state and timestamp.
  - What database should store this?
-### Redis
-Pros
-  - Fast access
-  - Lightweight
-  - Scalable
-  - Easy to deploy in Kubernetes
-  - Cleanup is simple (Time To Live Configurable values)
-
-Cons
-  - Persistence is tricky
-  - Accessing all jobs in a given job-set is not ideal
-  - Querying more than a key is not performant.
-
+    - We will use SQLLite.
+    - A in memory database will be used to get job-sets and then we will write in batches to our database for persistence.
 ### SQLLite
 Pros
   - Lightweight
@@ -60,20 +51,6 @@ Cons
   - Logic for deleting is more complicated.
   - Writing to virtualized file volume will be slow in Kubernetes.
 
-### Postgres
-
-Pros
-  - Supports wide range of SQL operations.
-  - Large amount of concurrent users.
-  - Great replica support.
-  - Fast for concurrent writes/reads.
-
-Cons
-  - Requires a separate deployment and operational support
-  - Persistent to virtualized file volumes will be slow.
-
-[Pros/Cons of Relation Databases](https://devathon.com/blog/mysql-vs-postgresql-vs-sqlite/) is a good resource for seeing the Pros/Cons of SQLLite, PostGres and MySQL.
-
 ## API (impact/changes?)
 - What should be the API between Armada cache <-> Airflow?
   - The proto file above will generate a python client where they can call get_job_status with job_id, job_set_id and queue specified.  All of these are known by the Airflow Operator.
@@ -81,7 +58,8 @@ Cons
 - JobSet subscription will happen automatically for all tasks in a dag.   
 
 ## Security Impact
-We must ensure that the Armada cache is implemented in such a way that it does not cross permissions boundaries – we should validate with testing that it’s impossible to get the status to jobs that you don’t have permissions for.
+
+The cache should use the same security as our armadactl.  Airflow does not currently support multitenancy.  
 
 ## Documentation Impact
 - Update dev and quickstart guides
@@ -90,7 +68,7 @@ We must ensure that the Armada cache is implemented in such a way that it does n
 ## Use Cases
 
 ### Airflow Operator
-1) User creates a dag
+1) User creates a dag and assigns a job-set.
 2) Dag setup includes ArmadaPythonClient and JobServiceClient
 3) Airflow operator takes both ArmadaPythonClient and JobServiceClient
 4) Airflow operator submits job via ArmadaPythonClient
@@ -132,20 +110,3 @@ The armada operator just polls for the job state. The first poll for a given job
 - EventClient is the GRPC public GRPC client for watching events
 
 - The JobService deployment consists of a GRPC Go Server and a database.
-
-### Open questions:
-
-1) How often do we delete data?
-   - One suggestion:  if nobody has asked for a status on any job in the jobset for x mins (x=10?)
-   - With Redis, we can set up a TTL for each key.
-   - With Relation DB, we can delete the job-set after all jobs are complete
-2) What do we need if the cache doesn't exist yet?
-   - One suggestion: We make the operator tolerant to wait for the subscribe to "catch up"
-   - Another suggestion: We fallback to GetJobSetEvents directly without the cache 
-
-3) What are the security implications of this cache?
-  - For V1, our thoughts are to ignore this.
-  - The cache will contain ID, State and potential error message for a job-set.
-  - Airflow does not support multitenancy.
-
-4) What database should we use?
