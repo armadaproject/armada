@@ -361,7 +361,7 @@ tests-e2e-setup: setup-cluster
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
-		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
+		-e ARMADA_APICONNECTION_ARMADAURL="server:50052" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
@@ -447,14 +447,14 @@ setup-proto: download
 
 python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
-	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+	docker run --rm -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
 airflow-operator: 
 	rm -rf proto-airflow
 	mkdir -p proto-airflow
 
 	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
-	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
+	docker run --rm -u $(shell id -u):$(shell id -g) -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 	
 proto: setup-proto
 
@@ -486,6 +486,7 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
 sql:
+	$(GO_TEST_CMD) sqlc generate -f internal/eventscheduler/sql/sql.yaml
 	$(GO_TEST_CMD) templify -e -p=sql internal/eventscheduler/sql/schema.sql
 
 # Target for compiling the dotnet Armada client.
