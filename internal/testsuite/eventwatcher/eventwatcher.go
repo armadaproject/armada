@@ -90,7 +90,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 }
 
 func (srv *EventWatcher) waitRetryBackoff(ctx context.Context, attempt uint) error {
-	var waitTime time.Duration = 0
+	var waitTime time.Duration
 	if attempt > 0 {
 		waitTime = srv.BackoffExponential * time.Duration(backoffutils.ExponentBase2(attempt))
 	}
@@ -116,10 +116,14 @@ type ErrUnexpectedEvent struct {
 }
 
 func (err *ErrUnexpectedEvent) Error() string {
+	baseMsg := fmt.Sprintf(
+		"unexpected event for job %s: expected event of type %T, but got %+v",
+		err.jobId, err.expected.Events, err.actual.Events,
+	)
 	if err.message == "" {
-		return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v", err.jobId, err.expected.Events, err.actual.Events)
+		return baseMsg
 	}
-	return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v; %s", err.jobId, err.expected.Events, err.actual.Events, err.message)
+	return fmt.Sprintf("%s: %s", baseMsg, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
