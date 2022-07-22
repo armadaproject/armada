@@ -273,6 +273,28 @@ Uses SubmitJobs RPC to submit a job.
 
 
 
+#### _static_ unmarshal_event_response(event)
+Unmarshal an event response from the gRPC server.
+
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – The event response from the gRPC server.
+
+
+
+* **Returns**
+
+    An Event object.
+
+
+
+* **Return type**
+
+    *Event*
+
+
+
 #### _static_ unwatch_events(event_stream)
 Closes gRPC event streams
 
@@ -322,3 +344,18 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Return type**
 
     None
+
+
+## armada_client.event module
+
+
+### _class_ armada_client.event.Event(event)
+Represents a gRPC proto event
+
+Definition can be found at:
+[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – The gRPC proto event
