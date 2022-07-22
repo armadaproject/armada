@@ -23,7 +23,7 @@ Client for accessing Armada over gRPC.
 
 * **Parameters**
 
-    
+
     * **channel** – gRPC channel used for authentication. See
     [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
     for more information.
@@ -49,7 +49,7 @@ job_set_id is required.
 
 * **Parameters**
 
-    
+
     * **queue** (*Optional**[**str**]*) – The name of the queue
 
 
@@ -78,7 +78,7 @@ Create a job request.
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -107,7 +107,7 @@ Create a job request.
 
 * **Parameters**
 
-    
+
     * **priority** (*int*) – The priority of the job
 
 
@@ -139,7 +139,7 @@ Uses the CreateQueue RPC to create a queue.
 
 * **Parameters**
 
-    
+
     * **name** (*str*) – The name of the queue
 
 
@@ -192,7 +192,7 @@ to the provided job_set_id.
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -272,7 +272,7 @@ or job set.
 
 * **Parameters**
 
-    
+
     * **new_priority** (*float*) – The new priority value for the jobs
 
 
@@ -306,7 +306,7 @@ Uses SubmitJobs RPC to submit a job.
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -327,6 +327,26 @@ Uses SubmitJobs RPC to submit a job.
 * **Return type**
 
     *JobSubmitResponse*
+
+#### _static_ unmarshal_event_response(event)
+Unmarshal an event response from the gRPC server.
+
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – The event response from the gRPC server.
+
+
+
+* **Returns**
+
+    An Event object.
+
+
+
+* **Return type**
+
+    *Event*
 
 
 
@@ -362,7 +382,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 
 * **Parameters**
 
-    
+
     * **name** (*str*) – The name of the queue
 
 
@@ -379,3 +399,18 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Return type**
 
     None
+
+
+## armada_client.event module
+
+
+### _class_ armada_client.event.Event(event)
+Represents a gRPC proto event
+
+Definition can be found at:
+[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – The gRPC proto event

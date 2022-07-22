@@ -20,6 +20,8 @@ from armada_client.armada import (
 )
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 
+from armada_client.event import Event
+
 
 class ArmadaClient:
     """
@@ -64,6 +66,17 @@ class ArmadaClient:
             errorIfMissing=True,
         )
         return self.event_stub.GetJobSetEvents(jsr)
+
+    @staticmethod
+    def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
+        """
+        Unmarshal an event response from the gRPC server.
+
+        :param event: The event response from the gRPC server.
+        :return: An Event object.
+        """
+
+        return Event(event)
 
     def submit_jobs(
         self, queue: str, job_set_id: str, job_request_items
