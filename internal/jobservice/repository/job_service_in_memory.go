@@ -70,7 +70,7 @@ func (inMem *InMemoryJobServiceRepository) DeleteJobsInJobSet(jobSetId string) e
 func (inMem *InMemoryJobServiceRepository) PrintAllItems() {
 	log.Info("Printing All Items")
 	for key, value := range inMem.jobMap {
-		log.Infof("JobKey: %s Queue %s JobId %s JobSet %s State %s TimeStamp %s", key, value.queue, value.jobId, value.jobSetId, value.jobResponse.State, value.timeStamp)
+		log.Infof("JobKey: %s Queue %s JobId %s JobSet %s State %s TimeStamp %d", key, value.queue, value.jobId, value.jobSetId, value.jobResponse.State, value.timeStamp)
 	}
 }
 

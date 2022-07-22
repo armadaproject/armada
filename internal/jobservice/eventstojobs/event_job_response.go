@@ -47,7 +47,7 @@ func IsEventTerminal(message api.EventMessage) bool {
 // A Utility function for testing if State is terminal
 func IsStateTerminal(State js.JobServiceResponse_State) bool {
 	switch State {
-	case js.JobServiceResponse_CANCELLED, js.JobServiceResponse_SUCCEEDED, js.JobServiceResponse_FAILED:
+	case js.JobServiceResponse_DUPLICATE_FOUND, js.JobServiceResponse_CANCELLED, js.JobServiceResponse_SUCCEEDED, js.JobServiceResponse_FAILED:
 		return true
 	default:
 		return false

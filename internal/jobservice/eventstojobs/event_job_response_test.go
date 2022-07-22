@@ -152,7 +152,7 @@ func TestIsTerminalEvent(t *testing.T) {
 		},
 		{
 			eventMessage:    api.EventMessage{&api.EventMessage_DuplicateFound{}},
-			jobServiceEvent: false,
+			jobServiceEvent: true,
 		},
 		{
 			eventMessage:    api.EventMessage{&api.EventMessage_Running{}},
@@ -260,7 +260,7 @@ func TestIsTerminalState(t *testing.T) {
 		},
 		{
 			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
-			terminalState: false,
+			terminalState: true,
 		},
 	}
 	length := len(stateMessages)
