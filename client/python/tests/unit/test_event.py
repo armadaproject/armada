@@ -3,7 +3,7 @@ from armada_client.event import Event
 from armada_client.typings import EventType
 
 
-class FakeSubmittedEvent:
+class FakeEvent:
     def __init__(self):
         self.job_id = "job-1"
         self.job_set_id = "job-set-1"
@@ -13,7 +13,7 @@ class FakeSubmittedEvent:
 class FakeEventMessage:
     def __init__(self, name):
         self.fake_name = name
-        setattr(self, name, FakeSubmittedEvent())
+        setattr(self, name, FakeEvent())
 
     def WhichOneof(self, _):
         return self.fake_name
@@ -23,10 +23,6 @@ class FakeEventStreamMessage:
     def __init__(self, name):
         self.message = FakeEventMessage(name)
         self.id = 1
-
-
-def gen_event_stream_message(name):
-    return FakeEventStreamMessage(name)
 
 
 @pytest.mark.parametrize(
