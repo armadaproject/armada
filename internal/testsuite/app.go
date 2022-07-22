@@ -240,7 +240,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
 	// Assert that we get the right events for each job.
-	err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
+	terminatedByJobId, err := eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
 
 	// Stop all services and wait for them to exit.
 	cancel()
@@ -258,7 +258,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	a.reports = append(a.reports, report)
 
 	// Cancel any jobs we haven't seen a terminal event for.
-	_ = client.WithSubmitClient(a.Params.ApiConnectionDetails, submitWithCancel(testSpec, jobIdMap, a.Out))
+	_ = client.WithSubmitClient(a.Params.ApiConnectionDetails, submitWithCancel(testSpec, terminatedByJobId, a.Out))
 
 	return err
 }
