@@ -12,7 +12,7 @@ title: armada_client package
 Armada Python GRPC Client
 
 For the api definitions:
-[https://github.com/G-Research/armada/blob/master/docs/api.md](https://github.com/G-Research/armada/blob/master/docs/api.md)
+[https://armadaproject.io/api](https://armadaproject.io/api)
 
 
 ### _class_ armada_client.client.ArmadaClient(channel, max_workers=None)
