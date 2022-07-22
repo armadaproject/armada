@@ -2,7 +2,7 @@
 Armada Python GRPC Client
 
 For the api definitions:
-https://github.com/G-Research/armada/blob/master/docs/api.md
+https://armadaproject.io/api
 """
 
 import os
