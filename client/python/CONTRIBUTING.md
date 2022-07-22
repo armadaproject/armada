@@ -3,7 +3,8 @@ How to develop on this python client project
 <hr />
 
 Armada Project welcomes contributions from the opensource community.
-### This client is written primarily targeting supported versions PYTHON 3 on Linux, Mac, and WSL on Windows.
+
+This client is written primarily targeting supported versions of python 3 on Linux, Mac, and WSL on Windows.
 
 ### Setting up your own fork of this repository on Linux, Mac, or WSL OS.
 <hr />

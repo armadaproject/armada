@@ -28,7 +28,7 @@ In the repo level, run `make python` then `cd client/python` and lastly run `pip
    - Set up a local python 3.9 environment
 2) pip
    - Package is defined by pyproject.toml
-   - `pip install` will pull dependencies and install based on pyproject.toml
+   - `pip install .` will pull dependencies and install based on pyproject.toml
 3) tox
    - `tox -e format` will check formatting/linter for your code according to default black settings and flake8
    - `tox -e py39` will run unit tests with your default python 3.9 environment
