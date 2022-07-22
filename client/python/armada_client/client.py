@@ -89,7 +89,7 @@ class ArmadaClient:
         queue: Optional[str] = None,
         job_id: Optional[str] = None,
         job_set_id: Optional[str] = None,
-    ) -> submit_pb2.JobCancelResponse:
+    ) -> submit_pb2.JobCancelRequest:
         """Cancel jobs in a given queue.
 
         Uses the CancelJobs RPC to cancel jobs. Either job_id or
