@@ -1,7 +1,8 @@
-package eventlogger
+package eventbenchmark
 
 import (
 	"encoding/json"
+
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
 )
@@ -31,4 +32,12 @@ func in(data []string, elem string) bool {
 		}
 	}
 	return false
+}
+
+func eventDurationToInt64(input []*EventDuration) []int64 {
+	output := make([]int64, 0, len(input))
+	for _, e := range input {
+		output = append(output, int64(e.Duration))
+	}
+	return output
 }

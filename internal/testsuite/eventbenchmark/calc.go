@@ -1,4 +1,4 @@
-package eventlogger
+package eventbenchmark
 
 import (
 	"math"
@@ -12,23 +12,14 @@ type Statistics struct {
 	StandardDeviation float64 `json:"standardDeviation"`
 }
 
-func statistics(durations []*EventDuration) *Statistics {
-	durationsInt64 := extractDuration(durations)
+func statistics(data []int64) *Statistics {
 	return &Statistics{
-		Min:               minInt64(durationsInt64),
-		Max:               maxInt64(durationsInt64),
-		Average:           avgInt64(durationsInt64),
-		Variance:          varianceInt64(durationsInt64),
-		StandardDeviation: standardDeviationInt64(durationsInt64),
+		Min:               minInt64(data),
+		Max:               maxInt64(data),
+		Average:           avgInt64(data),
+		Variance:          varianceInt64(data),
+		StandardDeviation: standardDeviationInt64(data),
 	}
-}
-
-func extractDuration(input []*EventDuration) []int64 {
-	output := make([]int64, 0, len(input))
-	for _, e := range input {
-		output = append(output, int64(e.Duration))
-	}
-	return output
 }
 
 func minInt64(input []int64) int64 {
