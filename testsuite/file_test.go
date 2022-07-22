@@ -54,7 +54,7 @@ func TestFiles(t *testing.T) {
 	// Load test files.
 	testFilesPattern := os.Getenv("ARMADA_TEST_FILES")
 	if testFilesPattern == "" {
-		testFilesPattern = "testcases/*.yaml"
+		testFilesPattern = "testcases/basic/*.yaml"
 	}
 	if !assert.NotEmpty(t, testFilesPattern, "no test cases provided") {
 		t.FailNow()
