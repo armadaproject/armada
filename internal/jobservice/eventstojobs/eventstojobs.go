@@ -9,7 +9,6 @@ import (
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 	"github.com/G-Research/armada/pkg/api"
-	js "github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -37,24 +36,11 @@ func NewEventsToJobService(
 
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 
-	jobIdMap, err := eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
-	for key, element := range jobIdMap {
-		e := eventToJobService.jobServiceRepository.UpdateJobServiceDb(key, element)
-		if e != nil {
-			log.Error(e)
-			return e
-		}
-	}
-	return err
+	return eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
 }
-func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) (map[string]*js.JobServiceResponse, error) {
-	jobIdMap := make(map[string]*js.JobServiceResponse)
+func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	// I found that GRPC will not allow you to run something in background and return a value back to caller.
-	// GRPC will cancel the context once your request returns.
-	// So we are going to introduce a timer for how long to subscribe to event.
-	// This will allow the rpc call to listen for all events in a given job-set
-	// But we will return after SubscribeJobSetTime s
+	// How long we want our subscribing of a job-set to last.
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second)
 	defer cancel()
 	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
@@ -80,10 +66,9 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			// This allows us to subscribe for x amount of time
 			case <-ctxTimeout.Done():
-				log.Info("Hit a timeout")
-				return nil
+				log.Infof("Unsubscribing from %s", eventToJobService.jobsetid)
+				return eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
 			default:
 			}
 			if IsEventAJobResponse(*msg.Message) {
@@ -92,22 +77,13 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 					// This can mean that the event type reported from server is unknown to the client
 					log.Error(eventJobErr)
 				}
-				terminalEventClientId := false
-				if eventToJobService.jobid == currentJobId {
-					terminalEventClientId = IsEventTerminal(*msg.Message)
-				}
-				val, ok := jobIdMap[currentJobId]
-				if ok && val.State != jobStatus.State {
-					jobIdMap[currentJobId] = jobStatus
-				} else {
-					jobIdMap[currentJobId] = jobStatus
-				}
-				// If our jobId is finished, we should return.
-				if terminalEventClientId {
-					return nil
+				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobsetid, eventToJobService.jobid, *jobStatus)
+				updateErr := eventToJobService.jobServiceRepository.UpdateJobServiceDb(currentJobId, jobTable)
+				if updateErr != nil {
+					log.Error(updateErr)
 				}
 			}
 		}
 	})
-	return jobIdMap, err
+	return err
 }

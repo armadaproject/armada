@@ -27,12 +27,10 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		log.Fatal(err)
 		return nil, err
 	}
-	s.jobRepository.IsJobSetAlreadySubscribed(opts.JobSetId)
-	if s.jobRepository.IsJobSetAlreadySubscribed(opts.JobSetId) {
+	if !s.jobRepository.IsJobSetAlreadySubscribed(opts.JobSetId) {
 
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
 		go eventJob.SubscribeToJobSetId(context.Background())
-		return s.jobRepository.GetJobStatus(opts.JobId)
 	}
 
 	return response, err

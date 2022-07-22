@@ -1,10 +1,6 @@
 package configuration
 
 import (
-	"time"
-
-	"github.com/go-redis/redis"
-
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -17,11 +13,11 @@ type JobServiceConfiguration struct {
 	Grpc grpcconfig.GrpcConfig
 	// Connection details that we obtain from client
 	ApiConnection client.ApiConnectionDetails
-	Redis         redis.UniversalOptions
 	// Configurable value that translates to number of seconds
+	// How long do we subscribe to a job set
 	SubscribeJobSetTime int64
-	// Duration for redis key expiry
-	CacheTimeToLive time.Duration
-	// Testing for skipping redis
-	SkipRedisCache bool
+	// How often to do we write our in memory database to disk
+	PersistenceInterval int64
+	// TTL for our cache
+	TimeToLiveCache int64
 }

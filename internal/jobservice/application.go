@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
@@ -38,9 +37,9 @@ func (a *App) StartUp(ctx context.Context) error {
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	inMemoryMap := make(map[string]*js.JobServiceResponse)
+	inMemoryMap := make(map[string]repository.JobTable)
 	subscribedJobSets := make(map[string]string)
-	inMemoryJobService := repository.NewInMemoryJobServiceRepository(inMemoryMap, subscribedJobSets)
+	inMemoryJobService := repository.NewInMemoryJobServiceRepository(inMemoryMap, subscribedJobSets, config)
 	jobService := server.NewJobService(config, inMemoryJobService)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
@@ -49,6 +48,12 @@ func (a *App) StartUp(ctx context.Context) error {
 		return err
 	}
 
+	g.Go(func() error {
+		return inMemoryJobService.PersistDataToDatabase()
+	})
+	// g.Go(func() error {
+	// 	return inMemoryJobService.DeleteAllJobsTTL()
+	// })
 	g.Go(func() error {
 		defer log.Println("Stopping server.")
 
@@ -63,8 +68,4 @@ func (a *App) StartUp(ctx context.Context) error {
 	g.Wait()
 
 	return nil
-}
-
-func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
-	return redis.NewUniversalClient(config)
 }
