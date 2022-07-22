@@ -40,7 +40,8 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.8.10'
-      - run: pip install tox
+      # Tox to run tests; build to build the wheel after tests pass
+      - run: pip install tox build twine
       # Generate the proto files for python, required for later steps
       - run: make python
       - name: Run tox format environment
@@ -52,6 +53,18 @@ jobs:
       - name: Run tox python 3.8 unit tests
         run: tox -e py38
         working-directory: client/python
+      - name: Build and verify wheel
+        run: |
+          python -m build --wheel
+          twine check client/python/dist/*
+        working-directory: client/python
+      - name: Upload wheel
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: client/python/dist/
   python-integration-tests:
     runs-on: ubuntu-latest
     strategy:
