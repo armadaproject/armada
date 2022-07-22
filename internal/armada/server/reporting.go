@@ -129,6 +129,28 @@ func reportJobsLeased(repository repository.EventStore, jobs []*api.Job, cluster
 	}
 }
 
+func reportJobLeaseReturned(repository repository.EventStore, job *api.Job, leaseReturnRequest *api.ReturnLeaseRequest) error {
+	event, err := api.Wrap(&api.JobLeaseReturnedEvent{
+		JobId:        job.Id,
+		JobSetId:     job.JobSetId,
+		Queue:        job.Queue,
+		Created:      time.Now(),
+		ClusterId:    leaseReturnRequest.ClusterId,
+		Reason:       leaseReturnRequest.Reason,
+		KubernetesId: leaseReturnRequest.KubernetesId,
+	})
+	if err != nil {
+		return fmt.Errorf("error wrapping event: %w", err)
+	}
+
+	err = repository.ReportEvents([]*api.EventMessage{event})
+	if err != nil {
+		return fmt.Errorf("error reporting lease returned event: %w", err)
+	}
+
+	return nil
+}
+
 func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
 	events := []*api.EventMessage{}
 	now := time.Now()

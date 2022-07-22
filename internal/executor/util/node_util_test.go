@@ -176,3 +176,39 @@ func TestRemoveNodesFromList_HandlesEmptyLists(t *testing.T) {
 	result = RemoveNodesFromList([]*v1.Node{node1}, []*v1.Node{})
 	assert.Equal(t, []*v1.Node{node1}, result)
 }
+
+func TestIsReady(t *testing.T) {
+	readyNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "ready"}, Status: v1.NodeStatus{
+		Conditions: []v1.NodeCondition{
+			{
+				Type:   v1.NodeReady,
+				Status: v1.ConditionTrue,
+			},
+		},
+	}}
+	assert.True(t, IsReady(readyNode))
+}
+
+func TestIsReady_NotReadyNodes(t *testing.T) {
+	notReadyNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "notReady"}, Status: v1.NodeStatus{
+		Conditions: []v1.NodeCondition{
+			{
+				Type:   v1.NodeReady,
+				Status: v1.ConditionFalse,
+			},
+		},
+	}}
+	unknownReadyStateNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "unknownReady"}, Status: v1.NodeStatus{
+		Conditions: []v1.NodeCondition{
+			{
+				Type:   v1.NodeReady,
+				Status: v1.ConditionFalse,
+			},
+		},
+	}}
+	missingReadyStateNode := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "missingReady"}}
+
+	assert.False(t, IsReady(notReadyNode))
+	assert.False(t, IsReady(unknownReadyStateNode))
+	assert.False(t, IsReady(missingReadyStateNode))
+}

@@ -15,6 +15,11 @@ import (
 	"github.com/G-Research/armada/pkg/client/util"
 )
 
+const (
+	testFileFailureUnschedulableAffinity     = "failure_unschedulable_affinity_1x1"
+	testFileFailureUnschedulableNodeSelector = "failure_unschedulable_nodeselector_1x1"
+)
+
 func TestFiles(t *testing.T) {
 
 	// Load in Armada config.
@@ -66,8 +71,35 @@ func TestFiles(t *testing.T) {
 			continue
 		}
 		name = strings.TrimSuffix(name, ext)
-		t.Run(name, func(t *testing.T) {
-			assert.NoError(t, testSuite.TestFile(context.Background(), testFile))
-		})
+		switch name {
+		case testFileFailureUnschedulableAffinity:
+			testFailureUnschedulableAffinity(t, testSuite, testFile)
+		case testFileFailureUnschedulableNodeSelector:
+			testFailureUnschedulableNodeSelector(t, testSuite, testFile)
+		default:
+			t.Run(name, func(t *testing.T) {
+				assert.NoError(t, testSuite.TestFile(context.Background(), testFile))
+			})
+		}
 	}
+}
+
+func testFailureUnschedulableAffinity(t *testing.T, testSuite *testsuite.App, testFile string) {
+	t.Helper()
+
+	t.Run(testFileFailureUnschedulableAffinity, func(t *testing.T) {
+		err := testSuite.TestFile(context.Background(), testFile)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "node affinity does not match any node selector terms")
+	})
+}
+
+func testFailureUnschedulableNodeSelector(t *testing.T, testSuite *testsuite.App, testFile string) {
+	t.Helper()
+
+	t.Run(testFileFailureUnschedulableNodeSelector, func(t *testing.T) {
+		err := testSuite.TestFile(context.Background(), testFile)
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "node selector requires labels")
+	})
 }

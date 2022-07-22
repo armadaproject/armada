@@ -1,7 +1,7 @@
 package context
 
 import (
-	ctx "context"
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -47,7 +47,7 @@ type ClusterContext interface {
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
 	GetNode(nodeName string) (*v1.Node, error)
-	GetNodeStatsSummary(*v1.Node) (*v1alpha1.Summary, error)
+	GetNodeStatsSummary(context.Context, *v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
@@ -209,7 +209,7 @@ func (c *KubernetesClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 	return c.nodeInformer.Lister().Get(nodeName)
 }
 
-func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	request := c.kubernetesClient.
 		CoreV1().
 		RESTClient().
@@ -218,7 +218,7 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1
 		Name(node.Name).
 		SubResource("proxy", "stats", "summary")
 
-	res := request.Do(ctx.Background())
+	res := request.Do(ctx)
 	rawJson, err := res.Raw()
 
 	if err != nil {
@@ -251,7 +251,7 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 		return nil, err
 	}
 
-	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(ctx.Background(), pod, metav1.CreateOptions{})
+	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{})
 
 	if err != nil {
 		c.submittedPods.Delete(util.ExtractPodKey(pod))
@@ -260,11 +260,11 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 }
 
 func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(ctx.Background(), service, metav1.CreateOptions{})
+	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(context.Background(), service, metav1.CreateOptions{})
 }
 
 func (c *KubernetesClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
-	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(ctx.Background(), ingress, metav1.CreateOptions{})
+	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
 }
 
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
@@ -277,7 +277,7 @@ func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[st
 	if err != nil {
 		return err
 	}
-	_, err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(ctx.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	_, err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(context.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
@@ -290,15 +290,9 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	}
 }
 
-func (c *KubernetesClusterContext) deletePodEvents(pod *v1.Pod) error {
-	deleteOptions := createDeleteOptions()
-	listOptions := createPodEventsListOptions(pod)
-	return c.kubernetesClient.CoreV1().Events(pod.Namespace).DeleteCollection(ctx.Background(), deleteOptions, listOptions)
-}
-
 func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(ctx.Background(), service.Name, deleteOptions)
+	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(context.Background(), service.Name, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
@@ -307,7 +301,7 @@ func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 
 func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) error {
 	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(ctx.Background(), ingress.Name, deleteOptions)
+	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(context.Background(), ingress.Name, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
@@ -335,13 +329,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 		}
 
 		if err == nil {
-			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(ctx.Background(), podToDelete.Name, deleteOptions)
-			if err == nil {
-				deletePodEventsErr := c.deletePodEvents(podToDelete)
-				if deletePodEventsErr != nil {
-					log.WithError(deletePodEventsErr).Errorf("Failed to delete pod events for pod %s/%s", podToDelete.Name, podToDelete.Namespace)
-				}
-			}
+			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(context.Background(), podToDelete.Name, deleteOptions)
 		}
 
 		if err == nil || k8s_errors.IsNotFound(err) {
@@ -415,12 +403,6 @@ func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
 
 	selector := labels.NewSelector().Add(*jobIdMatchesSelector, *queueMatchesSelector, *podNumberMatchesSelector)
 	return &selector, nil
-}
-
-func createPodEventsListOptions(pod *v1.Pod) metav1.ListOptions {
-	return metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("involvedObject.uid=%s", string(pod.UID)),
-	}
 }
 
 func createDeleteOptions() metav1.DeleteOptions {
