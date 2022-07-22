@@ -4,13 +4,6 @@ services:
     image: redis
     ports:
       - "6379:6379"
-  jobserviceredis:
-    image: redis
-    ports:
-      - "6380:6380"
-    command:
-      - "--port 6380"
-
   postgres:
     image: postgres
     environment:
