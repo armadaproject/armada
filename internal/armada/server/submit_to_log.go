@@ -362,6 +362,59 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 }
 
 func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+
+	// If either queue or jobSetId is missing, we get the job set and queue associated
+	// with the first job id in the request.
+	//
+	// This must be done before checking auth, since the auth check expects a queue.
+	// If both queue and jobSetId are provided, we assume that those are correct
+	// to make it possible to cancel jobs that have been submitted but not written to Redis yet.
+	if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
+		firstJobId := req.JobIds[0]
+
+		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{firstJobId})
+		if err != nil {
+			return nil, err
+		}
+		if len(jobs) == 0 {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:  "job",
+				Value: firstJobId,
+			}
+		}
+		if len(jobs) != 1 { // Internal error; should never happen.
+			return nil, fmt.Errorf("expected 1 job result, but got %v", jobs)
+		}
+		queue := jobs[0].Job.GetQueue()
+		jobSetId := jobs[0].Job.GetJobSetId()
+
+		// We allow clients to submit requests only containing a job id.
+		// For these requests, we need to populate the queue and jobSetId fields.
+		if req.Queue == "" {
+			req.Queue = queue
+		}
+		if req.JobSetId == "" {
+			req.JobSetId = jobSetId
+		}
+
+		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+		// since the job could not be found for the provided queue/jobSetId.
+		if req.Queue != queue {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:    "job",
+				Value:   firstJobId,
+				Message: fmt.Sprintf("job not found in queue %s, try waiting or setting queue/jobSetId explicitly", req.Queue),
+			}
+		}
+		if req.JobSetId != jobSetId {
+			return nil, &armadaerrors.ErrNotFound{
+				Type:    "job",
+				Value:   firstJobId,
+				Message: fmt.Sprintf("job not found in job set %s, try waiting or setting queue/jobSetId explicitly", req.JobSetId),
+			}
+		}
+	}
+
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
 	if err != nil {
 		return nil, err
