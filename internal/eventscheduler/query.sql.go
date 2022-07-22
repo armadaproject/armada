@@ -9,12 +9,12 @@ import (
 	"context"
 )
 
-const getMessageId = `-- name: GetMessageId :one
+const getTopicMessageIds = `-- name: GetTopicMessageIds :many
 
 
 
 
-SELECT topic, ledgerid, entryid, batchidx, partitionidx FROM pulsar WHERE topic = $1 LIMIT 1
+SELECT topic, ledgerid, entryid, batchidx, partitionidx FROM pulsar WHERE topic = $1
 `
 
 // -- name: UpsertRecord :exec
@@ -30,17 +30,30 @@ SELECT topic, ledgerid, entryid, batchidx, partitionidx FROM pulsar WHERE topic 
 // UPDATE records SET value = $2, payload = $3 WHERE id = $1;
 // -- name: DeleteRecord :exec
 // DELETE FROM records WHERE id = $1;
-func (q *Queries) GetMessageId(ctx context.Context, topic string) (Pulsar, error) {
-	row := q.db.QueryRow(ctx, getMessageId, topic)
-	var i Pulsar
-	err := row.Scan(
-		&i.Topic,
-		&i.Ledgerid,
-		&i.Entryid,
-		&i.Batchidx,
-		&i.Partitionidx,
-	)
-	return i, err
+func (q *Queries) GetTopicMessageIds(ctx context.Context, topic string) ([]Pulsar, error) {
+	rows, err := q.db.Query(ctx, getTopicMessageIds, topic)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Pulsar
+	for rows.Next() {
+		var i Pulsar
+		if err := rows.Scan(
+			&i.Topic,
+			&i.Ledgerid,
+			&i.Entryid,
+			&i.Batchidx,
+			&i.Partitionidx,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRuns = `-- name: ListRuns :many

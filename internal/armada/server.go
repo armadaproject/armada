@@ -394,6 +394,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		schedulerGrpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 		api.RegisterAggregatedQueueServer(schedulerGrpcServer, schedulerIngester)
 		api.RegisterUsageServer(schedulerGrpcServer, schedulerIngester)
+		api.RegisterEventServer(schedulerGrpcServer, schedulerIngester)
 
 		// Shut down grpcServer if the context is cancelled.
 		// Give the server 5 seconds to shut down gracefully.

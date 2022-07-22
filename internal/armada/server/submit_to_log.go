@@ -9,7 +9,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -24,6 +23,7 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -641,10 +641,6 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 // PublishToPulsar sends pulsar messages async
 func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
 
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -652,43 +648,5 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	if err != nil {
 		return err
 	}
-
-	// Send each sequence async. Collect any errors via ch.
-	ch := make(chan error, len(sequences))
-	defer close(ch)
-	for _, sequence := range sequences {
-		payload, err := proto.Marshal(sequence)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		srv.Producer.SendAsync(
-			ctx,
-			&pulsar.ProducerMessage{
-				Payload: payload,
-				Properties: map[string]string{
-					requestid.MetadataKey:                     requestId,
-					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				},
-				Key: sequence.JobSetName,
-			},
-			// Callback on send.
-			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
-				ch <- err
-			},
-		)
-	}
-
-	// Flush queued messages and wait until persisted.
-	err = srv.Producer.Flush()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Collect any errors experienced by the async send and return.
-	var result *multierror.Error
-	for range sequences {
-		result = multierror.Append(result, <-ch)
-	}
-	return result.ErrorOrNil()
+	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences)
 }

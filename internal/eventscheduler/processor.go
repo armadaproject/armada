@@ -191,6 +191,8 @@ func (srv *SchedulerProcessor) ProcessSequence(ctx context.Context, requestId st
 
 type SchedulerIngester struct {
 	api.UnimplementedAggregatedQueueServer
+	api.UnimplementedEventServer
+	api.UnimplementedUsageServer
 	Consumer pulsar.Consumer
 	Producer pulsar.Producer
 	// Reference to the scheduler- to update the internal state of the scheduler.
@@ -469,7 +471,7 @@ func (srv *SchedulerIngester) ReturnLease(ctx context.Context, req *api.ReturnLe
 
 	jobSetName, ok := srv.jobSetByJobId[req.JobId]
 	if !ok {
-		return &types.Empty{}, errors.Errorf("unknown job id %s: could not find job set name", req.JobId)
+		return &types.Empty{}, errors.Errorf("unknown job id %s: could not find job set name: %v", req.JobId, srv.jobSetByJobId)
 	}
 	queue, ok := srv.queueByJobId[req.JobId]
 	if !ok {
@@ -513,30 +515,9 @@ func (srv *SchedulerIngester) ReturnLease(ctx context.Context, req *api.ReturnLe
 		},
 	})
 
-	sequences, err := eventutil.LimitSequenceByteSize(sequence, 4194304) // 4MB
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 	if err != nil {
-		return &types.Empty{}, err
-	}
-
-	for _, sequence := range sequences {
-		payload, err := proto.Marshal(sequence)
-		if err != nil {
-			return &types.Empty{}, errors.WithStack(err)
-		}
-		_, err = srv.Producer.Send(
-			ctx,
-			&pulsar.ProducerMessage{
-				Payload: payload,
-				Properties: map[string]string{
-					requestid.MetadataKey:                     requestid.FromContextOrMissing(ctx),
-					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				},
-				Key: sequence.JobSetName,
-			},
-		)
-		if err != nil {
-			return &types.Empty{}, errors.WithStack(err)
-		}
+		return nil, err
 	}
 
 	return &types.Empty{}, nil
@@ -550,7 +531,7 @@ func (srv *SchedulerIngester) ReportDone(ctx context.Context, req *api.IdList) (
 	for _, jobId := range req.GetIds() {
 		jobSetName, ok := srv.jobSetByJobId[jobId]
 		if !ok {
-			return nil, errors.Errorf("unknown job id %s: could not find job set name", jobId)
+			return nil, errors.Errorf("unknown job id %s: could not find job set name: %v", jobId, srv.jobSetByJobId)
 		}
 		queue, ok := srv.queueByJobId[jobId]
 		if !ok {
@@ -580,31 +561,9 @@ func (srv *SchedulerIngester) ReportDone(ctx context.Context, req *api.IdList) (
 		})
 	}
 
-	// Send the minimal number of sequences.
-	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, 4194304) // 4MB
+	err := srv.publishToPulsar(ctx, sequences)
 	if err != nil {
 		return nil, err
-	}
-	for _, sequence := range sequences {
-		payload, err := proto.Marshal(sequence)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		_, err = srv.Producer.Send(
-			ctx,
-			&pulsar.ProducerMessage{
-				Payload: payload,
-				Properties: map[string]string{
-					requestid.MetadataKey:                     requestid.FromContextOrMissing(ctx),
-					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				},
-				Key: sequence.JobSetName,
-			},
-		)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
 	}
 
 	return &api.IdList{
@@ -612,6 +571,47 @@ func (srv *SchedulerIngester) ReportDone(ctx context.Context, req *api.IdList) (
 	}, nil
 }
 
+// TODO: Does nothing for now.
 func (srv *SchedulerIngester) ReportUsage(ctx context.Context, req *api.ClusterUsageReport) (*types.Empty, error) {
 	return &types.Empty{}, nil
+}
+
+func (srv *SchedulerIngester) ReportMultiple(ctx context.Context, apiEvents *api.EventList) (*types.Empty, error) {
+	// Because (queue, userId, jobSetId) may differ between events,
+	// several sequences may be necessary.
+	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents.Events)
+	if err != nil {
+		return &types.Empty{}, err
+	}
+	if len(sequences) == 0 {
+		return &types.Empty{}, nil
+	}
+	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
+}
+
+func (srv *SchedulerIngester) Report(ctx context.Context, apiEvent *api.EventMessage) (*types.Empty, error) {
+	// Because (queue, userId, jobSetId) may differ between events,
+	// several sequences may be necessary.
+	sequences, err := eventutil.EventSequencesFromApiEvents([]*api.EventMessage{apiEvent})
+	if err != nil {
+		return &types.Empty{}, err
+	}
+	if len(sequences) == 0 {
+		return &types.Empty{}, nil
+	}
+
+	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
+}
+
+// PublishToPulsar sends pulsar messages async
+func (srv *SchedulerIngester) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
+
+	// Reduce the number of sequences to send to the minimum possible,
+	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
+	sequences = eventutil.CompactEventSequences(sequences)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, 4194304) // 4MB
+	if err != nil {
+		return err
+	}
+	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences)
 }

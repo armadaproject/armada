@@ -21,8 +21,8 @@ SELECT * FROM runs ORDER BY run_id;
 -- -- name: DeleteRecord :exec
 -- DELETE FROM records WHERE id = $1;
 
--- name: GetMessageId :one
-SELECT * FROM pulsar WHERE topic = $1 LIMIT 1;
+-- name: GetTopicMessageIds :many
+SELECT * FROM pulsar WHERE topic = $1;
 
 -- name: UpsertMessageId :exec
 INSERT INTO pulsar (topic, ledgerId, entryId, batchIdx, partitionIdx) VALUES ($1, $2, $3, $4, $5)
