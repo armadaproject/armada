@@ -4,14 +4,6 @@ import (
 	"math"
 )
 
-type Statistics struct {
-	Min               int64   `json:"min"`
-	Max               int64   `json:"max"`
-	Average           float64 `json:"average"`
-	Variance          float64 `json:"variance"`
-	StandardDeviation float64 `json:"standardDeviation"`
-}
-
 func statistics(data []int64) *Statistics {
 	return &Statistics{
 		Min:               minInt64(data),

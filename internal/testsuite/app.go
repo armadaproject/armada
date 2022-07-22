@@ -43,7 +43,7 @@ type App struct {
 	// deterministic testing behavior.
 	Random io.Reader
 	// Benchmark reports from test files
-	reports []*eventbenchmark.TestBenchmarkReport
+	reports []*eventbenchmark.TestCaseBenchmarkReport
 }
 
 // Params struct holds all user-customizable parameters.
@@ -253,7 +253,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	eventLogger.Log()
 
 	// benchmark
-	report := eventBenchmark.NewTestBenchmarkReport(testSpec.GetName())
+	report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
 	report.Print(a.Out)
 	a.reports = append(a.reports, report)
 
@@ -377,6 +377,6 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 	return err
 }
 
-func (a *App) GetBenchmarkReport(reportName string) *eventbenchmark.TestBenchmarkReport {
-	return eventbenchmark.AggregateTestBenchmarkReports(reportName, a.reports)
+func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
+	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
 }

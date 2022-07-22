@@ -59,12 +59,12 @@ func (srv *EventsBenchmark) recordEventDuration(event *api.EventMessage) {
 	}
 }
 
-func (srv *EventsBenchmark) NewTestBenchmarkReport(name string) *TestBenchmarkReport {
+func (srv *EventsBenchmark) NewTestCaseBenchmarkReport(name string) *TestCaseBenchmarkReport {
 	summary := make([]*EventDurationsByJobId, 0, len(srv.eventDurationsByJobId))
 	for _, eventDurations := range srv.eventDurationsByJobId {
 		summary = append(summary, eventDurations)
 	}
-	return &TestBenchmarkReport{
+	return &TestCaseBenchmarkReport{
 		Name:       name,
 		Statistics: calculateStatistics(summary),
 		Summary:    summary,
