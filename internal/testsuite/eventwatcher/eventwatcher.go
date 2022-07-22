@@ -90,7 +90,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 }
 
 func (srv *EventWatcher) waitRetryBackoff(ctx context.Context, attempt uint) error {
-	var waitTime time.Duration = 0
+	var waitTime time.Duration
 	if attempt > 0 {
 		waitTime = srv.BackoffExponential * time.Duration(backoffutils.ExponentBase2(attempt))
 	}
@@ -116,16 +116,27 @@ type ErrUnexpectedEvent struct {
 }
 
 func (err *ErrUnexpectedEvent) Error() string {
+	baseMsg := fmt.Sprintf(
+		"unexpected event for job %s: expected event of type %T, but got %+v",
+		err.jobId, err.expected.Events, err.actual.Events,
+	)
 	if err.message == "" {
-		return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v", err.jobId, err.expected.Events, err.actual.Events)
+		return baseMsg
 	}
-	return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v; %s", err.jobId, err.expected.Events, err.actual.Events, err.message)
+	return fmt.Sprintf("%s: %s", baseMsg, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
-func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
+func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) (map[string]bool, error) {
 	if len(expected) == 0 {
-		return nil
+		return nil, nil
+	}
+
+	// terminatedByJobId indicates for which jobs we've received a terminal event.
+	// Initialize it by copying the jobIds map.
+	terminatedByJobId := make(map[string]bool)
+	for jobId, hasTerminated := range jobIds {
+		terminatedByJobId[jobId] = hasTerminated
 	}
 
 	// Track which events have been seen for each job
@@ -137,7 +148,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.Errorf("did not receive all events for at least one job")
+			return terminatedByJobId, errors.Errorf("did not receive all events for at least one job")
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
@@ -147,7 +158,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 
 			// Record terminated jobs.
 			if isTerminalEvent(actual) {
-				jobIds[actualJobId] = true
+				terminatedByJobId[actualJobId] = true
 			}
 
 			i := indexByJobId[actualJobId]
@@ -158,13 +169,13 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			if i == len(expected) {
 				numDone++
 				if numDone == len(jobIds) {
-					return nil // We got all the expected events.
+					return terminatedByJobId, nil // We got all the expected events.
 				}
 			}
 
 			// Return an error if the job has exited without us seeing all expected events.
 			if isTerminalEvent(actual) && i < len(expected) {
-				return &ErrUnexpectedEvent{
+				return terminatedByJobId, &ErrUnexpectedEvent{
 					jobId:    actualJobId,
 					expected: expected[i],
 					actual:   actual,
