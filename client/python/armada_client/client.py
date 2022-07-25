@@ -283,7 +283,7 @@ class ArmadaClient:
         annotations: Optional[Dict[str, str]] = None,
         required_node_labels: Optional[Dict[str, str]] = None,
         ingress: Optional[List[submit_pb2.IngressConfig]] = None,
-        services: Optional[List[submit_pb2.ServiceConfig]] = None
+        services: Optional[List[submit_pb2.ServiceConfig]] = None,
     ) -> submit_pb2.JobSubmitRequestItem:
         """Create a job request.
 
