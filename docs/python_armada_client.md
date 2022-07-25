@@ -101,7 +101,7 @@ Create a job request.
 
 
 
-#### create_job_request_item(pod_spec, priority=1, \*\*job_item_params)
+#### create_job_request_item(pod_spec, priority=1, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
 Create a job request.
 
 
@@ -114,8 +114,28 @@ Create a job request.
     * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
 
 
-    * **job_item_params** – All other job_item kwaarg
-    arguments as specified in the api definition.
+    * **pod_specs** (*Optional**[**List**[**PodSpec**]**]*) – List of k8s pod specs of the job
+
+
+    * **namespace** (*Optional**[**str**]*) – The namespace of the job
+
+
+    * **client_id** (*Optional**[**str**]*) – The client id of the job
+
+
+    * **labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The labels of the job
+
+
+    * **annotations** (*Optional**[**Dict**[**str**, **str**]**]*) – The annotations of the job
+
+
+    * **required_node_labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The required node labels of the job
+
+
+    * **ingress** (*Optional**[**List**[**IngressConfig**]**]*) – The ingress of the job
+
+
+    * **services** (*Optional**[**List**[**ServiceConfig**]**]*) – The services of the job
 
 
 
@@ -131,7 +151,7 @@ Create a job request.
 
 
 
-#### create_queue(name, \*\*queue_params)
+#### create_queue(name, priority_factor, user_owners, group_owners, resource_limits, permissions)
 Create the queue by name.
 
 Uses the CreateQueue RPC to create a queue.
@@ -143,7 +163,19 @@ Uses the CreateQueue RPC to create a queue.
     * **name** (*str*) – The name of the queue
 
 
-    * **queue_params** – Queue Object
+    * **priority_factor** (*Optional**[**int**]*) – The priority factor for the queue
+
+
+    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+
+
+    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+
+
+    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+
+
+    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
 
 
 
@@ -376,7 +408,7 @@ Closes the provided event_stream.queue
 
 
 
-#### update_queue(name, \*\*queue_params)
+#### update_queue(name, priority_factor, user_owners, group_owners, resource_limits, permissions)
 Update the queue of name with values in queue_params
 
 Uses UpdateQueue RPC to update the parameters on the queue.
@@ -388,7 +420,19 @@ Uses UpdateQueue RPC to update the parameters on the queue.
     * **name** (*str*) – The name of the queue
 
 
-    * **queue_params** – Queue Object
+    * **priority_factor** (*Optional**[**int**]*) – The priority factor for the queue
+
+
+    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+
+
+    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+
+
+    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+
+
+    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
 
 
 
