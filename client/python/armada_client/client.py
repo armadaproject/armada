@@ -150,10 +150,10 @@ class ArmadaClient:
         self,
         name: str,
         priority_factor: Optional[int],
-        user_owners: Optional[List[str]],
-        group_owners: Optional[List[str]],
-        resource_limits: Optional[Dict[str, float]],
-        permissions: Optional[List[submit_pb2.Queue.Permissions]],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[submit_pb2.Queue.Permissions]] = None,
     ) -> empty_pb2.Empty:
         """Create the queue by name.
 
@@ -182,10 +182,10 @@ class ArmadaClient:
         self,
         name: str,
         priority_factor: Optional[int],
-        user_owners: Optional[List[str]],
-        group_owners: Optional[List[str]],
-        resource_limits: Optional[Dict[str, float]],
-        permissions: Optional[List[submit_pb2.Queue.Permissions]],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[submit_pb2.Queue.Permissions]] = None,
     ) -> None:
         """Update the queue of name with values in queue_params
 
