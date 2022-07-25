@@ -45,7 +45,12 @@ func (inMem *InMemoryJobServiceRepository) UpdateJobServiceDb(jobId string, jobT
 	log.Infof("Updating JobId %s with State %s", jobId, jobTable.jobResponse.State)
 	inMem.jobStatus.jobLock.Lock()
 	defer inMem.jobStatus.jobLock.Unlock()
-	inMem.jobStatus.jobMap[jobId] = jobTable
+	jobResponse, ok := inMem.jobStatus.jobMap[jobId]
+	if ok && jobResponse.jobResponse.State == jobTable.jobResponse.State {
+	} else {
+
+		inMem.jobStatus.jobMap[jobId] = jobTable
+	}
 	return nil
 }
 func (inMem *InMemoryJobServiceRepository) HealthCheck() bool {
@@ -71,6 +76,7 @@ func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) er
 		return fmt.Errorf("JobSetId %s already unsubscribed", jobSetId)
 	}
 	delete(inMem.jobStatus.subscribeMap, jobSetId)
+	log.Infof("JobSetId %s unsubscribed", jobSetId)
 	return nil
 }
 
@@ -102,18 +108,6 @@ func (inMem *InMemoryJobServiceRepository) PersistDataToDatabase() error {
 	ticker := time.NewTicker(time.Duration(inMem.jobServiceConfig.PersistenceInterval) * time.Second)
 	for range ticker.C {
 		inMem.PrintAllItems()
-	}
-	return nil
-}
-
-func (inMem *InMemoryJobServiceRepository) DeleteAllJobsTTL() error {
-	inMem.jobStatus.jobLock.Lock()
-	defer inMem.jobStatus.jobLock.Unlock()
-	currentTime := time.Now().Unix()
-	for key, value := range inMem.jobStatus.jobMap {
-		if (currentTime - value.timeStamp) > inMem.jobServiceConfig.TimeToLiveCache {
-			delete(inMem.jobStatus.jobMap, key)
-		}
 	}
 	return nil
 }

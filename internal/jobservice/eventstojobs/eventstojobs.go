@@ -40,9 +40,8 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	// How long we want our subscribing of a job-set to last.
-	ctxTimeout, cancel := context.WithTimeout(ctx, time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second)
-	defer cancel()
+	duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second
+	timeOut := time.NewTimer(duration)
 	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
@@ -66,7 +65,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-ctxTimeout.Done():
+			case <-timeOut.C:
 				log.Infof("Unsubscribing from %s", eventToJobService.jobsetid)
 				return eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
 			default:
@@ -82,6 +81,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				if updateErr != nil {
 					log.Error(updateErr)
 				}
+				timeOut.Reset(duration)
 			}
 		}
 	})

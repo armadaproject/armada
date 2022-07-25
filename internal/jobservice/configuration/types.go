@@ -14,7 +14,7 @@ type JobServiceConfiguration struct {
 	// Connection details that we obtain from client
 	ApiConnection client.ApiConnectionDetails
 	// Configurable value that translates to number of seconds
-	// How long do we subscribe to a job set
+	// This is the amount of time since the last job in job-set has been updated.
 	SubscribeJobSetTime int64
 	// How often to do we write our in memory database to disk
 	PersistenceInterval int64

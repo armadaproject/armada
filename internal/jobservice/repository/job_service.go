@@ -12,5 +12,4 @@ type JobServiceRepository interface {
 	UnSubscribeJobSet(jobSetId string) error
 	DeleteJobsInJobSet(jobSetId string) error
 	PersistDataToDatabase() error
-	DeleteAllJobsTTL() error
 }
