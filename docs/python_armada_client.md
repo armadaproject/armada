@@ -151,7 +151,7 @@ Create a job request.
 
 
 
-#### create_queue(name, priority_factor, user_owners, group_owners, resource_limits, permissions)
+#### create_queue(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
 Create the queue by name.
 
 Uses the CreateQueue RPC to create a queue.
@@ -408,7 +408,7 @@ Closes the provided event_stream.queue
 
 
 
-#### update_queue(name, priority_factor, user_owners, group_owners, resource_limits, permissions)
+#### update_queue(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
 Update the queue of name with values in queue_params
 
 Uses UpdateQueue RPC to update the parameters on the queue.
