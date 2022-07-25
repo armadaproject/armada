@@ -108,7 +108,7 @@ Create a job request.
 * **Parameters**
 
     
-    * **priority** (*int*) – The priority of the job
+    * **priority** (*float*) – The priority of the job
 
 
     * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
@@ -163,7 +163,7 @@ Uses the CreateQueue RPC to create a queue.
     * **name** (*str*) – The name of the queue
 
 
-    * **priority_factor** (*Optional**[**int**]*) – The priority factor for the queue
+    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
 
 
     * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
@@ -420,7 +420,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
     * **name** (*str*) – The name of the queue
 
 
-    * **priority_factor** (*Optional**[**int**]*) – The priority factor for the queue
+    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
 
 
     * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
