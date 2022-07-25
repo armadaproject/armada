@@ -58,9 +58,3 @@ jobs:
         run: |
           make tests-e2e-python
       - run: make tests-e2e-teardown
-      - run: make junit-report
-      - name: Upload junit report
-        uses: actions/upload-artifact@v2.2.4
-        with:
-          name: junit.xml
-          path: test_reports/junit.xml
