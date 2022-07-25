@@ -6,39 +6,15 @@ then watch for the job to succeed or fail.
 import os
 import time
 import uuid
-from enum import Enum
 
 import grpc
 from armada_client.client import ArmadaClient
+from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-
-
-class EventType(Enum):
-    """
-    Struct for the event states.
-    """
-
-    submitted = "submitted"
-    queued = "queued"
-    duplicate_found = "duplicate_found"
-    leased = "leased"
-    lease_returned = "lease_returned"
-    pending = "pending"
-    running = "running"
-    unable_to_schedule = "unable_to_schedule"
-    failed = "failed"
-    succeeded = "succeeded"
-    reprioritized = "reprioritized"
-    cancelling = "cancelling"
-    cancelled = "cancelled"
-    terminated = "terminated"
-    utilisation = "utilisation"
-    ingress_info = "ingress_info"
-    reprioritizing = "reprioritizing"
-    updated = "updated"
+from armada_client.typings import EventType
 
 
 def create_dummy_job(client: ArmadaClient):
@@ -72,7 +48,7 @@ def create_dummy_job(client: ArmadaClient):
     return [client.create_job_request_item(priority=1, pod_spec=pod)]
 
 
-def wait_for_job_event(event_stream, job_id: str, event_state: str):
+def wait_for_job_event(event_stream, job_id: str, event_state: EventType):
     """
     Wait for a job event to occur.
 
@@ -82,15 +58,12 @@ def wait_for_job_event(event_stream, job_id: str, event_state: str):
     # Contains all the possible message types
     for event in event_stream:
 
-        msg_type = event.message.WhichOneof("events")
-        message = getattr(event.message, msg_type)
+        event = Event(event)
 
-        msg_type = EventType(msg_type)
-
-        if message.job_id == job_id:
-            if msg_type == EventType.failed:
+        if event.message.job_id == job_id:
+            if event.type == EventType.failed:
                 return False
-            elif msg_type == event_state:
+            elif event.type == event_state:
                 return True
 
 

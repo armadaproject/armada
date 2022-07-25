@@ -2,39 +2,14 @@ import os
 import threading
 import time
 import uuid
-from enum import Enum
 
 import grpc
 from armada_client.client import ArmadaClient
+from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-
-
-class EventType(Enum):
-    """
-    Struct for the event states.
-    """
-
-    submitted = "submitted"
-    queued = "queued"
-    duplicate_found = "duplicate_found"
-    leased = "leased"
-    lease_returned = "lease_returned"
-    pending = "pending"
-    running = "running"
-    unable_to_schedule = "unable_to_schedule"
-    failed = "failed"
-    succeeded = "succeeded"
-    reprioritized = "reprioritized"
-    cancelling = "cancelling"
-    cancelled = "cancelled"
-    terminated = "terminated"
-    utilisation = "utilisation"
-    ingress_info = "ingress_info"
-    reprioritizing = "reprioritizing"
-    updated = "updated"
 
 
 def create_dummy_job(client):
@@ -88,12 +63,10 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
             # For each event, check if it is one we are interested in
             # and print out the message if it is
             for event in event_stream:
-                msg_type = event.message.WhichOneof("events")
-                message = getattr(event.message, msg_type)
 
-                msg_type = EventType(msg_type)
+                event = Event(event)
 
-                print(f"Job {message.job_id} - {msg_type}")
+                print(f"Job {event.message.job_id} - {event.type}")
 
         # Handle the error we expect to maybe occur
         except grpc.RpcError as e:
@@ -131,7 +104,8 @@ def watch_queue(client, queue):
         # If there is a change in the priority factor, print it out
         if last_info2.priority_factor != info2.priority_factor:
             print(
-                f"Priority factor changed from {last_info2.priority_factor} to {info2.priority_factor}"
+                f"Priority factor changed from {last_info2.priority_factor} "
+                f"to {info2.priority_factor}"
             )
 
         # If there is a change in the number of jobs, print it out
