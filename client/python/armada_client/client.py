@@ -149,7 +149,7 @@ class ArmadaClient:
     def create_queue(
         self,
         name: str,
-        priority_factor: Optional[int],
+        priority_factor: Optional[float],
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
