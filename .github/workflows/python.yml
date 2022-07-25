@@ -50,8 +50,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
-      - uses: satackey/action-docker-layer-caching@v0.0.11
-        continue-on-error: true
       - run: make build-ci
       - run: make tests-e2e-setup
       - name: Run Python Integration Tests
