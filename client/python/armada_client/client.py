@@ -275,7 +275,7 @@ class ArmadaClient:
     def create_job_request_item(
         self,
         pod_spec: core_v1.PodSpec,
-        priority: int = 1,
+        priority: float = 1,
         pod_specs: Optional[List[core_v1.PodSpec]] = None,
         namespace: Optional[str] = None,
         client_id: Optional[str] = None,
