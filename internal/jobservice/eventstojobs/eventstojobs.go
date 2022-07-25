@@ -40,6 +40,8 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
+	// This corresponds to the amount of time since the job-set has been updated.
+	// If no new events come from the job-set, then the timer allows automatic unsubscribing.
 	duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second
 	timeOut := time.NewTimer(duration)
 	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
@@ -66,8 +68,11 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-timeOut.C:
-				log.Infof("Unsubscribing from %s", eventToJobService.jobsetid)
-				return eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
+				err := eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
+				if err != nil {
+					log.Errorf("Unsubscribe errored with %v", err)
+					return err
+				}
 			default:
 			}
 			if IsEventAJobResponse(*msg.Message) {
@@ -81,6 +86,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				if updateErr != nil {
 					log.Error(updateErr)
 				}
+				// Every new event should reset timer.  
 				timeOut.Reset(duration)
 			}
 		}
