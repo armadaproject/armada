@@ -37,9 +37,10 @@ func (a *App) StartUp(ctx context.Context) error {
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	inMemoryMap := make(map[string]repository.JobTable)
-	subscribedJobSets := make(map[string]string)
-	inMemoryJobService := repository.NewInMemoryJobServiceRepository(inMemoryMap, subscribedJobSets, config)
+	inMemoryMap := make(map[string]*repository.JobTable)
+	subscribedJobSets := make(map[string]*string)
+	jobStatusMap := repository.NewJobStatus(inMemoryMap, subscribedJobSets)
+	inMemoryJobService := repository.NewInMemoryJobServiceRepository(jobStatusMap, config)
 	jobService := server.NewJobService(config, inMemoryJobService)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
@@ -49,7 +50,12 @@ func (a *App) StartUp(ctx context.Context) error {
 	}
 
 	g.Go(func() error {
-		return inMemoryJobService.PersistDataToDatabase()
+		err := inMemoryJobService.PersistDataToDatabase()
+		if err != nil {
+			log.Fatalf("Persisting to Database failed: %v", err)
+			return err
+		}
+		return nil
 	})
 	// g.Go(func() error {
 	// 	return inMemoryJobService.DeleteAllJobsTTL()

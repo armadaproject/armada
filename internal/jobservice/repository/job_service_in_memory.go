@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/G-Research/armada/internal/jobservice/configuration"
@@ -10,18 +11,30 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type InMemoryJobServiceRepository struct {
-	jobMap            map[string]JobTable
-	subscribedJobSets map[string]string
-	jobServiceConfig  *configuration.JobServiceConfiguration
+type JobStatus struct {
+	jobMap        map[string]*JobTable
+	jobLock       sync.RWMutex
+	subscribeMap  map[string]*string
+	subscribeLock sync.RWMutex
 }
 
-func NewInMemoryJobServiceRepository(jobMap map[string]JobTable, subscribedJobSets map[string]string, config *configuration.JobServiceConfiguration) *InMemoryJobServiceRepository {
-	return &InMemoryJobServiceRepository{jobMap: jobMap, subscribedJobSets: subscribedJobSets, jobServiceConfig: config}
+func NewJobStatus(jobMap map[string]*JobTable, subscribeMap map[string]*string) *JobStatus {
+	return &JobStatus{jobMap: jobMap, subscribeMap: subscribeMap}
+}
+
+type InMemoryJobServiceRepository struct {
+	jobStatus        *JobStatus
+	jobServiceConfig *configuration.JobServiceConfiguration
+}
+
+func NewInMemoryJobServiceRepository(jobMap *JobStatus, config *configuration.JobServiceConfiguration) *InMemoryJobServiceRepository {
+	return &InMemoryJobServiceRepository{jobStatus: jobMap, jobServiceConfig: config}
 }
 
 func (inMem *InMemoryJobServiceRepository) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
-	jobResponse, ok := inMem.jobMap[jobId]
+	inMem.jobStatus.jobLock.RLock()
+	jobResponse, ok := inMem.jobStatus.jobMap[jobId]
+	inMem.jobStatus.jobLock.RUnlock()
 	if !ok {
 		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	}
@@ -30,7 +43,9 @@ func (inMem *InMemoryJobServiceRepository) GetJobStatus(jobId string) (*js.JobSe
 }
 func (inMem *InMemoryJobServiceRepository) UpdateJobServiceDb(jobId string, jobTable *JobTable) error {
 	log.Infof("Updating JobId %s with State %s", jobId, jobTable.jobResponse.State)
-	inMem.jobMap[jobId] = *jobTable
+	inMem.jobStatus.jobLock.Lock()
+	defer inMem.jobStatus.jobLock.Unlock()
+	inMem.jobStatus.jobMap[jobId] = jobTable
 	return nil
 }
 func (inMem *InMemoryJobServiceRepository) HealthCheck() bool {
@@ -38,20 +53,24 @@ func (inMem *InMemoryJobServiceRepository) HealthCheck() bool {
 }
 
 func (inMem *InMemoryJobServiceRepository) IsJobSetAlreadySubscribed(jobSetId string) bool {
-	_, ok := inMem.subscribedJobSets[jobSetId]
+	inMem.jobStatus.subscribeLock.Lock()
+	defer inMem.jobStatus.subscribeLock.Unlock()
+	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
 	if ok {
 		return true
 	}
-	inMem.subscribedJobSets[jobSetId] = jobSetId
+	inMem.jobStatus.subscribeMap[jobSetId] = &jobSetId
 	return false
 }
 
 func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) error {
-	_, ok := inMem.subscribedJobSets[jobSetId]
+	inMem.jobStatus.jobLock.Lock()
+	defer inMem.jobStatus.jobLock.Unlock()
+	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
 	if !ok {
 		return fmt.Errorf("JobSetId %s already unsubscribed", jobSetId)
 	}
-	delete(inMem.subscribedJobSets, jobSetId)
+	delete(inMem.jobStatus.subscribeMap, jobSetId)
 	return nil
 }
 
@@ -59,9 +78,11 @@ func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) er
 // We will loop over keys in map and delete ones that have a matching jobSetId.
 // Painfully slow!
 func (inMem *InMemoryJobServiceRepository) DeleteJobsInJobSet(jobSetId string) error {
-	for key, val := range inMem.jobMap {
+	inMem.jobStatus.jobLock.RLock()
+	defer inMem.jobStatus.jobLock.RUnlock()
+	for key, val := range inMem.jobStatus.jobMap {
 		if val.jobSetId == jobSetId {
-			delete(inMem.jobMap, key)
+			delete(inMem.jobStatus.jobMap, key)
 		}
 	}
 	return nil
@@ -69,7 +90,9 @@ func (inMem *InMemoryJobServiceRepository) DeleteJobsInJobSet(jobSetId string) e
 
 func (inMem *InMemoryJobServiceRepository) PrintAllItems() {
 	log.Info("Printing All Items")
-	for key, value := range inMem.jobMap {
+	inMem.jobStatus.jobLock.RLock()
+	defer inMem.jobStatus.jobLock.RUnlock()
+	for key, value := range inMem.jobStatus.jobMap {
 		log.Infof("JobKey: %s Queue %s JobId %s JobSet %s State %s TimeStamp %d", key, value.queue, value.jobId, value.jobSetId, value.jobResponse.State, value.timeStamp)
 	}
 }
@@ -84,10 +107,12 @@ func (inMem *InMemoryJobServiceRepository) PersistDataToDatabase() error {
 }
 
 func (inMem *InMemoryJobServiceRepository) DeleteAllJobsTTL() error {
+	inMem.jobStatus.jobLock.Lock()
+	defer inMem.jobStatus.jobLock.Unlock()
 	currentTime := time.Now().Unix()
-	for key, value := range inMem.jobMap {
+	for key, value := range inMem.jobStatus.jobMap {
 		if (currentTime - value.timeStamp) > inMem.jobServiceConfig.TimeToLiveCache {
-			delete(inMem.jobMap, key)
+			delete(inMem.jobStatus.jobMap, key)
 		}
 	}
 	return nil

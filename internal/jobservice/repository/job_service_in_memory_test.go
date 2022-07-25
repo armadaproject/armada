@@ -64,9 +64,10 @@ func TestHealthCheck(t *testing.T) {
 	})
 }
 func WithInMemoryRepo(action func(r *InMemoryJobServiceRepository)) {
-	jobMap := make(map[string]JobTable)
-	jobSet := make(map[string]string)
+	jobMap := make(map[string]*JobTable)
+	jobSet := make(map[string]*string)
 	config := &configuration.JobServiceConfiguration{}
-	repo := NewInMemoryJobServiceRepository(jobMap, jobSet, config)
+	jobStatusMap := NewJobStatus(jobMap, jobSet)
+	repo := NewInMemoryJobServiceRepository(jobStatusMap, config)
 	action(repo)
 }
