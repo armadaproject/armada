@@ -25,3 +25,17 @@ updates:
     # Check for updates once a week
     schedule:
       interval: "daily"
+
+  # Enable version updates for pip -- client/python dir
+  - package-ecosystem: "pip"
+    directory: "./client/python"
+    # Check the pip registry for updates every day (weekdays)
+    schedule:
+      interval: "daily"
+
+  # Enable version updates for pip -- third_party/airflow dir
+  - package-ecosystem: "pip"
+    directory: "./third_party/airflow"
+    # Check the pip registry for updates every day (weekdays)
+    schedule:
+      interval: "daily"
