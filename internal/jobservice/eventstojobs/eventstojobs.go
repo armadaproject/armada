@@ -86,7 +86,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				if updateErr != nil {
 					log.Error(updateErr)
 				}
-				// Every new event should reset timer.  
+				// Every new event should reset timer.
 				timeOut.Reset(duration)
 			}
 		}
