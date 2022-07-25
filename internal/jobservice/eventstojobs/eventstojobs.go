@@ -40,7 +40,7 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime)*time.Second
+	duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second
 	timeOut := time.NewTimer(duration)
 	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
