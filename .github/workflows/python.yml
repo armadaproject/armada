@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: ./.github/workflows/go-setup
       - uses: actions/setup-python@v2
         with:
           python-version: '3.8.10'
@@ -45,3 +46,14 @@ jobs:
       - name: Run tox python 3.8 unit tests
         run: tox -e py38
         working-directory: client/python
+  python-integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+      - run: make build-ci
+      - run: make tests-e2e-setup
+      - name: Run Python Integration Tests
+        run: |
+          make tests-e2e-python
+      - run: make tests-e2e-teardown
