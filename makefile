@@ -1,5 +1,6 @@
 # Determine which platform we're on based on the kernel name
 platform := $(shell uname -s || echo unknown)
+host_arch := $(shell uname -m)
 PWD := $(shell pwd)
 # Check that all necessary executables are present
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
@@ -418,6 +419,9 @@ junit-report:
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
 setup-proto: download
+	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
+	# first delete files in this directory - by default it has write perms disabled.
+	chmod 0755 proto/google/protobuf/compiler/
 	rm -rf proto
 	mkdir -p proto
 	mkdir -p proto/google/api
@@ -462,7 +466,11 @@ airflow-operator:
 
 proto: setup-proto
 
+ifeq ($(host_arch),arm64)
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile.arm64 .
+else
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
+endif
 	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
