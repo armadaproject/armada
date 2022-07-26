@@ -33,10 +33,10 @@ export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>
 
   const queryObject: JobsQueryParams = {}
   if (queueCol && queueCol.filter) {
-    queryObject.queue = queueCol.filter as string
+    queryObject.queue = (queueCol.filter as string).trim()
   }
   if (jobSetCol && jobSetCol.filter) {
-    queryObject.job_set = jobSetCol.filter as string
+    queryObject.job_set = (jobSetCol.filter as string).trim()
   }
   if (jobStateCol && jobStateCol.filter) {
     queryObject.job_states = jobStateCol.filter as string[]
@@ -45,10 +45,10 @@ export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>
     queryObject.newest_first = submissionTimeCol.filter as boolean
   }
   if (jobIdCol && jobIdCol.filter) {
-    queryObject.job_id = jobIdCol.filter as string
+    queryObject.job_id = (jobIdCol.filter as string).trim()
   }
   if (ownerCol && ownerCol.filter) {
-    queryObject.owner = ownerCol.filter as string
+    queryObject.owner = (ownerCol.filter as string).trim()
   }
 
   return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
