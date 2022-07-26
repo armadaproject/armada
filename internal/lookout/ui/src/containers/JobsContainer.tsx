@@ -498,7 +498,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           break
         }
         case "jobSet": {
-          request.jobSets = [col.filter as string]
+          request.jobSets = [(col.filter as string).trim()]
           break
         }
         case "submissionTime": {
