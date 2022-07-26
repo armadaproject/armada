@@ -28,6 +28,9 @@ on:
 jobs:
   run-tox:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
@@ -48,6 +51,9 @@ jobs:
         working-directory: client/python
   python-integration-tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
