@@ -484,20 +484,21 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     for (const col of this.state.defaultColumns) {
       switch (col.id) {
+        // Queue, jobId, and owner are user input and if is possible to have user put in whitespace.
         case "queue": {
-          request.queue = col.filter as string
+          request.queue = (col.filter as string).trim()
           break
         }
         case "jobId": {
-          request.jobId = col.filter as string
+          request.jobId = (col.filter as string).trim()
           break
         }
         case "owner": {
-          request.owner = col.filter as string
+          request.owner = (col.filter as string).trim()
           break
         }
         case "jobSet": {
-          request.jobSets = [col.filter as string]
+          request.jobSets = [(col.filter as string).trim()]
           break
         }
         case "submissionTime": {
