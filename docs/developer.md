@@ -8,8 +8,8 @@ There are many ways you can setup you local environment, this is just a basic qu
 To follow this section it is assumed you have:
 * Golang >= 1.16 installed [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` installed [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-* Docker installed, configured for the current user
-* This repository cloned. The guide will assume you are in the root directory of this repository
+* Docker installed, configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
+* This repository cloned. The guide will assume you are in the root directory of this repository [https://github.com/G-Research/armada.git](https://github.com/G-Research/armada.git)
 
 ### Running Armada locally
 
