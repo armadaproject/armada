@@ -7,7 +7,7 @@ https://armadaproject.io/api
 
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Generator, List, Optional, Dict
+from typing import Dict, Generator, List, Optional
 
 from google.protobuf import empty_pb2
 
@@ -18,9 +18,9 @@ from armada_client.armada import (
     submit_pb2_grpc,
     usage_pb2_grpc,
 )
-from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-
 from armada_client.event import Event
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+from armada_client.permissions import Subject, Permissions
 
 
 class ArmadaClient:
@@ -153,7 +153,8 @@ class ArmadaClient:
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[List[submit_pb2.Queue.Permissions]] = None,
+        permission_subjects: Optional[List[Subject]] = None,
+        permission_verbs: Optional[List[str]] = None,
     ) -> empty_pb2.Empty:
         """Create the queue by name.
 
@@ -164,9 +165,17 @@ class ArmadaClient:
         :param user_owners: The user owners for the queue
         :param group_owners: The group owners for the queue
         :param resource_limits: The resource limits for the queue
-        :param permissions: The permissions for the queue
+        :param permission_subjects: The permission subjects for the queue
+        :param permission_verbs: The permission verbs for the queue
         :return: A queue object per the Armada api definition.
         """
+
+        if permission_subjects and permission_verbs:
+            permissions = Permissions(permission_subjects, permission_verbs)
+            permissions = permissions.to_grpc()
+        else:
+            permissions = None
+
         request = submit_pb2.Queue(
             name=name,
             priority_factor=priority_factor,
@@ -185,7 +194,8 @@ class ArmadaClient:
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[List[submit_pb2.Queue.Permissions]] = None,
+        permission_subjects: Optional[List[Subject]] = None,
+        permission_verbs: Optional[List[str]] = None,
     ) -> None:
         """Update the queue of name with values in queue_params
 
@@ -196,9 +206,17 @@ class ArmadaClient:
         :param user_owners: The user owners for the queue
         :param group_owners: The group owners for the queue
         :param resource_limits: The resource limits for the queue
-        :param permissions: The permissions for the queue
+        :param permission_subjects: The permission subjects for the queue
+        :param permission_verbs: The permission verbs for the queue
         :return: None
         """
+
+        if permission_subjects and permission_verbs:
+            permissions = Permissions(permission_subjects, permission_verbs)
+            permissions = permissions.to_grpc()
+        else:
+            permissions = None
+
         request = submit_pb2.Queue(
             name=name,
             priority_factor=priority_factor,
