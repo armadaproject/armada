@@ -20,7 +20,7 @@ from armada_client.armada import (
 )
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-from armada_client.permissions import Subject, Permissions
+from armada_client.permissions import Permissions
 
 
 class ArmadaClient:
@@ -153,8 +153,7 @@ class ArmadaClient:
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
-        permission_subjects: Optional[List[Subject]] = None,
-        permission_verbs: Optional[List[str]] = None,
+        permissions: Optional[Permissions] = None,
     ) -> empty_pb2.Empty:
         """Create the queue by name.
 
@@ -165,16 +164,11 @@ class ArmadaClient:
         :param user_owners: The user owners for the queue
         :param group_owners: The group owners for the queue
         :param resource_limits: The resource limits for the queue
-        :param permission_subjects: The permission subjects for the queue
-        :param permission_verbs: The permission verbs for the queue
+        :param permissions: The permissions for the queue
         :return: A queue object per the Armada api definition.
         """
 
-        if permission_subjects and permission_verbs:
-            permissions = Permissions(permission_subjects, permission_verbs)
-            permissions = permissions.to_grpc()
-        else:
-            permissions = None
+        permissions = permissions.to_grpc() if permissions else None
 
         request = submit_pb2.Queue(
             name=name,
@@ -194,8 +188,7 @@ class ArmadaClient:
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
-        permission_subjects: Optional[List[Subject]] = None,
-        permission_verbs: Optional[List[str]] = None,
+        permissions: Optional[Permissions] = None,
     ) -> None:
         """Update the queue of name with values in queue_params
 
@@ -206,16 +199,11 @@ class ArmadaClient:
         :param user_owners: The user owners for the queue
         :param group_owners: The group owners for the queue
         :param resource_limits: The resource limits for the queue
-        :param permission_subjects: The permission subjects for the queue
-        :param permission_verbs: The permission verbs for the queue
+        :param permissions: The permissions for the queue
         :return: None
         """
 
-        if permission_subjects and permission_verbs:
-            permissions = Permissions(permission_subjects, permission_verbs)
-            permissions = permissions.to_grpc()
-        else:
-            permissions = None
+        permissions = permissions.to_grpc() if permissions else None
 
         request = submit_pb2.Queue(
             name=name,
