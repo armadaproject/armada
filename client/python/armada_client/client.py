@@ -153,7 +153,7 @@ class ArmadaClient:
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[Permissions] = None,
+        permissions: Optional[List[Permissions]] = None,
     ) -> empty_pb2.Empty:
         """Create the queue by name.
 
@@ -168,7 +168,7 @@ class ArmadaClient:
         :return: A queue object per the Armada api definition.
         """
 
-        permissions = permissions.to_grpc() if permissions else None
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
 
         request = submit_pb2.Queue(
             name=name,
@@ -188,7 +188,7 @@ class ArmadaClient:
         user_owners: Optional[List[str]] = None,
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[Permissions] = None,
+        permissions: Optional[List[Permissions]] = None,
     ) -> None:
         """Update the queue of name with values in queue_params
 
@@ -203,7 +203,7 @@ class ArmadaClient:
         :return: None
         """
 
-        permissions = permissions.to_grpc() if permissions else None
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
 
         request = submit_pb2.Queue(
             name=name,

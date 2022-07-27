@@ -175,7 +175,7 @@ Uses the CreateQueue RPC to create a queue.
     * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**Permissions**]*) – The permissions for the queue
+    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
 
 
 
@@ -432,7 +432,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
     * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**Permissions**]*) – The permissions for the queue
+    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
 
 
 
@@ -460,3 +460,61 @@ Definition can be found at:
 * **Parameters**
 
     **event** (*EventStreamMessage*) – The gRPC proto event
+
+
+## armada_client.permissions module
+
+
+### _class_ armada_client.permissions.Permissions(subjects, verbs)
+Permissions including Subjects and Verbs
+
+
+* **Parameters**
+
+    
+    * **subjects** (*List**[**Subject**]*) – 
+
+
+    * **verbs** (*List**[**str**]*) – 
+
+
+
+#### to_grpc()
+Convert to grpc object
+
+
+* **Return type**
+
+    *Permissions*
+
+
+
+### _class_ armada_client.permissions.Subject(kind, name)
+Subject is a NamedTuple that represents a subject in the permission system.
+
+
+* **Parameters**
+
+    
+    * **kind** (*str*) – 
+
+
+    * **name** (*str*) – 
+
+
+
+#### kind(_: st_ )
+Alias for field number 0
+
+
+#### name(_: st_ )
+Alias for field number 1
+
+
+#### to_grpc()
+Convert this Subject to a grpc Subject.
+
+
+* **Return type**
+
+    *Subject*
