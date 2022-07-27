@@ -167,13 +167,13 @@ def main():
 
     # Ensures that the correct channel type is generated
     if DISABLE_SSL:
-        channel_credentials = grpc.local_channel_credentials()
+        channel = grpc.insecure_channel(f"{HOST}:{PORT}")
     else:
         channel_credentials = grpc.ssl_channel_credentials()
-    channel = grpc.secure_channel(
-        f"{HOST}:{PORT}",
-        channel_credentials,
-    )
+        channel = grpc.secure_channel(
+            f"{HOST}:{PORT}",
+            channel_credentials,
+        )
     client = ArmadaClient(channel)
 
     # Create the threads
@@ -199,7 +199,7 @@ def main():
 
 
 if __name__ == "__main__":
-    DISABLE_SSL = None
+    DISABLE_SSL = os.environ.get("DISABLE_SSL", False)
     HOST = os.environ.get("ARMADA_SERVER", "localhost")
     PORT = os.environ.get("ARMADA_PORT", "50051")
 

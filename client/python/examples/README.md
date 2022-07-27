@@ -1,8 +1,51 @@
 # Python Client Examples
 
-Currently there are two example files
+Currently there are three example files:
+
+- [simple.py](#simplepy)
+- [general.py](#generalpy)
+- [async_logging.py](#asyncloggingpy)
+
 
 ## Setup
+
+Please see the [python client docs](https://github.com/G-Research/armada/blob/master/client/python/README.md) for getting the client setup.
+
+### Running the examples
+
+Each example has three enviromental variables for setup
+
+```bash
+export ARMADA_SERVER=localhost
+export ARMADA_PORT=443
+export DISABLE_SSL=true
+```
+
+You can then simply run one of the examples
+
+```bash
+python3 simple.py
+```
+
+## Example Files
+
+### simple.py
+
+#### Overview
+
+#### Walkthrough
+
+### general.py
+
+#### Overview
+
+#### Walkthrough
+
+### async_logging.py
+
+#### Overview
+
+#### Walkthrough
 
 ## Using Basic Auth
 
