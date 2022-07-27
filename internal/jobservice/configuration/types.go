@@ -18,6 +18,4 @@ type JobServiceConfiguration struct {
 	SubscribeJobSetTime int64
 	// How often to do we write our in memory database to disk
 	PersistenceInterval int64
-	// TTL for our cache
-	TimeToLiveCache int64
 }

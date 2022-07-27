@@ -85,6 +85,27 @@ func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
 	}
 	delete(inMem.jobStatus.subscribeMap, jobSetId)
 	log.Infof("JobSetId %s unsubscribed", jobSetId)
+	inMem.DeleteJobsInJobSet(jobSetId)
+}
+
+func (inMem *InMemoryJobServiceRepository) CheckToUnSubscribe(jobSetId string, configTimeWithoutUpdates int64) bool {
+	if !inMem.IsJobSetSubscribed(jobSetId) {
+		return false
+	}
+	currentTime := time.Now().Unix()
+	var maxTimeUpdate int64 = 0
+	for _, val := range inMem.jobStatus.jobMap {
+		if val.jobSetId == jobSetId {
+			if maxTimeUpdate < val.timeStamp {
+				maxTimeUpdate = val.timeStamp
+			}
+			log.Infof("%d - %d > %d ", currentTime, maxTimeUpdate, configTimeWithoutUpdates)
+			if (currentTime - maxTimeUpdate) > configTimeWithoutUpdates {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // This is a very slow function until we get a database.
@@ -93,6 +114,7 @@ func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
 func (inMem *InMemoryJobServiceRepository) DeleteJobsInJobSet(jobSetId string) error {
 	inMem.jobStatus.jobLock.RLock()
 	defer inMem.jobStatus.jobLock.RUnlock()
+	log.Infof("Deleting jobs in job-set %s", jobSetId)
 	for key, val := range inMem.jobStatus.jobMap {
 		if val.jobSetId == jobSetId {
 			delete(inMem.jobStatus.jobMap, key)
@@ -108,6 +130,14 @@ func (inMem *InMemoryJobServiceRepository) PrintAllItems() {
 	for key, value := range inMem.jobStatus.jobMap {
 		log.Infof("JobKey: %s Queue %s JobId %s JobSet %s State %s TimeStamp %d", key, value.queue, value.jobId, value.jobSetId, value.jobResponse.State, value.timeStamp)
 	}
+}
+
+func (inMem *InMemoryJobServiceRepository) GetSubscribedJobSets() []string {
+	var returnJobSets []string
+	for _, value := range inMem.jobStatus.subscribeMap {
+		returnJobSets = append(returnJobSets, *value)
+	}
+	return returnJobSets
 }
 
 // Once we add database, we should use this to persist.

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -114,6 +115,29 @@ func TestDeleteJobsInJobSet(t *testing.T) {
 		assert.Equal(t, jobResponseDelete2, responseDoesNotExist)
 		assert.Equal(t, jobResponseDelete3, responseExpected3)
 
+	})
+}
+
+func TestCheckToUnSubscribe(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
+		var responseExpected2 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+		var responseExpected3 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
+
+		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseExpected1)
+		jobTable2 := NewJobTable("test", "job-set-1", "job-id-2", *responseExpected2)
+		jobTable3 := NewJobTable("test", "job-set-2", "job-id-3", *responseExpected3)
+
+		r.UpdateJobServiceDb("job-id", jobTable1)
+		r.UpdateJobServiceDb("job-id-2", jobTable2)
+		r.UpdateJobServiceDb("job-id-3", jobTable3)
+		r.SubscribeJobSet("job-set-1")
+		assert.True(t, r.IsJobSetSubscribed("job-set-1"))
+		assert.False(t, r.CheckToUnSubscribe("job-set-1", 100000))
+
+		time.Sleep(1 * time.Second)
+
+		assert.True(t, r.CheckToUnSubscribe("job-set-1", 0))
 	})
 }
 

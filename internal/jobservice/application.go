@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -54,6 +55,19 @@ func (a *App) StartUp(ctx context.Context) error {
 		if err != nil {
 			log.Fatalf("Persisting to Database failed: %v", err)
 			return err
+		}
+		return nil
+	})
+	g.Go(func() error {
+		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
+		for range ticker.C {
+			for _, value := range inMemoryJobService.GetSubscribedJobSets() {
+				log.Infof("Subscribed job sets : %s", value)
+				if inMemoryJobService.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
+					inMemoryJobService.DeleteJobsInJobSet(value)
+					inMemoryJobService.UnSubscribeJobSet(value)
+				}
+			}
 		}
 		return nil
 	})

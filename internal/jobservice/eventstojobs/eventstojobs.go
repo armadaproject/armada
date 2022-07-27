@@ -2,7 +2,7 @@ package eventstojobs
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	log "github.com/sirupsen/logrus"
 
@@ -40,10 +40,9 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
+	unsubscribeMessage := make(chan *string)
 	// This corresponds to the amount of time since the job-set has been updated.
 	// If no new events come from the job-set, then the timer allows automatic unsubscribing.
-	duration := time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second
-	timeOut := time.NewTimer(duration)
 	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
@@ -52,6 +51,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			FromMessageId:  fromMessageId,
 			ErrorIfMissing: false,
 		})
+		eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)
 		if err != nil {
 			log.Error(err)
 			return err
@@ -67,8 +67,9 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-timeOut.C:
-				eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
+			case <-unsubscribeMessage:
+				log.Infof("Ending subscription of %s", eventToJobService.jobsetid)
+				return nil
 			default:
 			}
 			jobStatus := EventsToJobResponse(*msg.Message)
@@ -78,8 +79,12 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				if updateErr != nil {
 					log.Error(updateErr)
 				}
-				// Every new event should reset timer.
-				timeOut.Reset(duration)
+			}
+			log.Info("Checking Unsubscribe function")
+			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
+				subscribeMessage := fmt.Sprintf("Unsubscribe to %s", eventToJobService.jobsetid)
+				log.Info(subscribeMessage)
+				unsubscribeMessage <- &subscribeMessage
 			}
 		}
 	})
