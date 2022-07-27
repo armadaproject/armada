@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/G-Research/armada/internal/testsuite/joblogger"
 	"io"
 	"io/ioutil"
 	"os"
@@ -232,6 +233,21 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	watcher.Out = a.Out
 	g.Go(func() error { return watcher.Run(ctx) })
 
+	// TODO: handle better
+	kubectxs := []string{
+		"arn:aws:eks:us-east-1:235758441054:cluster/dev-armada",
+		"arn:aws:eks:us-east-1:235758441054:cluster/dev-armada-ex0",
+		"arn:aws:eks:us-east-1:235758441054:cluster/dev-armada-ex1",
+	}
+	jobLogger := joblogger.New(
+		kubectxs,
+		joblogger.WithOutput(a.Out),
+		joblogger.WithNamespace("personal-anonymous"),
+		joblogger.WithJobSetId(testSpec.GetJobSetId()),
+		joblogger.WithQueue(testSpec.GetQueue()),
+	)
+	g.Go(func() error { return jobLogger.Run(ctx) })
+
 	// Split the events into multiple channels, one for each downstream service.
 	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, ingressCh, logCh, noActiveCh, benchmarkCh}...)
 	g.Go(func() error { return splitter.Run(ctx) })
@@ -254,8 +270,11 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 
 	// benchmark
 	report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
-	report.Print(a.Out)
+	//report.Print(a.Out)
 	a.reports = append(a.reports, report)
+
+	// Armada JobSet logs
+	jobLogger.PrintLogs()
 
 	// Cancel any jobs we haven't seen a terminal event for.
 	_ = client.WithSubmitClient(a.Params.ApiConnectionDetails, submitWithCancel(testSpec, terminatedByJobId, a.Out))
