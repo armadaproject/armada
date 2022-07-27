@@ -69,7 +69,7 @@ func (srv *JobLogger) scrape(ctx context.Context, wg *sync.WaitGroup, info *podI
 	if info.hasCompleted() {
 		info.Scraped = true
 	}
-	_, _ = fmt.Fprintf(srv.out, "pod logs scraped in %s\n", time.Since(start))
+
 	return nil
 }
 

@@ -9,10 +9,9 @@ func (srv *JobLogger) PrintLogs() {
 	podLogMap := srv.Logs()
 	_, _ = fmt.Fprintf(srv.out, "\nArmada JobSet %s logs in queue %s\n", srv.jobSetId, srv.queue)
 	for pod, logs := range podLogMap {
-		_, _ = fmt.Fprintf(srv.out, "Pod %s logs\n:", pod)
+		_, _ = fmt.Fprintf(srv.out, "Pod %s logs:\n", pod)
 		_, _ = fmt.Fprintf(srv.out, "%s\n", logs.String())
 	}
-	_, _ = fmt.Fprintln(srv.out, "")
 }
 
 func (srv *JobLogger) Logs() map[string]*bytes.Buffer {
