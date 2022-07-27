@@ -3,11 +3,12 @@ package joblogger
 import (
 	"context"
 	"fmt"
+	"time"
+
 	pkgerrors "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"time"
 )
 
 func (srv *JobLogger) runWatcher(ctx context.Context, kubectx string, clientset *kubernetes.Clientset) error {

@@ -3,17 +3,18 @@ package joblogger
 import (
 	"context"
 	"flag"
-	pkgerrors "github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	"io"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 type Option func(logger *JobLogger)

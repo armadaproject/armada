@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/G-Research/armada/internal/testsuite/joblogger"
 	"io"
 	"io/ioutil"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/G-Research/armada/internal/testsuite/joblogger"
 
 	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
 	"github.com/G-Research/armada/internal/testsuite/eventlogger"

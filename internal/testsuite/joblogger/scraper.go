@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	pkgerrors "github.com/pkg/errors"
 	"io"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	"sync"
 	"time"
+
+	pkgerrors "github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 func (srv *JobLogger) runScraper(ctx context.Context) error {
@@ -56,7 +57,7 @@ func (srv *JobLogger) iterate(ctx context.Context, wg *sync.WaitGroup) func(k, v
 func (srv *JobLogger) scrape(ctx context.Context, wg *sync.WaitGroup, info *podInfo) error {
 	wg.Add(1)
 	defer wg.Done()
-	start := time.Now()
+
 	clientset := srv.clientsets[info.Kubectx]
 	fmt.Fprintf(srv.out, "Scraping pod %s with phase %s\n", info.Name, info.Phase)
 	logs, err := srv.getLogs(ctx, clientset, info.Name)
