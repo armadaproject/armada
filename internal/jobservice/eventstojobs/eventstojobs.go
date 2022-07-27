@@ -75,12 +75,8 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				}
 			default:
 			}
-			if IsEventAJobResponse(*msg.Message) {
-				jobStatus, eventJobErr := EventsToJobResponse(*msg.Message)
-				if eventJobErr != nil {
-					// This can mean that the event type reported from server is unknown to the client
-					log.Error(eventJobErr)
-				}
+			jobStatus := EventsToJobResponse(*msg.Message)
+			if jobStatus != nil {
 				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobsetid, eventToJobService.jobid, *jobStatus)
 				updateErr := eventToJobService.jobServiceRepository.UpdateJobServiceDb(currentJobId, jobTable)
 				if updateErr != nil {

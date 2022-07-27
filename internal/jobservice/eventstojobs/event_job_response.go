@@ -1,39 +1,29 @@
 package eventstojobs
 
 import (
-	"fmt"
-
 	"github.com/G-Research/armada/pkg/api"
 	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
-func EventsToJobResponse(message api.EventMessage) (*js.JobServiceResponse, error) {
+func EventsToJobResponse(message api.EventMessage) *js.JobServiceResponse {
 	switch message.Events.(type) {
 	case *api.EventMessage_Submitted:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_SUBMITTED}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_SUBMITTED}
 	case *api.EventMessage_DuplicateFound:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_DUPLICATE_FOUND}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_DUPLICATE_FOUND}
 	case *api.EventMessage_Running:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_RUNNING}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_RUNNING}
 	case *api.EventMessage_Failed:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_FAILED, Error: message.GetFailed().Reason}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_FAILED, Error: message.GetFailed().Reason}
 	case *api.EventMessage_Succeeded:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_SUCCEEDED}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_SUCCEEDED}
 	case *api.EventMessage_Cancelled:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_CANCELLED}, nil
+		return &js.JobServiceResponse{State: js.JobServiceResponse_CANCELLED}
 	}
 
-	return nil, fmt.Errorf("unknown event type")
+	return nil
 }
 
-func IsEventAJobResponse(message api.EventMessage) bool {
-	switch message.Events.(type) {
-	case *api.EventMessage_Submitted, *api.EventMessage_DuplicateFound, *api.EventMessage_Running, *api.EventMessage_Failed, *api.EventMessage_Succeeded, *api.EventMessage_Cancelled:
-		return true
-	default:
-		return false
-	}
-}
 func IsEventTerminal(message api.EventMessage) bool {
 	switch message.Events.(type) {
 	case *api.EventMessage_DuplicateFound, *api.EventMessage_Cancelled, *api.EventMessage_Succeeded, *api.EventMessage_Failed:

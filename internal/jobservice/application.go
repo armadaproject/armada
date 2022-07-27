@@ -57,9 +57,6 @@ func (a *App) StartUp(ctx context.Context) error {
 		}
 		return nil
 	})
-	// g.Go(func() error {
-	// 	return inMemoryJobService.DeleteAllJobsTTL()
-	// })
 	g.Go(func() error {
 		defer log.Println("Stopping server.")
 

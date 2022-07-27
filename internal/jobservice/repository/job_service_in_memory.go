@@ -61,11 +61,7 @@ func (inMem *InMemoryJobServiceRepository) IsJobSetAlreadySubscribed(jobSetId st
 	inMem.jobStatus.subscribeLock.Lock()
 	defer inMem.jobStatus.subscribeLock.Unlock()
 	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
-	if ok {
-		return true
-	}
-	inMem.jobStatus.subscribeMap[jobSetId] = &jobSetId
-	return false
+	return ok
 }
 
 func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) error {
