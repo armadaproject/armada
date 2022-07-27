@@ -1,64 +1,81 @@
 using System;
-using System.Collections.Generic;
 using System.Net.Http;
-using System.Linq;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using GResearch.Armada.Client;
 using RichardSzalay.MockHttp;
 
 namespace GResearch.Armada.Client.Test
 {
     public class Tests
     {
+        public static DateTimeOffset now = (DateTimeOffset)DateTime.UtcNow;
+
+        // ARMADA_SERVER should be defined in this process's environment, of the
+        // format  https://armada-server-hostname/api
+        public static string testServer = Environment.GetEnvironmentVariable("ARMADA_SERVER");
+
         [Test]
-        [Explicit("Intended for manual testing against armada server with proxy.")]
         public async Task TestWatchingEvents()
         {
-            var client = new ArmadaClient("http://localhost:8080", new HttpClient());
+            var testQueue = "test-" + Guid.NewGuid();
 
-            var queue = "test";
+            Assert.That(testServer, Is.Not.Null);
+            var client = new ArmadaClient(testServer, new HttpClient());
+
             var jobSet = $"set-{Guid.NewGuid()}";
 
+            Console.WriteLine("---- creating queue  " + testQueue);
+
             // produce some events
-            await client.CreateQueueAsync(new ApiQueue {Name = queue, PriorityFactor = 200});
-            var request = CreateJobRequest(jobSet);
+            await client.CreateQueueAsync(new ApiQueue {Name = testQueue, PriorityFactor = 200});
+
+            var request = CreateJobRequest(jobSet, testQueue);
             var response = await client.SubmitJobsAsync(request);
+            Assert.That(response.JobResponseItems.Count, Is.EqualTo(1));
+
+            foreach (var jobRespItem in response.JobResponseItems) {
+                Assert.That(jobRespItem.Error, Is.Null);
+            }
+
             var cancelResponse =
-                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = testQueue, JobSetId = jobSet});
 
             using (var cts = new CancellationTokenSource())
             {
                 var eventCount = 0;
-                Task.Run(() => client.WatchEvents(queue, jobSet, null, cts.Token, m => eventCount++, e => throw e));
+                Task.Run(() => client.WatchEvents(testQueue, jobSet, null, cts.Token, m => eventCount++, e => throw e));
                 await Task.Delay(TimeSpan.FromMinutes(2));
                 cts.Cancel();
                 Assert.That(eventCount, Is.EqualTo(4));
             }
+
+            client.DeleteQueueAsync(testQueue);
         }
 
         [Test]
         public async Task TestSimpleJobSubmitFlow()
         {
-            var queue = "test";
+            var testQueue = "test-" + Guid.NewGuid();
             var jobSet = $"set-{Guid.NewGuid()}";
 
-            IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient());
-            await client.CreateQueueAsync(new ApiQueue {Name = queue, PriorityFactor = 200});
+            Assert.That(testServer, Is.Not.Null);
+            IArmadaClient client = new ArmadaClient(testServer, new HttpClient());
+            await client.CreateQueueAsync(new ApiQueue {Name = testQueue, PriorityFactor = 200});
 
-            var request = CreateJobRequest(jobSet);
+            var request = CreateJobRequest(jobSet, testQueue);
 
             var response = await client.SubmitJobsAsync(request);
             var cancelResponse =
-                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = "test", JobSetId = jobSet});
-            var events = await client.GetJobEventsStream(queue, jobSet, watch: false);
-            var allEvents = events.ToList();
+                await client.CancelJobsAsync(new ApiJobCancelRequest {Queue = testQueue, JobSetId = jobSet});
+            var events = await client.GetJobEventsStream(testQueue, jobSet, watch: false);
 
-            Assert.That(allEvents, Is.Not.Empty);
-            Assert.That(allEvents[0].Result.Message.Submitted, Is.Not.Null);
+            var eventsEnum = events.GetEnumerator();
+            while (eventsEnum.MoveNext()) {
+                var ev = eventsEnum.Current;
+                 Assert.That(ev, Is.Not.Null);
+                Assert.That(ev.Result.Message.Submitted, Is.Not.Null);
+            }
         }
 
         [Test]
@@ -75,35 +92,32 @@ namespace GResearch.Armada.Client.Test
                     {""a"":""b""}");
 
             IArmadaClient client = new ArmadaClient("http://localhost:8080", new HttpClient(mockHttp));
-            var events = (await client.GetJobEventsStream("queue", "jobSet", watch: false)).ToList();
-            Assert.That(events.Count(), Is.EqualTo(2));
-            Assert.That(events[0].Result.Message.Event, Is.Not.Null);
-            Assert.That(events[1].Error, Is.EqualTo("test error"));
+            var events = (await client.GetJobEventsStream("queue", "jobSet", watch: false));
+
+            var eventsEnum = events.GetEnumerator();
+            var n = 0;
+
+            while (eventsEnum.MoveNext()) {
+                var ev = eventsEnum.Current;
+                if (n == 0) {
+                    Assert.That(ev.Result.Message.Event, Is.Not.Null);
+                } else if (n == 1) {
+                    Assert.That(ev.Error, Is.EqualTo("test error"));
+                }
+                n++;
+            }
+            Assert.That(n, Is.EqualTo(2));
         }
 
-        private static ApiJobSubmitRequest CreateJobRequest(string jobSet)
+        private static ApiJobSubmitRequest CreateJobRequest(string jobSet, string testQueue)
         {
             var pod = new V1PodSpec
             {
-                Volumes = new List<V1Volume>
-                {
-                    new V1Volume
-                    {
-                        Name = "root-dir",
-                        FlexVolume = new V1FlexVolumeSource
-                        {
-                            Driver = "gr/cifs",
-                            FsType = "cifs",
-                            SecretRef = new V1LocalObjectReference {Name = "secret-name"},
-                            Options = new Dictionary<string, string> {{"networkPath", ""}}
-                        }
-                    }
-                },
-                Containers = new[]
+               Containers = new[]
                 {
                     new V1Container
                     {
-                        Name = "Container1",
+                        Name = "container-1",
                         Image = "index.docker.io/library/ubuntu:latest",
                         Args = new[] {"sleep", "10s"},
                         SecurityContext = new V1SecurityContext {RunAsUser = 1000},
@@ -126,7 +140,7 @@ namespace GResearch.Armada.Client.Test
 
             return new ApiJobSubmitRequest
             {
-                Queue = "test",
+                Queue = testQueue,
                 JobSetId = jobSet,
                 JobRequestItems = new[]
                 {
