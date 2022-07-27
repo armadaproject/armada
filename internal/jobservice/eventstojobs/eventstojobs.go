@@ -68,11 +68,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-timeOut.C:
-				err := eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
-				if err != nil {
-					log.Errorf("Unsubscribe errored with %v", err)
-					return err
-				}
+				eventToJobService.jobServiceRepository.UnSubscribeJobSet(eventToJobService.jobsetid)
 			default:
 			}
 			jobStatus := EventsToJobResponse(*msg.Message)

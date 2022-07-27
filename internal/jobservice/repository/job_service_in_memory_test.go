@@ -50,25 +50,27 @@ func TestConstructInMemoryServiceNoJob(t *testing.T) {
 
 func TestIsJobSubscribed(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		resp := r.IsJobSetAlreadySubscribed("job-set-1")
+		resp := r.IsJobSetSubscribed("job-set-1")
 		assert.False(t, resp)
-		resp2 := r.IsJobSetAlreadySubscribed("job-set-1")
+		r.SubscribeJobSet("job-set-1")
+		resp2 := r.IsJobSetSubscribed("job-set-1")
 		assert.True(t, resp2)
 	})
 }
 
 func TestUnscribeJobSetIfNonExist(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		respFail := r.UnSubscribeJobSet("job-set-1")
-		assert.EqualErrorf(t, respFail, "JobSetId job-set-1 already unsubscribed", "Unsubscribe error message")
+		r.UnSubscribeJobSet("job-set-1")
+		assert.False(t, r.IsJobSetSubscribed("job-set-1"))
 	})
 }
 func TestUnSubscribeJobSetHappy(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		respHappy := r.IsJobSetAlreadySubscribed("job-set-1")
-		assert.False(t, respHappy)
-		respUnSubscribe := r.UnSubscribeJobSet("job-set-1")
-		assert.Nil(t, respUnSubscribe)
+		r.SubscribeJobSet("job-set-1")
+		respHappy := r.IsJobSetSubscribed("job-set-1")
+		assert.True(t, respHappy)
+		r.UnSubscribeJobSet("job-set-1")
+		assert.False(t, r.IsJobSetSubscribed("job-set-1"))
 	})
 }
 

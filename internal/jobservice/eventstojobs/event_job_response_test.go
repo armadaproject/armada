@@ -9,14 +9,13 @@ import (
 	"github.com/G-Research/armada/pkg/api/jobservice"
 )
 
-
 type response struct {
-	eventMessage    api.EventMessage
-	jobResponse *jobservice.JobServiceResponse
+	eventMessage api.EventMessage
+	jobResponse  *jobservice.JobServiceResponse
 }
 
 type eventResponse struct {
-	eventMessage api.EventMessage
+	eventMessage    api.EventMessage
 	jobServiceEvent bool
 }
 
@@ -47,56 +46,56 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Queued{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Queued{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Pending{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Pending{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Cancelling{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Cancelling{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_IngressInfo{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_IngressInfo{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Updated{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Updated{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_LeaseExpired{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_LeaseExpired{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_LeaseReturned{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_LeaseReturned{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Leased{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Leased{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Terminated{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Terminated{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_UnableToSchedule{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_UnableToSchedule{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Reprioritized{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Reprioritized{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Reprioritized{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Reprioritized{}},
+			jobResponse:  nil,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Utilisation{}},
-			jobResponse: nil,
+			eventMessage: api.EventMessage{&api.EventMessage_Utilisation{}},
+			jobResponse:  nil,
 		},
 	}
 	length := len(eventMessages)

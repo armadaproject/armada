@@ -22,15 +22,15 @@ func NewJobService(config *configuration.JobServiceConfiguration, inMemoryServic
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
-	response, err := s.jobRepository.GetJobStatus(opts.JobId)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
-	if !s.jobRepository.IsJobSetAlreadySubscribed(opts.JobSetId) {
+	if !s.jobRepository.IsJobSetSubscribed(opts.JobSetId) {
 
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
 		go eventJob.SubscribeToJobSetId(context.Background())
+	}
+	response, err := s.jobRepository.GetJobStatus(opts.JobId)
+	if err != nil {
+		log.Warn(err)
+		return nil, err
 	}
 
 	return response, err

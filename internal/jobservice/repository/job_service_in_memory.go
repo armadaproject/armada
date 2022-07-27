@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -57,23 +56,35 @@ func (inMem *InMemoryJobServiceRepository) HealthCheck() bool {
 	return true
 }
 
-func (inMem *InMemoryJobServiceRepository) IsJobSetAlreadySubscribed(jobSetId string) bool {
+func (inMem *InMemoryJobServiceRepository) IsJobSetSubscribed(jobSetId string) bool {
 	inMem.jobStatus.subscribeLock.Lock()
 	defer inMem.jobStatus.subscribeLock.Unlock()
 	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
 	return ok
 }
 
-func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) error {
+func (inMem *InMemoryJobServiceRepository) SubscribeJobSet(jobSetId string) {
+	inMem.jobStatus.subscribeLock.Lock()
+	defer inMem.jobStatus.subscribeLock.Unlock()
+	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
+	if ok {
+		return
+	} else {
+		inMem.jobStatus.subscribeMap[jobSetId] = &jobSetId
+	}
+
+}
+
+func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
 	inMem.jobStatus.jobLock.Lock()
 	defer inMem.jobStatus.jobLock.Unlock()
 	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
 	if !ok {
-		return fmt.Errorf("JobSetId %s already unsubscribed", jobSetId)
+		log.Infof("JobSetId %s already unsubscribed", jobSetId)
+		return
 	}
 	delete(inMem.jobStatus.subscribeMap, jobSetId)
 	log.Infof("JobSetId %s unsubscribed", jobSetId)
-	return nil
 }
 
 // This is a very slow function until we get a database.
