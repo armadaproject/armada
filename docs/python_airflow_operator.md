@@ -182,7 +182,7 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
     * **job_id** (*str*) – 
 
 
-    * **job_service_client** (*Optional**[**JobServiceClient**]*) – 
+    * **job_service_client** (*JobServiceClient*) – 
 
 
 
