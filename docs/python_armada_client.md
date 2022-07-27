@@ -175,7 +175,7 @@ Uses the CreateQueue RPC to create a queue.
     * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
+    * **permissions** (*Optional**[**Permissions**]*) – The permissions for the queue
 
 
 
@@ -432,7 +432,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
     * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
+    * **permissions** (*Optional**[**Permissions**]*) – The permissions for the queue
 
 
 
