@@ -2,8 +2,6 @@ package service
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/pkg/api"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -61,24 +59,24 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 	activePods := util.FilterPods(leasePods, isActive)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(activePods))
-
-	logAvailableResources(capacityReport, newJobs)
-
+	newJobs, err := allocationService.leaseService.RequestJobLeases(
+		capacityReport.AvailableCapacity,
+		capacityReport.Nodes,
+		utilisation.GetAllocationByQueue(activePods),
+	)
+	logAvailableResources(capacityReport, len(newJobs))
 	if err != nil {
-		log.WithError(err).Error("failed to lease new jobs")
+		log.Errorf("failed to lease new jobs: %v", err)
 		return
-	} else {
-		failedJobs := allocationService.submitter.SubmitJobs(newJobs)
+	}
 
-		err := allocationService.processFailedJobs(failedJobs)
-		if err != nil {
-			log.Errorf("Failed to process failed jobs  because %s", err)
-		}
+	failedJobs := allocationService.submitter.SubmitJobs(newJobs)
+	if err := allocationService.processFailedJobs(failedJobs); err != nil {
+		log.Errorf("failed to process failed jobs: %v", err)
 	}
 }
 
-func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, newJobs []*api.Job) {
+func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, jobCount int) {
 	cpu := (*capacityReport.AvailableCapacity)["cpu"]
 	memory := (*capacityReport.AvailableCapacity)["memory"]
 	ephemeralStorage := (*capacityReport.AvailableCapacity)["ephemeral-storage"]
@@ -94,7 +92,7 @@ func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityR
 		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
 
-	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, len(newJobs))
+	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, jobCount)
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation
