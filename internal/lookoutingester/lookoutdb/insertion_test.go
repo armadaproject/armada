@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/lookout/repository"
+
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -578,6 +580,20 @@ func TestConflateJobUpdates(T *testing.T) {
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].JobId < expected[j].JobId
 	})
+	assert.Equal(T, expected, updates)
+}
+
+func TestConflateJobUpdatesWithCancelled(T *testing.T) {
+
+	// Updates after the cancelled shouldn't be processed
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: jobIdString, Priority: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(2)},
+	})
+
+	expected := []*model.UpdateJobInstruction{
+		{JobId: jobIdString, Priority: pointer.Int32(repository.JobCancelledOrdinal)},
+	}
 	assert.Equal(T, expected, updates)
 }
 
