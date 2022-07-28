@@ -42,6 +42,12 @@ else
 	DOCKER_NET = --network=host
 endif
 
+ifeq ($(host_arch),arm64)
+	PROTO_DOCKERFILE = ./build/proto/Dockerfile.arm64
+else
+	PROTO_DOCKERFILE = ./build/proto/Dockerfile
+endif
+
 # For reproducibility, run build commands in docker containers with known toolchain versions.
 # INTEGRATION_ENABLED=true is needed for the e2e tests.
 #
@@ -421,7 +427,7 @@ junit-report:
 setup-proto: download
 	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
 	# first delete files in this directory - by default it has write perms disabled.
-	chmod 0755 proto/google/protobuf/compiler/
+	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
 	rm -rf proto
 	mkdir -p proto
 	mkdir -p proto/google/api
@@ -465,12 +471,7 @@ airflow-operator:
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
 proto: setup-proto
-
-ifeq ($(host_arch),arm64)
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile.arm64 .
-else
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
-endif
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
 	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
@@ -497,9 +498,14 @@ endif
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
-# Target for compiling the dotnet Armada client.
+# Target for compiling the dotnet Armada REST client
 dotnet: dotnet-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
+
+# Build and package the dotnet Armada GRPC client
+dotnet-grpc: dotnet-setup
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
+	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
