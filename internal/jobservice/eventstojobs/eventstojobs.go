@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/repository"
@@ -37,26 +38,45 @@ func NewEventsToJobService(
 
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 
-	err := eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
-	if err != nil {
-		log.Warnf("Error found from StreamCommon: %v", err)
-	}
-	log.Info("Ending StreamCommon")
-	return nil
+	return eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
 }
 func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
-		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
+	conn, connErr := client.CreateApiConnection(clientConnect)
+	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)
+	if connErr != nil {
+		log.Warn("Connection Issues with EventClient %v", connErr)
+	}
+	defer conn.Close()
+	g, _ := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		// Once we unsubscribed from the job-set, we need to close the GRPC connection.
+		// According to GRPC official docs, you can only end a client stream by either canceling the context or closing the connection
+		// This will log an error to the jobservice log saying that the connection was used.
+		ticker := time.NewTicker(time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second)
+		for range ticker.C {
+			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
+				return conn.Close()
+			}
+		}
+		return nil
+	})
+	g.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		eventClient := api.NewEventClient(conn)
+		stream, err := eventClient.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
 			Queue:          eventToJobService.queue,
 			Watch:          true,
 			FromMessageId:  fromMessageId,
 			ErrorIfMissing: false,
 		})
-		eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)
 		if err != nil {
-			log.Error(err)
+			log.Errorf("Error found from client %v", err)
 			return err
 		}
 		for {
@@ -66,16 +86,6 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				log.Error(err)
 				return err
 			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(60 * time.Second):
-				if eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
-					log.Infof("JobSet %s is unsubscribed", eventToJobService.jobsetid)
-					return nil
-				}
-			default:
-			}
 			fromMessageId = msg.GetId()
 			currentJobId := api.JobIdFromApiEvent(msg.Message)
 			jobStatus := EventsToJobResponse(*msg.Message)
@@ -84,9 +94,11 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 				updateErr := eventToJobService.jobServiceRepository.UpdateJobServiceDb(currentJobId, jobTable)
 				if updateErr != nil {
 					log.Error(updateErr)
+					return updateErr
 				}
 			}
 		}
 	})
-	return err
+	g.Wait()
+	return nil
 }

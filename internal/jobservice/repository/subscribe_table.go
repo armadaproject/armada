@@ -3,7 +3,7 @@ package repository
 import "time"
 
 type SubscribeTable struct {
-	subscribedJobSet string
+	subscribedJobSet     string
 	lastRequestTimeStamp int64
 }
 

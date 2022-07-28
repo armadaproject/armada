@@ -1,6 +1,6 @@
 grpcPort: 60003
 httpPort: 8090
-subscribeJobSetTime: 50
+subscribeJobSetTime: 25
 persistenceInterval: 75
 grpc:
   keepaliveParams:
