@@ -2,7 +2,7 @@ package eventstojobs
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -31,18 +31,21 @@ func NewEventsToJobService(
 		jobsetid:             jobsetid,
 		jobid:                jobid,
 		jobServiceConfig:     jobServiceConfig,
-		jobServiceRepository: jobServiceRepository}
+		jobServiceRepository: jobServiceRepository,
+	}
 }
 
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 
-	return eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
+	err := eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
+	if err != nil {
+		log.Warnf("Error found from StreamCommon: %v", err)
+	}
+	log.Info("Ending StreamCommon")
+	return nil
 }
 func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	unsubscribeMessage := make(chan *string)
-	// This corresponds to the amount of time since the job-set has been updated.
-	// If no new events come from the job-set, then the timer allows automatic unsubscribing.
 	err := client.WithEventClient(clientConnect, func(c api.EventClient) error {
 		stream, err := c.GetJobSetEvents(ctx, &api.JobSetRequest{
 			Id:             eventToJobService.jobsetid,
@@ -57,34 +60,31 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			return err
 		}
 		for {
+
 			msg, err := stream.Recv()
 			if err != nil {
 				log.Error(err)
 				return err
 			}
-			fromMessageId = msg.GetId()
-			currentJobId := api.JobIdFromApiEvent(msg.Message)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-unsubscribeMessage:
-				log.Infof("Ending subscription of %s", eventToJobService.jobsetid)
-				return nil
+			case <-time.After(60 * time.Second):
+				if eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
+					log.Infof("JobSet %s is unsubscribed", eventToJobService.jobsetid)
+					return nil
+				}
 			default:
 			}
+			fromMessageId = msg.GetId()
+			currentJobId := api.JobIdFromApiEvent(msg.Message)
 			jobStatus := EventsToJobResponse(*msg.Message)
 			if jobStatus != nil {
-				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobsetid, eventToJobService.jobid, *jobStatus)
+				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobsetid, currentJobId, *jobStatus)
 				updateErr := eventToJobService.jobServiceRepository.UpdateJobServiceDb(currentJobId, jobTable)
 				if updateErr != nil {
 					log.Error(updateErr)
 				}
-			}
-			log.Info("Checking Unsubscribe function")
-			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
-				subscribeMessage := fmt.Sprintf("Unsubscribe to %s", eventToJobService.jobsetid)
-				log.Info(subscribeMessage)
-				unsubscribeMessage <- &subscribeMessage
 			}
 		}
 	})

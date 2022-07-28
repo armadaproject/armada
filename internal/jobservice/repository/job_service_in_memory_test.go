@@ -59,6 +59,26 @@ func TestIsJobSubscribed(t *testing.T) {
 	})
 }
 
+func TestSubscribeList(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		r.SubscribeJobSet("job-set-1")
+		r.SubscribeJobSet("job-set-2")
+
+		subscribeList := r.GetSubscribedJobSets()
+
+		for _, val := range subscribeList {
+
+			if val == "job-set-1" {
+				assert.Equal(t, val, "job-set-1")
+			} else if val == "job-set-2" {
+				assert.Equal(t, val, "job-set-2")
+			} else {
+				assert.True(t, false)
+			}
+		}
+	})
+}
+
 func TestUnscribeJobSetIfNonExist(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
 		r.UnSubscribeJobSet("job-set-1")
@@ -140,6 +160,69 @@ func TestCheckToUnSubscribe(t *testing.T) {
 		assert.True(t, r.CheckToUnSubscribe("job-set-1", 0))
 	})
 }
+func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
+		var responseExpected2 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+
+		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseExpected1)
+		jobTable2 := NewJobTable("test", "job-set-2", "job-id-3", *responseExpected2)
+
+		r.UpdateJobServiceDb("job-id", jobTable1)
+		r.UpdateJobServiceDb("job-id-2", jobTable2)
+		assert.False(t, r.IsJobSetSubscribed("job-set-1"))
+		assert.False(t, r.CheckToUnSubscribe("job-set-1", 100000))
+
+	})
+}
+func TestUpdateJobSetTime(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		r.SubscribeJobSet("job-set-1")
+		r.UpdateJobSetTime("job-set-1")
+		_, ok := r.jobStatus.subscribeMap["job-set-1"]
+		assert.True(t, ok)
+	})
+}
+
+func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		updateErr := r.UpdateJobSetTime("job-set-1")
+		assert.EqualError(t, updateErr, "JobSet job-set-1 is already unsubscribed")
+		_, ok := r.jobStatus.subscribeMap["job-set-1"]
+		assert.False(t, ok)
+
+	})
+}
+func TestPrintAllData(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
+		var responseExpected2 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+
+		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseExpected1)
+		jobTable2 := NewJobTable("test", "job-set-1", "job-id-2", *responseExpected2)
+
+		r.UpdateJobServiceDb("job-id", jobTable1)
+		r.UpdateJobServiceDb("job-id-2", jobTable2)
+
+		r.PrintAllItems()
+	})
+}
+
+func TestPersistToDatabase(t *testing.T) {
+	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
+		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
+		var responseExpected2 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+
+		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseExpected1)
+		jobTable2 := NewJobTable("test", "job-set-1", "job-id-2", *responseExpected2)
+
+		r.UpdateJobServiceDb("job-id", jobTable1)
+		r.UpdateJobServiceDb("job-id-2", jobTable2)
+
+		persistErr := r.PersistDataToDatabase()
+		assert.NoError(t, persistErr)
+	})
+}
 
 func TestHealthCheck(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
@@ -149,7 +232,7 @@ func TestHealthCheck(t *testing.T) {
 }
 func WithInMemoryRepo(action func(r *InMemoryJobServiceRepository)) {
 	jobMap := make(map[string]*JobTable)
-	jobSet := make(map[string]*string)
+	jobSet := make(map[string]*SubscribeTable)
 	config := &configuration.JobServiceConfiguration{}
 	config.PersistenceInterval = 1
 	jobStatusMap := NewJobStatus(jobMap, jobSet)

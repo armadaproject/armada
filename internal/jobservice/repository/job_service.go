@@ -11,6 +11,7 @@ type JobServiceRepository interface {
 	GetSubscribedJobSets() []string
 	IsJobSetSubscribed(jobSetId string) bool
 	SubscribeJobSet(jobSetId string)
+	UpdateJobSetTime(jobSetId string) error
 	UnSubscribeJobSet(jobSetId string)
 	CheckToUnSubscribe(jobSetId string, configTimeWithoutUpdates int64) bool
 	DeleteJobsInJobSet(jobSetId string) error

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
@@ -22,11 +23,16 @@ func NewJobService(config *configuration.JobServiceConfiguration, inMemoryServic
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
+	g, _ := errgroup.WithContext(ctx)
+
 	if !s.jobRepository.IsJobSetSubscribed(opts.JobSetId) {
 
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
-		go eventJob.SubscribeToJobSetId(context.Background())
+		g.Go(func() error {
+			return eventJob.SubscribeToJobSetId(context.Background())
+		})
 	}
+	s.jobRepository.UpdateJobSetTime(opts.JobSetId)
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
 		log.Warn(err)

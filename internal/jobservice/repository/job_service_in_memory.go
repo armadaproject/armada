@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,11 +14,11 @@ import (
 type JobStatus struct {
 	jobMap        map[string]*JobTable
 	jobLock       sync.RWMutex
-	subscribeMap  map[string]*string
+	subscribeMap  map[string]*SubscribeTable
 	subscribeLock sync.RWMutex
 }
 
-func NewJobStatus(jobMap map[string]*JobTable, subscribeMap map[string]*string) *JobStatus {
+func NewJobStatus(jobMap map[string]*JobTable, subscribeMap map[string]*SubscribeTable) *JobStatus {
 	return &JobStatus{jobMap: jobMap, subscribeMap: subscribeMap}
 }
 
@@ -70,14 +71,14 @@ func (inMem *InMemoryJobServiceRepository) SubscribeJobSet(jobSetId string) {
 	if ok {
 		return
 	} else {
-		inMem.jobStatus.subscribeMap[jobSetId] = &jobSetId
+		inMem.jobStatus.subscribeMap[jobSetId] = NewSubscribeTable(jobSetId)
 	}
 
 }
 
 func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
-	inMem.jobStatus.jobLock.Lock()
-	defer inMem.jobStatus.jobLock.Unlock()
+	inMem.jobStatus.subscribeLock.RLock()
+	defer inMem.jobStatus.subscribeLock.RUnlock()
 	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
 	if !ok {
 		log.Infof("JobSetId %s already unsubscribed", jobSetId)
@@ -93,19 +94,27 @@ func (inMem *InMemoryJobServiceRepository) CheckToUnSubscribe(jobSetId string, c
 		return false
 	}
 	currentTime := time.Now().Unix()
-	var maxTimeUpdate int64 = 0
-	for _, val := range inMem.jobStatus.jobMap {
-		if val.jobSetId == jobSetId {
-			if maxTimeUpdate < val.timeStamp {
-				maxTimeUpdate = val.timeStamp
-			}
-			log.Infof("%d - %d > %d ", currentTime, maxTimeUpdate, configTimeWithoutUpdates)
-			if (currentTime - maxTimeUpdate) > configTimeWithoutUpdates {
+	for _, val := range inMem.jobStatus.subscribeMap {
+		if val.subscribedJobSet == jobSetId {
+			if (currentTime - val.lastRequestTimeStamp) > configTimeWithoutUpdates {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func (inMem *InMemoryJobServiceRepository) UpdateJobSetTime(jobSetId string) error {
+	inMem.jobStatus.subscribeLock.Lock()
+	defer inMem.jobStatus.subscribeLock.Unlock()
+
+	_, ok := inMem.jobStatus.subscribeMap[jobSetId]
+	if ok {
+		inMem.jobStatus.subscribeMap[jobSetId] = NewSubscribeTable(jobSetId)
+		return nil
+	} else {
+		return fmt.Errorf("JobSet %s is already unsubscribed", jobSetId)
+	}
 }
 
 // This is a very slow function until we get a database.
@@ -135,16 +144,13 @@ func (inMem *InMemoryJobServiceRepository) PrintAllItems() {
 func (inMem *InMemoryJobServiceRepository) GetSubscribedJobSets() []string {
 	var returnJobSets []string
 	for _, value := range inMem.jobStatus.subscribeMap {
-		returnJobSets = append(returnJobSets, *value)
+		returnJobSets = append(returnJobSets, value.subscribedJobSet)
 	}
 	return returnJobSets
 }
 
 // Once we add database, we should use this to persist.
 func (inMem *InMemoryJobServiceRepository) PersistDataToDatabase() error {
-	ticker := time.NewTicker(time.Duration(inMem.jobServiceConfig.PersistenceInterval) * time.Second)
-	for range ticker.C {
-		inMem.PrintAllItems()
-	}
+	inMem.PrintAllItems()
 	return nil
 }
