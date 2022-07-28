@@ -60,23 +60,40 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 	activePods := util.FilterPods(leasePods, isActive)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(activePods))
+	newJobs, err := allocationService.leaseService.RequestJobLeases(
+		capacityReport.AvailableCapacity,
+		capacityReport.Nodes,
+		utilisation.GetAllocationByQueue(activePods),
+	)
+	logAvailableResources(capacityReport, len(newJobs))
+	if err != nil {
+		log.Errorf("failed to lease new jobs: %v", err)
+		return
+	}
 
+	failedJobs := allocationService.submitter.SubmitJobs(newJobs)
+	if err := allocationService.processFailedJobs(failedJobs); err != nil {
+		log.Errorf("failed to process failed jobs: %v", err)
+	}
+}
+
+func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, jobCount int) {
 	cpu := (*capacityReport.AvailableCapacity)["cpu"]
 	memory := (*capacityReport.AvailableCapacity)["memory"]
-	log.Infof("Requesting new jobs with free resource cpu: %d, memory %d. Received %d new jobs. ", cpu.AsDec(), memory.Value(), len(newJobs))
+	ephemeralStorage := (*capacityReport.AvailableCapacity)["ephemeral-storage"]
 
-	if err != nil {
-		log.WithError(err).Error("failed to lease new jobs")
-		return
-	} else {
-		failedJobs := allocationService.submitter.SubmitJobs(newJobs)
+	resources := fmt.Sprintf("cpu: %vm, memory %vMi, ephemeral-storage: %vMi", cpu.MilliValue(), memory.Value()/(1024*1024), ephemeralStorage.Value()/(1024*1024))
 
-		err := allocationService.processFailedJobs(failedJobs)
-		if err != nil {
-			log.Errorf("Failed to process failed jobs  because %s", err)
-		}
+	nvidiaGpu := (*capacityReport.AvailableCapacity)["nvidia.com/gpu"]
+	if nvidiaGpu.Value() > 0 {
+		resources += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
 	}
+	amdGpu := (*capacityReport.AvailableCapacity)["amd.com/gpu"]
+	if amdGpu.Value() > 0 {
+		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
+	}
+
+	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, jobCount)
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation
