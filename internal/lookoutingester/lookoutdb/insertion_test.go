@@ -293,6 +293,53 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUpdateJobsWitCancelled(t *testing.T) {
+
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+
+		intial := []*model.CreateJobInstruction{{
+			JobId:     jobIdString,
+			Queue:     queue,
+			Owner:     userId,
+			JobSet:    jobSetName,
+			Priority:  priority,
+			Submitted: baseTime,
+			JobJson:   []byte(jobJson),
+			JobProto:  []byte(jobProto),
+			State:     0,
+			Updated:   baseTime,
+		}}
+
+		update1 := []*model.UpdateJobInstruction{{
+			JobId:   jobIdString,
+			State:   pointer.Int32(repository.JobCancelledOrdinal),
+			Updated: baseTime,
+		}}
+
+		update2 := []*model.UpdateJobInstruction{{
+			JobId:   jobIdString,
+			State:   pointer.Int32(repository.JobRunningOrdinal),
+			Updated: baseTime,
+		}}
+
+		// Insert
+		CreateJobs(ctx.Background(), db, intial)
+
+		// Cancel the job
+		UpdateJobs(ctx.Background(), db, update1)
+
+		// Update the job- this should be discarded
+		UpdateJobs(ctx.Background(), db, update2)
+
+		// Assert the state is still cancelled
+		job := getJob(t, db, jobIdString)
+		assert.Equal(t, repository.JobCancelledOrdinal, int(job.State))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestCreateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
@@ -584,15 +631,14 @@ func TestConflateJobUpdates(T *testing.T) {
 }
 
 func TestConflateJobUpdatesWithCancelled(T *testing.T) {
-
-	// Updates after the cancelled shouldn't be processed
+	//Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, Priority: pointer.Int32(repository.JobCancelledOrdinal)},
-		{JobId: jobIdString, State: pointer.Int32(2)},
+		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(repository.JobRunningOrdinal)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, Priority: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
 	}
 	assert.Equal(T, expected, updates)
 }

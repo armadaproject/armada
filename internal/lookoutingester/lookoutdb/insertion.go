@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/lookout/repository"
-	"k8s.io/utils/pointer"
-
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/google/uuid"
@@ -50,8 +48,7 @@ func Update(ctx context.Context, db *pgxpool.Pool, instructions *model.Instructi
 
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
-	conflatedJobUpdates := conflateJobUpdates(instructions.JobsToUpdate)
-	jobsToUpdate := filterEventsForCancelledJobs(ctx, db, conflatedJobUpdates)
+	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
 
 	jobRunsToUpdate := conflateJobRunUpdates(instructions.JobRunsToUpdate)
 
@@ -105,6 +102,7 @@ func UpdateJobs(ctx context.Context, db *pgxpool.Pool, instructions []*model.Upd
 	if len(instructions) == 0 {
 		return
 	}
+	instructions = filterEventsForCancelledJobs(ctx, db, instructions)
 	err := UpdateJobsBatch(ctx, db, instructions)
 	if err != nil {
 		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -603,13 +601,22 @@ func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) e
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {
+
+	deref := func(p *int32) int32 {
+		if p == nil {
+			return -1
+		} else {
+			return *p
+		}
+	}
+
 	updatesById := make(map[string]*model.UpdateJobInstruction)
 	for _, update := range updates {
 		existing, ok := updatesById[update.JobId]
 
 		// Unfortunately once a job has been cancelled we still get state updates for it e.g. we can get an event to
 		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
-		if ok && update.State != pointer.Int32(repository.JobCancelledOrdinal) {
+		if ok && deref(existing.State) != repository.JobCancelledOrdinal {
 			if update.State != nil {
 				existing.State = update.State
 			}
@@ -623,8 +630,6 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 				existing.Duplicate = update.Duplicate
 			}
 			existing.Updated = update.Updated
-		} else {
-			updatesById[update.JobId] = update
 		}
 	}
 
@@ -713,8 +718,7 @@ func filterEventsForCancelledJobs(ctx context.Context, db *pgxpool.Pool, instruc
 	if len(cancelledJobs) > 0 {
 		filtered := make([]*model.UpdateJobInstruction, 0, len(instructions))
 		for _, instruction := range instructions {
-			_, isCancelled := cancelledJobs[instruction.JobId]
-			if isCancelled {
+			if !cancelledJobs[instruction.JobId] {
 				filtered = append(filtered, instruction)
 			}
 		}
