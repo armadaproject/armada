@@ -45,7 +45,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 	conn, connErr := client.CreateApiConnection(clientConnect)
 	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)
 	if connErr != nil {
-		log.Warn("Connection Issues with EventClient %v", connErr)
+		log.Warnf("Connection Issues with EventClient %v", connErr)
 	}
 	defer conn.Close()
 	g, _ := errgroup.WithContext(ctx)
