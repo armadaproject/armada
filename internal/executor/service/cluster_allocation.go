@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -62,9 +63,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	activePods := util.FilterPods(leasePods, isActive)
 	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(activePods))
 
-	cpu := (*capacityReport.AvailableCapacity)["cpu"]
-	memory := (*capacityReport.AvailableCapacity)["memory"]
-	log.Infof("Requesting new jobs with free resource cpu: %d, memory %d. Received %d new jobs. ", cpu.AsDec(), memory.Value(), len(newJobs))
+	logAvailableResources(capacityReport, newJobs)
 
 	if err != nil {
 		log.WithError(err).Error("failed to lease new jobs")
@@ -77,6 +76,25 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 			log.Errorf("Failed to process failed jobs  because %s", err)
 		}
 	}
+}
+
+func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, newJobs []*api.Job) {
+	cpu := (*capacityReport.AvailableCapacity)["cpu"]
+	memory := (*capacityReport.AvailableCapacity)["memory"]
+	ephemeralStorage := (*capacityReport.AvailableCapacity)["ephemeral-storage"]
+
+	resources := fmt.Sprintf("cpu: %vm, memory %vMi, ephemeral-storage: %vMi", cpu.MilliValue(), memory.Value()/(1024*1024), ephemeralStorage.Value()/(1024*1024))
+
+	nvidiaGpu := (*capacityReport.AvailableCapacity)["nvidia.com/gpu"]
+	if nvidiaGpu.Value() > 0 {
+		resources += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
+	}
+	amdGpu := (*capacityReport.AvailableCapacity)["amd.com/gpu"]
+	if amdGpu.Value() > 0 {
+		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
+	}
+
+	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, len(newJobs))
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation
