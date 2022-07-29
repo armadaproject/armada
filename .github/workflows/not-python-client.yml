@@ -12,6 +12,8 @@ on:
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
       - 'makefile'
+      - '.github/workflows/python-tests/*'
+
   pull_request:
     branches-ignore:
       - gh-pages
@@ -23,6 +25,7 @@ on:
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
       - 'makefile'
+      - '.github/workflows/python-tests/*'
 
 jobs:
   run-tox:

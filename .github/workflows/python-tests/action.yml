@@ -12,24 +12,26 @@ on:
         type: string
 
 runs:
-  - uses: actions/setup-python@v2
-    with:
-      python-version: ${{ inputs.python_version }}
-  # Tox to run tests; build to build the wheel after tests pass
-  - run: pip install tox build twine
-  # Generate the proto files for python, required for later steps
-  - run: make python
-  - name: Run tox format environment
-    run: tox -e format
-    working-directory: ${{ inputs.path }}
-  - name: Verify docs updated if needed
-    run: tox -e docs-check
-    working-directory: ${{ inputs.path }}
-  - name: Run tox python 3.8 unit tests
-    run: tox -e py38
-    working-directory: ${{ inputs.path }}
-  - name: Build and verify wheel
-    run: |
-      python -m build --wheel
-      twine check dist/*
-    working-directory: ${{ inputs.path }}
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: ${{ inputs.python_version }}
+    # Tox to run tests; build to build the wheel after tests pass
+    - run: pip install tox build twine
+    # Generate the proto files for python, required for later steps
+    - run: make python
+    - name: Run tox format environment
+      run: tox -e format
+      working-directory: ${{ inputs.path }}
+    - name: Verify docs updated if needed
+      run: tox -e docs-check
+      working-directory: ${{ inputs.path }}
+    - name: Run tox python 3.8 unit tests
+      run: tox -e py38
+      working-directory: ${{ inputs.path }}
+    - name: Build and verify wheel
+      run: |
+        python -m build --wheel
+        twine check dist/*
+      working-directory: ${{ inputs.path }}

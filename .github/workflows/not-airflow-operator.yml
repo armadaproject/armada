@@ -17,6 +17,8 @@ on:
       - '.github/workflows/airflow-operator.yml'
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
+      - '.github/workflows/python-tests/*'
+
   pull_request:
     branches-ignore:
       - gh-pages
@@ -33,6 +35,7 @@ on:
       - '.github/workflows/airflow-operator.yml'
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
+      - '.github/workflows/python-tests/*'
 
 jobs:
   run-tox:

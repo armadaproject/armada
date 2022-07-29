@@ -18,6 +18,7 @@ on:
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
       - 'makefile'
+      - '.github/workflows/python-tests/*'
 
   pull_request:
     branches-ignore:
@@ -36,6 +37,7 @@ on:
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
       - 'makefile'
+      - '.github/workflows/python-tests/*'
 
 jobs:
   run-tox:
