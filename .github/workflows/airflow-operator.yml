@@ -52,4 +52,4 @@ jobs:
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8.10'
-          path: client/python
+          path: third_party/airflow

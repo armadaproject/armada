@@ -1,4 +1,4 @@
-name: Release Python Client to pypi
+name: Release Python Client to PYPI
 
 on:
   workflow_dispatch: {}

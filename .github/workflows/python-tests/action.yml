@@ -1,4 +1,4 @@
-name: "Setup environment and run python tests in tox"
+name: "Setup Environment and run Python Tests in Tox"
 description: "Sets up go environment and runs python tests in tox"
 
 on:
