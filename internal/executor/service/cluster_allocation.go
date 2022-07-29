@@ -2,17 +2,16 @@ package service
 
 import (
 	"fmt"
-
-	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-
+	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/job"
 	"github.com/G-Research/armada/internal/executor/reporter"
 	"github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/internal/executor/utilisation"
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 type ClusterAllocationService struct {
@@ -78,17 +77,20 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 }
 
 func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, jobCount int) {
-	cpu := (*capacityReport.AvailableCapacity)["cpu"]
-	memory := (*capacityReport.AvailableCapacity)["memory"]
-	ephemeralStorage := (*capacityReport.AvailableCapacity)["ephemeral-storage"]
+	cpu := capacityReport.GetResourceQuantity("cpu")
+	memory := capacityReport.GetResourceQuantity("memory")
+	ephemeralStorage := capacityReport.GetResourceQuantity("ephemeral-storage")
 
-	resources := fmt.Sprintf("cpu: %vm, memory %vMi, ephemeral-storage: %vMi", cpu.MilliValue(), memory.Value()/(1024*1024), ephemeralStorage.Value()/(1024*1024))
+	resources := fmt.Sprintf(
+		"cpu: %dm, memory %s, ephemeral-storage: %s",
+		cpu.MilliValue(), util2.FormatBinarySI(memory.Value()), util2.FormatBinarySI(ephemeralStorage.Value()),
+	)
 
-	nvidiaGpu := (*capacityReport.AvailableCapacity)["nvidia.com/gpu"]
+	nvidiaGpu := capacityReport.GetResourceQuantity("nvidia.com/gpu")
 	if nvidiaGpu.Value() > 0 {
 		resources += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
 	}
-	amdGpu := (*capacityReport.AvailableCapacity)["amd.com/gpu"]
+	amdGpu := capacityReport.GetResourceQuantity("amd.com/gpu")
 	if amdGpu.Value() > 0 {
 		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
