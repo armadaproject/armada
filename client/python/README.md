@@ -21,7 +21,7 @@ Python client wrapping the gRPC services defined in `submit.proto` and `events.p
 Prerequisites:
 
 For building the python client:
-In the repo level, run `make python` then `cd client/python` and lastly run `pip install` to install the client from git with all necessary dependencies.
+In the repo level, run `make python` then `cd client/python` and lastly run `pip install .` to install the client from git with all necessary dependencies.
 
 1) pyenv
    - Sets up local python environment for supporting multiple python environments
