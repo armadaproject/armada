@@ -2,8 +2,9 @@ package utilisation
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
