@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
@@ -23,7 +23,7 @@ import (
 // Deleting keys does not cause caches to update, i.e., nodes may have an inconsistent view if keys are deleted.
 type PGKeyValueStore struct {
 	// For performance, keys are cached locally.
-	cache *simplelru.LRU
+	cache *lru.Cache
 	// Postgres connection.
 	db *pgxpool.Pool
 	// Name of the postgres table used for storage.
@@ -46,7 +46,7 @@ func New(db *pgxpool.Pool, cacheSize int, tableName string) (*PGKeyValueStore, e
 			Message: "TableName must be non-empty",
 		})
 	}
-	cache, err := simplelru.NewLRU(cacheSize, nil)
+	cache, err := lru.New(cacheSize)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
