@@ -2,6 +2,7 @@ package jobservice
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"time"
@@ -41,9 +42,16 @@ func (a *App) StartUp(ctx context.Context) error {
 	inMemoryMap := make(map[string]*repository.JobTable)
 	subscribedJobSets := make(map[string]*repository.SubscribeTable)
 	jobStatusMap := repository.NewJobStatus(inMemoryMap, subscribedJobSets)
-	inMemoryJobService := repository.NewInMemoryJobServiceRepository(jobStatusMap, config)
-	jobService := server.NewJobService(config, inMemoryJobService)
+
+	db, err := sql.Open("sqlite", "jobservice.db")
+	if err != nil {
+		log.Errorf("Error Opening Sqlite DB from %s %v", config.DatabaseFilePath, err)
+	}
+	defer db.Close()
+	sqlJobRepo := repository.NewSQLJobServiceRepository(jobStatusMap, config, db)
+	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
+	sqlJobRepo.CreateTable()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil { // TODO Don't call fatal, return an error.
@@ -51,9 +59,9 @@ func (a *App) StartUp(ctx context.Context) error {
 	}
 
 	g.Go(func() error {
-		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
+		ticker := time.NewTicker(time.Duration(config.PersistenceInterval) * time.Second)
 		for range ticker.C {
-			err := inMemoryJobService.PersistDataToDatabase()
+			err := sqlJobRepo.PersistDataToDatabase()
 			if err != nil {
 				log.Warnf("Error Persisting data to database %v", err)
 			}
@@ -63,11 +71,11 @@ func (a *App) StartUp(ctx context.Context) error {
 	g.Go(func() error {
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
-			for _, value := range inMemoryJobService.GetSubscribedJobSets() {
+			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
-				if inMemoryJobService.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
-					inMemoryJobService.DeleteJobsInJobSet(value)
-					inMemoryJobService.UnSubscribeJobSet(value)
+				if sqlJobRepo.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
+					sqlJobRepo.DeleteJobsInJobSet(value)
+					sqlJobRepo.UnSubscribeJobSet(value)
 				}
 			}
 		}

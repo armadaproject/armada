@@ -5,9 +5,10 @@ import (
 )
 
 type JobServiceRepository interface {
+	CreateTable()
 	GetJobStatus(jobId string) (*js.JobServiceResponse, error)
-	UpdateJobServiceDb(jobId string, jobResponse *JobTable) error
-	HealthCheck() bool
+	UpdateJobServiceDb(jobResponse *JobTable)
+	HealthCheck() (bool, error)
 	GetSubscribedJobSets() []string
 	IsJobSetSubscribed(jobSetId string) bool
 	SubscribeJobSet(jobSetId string)

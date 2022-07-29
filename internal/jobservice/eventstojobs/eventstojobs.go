@@ -91,11 +91,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 			jobStatus := EventsToJobResponse(*msg.Message)
 			if jobStatus != nil {
 				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobsetid, currentJobId, *jobStatus)
-				updateErr := eventToJobService.jobServiceRepository.UpdateJobServiceDb(currentJobId, jobTable)
-				if updateErr != nil {
-					log.Error(updateErr)
-					return updateErr
-				}
+				eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobTable)
 			}
 		}
 	})

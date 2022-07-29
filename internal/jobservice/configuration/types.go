@@ -18,4 +18,6 @@ type JobServiceConfiguration struct {
 	SubscribeJobSetTime int64
 	// How often to do we write our in memory database to disk
 	PersistenceInterval int64
+	// Location where our file based database is stored
+	DatabaseFilePath string
 }
