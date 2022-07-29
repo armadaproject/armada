@@ -39,8 +39,9 @@ var DefaultNodeSpec = []*NodeSpec{
 		Name:  "worker",
 		Count: 500,
 		Allocatable: map[v1.ResourceName]resource.Quantity{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("128Gi"),
+			"cpu":               resource.MustParse("8"),
+			"memory":            resource.MustParse("128Gi"),
+			"ephemeral-storage": resource.MustParse("256Gi"),
 		},
 	},
 }
@@ -69,7 +70,7 @@ func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nod
 	return c
 }
 
-func (FakeClusterContext) Stop() {
+func (*FakeClusterContext) Stop() {
 }
 
 func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
@@ -264,11 +265,11 @@ func (c *FakeClusterContext) GetClusterId() string {
 	return c.clusterId
 }
 
-func (c FakeClusterContext) GetClusterPool() string {
+func (c *FakeClusterContext) GetClusterPool() string {
 	return c.pool
 }
 
-func (c FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

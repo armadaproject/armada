@@ -13,5 +13,11 @@ import (
 func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSpec) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	return executor.StartUpWithContext(config, context.NewFakeClusterContext(config.Application, nodes), nil, task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix), wg)
+	return executor.StartUpWithContext(
+		config,
+		context.NewFakeClusterContext(config.Application, nodes),
+		nil,
+		task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix),
+		wg,
+	)
 }
