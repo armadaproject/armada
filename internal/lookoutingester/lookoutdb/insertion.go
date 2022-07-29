@@ -616,7 +616,9 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 
 		// Unfortunately once a job has been cancelled we still get state updates for it e.g. we can get an event to
 		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
-		if ok && deref(existing.State) != repository.JobCancelledOrdinal {
+		if !ok {
+			updatesById[update.JobId] = update
+		} else if deref(existing.State) != int32(repository.JobCancelledOrdinal) {
 			if update.State != nil {
 				existing.State = update.State
 			}

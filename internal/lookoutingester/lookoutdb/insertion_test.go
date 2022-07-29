@@ -293,7 +293,7 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdateJobsWitCancelled(t *testing.T) {
+func TestUpdateJobsWithCancelled(t *testing.T) {
 
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 
