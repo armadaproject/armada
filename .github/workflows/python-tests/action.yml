@@ -1,15 +1,15 @@
 name: "Setup Environment and run Python Tests in Tox"
 description: "Sets up go environment and runs python tests in tox"
 
-on:
-  workflow_call:
-    inputs:
-      path:
-        required: true
-        type: string
-      python-version:
-        required: true
-        type: string
+inputs:
+  path:
+    description: "Path to python package root relative to repo root"
+    required: true
+    type: string
+  python-version:
+    description: "Version of python to setup and run tests against"
+    required: true
+    type: string
 
 runs:
   using: "composite"
