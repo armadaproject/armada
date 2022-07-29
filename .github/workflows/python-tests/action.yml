@@ -7,7 +7,7 @@ on:
       path:
         required: true
         type: string
-      python_version:
+      python-version:
         required: true
         type: string
 
@@ -16,7 +16,7 @@ runs:
   steps:
     - uses: actions/setup-python@v2
       with:
-        python-version: ${{ inputs.python_version }}
+        python-version: ${{ inputs.python-version }}
     # Tox to run tests; build to build the wheel after tests pass
     - run: pip install tox build twine
       shell: bash
