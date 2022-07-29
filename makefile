@@ -324,7 +324,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 .ONESHELL:
-setup-cluster:
+setup-cluster: python
 	kind create cluster --config e2e/setup/kind.yaml
 	# We need an ingress controller to enable cluster ingress
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
@@ -402,7 +402,11 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
 	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
 	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
+.ONESHELL:
+tests-e2e-python:
+	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 # Output test results in Junit format, e.g., to display in Jenkins.
 # Relies on go-junit-report
@@ -448,6 +452,13 @@ setup-proto: download
 python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+
+airflow-operator:
+	rm -rf proto-airflow
+	mkdir -p proto-airflow
+
+	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
+	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
 proto: setup-proto
 

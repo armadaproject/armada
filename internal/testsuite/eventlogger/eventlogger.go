@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/testsuite/common"
+
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -38,7 +40,7 @@ func (srv *EventsLogger) flushAndLog() {
 
 	// For each job for which we already have some state transitions,
 	// add the most recent state to the state transitions seen in this interval.
-	// This makes is more clear what's going on.
+	// This makes it more clear what's going on.
 	continuedTransitionsByJobId := make(map[string][]string)
 	for jobId, transitions := range srv.intervalTransitionsByJobId {
 		if previousTransitions := srv.transitionsByJobId[jobId]; len(previousTransitions) > 0 {
@@ -98,18 +100,8 @@ func (srv *EventsLogger) Run(ctx context.Context) error {
 				break
 			}
 			jobId := api.JobIdFromApiEvent(e)
-			s := shortStringFromApiEvent(e)
+			s := common.ShortStringFromApiEvent(e)
 			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], s)
 		}
 	}
-}
-
-func shortStringFromApiEvent(msg *api.EventMessage) string {
-	s := stringFromApiEvent(msg)
-	s = strings.ReplaceAll(s, "*api.EventMessage_", "")
-	return s
-}
-
-func stringFromApiEvent(msg *api.EventMessage) string {
-	return fmt.Sprintf("%T", msg.Events)
 }

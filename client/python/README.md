@@ -51,7 +51,7 @@ This is to be automated.
 
 Manual Release:
 
-Log into the Armada-GROSS account on PyPI.  
+Log into the Armada-GROSS account on PyPI.
 Generate the API tokens and copy those tokens to ~/.pypirc.
 `poetry build`
 `poetry run twine upload dist/*`

@@ -1,17 +1,26 @@
 """
 Armada Python GRPC Client
+
+For the api definitions:
+https://armadaproject.io/api
 """
 
-from concurrent.futures import ThreadPoolExecutor
 import os
-from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Generator, List, Optional
+
+from google.protobuf import empty_pb2
+
 from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
-    usage_pb2_grpc,
-    submit_pb2_grpc,
     submit_pb2,
+    submit_pb2_grpc,
+    usage_pb2_grpc,
 )
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+
+from armada_client.event import Event
 
 
 class ArmadaClient:
@@ -38,7 +47,7 @@ class ArmadaClient:
         queue: str,
         job_set_id: str,
         from_message_id: Optional[str] = None,
-    ):
+    ) -> Generator[event_pb2.EventMessage, None, None]:
         """Get event stream for a job set.
 
         Uses the GetJobSetEvents rpc to get a stream of events relating
@@ -58,7 +67,20 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
-    def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
+    @staticmethod
+    def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
+        """
+        Unmarshal an event response from the gRPC server.
+
+        :param event: The event response from the gRPC server.
+        :return: An Event object.
+        """
+
+        return Event(event)
+
+    def submit_jobs(
+        self, queue: str, job_set_id: str, job_request_items
+    ) -> submit_pb2.JobSubmitResponse:
         """Submit a armada job.
 
         Uses SubmitJobs RPC to submit a job.
@@ -80,7 +102,7 @@ class ArmadaClient:
         queue: Optional[str] = None,
         job_id: Optional[str] = None,
         job_set_id: Optional[str] = None,
-    ):
+    ) -> submit_pb2.JobCancelRequest:
         """Cancel jobs in a given queue.
 
         Uses the CancelJobs RPC to cancel jobs. Either job_id or
@@ -103,7 +125,7 @@ class ArmadaClient:
         job_ids: Optional[List[str]] = None,
         job_set_id: Optional[str] = None,
         queue: Optional[str] = None,
-    ):
+    ) -> submit_pb2.JobReprioritizeResponse:
         """Reprioritize jobs with new_priority value.
 
         Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
@@ -124,7 +146,7 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    def create_queue(self, name: str, **queue_params):
+    def create_queue(self, name: str, **queue_params) -> empty_pb2.Empty:
         """Create the queue by name.
 
         Uses the CreateQueue RPC to create a queue.
@@ -160,7 +182,7 @@ class ArmadaClient:
         request = submit_pb2.QueueDeleteRequest(name=name)
         self.submit_stub.DeleteQueue(request)
 
-    def get_queue(self, name: str):
+    def get_queue(self, name: str) -> submit_pb2.Queue:
         """Get the queue by name.
 
         Uses the GetQueue RPC to get the queue.
@@ -172,7 +194,7 @@ class ArmadaClient:
         response = self.submit_stub.GetQueue(request)
         return response
 
-    def get_queue_info(self, name: str):
+    def get_queue_info(self, name: str) -> submit_pb2.QueueInfo:
         """Get the queue info by name.
 
         Uses the GetQueueInfo RPC to get queue info.
@@ -194,3 +216,35 @@ class ArmadaClient:
         :return: nothing
         """
         event_stream.cancel()
+
+    def create_job_request(
+        self,
+        queue: str,
+        job_set_id: str,
+        job_request_items: List[submit_pb2.JobSubmitRequestItem],
+    ) -> submit_pb2.JobSubmitRequest:
+        """Create a job request.
+
+        :param queue: The name of the queue
+        :param job_set_id: The name of the job set (a grouping of jobs)
+        :param job_request_items: List of Job Request Items
+        :return: A job request object. See the api definition.
+        """
+        return submit_pb2.JobSubmitRequest(
+            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
+        )
+
+    def create_job_request_item(
+        self, pod_spec: core_v1.PodSpec, priority: int = 1, **job_item_params
+    ) -> submit_pb2.JobSubmitRequestItem:
+        """Create a job request.
+
+        :param priority: The priority of the job
+        :param pod_spec: The k8s pod spec of the job
+        :param job_item_params: All other job_item kwaarg
+               arguments as specified in the api definition.
+        :return: A job item request object. See the api definition.
+        """
+        return submit_pb2.JobSubmitRequestItem(
+            priority=priority, pod_spec=pod_spec, **job_item_params
+        )

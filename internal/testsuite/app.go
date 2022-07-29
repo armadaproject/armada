@@ -13,6 +13,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
+	"github.com/G-Research/armada/internal/testsuite/eventlogger"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jstemmer/go-junit-report/v2/junit"
@@ -23,7 +26,6 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/G-Research/armada/internal/testsuite/build"
-	"github.com/G-Research/armada/internal/testsuite/eventlogger"
 	"github.com/G-Research/armada/internal/testsuite/eventsplitter"
 	"github.com/G-Research/armada/internal/testsuite/eventwatcher"
 	"github.com/G-Research/armada/internal/testsuite/submitter"
@@ -40,6 +42,8 @@ type App struct {
 	// Source of randomness. Tests can use a mocked random source in order to provide
 	// deterministic testing behavior.
 	Random io.Reader
+	// Benchmark reports from test files
+	reports []*eventbenchmark.TestCaseBenchmarkReport
 }
 
 // Params struct holds all user-customizable parameters.
@@ -69,10 +73,10 @@ func (a *App) validateParams() error {
 func (a *App) Version() error {
 	w := tabwriter.NewWriter(a.Out, 1, 1, 1, ' ', 0)
 	defer w.Flush()
-	fmt.Fprintf(w, "Version:\t%s\n", build.ReleaseVersion)
-	fmt.Fprintf(w, "Commit:\t%s\n", build.GitCommit)
-	fmt.Fprintf(w, "Go version:\t%s\n", build.GoVersion)
-	fmt.Fprintf(w, "Built:\t%s\n", build.BuildTime)
+	_, _ = fmt.Fprintf(w, "Version:\t%s\n", build.ReleaseVersion)
+	_, _ = fmt.Fprintf(w, "Commit:\t%s\n", build.GitCommit)
+	_, _ = fmt.Fprintf(w, "Go version:\t%s\n", build.GoVersion)
+	_, _ = fmt.Fprintf(w, "Built:\t%s\n", build.BuildTime)
 	return nil
 }
 
@@ -172,22 +176,9 @@ func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiCo
 }
 
 func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error) error {
-
 	logInterval := 5 * time.Second
-	fmt.Fprintf(a.Out, "\n======= %s =======\n", testSpec.GetName())
-	fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetQueue())
-	fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetJobSetId())
-	fmt.Fprintf(a.Out, "Timeout: %s\n", testSpec.GetTimeout())
-	fmt.Fprintf(a.Out, "Log interval: %s\n", logInterval)
-	fmt.Fprint(a.Out, "\n")
-	fmt.Fprintf(a.Out, "Expected events:\n")
-	for _, e := range testSpec.GetExpectedEvents() {
-		s := fmt.Sprintf("%T", e.GetEvents())
-		s = strings.ReplaceAll(s, "*api.EventMessage_", "")
-		fmt.Fprintf(a.Out, "- %s\n", s)
-	}
-	fmt.Fprint(a.Out, "\n")
-	fmt.Fprintf(a.Out, "Job transitions over windows of length %s:\n", logInterval)
+	a.printTestHeader(testSpec, logInterval)
+	_, _ = fmt.Fprintf(a.Out, "Job transitions over windows of length %s:\n", logInterval)
 
 	// Optional timeout
 	ctx, cancel := context.WithCancel(ctx)
@@ -197,60 +188,24 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	defer cancel()
 
 	// Submit jobs.
-	submitter := &submitter.Submitter{
-		ApiConnectionDetails: a.Params.ApiConnectionDetails,
-		Jobs:                 testSpec.Jobs,
-		Queue:                testSpec.Queue,
-		JobSetName:           testSpec.JobSetId,
-		NumBatches:           testSpec.NumBatches,
-		BatchSize:            testSpec.BatchSize,
-		Interval:             testSpec.Interval,
-	}
-	err := submitter.Run(ctx)
+	sbmtr := submitter.NewSubmitterFromTestSpec(a.Params.ApiConnectionDetails, testSpec)
+	err := sbmtr.Run(ctx)
 	if err != nil {
 		return err
 	}
-	jobIds := submitter.JobIds()
+	jobIds := sbmtr.JobIds()
 	jobIdMap := make(map[string]bool)
 	for _, jobId := range jobIds {
 		jobIdMap[jobId] = false
 	}
 
 	// If configured, cancel the submitted jobs.
-	if testSpec.Cancel == api.TestSpec_BY_ID {
-		err := client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
-			for _, jobId := range jobIds {
-				_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-					JobId:    jobId,
-					Queue:    testSpec.GetQueue(),
-					JobSetId: testSpec.GetJobSetId(),
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-	} else if testSpec.Cancel == api.TestSpec_BY_SET {
-		err := client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
-			_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-				Queue:    testSpec.GetQueue(),
-				JobSetId: testSpec.GetJobSetId(),
-			})
-			if err != nil {
-				return err
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
+	if err := tryCancelJobs(ctx, testSpec, a.Params.ApiConnectionDetails, jobIds); err != nil {
+		return err
 	}
 
 	// One channel for each system listening to events.
+	benchmarkCh := make(chan *api.EventMessage)
 	logCh := make(chan *api.EventMessage)
 	noActiveCh := make(chan *api.EventMessage)
 	assertCh := make(chan *api.EventMessage)
@@ -265,6 +220,11 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	eventLogger.Out = a.Out
 	g.Go(func() error { return eventLogger.Run(ctx) })
 
+	// Benchmark service
+	eventBenchmark := eventbenchmark.New(benchmarkCh)
+	eventBenchmark.Out = a.Out
+	g.Go(func() error { return eventBenchmark.Run(ctx) })
+
 	// Goroutine forwarding API events on a channel.
 	watcher := eventwatcher.New(testSpec.Queue, testSpec.JobSetId, a.Params.ApiConnectionDetails)
 	watcher.BackoffExponential = time.Second
@@ -273,51 +233,86 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	g.Go(func() error { return watcher.Run(ctx) })
 
 	// Split the events into multiple channels, one for each downstream service.
-	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, ingressCh, logCh, noActiveCh}...)
+	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, ingressCh, logCh, noActiveCh, benchmarkCh}...)
 	g.Go(func() error { return splitter.Run(ctx) })
 
 	// Watch for ingress events and try to download from any ingresses found.
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
 	// Assert that we get the right events for each job.
-	err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
+	terminatedByJobId, err := eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
 
 	// Stop all services and wait for them to exit.
 	cancel()
 	groupErr := g.Wait()
-	if err != nil && groupErr != nil && groupErr != context.Canceled {
+	if err != nil && groupErr != nil && !errors.Is(groupErr, context.Canceled) {
 		err = errors.WithMessage(groupErr, err.Error())
 	}
 
-	fmt.Fprint(a.Out, "All job transitions:\n")
+	_, _ = fmt.Fprint(a.Out, "All job transitions:\n")
 	eventLogger.Log()
 
-	// Cancel any jobs still running.
-	client.WithSubmitClient(a.Params.ApiConnectionDetails, func(sc api.SubmitClient) error {
-		ctx = context.Background()
-		ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-		res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-			Queue:    testSpec.GetQueue(),
-			JobSetId: testSpec.GetJobSetId(),
-		})
-		if err != nil {
-			fmt.Fprintf(a.Out, "\nError cancelling jobs: %s\n", err.Error())
-		} else if len(res.GetCancelledIds()) > 0 {
-			fmt.Fprintf(a.Out, "\nCancelled %v\n", res.GetCancelledIds())
-		}
-		return err
-	})
+	// benchmark
+	report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
+	report.Print(a.Out)
+	a.reports = append(a.reports, report)
+
+	// Cancel any jobs we haven't seen a terminal event for.
+	_ = client.WithSubmitClient(a.Params.ApiConnectionDetails, submitWithCancel(testSpec, terminatedByJobId, a.Out))
 
 	return err
 }
 
-// UnmarshalTestCase unmarshals bytes into a TestSpec.
+func (a *App) printTestHeader(testSpec *api.TestSpec, logInterval time.Duration) {
+	_, _ = fmt.Fprintf(a.Out, "\n======= %s =======\n", testSpec.GetName())
+	_, _ = fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetQueue())
+	_, _ = fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetJobSetId())
+	_, _ = fmt.Fprintf(a.Out, "Timeout: %s\n", testSpec.GetTimeout())
+	_, _ = fmt.Fprintf(a.Out, "Log interval: %s\n", logInterval)
+	_, _ = fmt.Fprint(a.Out, "\n")
+	_, _ = fmt.Fprintf(a.Out, "Expected events:\n")
+	for _, e := range testSpec.GetExpectedEvents() {
+		s := fmt.Sprintf("%T", e.GetEvents())
+		s = strings.ReplaceAll(s, "*api.EventMessage_", "")
+		_, _ = fmt.Fprintf(a.Out, "- %s\n", s)
+	}
+	_, _ = fmt.Fprint(a.Out, "\n")
+}
+
+func submitWithCancel(testSpec *api.TestSpec, jobIdMap map[string]bool, out io.Writer) func(sc api.SubmitClient) error {
+	return func(sc api.SubmitClient) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		cancelGroup, ctx := errgroup.WithContext(ctx)
+		for jobId, hasTerminated := range jobIdMap {
+			if hasTerminated {
+				continue
+			}
+			cancelGroup.Go(func() error {
+				res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
+					Queue:    testSpec.GetQueue(),
+					JobSetId: testSpec.GetJobSetId(),
+					JobId:    jobId,
+				})
+				if err != nil {
+					_, _ = fmt.Fprintf(out, "\nError cancelling jobs: %s\n", err.Error())
+				} else if len(res.GetCancelledIds()) > 0 {
+					_, _ = fmt.Fprintf(out, "\nCancelled %v\n", res.GetCancelledIds())
+				}
+				return err
+			})
+		}
+		return cancelGroup.Wait()
+	}
+}
+
+// UnmarshalTestCase unmarshalls bytes into a TestSpec.
 func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 	var result *multierror.Error
 	successExpectedEvents := false
 	successEverythingElse := false
-	docs := bytes.Split(yamlBytes, []byte("---"))
+	yamlSpecSeparator := []byte("---")
+	docs := bytes.Split(yamlBytes, yamlSpecSeparator)
 	for _, docYamlBytes := range docs {
 
 		// yaml.Unmarshal can unmarshal everything,
@@ -347,4 +342,41 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 		return result.ErrorOrNil()
 	}
 	return nil
+}
+
+// tryCancelJobs cancels submitted jobs if cancellation is configured.
+func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) (err error) {
+	req := &api.JobCancelRequest{
+		Queue:    testSpec.GetQueue(),
+		JobSetId: testSpec.GetJobSetId(),
+	}
+	fCancelByID := func(sc api.SubmitClient) error {
+		for _, jobId := range jobIds {
+			req.JobId = jobId
+			_, err := sc.CancelJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		return nil
+	}
+	fCancelBySet := func(sc api.SubmitClient) error {
+		_, err := sc.CancelJobs(ctx, req)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
+	// If configured, cancel the submitted jobs.
+	switch {
+	case testSpec.Cancel == api.TestSpec_BY_ID:
+		err = client.WithSubmitClient(conn, fCancelByID)
+	case testSpec.Cancel == api.TestSpec_BY_SET:
+		err = client.WithSubmitClient(conn, fCancelBySet)
+	}
+	return err
+}
+
+func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
+	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
 }

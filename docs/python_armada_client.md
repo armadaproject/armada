@@ -11,6 +11,9 @@ title: armada_client package
 
 Armada Python GRPC Client
 
+For the api definitions:
+[https://armadaproject.io/api](https://armadaproject.io/api)
+
 
 ### _class_ armada_client.client.ArmadaClient(channel, max_workers=None)
 Bases: `object`
@@ -63,6 +66,71 @@ job_set_id is required.
 
 
 
+* **Return type**
+
+    *JobCancelRequest*
+
+
+
+#### create_job_request(queue, job_set_id, job_request_items)
+Create a job request.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
+
+
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
+
+
+
+* **Returns**
+
+    A job request object. See the api definition.
+
+
+
+* **Return type**
+
+    *JobSubmitRequest*
+
+
+
+#### create_job_request_item(pod_spec, priority=1, \*\*job_item_params)
+Create a job request.
+
+
+* **Parameters**
+
+    
+    * **priority** (*int*) – The priority of the job
+
+
+    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
+
+
+    * **job_item_params** – All other job_item kwaarg
+    arguments as specified in the api definition.
+
+
+
+* **Returns**
+
+    A job item request object. See the api definition.
+
+
+
+* **Return type**
+
+    *JobSubmitRequestItem*
+
+
+
 #### create_queue(name, \*\*queue_params)
 Create the queue by name.
 
@@ -82,6 +150,12 @@ Uses the CreateQueue RPC to create a queue.
 * **Returns**
 
     A queue object per the Armada api definition.
+
+
+
+* **Return type**
+
+    *Empty*
 
 
 
@@ -135,6 +209,12 @@ to the provided job_set_id.
 
 
 
+* **Return type**
+
+    *Generator*[*EventMessage*, None, None]
+
+
+
 #### get_queue(name)
 Get the queue by name.
 
@@ -153,6 +233,12 @@ Uses the GetQueue RPC to get the queue.
 
 
 
+* **Return type**
+
+    *Queue*
+
+
+
 #### get_queue_info(name)
 Get the queue info by name.
 
@@ -168,6 +254,12 @@ Uses the GetQueueInfo RPC to get queue info.
 * **Returns**
 
     A queue info object.  See the api definition.
+
+
+
+* **Return type**
+
+    *QueueInfo*
 
 
 
@@ -200,6 +292,12 @@ or job set.
 
 
 
+* **Return type**
+
+    *JobReprioritizeResponse*
+
+
+
 #### submit_jobs(queue, job_set_id, job_request_items)
 Submit a armada job.
 
@@ -223,6 +321,34 @@ Uses SubmitJobs RPC to submit a job.
 * **Returns**
 
     A JobSubmitResponse object.
+
+
+
+* **Return type**
+
+    *JobSubmitResponse*
+
+
+
+#### _static_ unmarshal_event_response(event)
+Unmarshal an event response from the gRPC server.
+
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – The event response from the gRPC server.
+
+
+
+* **Returns**
+
+    An Event object.
+
+
+
+* **Return type**
+
+    *Event*
 
 
 
@@ -275,3 +401,18 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Return type**
 
     None
+
+
+## armada_client.event module
+
+
+### _class_ armada_client.event.Event(event)
+Represents a gRPC proto event
+
+Definition can be found at:
+[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+
+
+* **Parameters**
+
+    **event** (*EventStreamMessage*) – The gRPC proto event
