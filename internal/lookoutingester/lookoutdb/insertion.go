@@ -49,7 +49,6 @@ func Update(ctx context.Context, db *pgxpool.Pool, instructions *model.Instructi
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
 	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
-
 	jobRunsToUpdate := conflateJobRunUpdates(instructions.JobRunsToUpdate)
 
 	// Jobs need to be ingested first as other updates may reference these
