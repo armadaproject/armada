@@ -42,6 +42,13 @@ else
 	DOCKER_NET = --network=host
 endif
 
+ifeq ($(DOCKER_RUN_AS_USER),)
+	DOCKER_RUN_AS_USER = -u $(shell id -u ${USER}):$(shell id -g ${USER})
+endif
+ifeq ($(platform),windows32)
+	DOCKER_RUN_AS_USER =
+endif
+
 ifeq ($(host_arch),arm64)
 	PROTO_DOCKERFILE = ./build/proto/Dockerfile.arm64
 else
@@ -62,7 +69,7 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
-GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
+GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
@@ -264,7 +271,7 @@ build-docker-lookout: node-setup
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
-	docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
@@ -425,9 +432,6 @@ junit-report:
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
 setup-proto: download
-	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
-	# first delete files in this directory - by default it has write perms disabled.
-	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
 	rm -rf proto
 	mkdir -p proto
 	mkdir -p proto/google/api
@@ -458,6 +462,8 @@ setup-proto: download
 #K8S API COPY
 	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
 	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
+
+	chmod -R ug+w proto
 
 python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
@@ -503,9 +509,10 @@ dotnet: dotnet-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
 
 # Build and package the dotnet Armada GRPC client
-dotnet-grpc: dotnet-setup
+dotnet-grpc: dotnet-setup setup-proto
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
+	docker run --rm $(DOCKER_RUN_AS_USER) -e GOPROXY -e GOPRIVATE -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
+		-w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:

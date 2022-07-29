@@ -1,7 +1,9 @@
 #!/bin/bash
 # This script is intended to be run under the docker container at $ARMADADIR/build/proto/
 
-export PATH=$PATH:/dotnet
+if [ -d /dotnet ]; then
+  export PATH=$PATH:/dotnet
+fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 export TYPES=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,\
@@ -46,6 +48,8 @@ protoc \
 
 # Create NuGet package
 if [ -d ./dotnet ] ; then PATH=$PATH:./dotnet; fi
+
+export DOTNET_NOLOGO=true
 
 cd client/DotNet.gRPC && \
   dotnet pack --include-source --include-symbols Armada.Client.Grpc
