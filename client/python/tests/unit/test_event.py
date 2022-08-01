@@ -1,37 +1,8 @@
-from concurrent import futures
-
-import grpc
 import pytest
 
-from server_mock import EventService, SubmitService
-
-from armada_client.armada import event_pb2_grpc, submit_pb2_grpc
 from armada_client.client import ArmadaClient
 from armada_client.event import Event
 from armada_client.typings import EventType
-
-
-@pytest.fixture(scope="session", autouse=True)
-def server_mock_setup():
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
-    event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
-    server.add_insecure_port("[::]:50051")
-    server.start()
-
-    yield
-    server.stop(False)
-
-
-channel = grpc.insecure_channel(target="127.0.0.1:50051")
-tester = ArmadaClient(
-    grpc.insecure_channel(
-        target="127.0.0.1:50051",
-        options={
-            "grpc.keepalive_time_ms": 30000,
-        }.items(),
-    )
-)
 
 
 class FakeEvent:
@@ -119,7 +90,7 @@ def test_unmarshal_event_response(name):
     test_event = FakeEventStreamMessage(name)
     test_event_from_class = Event(test_event)
 
-    test_event_from_method = tester.unmarshal_event_response(test_event)
+    test_event_from_method = ArmadaClient.unmarshal_event_response(test_event)
 
     assert test_event_from_method.id == test_event_from_class.id
     assert test_event_from_method.type == test_event_from_class.type
