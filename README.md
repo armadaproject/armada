@@ -5,7 +5,7 @@
 
 # Armada
 
-Armada is a multi-Kubernetes cluster batch job scheduler.
+Armada is a multi-[Kubernetes](https://kubernetes.io/docs/concepts/overview/) cluster batch job scheduler.
 
 Users submit jobs- expressed as a Kubernetes pod spec. + Armada-specific metadata- to a central Armada server. Armada stores jobs in user or project-specific queues that are backed by a specialized high-throughput storage layer. Armada manages several Kubernetes worker clusters that queued jobs are dispatched to.
 
