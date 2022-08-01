@@ -8,7 +8,7 @@ Currently there are three example files:
 
 There are also some codeblocks with useful code snippets:
 
-- [basicauth](#using-basic-auth)
+- [Using Basic Auth](#using-basic-auth)
 
 
 ## Setup
