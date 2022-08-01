@@ -11,8 +11,8 @@ Users submit jobs- expressed as a Kubernetes pod spec. + Armada-specific metadat
 
 Armada is designed to operate at scale and to address the following issues:
 
-1. A single Kubernetes cluster can not be scaled indefinitely, and managing very large Kubernetes clusters is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/) (hence, Armada is multi-cluster).
-2. Acheiving very high throughput using the in-cluster storage backend, etcd, is [challenging](https://etcd.io/docs/v3.5/op-guide/performance/) (hence, Armada uses a specialized storage layer).
+1. A single Kubernetes cluster can not be scaled indefinitely, and managing very large Kubernetes clusters is [challenging](https://openai.com/blog/scaling-kubernetes-to-7500-nodes/). Hence, Armada is multi-cluster scheduler built on top of several single-cluster schedulers, e.g., the vanilla scheduler or [Volcano](https://github.com/volcano-sh/volcano).
+2. Acheiving very high throughput using the in-cluster storage backend, etcd, is [challenging](https://etcd.io/docs/v3.5/op-guide/performance/). Hence, queueing and scheduling is performed partly out-of-cluster using a specialized storage layer to improve throughput (i.e., Armada, does not primarily rely on etcd).
 
 Further, Armada is designed primarily for machine learning, AI, and data analytics workloads, and to:
 
@@ -26,6 +26,12 @@ Further, Armada is designed primarily for machine learning, AI, and data analyti
 Armada is a [CNCF](https://www.cncf.io/) Sandbox project, is used in production at [G Research](https://www.gresearch.co.uk/), and is actively develped.
 
 For an overview of Armada, see [this video](https://www.youtube.com/watch?v=FT8pXYciD9A).
+
+## Overview
+
+Armada differs from previous Kubernetes batch scheduler in two important ways. First, Armada is multi-cluster scheduler built on top of several single-cluster schedulers, e.g., the vanilla scheduler or [Volcano](https://github.com/volcano-sh/volcano). Second, queueing and scheduling is performed partly out-of-cluster using a specialized storage layer to improve throughput (i.e., Armada, does not primarily rely on etcd).
+
+Jobs are submitted to queues (e.g., corresponding to users or projects), and enqueued jobs are dispatched to underlying worker clusters in an order that ensures resources are divided fairly between users.
 
 ## Documentation
 
