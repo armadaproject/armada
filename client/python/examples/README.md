@@ -2,9 +2,9 @@
 
 Currently there are three example files:
 
-- [simple.py](#simplepy)
-- [general.py](#generalpy)
-- [async_logging.py](#asyncloggingpy)
+- [simple.py](#simple.py)
+- [general.py](#general.py)
+- [async_logging.py](#async_logging.py)
 
 
 ## Setup
