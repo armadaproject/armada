@@ -21,8 +21,6 @@ class Permissions:
     """
     Permissions including Subjects and Verbs
 
-    Note that to_grpc() is not needed to use the client module:
-
     .. code-block:: python
 
         permissions = Permissions(...)
