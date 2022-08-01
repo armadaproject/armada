@@ -27,12 +27,6 @@ Armada is a [CNCF](https://www.cncf.io/) Sandbox project, is used in production 
 
 For an overview of Armada, see [this video](https://www.youtube.com/watch?v=FT8pXYciD9A).
 
-## Overview
-
-Armada differs from previous Kubernetes batch scheduler in two important ways. First, Armada is multi-cluster scheduler built on top of several single-cluster schedulers, e.g., the vanilla scheduler or [Volcano](https://github.com/volcano-sh/volcano). Second, queueing and scheduling is performed partly out-of-cluster using a specialized storage layer to improve throughput (i.e., Armada, does not primarily rely on etcd).
-
-Jobs are submitted to queues (e.g., corresponding to users or projects), and enqueued jobs are dispatched to underlying worker clusters in an order that ensures resources are divided fairly between users.
-
 ## Documentation
 
 For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
