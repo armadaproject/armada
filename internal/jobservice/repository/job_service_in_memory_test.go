@@ -95,16 +95,6 @@ func TestUnSubscribeJobSetHappy(t *testing.T) {
 	})
 }
 
-func TestPrintAllJobs(t *testing.T) {
-	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		var responseExpected = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
-		jobTable := NewJobTable("test", "job-set-1", "job-id", *responseExpected)
-
-		r.UpdateJobServiceDb("job-set-1", jobTable)
-		r.PrintAllItems()
-	})
-}
-
 func TestDeleteJobsInJobSet(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
 		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
@@ -193,21 +183,6 @@ func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
 
 	})
 }
-func TestPrintAllData(t *testing.T) {
-	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
-		var responseExpected2 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
-
-		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseExpected1)
-		jobTable2 := NewJobTable("test", "job-set-1", "job-id-2", *responseExpected2)
-
-		r.UpdateJobServiceDb("job-id", jobTable1)
-		r.UpdateJobServiceDb("job-id-2", jobTable2)
-
-		r.PrintAllItems()
-	})
-}
-
 func TestPersistToDatabase(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
 		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}

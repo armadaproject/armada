@@ -13,6 +13,7 @@ import (
 	"github.com/G-Research/armada/pkg/client"
 )
 
+// Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
 	queue                string
 	jobsetid             string
@@ -36,11 +37,13 @@ func NewEventsToJobService(
 	}
 }
 
+// Subscribes to a JobSet from jobsetid
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 
-	return eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
+	return eventToJobService.streamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
 }
-func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
+
+func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
 	conn, connErr := client.CreateApiConnection(clientConnect)
 	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)

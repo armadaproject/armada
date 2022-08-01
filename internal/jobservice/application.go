@@ -66,7 +66,6 @@ func (a *App) StartUp(ctx context.Context) error {
 			for _, value := range inMemoryJobService.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
 				if inMemoryJobService.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
-					inMemoryJobService.DeleteJobsInJobSet(value)
 					inMemoryJobService.UnSubscribeJobSet(value)
 				}
 			}

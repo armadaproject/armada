@@ -11,26 +11,32 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type JobStatus struct {
+// Internal structure for storing in memory JobTables and Subscription JobSets
+// Locks are used for concurrent access of map
+type jobStatus struct {
 	jobMap        map[string]*JobTable
 	jobLock       sync.RWMutex
 	subscribeMap  map[string]*SubscribeTable
 	subscribeLock sync.RWMutex
 }
 
-func NewJobStatus(jobMap map[string]*JobTable, subscribeMap map[string]*SubscribeTable) *JobStatus {
-	return &JobStatus{jobMap: jobMap, subscribeMap: subscribeMap}
+func NewJobStatus(jobMap map[string]*JobTable, subscribeMap map[string]*SubscribeTable) *jobStatus {
+	return &jobStatus{jobMap: jobMap, subscribeMap: subscribeMap}
 }
 
+// Implementation of JobService
 type InMemoryJobServiceRepository struct {
-	jobStatus        *JobStatus
+	jobStatus        *jobStatus
 	jobServiceConfig *configuration.JobServiceConfiguration
 }
 
-func NewInMemoryJobServiceRepository(jobMap *JobStatus, config *configuration.JobServiceConfiguration) *InMemoryJobServiceRepository {
+func NewInMemoryJobServiceRepository(jobMap *jobStatus, config *configuration.JobServiceConfiguration) *InMemoryJobServiceRepository {
 	return &InMemoryJobServiceRepository{jobStatus: jobMap, jobServiceConfig: config}
 }
 
+// Get the JobStatus given the jodId
+// If a job is not in the map, we return JOB_ID_NOT_FOUND
+// This should not be an error.
 func (inMem *InMemoryJobServiceRepository) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
 	inMem.jobStatus.jobLock.RLock()
 	jobResponse, ok := inMem.jobStatus.jobMap[jobId]
@@ -41,6 +47,8 @@ func (inMem *InMemoryJobServiceRepository) GetJobStatus(jobId string) (*js.JobSe
 
 	return &jobResponse.jobResponse, nil
 }
+
+// Update in memory JobStatus Map with jobId and our JobTable
 func (inMem *InMemoryJobServiceRepository) UpdateJobServiceDb(jobId string, jobTable *JobTable) error {
 	log.Infof("Updating JobId %s with State %s", jobId, jobTable.jobResponse.State)
 	inMem.jobStatus.jobLock.Lock()
@@ -53,10 +61,14 @@ func (inMem *InMemoryJobServiceRepository) UpdateJobServiceDb(jobId string, jobT
 	}
 	return nil
 }
+
+// Health Check for this service
+// True always in the in memory case
 func (inMem *InMemoryJobServiceRepository) HealthCheck() bool {
 	return true
 }
 
+// Check if JobSet is in our JobSetMap
 func (inMem *InMemoryJobServiceRepository) IsJobSetSubscribed(jobSetId string) bool {
 	inMem.jobStatus.subscribeLock.Lock()
 	defer inMem.jobStatus.subscribeLock.Unlock()
@@ -64,6 +76,8 @@ func (inMem *InMemoryJobServiceRepository) IsJobSetSubscribed(jobSetId string) b
 	return ok
 }
 
+// Mark our JobSet as being subscribed
+// SubscribeTable contains JobSet and time when it was created.
 func (inMem *InMemoryJobServiceRepository) SubscribeJobSet(jobSetId string) {
 	inMem.jobStatus.subscribeLock.Lock()
 	defer inMem.jobStatus.subscribeLock.Unlock()
@@ -76,6 +90,7 @@ func (inMem *InMemoryJobServiceRepository) SubscribeJobSet(jobSetId string) {
 
 }
 
+// UnSubscribe to JobSet and delete all the jobs in the in memory map
 func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
 	inMem.jobStatus.subscribeLock.RLock()
 	defer inMem.jobStatus.subscribeLock.RUnlock()
@@ -89,14 +104,17 @@ func (inMem *InMemoryJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
 	inMem.DeleteJobsInJobSet(jobSetId)
 }
 
-func (inMem *InMemoryJobServiceRepository) CheckToUnSubscribe(jobSetId string, configTimeWithoutUpdates int64) bool {
+// Checks JobSet table to make determine if we should unsubscribe from JobSet
+// configTimeWithoutUpdates is a configurable value that is read from the config
+// We allow unsubscribing if the jobset hasn't been updated in configTime
+func (inMem *InMemoryJobServiceRepository) CheckToUnSubscribe(jobSetId string, configTime int64) bool {
 	if !inMem.IsJobSetSubscribed(jobSetId) {
 		return false
 	}
 	currentTime := time.Now().Unix()
 	for _, val := range inMem.jobStatus.subscribeMap {
 		if val.subscribedJobSet == jobSetId {
-			if (currentTime - val.lastRequestTimeStamp) > configTimeWithoutUpdates {
+			if (currentTime - val.lastRequestTimeStamp) > configTime {
 				return true
 			}
 		}
@@ -104,6 +122,7 @@ func (inMem *InMemoryJobServiceRepository) CheckToUnSubscribe(jobSetId string, c
 	return false
 }
 
+// Update JobSet Map with time that a Job in that JobSet was requested
 func (inMem *InMemoryJobServiceRepository) UpdateJobSetTime(jobSetId string) error {
 	inMem.jobStatus.subscribeLock.Lock()
 	defer inMem.jobStatus.subscribeLock.Unlock()
@@ -117,9 +136,7 @@ func (inMem *InMemoryJobServiceRepository) UpdateJobSetTime(jobSetId string) err
 	}
 }
 
-// This is a very slow function until we get a database.
-// We will loop over keys in map and delete ones that have a matching jobSetId.
-// Painfully slow!
+// Delete Jobs in JobSet
 func (inMem *InMemoryJobServiceRepository) DeleteJobsInJobSet(jobSetId string) error {
 	inMem.jobStatus.jobLock.RLock()
 	defer inMem.jobStatus.jobLock.RUnlock()
@@ -132,7 +149,9 @@ func (inMem *InMemoryJobServiceRepository) DeleteJobsInJobSet(jobSetId string) e
 	return nil
 }
 
-func (inMem *InMemoryJobServiceRepository) PrintAllItems() {
+// private function for debugging purposes.
+// Once we have a DB we should remove this.
+func (inMem *InMemoryJobServiceRepository) printAllItems() {
 	log.Info("Printing All Items")
 	inMem.jobStatus.jobLock.RLock()
 	defer inMem.jobStatus.jobLock.RUnlock()
@@ -141,6 +160,7 @@ func (inMem *InMemoryJobServiceRepository) PrintAllItems() {
 	}
 }
 
+// Get a list of SubscribedJobSets
 func (inMem *InMemoryJobServiceRepository) GetSubscribedJobSets() []string {
 	var returnJobSets []string
 	for _, value := range inMem.jobStatus.subscribeMap {
@@ -151,6 +171,6 @@ func (inMem *InMemoryJobServiceRepository) GetSubscribedJobSets() []string {
 
 // Once we add database, we should use this to persist.
 func (inMem *InMemoryJobServiceRepository) PersistDataToDatabase() error {
-	inMem.PrintAllItems()
+	inMem.printAllItems()
 	return nil
 }

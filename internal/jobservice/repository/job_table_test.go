@@ -14,5 +14,5 @@ func TestJobTable(t *testing.T) {
 	assert.Equal(t, jobTable.jobSetId, "test-job-set")
 	assert.Equal(t, jobTable.jobId, "test-job-id")
 	assert.Equal(t, jobTable.jobResponse, jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND})
-
+	assert.True(t, jobTable.timeStamp > 0)
 }
