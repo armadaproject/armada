@@ -448,8 +448,6 @@ Definition can be found at:
 ### _class_ armada_client.permissions.Permissions(subjects, verbs)
 Permissions including Subjects and Verbs
 
-Note that to_grpc() is not needed to use the client module:
-
 ```python
 permissions = Permissions(...)
 client = ArmadaClient(...)
