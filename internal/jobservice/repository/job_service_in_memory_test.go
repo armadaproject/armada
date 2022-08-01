@@ -51,27 +51,29 @@ func TestConstructInMemoryServiceNoJob(t *testing.T) {
 
 func TestIsJobSubscribed(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		resp := r.IsJobSetSubscribed("job-set-1")
+		resp := r.IsJobSetSubscribed("queue-1job-set-1")
 		assert.False(t, resp)
-		r.SubscribeJobSet("job-set-1")
-		resp2 := r.IsJobSetSubscribed("job-set-1")
+		r.SubscribeJobSet("queue-1job-set-1")
+		resp2 := r.IsJobSetSubscribed("queue-1job-set-1")
 		assert.True(t, resp2)
 	})
 }
 
 func TestSubscribeList(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		r.SubscribeJobSet("job-set-1")
-		r.SubscribeJobSet("job-set-2")
+		queueJobSet1 := "queue-1job-set-1"
+		queueJobSet2 := "queue-1-job-set-2"
+		r.SubscribeJobSet(queueJobSet1)
+		r.SubscribeJobSet(queueJobSet2)
 
 		subscribeList := r.GetSubscribedJobSets()
 
 		for _, val := range subscribeList {
 
-			if val == "job-set-1" {
-				assert.Equal(t, val, "job-set-1")
-			} else if val == "job-set-2" {
-				assert.Equal(t, val, "job-set-2")
+			if val == queueJobSet1 {
+				assert.Equal(t, val, queueJobSet1)
+			} else if val == queueJobSet2 {
+				assert.Equal(t, val, queueJobSet2)
 			} else {
 				assert.True(t, false)
 			}
@@ -81,17 +83,17 @@ func TestSubscribeList(t *testing.T) {
 
 func TestUnscribeJobSetIfNonExist(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		r.UnSubscribeJobSet("job-set-1")
-		assert.False(t, r.IsJobSetSubscribed("job-set-1"))
+		r.UnSubscribeJobSet("queuejob-set-1")
+		assert.False(t, r.IsJobSetSubscribed("queuejob-set-1"))
 	})
 }
 func TestUnSubscribeJobSetHappy(t *testing.T) {
 	WithInMemoryRepo(func(r *InMemoryJobServiceRepository) {
-		r.SubscribeJobSet("job-set-1")
-		respHappy := r.IsJobSetSubscribed("job-set-1")
+		r.SubscribeJobSet("queuejob-set-1")
+		respHappy := r.IsJobSetSubscribed("queuejob-set-1")
 		assert.True(t, respHappy)
-		r.UnSubscribeJobSet("job-set-1")
-		assert.False(t, r.IsJobSetSubscribed("job-set-1"))
+		r.UnSubscribeJobSet("queuejob-set-1")
+		assert.False(t, r.IsJobSetSubscribed("queuejob-set-1"))
 	})
 }
 
@@ -116,7 +118,8 @@ func TestDeleteJobsInJobSet(t *testing.T) {
 		assert.Equal(t, jobResponse2, responseExpected2)
 		assert.Equal(t, jobResponse3, responseExpected3)
 
-		r.DeleteJobsInJobSet("job-set-1")
+		r.SubscribeJobSet("testjob-set-1")
+		r.DeleteJobsInJobSet("testjob-set-1")
 		jobResponseDelete1, _ := r.GetJobStatus("job-id")
 		jobResponseDelete2, _ := r.GetJobStatus("job-id-2")
 		jobResponseDelete3, _ := r.GetJobStatus("job-id-3")

@@ -42,7 +42,7 @@ func (a *App) StartUp(ctx context.Context) error {
 	subscribedJobSets := make(map[string]*repository.SubscribeTable)
 	jobStatusMap := repository.NewJobStatus(inMemoryMap, subscribedJobSets)
 	inMemoryJobService := repository.NewInMemoryJobServiceRepository(jobStatusMap, config)
-	jobService := server.NewJobService(config, inMemoryJobService)
+	jobService := server.NewJobService(config, *inMemoryJobService)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))

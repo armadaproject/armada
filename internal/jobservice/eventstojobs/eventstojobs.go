@@ -19,7 +19,7 @@ type EventsToJobService struct {
 	jobsetid             string
 	jobid                string
 	jobServiceConfig     *configuration.JobServiceConfiguration
-	jobServiceRepository repository.JobServiceRepository
+	jobServiceRepository repository.InMemoryJobServiceRepository
 }
 
 func NewEventsToJobService(
@@ -27,7 +27,7 @@ func NewEventsToJobService(
 	jobsetid string,
 	jobid string,
 	jobServiceConfig *configuration.JobServiceConfiguration,
-	jobServiceRepository repository.JobServiceRepository) *EventsToJobService {
+	jobServiceRepository repository.InMemoryJobServiceRepository) *EventsToJobService {
 	return &EventsToJobService{
 		queue:                queue,
 		jobsetid:             jobsetid,
@@ -45,10 +45,13 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 
 func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
+	// Primary key for JobSet invovles queue and jobset
+	queueJobSetKey := eventToJobService.queue + eventToJobService.jobsetid
 	conn, connErr := client.CreateApiConnection(clientConnect)
-	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)
+	eventToJobService.jobServiceRepository.SubscribeJobSet(queueJobSetKey)
 	if connErr != nil {
 		log.Warnf("Connection Issues with EventClient %v", connErr)
+		return connErr
 	}
 	defer conn.Close()
 	g, _ := errgroup.WithContext(ctx)
@@ -58,7 +61,7 @@ func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.
 		// This will log an error to the jobservice log saying that the connection was used.
 		ticker := time.NewTicker(time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
-			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
+			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(queueJobSetKey) {
 				return conn.Close()
 			}
 		}
