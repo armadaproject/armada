@@ -9,7 +9,6 @@ import uuid
 
 import grpc
 from armada_client.client import ArmadaClient
-from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
@@ -48,7 +47,7 @@ def create_dummy_job(client: ArmadaClient):
     return [client.create_job_request_item(priority=1, pod_spec=pod)]
 
 
-def wait_for_job_event(event_stream, job_id: str, event_state: EventType):
+def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType):
     """
     Wait for a job event to occur.
 
@@ -58,7 +57,7 @@ def wait_for_job_event(event_stream, job_id: str, event_state: EventType):
     # Contains all the possible message types
     for event in event_stream:
 
-        event = Event(event)
+        event = client.unmarshal_event_response(event)
 
         if event.message.job_id == job_id:
             if event.type == EventType.failed:
@@ -94,7 +93,7 @@ def creating_jobs_example(client, queue, job_set_id):
     # Can be accessed directly as an iterator that will yield the next event
     event_stream = client.get_job_events_stream(queue=queue, job_set_id=job_set_id)
 
-    test = wait_for_job_event(event_stream, job_id, EventType.succeeded)
+    test = wait_for_job_event(client, event_stream, job_id, EventType.succeeded)
     if test:
         print("Job submitted")
 
