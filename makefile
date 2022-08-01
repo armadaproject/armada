@@ -62,7 +62,7 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
-GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
+GO_CMD = docker run --rm -u $(shell id -u ${USER}):$(shell id -g ${USER}) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
@@ -264,7 +264,7 @@ build-docker-lookout: node-setup
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
-	docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	docker run --rm -u $(shell id -u ${USER}):$(shell id -g ${USER}) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
@@ -507,7 +507,7 @@ dotnet: dotnet-setup
 # Build and package the dotnet Armada GRPC client
 dotnet-grpc: dotnet-setup setup-proto
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
+	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
 		-w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
 
 dotnet-clean:
