@@ -72,5 +72,4 @@ protoc \
 --proto_path=/proto \
 --grpc-gateway_out=logtostderr=true,$TYPES:. \
 --swagger_out=logtostderr=true,$TYPES,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/binoculars/api:. \
-pkg/api/binoculars/binoculars.proto \
-
+pkg/api/binoculars/binoculars.proto
