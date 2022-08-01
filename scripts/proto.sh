@@ -1,3 +1,5 @@
+# See https://developers.google.com/protocol-buffers/docs/reference/go-generated
+# for details on this syntax for mapping proto files to Go import path types
 export TYPES=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,\

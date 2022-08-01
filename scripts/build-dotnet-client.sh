@@ -6,13 +6,6 @@ if [ -d /dotnet ]; then
 fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
-export TYPES=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types
-
 GEN_OUT=client/DotNet.gRPC/Armada.Client.Grpc/generated
 if [ ! -d $GEN_OUT ]; then mkdir -p $GEN_OUT; fi
 
@@ -43,8 +36,6 @@ protoc \
     k8s.io/apimachinery/pkg/runtime/schema/generated.proto \
     k8s.io/apimachinery/pkg/util/intstr/generated.proto \
     k8s.io/api/networking/v1/generated.proto
-
-
 
 # Create NuGet package
 if [ -d ./dotnet ] ; then PATH=$PATH:./dotnet; fi
