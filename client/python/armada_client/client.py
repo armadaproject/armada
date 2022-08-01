@@ -7,7 +7,7 @@ https://armadaproject.io/api
 
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Generator, List, Optional
+from typing import Dict, Generator, List, Optional
 
 from google.protobuf import empty_pb2
 
@@ -18,9 +18,9 @@ from armada_client.armada import (
     submit_pb2_grpc,
     usage_pb2_grpc,
 )
-from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-
 from armada_client.event import Event
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+from armada_client.permissions import Permissions
 
 
 class ArmadaClient:
@@ -146,29 +146,73 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    def create_queue(self, name: str, **queue_params) -> empty_pb2.Empty:
+    def create_queue(
+        self,
+        name: str,
+        priority_factor: Optional[float],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[Permissions]] = None,
+    ) -> empty_pb2.Empty:
         """Create the queue by name.
 
         Uses the CreateQueue RPC to create a queue.
 
         :param name: The name of the queue
-        :param queue_params: Queue Object
+        :param priority_factor: The priority factor for the queue
+        :param user_owners: The user owners for the queue
+        :param group_owners: The group owners for the queue
+        :param resource_limits: The resource limits for the queue
+        :param permissions: The permissions for the queue
         :return: A queue object per the Armada api definition.
         """
-        request = submit_pb2.Queue(name=name, **queue_params)
+
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
+
+        request = submit_pb2.Queue(
+            name=name,
+            priority_factor=priority_factor,
+            user_owners=user_owners,
+            group_owners=group_owners,
+            resource_limits=resource_limits,
+            permissions=permissions,
+        )
         response = self.submit_stub.CreateQueue(request)
         return response
 
-    def update_queue(self, name: str, **queue_params) -> None:
+    def update_queue(
+        self,
+        name: str,
+        priority_factor: Optional[float],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[Permissions]] = None,
+    ) -> None:
         """Update the queue of name with values in queue_params
 
         Uses UpdateQueue RPC to update the parameters on the queue.
 
         :param name: The name of the queue
-        :param queue_params: Queue Object
+        :param priority_factor: The priority factor for the queue
+        :param user_owners: The user owners for the queue
+        :param group_owners: The group owners for the queue
+        :param resource_limits: The resource limits for the queue
+        :param permissions: The permissions for the queue
         :return: None
         """
-        request = submit_pb2.Queue(name=name, **queue_params)
+
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
+
+        request = submit_pb2.Queue(
+            name=name,
+            priority_factor=priority_factor,
+            user_owners=user_owners,
+            group_owners=group_owners,
+            resource_limits=resource_limits,
+            permissions=permissions,
+        )
         self.submit_stub.UpdateQueue(request)
 
     def delete_queue(self, name: str) -> None:
@@ -235,16 +279,41 @@ class ArmadaClient:
         )
 
     def create_job_request_item(
-        self, pod_spec: core_v1.PodSpec, priority: int = 1, **job_item_params
+        self,
+        pod_spec: core_v1.PodSpec,
+        priority: float = 1.0,
+        pod_specs: Optional[List[core_v1.PodSpec]] = None,
+        namespace: Optional[str] = None,
+        client_id: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        annotations: Optional[Dict[str, str]] = None,
+        required_node_labels: Optional[Dict[str, str]] = None,
+        ingress: Optional[List[submit_pb2.IngressConfig]] = None,
+        services: Optional[List[submit_pb2.ServiceConfig]] = None,
     ) -> submit_pb2.JobSubmitRequestItem:
         """Create a job request.
 
         :param priority: The priority of the job
         :param pod_spec: The k8s pod spec of the job
-        :param job_item_params: All other job_item kwaarg
-               arguments as specified in the api definition.
+        :param pod_specs: List of k8s pod specs of the job
+        :param namespace: The namespace of the job
+        :param client_id: The client id of the job
+        :param labels: The labels of the job
+        :param annotations: The annotations of the job
+        :param required_node_labels: The required node labels of the job
+        :param ingress: The ingress of the job
+        :param services: The services of the job
         :return: A job item request object. See the api definition.
         """
         return submit_pb2.JobSubmitRequestItem(
-            priority=priority, pod_spec=pod_spec, **job_item_params
+            priority=priority,
+            pod_spec=pod_spec,
+            pod_specs=pod_specs,
+            namespace=namespace,
+            client_id=client_id,
+            labels=labels,
+            annotations=annotations,
+            required_node_labels=required_node_labels,
+            ingress=ingress,
+            services=services,
         )
