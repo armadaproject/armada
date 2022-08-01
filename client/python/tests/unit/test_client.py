@@ -38,35 +38,6 @@ tester = ArmadaClient(
 )
 
 
-def test_create_job_request():
-    pod = core_v1.PodSpec(
-        containers=[
-            core_v1.Container(
-                name="Container1",
-                image="index.docker.io/library/ubuntu:latest",
-                args=["sleep", "10s"],
-                securityContext=core_v1.SecurityContext(runAsUser=1000),
-                resources=core_v1.ResourceRequirements(
-                    requests={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
-                    },
-                    limits={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
-                    },
-                ),
-            )
-        ],
-    )
-
-    item = tester.create_job_request_item(pod_spec=pod)
-
-    tester.create_job_request(
-        queue="test", job_set_id="job-set-1", job_request_items=[item]
-    )
-
-
 def test_submit_job():
     pod = core_v1.PodSpec(
         containers=[
