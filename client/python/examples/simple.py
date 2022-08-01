@@ -74,15 +74,14 @@ def simple_workflow():
     # Create the PodSpec for the job
     job_request_items = create_dummy_job(client)
 
-    client.create_job_request(
-        queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
-    )
     client.submit_jobs(
         queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
     )
 
 
 if __name__ == "__main__":
+    # Note that the form of ARMADA_SERVER should be something like
+    # domain.com, localhost, or 0.0.0.0
     DISABLE_SSL = os.environ.get("DISABLE_SSL", False)
     HOST = os.environ.get("ARMADA_SERVER", "localhost")
     PORT = os.environ.get("ARMADA_PORT", "50051")

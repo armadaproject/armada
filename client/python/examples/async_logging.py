@@ -1,3 +1,8 @@
+"""
+Demonstrates how to run jobs, and also log all
+changes to that job or job_set in realtime concurrently.
+"""
+
 import os
 import threading
 import time
@@ -147,11 +152,9 @@ def workflow(client, queue, job_set_id):
 
     job_request_items = create_dummy_job(client)
 
-    client.create_job_request(
+    client.submit_jobs(
         queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
     )
-
-    client.submit_jobs(queue, job_set_id, job_request_items)
     client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
 
 
@@ -198,6 +201,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # Note that the form of ARMADA_SERVER should be something like
+    # domain.com, localhost, or 0.0.0.0
     DISABLE_SSL = os.environ.get("DISABLE_SSL", False)
     HOST = os.environ.get("ARMADA_SERVER", "localhost")
     PORT = os.environ.get("ARMADA_PORT", "50051")

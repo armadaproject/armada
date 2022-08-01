@@ -1,6 +1,7 @@
 """
-Example of using the armada client to create a queue, jobset and job,
-then watch for the job to succeed or fail.
+A more fledged out version of `simple.py` where we create a queue only
+if it doesn't exist, and then create a jobset and job, and wait until
+the job succeeds or fails.
 """
 
 import os
@@ -74,9 +75,6 @@ def creating_jobs_example(client, queue, job_set_id):
     # Create the PodSpec for the job
     job_request_items = create_dummy_job(client)
 
-    client.create_job_request(
-        queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
-    )
     resp = client.submit_jobs(
         queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
     )
@@ -165,6 +163,8 @@ def workflow():
 
 
 if __name__ == "__main__":
+    # Note that the form of ARMADA_SERVER should be something like
+    # domain.com, localhost, or 0.0.0.0
     DISABLE_SSL = os.environ.get("DISABLE_SSL", False)
     HOST = os.environ.get("ARMADA_SERVER", "localhost")
     PORT = os.environ.get("ARMADA_PORT", "50051")
