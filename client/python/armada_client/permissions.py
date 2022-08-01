@@ -20,6 +20,12 @@ class Subject(NamedTuple):
 class Permissions:
     """
     Permissions including Subjects and Verbs
+
+    To use in update_queue or create_queue run:
+
+    .. code-block:: python
+
+        permissions.to_grpc()
     """
 
     def __init__(self, subjects: List[Subject], verbs: List[str]):
