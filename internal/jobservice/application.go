@@ -48,8 +48,8 @@ func (a *App) StartUp(ctx context.Context) error {
 		log.Errorf("Error Opening Sqlite DB from %s %v", config.DatabaseFilePath, err)
 	}
 	defer db.Close()
-	sqlJobRepo := repository.NewSQLJobServiceRepository(jobStatusMap, config, db)
-	jobService := server.NewJobService(config, sqlJobRepo)
+	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
+	jobService := server.NewJobService(config, *sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 	sqlJobRepo.CreateTable()
 
@@ -74,7 +74,6 @@ func (a *App) StartUp(ctx context.Context) error {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
 				if sqlJobRepo.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
-					sqlJobRepo.DeleteJobsInJobSet(value)
 					sqlJobRepo.UnSubscribeJobSet(value)
 				}
 			}

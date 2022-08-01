@@ -7,6 +7,6 @@ type SubscribeTable struct {
 	lastRequestTimeStamp int64
 }
 
-func NewSubscribeTable(jobSetId string) *SubscribeTable {
-	return &SubscribeTable{subscribedJobSet: jobSetId, lastRequestTimeStamp: time.Now().Unix()}
+func NewSubscribeTable(queueJobSet string) *SubscribeTable {
+	return &SubscribeTable{subscribedJobSet: queueJobSet, lastRequestTimeStamp: time.Now().Unix()}
 }

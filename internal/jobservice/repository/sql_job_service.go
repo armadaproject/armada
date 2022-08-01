@@ -14,6 +14,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Internal structure for storing in memory JobTables and Subscription JobSets
+// Locks are used for concurrent access of map
 type JobStatus struct {
 	jobMap        map[string]*JobTable
 	jobLock       sync.RWMutex
@@ -25,25 +27,27 @@ func NewJobStatus(jobMap map[string]*JobTable, subscribeMap map[string]*Subscrib
 	return &JobStatus{jobMap: jobMap, subscribeMap: subscribeMap}
 }
 
-type SQLJobServiceRepository struct {
+// SQLJobService for persisting to DB.
+type SQLJobService struct {
 	jobStatus        *JobStatus
 	jobServiceConfig *configuration.JobServiceConfiguration
 	db               *sql.DB
 }
 
-func NewSQLJobServiceRepository(jobMap *JobStatus, config *configuration.JobServiceConfiguration, db *sql.DB) *SQLJobServiceRepository {
-	return &SQLJobServiceRepository{jobStatus: jobMap, jobServiceConfig: config, db: db}
+func NewSQLJobService(jobMap *JobStatus, config *configuration.JobServiceConfiguration, db *sql.DB) *SQLJobService {
+	return &SQLJobService{jobStatus: jobMap, jobServiceConfig: config, db: db}
 }
 
-func (s *SQLJobServiceRepository) CreateTable() {
+// Create a Table from a hard-coded schema.
+// Open to suggestions on how to make this better
+func (s *SQLJobService) CreateTable() {
 	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
 		panic(err)
 	}
 	_, err = s.db.Exec(`
 CREATE TABLE jobservice (
-queue TEXT,
-JobSetId TEXT,
+queueJobSetId TEXT,
 JobId TEXT,
 JobResponseState TEXT,
 JobResponseError TEXT,
@@ -54,7 +58,10 @@ Timestamp INT
 	}
 }
 
-func (s *SQLJobServiceRepository) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
+// Get the JobStatus given the jodId
+// If a job is not in the map, we return JOB_ID_NOT_FOUND
+// This should not be an error.
+func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
 	s.jobStatus.jobLock.RLock()
 	jobResponse, ok := s.jobStatus.jobMap[jobId]
 	s.jobStatus.jobLock.RUnlock()
@@ -69,7 +76,9 @@ func (s *SQLJobServiceRepository) GetJobStatus(jobId string) (*js.JobServiceResp
 	return &jobResponse.jobResponse, nil
 }
 
-func (s *SQLJobServiceRepository) GetJobStatusSQL(jobId string) (*js.JobServiceResponse, error) {
+// If our in memory map no longer contains the status, we should query the row to get it
+// If that doesn't exist then we assume the job doesn't exist yet.
+func (s *SQLJobService) GetJobStatusSQL(jobId string) (*js.JobServiceResponse, error) {
 	row := s.db.QueryRow("SELECT JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
 	var jobState string
 	var jobError string
@@ -96,13 +105,17 @@ func (s *SQLJobServiceRepository) GetJobStatusSQL(jobId string) (*js.JobServiceR
 	}
 	return jobProtoResponse, nil
 }
-func (s *SQLJobServiceRepository) UpdateJobServiceDb(jobTable *JobTable) {
+
+// Update in memory JobStatus Map with jobId and our JobTable
+func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
 	log.Infof("Updating JobId %s with State %s", jobTable.jobId, jobTable.jobResponse.State)
 	s.jobStatus.jobLock.Lock()
 	defer s.jobStatus.jobLock.Unlock()
 	s.jobStatus.jobMap[jobTable.jobId] = jobTable
 }
-func (s *SQLJobServiceRepository) HealthCheck() (bool, error) {
+
+// Simple Health Check to Verify if SqlLite is working.
+func (s *SQLJobService) HealthCheck() (bool, error) {
 	row := s.db.QueryRow("SELECT 1")
 	var col int
 	err := row.Scan(&col)
@@ -113,45 +126,51 @@ func (s *SQLJobServiceRepository) HealthCheck() (bool, error) {
 	}
 }
 
-func (s *SQLJobServiceRepository) IsJobSetSubscribed(jobSetId string) bool {
+// Check if JobSet is in our map.
+// Note: The key should be queuejobset.
+func (s *SQLJobService) IsJobSetSubscribed(jobSetQueue string) bool {
 	s.jobStatus.subscribeLock.Lock()
 	defer s.jobStatus.subscribeLock.Unlock()
-	_, ok := s.jobStatus.subscribeMap[jobSetId]
+	_, ok := s.jobStatus.subscribeMap[jobSetQueue]
 	return ok
 }
 
-func (s *SQLJobServiceRepository) SubscribeJobSet(jobSetId string) {
+// Mark our JobSet as being subscribed
+// SubscribeTable contains JobSet and time when it was created.
+func (s *SQLJobService) SubscribeJobSet(jobSetQueue string) {
 	s.jobStatus.subscribeLock.Lock()
 	defer s.jobStatus.subscribeLock.Unlock()
-	_, ok := s.jobStatus.subscribeMap[jobSetId]
-	if ok {
-		return
-	} else {
-		s.jobStatus.subscribeMap[jobSetId] = NewSubscribeTable(jobSetId)
+	_, ok := s.jobStatus.subscribeMap[jobSetQueue]
+	if !ok {
+		s.jobStatus.subscribeMap[jobSetQueue] = NewSubscribeTable(jobSetQueue)
 	}
 
 }
 
-func (s *SQLJobServiceRepository) UnSubscribeJobSet(jobSetId string) {
+// UnSubscribe to JobSet and delete all the jobs in the in memory map
+func (s *SQLJobService) UnSubscribeJobSet(jobSetQueue string) {
 	s.jobStatus.subscribeLock.RLock()
 	defer s.jobStatus.subscribeLock.RUnlock()
-	_, ok := s.jobStatus.subscribeMap[jobSetId]
+	_, ok := s.jobStatus.subscribeMap[jobSetQueue]
 	if !ok {
-		log.Infof("JobSetId %s already unsubscribed", jobSetId)
+		log.Infof("JobSetId %s already unsubscribed", jobSetQueue)
 		return
 	}
-	delete(s.jobStatus.subscribeMap, jobSetId)
-	log.Infof("JobSetId %s unsubscribed", jobSetId)
-	s.DeleteJobsInJobSet(jobSetId)
+	delete(s.jobStatus.subscribeMap, jobSetQueue)
+	log.Infof("QueueJobSetId %s unsubscribed", jobSetQueue)
+	s.DeleteJobsInJobSet(jobSetQueue)
 }
 
-func (s *SQLJobServiceRepository) CheckToUnSubscribe(jobSetId string, configTimeWithoutUpdates int64) bool {
-	if !s.IsJobSetSubscribed(jobSetId) {
+// Checks JobSet table to make determine if we should unsubscribe from JobSet
+// configTimeWithoutUpdates is a configurable value that is read from the config
+// We allow unsubscribing if the jobset hasn't been updated in configTime
+func (s *SQLJobService) CheckToUnSubscribe(queueJobSet string, configTimeWithoutUpdates int64) bool {
+	if !s.IsJobSetSubscribed(queueJobSet) {
 		return false
 	}
 	currentTime := time.Now().Unix()
 	for _, val := range s.jobStatus.subscribeMap {
-		if val.subscribedJobSet == jobSetId {
+		if val.subscribedJobSet == queueJobSet {
 			if (currentTime - val.lastRequestTimeStamp) > configTimeWithoutUpdates {
 				return true
 			}
@@ -160,7 +179,8 @@ func (s *SQLJobServiceRepository) CheckToUnSubscribe(jobSetId string, configTime
 	return false
 }
 
-func (s *SQLJobServiceRepository) UpdateJobSetTime(jobSetId string) error {
+// Update JobSet Map with time that a Job in that JobSet was requested
+func (s *SQLJobService) UpdateJobSetTime(jobSetId string) error {
 	s.jobStatus.subscribeLock.Lock()
 	defer s.jobStatus.subscribeLock.Unlock()
 
@@ -173,12 +193,14 @@ func (s *SQLJobServiceRepository) UpdateJobSetTime(jobSetId string) error {
 	}
 }
 
-// This is a very slow function until we get a database.
-// We will loop over keys in map and delete ones that have a matching jobSetId.
-// Painfully slow!
-func (s *SQLJobServiceRepository) DeleteJobsInJobSet(jobSetId string) error {
+// Delete Jobs in the map.
+// This could be a race condition if the in memory map contains the jobs and they haven't been
+// persisted to the DB yet.
+func (s *SQLJobService) DeleteJobsInJobSet(jobSetId string) error {
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
+	// TODO Handle race condition
+	// Maybe we should persist this JobSet to DB if it doesn't exist
 	_, err := s.db.Exec("DELETE FROM jobservice WHERE JobSetId=?", jobSetId)
 	if err != nil {
 		return err
@@ -186,27 +208,30 @@ func (s *SQLJobServiceRepository) DeleteJobsInJobSet(jobSetId string) error {
 	return nil
 }
 
-func (s *SQLJobServiceRepository) GetSubscribedJobSets() []string {
+// Get a list of SubscribedJobSets (QueueJobSetId)
+func (s *SQLJobService) GetSubscribedJobSets() []string {
 	var returnJobSets []string
+	s.jobStatus.jobLock.RLock()
+	defer s.jobStatus.jobLock.RUnlock()
 	for _, value := range s.jobStatus.subscribeMap {
 		returnJobSets = append(returnJobSets, value.subscribedJobSet)
 	}
 	return returnJobSets
 }
 
-// Once we add database, we should use this to persist.
-func (s *SQLJobServiceRepository) PersistDataToDatabase() error {
+// Save our in memory map to Database and delete from in memory map.
+func (s *SQLJobService) PersistDataToDatabase() error {
 	log.Info("Saving Data to Database")
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
 	for key, value := range s.jobStatus.jobMap {
-		stmt, err := s.db.Prepare("INSERT INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
+		stmt, err := s.db.Prepare("INSERT INTO jobservice VALUES (?, ?, ?, ?, ?)")
 		if err != nil {
 			panic(err)
 		}
 		jobState := value.jobResponse.State.String()
 		log.Infof("State: %s", jobState)
-		_, execErr := stmt.Exec(value.queue, value.jobSetId, value.jobId, jobState, value.jobResponse.Error, value.timeStamp)
+		_, execErr := stmt.Exec(value.queueJobSetId, value.jobId, jobState, value.jobResponse.Error, value.timeStamp)
 		if execErr != nil {
 			panic(execErr)
 		}

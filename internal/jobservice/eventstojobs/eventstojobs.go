@@ -13,12 +13,13 @@ import (
 	"github.com/G-Research/armada/pkg/client"
 )
 
+// Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
 	queue                string
 	jobsetid             string
 	jobid                string
 	jobServiceConfig     *configuration.JobServiceConfiguration
-	jobServiceRepository repository.JobServiceRepository
+	jobServiceRepository repository.SQLJobService
 }
 
 func NewEventsToJobService(
@@ -26,7 +27,7 @@ func NewEventsToJobService(
 	jobsetid string,
 	jobid string,
 	jobServiceConfig *configuration.JobServiceConfiguration,
-	jobServiceRepository repository.JobServiceRepository) *EventsToJobService {
+	jobServiceRepository repository.SQLJobService) *EventsToJobService {
 	return &EventsToJobService{
 		queue:                queue,
 		jobsetid:             jobsetid,
@@ -36,16 +37,21 @@ func NewEventsToJobService(
 	}
 }
 
+// Subscribes to a JobSet from jobsetid
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 
-	return eventToJobService.StreamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
+	return eventToJobService.streamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
 }
-func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
+
+func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
+	// Primary key for JobSet invovles queue and jobset
+	queueJobSetKey := eventToJobService.queue + eventToJobService.jobsetid
 	conn, connErr := client.CreateApiConnection(clientConnect)
-	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.jobsetid)
+	eventToJobService.jobServiceRepository.SubscribeJobSet(queueJobSetKey)
 	if connErr != nil {
 		log.Warnf("Connection Issues with EventClient %v", connErr)
+		return connErr
 	}
 	defer conn.Close()
 	g, _ := errgroup.WithContext(ctx)
@@ -55,7 +61,7 @@ func (eventToJobService *EventsToJobService) StreamCommon(clientConnect *client.
 		// This will log an error to the jobservice log saying that the connection was used.
 		ticker := time.NewTicker(time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
-			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.jobsetid) {
+			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(queueJobSetKey) {
 				return conn.Close()
 			}
 		}

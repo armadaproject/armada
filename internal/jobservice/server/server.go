@@ -15,24 +15,25 @@ import (
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
-	jobRepository    repository.JobServiceRepository
+	jobRepository    repository.SQLJobService
 }
 
-func NewJobService(config *configuration.JobServiceConfiguration, inMemoryService repository.JobServiceRepository) *JobServiceServer {
-	return &JobServiceServer{jobServiceConfig: config, jobRepository: inMemoryService}
+func NewJobService(config *configuration.JobServiceConfiguration, sqlService repository.SQLJobService) *JobServiceServer {
+	return &JobServiceServer{jobServiceConfig: config, jobRepository: sqlService}
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
 	g, _ := errgroup.WithContext(ctx)
 
-	if !s.jobRepository.IsJobSetSubscribed(opts.JobSetId) {
+	queueJobSetKey := opts.Queue + opts.JobSetId
+	if !s.jobRepository.IsJobSetSubscribed(queueJobSetKey) {
 
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
 		g.Go(func() error {
 			return eventJob.SubscribeToJobSetId(context.Background())
 		})
 	}
-	s.jobRepository.UpdateJobSetTime(opts.JobSetId)
+	s.jobRepository.UpdateJobSetTime(queueJobSetKey)
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
 		log.Warn(err)

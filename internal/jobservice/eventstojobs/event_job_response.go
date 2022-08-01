@@ -5,6 +5,8 @@ import (
 	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
+// Translates api.EventMessage to a JobServiceReponse.
+// Nil if api.EventMessage is not a relevant event for JobServiceResponse
 func EventsToJobResponse(message api.EventMessage) *js.JobServiceResponse {
 	switch message.Events.(type) {
 	case *api.EventMessage_Submitted:
@@ -24,6 +26,7 @@ func EventsToJobResponse(message api.EventMessage) *js.JobServiceResponse {
 	return nil
 }
 
+// Check if api.EventMessage is terminal event
 func IsEventTerminal(message api.EventMessage) bool {
 	switch message.Events.(type) {
 	case *api.EventMessage_DuplicateFound, *api.EventMessage_Cancelled, *api.EventMessage_Succeeded, *api.EventMessage_Failed:
@@ -34,7 +37,7 @@ func IsEventTerminal(message api.EventMessage) bool {
 
 }
 
-// A Utility function for testing if State is terminal
+// Check if JobServiceResponse is terminal
 func IsStateTerminal(State js.JobServiceResponse_State) bool {
 	switch State {
 	case js.JobServiceResponse_DUPLICATE_FOUND, js.JobServiceResponse_CANCELLED, js.JobServiceResponse_SUCCEEDED, js.JobServiceResponse_FAILED:
