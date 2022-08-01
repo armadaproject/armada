@@ -6,6 +6,10 @@ Currently there are three example files:
 - [general.py](#general.py)
 - [async_logging.py](#async_logging.py)
 
+There are also some codeblocks with useful code snippets:
+
+- [basicauth](#using-basic-auth)
+
 
 ## Setup
 
