@@ -72,35 +72,6 @@ job_set_id is required.
 
 
 
-#### create_job_request(queue, job_set_id, job_request_items)
-Create a job request.
-
-
-* **Parameters**
-
-    
-    * **queue** (*str*) – The name of the queue
-
-
-    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
-
-
-    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
-
-
-
-* **Returns**
-
-    A job request object. See the api definition.
-
-
-
-* **Return type**
-
-    *JobSubmitRequest*
-
-
-
 #### create_job_request_item(pod_spec, priority=1.0, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
 Create a job request.
 
@@ -220,6 +191,15 @@ Get event stream for a job set.
 
 Uses the GetJobSetEvents rpc to get a stream of events relating
 to the provided job_set_id.
+
+Usage:
+
+```python
+events = client.get_job_events_stream(...)
+for event in events:
+    event = client.unmarshal_event_response(event)
+    print(event)
+```
 
 
 * **Parameters**
@@ -467,6 +447,15 @@ Definition can be found at:
 
 ### _class_ armada_client.permissions.Permissions(subjects, verbs)
 Permissions including Subjects and Verbs
+
+```python
+permissions = Permissions(...)
+client = ArmadaClient(...)
+
+queue = client.create_queue(
+    permissions=[permissions],
+)
+```
 
 
 * **Parameters**
