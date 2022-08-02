@@ -45,7 +45,7 @@ func (a *App) StartUp(ctx context.Context) error {
 
 	db, err := sql.Open("sqlite", "jobservice.db")
 	if err != nil {
-		log.Errorf("Error Opening Sqlite DB from %s %v", config.DatabaseFilePath, err)
+		log.Errorf("Error Opening Sqlite DB from jobservice.db %v", err)
 	}
 	defer db.Close()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
