@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -54,11 +55,12 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 		if e != nil {
 			return e
 		}
+		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
+		nullOutQueueAndJobset(m)
 		messageData, e := proto.Marshal(m)
 		if e != nil {
 			return e
 		}
-		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
 		data = append(data, eventData{key: key, data: messageData})
 		uniqueJobSets[key] = true
 	}
@@ -120,6 +122,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		if err != nil {
 			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error unmarshalling: %s", err)
 		}
+		populateQueueAndJobset(msg, queue, jobSetId)
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
 	}
 	return messages, nil
@@ -138,4 +141,72 @@ func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (stri
 
 func getJobSetEventsKey(queue, jobSetId string) string {
 	return eventStreamPrefix + queue + ":" + jobSetId
+}
+
+func nullOutQueueAndJobset(msg *api.EventMessage) {
+	populateQueueAndJobset(msg, "", "")
+}
+
+func populateQueueAndJobset(msg *api.EventMessage, queue, jobSetId string) {
+	switch event := msg.Events.(type) {
+	case *api.EventMessage_Submitted:
+		event.Submitted.Queue = queue
+		event.Submitted.JobSetId = jobSetId
+	case *api.EventMessage_Queued:
+		event.Queued.Queue = queue
+		event.Queued.JobSetId = jobSetId
+	case *api.EventMessage_DuplicateFound:
+		event.DuplicateFound.Queue = queue
+		event.DuplicateFound.JobSetId = jobSetId
+	case *api.EventMessage_Leased:
+		event.Leased.Queue = queue
+		event.Leased.JobSetId = jobSetId
+	case *api.EventMessage_LeaseReturned:
+		event.LeaseReturned.Queue = queue
+		event.LeaseReturned.JobSetId = jobSetId
+	case *api.EventMessage_LeaseExpired:
+		event.LeaseExpired.Queue = queue
+		event.LeaseExpired.JobSetId = jobSetId
+	case *api.EventMessage_Pending:
+		event.Pending.Queue = queue
+		event.Pending.JobSetId = jobSetId
+	case *api.EventMessage_Running:
+		event.Running.Queue = queue
+		event.Running.JobSetId = jobSetId
+	case *api.EventMessage_UnableToSchedule:
+		event.UnableToSchedule.Queue = queue
+		event.UnableToSchedule.JobSetId = jobSetId
+	case *api.EventMessage_Failed:
+		event.Failed.Queue = queue
+		event.Failed.JobSetId = jobSetId
+	case *api.EventMessage_Succeeded:
+		event.Succeeded.Queue = queue
+		event.Succeeded.JobSetId = jobSetId
+	case *api.EventMessage_Reprioritizing:
+		event.Reprioritizing.Queue = queue
+		event.Reprioritizing.JobSetId = jobSetId
+	case *api.EventMessage_Reprioritized:
+		event.Reprioritized.Queue = queue
+		event.Reprioritized.JobSetId = jobSetId
+	case *api.EventMessage_Cancelling:
+		event.Cancelling.Queue = queue
+		event.Cancelling.JobSetId = jobSetId
+	case *api.EventMessage_Cancelled:
+		event.Cancelled.Queue = queue
+		event.Cancelled.JobSetId = jobSetId
+	case *api.EventMessage_Terminated:
+		event.Terminated.Queue = queue
+		event.Terminated.JobSetId = jobSetId
+	case *api.EventMessage_Utilisation:
+		event.Utilisation.Queue = queue
+		event.Utilisation.JobSetId = jobSetId
+	case *api.EventMessage_IngressInfo:
+		event.IngressInfo.Queue = queue
+		event.IngressInfo.JobSetId = jobSetId
+	case *api.EventMessage_Updated:
+		event.Updated.Queue = queue
+		event.Updated.JobSetId = jobSetId
+	default:
+		log.Warnf("Unknown message type %T, message queue and jobset will not be filled in", event)
+	}
 }
