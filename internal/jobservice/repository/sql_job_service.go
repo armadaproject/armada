@@ -47,7 +47,7 @@ func (s *SQLJobService) CreateTable() {
 	}
 	_, err = s.db.Exec(`
 CREATE TABLE jobservice (
-queueJobSetId TEXT,
+QueueJobSetId TEXT,
 JobId TEXT,
 JobResponseState TEXT,
 JobResponseError TEXT,
@@ -196,12 +196,12 @@ func (s *SQLJobService) UpdateJobSetTime(jobSetId string) error {
 // Delete Jobs in the map.
 // This could be a race condition if the in memory map contains the jobs and they haven't been
 // persisted to the DB yet.
-func (s *SQLJobService) DeleteJobsInJobSet(jobSetId string) error {
+func (s *SQLJobService) DeleteJobsInJobSet(queryJobSetId string) error {
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
 	// TODO Handle race condition
 	// Maybe we should persist this JobSet to DB if it doesn't exist
-	_, err := s.db.Exec("DELETE FROM jobservice WHERE JobSetId=?", jobSetId)
+	_, err := s.db.Exec("DELETE FROM jobservice WHERE QueueJobSetId=?", queryJobSetId)
 	if err != nil {
 		return err
 	}

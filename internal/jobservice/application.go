@@ -81,12 +81,11 @@ func (a *App) StartUp(ctx context.Context) error {
 		return nil
 	})
 	g.Go(func() error {
-		defer log.Println("Stopping server.")
+		defer log.Infof("Stopping server.")
 
 		log.Info("JobService service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
-			return err
 		}
 		return nil
 	})
