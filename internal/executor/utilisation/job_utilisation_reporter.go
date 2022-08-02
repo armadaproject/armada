@@ -95,7 +95,7 @@ func (r *UtilisationEventReporter) ReportUtilisationEvents() {
 }
 
 func (r *UtilisationEventReporter) updatePod(pod *v1.Pod) {
-	if !util.IsManagedPod(pod) {
+	if !util.IsManagedPod(pod) || !util.IsUtilisationEnabledPod(pod) {
 		return
 	}
 

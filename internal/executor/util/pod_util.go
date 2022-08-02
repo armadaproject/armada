@@ -66,6 +66,18 @@ func IsManagedPod(pod *v1.Pod) bool {
 	return ok
 }
 
+func IsUtilisationEnabledPod(pod *v1.Pod) bool {
+	enabledStr, ok := pod.Annotations[domain.Utilisation]
+	if ok {
+		enabled, _ := strconv.ParseBool(enabledStr)
+		return enabled
+	} else {
+		// previously all pods were utilisation enabled implicitly so to maintain compatibility we
+		// consider a missing annotation to be enabled
+		return true
+	}
+}
+
 func GetManagedPodSelector() labels.Selector {
 	return managedPodSelector.DeepCopySelector()
 }

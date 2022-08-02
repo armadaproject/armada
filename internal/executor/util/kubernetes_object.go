@@ -171,8 +171,9 @@ func CreatePod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod
 		domain.PodCount:  strconv.Itoa(len(allPodSpecs)),
 	})
 	annotation := util.MergeMaps(job.Annotations, map[string]string{
-		domain.JobSetId: job.JobSetId,
-		domain.Owner:    job.Owner,
+		domain.JobSetId:    job.JobSetId,
+		domain.Owner:       job.Owner,
+		domain.Utilisation: "true", //TODO: take this from job
 	})
 
 	setRestartPolicyNever(podSpec)

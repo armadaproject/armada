@@ -13,4 +13,5 @@ const (
 	IngressReported          = "ingress_reported"
 	MarkedForDeletion        = "deletion_requested"
 	JobDoneAnnotation        = "reported_done"
+	Utilisation              = "armada_utilisation_events"
 )
