@@ -1,5 +1,6 @@
 # Determine which platform we're on based on the kernel name
 platform := $(shell uname -s || echo unknown)
+host_arch := $(shell uname -m)
 PWD := $(shell pwd)
 # Check that all necessary executables are present
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
@@ -41,13 +42,18 @@ else
 	DOCKER_NET = --network=host
 endif
 
+ifeq ($(host_arch),arm64)
+	PROTO_DOCKERFILE = ./build/proto/Dockerfile.arm64
+else
+	PROTO_DOCKERFILE = ./build/proto/Dockerfile
+endif
+
 ifeq ($(DOCKER_RUN_AS_USER),)
 	DOCKER_RUN_AS_USER = -u $(shell id -u ${USER}):$(shell id -g ${USER})
 endif
 ifeq ($(platform),windows32)
 	DOCKER_RUN_AS_USER =
 endif
-
 
 # For reproducibility, run build commands in docker containers with known toolchain versions.
 # INTEGRATION_ENABLED=true is needed for the e2e tests.
@@ -436,6 +442,9 @@ junit-report:
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
 setup-proto: download
+	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
+	# first delete files in this directory - by default it has write perms disabled.
+	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
 	rm -rf proto
 	mkdir -p proto
 	mkdir -p proto/google/api
@@ -481,8 +490,7 @@ airflow-operator:
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
 proto: setup-proto
-
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
 	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
@@ -509,9 +517,20 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
-# Target for compiling the dotnet Armada client.
+# Target for compiling the dotnet Armada REST client
 dotnet: dotnet-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
+
+# Build and package the dotnet Armada GRPC client
+dotnet-grpc: dotnet-setup setup-proto
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
+	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
+		-w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
+
+dotnet-clean:
+	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/bin
+	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/obj
+	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/generated
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
