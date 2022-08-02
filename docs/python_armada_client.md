@@ -192,6 +192,15 @@ Get event stream for a job set.
 Uses the GetJobSetEvents rpc to get a stream of events relating
 to the provided job_set_id.
 
+Usage:
+
+```python
+events = client.get_job_events_stream(...)
+for event in events:
+    event = client.unmarshal_event_response(event)
+    print(event)
+```
+
 
 * **Parameters**
 
@@ -438,6 +447,15 @@ Definition can be found at:
 
 ### _class_ armada_client.permissions.Permissions(subjects, verbs)
 Permissions including Subjects and Verbs
+
+```python
+permissions = Permissions(...)
+client = ArmadaClient(...)
+
+queue = client.create_queue(
+    permissions=[permissions],
+)
+```
 
 
 * **Parameters**
