@@ -1245,6 +1245,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("clusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClusterId { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("compressedReason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public byte[] CompressedReason { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("containerStatuses", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<ApiContainerStatus> ContainerStatuses { get; set; }
     
