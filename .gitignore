@@ -58,7 +58,7 @@ client/python/dist
 *_pb2_grpc.py
 client/python/armada_client/armada/
 .tox
-proto
+/proto
 proto-airflow
 client/python/docs/build/
 typings.py
