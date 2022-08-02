@@ -15,14 +15,14 @@ ARG NUGET_URL=https://www.nuget.org/api/v2/package
 # We check the sha1 of the downloaded protoc binary, which must be added here manually, e.g., from
 # https://repo1.maven.org/maven2/com/google/protobuf/protoc/
 ARG PROTOC_VERSION=3.17.3
-ARG PROTOC_SHA1=17c70df7057b054a221080a8178c421b6bfd4af0
+ARG PROTOC_SHA1=bf2b1b42c7f84d447b15ee3f66a0f6af6c1498b1
 
 # Populate with environment variables from shell by running docker build with
 # --build-arg GOPROXY --build-arg GOPRIVATE
 ARG GOPROXY=""
 ARG GOPRIVATE=""
 
-FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster as builder
+FROM --platform=linux/arm64 golang:${GOLANG_VERSION}-buster as builder
 
 # Load GOPROXY and GOPRIVATE as environment varialbes in the build container.
 # If not defined, these are set to "", which defaults to the standard go package source.
@@ -38,17 +38,26 @@ ARG MAVEN_URL
 ARG NUGET_URL
 
 RUN apt-get update -y
-RUN apt-get install -y unzip
+RUN apt-get install -y libicu-dev unzip
 
-RUN curl -OLk ${MAVEN_URL}/com/google/protobuf/protoc/${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.exe && \
-    mv protoc-${PROTOC_VERSION}-linux-x86_64.exe /usr/local/bin/protoc && \
+ARG DOTNET_ARM64_BUNDLE=dotnet-sdk-6.0.302-linux-arm64.tar.gz
+ARG DOTNET_ARM64_URL=https://download.visualstudio.microsoft.com/download/pr/33389348-a7d7-41ae-850f-ec46d3ca9612/36bad11f948b05a4fa9faac93c35e574
+ARG DOTNET_ARM64_SHA512=26e98a63665d707b1a7729f1794077316f9927edd88d12d82d0357fe597096b0d89b64a085fcdf0cf49807a443bbfebb48e10ea91cea890846cf4308e67c4ea5
+
+RUN curl -OLk  ${DOTNET_ARM64_URL}/${DOTNET_ARM64_BUNDLE} && \
+    echo "${DOTNET_ARM64_SHA512}  ${DOTNET_ARM64_BUNDLE}" | shasum -a 512 -c - && \
+    mkdir dotnet && \
+    tar xzf $DOTNET_ARM64_BUNDLE -C dotnet
+
+RUN curl -OLk ${MAVEN_URL}/com/google/protobuf/protoc/${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-aarch_64.exe && \
+    mv protoc-${PROTOC_VERSION}-linux-aarch_64.exe /usr/local/bin/protoc && \
     echo "${PROTOC_SHA1} /usr/local/bin/protoc" | sha1sum -c - && \
     chmod +x /usr/local/bin/protoc
 
 # Install the csharp grpc plugin
 RUN curl -sSL https://www.nuget.org/api/v2/package/Grpc.Tools/2.46.3 --output grpctools.zip && \
     unzip -q -d grpctools grpctools.zip && \
-    mv grpctools/tools/linux_x64/grpc_csharp_plugin /usr/local/bin/grpc_csharp_plugin && \
+    mv grpctools/tools/linux_arm64/grpc_csharp_plugin /usr/local/bin/grpc_csharp_plugin && \
     chmod +x /usr/local/bin/grpc_csharp_plugin
 
 # Remove after I copy proto files
@@ -76,18 +85,14 @@ RUN go mod download k8s.io/api@v${K8S_VERSION} && \
     cp -r $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v${K8S_VERSION}/* /proto/k8s.io/apimachinery
 
 ARG GOLANG_VERSION
-FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster
+FROM --platform=linux/arm64 golang:${GOLANG_VERSION}-buster
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /go/bin /usr/local/bin
 COPY --from=builder /proto /proto
-
-RUN curl -OL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb
-RUN dpkg -i packages-microsoft-prod.deb
-RUN rm packages-microsoft-prod.deb
 RUN apt-get update -y
-
 # dotnet requires the ICU libraries
-RUN apt-get install -y libicu-dev unzip dotnet-sdk-6.0
+RUN apt-get install -y libicu-dev 
+COPY --from=builder /go/dotnet /dotnet
 RUN mkdir /.dotnet && chmod 0777 /.dotnet
 RUN mkdir /.nuget && chmod 0777 /.nuget
 RUN mkdir /.local && chmod 0777 /.local
