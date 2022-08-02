@@ -38,6 +38,11 @@ func NewSQLJobService(jobMap *JobStatus, config *configuration.JobServiceConfigu
 	return &SQLJobService{jobStatus: jobMap, jobServiceConfig: config, db: db}
 }
 
+type SubscribedTuple struct {
+	Queue  string
+	JobSet string
+}
+
 // Create a Table from a hard-coded schema.
 // Open to suggestions on how to make this better
 func (s *SQLJobService) CreateTable() {
@@ -47,7 +52,8 @@ func (s *SQLJobService) CreateTable() {
 	}
 	_, err = s.db.Exec(`
 CREATE TABLE jobservice (
-QueueJobSetId TEXT,
+Queue TEXT,
+JobSetId TEXT,
 JobId TEXT,
 JobResponseState TEXT,
 JobResponseError TEXT,
@@ -128,49 +134,52 @@ func (s *SQLJobService) HealthCheck() (bool, error) {
 
 // Check if JobSet is in our map.
 // Note: The key should be queuejobset.
-func (s *SQLJobService) IsJobSetSubscribed(jobSetQueue string) bool {
+func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) bool {
 	s.jobStatus.subscribeLock.Lock()
+	primaryKey := queue + jobSet
 	defer s.jobStatus.subscribeLock.Unlock()
-	_, ok := s.jobStatus.subscribeMap[jobSetQueue]
+	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	return ok
 }
 
 // Mark our JobSet as being subscribed
 // SubscribeTable contains JobSet and time when it was created.
-func (s *SQLJobService) SubscribeJobSet(jobSetQueue string) {
+func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 	s.jobStatus.subscribeLock.Lock()
 	defer s.jobStatus.subscribeLock.Unlock()
-	_, ok := s.jobStatus.subscribeMap[jobSetQueue]
+	primaryKey := queue + jobSet
+	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	if !ok {
-		s.jobStatus.subscribeMap[jobSetQueue] = NewSubscribeTable(jobSetQueue)
+		s.jobStatus.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 	}
 
 }
 
 // UnSubscribe to JobSet and delete all the jobs in the in memory map
-func (s *SQLJobService) UnSubscribeJobSet(jobSetQueue string) {
+func (s *SQLJobService) UnSubscribeJobSet(queue string, jobSet string) {
 	s.jobStatus.subscribeLock.RLock()
 	defer s.jobStatus.subscribeLock.RUnlock()
-	_, ok := s.jobStatus.subscribeMap[jobSetQueue]
+	primaryKey := queue + jobSet
+	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	if !ok {
-		log.Infof("JobSetId %s already unsubscribed", jobSetQueue)
+		log.Infof("JobSetId %s already unsubscribed", primaryKey)
 		return
 	}
-	delete(s.jobStatus.subscribeMap, jobSetQueue)
-	log.Infof("QueueJobSetId %s unsubscribed", jobSetQueue)
-	s.DeleteJobsInJobSet(jobSetQueue)
+	delete(s.jobStatus.subscribeMap, primaryKey)
+	log.Infof("Queue %s JobSetId %s unsubscribed", queue, jobSet)
+	s.DeleteJobsInJobSet(queue, jobSet)
 }
 
 // Checks JobSet table to make determine if we should unsubscribe from JobSet
 // configTimeWithoutUpdates is a configurable value that is read from the config
 // We allow unsubscribing if the jobset hasn't been updated in configTime
-func (s *SQLJobService) CheckToUnSubscribe(queueJobSet string, configTimeWithoutUpdates int64) bool {
-	if !s.IsJobSetSubscribed(queueJobSet) {
+func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTimeWithoutUpdates int64) bool {
+	if !s.IsJobSetSubscribed(queue, jobSet) {
 		return false
 	}
 	currentTime := time.Now().Unix()
 	for _, val := range s.jobStatus.subscribeMap {
-		if val.subscribedJobSet == queueJobSet {
+		if val.queue == queue && val.jobSet == jobSet {
 			if (currentTime - val.lastRequestTimeStamp) > configTimeWithoutUpdates {
 				return true
 			}
@@ -180,41 +189,42 @@ func (s *SQLJobService) CheckToUnSubscribe(queueJobSet string, configTimeWithout
 }
 
 // Update JobSet Map with time that a Job in that JobSet was requested
-func (s *SQLJobService) UpdateJobSetTime(jobSetId string) error {
+func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 	s.jobStatus.subscribeLock.Lock()
 	defer s.jobStatus.subscribeLock.Unlock()
-
-	_, ok := s.jobStatus.subscribeMap[jobSetId]
+	primaryKey := queue + jobSet
+	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	if ok {
-		s.jobStatus.subscribeMap[jobSetId] = NewSubscribeTable(jobSetId)
+		s.jobStatus.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 		return nil
 	} else {
-		return fmt.Errorf("JobSet %s is already unsubscribed", jobSetId)
+		return fmt.Errorf("Queue %s JobSet %s is already unsubscribed", queue, jobSet)
 	}
 }
 
 // Delete Jobs in the map.
 // This could be a race condition if the in memory map contains the jobs and they haven't been
 // persisted to the DB yet.
-func (s *SQLJobService) DeleteJobsInJobSet(queryJobSetId string) error {
+func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) error {
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
 	// TODO Handle race condition
 	// Maybe we should persist this JobSet to DB if it doesn't exist
-	_, err := s.db.Exec("DELETE FROM jobservice WHERE QueueJobSetId=?", queryJobSetId)
+	_, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// Get a list of SubscribedJobSets (QueueJobSetId)
-func (s *SQLJobService) GetSubscribedJobSets() []string {
-	var returnJobSets []string
+// Get a list of SubscribedJobSets (Queue JobSet)
+func (s *SQLJobService) GetSubscribedJobSets() []SubscribedTuple {
+	var returnJobSets []SubscribedTuple
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
 	for _, value := range s.jobStatus.subscribeMap {
-		returnJobSets = append(returnJobSets, value.subscribedJobSet)
+		tuple := &SubscribedTuple{Queue: value.queue, JobSet: value.jobSet}
+		returnJobSets = append(returnJobSets, *tuple)
 	}
 	return returnJobSets
 }
@@ -225,12 +235,12 @@ func (s *SQLJobService) PersistDataToDatabase() error {
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
 	for key, value := range s.jobStatus.jobMap {
-		stmt, err := s.db.Prepare("INSERT INTO jobservice VALUES (?, ?, ?, ?, ?)")
+		stmt, err := s.db.Prepare("INSERT INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 		if err != nil {
 			panic(err)
 		}
 		jobState := value.jobResponse.State.String()
-		_, execErr := stmt.Exec(value.queueJobSetId, value.jobId, jobState, value.jobResponse.Error, value.timeStamp)
+		_, execErr := stmt.Exec(value.queue, value.jobSetId, value.jobId, jobState, value.jobResponse.Error, value.timeStamp)
 		if execErr != nil {
 			panic(execErr)
 		}

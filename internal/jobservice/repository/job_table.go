@@ -8,7 +8,8 @@ import (
 
 // Our representation for a JobStatus
 type JobTable struct {
-	queueJobSetId string
+	queue         string
+	jobSetId      string
 	jobId         string
 	jobResponse   js.JobServiceResponse
 	timeStamp     int64
@@ -17,6 +18,5 @@ type JobTable struct {
 // Construct a JobTable and adds a timestamp when it was created.
 func NewJobTable(queue string, jobSetId string, jobId string, jobResponse js.JobServiceResponse) *JobTable {
 	// Construct a key of (queue, jobSetId) since that uniqutely determines jobset.
-	primaryKey := queue + jobSetId
-	return &JobTable{queueJobSetId: primaryKey, jobId: jobId, jobResponse: jobResponse, timeStamp: time.Now().Unix()}
+	return &JobTable{queue: queue, jobSetId: jobSetId, jobId: jobId, jobResponse: jobResponse, timeStamp: time.Now().Unix()}
 }

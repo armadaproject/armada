@@ -73,8 +73,8 @@ func (a *App) StartUp(ctx context.Context) error {
 		for range ticker.C {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
-				if sqlJobRepo.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
-					sqlJobRepo.UnSubscribeJobSet(value)
+				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
+					sqlJobRepo.UnSubscribeJobSet(value.Queue, value.JobSet)
 				}
 			}
 		}
