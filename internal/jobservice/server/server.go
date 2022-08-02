@@ -15,11 +15,19 @@ import (
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
+<<<<<<< HEAD
 	jobRepository    repository.SQLJobService
 }
 
 func NewJobService(config *configuration.JobServiceConfiguration, sqlService repository.SQLJobService) *JobServiceServer {
 	return &JobServiceServer{jobServiceConfig: config, jobRepository: sqlService}
+=======
+	jobRepository    repository.InMemoryJobServiceRepository
+}
+
+func NewJobService(config *configuration.JobServiceConfiguration, inMemoryService repository.InMemoryJobServiceRepository) *JobServiceServer {
+	return &JobServiceServer{jobServiceConfig: config, jobRepository: inMemoryService}
+>>>>>>> upstream/master
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {

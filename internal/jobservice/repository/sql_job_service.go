@@ -230,7 +230,6 @@ func (s *SQLJobService) PersistDataToDatabase() error {
 			panic(err)
 		}
 		jobState := value.jobResponse.State.String()
-		log.Infof("State: %s", jobState)
 		_, execErr := stmt.Exec(value.queueJobSetId, value.jobId, jobState, value.jobResponse.Error, value.timeStamp)
 		if execErr != nil {
 			panic(execErr)
