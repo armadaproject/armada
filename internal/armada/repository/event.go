@@ -52,12 +52,12 @@ func NewRedisEventRepository(db redis.UniversalClient, eventRetention configurat
 
 	compressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
-			return compress.NewZlibCompressor(1024), nil
+			return compress.NewZlibCompressor(1024)
 		}), &poolConfig)
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
-			return compress.NewZlibDecompressor(), nil
+			return compress.NewZlibDecompressor()
 		}), &poolConfig)
 	return &RedisEventRepository{db: db, eventRetention: eventRetention, compressorPool: compressorPool, decompressorPool: decompressorPool}
 }
