@@ -48,6 +48,13 @@ else
 	PROTO_DOCKERFILE = ./build/proto/Dockerfile
 endif
 
+ifeq ($(DOCKER_RUN_AS_USER),)
+	DOCKER_RUN_AS_USER = -u $(shell id -u ${USER}):$(shell id -g ${USER})
+endif
+ifeq ($(platform),windows32)
+	DOCKER_RUN_AS_USER =
+endif
+
 # For reproducibility, run build commands in docker containers with known toolchain versions.
 # INTEGRATION_ENABLED=true is needed for the e2e tests.
 #
@@ -62,8 +69,8 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
-GO_CMD = docker run --rm -u $(shell id -u ${USER}):$(shell id -g ${USER}) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
-	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
+GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
+	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
 
@@ -268,7 +275,7 @@ build-docker-lookout: node-setup
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
-	docker run --rm -u $(shell id -u ${USER}):$(shell id -g ${USER}) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
@@ -484,7 +491,7 @@ airflow-operator:
 
 proto: setup-proto
 	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
 	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
