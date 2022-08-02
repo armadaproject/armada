@@ -761,6 +761,11 @@
         "clusterId": {
           "type": "string"
         },
+        "compressedReason": {
+          "type": "string",
+          "format": "byte",
+          "title": "Only used internally by Armada"
+        },
         "containerStatuses": {
           "type": "array",
           "items": {

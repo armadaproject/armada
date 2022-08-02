@@ -129,6 +129,8 @@ message JobFailedEvent {
     string pod_namespace = 14;
     repeated ContainerStatus container_statuses = 11;
     Cause cause = 12;
+    // Only used internally by Armada
+    bytes compressed_reason = 15;
 }
 
 message JobSucceededEvent {

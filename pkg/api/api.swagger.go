@@ -772,6 +772,11 @@ func SwaggerJsonTemplate() string {
 		"        \"clusterId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"compressedReason\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"byte\",\n" +
+		"          \"title\": \"Only used internally by Armada\"\n" +
+		"        },\n" +
 		"        \"containerStatuses\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
