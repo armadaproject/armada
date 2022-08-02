@@ -2,8 +2,9 @@ package repository
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
