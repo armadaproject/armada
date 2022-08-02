@@ -76,7 +76,6 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 		if sqlResponse != nil {
 			return sqlResponse, errSql
 		}
-		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	}
 
 	return &jobResponse.jobResponse, nil
@@ -89,7 +88,9 @@ func (s *SQLJobService) GetJobStatusSQL(jobId string) (*js.JobServiceResponse, e
 	var jobState string
 	var jobError string
 	err := row.Scan(&jobState, &jobError)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
+	} else if err != nil {
 		return nil, err
 	}
 	jobProtoResponse := &js.JobServiceResponse{Error: jobError}
@@ -114,7 +115,6 @@ func (s *SQLJobService) GetJobStatusSQL(jobId string) (*js.JobServiceResponse, e
 
 // Update in memory JobStatus Map with jobId and our JobTable
 func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
-	log.Infof("Updating JobId %s with State %s", jobTable.jobId, jobTable.jobResponse.State)
 	s.jobStatus.jobLock.Lock()
 	defer s.jobStatus.jobLock.Unlock()
 	s.jobStatus.jobMap[jobTable.jobId] = jobTable
@@ -143,7 +143,7 @@ func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) bool {
 }
 
 // Mark our JobSet as being subscribed
-// SubscribeTable contains JobSet and time when it was created.
+// SubscribeTable contains Queue, JobSet and time when it was created.
 func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 	s.jobStatus.subscribeLock.Lock()
 	defer s.jobStatus.subscribeLock.Unlock()
@@ -198,7 +198,7 @@ func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 		s.jobStatus.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 		return nil
 	} else {
-		return fmt.Errorf("Queue %s JobSet %s is already unsubscribed", queue, jobSet)
+		return fmt.Errorf("queue %s jobSet %s is already unsubscribed", queue, jobSet)
 	}
 }
 

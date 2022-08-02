@@ -8,11 +8,11 @@ import (
 
 // Our representation for a JobStatus
 type JobTable struct {
-	queue         string
-	jobSetId      string
-	jobId         string
-	jobResponse   js.JobServiceResponse
-	timeStamp     int64
+	queue       string
+	jobSetId    string
+	jobId       string
+	jobResponse js.JobServiceResponse
+	timeStamp   int64
 }
 
 // Construct a JobTable and adds a timestamp when it was created.

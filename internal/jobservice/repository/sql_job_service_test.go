@@ -207,7 +207,14 @@ func TestPersistToDatabase(t *testing.T) {
 	})
 }
 
-func TestGetJobStatusSQL(t *testing.T) {
+func TestGetJobStatusSQLNotExist(t *testing.T) {
+	WithInMemoryRepo(func(r *SQLJobService) {
+		noEntry, noEntryError := r.GetJobStatusSQL("no-job")
+		assert.Equal(t, noEntry, &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND})
+		assert.Nil(t, noEntryError)
+	})
+}
+func TestGetJobStatusSQLAllStates(t *testing.T) {
 	WithInMemoryRepo(func(r *SQLJobService) {
 		var responseFailed = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		var responseSuccess = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
@@ -237,12 +244,12 @@ func TestGetJobStatusSQL(t *testing.T) {
 		assert.NoError(t, persistErr)
 
 		actualFailed, errFailed := r.GetJobStatusSQL("job-id")
-		actualSuccess, errSuccess := r.GetJobStatus("job-id-2")
-		actualDuplicate, errDup := r.GetJobStatus("job-id-3")
-		actualRunning, errRunning := r.GetJobStatus("job-id-4")
-		actualSubmitted, errSubmitted := r.GetJobStatus("job-id-5")
-		actualCancelled, errCancel := r.GetJobStatus("job-id-6")
-		actualNotExist, errNotExist := r.GetJobStatus("job-id-7")
+		actualSuccess, errSuccess := r.GetJobStatusSQL("job-id-2")
+		actualDuplicate, errDup := r.GetJobStatusSQL("job-id-3")
+		actualRunning, errRunning := r.GetJobStatusSQL("job-id-4")
+		actualSubmitted, errSubmitted := r.GetJobStatusSQL("job-id-5")
+		actualCancelled, errCancel := r.GetJobStatusSQL("job-id-6")
+		actualNotExist, errNotExist := r.GetJobStatusSQL("job-id-7")
 
 		assert.Nil(t, errFailed)
 		assert.Equal(t, responseFailed, actualFailed)
@@ -258,6 +265,57 @@ func TestGetJobStatusSQL(t *testing.T) {
 		assert.Equal(t, responseCancelled, actualCancelled)
 		assert.Nil(t, errNotExist)
 		assert.Equal(t, responseDoesNotExist, actualNotExist)
+
+	})
+}
+
+func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
+	WithInMemoryRepo(func(r *SQLJobService) {
+		var responseSuccess = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
+
+		jobTable1 := NewJobTable("test-race", "job-set-race", "job-race", *responseSuccess)
+		r.UpdateJobServiceDb(jobTable1)
+		r.SubscribeJobSet("test-race", "job-set-race")
+		r.UnSubscribeJobSet("test-race", "job-set-race")
+		actualSuccess, actualError := r.GetJobStatus("job-race")
+		assert.Equal(t, actualSuccess, noExist)
+		assert.Nil(t, actualError)
+		sqlNoExist, sqlError := r.GetJobStatusSQL("job-race")
+		assert.Equal(t, sqlNoExist, noExist)
+		assert.Nil(t, sqlError)
+	})
+}
+
+func TestDeleteJobsPersistingHappy(t *testing.T) {
+	WithInMemoryRepo(func(r *SQLJobService) {
+		var responseSuccess = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
+
+		jobTable1 := NewJobTable("test-race", "job-set-race", "job-race", *responseSuccess)
+		r.UpdateJobServiceDb(jobTable1)
+		r.SubscribeJobSet("test-race", "job-set-race")
+		r.PersistDataToDatabase()
+		r.UnSubscribeJobSet("test-race", "job-set-race")
+		actualNotFound, actualError := r.GetJobStatus("job-race")
+		assert.Equal(t, actualNotFound, noExist)
+		assert.Nil(t, actualError)
+		sqlNotFound, sqlError := r.GetJobStatusSQL("job-race")
+		assert.Equal(t, sqlNotFound, noExist)
+		assert.Nil(t, sqlError)
+	})
+}
+
+func TestGetJobStatusAfterPersisting(t *testing.T) {
+	WithInMemoryRepo(func(r *SQLJobService) {
+		var responseSuccess = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+
+		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseSuccess)
+		r.UpdateJobServiceDb(jobTable1)
+		r.PersistDataToDatabase()
+		actual, actualErr := r.GetJobStatus("job-id")
+		assert.Nil(t, actualErr)
+		assert.Equal(t, actual, responseSuccess)
 
 	})
 }
