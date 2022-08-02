@@ -67,7 +67,7 @@ DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
 GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
-	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
+	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.16-buster
 DOTNET_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada \
