@@ -85,9 +85,13 @@ func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error 
 }
 
 func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
-	events := make([]*api.EventMessage, len(batch), len(batch))
-	for i, msg := range batch {
-		events[i] = msg.EventMessage
+	events := make([]*api.EventMessage, 0, len(batch))
+	for _, msg := range batch {
+		// Filter out JobUpdated events as they are purely for internal consumption
+		isJobUpdatedEvent := msg.EventMessage.GetUpdated() != nil
+		if !isJobUpdatedEvent {
+			events = append(events, msg.EventMessage)
+		}
 	}
 
 	err := p.repository.ReportEvents(events)
