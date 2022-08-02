@@ -1,15 +1,18 @@
+from concurrent import futures
+
+import grpc
+import pytest
+
+from server_mock import EventService, SubmitService
+
+from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from server_mock import EventService, SubmitService
 
-import grpc
-from concurrent import futures
-from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
-
-import pytest
+from armada_client.permissions import Permissions, Subject
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -57,15 +60,59 @@ def test_submit_job():
         ],
     )
 
+    labels = {
+        "app": "test",
+    }
+    annotations = {
+        "test": "test",
+    }
+    required_node_labels = {
+        "test": "test",
+    }
+
+    ingress = submit_pb2.IngressConfig()
+    services = submit_pb2.ServiceConfig()
+
+    request_item = tester.create_job_request_item(
+        priority=1,
+        pod_spec=pod,
+        pod_specs=[pod],
+        namespace="test",
+        client_id="test",
+        labels=labels,
+        annotations=annotations,
+        required_node_labels=required_node_labels,
+        ingress=[ingress],
+        services=[services],
+    )
+
     tester.submit_jobs(
         queue="test",
         job_set_id="test",
-        job_request_items=[submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)],
+        job_request_items=[request_item],
     )
 
 
 def test_create_queue():
     tester.create_queue(name="test", priority_factor=1)
+
+
+def test_create_queue_full():
+    resource_limits = {
+        "cpu": 0.2,
+    }
+
+    sub = Subject("Group", "group1")
+    permissions = Permissions([sub], ["get", "post"])
+
+    tester.create_queue(
+        name="test",
+        priority_factor=1,
+        user_owners=["test"],
+        group_owners=["test"],
+        resource_limits=resource_limits,
+        permissions=[permissions],
+    )
 
 
 def test_get_queue():
@@ -90,7 +137,32 @@ def test_update_queue():
     tester.update_queue(name="test", priority_factor=1)
 
 
+def test_update_queue_full():
+    resource_limits = {
+        "cpu": 0.2,
+    }
+
+    sub = Subject("Group", "group1")
+    permissions = Permissions([sub], ["get", "post"])
+
+    tester.update_queue(
+        name="test",
+        priority_factor=1,
+        user_owners=["test"],
+        group_owners=["test"],
+        resource_limits=resource_limits,
+        permissions=[permissions],
+    )
+
+
 def test_reprioritize_jobs():
     tester.reprioritize_jobs(
         new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
     )
+
+
+def test_get_job_events_stream():
+    events = tester.get_job_events_stream(queue="test", job_set_id="job-set-1")
+
+    for _ in events:
+        pass

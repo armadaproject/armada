@@ -1,0 +1,58 @@
+name: Run Python Armada Airflow Operator Linting and Unit Tests
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python-client.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
+      - 'makefile'
+      - '.github/workflows/python-tests/*'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python-client.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
+      - 'makefile'
+      - '.github/workflows/python-tests/*'
+
+jobs:
+  run-tox:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # We technically support 1.16 and 1.18; but this just needs any
+        # go version new enough to generate python proto files; 1.18 is
+        # more future-proof, so use it.
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./.github/workflows/go-setup
+      - run: make airflow-operator
+      - uses: ./.github/workflows/python-tests
+        with:
+          python-version: '3.8.10'
+          path: third_party/airflow

@@ -38,9 +38,9 @@ func NewPrincipalPermissionChecker(
 // has that permission.
 func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
 	principal := GetPrincipal(ctx)
-	return hasPermission(perm, checker.permissionScopeMap, func(scope string) bool { return principal.HasScope(scope) }) ||
-		hasPermission(perm, checker.permissionGroupMap, func(group string) bool { return principal.IsInGroup(group) }) ||
-		hasPermission(perm, checker.permissionClaimMap, func(claim string) bool { return principal.HasClaim(claim) })
+	return hasPermission(perm, checker.permissionScopeMap, principal.HasScope) ||
+		hasPermission(perm, checker.permissionGroupMap, principal.IsInGroup) ||
+		hasPermission(perm, checker.permissionClaimMap, principal.HasClaim)
 }
 
 // UserOwns check if obj is owned by the principal contained in the context,
@@ -50,7 +50,7 @@ func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context
 // If obj is owned by the principal in the context, no groups are returned.
 //
 // TODO Should we always return the groups (even if the principal owns obj directly)?
-func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGoups []string) {
+func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string) {
 	principal := GetPrincipal(ctx)
 	currentUserName := principal.GetName()
 
@@ -60,13 +60,13 @@ func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Own
 		}
 	}
 
-	ownershipGoups = []string{}
+	ownershipGroups = []string{}
 	for _, group := range obj.GetGroupOwners() {
 		if principal.IsInGroup(group) {
-			ownershipGoups = append(ownershipGoups, group)
+			ownershipGroups = append(ownershipGroups, group)
 		}
 	}
-	return len(ownershipGoups) > 0, ownershipGoups
+	return len(ownershipGroups) > 0, ownershipGroups
 }
 
 func hasPermission(perm permission.Permission, permMap map[permission.Permission][]string, assert func(string) bool) bool {

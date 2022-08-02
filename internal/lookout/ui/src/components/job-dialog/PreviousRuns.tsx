@@ -4,12 +4,13 @@ import { Collapse, List, ListItem, ListItemText, Paper, Table, TableBody, TableC
 import { ExpandLess, ExpandMore } from "@material-ui/icons"
 
 import { Run } from "../../services/JobService"
-import { RunDetailsRows } from "./RunDetailsRows"
+import RunDetailsRows from "./RunDetailsRows"
 
 import "./PreviousRuns.css"
 
 interface SchedulingHistoryProps {
   runs: Run[]
+  jobId: string
   expandedItems: Set<string>
   onToggleExpand: (k8sId: string, isExpanded: boolean) => void
 }
@@ -42,7 +43,7 @@ export function PreviousRuns(props: SchedulingHistoryProps) {
                     <TableContainer>
                       <Table>
                         <TableBody>
-                          <RunDetailsRows run={run} />
+                          <RunDetailsRows run={run} jobId={props.jobId} />
                         </TableBody>
                       </Table>
                     </TableContainer>
