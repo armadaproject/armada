@@ -17,8 +17,10 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/domain"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	servervalidation "github.com/G-Research/armada/internal/armada/validation"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/util"
@@ -439,9 +441,38 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	if request.JobId != "" {
 		return server.cancelJobsById(ctx, request.JobId)
 	} else if request.JobSetId != "" && request.Queue != "" {
-		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId)
+		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, nil)
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "[CancelJobs] specify either job ID or both queue name and job set ID")
+}
+
+func (server *SubmitServer) CancelJobSet(ctx context.Context, request *api.JobSetCancelRequest) (*api.CancellationResult, error) {
+	err := servervalidation.ValidateJobSetFilter(request.Filter)
+	if err != nil {
+		return nil, err
+	}
+	return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter))
+}
+
+func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
+	if filter == nil {
+		return nil
+	}
+	jobSetFilter := &repository.JobSetFilter{
+		IncludeQueued: false,
+		IncludeLeased: false,
+	}
+
+	for _, state := range filter.State {
+		if state == domain.QueuedPhase {
+			jobSetFilter.IncludeQueued = true
+		}
+		if state == domain.PendingPhase || state == domain.RunningPhase {
+			jobSetFilter.IncludeLeased = true
+		}
+	}
+
+	return jobSetFilter
 }
 
 // cancels a job with a given ID
@@ -466,8 +497,8 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 }
 
 // cancels all jobs part of a particular job set and queue
-func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string) (*api.CancellationResult, error) {
-	ids, err := server.jobRepository.GetActiveJobIds(queue, jobSetId)
+func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string, filter *repository.JobSetFilter) (*api.CancellationResult, error) {
+	ids, err := server.jobRepository.GetJobSetJobIds(queue, jobSetId, filter)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsBySetAndQueue] error getting job IDs: %s", err)
 	}
