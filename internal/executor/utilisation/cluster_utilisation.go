@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -103,6 +105,10 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 type ClusterAvailableCapacityReport struct {
 	AvailableCapacity *common.ComputeResources
 	Nodes             []api.NodeInfo
+}
+
+func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) resource.Quantity {
+	return (*r.AvailableCapacity)[resource]
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
