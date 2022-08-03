@@ -134,8 +134,6 @@ thread = threading.Thread(target=workflow, args=(client, queue, job_set_id))
 watch_jobs = threading.Thread(
     target=watch_job_set, args=(client, queue, job_set_id)
 )
-
-watch_queues = threading.Thread(target=watch_queue, args=(client, queue))
 ```
 
 We use threading to run the different parts of the code at the same time.
