@@ -121,12 +121,6 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
 
 Watches all changes on a job_set. It attempts to connect multiple times instead of sleeping like in `general.py`. It also demonstrates using the clients `unmarshal_event_response()` method to better access the event object.
 
-```py
-def watch_queue(client, queue):
-```
-
-There is no stream method for watching queues, so this function is implemented by polling with the `get_queue` methods. Checks specifically for changes to the queue priority factor and the active job_sets.
-
 
 ```py
 def workflow(client, queue, job_set_id):
