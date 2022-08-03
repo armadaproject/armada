@@ -464,10 +464,10 @@ func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
 	}
 
 	for _, state := range filter.State {
-		if state == domain.QueuedPhase {
+		if state == domain.Queued.String() {
 			jobSetFilter.IncludeQueued = true
 		}
-		if state == domain.PendingPhase || state == domain.RunningPhase {
+		if state == domain.Pending.String() || state == domain.Running.String() {
 			jobSetFilter.IncludeLeased = true
 		}
 	}

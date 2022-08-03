@@ -14,19 +14,19 @@ func ValidateJobSetFilter(filter *api.JobSetFilter) error {
 	}
 	providedStatesSet := util.StringListToSet(filter.State)
 	for _, state := range filter.State {
-		if state != domain.QueuedPhase && state != domain.PendingPhase && state != domain.RunningPhase {
+		if !domain.IsValidFilterState(state) {
 			return fmt.Errorf("invalid state provided - state %s unrecognised", state)
 		}
 
-		if state == domain.PendingPhase {
-			if _, present := providedStatesSet[domain.RunningPhase]; !present {
-				return fmt.Errorf("unsupported state combination - state %s and %s must always be used together", domain.PendingPhase, domain.RunningPhase)
+		if state == domain.Pending.String() {
+			if _, present := providedStatesSet[domain.Running.String()]; !present {
+				return fmt.Errorf("unsupported state combination - state %s and %s must always be used together", domain.Pending, domain.Running)
 			}
 		}
 
-		if state == domain.RunningPhase {
-			if _, present := providedStatesSet[domain.PendingPhase]; !present {
-				return fmt.Errorf("unsupported state combination - state %s and %s must always be used together", domain.PendingPhase, domain.RunningPhase)
+		if state == domain.Running.String() {
+			if _, present := providedStatesSet[domain.Pending.String()]; !present {
+				return fmt.Errorf("unsupported state combination - state %s and %s must always be used together", domain.Pending, domain.Running)
 			}
 		}
 	}

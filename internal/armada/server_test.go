@@ -141,6 +141,43 @@ func TestCancelJob(t *testing.T) {
 	})
 }
 
+func TestCancelJobSet(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+
+		_, err := client.CreateQueue(ctx, &api.Queue{
+			Name:           "test",
+			PriorityFactor: 1,
+		})
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+
+		cpu, _ := resource.ParseQuantity("1")
+		memory, _ := resource.ParseQuantity("512Mi")
+
+		SubmitJob(client, ctx, cpu, memory, t)
+		SubmitJob(client, ctx, cpu, memory, t)
+
+		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+		assert.Equal(t, 1, len(leasedResponse.Job))
+
+		cancelResult, err := client.CancelJobSet(ctx,
+			&api.JobSetCancelRequest{
+				JobSetId: "set",
+				Queue:    "test",
+				Filter: &api.JobSetFilter{
+					State: []string{"Queued"},
+				},
+			})
+		assert.NoError(t, err)
+		//Should only cancel the queued job
+		assert.Equal(t, 1, len(cancelResult.CancelledIds))
+	})
+}
+
 func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
 	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
