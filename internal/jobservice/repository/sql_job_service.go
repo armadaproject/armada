@@ -136,8 +136,8 @@ func (s *SQLJobService) HealthCheck() (bool, error) {
 // Note: The key should be queuejobset.
 func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) bool {
 	s.jobStatus.subscribeLock.Lock()
-	primaryKey := queue + jobSet
 	defer s.jobStatus.subscribeLock.Unlock()
+	primaryKey := queue + jobSet
 	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	return ok
 }
@@ -157,8 +157,8 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 
 // UnSubscribe to JobSet and delete all the jobs in the in memory map
 func (s *SQLJobService) UnSubscribeJobSet(queue string, jobSet string) (int64, error) {
-	s.jobStatus.subscribeLock.RLock()
-	defer s.jobStatus.subscribeLock.RUnlock()
+	s.jobStatus.subscribeLock.Lock()
+	defer s.jobStatus.subscribeLock.Unlock()
 	primaryKey := queue + jobSet
 	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	if !ok {
@@ -181,6 +181,8 @@ func (s *SQLJobService) UnSubscribeJobSet(queue string, jobSet string) (int64, e
 
 func (s *SQLJobService) deleteJobsFromInMemoryMap(queue string, jobSet string) (int64, error) {
 	var rowsAffected int64 = 0
+	s.jobStatus.jobLock.Lock()
+	defer s.jobStatus.jobLock.Unlock()
 	for _, val := range s.jobStatus.jobMap {
 		if val.queue == queue && val.jobSetId == jobSet {
 			rowsAffected++
@@ -224,8 +226,6 @@ func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 
 // Delete Jobs in the map.
 func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
-	s.jobStatus.jobLock.RLock()
-	defer s.jobStatus.jobLock.RUnlock()
 	result, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	if err != nil {
 		return 0, err
@@ -249,13 +249,13 @@ func (s *SQLJobService) GetSubscribedJobSets() []SubscribedTuple {
 // Is failing to persist a fatal error?  I'd think so..
 func (s *SQLJobService) PersistDataToDatabase() error {
 	log.Info("Saving Data to Database")
-	s.jobStatus.jobLock.RLock()
-	defer s.jobStatus.jobLock.RUnlock()
+	s.jobStatus.jobLock.Lock()
+	defer s.jobStatus.jobLock.Unlock()
+	stmt, err := s.db.Prepare("INSERT INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		panic(err)
+	}
 	for key, value := range s.jobStatus.jobMap {
-		stmt, err := s.db.Prepare("INSERT INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
-		if err != nil {
-			panic(err)
-		}
 		jobState := value.jobResponse.State.String()
 		_, execErr := stmt.Exec(value.queue, value.jobSetId, value.jobId, jobState, value.jobResponse.Error, value.timeStamp)
 		if execErr != nil {
