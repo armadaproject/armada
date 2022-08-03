@@ -86,47 +86,7 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
             exit()
 
 
-def watch_queue(client, queue):
-    """
-    Watch the queue and any changes that occur
-
-    Print out the changes
-    """
-
-    last_info1 = None
-    last_info2 = None
-
-    # Continously featch the queue infomation
-    while True:
-        info1 = client.get_queue_info(name=queue)
-        info2 = client.get_queue(name=queue)
-
-        if last_info1 is None:
-            last_info1 = info1
-            last_info2 = info2
-
-        # If there is a change in the priority factor, print it out
-        if last_info2.priority_factor != info2.priority_factor:
-            print(
-                f"Priority factor changed from {last_info2.priority_factor} "
-                f"to {info2.priority_factor}"
-            )
-
-        # If there is a change in the number of jobs, print it out
-        for new, old in zip(info1.active_job_sets, last_info1.active_job_sets):
-            if new.leased_jobs != old.leased_jobs:
-                print(
-                    f"Leased jobs changed from {old.leased_jobs} to {new.leased_jobs}"
-                )
-
-        last_info1 = info1
-        last_info2 = info2
-
-        # So that we don't spam the server
-        time.sleep(0.2)
-
-
-def workflow(client, queue, job_set_id):
+def run_workflow(client, queue, job_set_id):
     """
     Example workflow for the async logging example
     """
@@ -179,23 +139,19 @@ def main():
     client = ArmadaClient(channel)
 
     # Create the threads
-    thread = threading.Thread(target=workflow, args=(client, queue, job_set_id))
+    workflow = threading.Thread(target=run_workflow, args=(client, queue, job_set_id))
 
     watch_jobs = threading.Thread(
         target=watch_job_set, args=(client, queue, job_set_id)
     )
 
-    watch_queues = threading.Thread(target=watch_queue, args=(client, queue))
-
     # Start the threads
-    thread.start()
+    workflow.start()
     watch_jobs.start()
-    watch_queues.start()
 
     # wait for threads to finish
-    thread.join()
+    workflow.join()
     watch_jobs.join()
-    watch_queues.join()
 
     print("Completed.")
 
