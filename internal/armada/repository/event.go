@@ -62,7 +62,7 @@ func NewRedisEventRepository(db redis.UniversalClient, eventRetention configurat
 	return &RedisEventRepository{db: db, eventRetention: eventRetention, compressorPool: compressorPool, decompressorPool: decompressorPool}
 }
 
-// ReportEvent reports the event to redis.  Note that this function my modify the supplied message in-place
+// ReportEvent reports the event to redis.  Note that this function may modify the supplied message in-place
 func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 	return repo.ReportEvents([]*api.EventMessage{message})
 }
