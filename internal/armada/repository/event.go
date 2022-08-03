@@ -67,7 +67,7 @@ func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 	return repo.ReportEvents([]*api.EventMessage{message})
 }
 
-// ReportEvents reports events to redis.  Note that this function my modify the supplied messages in-place
+// ReportEvents reports events to redis.  Note that this function may modify the supplied messages in-place
 func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) error {
 
 	if len(messages) == 0 {
