@@ -4,7 +4,7 @@ httpPort: 8080
 metricsPort: 9000
 corsAllowedOrigins: []
 priorityHalfTime: 20m
-cancelJobsBatchSize: 200
+cancelJobsBatchSize: 1000
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m

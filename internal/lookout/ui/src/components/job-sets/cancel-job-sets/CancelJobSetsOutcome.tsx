@@ -1,6 +1,7 @@
 import React from "react"
 
 import {
+  Checkbox,
   List,
   ListItem,
   ListItemText,
@@ -24,6 +25,8 @@ import "../../Text.css"
 type CancelJobSetsOutcomeProps = {
   cancelJobSetsResponse: CancelJobSetsResponse
   isLoading: boolean
+  queuedSelected: boolean
+  runningSelected: boolean
   onCancelJobs: () => void
 }
 
@@ -63,6 +66,14 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
               </TableBody>
             </Table>
           </TableContainer>
+          <div>
+            <Checkbox checked={props.queuedSelected} />
+            <label>Queued</label>
+          </div>
+          <div>
+            <Checkbox checked={props.runningSelected} />
+            <label>Pending + Running</label>
+          </div>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
           </div>

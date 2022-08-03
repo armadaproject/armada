@@ -234,14 +234,17 @@ export default class JobService {
     return response
   }
 
-  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
+  async cancelJobSets(queue: string, jobSets: JobSet[], states: string[]): Promise<CancelJobSetsResponse> {
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
-        const apiResponse = await this.submitApi.cancelJobs({
+        const apiResponse = await this.submitApi.cancelJobSet({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
+            filter: {
+              state: states,
+            },
           },
         })
 

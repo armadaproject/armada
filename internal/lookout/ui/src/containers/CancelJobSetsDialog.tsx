@@ -22,6 +22,17 @@ export function getCancellableJobSets(jobSets: JobSet[]): JobSet[] {
   return jobSets.filter((jobSet) => jobSet.jobsQueued > 0 || jobSet.jobsPending > 0 || jobSet.jobsRunning > 0)
 }
 
+export function getStatesToCancel(includeQueued: boolean, includeRunning: boolean): string[] {
+  const result = []
+  if (includeQueued) {
+    result.push("Queued")
+  }
+  if (includeRunning) {
+    result.push("Pending", "Running")
+  }
+  return result
+}
+
 export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
   const [state, setState] = useState<CancelJobSetsDialogState>("CancelJobSets")
   const [response, setResponse] = useState<CancelJobSetsResponse>({
@@ -30,7 +41,12 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
   })
   const [requestStatus, setRequestStatus] = useState<RequestStatus>("Idle")
 
+  const [includeQueued, setIncludeQueued] = useState<boolean>(true)
+  const [includeRunning, setIncludeRunning] = useState<boolean>(true)
+
   const jobSetsToCancel = getCancellableJobSets(props.selectedJobSets)
+
+  const statesToCancel = getStatesToCancel(includeQueued, includeRunning)
 
   async function cancelJobSets() {
     if (requestStatus === "Loading") {
@@ -38,7 +54,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
     }
 
     setRequestStatus("Loading")
-    const cancelJobSetsResponse = await props.jobService.cancelJobSets(props.queue, jobSetsToCancel)
+    const cancelJobSetsResponse = await props.jobService.cancelJobSets(props.queue, jobSetsToCancel, statesToCancel)
     setRequestStatus("Idle")
 
     setResponse(cancelJobSetsResponse)
@@ -75,14 +91,20 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
           <CancelJobSets
             queue={props.queue}
             jobSets={jobSetsToCancel}
+            queuedSelected={includeQueued}
+            runningSelected={includeRunning}
             isLoading={requestStatus === "Loading"}
             onCancelJobSets={cancelJobSets}
+            onQueuedSelectedChange={setIncludeQueued}
+            onRunningSelectedChange={setIncludeRunning}
           />
         )}
         {state === "CancelJobSetsResult" && (
           <CancelJobSetsOutcome
             cancelJobSetsResponse={response}
             isLoading={requestStatus === "Loading"}
+            queuedSelected={includeQueued}
+            runningSelected={includeRunning}
             onCancelJobs={cancelJobSets}
           />
         )}

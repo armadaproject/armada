@@ -227,6 +227,38 @@
         }
       }
     },
+    "/v1/jobset/cancel": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CancelJobSet",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobSetCancelRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiCancellationResult"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/queue": {
       "post": {
         "tags": [
@@ -1091,6 +1123,32 @@
         },
         "queue": {
           "type": "string"
+        }
+      }
+    },
+    "apiJobSetCancelRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/apiJobSetFilter"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobSetFilter": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
