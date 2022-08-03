@@ -1,5 +1,5 @@
 """
-Example of using the armada client to create a queue, jobset and job,
+Example of using the Armada client to create a queue, jobset and job,
 then watch for the job to succeed or fail.
 """
 

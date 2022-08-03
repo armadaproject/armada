@@ -35,7 +35,7 @@ python3 simple.py
 
 ### simple.py
 
-Example of using the armada client to create a queue, jobset and job,
+Example of using the Armada client to create a queue, jobset and job,
 then watch for the job to succeed or fail.
 
 #### Walkthrough
@@ -43,7 +43,7 @@ then watch for the job to succeed or fail.
 ```py
 def create_dummy_job(client: ArmadaClient):
 ```
-Armada uses kubernetes to control jobs, so we need to define a podspec that are job will use.
+Armada uses Kubernetes to control jobs, so we need to define a podspec that are job will use.
 
 ```py
 if DISABLE_SSL:

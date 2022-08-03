@@ -52,8 +52,17 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
     """
     Wait for a job event to occur.
 
-    Will automatically return if the job fails or the event stream is closed.
+    Will automatically return if the event is considered terminal.
+    A list of terminal events can be found here:
+    https://github.com/G-Research/armada/blob/master/internal/jobservice/eventstojobs/event_job_response_test.go
+
     """
+
+    terminal_events = [
+        EventType.duplicate_found,
+        EventType.failed,
+        EventType.cancelled,
+    ]
 
     # Contains all the possible message types
     for event in event_stream:
@@ -61,7 +70,7 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
         event = client.unmarshal_event_response(event)
 
         if event.message.job_id == job_id:
-            if event.type == EventType.failed:
+            if event.type in terminal_events:
                 return False
             elif event.type == event_state:
                 return True
