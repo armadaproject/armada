@@ -45,14 +45,13 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 
 func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	// Primary key for JobSet invovles queue and jobset
 	conn, connErr := client.CreateApiConnection(clientConnect)
-	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	if connErr != nil {
 		log.Warnf("Connection Issues with EventClient %v", connErr)
 		return connErr
 	}
 	defer conn.Close()
+	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		// Once we unsubscribed from the job-set, we need to close the GRPC connection.
