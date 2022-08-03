@@ -15,8 +15,23 @@
        border-radius: 4px;
 
    }
+   #myBt {
+       position: fixed;
+       bottom: 10px;
+       float: left;
+       left: 10%;
+       right: 90%;
+       max-width: 60px;
+       width: 100%;
+       font-size: 12px;
+       border-color: rgba(85, 85, 85, 0.2);
+       background-color: rgb(100,100,100);
+       padding: .5px;
+       border-radius: 4px;
+
+   }
  </style>
-  <div class="container">
+  <div class="container" id="bottom">
     <div class="row row-grid align-items-center mb-2 mt-2">
       <div class="col-lg-6">
         <h4 class="mb-0 font-weight-light">{{ site.data.settings.footer_settings.footer_tagline }}</h4>
@@ -26,7 +41,7 @@
       </div>
     </div>
     <hr>
-    <div class="row align-items-center justify-content-md-between">
+    <div class="row align-items-center justify-content-md-between" id="bottom">
       <div class="col-md-6">
         <div class="copyright">
           <span> © {{ 'now' | date: "%Y" }} Armada Project</span>
@@ -130,4 +145,5 @@
 {% endif %}
 
 <script src="{{ "/assets/js/argon-design-system.min.js?v=1.0.0" | relative_url }}" type="text/javascript"></script>
-<button id="myBtn"><a href="#top" style="color: white">Top ^</a></button>
+<button id="myBtn"><a href="#top" style="color: white">Top </a></button>
+<button id="myBt"><a href="#bottom" style="color: white">Bottom </a></button>
