@@ -17,6 +17,5 @@ type JobTable struct {
 
 // Construct a JobTable and adds a timestamp when it was created.
 func NewJobTable(queue string, jobSetId string, jobId string, jobResponse js.JobServiceResponse) *JobTable {
-	// Construct a key of (queue, jobSetId) since that uniqutely determines jobset.
 	return &JobTable{queue: queue, jobSetId: jobSetId, jobId: jobId, jobResponse: jobResponse, timeStamp: time.Now().Unix()}
 }

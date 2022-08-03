@@ -65,8 +65,6 @@ Timestamp INT
 }
 
 // Get the JobStatus given the jodId
-// If a job is not in the map, we return JOB_ID_NOT_FOUND
-// This should not be an error.
 func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
 	s.jobStatus.jobLock.RLock()
 	jobResponse, ok := s.jobStatus.jobMap[jobId]
@@ -200,6 +198,8 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 		return false
 	}
 	currentTime := time.Now().Unix()
+	s.jobStatus.subscribeLock.RLock()
+	defer s.jobStatus.subscribeLock.RUnlock()
 	for _, val := range s.jobStatus.subscribeMap {
 		if val.queue == queue && val.jobSet == jobSet {
 			if (currentTime - val.lastRequestTimeStamp) > configTimeWithoutUpdates {
@@ -236,8 +236,8 @@ func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, 
 // Get a list of SubscribedJobSets (Queue JobSet)
 func (s *SQLJobService) GetSubscribedJobSets() []SubscribedTuple {
 	var returnJobSets []SubscribedTuple
-	s.jobStatus.jobLock.RLock()
-	defer s.jobStatus.jobLock.RUnlock()
+	s.jobStatus.subscribeLock.RLock()
+	defer s.jobStatus.subscribeLock.RUnlock()
 	for _, value := range s.jobStatus.subscribeMap {
 		tuple := &SubscribedTuple{Queue: value.queue, JobSet: value.jobSet}
 		returnJobSets = append(returnJobSets, *tuple)
@@ -246,7 +246,6 @@ func (s *SQLJobService) GetSubscribedJobSets() []SubscribedTuple {
 }
 
 // Save our in memory map to Database and delete from in memory map.
-// Is failing to persist a fatal error?  I'd think so..
 func (s *SQLJobService) PersistDataToDatabase() error {
 	log.Info("Saving Data to Database")
 	s.jobStatus.jobLock.Lock()
