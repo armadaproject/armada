@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -84,8 +83,10 @@ func TestSubscribeList(t *testing.T) {
 
 func TestUnscribeJobSetIfNonExist(t *testing.T) {
 	WithInMemoryRepo(func(r *SQLJobService) {
-		r.UnSubscribeJobSet("queue", "job-set-1")
+		rowsAffected, err := r.UnSubscribeJobSet("queue", "job-set-1")
 		assert.False(t, r.IsJobSetSubscribed("queue", "job-set-1"))
+		assert.Equal(t, rowsAffected, int64(0))
+		assert.Nil(t, err)
 	})
 }
 func TestUnSubscribeJobSetHappy(t *testing.T) {
@@ -93,45 +94,36 @@ func TestUnSubscribeJobSetHappy(t *testing.T) {
 		r.SubscribeJobSet("queue", "job-set-1")
 		respHappy := r.IsJobSetSubscribed("queue", "job-set-1")
 		assert.True(t, respHappy)
-		r.UnSubscribeJobSet("queue", "job-set-1")
+		rowsAffected, err := r.UnSubscribeJobSet("queue", "job-set-1")
 		assert.False(t, r.IsJobSetSubscribed("queue", "job-set-1"))
+		assert.Equal(t, rowsAffected, int64(0))
+		assert.Nil(t, err)
 	})
 }
 
 func TestDeleteJobsInJobSet(t *testing.T) {
 	WithInMemoryRepo(func(r *SQLJobService) {
 		var responseExpected1 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
-		var responseExpected2 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
-		var responseExpected3 = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 
 		jobTable1 := NewJobTable("test", "job-set-1", "job-id", *responseExpected1)
-		jobTable2 := NewJobTable("test", "job-set-1", "job-id-2", *responseExpected2)
-		jobTable3 := NewJobTable("test", "job-set-2", "job-id-3", *responseExpected3)
 
 		r.UpdateJobServiceDb(jobTable1)
-		r.UpdateJobServiceDb(jobTable2)
-		r.UpdateJobServiceDb(jobTable3)
 		r.PersistDataToDatabase()
 		jobResponse1, _ := r.GetJobStatus("job-id")
-		jobResponse2, _ := r.GetJobStatus("job-id-2")
-		jobResponse3, _ := r.GetJobStatus("job-id-3")
 
 		assert.Equal(t, jobResponse1, responseExpected1)
-		assert.Equal(t, jobResponse2, responseExpected2)
-		assert.Equal(t, jobResponse3, responseExpected3)
 
 		r.SubscribeJobSet("test", "job-set-1")
-		r.DeleteJobsInJobSet("test", "job-set-1")
+		rows, err := r.DeleteJobsInJobSet("test", "job-set-1")
+		assert.Equal(t, rows, int64(1))
+		assert.Nil(t, err)
 		jobResponseDelete1, _ := r.GetJobStatus("job-id")
-		jobResponseDelete2, _ := r.GetJobStatus("job-id-2")
-		jobResponseDelete3, _ := r.GetJobStatus("job-id-3")
 		var responseDoesNotExist = &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		assert.Equal(t, jobResponseDelete1, responseDoesNotExist)
-		assert.Equal(t, jobResponseDelete2, responseDoesNotExist)
-		assert.Equal(t, jobResponseDelete3, responseExpected3)
 
-		err := r.DeleteJobsInJobSet("test", "job-set-1")
-		assert.Nil(t, err)
+		rowsEmpty, errEmpty := r.DeleteJobsInJobSet("test", "job-set-1")
+		assert.Equal(t, rowsEmpty, int64(0))
+		assert.Nil(t, errEmpty)
 
 	})
 }
@@ -152,10 +144,7 @@ func TestCheckToUnSubscribe(t *testing.T) {
 		r.SubscribeJobSet("test", "job-set-1")
 		assert.True(t, r.IsJobSetSubscribed("test", "job-set-1"))
 		assert.False(t, r.CheckToUnSubscribe("test", "job-set-1", 100000))
-
-		time.Sleep(1 * time.Second)
-
-		assert.True(t, r.CheckToUnSubscribe("test", "job-set-1", 0))
+		assert.True(t, r.CheckToUnSubscribe("test", "job-set-1", -1))
 	})
 }
 func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
@@ -185,7 +174,7 @@ func TestUpdateJobSetTime(t *testing.T) {
 func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
 	WithInMemoryRepo(func(r *SQLJobService) {
 		updateErr := r.UpdateJobSetTime("test", "job-set-1")
-		assert.EqualError(t, updateErr, "Queue test JobSet job-set-1 is already unsubscribed")
+		assert.EqualError(t, updateErr, "queue test jobSet job-set-1 is already unsubscribed")
 		_, ok := r.jobStatus.subscribeMap["testjob-set-1"]
 		assert.False(t, ok)
 
@@ -296,7 +285,10 @@ func TestDeleteJobsPersistingHappy(t *testing.T) {
 		r.UpdateJobServiceDb(jobTable1)
 		r.SubscribeJobSet("test-race", "job-set-race")
 		r.PersistDataToDatabase()
-		r.UnSubscribeJobSet("test-race", "job-set-race")
+		rowsAffected, unErr := r.UnSubscribeJobSet("test-race", "job-set-race")
+		assert.Equal(t, rowsAffected, int64(1))
+		assert.Nil(t, unErr)
+
 		actualNotFound, actualError := r.GetJobStatus("job-race")
 		assert.Equal(t, actualNotFound, noExist)
 		assert.Nil(t, actualError)

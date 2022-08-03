@@ -156,18 +156,38 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 }
 
 // UnSubscribe to JobSet and delete all the jobs in the in memory map
-func (s *SQLJobService) UnSubscribeJobSet(queue string, jobSet string) {
+func (s *SQLJobService) UnSubscribeJobSet(queue string, jobSet string) (int64, error) {
 	s.jobStatus.subscribeLock.RLock()
 	defer s.jobStatus.subscribeLock.RUnlock()
 	primaryKey := queue + jobSet
 	_, ok := s.jobStatus.subscribeMap[primaryKey]
 	if !ok {
 		log.Infof("JobSetId %s already unsubscribed", primaryKey)
-		return
+		return int64(0), nil
 	}
 	delete(s.jobStatus.subscribeMap, primaryKey)
 	log.Infof("Queue %s JobSetId %s unsubscribed", queue, jobSet)
-	s.DeleteJobsInJobSet(queue, jobSet)
+	rowsAffected, errDelete := s.DeleteJobsInJobSet(queue, jobSet)
+	if errDelete != nil {
+		return rowsAffected, errDelete
+	}
+	// If jobs are subscribed but aren't in DB than we should delete from local map
+	if rowsAffected == 0 {
+		return s.deleteJobsFromInMemoryMap(queue, jobSet)
+	}
+	// If we were able to delete from DB than we assume all is good
+	return rowsAffected, errDelete
+}
+
+func (s *SQLJobService) deleteJobsFromInMemoryMap(queue string, jobSet string) (int64, error) {
+	var rowsAffected int64 = 0
+	for _, val := range s.jobStatus.jobMap {
+		if val.queue == queue && val.jobSetId == jobSet {
+			rowsAffected++
+			delete(s.jobStatus.jobMap, val.jobId)
+		}
+	}
+	return rowsAffected, nil
 }
 
 // Checks JobSet table to make determine if we should unsubscribe from JobSet
@@ -203,18 +223,14 @@ func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 }
 
 // Delete Jobs in the map.
-// This could be a race condition if the in memory map contains the jobs and they haven't been
-// persisted to the DB yet.
-func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) error {
+func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
 	s.jobStatus.jobLock.RLock()
 	defer s.jobStatus.jobLock.RUnlock()
-	// TODO Handle race condition
-	// Maybe we should persist this JobSet to DB if it doesn't exist
-	_, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	result, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return result.RowsAffected()
 }
 
 // Get a list of SubscribedJobSets (Queue JobSet)
@@ -230,6 +246,7 @@ func (s *SQLJobService) GetSubscribedJobSets() []SubscribedTuple {
 }
 
 // Save our in memory map to Database and delete from in memory map.
+// Is failing to persist a fatal error?  I'd think so..
 func (s *SQLJobService) PersistDataToDatabase() error {
 	log.Info("Saving Data to Database")
 	s.jobStatus.jobLock.RLock()
