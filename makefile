@@ -49,7 +49,7 @@ else
 endif
 
 ifeq ($(DOCKER_RUN_AS_USER),)
-	DOCKER_RUN_AS_USER = -u $(shell id -u ${USER}):$(shell id -g ${USER})
+	DOCKER_RUN_AS_USER = -u $(shell id -u):$(shell id -g)
 endif
 ifeq ($(platform),windows32)
 	DOCKER_RUN_AS_USER =
