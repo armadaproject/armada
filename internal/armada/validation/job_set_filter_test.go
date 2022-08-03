@@ -3,8 +3,9 @@ package validation
 import (
 	"testing"
 
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func TestValidateJobSetFilter(t *testing.T) {
