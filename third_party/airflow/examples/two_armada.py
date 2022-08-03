@@ -52,7 +52,7 @@ def submit_sleep_job():
 This is an example of a Airflow dag that uses a BashOperator and an ArmadaOperator
 """
 with DAG(
-    dag_id="hello_armada",
+    dag_id="two_armada",
     start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
     schedule_interval="@daily",
     catchup=False,
@@ -80,9 +80,18 @@ with DAG(
     You should reuse them for all your tasks.
     This job will use the podspec defined above.
     """
-    armada = ArmadaOperator(
-        task_id="armada",
-        name="armada",
+    armada_1 = ArmadaOperator(
+        task_id="armada_1",
+        name="armada_1",
+        queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+    )
+
+    armada_2 = ArmadaOperator(
+        task_id="armada_2",
+        name="armada_2",
         queue="test",
         job_service_client=job_service_client,
         armada_client=no_auth_client,
@@ -91,4 +100,5 @@ with DAG(
     """
     Airflow dag syntax for running op and then armada.
     """
-    op >> armada
+    op >> armada_1 >> armada_2
+

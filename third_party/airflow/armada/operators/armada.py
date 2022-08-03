@@ -52,7 +52,6 @@ class ArmadaOperator(BaseOperator):
         armada_client: ArmadaClient,
         job_service_client: JobServiceClient,
         queue: str,
-        job_set_id: str,
         job_request_items,
         **kwargs,
     ) -> None:
@@ -61,7 +60,6 @@ class ArmadaOperator(BaseOperator):
         self.armada_client = armada_client
         self.job_service = job_service_client
         self.queue = queue
-        self.job_set_id = job_set_id
         self.job_request_items = job_request_items
 
     def execute(self, context) -> None:
@@ -74,9 +72,10 @@ class ArmadaOperator(BaseOperator):
 
         :return: None
         """
+        job_set_id = context["run_id"]
         job = self.armada_client.submit_jobs(
             queue=self.queue,
-            job_set_id=self.job_set_id,
+            job_set_id=job_set_id,
             job_request_items=self.job_request_items,
         )
 
@@ -89,7 +88,7 @@ class ArmadaOperator(BaseOperator):
         job_state, job_message = search_for_job_complete(
             job_service_client=self.job_service,
             queue=self.queue,
-            job_set_id=self.job_set_id,
+            job_set_id=job_set_id,
             airflow_task_name=self.name,
             job_id=job_id,
         )
