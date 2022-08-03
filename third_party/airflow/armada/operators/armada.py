@@ -40,7 +40,6 @@ class ArmadaOperator(BaseOperator):
                         that is used for interacting with Armada
     :param job_service_client: The JobServiceClient that is used for polling
     :param queue: The queue name
-    :param job_set_id: The job_set_id. Should be set at dag level for all jobs
     :param job_request_items: A PodSpec that is used by Armada for submitting a job
 
     :return: a job service client instance
@@ -72,6 +71,8 @@ class ArmadaOperator(BaseOperator):
 
         :return: None
         """
+        # This allows us to use a unique id from airflow
+        # and have all jobs in a dag correspond to same jobset
         job_set_id = context["run_id"]
         job = self.armada_client.submit_jobs(
             queue=self.queue,
