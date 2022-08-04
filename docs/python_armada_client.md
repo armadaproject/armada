@@ -21,7 +21,7 @@ Client for accessing Armada over gRPC.
 
 * **Parameters**
 
-
+    
     * **channel** – gRPC channel used for authentication. See
     [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
     for more information.
@@ -47,7 +47,7 @@ job_set_id is required.
 
 * **Parameters**
 
-
+    
     * **queue** (*Optional**[**str**]*) – The name of the queue
 
 
@@ -76,7 +76,7 @@ Create a job request.
 
 * **Parameters**
 
-
+    
     * **priority** (*float*) – The priority of the job
 
 
@@ -128,7 +128,7 @@ Uses the CreateQueue RPC to create a queue.
 
 * **Parameters**
 
-
+    
     * **name** (*str*) – The name of the queue
 
 
@@ -202,7 +202,7 @@ for event in events:
 
 * **Parameters**
 
-
+    
     * **queue** (*str*) – The name of the queue
 
 
@@ -282,7 +282,7 @@ or job set.
 
 * **Parameters**
 
-
+    
     * **new_priority** (*float*) – The new priority value for the jobs
 
 
@@ -316,7 +316,7 @@ Uses SubmitJobs RPC to submit a job.
 
 * **Parameters**
 
-
+    
     * **queue** (*str*) – The name of the queue
 
 
@@ -394,7 +394,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 
 * **Parameters**
 
-
+    
     * **name** (*str*) – The name of the queue
 
 
@@ -458,11 +458,11 @@ queue = client.create_queue(
 
 * **Parameters**
 
+    
+    * **subjects** (*List**[**armada_client.permissions.Subject**]*) – 
 
-    * **subjects** (*List**[**armada_client.permissions.Subject**]*) –
 
-
-    * **verbs** (*List**[**str**]*) –
+    * **verbs** (*List**[**str**]*) – 
 
 
 
@@ -482,7 +482,7 @@ Subject is a NamedTuple that represents a subject in the permission system.
 
 * **Fields**
 
-
+    
     1.  **kind** (`str`) – Alias for field number 0
 
 
@@ -492,11 +492,11 @@ Subject is a NamedTuple that represents a subject in the permission system.
 
 * **Parameters**
 
+    
+    * **kind** (*str*) – 
 
-    * **kind** (*str*) –
 
-
-    * **name** (*str*) –
+    * **name** (*str*) – 
 
 
 
