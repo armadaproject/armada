@@ -51,35 +51,10 @@ RUN curl -sSL https://www.nuget.org/api/v2/package/Grpc.Tools/2.46.3 --output gr
     mv grpctools/tools/linux_x64/grpc_csharp_plugin /usr/local/bin/grpc_csharp_plugin && \
     chmod +x /usr/local/bin/grpc_csharp_plugin
 
-# Remove after I copy proto files
-ARG GOGO_PROTOBUF_VERSION
-RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION} && \
-    mkdir -p /proto/github.com/gogo/protobuf && \
-    cp -r /go/pkg/mod/github.com/gogo/protobuf@v${GOGO_PROTOBUF_VERSION}/* /proto/github.com/gogo/protobuf && \
-    mkdir -p /proto/google && \
-    cp -r /go/pkg/mod/github.com/gogo/protobuf@v${GOGO_PROTOBUF_VERSION}/protobuf/google/* /proto/google
-
-ARG GRPC_GATEWAY_VERSION
-RUN GO111MODULE=on go get \
-   github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
-    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION} && \
-    mkdir -p /proto/google && \
-    cp -r /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway@v${GRPC_GATEWAY_VERSION}/third_party/googleapis/google/* /proto/google
-
-# Remove after you can inject proto files
-ARG K8S_VERSION
-RUN go mod download k8s.io/api@v${K8S_VERSION} && \
-    go mod download k8s.io/apimachinery@v${K8S_VERSION} && \
-    mkdir -p /proto/k8s.io/api && \
-    mkdir -p /proto/k8s.io/apimachinery && \
-    cp -r $(go env GOPATH)/pkg/mod/k8s.io/api@v${K8S_VERSION}/* /proto/k8s.io/api && \
-    cp -r $(go env GOPATH)/pkg/mod/k8s.io/apimachinery@v${K8S_VERSION}/* /proto/k8s.io/apimachinery
-
 ARG GOLANG_VERSION
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /go/bin /usr/local/bin
-COPY --from=builder /proto /proto
 
 RUN curl -OL https://packages.microsoft.com/config/debian/10/packages-microsoft-prod.deb
 RUN dpkg -i packages-microsoft-prod.deb
