@@ -889,14 +889,14 @@ func (repo *RedisJobRepository) GetJobSetJobIds(queue string, jobSetId string, f
 		return nil, errors.WithStack(err)
 	}
 
-	activeIdsSet := util.StringListToSet(activeJobIds)
-	activeSetIds := []string{}
+	activeIds := util.StringListToSet(activeJobIds)
+	activeJobSetIds := []string{}
 	for _, id := range jobSetIds {
-		if activeIdsSet[id] {
-			activeSetIds = append(activeSetIds, id)
+		if activeIds[id] {
+			activeJobSetIds = append(activeJobSetIds, id)
 		}
 	}
-	return activeSetIds, nil
+	return activeJobSetIds, nil
 }
 
 // GetQueueActiveJobSets returns a list of length equal to the number of unique job sets

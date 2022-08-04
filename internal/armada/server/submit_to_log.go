@@ -417,8 +417,8 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 
 	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
-		return nil, status.Error(codes.Internal, "Failed to send message")
+		log.WithError(err).Error("failed to send cancel job messages to pulsar")
+		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
 	}
 
 	return &api.CancellationResult{
