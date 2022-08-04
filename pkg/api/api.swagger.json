@@ -246,9 +246,7 @@
         "responses": {
           "200": {
             "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiCancellationResult"
-            }
+            "schema": {}
           },
           "default": {
             "description": "An unexpected error response.",
@@ -1143,11 +1141,12 @@
     },
     "apiJobSetFilter": {
       "type": "object",
+      "title": "swagger:model",
       "properties": {
-        "state": {
+        "states": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/definitions/apiJobState"
           }
         }
       }
@@ -1191,6 +1190,16 @@
           "type": "boolean"
         }
       }
+    },
+    "apiJobState": {
+      "type": "string",
+      "title": "swagger:model",
+      "default": "QUEUED",
+      "enum": [
+        "QUEUED",
+        "PENDING",
+        "RUNNING"
+      ]
     },
     "apiJobSubmitRequest": {
       "type": "object",

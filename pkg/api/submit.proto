@@ -69,8 +69,16 @@ message JobSetCancelRequest {
     JobSetFilter filter = 3;
 }
 
+// swagger:model
 message JobSetFilter {
-    repeated string state = 1;
+    repeated JobState states = 1;
+}
+
+// swagger:model
+enum JobState {
+    QUEUED = 0;
+    PENDING = 1;
+    RUNNING = 2;
 }
 
 // swagger:model
@@ -184,7 +192,7 @@ service Submit {
             body: "*"
         };
     }
-    rpc CancelJobSet (JobSetCancelRequest) returns (CancellationResult) {
+    rpc CancelJobSet (JobSetCancelRequest) returns (google.protobuf.Empty) {
         option (google.api.http) = {
             post: "/v1/jobset/cancel"
             body: "*"

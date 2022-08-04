@@ -362,7 +362,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
 	if req.Queue == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -421,9 +421,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
 	}
 
-	return &api.CancellationResult{
-		CancelledIds: ids,
-	}, nil
+	return &types.Empty{}, err
 }
 
 func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {

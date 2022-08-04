@@ -257,9 +257,7 @@ func SwaggerJsonTemplate() string {
 		"        \"responses\": {\n" +
 		"          \"200\": {\n" +
 		"            \"description\": \"A successful response.\",\n" +
-		"            \"schema\": {\n" +
-		"              \"$ref\": \"#/definitions/apiCancellationResult\"\n" +
-		"            }\n" +
+		"            \"schema\": {}\n" +
 		"          },\n" +
 		"          \"default\": {\n" +
 		"            \"description\": \"An unexpected error response.\",\n" +
@@ -1154,11 +1152,12 @@ func SwaggerJsonTemplate() string {
 		"    },\n" +
 		"    \"apiJobSetFilter\": {\n" +
 		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
 		"      \"properties\": {\n" +
-		"        \"state\": {\n" +
+		"        \"states\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
-		"            \"type\": \"string\"\n" +
+		"            \"$ref\": \"#/definitions/apiJobState\"\n" +
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
@@ -1202,6 +1201,16 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"apiJobState\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"default\": \"QUEUED\",\n" +
+		"      \"enum\": [\n" +
+		"        \"QUEUED\",\n" +
+		"        \"PENDING\",\n" +
+		"        \"RUNNING\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +
 		"      \"type\": \"object\",\n" +

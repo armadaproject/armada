@@ -17,7 +17,6 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/domain"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	servervalidation "github.com/G-Research/armada/internal/armada/validation"
@@ -446,12 +445,13 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	return nil, status.Errorf(codes.InvalidArgument, "[CancelJobs] specify either job ID or both queue name and job set ID")
 }
 
-func (server *SubmitServer) CancelJobSet(ctx context.Context, request *api.JobSetCancelRequest) (*api.CancellationResult, error) {
+func (server *SubmitServer) CancelJobSet(ctx context.Context, request *api.JobSetCancelRequest) (*types.Empty, error) {
 	err := servervalidation.ValidateJobSetFilter(request.Filter)
 	if err != nil {
 		return nil, err
 	}
-	return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter))
+	_, err = server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter))
+	return &types.Empty{}, err
 }
 
 func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
@@ -463,11 +463,11 @@ func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
 		IncludeLeased: false,
 	}
 
-	for _, state := range filter.State {
-		if state == domain.Queued.String() {
+	for _, state := range filter.States {
+		if state == api.JobState_QUEUED {
 			jobSetFilter.IncludeQueued = true
 		}
-		if state == domain.Pending.String() || state == domain.Running.String() {
+		if state == api.JobState_PENDING || state == api.JobState_RUNNING {
 			jobSetFilter.IncludeLeased = true
 		}
 	}
