@@ -21,7 +21,7 @@ Client for accessing Armada over gRPC.
 
 * **Parameters**
 
-    
+
     * **channel** – gRPC channel used for authentication. See
     [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
     for more information.
@@ -47,7 +47,7 @@ job_set_id is required.
 
 * **Parameters**
 
-    
+
     * **queue** (*Optional**[**str**]*) – The name of the queue
 
 
@@ -70,42 +70,13 @@ job_set_id is required.
 
 
 
-#### create_job_request(queue, job_set_id, job_request_items)
-Create a job request.
-
-
-* **Parameters**
-
-    
-    * **queue** (*str*) – The name of the queue
-
-
-    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
-
-
-    * **job_request_items** (*List**[**armada.submit_pb2.JobSubmitRequestItem**]*) – List of Job Request Items
-
-
-
-* **Returns**
-
-    A job request object. See the api definition.
-
-
-
-* **Return type**
-
-    armada.submit_pb2.JobSubmitRequest
-
-
-
 #### create_job_request_item(pod_spec, priority=1.0, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
 Create a job request.
 
 
 * **Parameters**
 
-    
+
     * **priority** (*float*) – The priority of the job
 
 
@@ -157,7 +128,7 @@ Uses the CreateQueue RPC to create a queue.
 
 * **Parameters**
 
-    
+
     * **name** (*str*) – The name of the queue
 
 
@@ -219,10 +190,19 @@ Get event stream for a job set.
 Uses the GetJobSetEvents rpc to get a stream of events relating
 to the provided job_set_id.
 
+Usage:
+
+```python
+events = client.get_job_events_stream(...)
+for event in events:
+    event = client.unmarshal_event_response(event)
+    print(event)
+```
+
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -302,7 +282,7 @@ or job set.
 
 * **Parameters**
 
-    
+
     * **new_priority** (*float*) – The new priority value for the jobs
 
 
@@ -336,7 +316,7 @@ Uses SubmitJobs RPC to submit a job.
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -414,7 +394,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 
 * **Parameters**
 
-    
+
     * **name** (*str*) – The name of the queue
 
 
@@ -466,14 +446,23 @@ Definition can be found at:
 ### _class_ armada_client.permissions.Permissions(subjects, verbs)
 Permissions including Subjects and Verbs
 
+```python
+permissions = Permissions(...)
+client = ArmadaClient(...)
+
+queue = client.create_queue(
+    permissions=[permissions],
+)
+```
+
 
 * **Parameters**
 
-    
-    * **subjects** (*List**[**armada_client.permissions.Subject**]*) – 
+
+    * **subjects** (*List**[**armada_client.permissions.Subject**]*) –
 
 
-    * **verbs** (*List**[**str**]*) – 
+    * **verbs** (*List**[**str**]*) –
 
 
 
@@ -493,7 +482,7 @@ Subject is a NamedTuple that represents a subject in the permission system.
 
 * **Fields**
 
-    
+
     1.  **kind** (`str`) – Alias for field number 0
 
 
@@ -503,11 +492,11 @@ Subject is a NamedTuple that represents a subject in the permission system.
 
 * **Parameters**
 
-    
-    * **kind** (*str*) – 
+
+    * **kind** (*str*) –
 
 
-    * **name** (*str*) – 
+    * **name** (*str*) –
 
 
 

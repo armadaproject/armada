@@ -17,7 +17,7 @@ func TestCheckStreamExists(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, exists)
 
-		event := createEvent("test", "jobset")
+		event := createEvent("test", "jobset", time.Now())
 		err = r.ReportEvents([]*api.EventMessage{event})
 		assert.NoError(t, err)
 
@@ -27,14 +27,29 @@ func TestCheckStreamExists(t *testing.T) {
 	})
 }
 
-func createEvent(queue string, jobSetId string) *api.EventMessage {
+func TestReadEvents(t *testing.T) {
+
+	withRedisEventRepository(func(r *RedisEventRepository) {
+		created := time.Now().UTC()
+		event := createEvent("test", "jobset", created)
+		err := r.ReportEvents([]*api.EventMessage{event})
+		assert.NoError(t, err)
+
+		events, err := r.ReadEvents("test", "jobset", "", 500, 1*time.Second)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(events))
+		assert.Equal(t, createEvent("test", "jobset", created), events[0].Message)
+	})
+}
+
+func createEvent(queue string, jobSetId string, created time.Time) *api.EventMessage {
 	return &api.EventMessage{
 		Events: &api.EventMessage_Running{
 			Running: &api.JobRunningEvent{
 				JobId:    "jobId",
 				JobSetId: jobSetId,
 				Queue:    queue,
-				Created:  time.Now(),
+				Created:  created,
 			},
 		},
 	}
