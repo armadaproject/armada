@@ -460,7 +460,7 @@ namespace GResearch.Armada.Client
     
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public System.Threading.Tasks.Task<ApiCancellationResult> CancelJobSetAsync(ApiJobSetCancelRequest body)
+        public System.Threading.Tasks.Task<object> CancelJobSetAsync(ApiJobSetCancelRequest body)
         {
             return CancelJobSetAsync(body, System.Threading.CancellationToken.None);
         }
@@ -468,7 +468,7 @@ namespace GResearch.Armada.Client
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>A successful response.</returns>
         /// <exception cref="ApiException">A server side error occurred.</exception>
-        public async System.Threading.Tasks.Task<ApiCancellationResult> CancelJobSetAsync(ApiJobSetCancelRequest body, System.Threading.CancellationToken cancellationToken)
+        public async System.Threading.Tasks.Task<object> CancelJobSetAsync(ApiJobSetCancelRequest body, System.Threading.CancellationToken cancellationToken)
         {
             var urlBuilder_ = new System.Text.StringBuilder();
             urlBuilder_.Append(BaseUrl != null ? BaseUrl.TrimEnd('/') : "").Append("/v1/jobset/cancel");
@@ -504,7 +504,7 @@ namespace GResearch.Armada.Client
                         var status_ = ((int)response_.StatusCode).ToString();
                         if (status_ == "200") 
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<ApiCancellationResult>(response_, headers_).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<object>(response_, headers_).ConfigureAwait(false);
                             return objectResponse_.Object;
                         }
                         else
@@ -1639,8 +1639,8 @@ namespace GResearch.Armada.Client
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobSetFilter 
     {
-        [Newtonsoft.Json.JsonProperty("state", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public System.Collections.Generic.ICollection<string> State { get; set; }
+        [Newtonsoft.Json.JsonProperty("states", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore, ItemConverterType = typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
+        public System.Collections.Generic.ICollection<ApiJobState> States { get; set; }
     
     
     }
@@ -1681,6 +1681,20 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("watch", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? Watch { get; set; }
     
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public enum ApiJobState
+    {
+        [System.Runtime.Serialization.EnumMember(Value = @"QUEUED")]
+        QUEUED = 0,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"PENDING")]
+        PENDING = 1,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"RUNNING")]
+        RUNNING = 2,
     
     }
     
