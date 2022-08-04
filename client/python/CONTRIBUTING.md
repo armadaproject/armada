@@ -1,5 +1,4 @@
-# Contributing to the Armada python Client
-<hr />
+# Contributing to the Armada Python Client
 
 Armada Project welcomes contributions from the opensource community.
 
@@ -7,7 +6,7 @@ This client is written primarily targeting supported versions of python 3 on Lin
 an [issue](https://github.com/g-research/armada/issues/new) if you need support for another platform.
 
 ## First time contribution using a fork
-<hr />
+
 Armada encourages using the [fork then PR](https://gist.github.com/Chaser324/ce0505fbed06b947d962)
 workflow for contributing. First time contributors can follow the guide below to get started.
 
@@ -24,16 +23,14 @@ workflow for contributing. First time contributors can follow the guide below to
 4) Add upstream remote to your repository: `git remote add upstream https://github.com/G-Research/armada.git`.
 
 ### Preparing repository for development
-<hr />
 Unlike most python projects, the Armada python client contains a large quantity of generated code. This code must be
 generated in order to compile and develop against the client.
 
 From the root of the repository, run `make python`. This will generate python code needed to build
-and use the client. This command needs to be re-run anytime an API change is committed (e.g. a change to a *.proto
+and use the client. This command needs to be re-run anytime an API change is committed (e.g. a change to a `*.proto`
 file).
 
 ### Run tests to ensure environment is prepared
-<hr />
 Unit tests, auto-formatting, and formatting checks are all run using `tox` as an orchestration tool. Tox manages a set
 of virtual environments which allow testing under multiple python versions and install conditions.
 
@@ -42,7 +39,6 @@ The following commands should be run, and passing, at this point:
 - `tox -e format` will ensure formatting is compliant with linting tools and code formatters in use.
 
 ### Create a branch and work on your contribution
-<hr />
 Code changes should be created in a branch, to isolate them from other work being performed and to allow you to later
 request those changes be pulled into the primary repository.
 
@@ -60,8 +56,6 @@ formatting tool, `black`, which will edit your code to ensure it is formatted co
 Once your code is complete, and passing tests, you're ready to commit it and push it back to github.
 
 ### Push your code to Github and create a pull request
-<hr />
-
 Your code is in the repository, but is not yet been added to git. Adding a file to git tells it you want a new or
 changed file to be committed into your branch. You can add files individually, with `git add filename`, or you can
 add all files in a directory with `git add .`. For new contributors, it's suggested you add your changes a file at a 
@@ -77,7 +71,6 @@ Github. This is as simple as running `git push origin NewFeature12345` (again, r
 chosen above).
 
 ### Creating and maintaining a pull request
-<hr />
 There are two ways to create a pull request (PR). The simplest, and quickest way, is to use the link returned on the command
 line the first time you push a branch to Github. This brings you to the PR creation screen directly.
 
@@ -94,7 +87,6 @@ If you've determined the requested change needs to be made, you'll have to retur
 with additional commits until it's gotten to a state where it can be merged.
 
 ## Releasing the client
-
 Armada-client releases are automated via Github Actions, for contributors with sufficient access to run them.
 
 1) Commit and merge a change to `client/python/pyproject.toml` raising the version number the appropriate amount. We are 
