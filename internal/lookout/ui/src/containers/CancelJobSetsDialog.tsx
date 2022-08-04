@@ -106,6 +106,8 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
             queuedSelected={includeQueued}
             runningSelected={includeRunning}
             onCancelJobs={cancelJobSets}
+            onQueuedSelectedChange={setIncludeQueued}
+            onRunningSelectedChange={setIncludeRunning}
           />
         )}
       </DialogContent>

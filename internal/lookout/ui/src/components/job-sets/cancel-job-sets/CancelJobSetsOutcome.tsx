@@ -28,6 +28,8 @@ type CancelJobSetsOutcomeProps = {
   queuedSelected: boolean
   runningSelected: boolean
   onCancelJobs: () => void
+  onQueuedSelectedChange: (queuedSelected: boolean) => void
+  onRunningSelectedChange: (runningSelected: boolean) => void
 }
 
 export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
@@ -67,11 +69,17 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
             </Table>
           </TableContainer>
           <div>
-            <Checkbox checked={props.queuedSelected} />
+            <Checkbox
+              checked={props.queuedSelected}
+              onChange={(event) => props.onQueuedSelectedChange(event.target.checked)}
+            />
             <label>Queued</label>
           </div>
           <div>
-            <Checkbox checked={props.runningSelected} />
+            <Checkbox
+              checked={props.runningSelected}
+              onChange={(event) => props.onRunningSelectedChange(event.target.checked)}
+            />
             <label>Pending + Running</label>
           </div>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
