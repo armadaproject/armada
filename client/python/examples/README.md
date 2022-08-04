@@ -4,7 +4,7 @@ Currently there are three example files:
 
 - [simple.py](#simple.py)
 - [general.py](#general.py)
-- [async_logging.py](#async_logging.py)
+- [monitor.py](#monitor.py)
 
 There are also some codeblocks with useful code snippets:
 
@@ -109,9 +109,11 @@ except grpc.RpcError as e:
 
 For any grpc-related errors, more detail can be found by checking the grpc.RpcError object. In this case, we use it to ignore if a queue has already been created or not.
 
-### async_logging.py
+### monitor.py
 
 Demonstrates how to run jobs, and also log all changes to that job or job_set in realtime concurrently.
+
+3 Jobs are created, with the first one being cancelled.
 
 #### Walkthrough
 
@@ -137,6 +139,38 @@ watch_jobs = threading.Thread(
 ```
 
 We use threading to run the different parts of the code at the same time.
+
+You should end up with an output that looks like this
+
+```
+Queue test-general already exists
+Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.submitted
+Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.queued
+Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelling
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritizing
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritized
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.submitted
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.queued
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritizing
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.updated
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.submitted
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.queued
+Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelled
+Job 01g9j3wmggqmw2vmmj96cfkzh9 Terminated
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.updated
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritized
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.pending
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.leased
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.pending
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.leased
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.running
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.running
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.succeeded
+Job 01g9j3wmggqmw2vmmj9bfdnrm8 Terminated
+Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.succeeded
+Job 01g9j3wmggqmw2vmmj98f3bs57 Terminated
+3 jobs were terminated
+```
 
 ## Using Basic Auth
 
