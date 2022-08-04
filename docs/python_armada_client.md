@@ -16,8 +16,6 @@ For the api definitions:
 
 
 ### _class_ armada_client.client.ArmadaClient(channel, max_workers=None)
-Bases: `object`
-
 Client for accessing Armada over gRPC.
 
 
@@ -68,7 +66,7 @@ job_set_id is required.
 
 * **Return type**
 
-    *JobCancelRequest*
+    armada.submit_pb2.JobCancelRequest
 
 
 
@@ -85,7 +83,7 @@ Create a job request.
     * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
 
 
-    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
+    * **job_request_items** (*List**[**armada.submit_pb2.JobSubmitRequestItem**]*) – List of Job Request Items
 
 
 
@@ -97,7 +95,7 @@ Create a job request.
 
 * **Return type**
 
-    *JobSubmitRequest*
+    armada.submit_pb2.JobSubmitRequest
 
 
 
@@ -111,10 +109,10 @@ Create a job request.
     * **priority** (*float*) – The priority of the job
 
 
-    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
+    * **pod_spec** (*k8s.io.api.core.v1.generated_pb2.PodSpec*) – The k8s pod spec of the job
 
 
-    * **pod_specs** (*Optional**[**List**[**PodSpec**]**]*) – List of k8s pod specs of the job
+    * **pod_specs** (*Optional**[**List**[**k8s.io.api.core.v1.generated_pb2.PodSpec**]**]*) – List of k8s pod specs of the job
 
 
     * **namespace** (*Optional**[**str**]*) – The namespace of the job
@@ -132,10 +130,10 @@ Create a job request.
     * **required_node_labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The required node labels of the job
 
 
-    * **ingress** (*Optional**[**List**[**IngressConfig**]**]*) – The ingress of the job
+    * **ingress** (*Optional**[**List**[**armada.submit_pb2.IngressConfig**]**]*) – The ingress of the job
 
 
-    * **services** (*Optional**[**List**[**ServiceConfig**]**]*) – The services of the job
+    * **services** (*Optional**[**List**[**armada.submit_pb2.ServiceConfig**]**]*) – The services of the job
 
 
 
@@ -147,7 +145,7 @@ Create a job request.
 
 * **Return type**
 
-    *JobSubmitRequestItem*
+    armada.submit_pb2.JobSubmitRequestItem
 
 
 
@@ -175,7 +173,7 @@ Uses the CreateQueue RPC to create a queue.
     * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
+    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
 
 
 
@@ -187,7 +185,7 @@ Uses the CreateQueue RPC to create a queue.
 
 * **Return type**
 
-    *Empty*
+    google.protobuf.empty_pb2.Empty
 
 
 
@@ -243,7 +241,7 @@ to the provided job_set_id.
 
 * **Return type**
 
-    *Generator*[*EventMessage*, None, None]
+    *Generator*[armada.event_pb2.EventMessage, None, None]
 
 
 
@@ -267,7 +265,7 @@ Uses the GetQueue RPC to get the queue.
 
 * **Return type**
 
-    *Queue*
+    armada.submit_pb2.Queue
 
 
 
@@ -291,7 +289,7 @@ Uses the GetQueueInfo RPC to get queue info.
 
 * **Return type**
 
-    *QueueInfo*
+    armada.submit_pb2.QueueInfo
 
 
 
@@ -326,7 +324,7 @@ or job set.
 
 * **Return type**
 
-    *JobReprioritizeResponse*
+    armada.submit_pb2.JobReprioritizeResponse
 
 
 
@@ -358,7 +356,7 @@ Uses SubmitJobs RPC to submit a job.
 
 * **Return type**
 
-    *JobSubmitResponse*
+    armada.submit_pb2.JobSubmitResponse
 
 
 
@@ -368,7 +366,7 @@ Unmarshal an event response from the gRPC server.
 
 * **Parameters**
 
-    **event** (*EventStreamMessage*) – The event response from the gRPC server.
+    **event** (*armada.event_pb2.EventStreamMessage*) – The event response from the gRPC server.
 
 
 
@@ -380,7 +378,7 @@ Unmarshal an event response from the gRPC server.
 
 * **Return type**
 
-    *Event*
+    armada_client.event.Event
 
 
 
@@ -432,7 +430,7 @@ Uses UpdateQueue RPC to update the parameters on the queue.
     * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**List**[**Permissions**]**]*) – The permissions for the queue
+    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
 
 
 
@@ -459,7 +457,7 @@ Definition can be found at:
 
 * **Parameters**
 
-    **event** (*EventStreamMessage*) – The gRPC proto event
+    **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
 
 
 ## armada_client.permissions module
@@ -472,7 +470,7 @@ Permissions including Subjects and Verbs
 * **Parameters**
 
     
-    * **subjects** (*List**[**Subject**]*) – 
+    * **subjects** (*List**[**armada_client.permissions.Subject**]*) – 
 
 
     * **verbs** (*List**[**str**]*) – 
@@ -485,7 +483,7 @@ Convert to grpc object
 
 * **Return type**
 
-    *Permissions*
+    armada.submit_pb2.Permissions
 
 
 
@@ -519,4 +517,4 @@ Convert this Subject to a grpc Subject.
 
 * **Return type**
 
-    *Subject*
+    armada.submit_pb2.Subject
