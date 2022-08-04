@@ -60,6 +60,14 @@ RUN curl -sSL https://www.nuget.org/api/v2/package/Grpc.Tools/2.46.3 --output gr
     mv grpctools/tools/linux_arm64/grpc_csharp_plugin /usr/local/bin/grpc_csharp_plugin && \
     chmod +x /usr/local/bin/grpc_csharp_plugin
 
+ARG GOGO_PROTOBUF_VERSION
+RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
+
+ARG GRPC_GATEWAY_VERSION
+RUN GO111MODULE=on go get \
+   github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
+
 ARG GOLANG_VERSION
 FROM --platform=linux/arm64 golang:${GOLANG_VERSION}-buster
 COPY --from=builder /usr/local/bin /usr/local/bin
