@@ -74,7 +74,6 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 	}
 
 	compressor, err := repo.compressorPool.BorrowObject(context.Background())
-	defer repo.compressorPool.ReturnObject(context.Background(), compressor)
 	if err != nil {
 		return err
 	}
@@ -99,7 +98,7 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 		}
 		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
 		nullOutQueueAndJobset(m)
-		m, err = compressEventIfNecessary(m, compressor.(compress.Compressor))
+		m, e = compressEventIfNecessary(m, compressor.(compress.Compressor))
 		if e != nil {
 			return e
 		}
@@ -160,6 +159,10 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 	}
 
 	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
+	if err != nil {
+		log.WithError(err).Errorf("Error borrowing decompressor")
+	}
+
 	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
 		if err != nil {
