@@ -487,6 +487,9 @@
         "failed": {
           "$ref": "#/definitions/apiJobFailedEvent"
         },
+        "failedCompressed": {
+          "$ref": "#/definitions/apiJobFailedEventCompressed"
+        },
         "ingressInfo": {
           "$ref": "#/definitions/apiJobIngressInfoEvent"
         },
@@ -761,11 +764,6 @@
         "clusterId": {
           "type": "string"
         },
-        "compressedReason": {
-          "type": "string",
-          "format": "byte",
-          "title": "Only used internally by Armada"
-        },
         "containerStatuses": {
           "type": "array",
           "items": {
@@ -810,6 +808,16 @@
         },
         "reason": {
           "type": "string"
+        }
+      }
+    },
+    "apiJobFailedEventCompressed": {
+      "type": "object",
+      "title": "Only used internally by Armada",
+      "properties": {
+        "event": {
+          "type": "string",
+          "format": "byte"
         }
       }
     },

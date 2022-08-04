@@ -129,8 +129,11 @@ message JobFailedEvent {
     string pod_namespace = 14;
     repeated ContainerStatus container_statuses = 11;
     Cause cause = 12;
-    // Only used internally by Armada
-    bytes compressed_reason = 15;
+}
+
+// Only used internally by Armada
+message JobFailedEventCompressed {
+    bytes event = 1;
 }
 
 message JobSucceededEvent {
@@ -238,6 +241,7 @@ message EventMessage {
         JobIngressInfoEvent ingress_info = 17;
         JobReprioritizingEvent reprioritizing = 18;
         JobUpdatedEvent updated = 19;
+        JobFailedEventCompressed failedCompressed = 20;  // This event is for internal armada use only
     }
 }
 

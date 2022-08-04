@@ -69,12 +69,12 @@ func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 
 // ReportEvents reports events to redis.  Note that this function may modify the supplied messages in-place
 func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) error {
-
 	if len(messages) == 0 {
 		return nil
 	}
 
 	compressor, err := repo.compressorPool.BorrowObject(context.Background())
+	defer repo.compressorPool.ReturnObject(context.Background(), compressor)
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,10 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 		}
 		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
 		nullOutQueueAndJobset(m)
-		compressErrMsg(m, compressor.(compress.Compressor))
+		m, err = compressEventIfNecessary(m, compressor.(compress.Compressor))
+		if e != nil {
+			return e
+		}
 		messageData, e := proto.Marshal(m)
 		if e != nil {
 			return e
@@ -152,10 +155,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 	}
 
 	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer repo.decompressorPool.ReturnObject(context.Background(), decompressor)
+	defer repo.compressorPool.ReturnObject(context.Background(), decompressor)
 
 	messages := make([]*api.EventStreamMessage, 0)
 	for _, m := range cmd[0].Messages {
@@ -166,8 +166,11 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		if err != nil {
 			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error unmarshalling: %s", err)
 		}
+		msg, err = DecompressEventIfNecessary(msg, decompressor.(compress.Decompressor))
+		if err != nil {
+			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error decompressing: %s", err)
+		}
 		populateQueueAndJobset(msg, queue, jobSetId)
-		decompressErrMsg(msg, decompressor.(compress.Decompressor))
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
 	}
 	return messages, nil
@@ -192,30 +195,42 @@ func nullOutQueueAndJobset(msg *api.EventMessage) {
 	populateQueueAndJobset(msg, "", "")
 }
 
-func compressErrMsg(msg *api.EventMessage, compressor compress.Compressor) {
-	failed := msg.GetFailed()
-	if failed != nil && len(failed.GetReason()) > 0 {
-		compressedReason, err := compressor.Compress([]byte(failed.GetReason()))
-		if err != nil {
-			log.WithError(err).Warnf("Could not compress failure reason.")
-		} else {
-			failed.CompressedReason = compressedReason
+func compressEventIfNecessary(msg *api.EventMessage, compressor compress.Compressor) (*api.EventMessage, error) {
+	if msg.GetFailed() != nil {
+		messageData, e := proto.Marshal(msg)
+		if e != nil {
+			return nil, e
 		}
-		failed.Reason = ""
+		compressedBytes, e := compressor.Compress(messageData)
+		if e != nil {
+			return nil, e
+		}
+		return &api.EventMessage{
+			Events: &api.EventMessage_FailedCompressed{
+				FailedCompressed: &api.JobFailedEventCompressed{
+					Event: compressedBytes,
+				},
+			},
+		}, nil
 	}
+	return msg, nil
 }
 
-func decompressErrMsg(msg *api.EventMessage, decompressor compress.Decompressor) {
-	failed := msg.GetFailed()
-	if failed != nil && failed.GetCompressedReason() != nil {
-		reason, err := decompressor.Decompress(failed.GetCompressedReason())
+func DecompressEventIfNecessary(msg *api.EventMessage, decompressor compress.Decompressor) (*api.EventMessage, error) {
+	failed := msg.GetFailedCompressed()
+	if failed != nil {
+		decompressedBytes, err := decompressor.Decompress(failed.GetEvent())
 		if err != nil {
-			log.WithError(err).Warnf("Could not decompress failure reason, error infomation may be missing.")
-		} else {
-			failed.Reason = string(reason)
+			return nil, err
 		}
-		failed.CompressedReason = nil
+		msg := &api.EventMessage{}
+		err = proto.Unmarshal(decompressedBytes, msg)
+		if err != nil {
+			return nil, err
+		}
+		return msg, nil
 	}
+	return msg, nil
 }
 
 func populateQueueAndJobset(msg *api.EventMessage, queue, jobSetId string) {
