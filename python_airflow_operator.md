@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_set_id, job_request_items, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_request_items, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -34,9 +34,6 @@ Airflow operators inherit from BaseOperator.
 
 
     * **queue** (*str*) – The queue name
-
-
-    * **job_set_id** (*str*) – The job_set_id. Should be set at dag level for all jobs
 
 
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
