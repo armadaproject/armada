@@ -77,6 +77,7 @@ func TestFailedEventCompressed(t *testing.T) {
 			Count:   500,
 			Block:   1 * time.Second,
 		}).Result()
+		assert.NoError(t, err)
 
 		data := cmd[0].Messages[0].Values[dataKey]
 		msg := &api.EventMessage{}

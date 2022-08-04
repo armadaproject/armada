@@ -78,7 +78,12 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 	if err != nil {
 		return err
 	}
-	defer repo.compressorPool.ReturnObject(context.Background(), compressor)
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(repo.compressorPool, context.Background(), compressor)
 
 	type eventData struct {
 		key  string
@@ -155,7 +160,12 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 	}
 
 	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
-	defer repo.compressorPool.ReturnObject(context.Background(), decompressor)
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(repo.compressorPool, context.Background(), decompressor)
 
 	messages := make([]*api.EventStreamMessage, 0)
 	for _, m := range cmd[0].Messages {
