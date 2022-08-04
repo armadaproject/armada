@@ -39,13 +39,12 @@ func (a *App) StartUp(ctx context.Context) error {
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	inMemoryMap := make(map[string]*repository.JobTable)
 	subscribedJobSets := make(map[string]*repository.SubscribeTable)
-	jobStatusMap := repository.NewJobStatus(inMemoryMap, subscribedJobSets)
+	jobStatusMap := repository.NewJobSetSubscriptions(subscribedJobSets)
 
-	db, err := sql.Open("sqlite", "jobservice.db")
+	db, err := sql.Open("sqlite", config.DatabasePath)
 	if err != nil {
-		log.Errorf("Error Opening Sqlite DB from jobservice.db %v", err)
+		log.Fatalf("Error Opening Sqlite DB from %s %v", config.DatabasePath, err)
 	}
 	defer db.Close()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
@@ -54,20 +53,10 @@ func (a *App) StartUp(ctx context.Context) error {
 	sqlJobRepo.CreateTable()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
-	if err != nil { // TODO Don't call fatal, return an error.
+	if err != nil {
 		return err
 	}
 
-	g.Go(func() error {
-		ticker := time.NewTicker(time.Duration(config.PersistenceInterval) * time.Second)
-		for range ticker.C {
-			err := sqlJobRepo.PersistDataToDatabase()
-			if err != nil {
-				log.Warnf("Error Persisting data to database %v", err)
-			}
-		}
-		return nil
-	})
 	g.Go(func() error {
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
