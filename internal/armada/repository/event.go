@@ -163,10 +163,10 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		log.WithError(err).Errorf("Error borrowing decompressor")
 	}
 
-	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
-		err := compressorPool.ReturnObject(ctx, object)
+	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
-			log.WithError(err).Errorf("Error returning compressor to pool")
+			log.WithError(err).Errorf("Error returning decompressorPool to pool")
 		}
 	}(repo.compressorPool, context.Background(), decompressor)
 
