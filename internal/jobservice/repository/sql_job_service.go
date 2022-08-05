@@ -42,7 +42,6 @@ type SubscribedTuple struct {
 }
 
 // Create a Table from a hard-coded schema.
-// Open to suggestions on how to make this better
 func (s *SQLJobService) CreateTable() {
 	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
@@ -56,7 +55,7 @@ JobId TEXT,
 JobResponseState TEXT,
 JobResponseError TEXT,
 Timestamp INT,
-UNIQUE(JobId)
+PRIMARY KEY(JobId)
 )`)
 	if err != nil {
 		panic(err)
@@ -99,7 +98,7 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 	return jobProtoResponse, nil
 }
 
-// Update in memory JobStatus Map with jobId and our JobTable
+// Update database with JobTable.
 func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
 	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
@@ -108,6 +107,7 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
 	jobState := jobTable.jobResponse.State.String()
 	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
 
+	// TODO: Make more robust
 	if errExec != nil {
 		panic(errExec)
 	}
@@ -126,7 +126,6 @@ func (s *SQLJobService) HealthCheck() (bool, error) {
 }
 
 // Check if JobSet is in our map.
-// Note: The key should be queuejobset.
 func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) bool {
 	s.jobSetSubscribe.subscribeLock.Lock()
 	defer s.jobSetSubscribe.subscribeLock.Unlock()
@@ -148,8 +147,8 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 
 }
 
-// UnSubscribe to JobSet and delete all the jobs in the in memory map
-func (s *SQLJobService) UnSubscribeJobSet(queue string, jobSet string) (int64, error) {
+// UnSubscribe to JobSet and delete all the jobs in the database
+func (s *SQLJobService) CleanupJobSetAndJobs(queue string, jobSet string) (int64, error) {
 	s.jobSetSubscribe.subscribeLock.Lock()
 	defer s.jobSetSubscribe.subscribeLock.Unlock()
 	primaryKey := queue + jobSet
@@ -198,7 +197,7 @@ func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 	}
 }
 
-// Delete Jobs in the map.
+// Delete Jobs in the database
 func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
 	result, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	if err != nil {

@@ -81,20 +81,20 @@ func TestSubscribeList(t *testing.T) {
 	})
 }
 
-func TestUnscribeJobSetIfNonExist(t *testing.T) {
+func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
-		rowsAffected, err := r.UnSubscribeJobSet("queue", "job-set-1")
+		rowsAffected, err := r.CleanupJobSetAndJobs("queue", "job-set-1")
 		assert.False(t, r.IsJobSetSubscribed("queue", "job-set-1"))
 		assert.Equal(t, rowsAffected, int64(0))
 		assert.Nil(t, err)
 	})
 }
-func TestUnSubscribeJobSetHappy(t *testing.T) {
+func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		r.SubscribeJobSet("queue", "job-set-1")
 		respHappy := r.IsJobSetSubscribed("queue", "job-set-1")
 		assert.True(t, respHappy)
-		rowsAffected, err := r.UnSubscribeJobSet("queue", "job-set-1")
+		rowsAffected, err := r.CleanupJobSetAndJobs("queue", "job-set-1")
 		assert.False(t, r.IsJobSetSubscribed("queue", "job-set-1"))
 		assert.Equal(t, rowsAffected, int64(0))
 		assert.Nil(t, err)
@@ -234,7 +234,7 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 		jobTable1 := NewJobTable("test-race", "job-set-race", "job-race", *responseSuccess)
 		r.UpdateJobServiceDb(jobTable1)
 		r.SubscribeJobSet("test-race", "job-set-race")
-		r.UnSubscribeJobSet("test-race", "job-set-race")
+		r.CleanupJobSetAndJobs("test-race", "job-set-race")
 		actualSuccess, actualError := r.GetJobStatus("job-race")
 		assert.Equal(t, actualSuccess, noExist)
 		assert.Nil(t, actualError)

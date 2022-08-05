@@ -63,7 +63,7 @@ func (a *App) StartUp(ctx context.Context) error {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
-					sqlJobRepo.UnSubscribeJobSet(value.Queue, value.JobSet)
+					sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 				}
 			}
 		}
