@@ -1,6 +1,6 @@
 # Dockerfile for building .proto files.
 
-ARG GOLANG_VERSION=1.16
+ARG GOLANG_VERSION=1.18
 ARG GOGO_PROTOBUF_VERSION=1.3.2
 ARG GRPC_GATEWAY_VERSION=1.16.0
 ARG K8S_VERSION=0.24.1
@@ -52,12 +52,12 @@ RUN curl -sSL https://www.nuget.org/api/v2/package/Grpc.Tools/2.46.3 --output gr
     chmod +x /usr/local/bin/grpc_csharp_plugin
 
 ARG GOGO_PROTOBUF_VERSION
-RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
+RUN go install github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
 
 ARG GRPC_GATEWAY_VERSION
-RUN GO111MODULE=on go get \
-   github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
-    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
+RUN go install \
+  github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
+  github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
 
 ARG GOLANG_VERSION
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster

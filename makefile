@@ -72,7 +72,7 @@ DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
-	golang:1.16-buster
+	golang:1.18-buster
 
 # Versions of third party API
 # Bump if you are updating
