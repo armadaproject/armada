@@ -17,6 +17,11 @@ import (
 	"github.com/G-Research/armada/internal/common/logging"
 )
 
+type KeyValue struct {
+	Key   string
+	Value []byte
+}
+
 // PGKeyValueStore is a time-limited key-value store backed by postgres with a local LRU cache.
 // The store is write-only, i.e., writing to an existing key will return an error (of type *armadaerrors.ErrAlreadyExists).
 // Keys can only be deleted by running the cleanup function.
@@ -84,6 +89,40 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 		return nil
 	}
 	return err
+}
+
+func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) ([]bool, error) {
+
+	addedByKey := map[string]bool{}
+
+	// first check the cache to see if we have added anything
+	for _, kv := range batch {
+		if _, ok := c.cache.Get(kv.Key); ok {
+			addedByKey[kv.Key] = false
+		}
+	}
+
+	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
+
+		// Check if the key already exists in postgres.
+		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
+		err := tx.QueryRow(ctx, sql, key).Scan(&exists)
+		if err != nil {
+			return err
+		}
+
+		// Only write the key-value pair if it doesn't already exist (overwriting not allowed).
+		if !*exists {
+			sql = fmt.Sprintf("insert into %s (key, value, inserted) values ($1, $2, now());", c.tableName)
+			_, err := tx.Exec(ctx, sql, key, value)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
 }
 
 func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
