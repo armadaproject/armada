@@ -1,6 +1,7 @@
 package utilisation
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	submitPod(clusterContext)
+	submitPod(clusterContext, true)
 
 	deadline := time.Now().Add(time.Second)
 	for {
@@ -60,6 +61,26 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	assert.Equal(t, period/accuracy, reportingPeriod/accuracy)
 }
 
+func TestUtilisationEventReporter_UtilisationDisabled(t *testing.T) {
+	reportingPeriod := 100 * time.Millisecond
+	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
+	fakeEventReporter := &reporter_fake.FakeEventReporter{}
+	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
+
+	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	submitPod(clusterContext, false)
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		reporter.ReportUtilisationEvents()
+		time.Sleep(10 * time.Millisecond)
+		if time.Now().After(deadline) {
+			break
+		}
+	}
+	assert.Equal(t, 0, len(fakeEventReporter.ReceivedEvents))
+}
+
 func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
@@ -67,7 +88,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	submitPod(clusterContext)
+	submitPod(clusterContext, false)
 
 	deadline := time.Now().Add(time.Millisecond * 500)
 	count := 0
@@ -84,7 +105,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	assert.True(t, count > 0)
 }
 
-func submitPod(clusterContext context.ClusterContext) *v1.Pod {
+func submitPod(clusterContext context.ClusterContext, enableUtilisation bool) *v1.Pod {
 	podResources := map[v1.ResourceName]resource.Quantity{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("640Ki"),
@@ -95,6 +116,9 @@ func submitPod(clusterContext context.ClusterContext) *v1.Pod {
 			Name: "test-pod",
 			Labels: map[string]string{
 				domain.JobId: "test-job",
+			},
+			Annotations: map[string]string{
+				domain.Utilisation: strconv.FormatBool(enableUtilisation),
 			},
 		},
 		Spec: v1.PodSpec{Containers: []v1.Container{

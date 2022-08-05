@@ -297,6 +297,7 @@ func testJob(multiplePodSpecs bool) *api.Job {
 		PodSpec:                  podSpec,
 		PodSpecs:                 podSpecs,
 		Created:                  time.Now(),
+		DisableUtilisation:       true,
 		Ingress: []*api.IngressConfig{
 			{
 				Type:       api.IngressType_Ingress,
