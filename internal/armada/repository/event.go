@@ -168,7 +168,7 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressorPool to pool")
 		}
-	}(repo.compressorPool, context.Background(), decompressor)
+	}(repo.decompressorPool, context.Background(), decompressor)
 
 	messages := make([]*api.EventStreamMessage, 0)
 	for _, m := range cmd[0].Messages {
