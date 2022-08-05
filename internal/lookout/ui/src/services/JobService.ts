@@ -1,6 +1,6 @@
 import yaml from "js-yaml"
 
-import { SubmitApi } from "../openapi/armada"
+import { ApiJobState, SubmitApi } from "../openapi/armada"
 import {
   LookoutApi,
   LookoutDurationStats,
@@ -234,22 +234,20 @@ export default class JobService {
     return response
   }
 
-  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
+  async cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse> {
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
-        const apiResponse = await this.submitApi.cancelJobs({
+        await this.submitApi.cancelJobSet({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
+            filter: {
+              states: states,
+            },
           },
         })
-
-        if (apiResponse.cancelledIds?.length) {
-          response.cancelledJobSets.push(jobSet)
-        } else {
-          response.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
-        }
+        response.cancelledJobSets.push(jobSet)
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
