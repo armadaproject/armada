@@ -80,7 +80,7 @@ Create a job request.
     * **priority** (*float*) – The priority of the job
 
 
-    * **pod_spec** (*k8s.io.api.core.v1.generated_pb2.PodSpec*) – The k8s pod spec of the job
+    * **pod_spec** (*armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec*) – The k8s pod spec of the job
 
 
     * **pod_specs** (*Optional**[**List**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]**]*) – List of k8s pod specs of the job
