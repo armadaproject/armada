@@ -288,7 +288,7 @@ class ArmadaClient:
         :param priority: The priority of the job
 
         :param  pod_spec: The k8s pod spec of the job
-        :type pod_specs:
+        :type pod_spec:
             armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec
 
         :param pod_specs: List of k8s pod specs of the job
