@@ -518,19 +518,9 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
 # Target for compiling the dotnet Armada REST client
-dotnet: dotnet-setup
+dotnet: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
-
-# Build and package the dotnet Armada GRPC client
-dotnet-grpc: dotnet-setup setup-proto
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
-		-w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
-
-dotnet-clean:
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/bin
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/obj
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/generated
+	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
