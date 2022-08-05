@@ -110,6 +110,11 @@ npm install
 npm run openapi
 npm run build
 ```
+Start NATS Streaming:
+```bash
+docker run -d -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+```
+
 Start a Postgres database:
 ```bash
 docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
