@@ -1,7 +1,7 @@
 grpcPort: 60003
 httpPort: 8090
-subscribeJobSetTime: 25
-persistenceInterval: 75
+subscribeJobSetTime: 10000
+databasePath: "jobservice/jobservice.db"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
