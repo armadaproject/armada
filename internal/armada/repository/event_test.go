@@ -4,6 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/compress"
+
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
@@ -39,6 +43,54 @@ func TestReadEvents(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(events))
 		assert.Equal(t, createEvent("test", "jobset", created), events[0].Message)
+	})
+}
+
+func TestFailedEventCompressed(t *testing.T) {
+	created := time.Now().UTC()
+	failedEvent := &api.EventMessage{
+		Events: &api.EventMessage_Failed{
+			Failed: &api.JobFailedEvent{
+				JobId:    "jobId",
+				JobSetId: "test-compressed2",
+				Queue:    "test",
+				Created:  created,
+			},
+		},
+	}
+
+	withRedisEventRepository(func(r *RedisEventRepository) {
+		err := r.ReportEvents([]*api.EventMessage{failedEvent})
+		assert.NoError(t, err)
+		// This is a bit annoying- ReportEvents nulls out jobset and queue.
+		// put them back here
+		failedEvent.GetFailed().Queue = "test"
+		failedEvent.GetFailed().JobSetId = "test-compressed2"
+		events, err := r.ReadEvents("test", "test-compressed2", "", 500, 1*time.Second)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(events))
+		assert.Equal(t, failedEvent, events[0].Message)
+
+		// bonus test: check that the data is actually compressed in redis
+		cmd, err := r.db.XRead(&redis.XReadArgs{
+			Streams: []string{getJobSetEventsKey("test", "test-compressed2"), "0"},
+			Count:   500,
+			Block:   1 * time.Second,
+		}).Result()
+		assert.NoError(t, err)
+
+		data := cmd[0].Messages[0].Values[dataKey]
+		msg := &api.EventMessage{}
+		bytes := []byte(data.(string))
+		err = proto.Unmarshal(bytes, msg)
+		assert.NoError(t, err)
+
+		// check that event contains compressed data
+		msg.GetFailedCompressed().GetEvent()
+		decompressor, err := compress.NewZlibDecompressor()
+		assert.NoError(t, err)
+		_, err = decompressor.Decompress(msg.GetFailedCompressed().Event)
+		assert.NoError(t, err)
 	})
 }
 

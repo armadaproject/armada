@@ -1,15 +1,18 @@
 package repository
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
+	pool "github.com/jolestar/go-commons-pool"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -27,22 +30,59 @@ type EventRepository interface {
 }
 
 type RedisEventRepository struct {
-	db             redis.UniversalClient
-	eventRetention configuration.EventRetentionPolicy
+	db               redis.UniversalClient
+	eventRetention   configuration.EventRetentionPolicy
+	compressorPool   *pool.ObjectPool
+	decompressorPool *pool.ObjectPool
 }
 
 func NewRedisEventRepository(db redis.UniversalClient, eventRetention configuration.EventRetentionPolicy) *RedisEventRepository {
-	return &RedisEventRepository{db: db, eventRetention: eventRetention}
+
+	// This is basically the default config but with a max of 100 rather than 8 and a min of 10 rather than 0.
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	compressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibCompressor(1024)
+		}), &poolConfig)
+
+	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibDecompressor()
+		}), &poolConfig)
+	return &RedisEventRepository{db: db, eventRetention: eventRetention, compressorPool: compressorPool, decompressorPool: decompressorPool}
 }
 
+// ReportEvent reports the event to redis.  Note that this function may modify the supplied message in-place
 func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
 	return repo.ReportEvents([]*api.EventMessage{message})
 }
 
+// ReportEvents reports events to redis.  Note that this function may modify the supplied messages in-place
 func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) error {
 	if len(messages) == 0 {
 		return nil
 	}
+
+	compressor, err := repo.compressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return err
+	}
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(repo.compressorPool, context.Background(), compressor)
 
 	type eventData struct {
 		key  string
@@ -58,6 +98,10 @@ func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) err
 		}
 		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
 		nullOutQueueAndJobset(m)
+		m, e = compressEventIfNecessary(m, compressor.(compress.Compressor))
+		if e != nil {
+			return e
+		}
 		messageData, e := proto.Marshal(m)
 		if e != nil {
 			return e
@@ -114,6 +158,18 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error reading from database: %s", err)
 	}
 
+	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
+	if err != nil {
+		log.WithError(err).Errorf("Error borrowing decompressor")
+	}
+
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(repo.compressorPool, context.Background(), decompressor)
+
 	messages := make([]*api.EventStreamMessage, 0)
 	for _, m := range cmd[0].Messages {
 		data := m.Values[dataKey]
@@ -122,6 +178,10 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 		err = proto.Unmarshal(bytes, msg)
 		if err != nil {
 			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error unmarshalling: %s", err)
+		}
+		msg, err = DecompressEventIfNecessary(msg, decompressor.(compress.Decompressor))
+		if err != nil {
+			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error decompressing: %s", err)
 		}
 		populateQueueAndJobset(msg, queue, jobSetId)
 		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
@@ -146,6 +206,44 @@ func getJobSetEventsKey(queue, jobSetId string) string {
 
 func nullOutQueueAndJobset(msg *api.EventMessage) {
 	populateQueueAndJobset(msg, "", "")
+}
+
+func compressEventIfNecessary(msg *api.EventMessage, compressor compress.Compressor) (*api.EventMessage, error) {
+	if msg.GetFailed() != nil {
+		messageData, e := proto.Marshal(msg)
+		if e != nil {
+			return nil, e
+		}
+		compressedBytes, e := compressor.Compress(messageData)
+		if e != nil {
+			return nil, e
+		}
+		return &api.EventMessage{
+			Events: &api.EventMessage_FailedCompressed{
+				FailedCompressed: &api.JobFailedEventCompressed{
+					Event: compressedBytes,
+				},
+			},
+		}, nil
+	}
+	return msg, nil
+}
+
+func DecompressEventIfNecessary(msg *api.EventMessage, decompressor compress.Decompressor) (*api.EventMessage, error) {
+	failed := msg.GetFailedCompressed()
+	if failed != nil {
+		decompressedBytes, err := decompressor.Decompress(failed.GetEvent())
+		if err != nil {
+			return nil, err
+		}
+		msg := &api.EventMessage{}
+		err = proto.Unmarshal(decompressedBytes, msg)
+		if err != nil {
+			return nil, err
+		}
+		return msg, nil
+	}
+	return msg, nil
 }
 
 func populateQueueAndJobset(msg *api.EventMessage, queue, jobSetId string) {
