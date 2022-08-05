@@ -286,8 +286,10 @@ class ArmadaClient:
         """Create a job request.
 
         :param priority: The priority of the job
-        :param armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec pod_spec: The k8s pod spec of the job
-        :param Optional[List[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]] pod_specs: List of k8s pod specs of the job
+        :param armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec pod_spec:
+               The k8s pod spec of the job
+        :param Optional[List[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]] pod_specs:
+               List of k8s pod specs of the job
         :param namespace: The namespace of the job
         :param client_id: The client id of the job
         :param labels: The labels of the job
