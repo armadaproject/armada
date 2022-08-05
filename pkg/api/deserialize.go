@@ -44,3 +44,27 @@ func (x *ServiceType) UnmarshalJSON(data []byte) error {
 	*x = ServiceType(value)
 	return nil
 }
+
+func (x *JobState) UnmarshalJSON(data []byte) error {
+	var s int32
+	e := json.Unmarshal(data, &s)
+	if e == nil {
+		_, present := JobState_name[s]
+		if !present {
+			return fmt.Errorf("no JobState of type %d", s)
+		}
+		*x = JobState(s)
+		return nil
+	}
+	var t string
+	e = json.Unmarshal(data, &t)
+	if e != nil {
+		return e
+	}
+	value, present := JobState_value[t]
+	if !present {
+		return fmt.Errorf("no JobState of type %s", t)
+	}
+	*x = JobState(value)
+	return nil
+}
