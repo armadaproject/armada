@@ -69,10 +69,12 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
+# This is used to generate published artifacts; to raise the golang version we publish and run
+# tests-in-docker against, you have to update the tag of the image used here.
 GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
-	golang:1.16-buster
+	golang:1.18-buster
 
 # Versions of third party API
 # Bump if you are updating
@@ -446,7 +448,6 @@ setup-proto: download
 	# first delete files in this directory - by default it has write perms disabled.
 	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
 	rm -rf proto
-	mkdir -p proto
 	mkdir -p proto/google/api
 	mkdir -p proto/google/protobuf
 	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
@@ -460,21 +461,20 @@ setup-proto: download
 	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
 
 # Copy third party annotations from grpc-ecosystem
-
-	$(GO_CMD) cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
-	$(GO_CMD) cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api
-	$(GO_CMD) cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google
-	$(GO_CMD) cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/
-
-#K8S MACHINERY API COPY
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/
-#K8S API COPY
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
+	$(GO_CMD) bash -c " \
+	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
+	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
+	 cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google ; \
+	 cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/ ; \
+	 \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/ ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1 ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/ ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/ ; \
+	 \
+	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1 ; \
+	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1 "
 
 	chmod -R ug+w proto
 
