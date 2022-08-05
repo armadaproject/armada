@@ -498,6 +498,9 @@ func SwaggerJsonTemplate() string {
 		"        \"failed\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobFailedEvent\"\n" +
 		"        },\n" +
+		"        \"failedCompressed\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobFailedEventCompressed\"\n" +
+		"        },\n" +
 		"        \"ingressInfo\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobIngressInfoEvent\"\n" +
 		"        },\n" +
@@ -816,6 +819,16 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobFailedEventCompressed\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Only used internally by Armada\",\n" +
+		"      \"properties\": {\n" +
+		"        \"event\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"byte\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +

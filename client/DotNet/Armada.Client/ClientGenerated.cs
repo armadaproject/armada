@@ -998,6 +998,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("failed", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobFailedEvent Failed { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("failedCompressed", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobFailedEventCompressed FailedCompressed { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("ingressInfo", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobIngressInfoEvent IngressInfo { get; set; }
     
@@ -1280,6 +1283,15 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobFailedEventCompressed 
+    {
+        [Newtonsoft.Json.JsonProperty("event", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public byte[] Event { get; set; }
     
     
     }
