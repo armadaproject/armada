@@ -78,9 +78,10 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 				"label":          "test",
 			},
 			Annotations: map[string]string{
-				domain.JobSetId: job.JobSetId,
-				domain.Owner:    job.Owner,
-				"annotation":    "test",
+				domain.JobSetId:             job.JobSetId,
+				domain.Owner:                job.Owner,
+				"annotation":                "test",
+				"armada_utilisation_events": "true",
 			},
 		},
 		Spec: *podSpec,
