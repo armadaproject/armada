@@ -32,9 +32,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # We technically support 1.16 and 1.18; but this just needs any
-        # go version new enough to generate python proto files; 1.18 is
-        # more future-proof, so use it.
         go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v2
@@ -47,9 +44,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # We technically support 1.16 and 1.18; but this just needs any
-        # go version new enough to generate python proto files; 1.18 is
-        # more future-proof, so use it.
         go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v3
