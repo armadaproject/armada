@@ -22,6 +22,7 @@ message JobSubmitRequestItem {
     repeated k8s.io.api.core.v1.PodSpec pod_specs = 7;
     repeated IngressConfig ingress = 9;
     repeated ServiceConfig services = 10;
+    bool DisableUtilisation = 11;  // If set then utilisation messages wil not be produced
 }
 
 message IngressConfig {

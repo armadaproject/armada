@@ -164,6 +164,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"disableUtilisation\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

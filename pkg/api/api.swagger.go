@@ -614,6 +614,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
+		"        \"disableUtilisation\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"id\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1179,6 +1182,9 @@ func SwaggerJsonTemplate() string {
 		"    \"apiJobSubmitRequestItem\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
+		"        \"DisableUtilisation\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
 		"        \"annotations\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +

@@ -38,6 +38,7 @@ message Job {
     // github.com.G-Research.armada.internal.events.
     repeated k8s.io.api.networking.v1.Ingress k8s_ingress = 17;
     repeated k8s.io.api.core.v1.Service k8s_service = 18;
+    bool disableUtilisation = 19;  // If set then utilisation messages wil not be produced
 }
 
 message LeaseRequest {

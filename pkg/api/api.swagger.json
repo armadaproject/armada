@@ -603,6 +603,9 @@
           "type": "string",
           "format": "date-time"
         },
+        "disableUtilisation": {
+          "type": "boolean"
+        },
         "id": {
           "type": "string"
         },
@@ -1168,6 +1171,9 @@
     "apiJobSubmitRequestItem": {
       "type": "object",
       "properties": {
+        "DisableUtilisation": {
+          "type": "boolean"
+        },
         "annotations": {
           "type": "object",
           "additionalProperties": {

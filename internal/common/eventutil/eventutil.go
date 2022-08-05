@@ -175,6 +175,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Created:                  time,
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
+		DisableUtilisation:       e.DisableUtilisation,
 	}, nil
 }
 
@@ -216,8 +217,9 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Annotations: job.GetAnnotations(),
 			Labels:      job.GetLabels(),
 		},
-		MainObject: mainObject,
-		Objects:    objects,
+		MainObject:         mainObject,
+		Objects:            objects,
+		DisableUtilisation: job.DisableUtilisation,
 	}, nil
 }
 

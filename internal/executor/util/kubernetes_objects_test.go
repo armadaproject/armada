@@ -16,11 +16,12 @@ import (
 
 func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 	job := api.Job{
-		Id:       "Id",
-		JobSetId: "JobSetId",
-		Queue:    "Queue1",
-		Owner:    "Owner",
-		PodSpec:  makePodSpec(),
+		Id:                 "Id",
+		JobSetId:           "JobSetId",
+		Queue:              "Queue1",
+		Owner:              "Owner",
+		PodSpec:            makePodSpec(),
+		DisableUtilisation: true,
 	}
 
 	expectedLabels := map[string]string{
@@ -31,8 +32,9 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 	}
 
 	expectedAnnotations := map[string]string{
-		domain.JobSetId: job.JobSetId,
-		domain.Owner:    job.Owner,
+		domain.JobSetId:    job.JobSetId,
+		domain.Owner:       job.Owner,
+		domain.Utilisation: "false",
 	}
 
 	result := CreatePod(&job, &configuration.PodDefaults{}, 0)
