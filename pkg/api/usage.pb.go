@@ -6,6 +6,13 @@ package api
 import (
 	context "context"
 	fmt "fmt"
+	io "io"
+	math "math"
+	math_bits "math/bits"
+	reflect "reflect"
+	strings "strings"
+	time "time"
+
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
@@ -14,14 +21,8 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	io "io"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
-	math "math"
-	math_bits "math/bits"
-	reflect "reflect"
-	strings "strings"
-	time "time"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -107,8 +108,8 @@ type ClusterUsageReport struct {
 	ClusterId                string                       `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	Pool                     string                       `protobuf:"bytes,6,opt,name=pool,proto3" json:"pool,omitempty"`
 	ReportTime               time.Time                    `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
-	Queues                   []*QueueReport               `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`                                                                                                                                                     // Deprecated: Do not use.
-	ClusterCapacity          map[string]resource.Quantity `protobuf:"bytes,4,rep,name=cluster_capacity,json=clusterCapacity,proto3" json:"clusterCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`                              // Deprecated: Do not use.
+	Queues                   []*QueueReport               `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`                                                                                                                              // Deprecated: Do not use.
+	ClusterCapacity          map[string]resource.Quantity `protobuf:"bytes,4,rep,name=cluster_capacity,json=clusterCapacity,proto3" json:"clusterCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`                             // Deprecated: Do not use.
 	ClusterAvailableCapacity map[string]resource.Quantity `protobuf:"bytes,5,rep,name=cluster_available_capacity,json=clusterAvailableCapacity,proto3" json:"clusterAvailableCapacity,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Deprecated: Do not use.
 	NodeTypeUsageReports     []NodeTypeUsageReport        `protobuf:"bytes,7,rep,name=node_type_usage_reports,json=nodeTypeUsageReports,proto3" json:"node_type_usage_reports"`
 }
