@@ -33,7 +33,7 @@ jobs:
         with:
           mode: start
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          ec2-image-id: ami-025a80b881afc361c
+          ec2-image-id: ami-0d3d3ae42ef82e511
           ec2-instance-type: c5.2xlarge
           subnet-id: subnet-06ae121731a8cddc2
           security-group-id: sg-0a0571fdd1322701f
@@ -51,12 +51,10 @@ jobs:
           go: [ '1.18' ]
       steps:
         - uses: actions/checkout@v3
-        - run: apt-get update && apt-get -y install build-essential
         - uses: ./.github/workflows/go-setup
         - run: make build-ci
         - run: make tests-e2e-setup
-        - name: Run make tests-e2e-no-setup
-          run: |
+        - run: |
             make tests-e2e-no-setup
           env:
             INTEGRATION_ENABLED: true
