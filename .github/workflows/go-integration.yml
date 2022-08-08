@@ -49,6 +49,7 @@ jobs:
           go: [ '1.18' ]
       steps:
         - uses: actions/checkout@v3
+        - run: apt-get update && apt-get -y install build-essential
         - uses: ./.github/workflows/go-setup
         #- uses: satackey/action-docker-layer-caching@v0.0.11
         #  continue-on-error: true
