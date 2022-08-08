@@ -82,7 +82,6 @@ jobs:
           uses: machulav/ec2-github-runner@v2
           with:
             mode: stop
-            github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
             label: ${{ needs.start-runner-outputs.label }}
             ec2-instance-id: ${{ needs.start-runner-outputs.ec2-instance-id }}
 
