@@ -51,7 +51,7 @@ jobs:
           go: [ '1.18' ]
       steps:
         - uses: actions/checkout@v3
-        - run: apt-get update && apt-get -y install build-essential
+        - run: apt-get update && apt-get -y install build-essential parallel
         - uses: ./.github/workflows/go-setup
         # TODO(JayF): Consider moving parallelism to makefile or string interpolate out the make steps
         - name: make build-ci (parallel)
