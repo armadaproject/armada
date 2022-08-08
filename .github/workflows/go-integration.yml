@@ -11,6 +11,7 @@ env:
   GOCACHE: /actions-runner/gocache
   GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
   HOME: /actions-runner
+  DOCKER_BUILDKIT: 1
 
 jobs:
   # TODO: Make this work on github-hosted runners if secrets are not set
