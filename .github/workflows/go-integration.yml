@@ -6,9 +6,9 @@ on:
     branches-ignore:
       - gh-pages
 
-#env:
-#  GOPATH: /actions-runner/go
-#  GOCACHE: /actions-runner/gocache
+env:
+  GOPATH: /actions-runner/go
+  GOCACHE: /actions-runner/gocache
 
 jobs:
   # TODO: Make this work on github-hosted runners if secrets are not set
