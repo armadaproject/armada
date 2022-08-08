@@ -1,6 +1,6 @@
 import React from "react"
 
-import { List, ListItem, ListItemText, Paper } from "@material-ui/core"
+import { Checkbox, List, ListItem, ListItemText, Paper } from "@material-ui/core"
 
 import { JobSet } from "../../../services/JobService"
 import LoadingButton from "../../jobs/LoadingButton"
@@ -13,7 +13,11 @@ type CancelJobSetsProps = {
   queue: string
   jobSets: JobSet[]
   isLoading: boolean
+  queuedSelected: boolean
+  runningSelected: boolean
   onCancelJobSets: () => void
+  onQueuedSelectedChange: (queuedSelected: boolean) => void
+  onRunningSelectedChange: (runningSelected: boolean) => void
 }
 
 export default function CancelJobSets(props: CancelJobSetsProps) {
@@ -27,6 +31,20 @@ export default function CancelJobSets(props: CancelJobSetsProps) {
           </ListItem>
         ))}
       </List>
+      <div>
+        <Checkbox
+          checked={props.queuedSelected}
+          onChange={(event) => props.onQueuedSelectedChange(event.target.checked)}
+        />
+        <label>Queued</label>
+      </div>
+      <div>
+        <Checkbox
+          checked={props.runningSelected}
+          onChange={(event) => props.onRunningSelectedChange(event.target.checked)}
+        />
+        <label>Pending + Running</label>
+      </div>
       <div className="lookout-dialog-centered lookout-dialog-fixed">
         <LoadingButton content={"Cancel Job Sets"} isLoading={props.isLoading} onClick={props.onCancelJobSets} />
       </div>

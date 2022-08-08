@@ -53,6 +53,15 @@ class ArmadaClient:
         Uses the GetJobSetEvents rpc to get a stream of events relating
         to the provided job_set_id.
 
+        Usage:
+
+        .. code-block:: python
+
+            events = client.get_job_events_stream(...)
+            for event in events:
+                event = client.unmarshal_event_response(event)
+                print(event)
+
         :param queue: The name of the queue
         :param job_set_id: The name of the job set (a grouping of jobs)
         :param from_message_id: The from message id.
@@ -261,23 +270,6 @@ class ArmadaClient:
         """
         event_stream.cancel()
 
-    def create_job_request(
-        self,
-        queue: str,
-        job_set_id: str,
-        job_request_items: List[submit_pb2.JobSubmitRequestItem],
-    ) -> submit_pb2.JobSubmitRequest:
-        """Create a job request.
-
-        :param queue: The name of the queue
-        :param job_set_id: The name of the job set (a grouping of jobs)
-        :param job_request_items: List of Job Request Items
-        :return: A job request object. See the api definition.
-        """
-        return submit_pb2.JobSubmitRequest(
-            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
-        )
-
     def create_job_request_item(
         self,
         pod_spec: core_v1.PodSpec,
@@ -294,8 +286,15 @@ class ArmadaClient:
         """Create a job request.
 
         :param priority: The priority of the job
-        :param pod_spec: The k8s pod spec of the job
+
+        :param  pod_spec: The k8s pod spec of the job
+        :type pod_spec:
+            armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec
+
         :param pod_specs: List of k8s pod specs of the job
+        :type pod_specs:
+            Optional[List[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]]
+
         :param namespace: The namespace of the job
         :param client_id: The client id of the job
         :param labels: The labels of the job

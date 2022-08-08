@@ -6,7 +6,7 @@ There are many ways you can setup you local environment, this is just a basic qu
 
 ### Pre-requisites
 To follow this section it is assumed you have:
-* Golang >= 1.16 installed [https://golang.org/doc/install](https://golang.org/doc/install)
+* Golang >= 1.18 installed [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` installed [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * Docker installed, configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
 * This repository cloned. The guide will assume you are in the root directory of this repository [https://github.com/G-Research/armada.git](https://github.com/G-Research/armada.git)
@@ -35,7 +35,7 @@ This is recommended when working on features that are purely Armada specific or 
 
 1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
     ```bash
-    GO111MODULE="on" go get sigs.k8s.io/kind@v0.11.1
+    go install sigs.k8s.io/kind@v0.11.1
     ``` 
 2. Create kind clusters (you can create any number of clusters)
 
@@ -110,6 +110,11 @@ npm install
 npm run openapi
 npm run build
 ```
+Start NATS Streaming:
+```bash
+docker run -d -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
+```
+
 Start a Postgres database:
 ```bash
 docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
@@ -222,7 +227,7 @@ You can use the cobra cli to add new commands, the below will describe how to ad
 Get cobra cli tool:
 
 ```
-go get -u github.com/spf13/cobra/cobra
+go install github.com/spf13/cobra/cobra
 ```
 
 Change to the directory of the command-line tool you are working on:

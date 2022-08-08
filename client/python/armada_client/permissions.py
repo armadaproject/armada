@@ -20,6 +20,15 @@ class Subject(NamedTuple):
 class Permissions:
     """
     Permissions including Subjects and Verbs
+
+    .. code-block:: python
+
+        permissions = Permissions(...)
+        client = ArmadaClient(...)
+
+        queue = client.create_queue(
+            permissions=[permissions],
+        )
     """
 
     def __init__(self, subjects: List[Subject], verbs: List[str]):
