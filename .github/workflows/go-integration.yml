@@ -30,7 +30,7 @@ jobs:
           ec2-image-id: ami-09bb1742250efb19f
           ec2-instance-type: c3.2xlarge
           subnet-id: subnet-06ae121731a8cddc2
-          security-group-id: sg-0961746d71896e96a
+          security-group-id: sg-0a0571fdd1322701f
           aws-resource-tags: >
             [
               {"Key": "Name", "Value": "ec2-github-runner"},
