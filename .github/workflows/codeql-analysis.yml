@@ -24,6 +24,8 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
+      matrix:
+        go: [ '1.18' ]
     permissions:
       actions: read
       contents: read
@@ -42,8 +44,6 @@ jobs:
       uses: actions/checkout@v2
 
     # The ArmadaProject.Io.Client needs the generated proto files
-    - name: go-setup
-      uses: ./.github/workflows/go-setup
     - name: Make Proto
       run: make proto
 
