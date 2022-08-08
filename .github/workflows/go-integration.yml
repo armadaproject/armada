@@ -53,12 +53,10 @@ jobs:
         - uses: actions/checkout@v3
         - run: apt-get update && apt-get -y install build-essential
         - uses: ./.github/workflows/go-setup
-        - uses: satackey/action-docker-layer-caching@v0.0.11
-          continue-on-error: true
         # TODO(JayF): Consider moving parallelism to makefile or string interpolate out the make steps
-        #- name: make build-ci (parallel)
-        #  run: 'parallel --jobs 200% "make {}" ::: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-armadactl build-armadactl-multiplatform build-load-tester'
-        - run: make build-ci
+        - name: make build-ci (parallel)
+          run: 'parallel --jobs 200% "make {}" ::: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-armadactl build-armadactl-multiplatform build-load-tester'
+        #- run: make build-ci
         - run: make tests-e2e-setup
         - name: Run make tests-e2e-no-setup
           run: |
