@@ -27,7 +27,7 @@ jobs:
         with:
           mode: start
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          ec2-image-id: ami-09bb1742250efb19f
+          ec2-image-id: ami-092336ebe4619df5c
           ec2-instance-type: c3.2xlarge
           subnet-id: subnet-06ae121731a8cddc2
           security-group-id: sg-0a0571fdd1322701f
@@ -45,10 +45,9 @@ jobs:
           go: [ '1.18' ]
       steps:
         - uses: actions/checkout@v3
-        - run: apt-get install kubectl
         - uses: ./.github/workflows/go-setup
-        - uses: satackey/action-docker-layer-caching@v0.0.11
-          continue-on-error: true
+        #- uses: satackey/action-docker-layer-caching@v0.0.11
+        #  continue-on-error: true
         # TODO(JayF): Consider moving parallelism to makefile or string interpolate out the make steps
         #- name: make build-ci (parallel)
         #  run: 'parallel --jobs 200% "make {}" ::: build-docker-server build-docker-executor build-docker-armadactl build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-armadactl build-armadactl-multiplatform build-load-tester'
