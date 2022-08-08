@@ -58,7 +58,6 @@ jobs:
             make tests-e2e-no-setup
           env:
             INTEGRATION_ENABLED: true
-        - run: make tests-e2e-teardown
         - run: make junit-report
         - name: Upload junit report
           uses: actions/upload-artifact@v2.2.4
