@@ -42,7 +42,7 @@ def default_job_status_callable(
     queue: str,
     job_set_id: str,
     job_id: str,
-    job_service_client: Optional[JobServiceClient],
+    job_service_client: JobServiceClient,
 ) -> jobservice_pb2.JobServiceResponse:
     return job_service_client.get_job_status(
         queue=queue, job_id=job_id, job_set_id=job_set_id
@@ -94,6 +94,8 @@ def search_for_job_complete(
             job_status_return = job_status_callable(
                 queue=queue, job_id=job_id, job_set_id=job_set_id
             )
+
+        time.sleep(3)
         if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
             job_state = JobState.SUCCEEDED
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"

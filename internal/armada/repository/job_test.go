@@ -309,6 +309,44 @@ func TestGetActiveJobIds(t *testing.T) {
 	})
 }
 
+func TestGetJobSetJobIds(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		queuedJob := addTestJob(t, r, "queue1")
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+
+		//Gives all on when no filter provided
+		ids, e := r.GetJobSetJobIds("queue1", "set1", nil)
+		assert.Nil(t, e)
+		assert.Equal(t, 2, len(ids))
+
+		//Gives all on when filter includes all options
+		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
+			IncludeQueued: true,
+			IncludeLeased: true,
+		})
+		assert.Nil(t, e)
+		assert.Equal(t, 2, len(ids))
+
+		//Gives only queued when queued filter provided
+		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
+			IncludeQueued: true,
+			IncludeLeased: false,
+		})
+		assert.Nil(t, e)
+		assert.Equal(t, 1, len(ids))
+		assert.Equal(t, ids[0], queuedJob.Id)
+
+		//Gives only leased when leased filter provided
+		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
+			IncludeQueued: false,
+			IncludeLeased: true,
+		})
+		assert.Nil(t, e)
+		assert.Equal(t, 1, len(ids))
+		assert.Equal(t, ids[0], leasedJob.Id)
+	})
+}
+
 func TestGetLeasedJobIds(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		addTestJob(t, r, "queue1")
