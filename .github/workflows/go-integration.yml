@@ -9,6 +9,8 @@ on:
 env:
   GOPATH: /actions-runner/go
   GOCACHE: /actions-runner/gocache
+  GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
+  HOME: /actions-runner
 
 jobs:
   # TODO: Make this work on github-hosted runners if secrets are not set
