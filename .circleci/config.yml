@@ -20,7 +20,7 @@ commands:
 
               helm upgrade --install executor-cluster-monitoring --namespace=common ./deployment/executor-cluster-monitoring --set interval=5s
             else
-              echo Unable to connect to worker << parameters.worker-id >>
+              echo Unable to conect to worker << parameters.worker-id >>
             fi
 
   install-helm-client:
