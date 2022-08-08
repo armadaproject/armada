@@ -18,7 +18,6 @@ namespace ArmadaProject.Io.Client.Test
         {
             var queue = "test";
             var jobSetId = Guid.NewGuid().ToString();
-
             var channel = CreateChannel(new Uri("http://localhost:8080"), ChannelCredentials.Insecure);
 
             try
@@ -71,16 +70,6 @@ namespace ArmadaProject.Io.Client.Test
 
         private static JobSubmitRequest CreateSubmitRequest(string queue, string jobSetId)
         {
-            var flex = new FlexVolumeSource();
-            flex.Driver = "gr/cifs";
-            flex.FsType = "cifs";
-            flex.SecretRef = new LocalObjectReference { Name = "secret-name" };
-            flex.Options["networkPath"] = "";
-            
-            var volume = new Volume();
-            volume.Name = "root-dir";
-            volume.VolumeSource = new VolumeSource { FlexVolume = flex };
-
             var resourceRequirements = new ResourceRequirements();
             resourceRequirements.Requests["cpu"] = new Quantity { String = "120m" };
             resourceRequirements.Requests["memory"] = new Quantity { String = "512Mi" };
@@ -95,7 +84,6 @@ namespace ArmadaProject.Io.Client.Test
             container.Resources = resourceRequirements;
 
             var podSpec = new PodSpec();
-            podSpec.Volumes.Add(volume);
             podSpec.Containers.Add(container);
 
             var requestItem = new JobSubmitRequestItem();
