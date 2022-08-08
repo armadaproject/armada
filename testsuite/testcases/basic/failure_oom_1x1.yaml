@@ -26,3 +26,4 @@ timeout: "150s"
 expectedEvents:
   - submitted:
   - failed:
+      reason: "Container oom failed with exit code 137 because OOMKilled: \n"
