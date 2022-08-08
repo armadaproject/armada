@@ -6,6 +6,9 @@ on:
     branches-ignore:
       - gh-pages
 
+env:
+  GOPATH: /actions-runner/go
+
 jobs:
   # TODO: Make this work on github-hosted runners if secrets are not set
   start-runner:
