@@ -29,5 +29,9 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
 
 
 class EventService(event_pb2_grpc.EventServicer):
-    def Watch(self, request, context):
-        return event_pb2.EventMessage()
+    def GetJobSetEvents(self, request, context):
+
+        events = [event_pb2.EventStreamMessage()]
+
+        for event in events:
+            yield event

@@ -21,9 +21,9 @@ Manual way:
 - Run `poetry install -v` from inside `client/python` to install the client
   into the virtual enviornment.
 - Run `sphinx-build -M jekyll source build`.
-  - If you wish to generate to other formats, you can run
-    `sphinx-build -M help` to get a full list of build targets. This may be
-    useful in the future if we wish to ship documentation to pypi.
+    - If you wish to generate to other formats, you can run
+      `sphinx-build -M help` to get a full list of build targets. This may be
+      useful in the future if we wish to ship documentation to pypi.
 
 Changing templates or adding modules
 ------------------------------------

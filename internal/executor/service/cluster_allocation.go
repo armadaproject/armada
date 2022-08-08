@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	util2 "github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/healthmonitor"
 	"github.com/G-Research/armada/internal/executor/job"
@@ -60,23 +61,43 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 	activePods := util.FilterPods(leasePods, isActive)
-	newJobs, err := allocationService.leaseService.RequestJobLeases(capacityReport.AvailableCapacity, capacityReport.Nodes, utilisation.GetAllocationByQueue(activePods))
-
-	cpu := (*capacityReport.AvailableCapacity)["cpu"]
-	memory := (*capacityReport.AvailableCapacity)["memory"]
-	log.Infof("Requesting new jobs with free resource cpu: %d, memory %d. Received %d new jobs. ", cpu.AsDec(), memory.Value(), len(newJobs))
-
+	newJobs, err := allocationService.leaseService.RequestJobLeases(
+		capacityReport.AvailableCapacity,
+		capacityReport.Nodes,
+		utilisation.GetAllocationByQueue(activePods),
+	)
+	logAvailableResources(capacityReport, len(newJobs))
 	if err != nil {
-		log.WithError(err).Error("failed to lease new jobs")
+		log.Errorf("failed to lease new jobs: %v", err)
 		return
-	} else {
-		failedJobs := allocationService.submitter.SubmitJobs(newJobs)
-
-		err := allocationService.processFailedJobs(failedJobs)
-		if err != nil {
-			log.Errorf("Failed to process failed jobs  because %s", err)
-		}
 	}
+
+	failedJobs := allocationService.submitter.SubmitJobs(newJobs)
+	if err := allocationService.processFailedJobs(failedJobs); err != nil {
+		log.Errorf("failed to process failed jobs: %v", err)
+	}
+}
+
+func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, jobCount int) {
+	cpu := capacityReport.GetResourceQuantity("cpu")
+	memory := capacityReport.GetResourceQuantity("memory")
+	ephemeralStorage := capacityReport.GetResourceQuantity("ephemeral-storage")
+
+	resources := fmt.Sprintf(
+		"cpu: %dm, memory %s, ephemeral-storage: %s",
+		cpu.MilliValue(), util2.FormatBinarySI(memory.Value()), util2.FormatBinarySI(ephemeralStorage.Value()),
+	)
+
+	nvidiaGpu := capacityReport.GetResourceQuantity("nvidia.com/gpu")
+	if nvidiaGpu.Value() > 0 {
+		resources += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
+	}
+	amdGpu := capacityReport.GetResourceQuantity("amd.com/gpu")
+	if amdGpu.Value() > 0 {
+		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
+	}
+
+	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, jobCount)
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation
