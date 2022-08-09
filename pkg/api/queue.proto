@@ -82,6 +82,8 @@ message NodeInfo {
     // Each pod is created with a priority class. Each priority class has an integer priority associated with it.
     // This is a map from priority to the total amount of resources allocated to pods with that priority.
     // It is used by the scheduler to decide wether more jobs should be sent to an executor.
+    // In particular, jobs may be sent to an executor even if all resources are allocated
+    // if the sent jobs are of higher priority.
     map<int32, map<string, k8s.io.apimachinery.pkg.api.resource.Quantity>> allocated_resources = 7 [(gogoproto.nullable) = false];
 }
 
