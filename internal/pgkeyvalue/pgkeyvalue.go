@@ -3,6 +3,7 @@ package pgkeyvalue
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -91,38 +92,61 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 	return err
 }
 
-func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) ([]bool, error) {
+func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
 
-	addedByKey := map[string]bool{}
+	addedByKey := map[string][]byte{}
+	keysToLookup := make([]string, 0, len(batch))
 
 	// first check the cache to see if we have added anything
 	for _, kv := range batch {
-		if _, ok := c.cache.Get(kv.Key); ok {
-			addedByKey[kv.Key] = false
+		if val, ok := c.cache.Get(kv.Key); ok {
+			addedByKey[kv.Key] = val.([]byte)
+		} else {
+			keysToLookup = append(keysToLookup, kv.Key)
 		}
 	}
 
 	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
 
-		// Check if the key already exists in postgres.
-		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
-		err := tx.QueryRow(ctx, sql, key).Scan(&exists)
+		// See which keys are already in the db
+		sql := fmt.Sprintf("SELECT key, value from %s WHERE key = ANY($1)", c.tableName)
+		rows, err := tx.Query(ctx, sql, keysToLookup)
 		if err != nil {
 			return err
 		}
-
-		// Only write the key-value pair if it doesn't already exist (overwriting not allowed).
-		if !*exists {
-			sql = fmt.Sprintf("insert into %s (key, value, inserted) values ($1, $2, now());", c.tableName)
-			_, err := tx.Exec(ctx, sql, key, value)
+		for rows.Next() {
+			var key = ""
+			var value []byte = nil
+			err := rows.Scan(&key)
 			if err != nil {
 				return err
 			}
+			addedByKey[key] = value
 		}
 
-		return nil
+		// any keys missing from addedByKey now need to be inserted
+		valueStrings := make([]string, 0, len(batch))
+		valueArgs := make([]interface{}, 0, len(batch)*2)
+		i := 0
+		for _, kv := range batch {
+			if _, exists := addedByKey[kv.Key]; !exists {
+				valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d)", i*2+1, i*2+1))
+				valueArgs = append(valueArgs, kv.Key)
+				valueArgs = append(valueArgs, kv.Value)
+				i++
+				addedByKey[kv.Key] = kv.Value
+			}
+		}
+		stmt := fmt.Sprintf("INSERT INTO %s (key, value) VALUES %s", c.tableName, strings.Join(valueStrings, ","))
+		_, err = tx.Exec(ctx, stmt, valueArgs...)
+		return err
 	})
 
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return addedByKey, nil
 }
 
 func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
@@ -201,6 +225,48 @@ func (c *PGKeyValueStore) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	return *value, nil
+}
+
+func (c *PGKeyValueStore) GetBatch(ctx context.Context, keys []string) (map[string][]byte, error) {
+
+	vals := make(map[string][]byte, len(keys))
+
+	// First check the local cache.
+	for _, key := range keys {
+		if value, ok := c.cache.Get(key); ok {
+			vals[key] = value.([]byte)
+		}
+	}
+
+	// Otherwise, check postgres.
+	sql := fmt.Sprintf("SELECT key, value from %s where KEY=any($1)", c.tableName)
+	rows, err := c.db.Query(ctx, sql, keys)
+
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	for rows.Next() {
+		var key = ""
+		var value []byte = nil
+		err := rows.Scan(&key, &value)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		vals[key] = value
+	}
+
+	// sanity check we have everything
+	for _, key := range keys {
+		if _, ok := vals[key]; !ok {
+			return nil, errors.WithStack(&armadaerrors.ErrNotFound{
+				Type:  "Postgres key-value pair",
+				Value: key,
+			})
+		}
+	}
+
+	return vals, nil
 }
 
 // Cleanup removes all key-value pairs older than lifespan.

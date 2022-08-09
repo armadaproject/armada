@@ -67,6 +67,31 @@ func TestAdd(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestAddBatch(t *testing.T) {
+	//cacheSize := 100
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		//store, err := New(db, cacheSize, "cachetable")
+		//assert.NoError(t, err)
+
+		// Add two items
+
+		// get items
+
+		// Add items again and assert that bool says nil
+
+		// get items
+
+		// Add three items
+
+		// Asset that only one is added
+
+		// get items
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestAddGet(t *testing.T) {
 	cacheSize := 100
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
