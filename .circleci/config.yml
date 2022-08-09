@@ -411,7 +411,7 @@ jobs:
           name: Publish Nuget
           command: |
             RELEASE_TAG=${CIRCLE_TAG#"v"}
-            make publish-nuget
+            make push-nuget
 
       - store_artifacts:
           path: bin/client/DotNet
