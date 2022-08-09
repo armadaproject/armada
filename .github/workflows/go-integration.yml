@@ -56,39 +56,31 @@ jobs:
           go: [ '1.18' ]
       steps:
         # note(JayF): GHA does not support setting environment directly in yaml
-        # conditionally. So, instead we write an environment file and alter
-        # its contents dynamically, then include that if nonempty before each
-        # step. The variables below are only needed for custom runners.
+        # conditionally. So, instead we write an environment to the profile if
+        # we need env, then include that if nonempty before each step.
         - name: Setup environment file
+          # The variables below are only needed for custom runners.
           if: github.repository == 'jayofdoom/armada'
           run: | 
-           echo export GOPATH="/actions-runner/go" >/tmp/github.env
-           echo export GOCACHE="/actions-runner/gocache" >>/tmp/github.env
-           echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> /tmp/github.env
-           echo export HOME="/actions-runner" >> /tmp/github.env
-        - name: Setup dummy environment file if on fork
-          if: github.repository != 'jayofdoom/armada'
-          run: |
-            echo "" > /tmp/github.env
+           echo export GOPATH="/actions-runner/go" >/etc/profile
+           echo export GOCACHE="/actions-runner/gocache" >>/etc/profile
+           echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> /etc/profile
+           echo export HOME="/actions-runner" >> /etc/profile
         - uses: actions/checkout@v3
         - uses: ./.github/workflows/go-setup
         - name: make build-ci
           run: |
-            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make build-ci
         - name: make tests-e2e-setup
           run: |
-            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make tests-e2e-setup
         - name: make tests-e2e-no-setup
           run: |
-            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make tests-e2e-no-setup
           env:
             INTEGRATION_ENABLED: true
         - name: make junit-report
           run: |
-            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make junit-report
         - name: Upload junit report
           uses: actions/upload-artifact@v2.2.4
