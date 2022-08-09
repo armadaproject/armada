@@ -59,7 +59,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 		},
 	}
 
-	return &TokenCredentials{tokenSource: &tokenSource}, nil
+	return &TokenCredentials{tokenSource: &oauth2.ReuseTokenSource(nil, tokenSource)}, nil
 }
 
 func getKubernetesToken() (string, error) {
