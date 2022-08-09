@@ -91,9 +91,9 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			Name: testFilesPattern,
 		}
 
-		numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
-
 		start := time.Now()
+
+		numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
 
 		fmt.Printf("\n======= SUMMARY =======\n")
 		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
