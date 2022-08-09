@@ -4,6 +4,8 @@ Currently there are three example files:
 
 - [simple.py](#simple.py)
 - [general.py](#general.py)
+- [queues.py](#queuespy)
+- [cancelling.py](#cancellingpy)
 - [monitor.py](#monitor.py)
 
 There are also some codeblocks with useful code snippets:
@@ -34,6 +36,8 @@ python3 simple.py
 ## Example Files
 
 ### simple.py
+
+[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/simple.py)
 
 Example of using the Armada client to create a queue, jobset and job,
 then watch for the job to succeed or fail.
@@ -66,6 +70,8 @@ client.create_queue(name=queue, priority_factor=1)
 All queues need a priority factor to be created, which is used to determine the order in which jobs are run.
 
 ### general.py
+
+[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/general.py)
 
 A more fledged out version of `simple.py` where we create a queue only if it doesn't exist, and then create a jobset and job, and wait until the job succeeds or fails.
 
@@ -109,7 +115,53 @@ except grpc.RpcError as e:
 
 For any grpc-related errors, more detail can be found by checking the grpc.RpcError object. In this case, we use it to ignore if a queue has already been created or not.
 
+### queues.py
+
+[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/queues.py)
+
+A full example of creating a queue with all options.
+
+#### Walkthrough
+
+```py
+subject = Subject(type="Group", name="group1")
+permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
+```
+
+Permissions are used to control who can do what with the queue.
+
+```py
+resource_limits = {"cpu": 1.0, "memory": 1.0}
+```
+
+Resource limits are set similarly to [Kubernetes](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
+
+
+### cancelling.py
+
+[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/cancelling.py)
+
+A full example of cancelling jobs, either with their job id, or
+the job-set id.
+
+#### Walkthrough
+
+```py
+job_id = resp1.job_response_items[0].job_id
+client.cancel_jobs(job_id=job_id)
+```
+
+To cancel a specific job, its job_id must be read from the `client.submit_jobs` response, and then it can be cancelled.
+
+```py
+client.cancel_jobs(queue=queue, job_set_id=job_set_id1)
+```
+
+You can also cancel all jobs on a job_set with its queue and job_set id.
+
 ### monitor.py
+
+[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/monitor.py)
 
 Demonstrates how to run jobs, and also log all changes to that job or job_set in realtime concurrently.
 

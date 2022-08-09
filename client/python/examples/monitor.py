@@ -20,9 +20,9 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 from armada_client.typings import EventType
 
 
-def create_dummy_jobs(client):
+def create_dummy_jobs(client, n=1):
     """
-    Create 3 dummy jobs with a single container.
+    Create n dummy jobs with a single container.
     """
 
     # For infomation on where this comes from,
@@ -48,7 +48,7 @@ def create_dummy_jobs(client):
         ],
     )
 
-    return [client.create_job_request_item(priority=1, pod_spec=pod) for _ in range(3)]
+    return [client.create_job_request_item(priority=1, pod_spec=pod) for _ in range(n)]
 
 
 def watch_job_set(client: ArmadaClient, queue: str, job_set_id, no_of_jobs):
@@ -137,7 +137,7 @@ def main():
     """
 
     # The queue and job_set_id that will be used for all jobs
-    queue = "test-general"
+    queue = "test-monitor"
     job_set_id = f"set-{uuid.uuid1()}"
 
     # Ensures that the correct channel type is generated
@@ -151,7 +151,8 @@ def main():
         )
     client = ArmadaClient(channel)
 
-    job_request_items = create_dummy_jobs(client)
+    # Creates 3 dummy jobs
+    job_request_items = create_dummy_jobs(client, 3)
 
     # Create the threads
     workflow = threading.Thread(

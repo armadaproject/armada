@@ -70,10 +70,10 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
         event = client.unmarshal_event_response(event)
 
         if event.message.job_id == job_id:
-            if event.type in terminal_events:
-                return False
-            elif event.type == event_state:
+            if event.type == event_state:
                 return True
+            elif event.type in terminal_events:
+                return False
 
 
 def creating_jobs_example(client, queue, job_set_id):
