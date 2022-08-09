@@ -408,7 +408,7 @@ jobs:
             make download # no-op if we restored from cache            
 
       - run:
-          name: Publish Nuget
+          name: Push dotnet clients to nuget
           command: |
             RELEASE_TAG=${CIRCLE_TAG#"v"}
             make push-nuget
