@@ -383,20 +383,35 @@ jobs:
       - update-charts
 
   release-dotnet-client:
-    docker:
-      - image: mcr.microsoft.com/dotnet/core/sdk:3.0.101-alpine3.10
-    working_directory: /go/src/github.com/G-Research/armada
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:current
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
       - run:
-          name: Release dotnet client
+          name: Download dependencies
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+            make download # no-op if we restored from cache            
+
+      - run:
+          name: Push dotnet clients to nuget
           command: |
             RELEASE_TAG=${CIRCLE_TAG#"v"}
-            dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
-            dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
-            dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
-            dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+            make push-nuget
 
       - store_artifacts:
           path: bin/client/DotNet

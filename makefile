@@ -103,6 +103,11 @@ ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
 endif
 
+# The NUGET_API_KEY environment variable is set by circleci (to insert into dotnet nuget push commands)
+ifndef NUGET_API_KEY
+override NUGET_API_KEY = UNKNOWN_NUGET_API_KEY
+endif
+
 # use bash for running:
 export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
@@ -521,6 +526,13 @@ proto: setup-proto
 dotnet: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
 	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
+
+# Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
+push-nuget: dotnet-setup setup-proto
+	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
