@@ -76,7 +76,6 @@ def test_submit_job():
     request_item = tester.create_job_request_item(
         priority=1,
         pod_spec=pod,
-        pod_specs=[pod],
         namespace="test",
         client_id="test",
         labels=labels,
