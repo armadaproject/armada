@@ -15,6 +15,8 @@ const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
 const deadlineExceeded = "DeadlineExceeded"
 
+// TODO: Need to detect pod preemption.
+
 func ExtractPodFailedReason(pod *v1.Pod) string {
 	if pod.Status.Message != "" {
 		return pod.Status.Message
