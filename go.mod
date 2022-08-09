@@ -17,6 +17,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
+	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.2
 	github.com/go-openapi/jsonreference v0.20.0
@@ -43,6 +44,7 @@ require (
 	github.com/jackc/pgtype v1.11.0
 	github.com/jackc/pgx/v4 v4.16.1
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
+	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report v0.9.1
 	github.com/jstemmer/go-junit-report/v2 v2.0.0-beta1
 	github.com/mattn/go-zglob v0.0.3
@@ -86,6 +88,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
 	k8s.io/kubelet v0.22.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
+	modernc.org/sqlite v1.18.0
 	sigs.k8s.io/kind v0.14.0
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.3.0

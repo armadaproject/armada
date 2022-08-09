@@ -59,7 +59,6 @@ func (srv *JobLogger) scrape(ctx context.Context, wg *sync.WaitGroup, info *podI
 	defer wg.Done()
 
 	clientset := srv.clientsets[info.Kubectx]
-	fmt.Fprintf(srv.out, "Scraping pod %s with phase %s\n", info.Name, info.Phase)
 	logs, err := srv.getLogs(ctx, clientset, info.Name)
 	if err != nil {
 		return pkgerrors.WithMessagef(err, "error fetching logs for pod %s in kubectx %s: %v", info.Name, info.Kubectx, err)

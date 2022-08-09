@@ -2,7 +2,6 @@ package joblogger
 
 import (
 	"context"
-	"flag"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,7 +20,7 @@ type Option func(logger *JobLogger)
 
 type JobLogger struct {
 	out        io.Writer
-	kubectxs   []string
+	clusters   []string
 	interval   time.Duration
 	jobSetId   string
 	queue      string
@@ -30,30 +29,29 @@ type JobLogger struct {
 	clientsets map[string]*kubernetes.Clientset
 }
 
-func New(kubectxs []string, opts ...Option) *JobLogger {
+func New(clusters []string, namespace string, opts ...Option) (*JobLogger, error) {
 	jl := &JobLogger{
 		out:        os.Stdout,
-		kubectxs:   kubectxs,
+		clusters:   clusters,
+		namespace:  namespace,
 		interval:   5 * time.Second,
-		clientsets: make(map[string]*kubernetes.Clientset, len(kubectxs)),
+		clientsets: make(map[string]*kubernetes.Clientset, len(clusters)),
 	}
 
 	for _, opt := range opts {
 		opt(jl)
 	}
 
-	return jl
+	if err := jl.validateConfig(); err != nil {
+		return nil, pkgerrors.WithMessage(err, "error validating supplied configuration")
+	}
+
+	return jl, nil
 }
 
 func WithOutput(output io.Writer) Option {
 	return func(srv *JobLogger) {
 		srv.out = output
-	}
-}
-
-func WithNamespace(namespace string) Option {
-	return func(srv *JobLogger) {
-		srv.namespace = namespace
 	}
 }
 
@@ -69,17 +67,28 @@ func WithQueue(queue string) Option {
 	}
 }
 
+func (srv *JobLogger) validateConfig() error {
+	if srv.namespace == "" {
+		return pkgerrors.New("namespace must be configured")
+	}
+	return nil
+}
+
 func (srv *JobLogger) Run(ctx context.Context) error {
-	kubeconfig := getKubeConfigPath()
-	if kubeconfig == nil {
-		return pkgerrors.New("cannot find kubeconfig path")
+	kubeconfig, err := getKubeConfigPath()
+	if err != nil {
+		return pkgerrors.WithMessage(err, "cannot find kubeconfig path")
+	}
+
+	if _, err := os.Stat(kubeconfig); err != nil {
+		return pkgerrors.WithMessagef(err, "error checking does kubeconfig file exist at %s", kubeconfig)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	for i := range srv.kubectxs {
-		kubectx := srv.kubectxs[i]
-		clientset, err := newClientsetForKubectx(kubectx, *kubeconfig)
+	for i := range srv.clusters {
+		kubectx := srv.clusters[i]
+		clientset, err := newClientsetForKubectx(kubectx, kubeconfig)
 		if err != nil {
 			return pkgerrors.WithMessagef(err, "error creating clientset for kubectx %s", kubectx)
 		}
@@ -96,15 +105,14 @@ func (srv *JobLogger) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-func getKubeConfigPath() *string {
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+func getKubeConfigPath() (string, error) {
+	if path, exists := os.LookupEnv("KUBECONFIG"); exists {
+		return path, nil
+	} else if home := homedir.HomeDir(); home != "" {
+		return filepath.Join(home, ".kube", "config"), nil
 	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+		return "", pkgerrors.New("neither $KUBECONFIG or $HOME envvars are configured")
 	}
-	flag.Parse()
-	return kubeconfig
 }
 
 func buildConfigFromFlags(kubectx, kubeconfigPath string) (*rest.Config, error) {
