@@ -103,6 +103,11 @@ ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
 endif
 
+# The NUGET_API_KEY environment variable is set by circleci (to insert into dotnet nuget push commands)
+ifndef NUGET_API_KEY
+override NUGET_API_KEY = UNKNOWN_NUGET_API_KEY
+endif
+
 # use bash for running:
 export SHELL:=/bin/bash
 export SHELLOPTS:=$(if $(SHELLOPTS),$(SHELLOPTS):)pipefail:errexit
@@ -518,19 +523,16 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
 # Target for compiling the dotnet Armada REST client
-dotnet: dotnet-setup
+dotnet: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
+	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
-# Build and package the dotnet Armada GRPC client
-dotnet-grpc: dotnet-setup setup-proto
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
-		-w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
-
-dotnet-clean:
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/bin
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/obj
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/generated
+# Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
+push-nuget: dotnet-setup setup-proto
+	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
