@@ -13,6 +13,6 @@ runs:
     - name: Run make download
       shell: bash
       run: |
-        [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+        [[ -s /tmp/github.env ]] && source /tmp/github.env
         make download
 

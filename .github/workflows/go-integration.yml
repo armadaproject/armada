@@ -74,21 +74,21 @@ jobs:
         - uses: ./.github/workflows/go-setup
         - name: make build-ci
           run: |
-            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make build-ci
         - name: make tests-e2e-setup
           run: |
-            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make tests-e2e-setup
         - name: make tests-e2e-no-setup
           run: |
-            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make tests-e2e-no-setup
           env:
             INTEGRATION_ENABLED: true
         - name: make junit-report
           run: |
-            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            [[ -s /tmp/github.env ]] && source /tmp/github.env
             make junit-report
         - name: Upload junit report
           uses: actions/upload-artifact@v2.2.4
