@@ -12,14 +12,15 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+
+sys.path.insert(0, os.path.abspath("../.."))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'python-armadaclient'
-copyright = '2022 Armada Project'
-author = 'jay@gr-oss.io'
+project = "python-armadaclient"
+copyright = "2022 Armada Project"
+author = "jay@gr-oss.io"
 
 
 # -- General configuration ---------------------------------------------------
@@ -27,20 +28,21 @@ author = 'jay@gr-oss.io'
 # Jekyll is the style of markdown used by github pages; using
 # sphinx_jekyll_builder here allows us to generate docs as
 # markdown files.
-extensions = ['sphinx.ext.autodoc', 'sphinx_jekyll_builder']
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx_jekyll_builder",
+    "sphinx_toolbox.more_autodoc.autonamedtuple",
+]
 
 # This setting puts information about typing in the description section instead
 # of in the function signature directly. This makes rendered content look much
 # better in our gh-pages template that renders the generated markdown.
-autodoc_typehints = 'description'
+autodoc_typehints = "description"
 
-# Add any paths that contain templates here, relative to this directory.
-templates_path = []
 
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-# This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+# This setting makes sure that all types are fully documented with their correct paths
+# i.e instead of just "Permissions" we get "armada_client.permissions.Permissions"
+autodoc_typehints_format = "fully-qualified"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -48,9 +50,4 @@ exclude_patterns = []
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = []
+html_theme = "alabaster"
