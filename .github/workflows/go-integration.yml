@@ -66,7 +66,12 @@ jobs:
            echo export GOCACHE="/actions-runner/gocache" >>.env
            echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> .env
            echo export HOME="/actions-runner" >> .env
+           mkdir -p /actions-runner/go/src/github.com/G-Research/armada
+           cp .env /actions-runner/go/src/github.com/G-Research/armada/.env
         - uses: actions/checkout@v3
+          with:
+            # Cleaning would remove the .env file configured above
+            clean: false
         - uses: ./.github/workflows/go-setup
         - name: make build-ci
           run: |
