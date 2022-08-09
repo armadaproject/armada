@@ -6,19 +6,12 @@ on:
     branches-ignore:
       - gh-pages
 
-env:
-  if: github.repository == 'jayofdoom/armada'
-  GOPATH: /actions-runner/go
-  GOCACHE: /actions-runner/gocache
-  GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
-  HOME: /actions-runner
-
 jobs:
   start-runner:
     name: Start runner in EC2
     runs-on: ubuntu-latest
     outputs:
-      runs-on: ${{ steps.compatability-runs-on.value }}
+      runs-on: ${{ steps.compatability-runs-on.outputs.value }}
       ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
       - if: github.repository == 'jayofdoom/armada'
@@ -44,30 +37,59 @@ jobs:
               {"Key": "Name", "Value": "ec2-github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
+      # note(JayF): To support running properly if secrets aren't set, we have
+      # to misdirect the conditional here -- this allows us to set the fallback
+      # value that's used in the next step.
       - name: Compatability for forked runners
         id: compatability-runs-on
         uses: haya14busa/action-cond@v1
         with:
           cond: ${{ steps.start-runner.outputs.label == '' }} 
-          if_true: 'ubuntu-latest'     
+          if_true: 'ubuntu-latest'
           if_false: ${{ steps.start-ec2-runner.outputs.label }}
   go-integration-tests:
       needs: start-runner
-      runs-on: ${{ needs.start-runner.outputs.runs_on }}
+      runs-on: ${{ needs.start-runner.outputs.runs-on }}
       strategy:
         fail-fast: false
         matrix:
           go: [ '1.18' ]
       steps:
+        # note(JayF): GHA does not support setting environment directly in yaml
+        # conditionally. So, instead we write an environment file and alter
+        # its contents dynamically, then include that if nonempty before each
+        # step. The variables below are only needed for custom runners.
+        - name: Setup environment file
+          if: github.repository == 'jayofdoom/armada'
+          run: | 
+           echo GOPATH=/actions-runner/go >/tmp/github.env
+           echo GOCACHE=/actions-runner/gocache >>/tmp/github.env
+           echo GITHUB_WORKSPACE=/actions-runner/go/src/github.com/G-Research/armada >> /tmp/github.env
+           echo HOME=/actions-runner >> /tmp/github.env
+        - name: Setup dummy environment file if on fork
+          if: github.repository != 'jayofdoom/armada'
+          run: |
+            echo "" > /tmp/github.env
         - uses: actions/checkout@v3
         - uses: ./.github/workflows/go-setup
-        - run: make build-ci
-        - run: make tests-e2e-setup
-        - run: |
+        - name: make build-ci
+          run: |
+            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            make build-ci
+        - name: make tests-e2e-setup
+          run: |
+            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            make tests-e2e-setup
+        - name: make tests-e2e-no-setup
+          run: |
+            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
             make tests-e2e-no-setup
           env:
             INTEGRATION_ENABLED: true
-        - run: make junit-report
+        - name: make junit-report
+          run: |
+            [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+            make junit-report
         - name: Upload junit report
           uses: actions/upload-artifact@v2.2.4
           with:

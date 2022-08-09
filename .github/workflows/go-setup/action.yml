@@ -12,4 +12,7 @@ runs:
         cache: true
     - name: Run make download
       shell: bash
-      run: make download
+      run: |
+        [[ ! -s /tmp/github.env ]] && source /tmp/github.env
+        make download
+
