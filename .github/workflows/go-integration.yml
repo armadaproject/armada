@@ -13,10 +13,10 @@ env:
   GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
   HOME: /actions-runner
 
-DOCKER_BUILDKIT: 1
+env:
+  DOCKER_BUILDKIT: 1
 
 jobs:
-  # TODO: Make this work on github-hosted runners if secrets are not set
   start-runner:
     name: Start runner in EC2
     runs-on: ubuntu-latest
