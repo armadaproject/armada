@@ -21,8 +21,8 @@ import (
 
 func runCmd(app *jobservice.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "run",
-		RunE:  runCmdE(app),
+		Use:  "run",
+		RunE: runCmdE(app),
 	}
 
 	cmd.Flags().String("config", "", "Configuration")

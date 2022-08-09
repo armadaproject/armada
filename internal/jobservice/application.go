@@ -26,8 +26,7 @@ type App struct {
 }
 
 func New() *App {
-	return &App{
-	}
+	return &App{}
 }
 
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
