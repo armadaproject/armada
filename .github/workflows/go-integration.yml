@@ -62,10 +62,10 @@ jobs:
           # The variables below are only needed for custom runners.
           if: github.repository == 'jayofdoom/armada'
           run: | 
-           echo export GOPATH="/actions-runner/go" >>/etc/profile
-           echo export GOCACHE="/actions-runner/gocache" >>/etc/profile
-           echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> /etc/profile
-           echo export HOME="/actions-runner" >> /etc/profile
+           echo export GOPATH="/actions-runner/go" >>.env
+           echo export GOCACHE="/actions-runner/gocache" >>.env
+           echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> .env
+           echo export HOME="/actions-runner" >> .env
         - uses: actions/checkout@v3
         - uses: ./.github/workflows/go-setup
         - name: make build-ci
