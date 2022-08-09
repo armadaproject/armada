@@ -304,6 +304,10 @@ class ArmadaClient:
         :param services: The services of the job
         :return: A job item request object. See the api definition.
         """
+
+        if pod_spec and pod_specs:
+            raise ValueError("Only one of pod_spec and pod_specs can be specified")
+
         return submit_pb2.JobSubmitRequestItem(
             priority=priority,
             pod_spec=pod_spec,
