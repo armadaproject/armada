@@ -34,13 +34,13 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 		g, ctx := errgroup.WithContext(context.Background())
 		var config configuration.JobServiceConfiguration
 
-		config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
 		configValue, configErr := cmd.Flags().GetString("config")
 		if configErr != nil {
 			log.Warnf("Error Parsing Config in Startup %v", configErr)
 		}
 		configArray := strings.Split(configValue, " ")
 		common.LoadConfig(&config, "./config/jobservice", configArray)
+		config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		err := app.StartUp(ctx, &config)
 		if err != nil {

@@ -27,6 +27,7 @@ spec:
           imagePullPolicy: IfNotPresent
           image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
           args:
+            - run
             - --config
             - /config/application_config.yaml
           {{- if .Values.env }}
@@ -44,6 +45,10 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "jobservice.config.filename" . }}
               readOnly: true
+            {{- if .Values.additionalVolumeMounts }}
+            {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
+            {{- end }}
+
           securityContext:
             allowPrivilegeEscalation: false
       affinity:
