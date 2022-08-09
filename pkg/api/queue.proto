@@ -67,7 +67,7 @@ message StreamingLeaseRequest {
     repeated string ReceivedJobIds = 7;
 }
 
-// Used by the scheduler 
+// Used by the scheduler when allocating jobs to executors.
 message NodeInfo {
     string name = 1;
     repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
