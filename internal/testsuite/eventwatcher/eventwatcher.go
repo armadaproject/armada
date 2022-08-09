@@ -163,6 +163,9 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
+				if err := validateEvent(actual, expected[i]); err != nil {
+					return terminatedByJobId, err
+				}
 				i++
 				indexByJobId[actualJobId] = i
 			}

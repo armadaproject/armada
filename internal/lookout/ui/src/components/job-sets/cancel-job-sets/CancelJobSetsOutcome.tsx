@@ -1,6 +1,7 @@
 import React from "react"
 
 import {
+  Checkbox,
   List,
   ListItem,
   ListItemText,
@@ -24,7 +25,11 @@ import "../../Text.css"
 type CancelJobSetsOutcomeProps = {
   cancelJobSetsResponse: CancelJobSetsResponse
   isLoading: boolean
+  queuedSelected: boolean
+  runningSelected: boolean
   onCancelJobs: () => void
+  onQueuedSelectedChange: (queuedSelected: boolean) => void
+  onRunningSelectedChange: (runningSelected: boolean) => void
 }
 
 export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
@@ -63,6 +68,20 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
               </TableBody>
             </Table>
           </TableContainer>
+          <div>
+            <Checkbox
+              checked={props.queuedSelected}
+              onChange={(event) => props.onQueuedSelectedChange(event.target.checked)}
+            />
+            <label>Queued</label>
+          </div>
+          <div>
+            <Checkbox
+              checked={props.runningSelected}
+              onChange={(event) => props.onRunningSelectedChange(event.target.checked)}
+            />
+            <label>Pending + Running</label>
+          </div>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
           </div>
