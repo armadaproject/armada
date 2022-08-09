@@ -62,10 +62,10 @@ jobs:
         - name: Setup environment file
           if: github.repository == 'jayofdoom/armada'
           run: | 
-           echo GOPATH="/actions-runner/go" >/tmp/github.env
-           echo GOCACHE="/actions-runner/gocache" >>/tmp/github.env
-           echo GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> /tmp/github.env
-           echo HOME="/actions-runner" >> /tmp/github.env
+           echo export GOPATH="/actions-runner/go" >/tmp/github.env
+           echo export GOCACHE="/actions-runner/gocache" >>/tmp/github.env
+           echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> /tmp/github.env
+           echo export HOME="/actions-runner" >> /tmp/github.env
         - name: Setup dummy environment file if on fork
           if: github.repository != 'jayofdoom/armada'
           run: |
