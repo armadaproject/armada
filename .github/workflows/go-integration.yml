@@ -7,14 +7,11 @@ on:
       - gh-pages
 
 env:
-  if: github.repository == 'g-research/armada'
+  if: github.repository == 'jayofdoom/armada'
   GOPATH: /actions-runner/go
   GOCACHE: /actions-runner/gocache
   GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
   HOME: /actions-runner
-
-env:
-  DOCKER_BUILDKIT: 1
 
 jobs:
   start-runner:
