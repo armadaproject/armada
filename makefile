@@ -17,7 +17,7 @@ endif
 # Ignored on docker <18.09. This may lead to slower builds and different logs in STDOUT,
 # but the image output is the same.
 # See https://docs.docker.com/develop/develop-images/build_enhancements/ for more info.
-export DOCKER_BUILDKIT = 1 
+export DOCKER_BUILDKIT="1"
 
 # Get the current date and time (to insert into go build)
 # On Windows, we need to use the powershell date command (alias of Get-Date) to get the full date-time string

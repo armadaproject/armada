@@ -44,7 +44,7 @@ jobs:
         id: compatability-runs-on
         uses: haya14busa/action-cond@v1
         with:
-          cond: ${{ steps.start-runner.outputs.label == '' }} 
+          cond: ${{ steps.start-ec2-runner.outputs.label == '' }} 
           if_true: 'ubuntu-latest'
           if_false: ${{ steps.start-ec2-runner.outputs.label }}
   go-integration-tests:
@@ -62,10 +62,10 @@ jobs:
         - name: Setup environment file
           if: github.repository == 'jayofdoom/armada'
           run: | 
-           echo GOPATH=/actions-runner/go >/tmp/github.env
-           echo GOCACHE=/actions-runner/gocache >>/tmp/github.env
-           echo GITHUB_WORKSPACE=/actions-runner/go/src/github.com/G-Research/armada >> /tmp/github.env
-           echo HOME=/actions-runner >> /tmp/github.env
+           echo GOPATH="/actions-runner/go" >/tmp/github.env
+           echo GOCACHE="/actions-runner/gocache" >>/tmp/github.env
+           echo GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> /tmp/github.env
+           echo HOME="/actions-runner" >> /tmp/github.env
         - name: Setup dummy environment file if on fork
           if: github.repository != 'jayofdoom/armada'
           run: |
