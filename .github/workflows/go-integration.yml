@@ -71,7 +71,7 @@ jobs:
       if: ${{ always() && github.repository == 'jayofdoom/armada' }}
       needs:
         - start-runner
-        - go-integration-tests
+        - integration-tests
       runs-on: ubuntu-latest
       steps:
         - name: Configure AWS credentials
