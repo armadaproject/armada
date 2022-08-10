@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: '3.8.10'
           path: 'client/python'
-  integration-tests:
+  python-client-integration-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
