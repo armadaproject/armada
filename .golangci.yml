@@ -14,9 +14,12 @@ linters:
     - govet
     - deadcode
     - goimports
+    - ineffassign
     - varcheck
     - errcheck
     - revive
+    - gosec
+    - gosimple
 
 linters-settings:
   lll:
