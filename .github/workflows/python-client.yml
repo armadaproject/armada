@@ -28,7 +28,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  tox-tests-and-lint:
+  python-client-tox:
     runs-on: ubuntu-latest
     strategy:
       matrix:

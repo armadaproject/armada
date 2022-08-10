@@ -38,7 +38,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  dummy-job:
+  airflow-tox:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No airflow operator code modified, not running airflow operator jobs"'

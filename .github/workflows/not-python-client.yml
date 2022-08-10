@@ -28,7 +28,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  dummy-job:
+  python-client-tox:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No python modified, not running python jobs"'

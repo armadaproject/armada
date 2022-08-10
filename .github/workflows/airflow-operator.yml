@@ -40,7 +40,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  tox-tests-and-lint:
+  airflow-tox:
     runs-on: ubuntu-latest
     strategy:
       matrix:
