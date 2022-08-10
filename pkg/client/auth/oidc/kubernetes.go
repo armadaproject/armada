@@ -1,10 +1,8 @@
 package oidc
 
 import (
-	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/oauth2"
 )
 
@@ -60,37 +59,10 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			if err != nil {
 				return nil, err
 			}
-
-			var result map[string]interface{}
-			json.Unmarshal(body, &result)
-
-			accessToken, ok := result["access_token"]
-			if !ok {
-				return nil, fmt.Errorf("Unmarshalled yaml fails to contain access token")
-			}
-
-			tokenBody, ok := strings.Split(accessToken, ".")[1]
-			if !ok {
-				return nil, fmt.Errorf("Access token is incorrectly formatted, no body section")
-			}
-
-			decodedBody, err := b64.StdEncoding.DecodeString(tokenBody)
+			
+			token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
 			if err != nil {
 				return nil, err
-			}
-
-			var resultBody map[string]interface{}
-			json.Unmarshal([]byte(decodedBody), resultBody)
-
-			expiry, ok := resultBody["exp"]
-			if !ok {
-				return nil, fmt.Errorf("No expiry in token")
-			}
-
-			token := oauth2.Token{
-				AccessToken: accessToken,
-				TokenType:   "Bearer",
-				Expiry:      time.Unix(expiry, 0),
 			}
 
 			log.Printf("Access Token: %v \n", token.AccessToken)
