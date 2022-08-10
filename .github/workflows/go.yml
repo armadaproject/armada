@@ -10,6 +10,25 @@ on:
 
 jobs:
   lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: "latest"
+          skip-pkg-cache: true
+          skip-build-cache: true
+          only-new-issues: true
+          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=0 --max-issues-per-linter=0 --sort-results ./..."
+
+  code-checks:
     # TODO(JayF): Configure this to only run when golang code has changed
     runs-on: ubuntu-latest
     strategy:
@@ -32,6 +51,7 @@ jobs:
           git status -s -uno
           git --no-pager diff
           exit $(git status -s -uno | wc -l)
+
   unit-tests:
     runs-on: ubuntu-latest
     strategy:
