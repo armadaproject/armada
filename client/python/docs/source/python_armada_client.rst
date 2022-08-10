@@ -8,7 +8,6 @@ armada\_client.client module
 
 .. automodule:: armada_client.client
    :members:
-   :show-inheritance:
 
 armada\_client.event module
 ----------------------------
@@ -18,7 +17,7 @@ armada\_client.event module
 
 
 armada\_client.permissions module
-----------------------------
+---------------------------------
 
 .. automodule:: armada_client.permissions
    :members:

@@ -16,6 +16,6 @@ type JobServiceConfiguration struct {
 	// Configurable value that translates to number of seconds
 	// This is the amount of time since the last job in job-set has been updated.
 	SubscribeJobSetTime int64
-	// How often to do we write our in memory database to disk
-	PersistenceInterval int64
+	// Absolute or relative path for sqllite database and must include the db name
+	DatabasePath string
 }

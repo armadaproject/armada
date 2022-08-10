@@ -269,6 +269,10 @@ func (repo *mockJobRepository) GetActiveJobIds(queue string, jobSetId string) ([
 	return []string{}, nil
 }
 
+func (repo *mockJobRepository) GetJobSetJobIds(queue string, jobSetId string, filter *repository.JobSetFilter) ([]string, error) {
+	return []string{}, nil
+}
+
 func (repo *mockJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
 	return []*api.JobSetInfo{}, nil
 }
