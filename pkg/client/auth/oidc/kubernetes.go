@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/oauth2"
@@ -59,7 +58,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			if err != nil {
 				return nil, err
 			}
-			
+
 			token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
 			if err != nil {
 				return nil, err
