@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"encoding/b64"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -52,15 +54,44 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, makeErrorForHTTPResponse(resp)
 			}
 
-			var token oauth2.Token
 			defer resp.Body.Close()
-			body, _ := ioutil.ReadAll(resp.Body)
-			log.Printf("JSON body from call: %v \n", string(body))
-
-			err = json.NewDecoder(resp.Body).Decode(&token)
+			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
 				return nil, err
 			}
+
+			var result map[string]interface{}
+			json.Unmarshal(body, &result)
+
+			accessToken, ok := result["access_token"]
+			if !ok {
+				return nil, fmt.Errorf("Unmarshalled yaml fails to contain access token")
+			}
+
+			tokenBody, ok := strings.Split(accessToken, ".")[1]
+			if !ok {
+				return nil, fmt.Errorf("Access token is incorrectly formatted, no body section")
+			}
+
+			decodedBody, err := b64.StdEncoding.DecodeString(tokenBody)
+			if err != nil {
+				return nil, err
+			}
+
+			var resultBody map[string]interface{}
+			json.Unmarshal([]byte(decodedBody), resultBody)
+
+			expiry, ok := resultBody["exp"]
+			if !ok {
+				return nil, fmt.Errorf("No expiry in token")
+			}
+
+			token := oauth2.Token{
+				AccessToken: accessToken,
+				TokenType:   "Bearer",
+				Expiry:      time.Unix(expiry, 0),
+			}
+
 			log.Printf("Access Token: %v \n", token.AccessToken)
 			log.Printf("Token Expiry: %v \n", token.Expiry)
 			return &token, nil
