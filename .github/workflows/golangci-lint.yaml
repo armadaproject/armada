@@ -1,4 +1,4 @@
-name: Lint & Annotate
+name: Lint & Annotate (Golang)
 
 on:
   push:
