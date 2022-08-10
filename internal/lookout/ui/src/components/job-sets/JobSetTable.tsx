@@ -56,7 +56,7 @@ export default function JobSetTable(props: JobSetTableProps) {
       <VirtualizedTable
         rowGetter={({ index }) => props.jobSets[index]}
         rowCount={props.jobSets.length}
-        rowHeight={40}
+        rowHeight={50}
         headerHeight={60}
         height={props.height}
         width={props.width}
