@@ -52,6 +52,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			}
 
 			var token oauth2.Token
+			log.Printf("JSON body from call: %v \n", resp.Body)
 			err = json.NewDecoder(resp.Body).Decode(&token)
 			if err != nil {
 				return nil, err
