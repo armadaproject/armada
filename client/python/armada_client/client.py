@@ -272,8 +272,8 @@ class ArmadaClient:
 
     def create_job_request_item(
         self,
-        pod_spec: core_v1.PodSpec,
         priority: float = 1.0,
+        pod_spec: Optional[core_v1.PodSpec] = None,
         pod_specs: Optional[List[core_v1.PodSpec]] = None,
         namespace: Optional[str] = None,
         client_id: Optional[str] = None,
@@ -286,8 +286,15 @@ class ArmadaClient:
         """Create a job request.
 
         :param priority: The priority of the job
-        :param pod_spec: The k8s pod spec of the job
+
+        :param  pod_spec: The k8s pod spec of the job
+        :type pod_spec:
+            Optional[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]
+
         :param pod_specs: List of k8s pod specs of the job
+        :type pod_specs:
+            Optional[List[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]]
+
         :param namespace: The namespace of the job
         :param client_id: The client id of the job
         :param labels: The labels of the job
@@ -297,6 +304,10 @@ class ArmadaClient:
         :param services: The services of the job
         :return: A job item request object. See the api definition.
         """
+
+        if pod_spec and pod_specs:
+            raise ValueError("Only one of pod_spec and pod_specs can be specified")
+
         return submit_pb2.JobSubmitRequestItem(
             priority=priority,
             pod_spec=pod_spec,

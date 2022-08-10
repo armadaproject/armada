@@ -1,4 +1,4 @@
-name: Release Python Client to PYPI
+name: Release Airflow Operator to PYPI
 
 on:
   workflow_dispatch: {}
@@ -12,12 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
+      - run: make airflow-operator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8.10'
-          path: 'client/python'
+          path: 'third_party/airflow'
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
-          packages_dir: client/python/dist/
+          packages_dir: third_party/airflow/dist/

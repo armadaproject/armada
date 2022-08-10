@@ -1,4 +1,4 @@
-FROM golang:1.16.5-buster
+FROM golang:1.18.5-buster
 USER root
 RUN apt-get update \
     && apt-get install -y \

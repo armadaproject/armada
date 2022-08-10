@@ -2,6 +2,7 @@ package jobservice
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"time"
@@ -38,47 +39,42 @@ func (a *App) StartUp(ctx context.Context) error {
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
 
-	inMemoryMap := make(map[string]*repository.JobTable)
 	subscribedJobSets := make(map[string]*repository.SubscribeTable)
-	jobStatusMap := repository.NewJobStatus(inMemoryMap, subscribedJobSets)
-	inMemoryJobService := repository.NewInMemoryJobServiceRepository(jobStatusMap, config)
-	jobService := server.NewJobService(config, *inMemoryJobService)
+	jobStatusMap := repository.NewJobSetSubscriptions(subscribedJobSets)
+
+	db, err := sql.Open("sqlite", config.DatabasePath)
+	if err != nil {
+		log.Fatalf("Error Opening Sqlite DB from %s %v", config.DatabasePath, err)
+	}
+	defer db.Close()
+	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
+	jobService := server.NewJobService(config, *sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
+	sqlJobRepo.CreateTable()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
-	if err != nil { // TODO Don't call fatal, return an error.
+	if err != nil {
 		return err
 	}
 
 	g.Go(func() error {
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
-			err := inMemoryJobService.PersistDataToDatabase()
-			if err != nil {
-				log.Warnf("Error Persisting data to database %v", err)
-			}
-		}
-		return nil
-	})
-	g.Go(func() error {
-		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
-		for range ticker.C {
-			for _, value := range inMemoryJobService.GetSubscribedJobSets() {
+			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
-				if inMemoryJobService.CheckToUnSubscribe(value, config.SubscribeJobSetTime) {
-					inMemoryJobService.UnSubscribeJobSet(value)
+				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
+					sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 				}
 			}
 		}
 		return nil
 	})
 	g.Go(func() error {
-		defer log.Println("Stopping server.")
+		defer log.Infof("Stopping server.")
 
 		log.Info("JobService service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
-			return err
 		}
 		return nil
 	})
