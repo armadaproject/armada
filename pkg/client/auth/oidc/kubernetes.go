@@ -1,7 +1,7 @@
 package oidc
 
 import (
-	"encoding/b64"
+	b64 "encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
