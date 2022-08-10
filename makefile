@@ -13,6 +13,12 @@ else
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell which $(exec)),some string,$(error "No $(exec) in PATH")))
 endif
 
+# Docker buildkit builds work in parallel, lowering build times. Outputs are compatable.
+# Ignored on docker <18.09. This may lead to slower builds and different logs in STDOUT,
+# but the image output is the same.
+# See https://docs.docker.com/develop/develop-images/build_enhancements/ for more info.
+export DOCKER_BUILDKIT = 1
+
 # Get the current date and time (to insert into go build)
 # On Windows, we need to use the powershell date command (alias of Get-Date) to get the full date-time string
 ifeq ($(platform),unknown)
