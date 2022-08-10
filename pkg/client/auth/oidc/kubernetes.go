@@ -57,6 +57,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, err
 			}
 			log.Printf("Access Token: %v \n", token.AccessToken)
+			log.Printf("Token Expiry: %v \n", token.Expiry)
 			return &token, nil
 		},
 	}
