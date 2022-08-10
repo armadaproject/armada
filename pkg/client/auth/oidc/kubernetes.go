@@ -20,6 +20,7 @@ type KubernetesDetails struct {
 func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error) {
 	tokenSource := functionTokenSource{
 		getToken: func() (*oauth2.Token, error) {
+			log.Println("Getting new token from IDS")
 			kubernetesToken, err := getKubernetesToken()
 			if err != nil {
 				return nil, err
@@ -54,7 +55,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			if err != nil {
 				return nil, err
 			}
-
+			log.Printf("Access Token: %v \n", token.AccessToken)
 			return &token, nil
 		},
 	}
