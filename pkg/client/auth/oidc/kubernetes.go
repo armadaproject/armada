@@ -3,7 +3,8 @@ package oidc
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -54,12 +55,18 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			}
 
 			defer resp.Body.Close()
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return nil, err
 			}
 
-			token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
+			var result map[string]interface{}
+			json.Unmarshal(body, &result)
+			
+			accessToken, _ := result["access_token"]
+			// TODO handle error
+			
+			token, _, err := new(jwt.Parser).ParseUnverified(fmt.Sprint(accessToken), jwt.MapClaims{})
 			if err != nil {
 				return nil, err
 			}
