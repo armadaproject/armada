@@ -13,6 +13,12 @@ else
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell which $(exec)),some string,$(error "No $(exec) in PATH")))
 endif
 
+# Docker buildkit builds work in parallel, lowering build times. Outputs are compatable.
+# Ignored on docker <18.09. This may lead to slower builds and different logs in STDOUT,
+# but the image output is the same.
+# See https://docs.docker.com/develop/develop-images/build_enhancements/ for more info.
+export DOCKER_BUILDKIT = 1
+
 # Get the current date and time (to insert into go build)
 # On Windows, we need to use the powershell date command (alias of Get-Date) to get the full date-time string
 ifeq ($(platform),unknown)
@@ -101,6 +107,11 @@ GIT_COMMIT := $(shell git rev-list --abbrev-commit -1 HEAD)
 # The RELEASE_VERSION environment variable is set by circleci (to insert into go build and output filenames)
 ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
+endif
+
+# The RELEASE_TAG environment variable is set by circleci (to insert into go build and output filenames)
+ifndef RELEASE_TAG
+override RELEASE_TAG = UNKNOWN_TAG
 endif
 
 # The NUGET_API_KEY environment variable is set by circleci (to insert into dotnet nuget push commands)
