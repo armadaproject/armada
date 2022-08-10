@@ -380,3 +380,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
 	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
 }
+
+func (a *App) ThisIsAReallyLongFunctionOnlyUsedToTestGolangCiLint12341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234() error {
+	return nil
+}
