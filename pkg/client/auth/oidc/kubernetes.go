@@ -3,7 +3,7 @@ package oidc
 import (
 	"encoding/json"
 	"errors"
-	"ioutil"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
