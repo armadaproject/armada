@@ -1,3 +1,5 @@
+name: Go End-to-End
+
 on:
   push:
     branches-ignore:
@@ -6,23 +8,28 @@ on:
     branches-ignore:
       - gh-pages
 
+env:
+  GOPATH: /actions-runner/go
+  GOCACHE: /actions-runner/gocache
+  GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
+  HOME: /actions-runner
+
 jobs:
   start-runner:
     name: Start runner in EC2
+    if: github.repository == 'jayofdoom/armada'
     runs-on: ubuntu-latest
     outputs:
-      runs-on: ${{ steps.compatability-runs-on.outputs.value }}
+      runs-on: ${{ steps.start-ec2-runner.outputs.label }}
       ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
-      - if: github.repository == 'jayofdoom/armada'
-        name: Configure AWS credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-      - if: github.repository == 'jayofdoom/armada'
-        name: Start EC2 runner
+      - name: Start EC2 runner
         id: start-ec2-runner
         uses: machulav/ec2-github-runner@v2
         with:
@@ -37,56 +44,23 @@ jobs:
               {"Key": "Name", "Value": "ec2-github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
-      # note(JayF): To support running properly if secrets aren't set, we have
-      # to misdirect the conditional here -- this allows us to set the fallback
-      # value that's used in the next step.
-      - name: Compatability for forked runners
-        id: compatability-runs-on
-        uses: haya14busa/action-cond@v1
-        with:
-          cond: ${{ steps.start-ec2-runner.outputs.label == '' }} 
-          if_true: 'ubuntu-latest'
-          if_false: ${{ steps.start-ec2-runner.outputs.label }}
-  go-integration-tests:
+  integration-tests:
       needs: start-runner
+      if: github.repository == 'jayofdoom/armada'
       runs-on: ${{ needs.start-runner.outputs.runs-on }}
       strategy:
         fail-fast: false
         matrix:
           go: [ '1.18' ]
       steps:
-        # note(JayF): GHA does not support setting environment directly in yaml
-        # conditionally. So, instead we write an environment to the profile if
-        # we need env, then include that if nonempty before each step.
-        - name: Setup environment file
-          # The variables below are only needed for custom runners.
-          if: github.repository == 'jayofdoom/armada'
-          run: | 
-           echo export GOPATH="/actions-runner/go" >>.env
-           echo export GOCACHE="/actions-runner/gocache" >>.env
-           echo export GITHUB_WORKSPACE="/actions-runner/go/src/github.com/G-Research/armada" >> .env
-           echo export HOME="/actions-runner" >> .env
-           mkdir -p /actions-runner/go/src/github.com/G-Research/armada
-           cp .env /actions-runner/go/src/github.com/G-Research/armada/.env
         - uses: actions/checkout@v3
-          with:
-            # Cleaning would remove the .env file configured above
-            clean: false
         - uses: ./.github/workflows/go-setup
-        - name: make build-ci
-          run: |
-            make build-ci
-        - name: make tests-e2e-setup
-          run: |
-            make tests-e2e-setup
-        - name: make tests-e2e-no-setup
-          run: |
-            make tests-e2e-no-setup
+        - run: make build-ci
+        - run: make tests-e2e-setup
+        - run: make tests-e2e-no-setup
           env:
             INTEGRATION_ENABLED: true
-        - name: make junit-report
-          run: |
-            make junit-report
+        - run: make junit-report
         - name: Upload junit report
           uses: actions/upload-artifact@v2.2.4
           with:
@@ -94,11 +68,11 @@ jobs:
             path: test_reports/junit.xml
   stop-runner:
       name: Stop self-hosted runner
+      if: ${{ always() && github.repository == 'jayofdoom/armada' }}
       needs:
         - start-runner
         - go-integration-tests
       runs-on: ubuntu-latest
-      if: ${{ always() && github.repository == 'jayofdoom/armada' }}
       steps:
         - name: Configure AWS credentials
           uses: aws-actions/configure-aws-credentials@v1
@@ -113,4 +87,3 @@ jobs:
             label: ${{ needs.start-runner.outputs.runs-on }}
             ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
             github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-
