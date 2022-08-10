@@ -76,6 +76,9 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
 
 	originalIds, err := srv.deduplicateJobs(ctx, req.Queue, apiJobs)
+	if err != nil {
+		return nil, err
+	}
 	jobDuplicateFoundEvents := make([]*api.JobDuplicateFoundEvent, 0)
 	for i, apiJob := range apiJobs {
 		responses[i] = &api.JobSubmitResponseItem{
