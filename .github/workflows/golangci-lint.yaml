@@ -1,4 +1,4 @@
-name: golangci-lint
+name: Lint & Annotate
 
 on:
   push:
@@ -14,13 +14,13 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - name: golang
+      - name: Setup Go
         uses: "actions/setup-go@v3"
         with:
           go-version: "1.18"
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v3
-      - name: lint
+      - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           version: "latest"
