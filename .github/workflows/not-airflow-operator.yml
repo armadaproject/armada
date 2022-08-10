@@ -1,4 +1,4 @@
-name: Run Python Armada Airflow Operator Linting and Unit Tests
+name: Python Airflow Operator
 
 on:
   push:
@@ -38,7 +38,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  run-tox:
+  dummy-job:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No airflow operator code modified, not running airflow operator jobs"'

@@ -1,3 +1,5 @@
+name: Go Tests
+
 on:
   push:
     branches-ignore:
@@ -7,7 +9,7 @@ on:
       - gh-pages
 
 jobs:
-  go-lint:
+  lint:
     # TODO(JayF): Configure this to only run when golang code has changed
     runs-on: ubuntu-latest
     strategy:
@@ -30,7 +32,7 @@ jobs:
           git status -s -uno
           git --no-pager diff
           exit $(git status -s -uno | wc -l)
-  go-unit-tests:
+  unit-tests:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
