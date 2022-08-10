@@ -340,8 +340,7 @@ jobs:
       - run:
           name: Push dotnet clients to nuget
           command: |
-            RELEASE_TAG=${CIRCLE_TAG#"v"}
-            make push-nuget
+            RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
 
       - store_artifacts:
           path: bin/client/DotNet
