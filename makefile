@@ -109,6 +109,11 @@ ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
 endif
 
+# The RELEASE_TAG environment variable is set by circleci (to insert into go build and output filenames)
+ifndef RELEASE_TAG
+override RELEASE_TAG = UNKNOWN_TAG
+endif
+
 # The NUGET_API_KEY environment variable is set by circleci (to insert into dotnet nuget push commands)
 ifndef NUGET_API_KEY
 override NUGET_API_KEY = UNKNOWN_NUGET_API_KEY
