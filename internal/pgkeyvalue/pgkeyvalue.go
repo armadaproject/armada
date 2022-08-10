@@ -78,6 +78,22 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 	return ok, err
 }
 
+// AddBatch adds a batch of key-value pairs, with any key that already exists in the store being skipped. The returned map
+// contains the resulting mappings for all provided keys
+// The posgres table backing the key-value storage is created automatically if it doesn't already exist.
+func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
+	ret, err := c.addBatch(ctx, batch)
+
+	// If the table doesn't exist, create it and try again.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
+		c.createTable(ctx)
+		ret, err = c.addBatch(ctx, batch)
+	}
+
+	return ret, err
+}
+
 // AddKey is equivalent to Add(ctx, key, nil).
 func (c *PGKeyValueStore) AddKey(ctx context.Context, key string) (bool, error) {
 	return c.Add(ctx, key, nil)
@@ -92,18 +108,24 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 	return err
 }
 
-func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
+func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
 
 	addedByKey := map[string][]byte{}
 	keysToLookup := make([]string, 0, len(batch))
+	keysFound := 0
 
 	// first check the cache to see if we have added anything
 	for _, kv := range batch {
 		if val, ok := c.cache.Get(kv.Key); ok {
 			addedByKey[kv.Key] = val.([]byte)
+			keysFound++
 		} else {
 			keysToLookup = append(keysToLookup, kv.Key)
 		}
+	}
+
+	if keysFound == len(batch) {
+		return addedByKey, nil
 	}
 
 	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -112,38 +134,45 @@ func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) (map[
 		sql := fmt.Sprintf("SELECT key, value from %s WHERE key = ANY($1)", c.tableName)
 		rows, err := tx.Query(ctx, sql, keysToLookup)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		for rows.Next() {
 			var key = ""
 			var value []byte = nil
-			err := rows.Scan(&key)
+			err := rows.Scan(&key, &value)
 			if err != nil {
-				return err
+				return errors.WithStack(err)
 			}
+			keysFound++
 			addedByKey[key] = value
+		}
+
+		if keysFound == len(batch) {
+			return nil
 		}
 
 		// any keys missing from addedByKey now need to be inserted
 		valueStrings := make([]string, 0, len(batch))
 		valueArgs := make([]interface{}, 0, len(batch)*2)
 		i := 0
+		now := time.Now().UTC()
 		for _, kv := range batch {
 			if _, exists := addedByKey[kv.Key]; !exists {
-				valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d)", i*2+1, i*2+1))
+				valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3))
 				valueArgs = append(valueArgs, kv.Key)
 				valueArgs = append(valueArgs, kv.Value)
+				valueArgs = append(valueArgs, now)
 				i++
 				addedByKey[kv.Key] = kv.Value
 			}
 		}
-		stmt := fmt.Sprintf("INSERT INTO %s (key, value) VALUES %s", c.tableName, strings.Join(valueStrings, ","))
+		stmt := fmt.Sprintf("INSERT INTO %s (key, value, inserted) VALUES %s", c.tableName, strings.Join(valueStrings, ","))
 		_, err = tx.Exec(ctx, stmt, valueArgs...)
-		return err
+		return errors.WithStack(err)
 	})
 
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	return addedByKey, nil
