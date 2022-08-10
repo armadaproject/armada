@@ -720,6 +720,16 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 }
 
 func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string, apiJobs []*api.Job) (map[string]string, error) {
+
+	// If we don't have a KV store, then just return original mappings
+	if srv.KVStore == nil {
+		ret := make(map[string]string, len(apiJobs))
+		for _, apiJob := range apiJobs {
+			ret[apiJob.GetId()] = apiJob.GetId()
+		}
+		return ret, nil
+	}
+
 	// Armada checks for duplicate job submissions if a ClientId (i.e., a deuplication id) is provided.
 	// Deduplication is based on storing the combined hash of the ClientId and queue.
 	// For storage efficiency, we store hashes instead of user-provided strings.
