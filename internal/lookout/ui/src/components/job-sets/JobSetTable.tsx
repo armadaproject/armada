@@ -1,5 +1,6 @@
 import React from "react"
 
+import Truncate from "react-truncate"
 import { TableCellProps, Table as VirtualizedTable } from "react-virtualized"
 import { Column, defaultTableCellRenderer } from "react-virtualized"
 
@@ -34,6 +35,14 @@ function cellRendererForState(
     return <LinkCell onClick={() => onJobSetClick((cellProps.rowData as JobSet).jobSetId, state)} {...cellProps} />
   }
   return defaultTableCellRenderer(cellProps)
+}
+
+function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
+  return (
+    <Truncate width={width * 1.5} lines={1}>
+      {cellProps.cellData}
+    </Truncate>
+  )
 }
 
 export default function JobSetTable(props: JobSetTableProps) {
@@ -80,6 +89,7 @@ export default function JobSetTable(props: JobSetTableProps) {
           dataKey="jobSetId"
           width={0.4 * props.width}
           label="Job Set"
+          cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, 0.4 * props.width)}
           className="job-set-table-job-set-name-cell"
         />
         <Column
