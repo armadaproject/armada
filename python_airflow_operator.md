@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_set_id, job_request_items, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_request_items, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -34,9 +34,6 @@ Airflow operators inherit from BaseOperator.
 
 
     * **queue** (*str*) – The queue name
-
-
-    * **job_set_id** (*str*) – The job_set_id. Should be set at dag level for all jobs
 
 
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
@@ -129,7 +126,7 @@ Uses the GetJobStatus rpc to get a status of your job
 ## armada.operators.utils module
 
 
-### _class_ armada.operators.utils.JobStateEnum(value)
+### _class_ armada.operators.utils.JobState(value)
 Bases: `Enum`
 
 An enumeration.
@@ -150,7 +147,7 @@ Throw an error on a terminal event if job errored out
 * **Parameters**
 
     
-    * **job_state** (*JobStateEnum*) – A string representation of state
+    * **job_state** (*JobState*) – A JobState enum class
 
 
     * **name** (*str*) – The name of your armada job
@@ -182,7 +179,7 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
     * **job_id** (*str*) – 
 
 
-    * **job_service_client** (*Optional**[**JobServiceClient**]*) – 
+    * **job_service_client** (*JobServiceClient*) – 
 
 
 
@@ -234,4 +231,4 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Return type**
 
-    *Tuple*[*JobStateEnum*, str]
+    *Tuple*[*JobState*, str]

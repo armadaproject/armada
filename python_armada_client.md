@@ -11,10 +11,11 @@ title: armada_client package
 
 Armada Python GRPC Client
 
+For the api definitions:
+[https://armadaproject.io/api](https://armadaproject.io/api)
+
 
 ### _class_ armada_client.client.ArmadaClient(channel, max_workers=None)
-Bases: `object`
-
 Client for accessing Armada over gRPC.
 
 
@@ -63,44 +64,47 @@ job_set_id is required.
 
 
 
-#### create_job_request(queue, job_set_id, job_request_items)
+* **Return type**
+
+    armada.submit_pb2.JobCancelRequest
+
+
+
+#### create_job_request_item(priority=1.0, pod_spec=None, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
 Create a job request.
 
 
 * **Parameters**
 
     
-    * **queue** (*str*) – The name of the queue
+    * **priority** (*float*) – The priority of the job
 
 
-    * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
+    * **pod_spec** (*Optional**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]*) – The k8s pod spec of the job
 
 
-    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – List of Job Request Items
+    * **pod_specs** (*Optional**[**List**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]**]*) – List of k8s pod specs of the job
 
 
-
-* **Returns**
-
-    A job request object. See the api definition.
+    * **namespace** (*Optional**[**str**]*) – The namespace of the job
 
 
-
-#### create_job_request_item(pod_spec, priority=1, \*\*job_item_params)
-Create a job request.
+    * **client_id** (*Optional**[**str**]*) – The client id of the job
 
 
-* **Parameters**
-
-    
-    * **priority** (*int*) – The priority of the job
+    * **labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The labels of the job
 
 
-    * **pod_spec** (*PodSpec*) – The k8s pod spec of the job
+    * **annotations** (*Optional**[**Dict**[**str**, **str**]**]*) – The annotations of the job
 
 
-    * **job_item_params** – All other job_item kwaarg
-    arguments as specified in the api definition.
+    * **required_node_labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The required node labels of the job
+
+
+    * **ingress** (*Optional**[**List**[**armada.submit_pb2.IngressConfig**]**]*) – The ingress of the job
+
+
+    * **services** (*Optional**[**List**[**armada.submit_pb2.ServiceConfig**]**]*) – The services of the job
 
 
 
@@ -110,7 +114,13 @@ Create a job request.
 
 
 
-#### create_queue(name, \*\*queue_params)
+* **Return type**
+
+    armada.submit_pb2.JobSubmitRequestItem
+
+
+
+#### create_queue(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
 Create the queue by name.
 
 Uses the CreateQueue RPC to create a queue.
@@ -122,13 +132,31 @@ Uses the CreateQueue RPC to create a queue.
     * **name** (*str*) – The name of the queue
 
 
-    * **queue_params** – Queue Object
+    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
+
+
+    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+
+
+    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+
+
+    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+
+
+    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
 
 
 
 * **Returns**
 
     A queue object per the Armada api definition.
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
 
 
 
@@ -162,6 +190,15 @@ Get event stream for a job set.
 Uses the GetJobSetEvents rpc to get a stream of events relating
 to the provided job_set_id.
 
+Usage:
+
+```python
+events = client.get_job_events_stream(...)
+for event in events:
+    event = client.unmarshal_event_response(event)
+    print(event)
+```
+
 
 * **Parameters**
 
@@ -179,6 +216,12 @@ to the provided job_set_id.
 * **Returns**
 
     A job events stream for the job_set_id provided.
+
+
+
+* **Return type**
+
+    *Generator*[armada.event_pb2.EventMessage, None, None]
 
 
 
@@ -200,6 +243,12 @@ Uses the GetQueue RPC to get the queue.
 
 
 
+* **Return type**
+
+    armada.submit_pb2.Queue
+
+
+
 #### get_queue_info(name)
 Get the queue info by name.
 
@@ -215,6 +264,12 @@ Uses the GetQueueInfo RPC to get queue info.
 * **Returns**
 
     A queue info object.  See the api definition.
+
+
+
+* **Return type**
+
+    armada.submit_pb2.QueueInfo
 
 
 
@@ -247,6 +302,12 @@ or job set.
 
 
 
+* **Return type**
+
+    armada.submit_pb2.JobReprioritizeResponse
+
+
+
 #### submit_jobs(queue, job_set_id, job_request_items)
 Submit a armada job.
 
@@ -270,6 +331,34 @@ Uses SubmitJobs RPC to submit a job.
 * **Returns**
 
     A JobSubmitResponse object.
+
+
+
+* **Return type**
+
+    armada.submit_pb2.JobSubmitResponse
+
+
+
+#### _static_ unmarshal_event_response(event)
+Unmarshal an event response from the gRPC server.
+
+
+* **Parameters**
+
+    **event** (*armada.event_pb2.EventStreamMessage*) – The event response from the gRPC server.
+
+
+
+* **Returns**
+
+    An Event object.
+
+
+
+* **Return type**
+
+    armada_client.event.Event
 
 
 
@@ -297,7 +386,7 @@ Closes the provided event_stream.queue
 
 
 
-#### update_queue(name, \*\*queue_params)
+#### update_queue(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
 Update the queue of name with values in queue_params
 
 Uses UpdateQueue RPC to update the parameters on the queue.
@@ -309,7 +398,19 @@ Uses UpdateQueue RPC to update the parameters on the queue.
     * **name** (*str*) – The name of the queue
 
 
-    * **queue_params** – Queue Object
+    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
+
+
+    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+
+
+    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+
+
+    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+
+
+    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
 
 
 
@@ -322,3 +423,87 @@ Uses UpdateQueue RPC to update the parameters on the queue.
 * **Return type**
 
     None
+
+
+## armada_client.event module
+
+
+### _class_ armada_client.event.Event(event)
+Represents a gRPC proto event
+
+Definition can be found at:
+[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+
+
+* **Parameters**
+
+    **event** (*armada.event_pb2.EventStreamMessage*) – The gRPC proto event
+
+
+## armada_client.permissions module
+
+
+### _class_ armada_client.permissions.Permissions(subjects, verbs)
+Permissions including Subjects and Verbs
+
+```python
+permissions = Permissions(...)
+client = ArmadaClient(...)
+
+queue = client.create_queue(
+    permissions=[permissions],
+)
+```
+
+
+* **Parameters**
+
+    
+    * **subjects** (*List**[**armada_client.permissions.Subject**]*) – 
+
+
+    * **verbs** (*List**[**str**]*) – 
+
+
+
+#### to_grpc()
+Convert to grpc object
+
+
+* **Return type**
+
+    armada.submit_pb2.Permissions
+
+
+
+### _namedtuple_ armada_client.permissions.Subject(kind, name)
+Subject is a NamedTuple that represents a subject in the permission system.
+
+
+* **Fields**
+
+    
+    1.  **kind** (`str`) – Alias for field number 0
+
+
+    2.  **name** (`str`) – Alias for field number 1
+
+
+
+* **Parameters**
+
+    
+    * **kind** (*str*) – 
+
+
+    * **name** (*str*) – 
+
+
+
+#### to_grpc()
+Convert this Subject to a grpc Subject.
+
+
+* **Return type**
+
+    armada.submit_pb2.Subject
