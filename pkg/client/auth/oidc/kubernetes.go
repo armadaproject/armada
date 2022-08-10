@@ -56,7 +56,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("JSON body from call: %v \n", string(body))
-			
+
 			err = json.NewDecoder(resp.Body).Decode(&token)
 			if err != nil {
 				return nil, err
