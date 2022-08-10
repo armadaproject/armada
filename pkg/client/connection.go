@@ -23,8 +23,8 @@ import (
 type ApiConnectionDetails struct {
 	ArmadaUrl     string
 	ArmadaRestUrl string
-	// Specify executor clusters configured for Armada server
-	// Used for monitoring of Armada Jobs
+	// Names of executor clusters as they appear in the local kubeconfig file.
+	// Used by the test suite to download logs from pods running tests.
 	ExecutorClusters []string
 	// After a duration of this time, if the client doesn't see any activity it
 	// pings the server to see if the transport is still alive.
