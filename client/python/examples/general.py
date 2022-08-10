@@ -56,6 +56,8 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
     A list of terminal events can be found here:
     https://github.com/G-Research/armada/blob/master/internal/jobservice/eventstojobs/event_job_response_test.go
 
+    Please note that this is shown for demonstration purposes only.
+    Subscribing to events like this to watch individual events like this will not scale well.
     """
 
     terminal_events = [

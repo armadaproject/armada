@@ -83,6 +83,8 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
 
 We use this function to check the status of a job, return false if the job failed and otherwise wait for the event state we are interested in.
 
+**Please note** that this is shown for demonstration purposes only. Subscribing to events like this to watch individual events like this will not scale well.
+
 ```py
 job_id = resp.job_response_items[0].job_id
 ```
