@@ -3,6 +3,7 @@ package oidc
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
