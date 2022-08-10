@@ -3,6 +3,7 @@ package oidc
 import (
 	"encoding/json"
 	"errors"
+	"ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -52,7 +53,10 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			}
 
 			var token oauth2.Token
-			log.Printf("JSON body from call: %v \n", resp.Body)
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			log.Printf("JSON body from call: %v \n", string(body))
+			
 			err = json.NewDecoder(resp.Body).Decode(&token)
 			if err != nil {
 				return nil, err
