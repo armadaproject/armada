@@ -87,14 +87,14 @@ export default function JobSetTable(props: JobSetTableProps) {
       >
         <Column
           dataKey="jobSetId"
-          width={0.4 * props.width}
+          width={0.45 * props.width}
           label="Job Set"
           cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, 0.4 * props.width)}
           className="job-set-table-job-set-name-cell"
         />
         <Column
           dataKey="latestSubmissionTime"
-          width={0.2 * props.width}
+          width={0.15 * props.width}
           label="Submission Time"
           headerRenderer={(cellProps) => (
             <SortableHeaderCell
