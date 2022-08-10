@@ -381,6 +381,10 @@ func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
 	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
 }
 
-func (a *App) ThisIsAReallyLongFunctionOnlyUsedToTestGolangCiLint12341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234(param string, ctx context.Context) error {
+func (a *App) ThisIsAReallyLongFunctionOnlyUsedToTestGolangCiLint12341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234123412341234(param string, ctx context.Context, length int) error {
+	return nil
+}
+
+func (a *App) another(test string, ctx context.Context) error {
 	return nil
 }
