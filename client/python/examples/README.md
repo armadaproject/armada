@@ -1,16 +1,16 @@
 # Python Client Examples
 
-Currently there are five example files:
+Currently there are five examples:
 
-- [simple.py](#simplepy)
-- [general.py](#generalpy)
-- [queues.py](#queuespy)
-- [cancelling.py](#cancellingpy)
-- [monitor.py](#monitorpy)
+- [Intro to using the Python Client](#simplepy)
+- [Interacting with Queues and Jobs](#generalpy)
+- [A more detailed look at Queues](#queuespy)
+- [Methods for cancelling Jobs](#cancellingpy)
+- [Monitoring the state of Jobs in a Job Set](#monitorpy)
 
 There is also a section on [Using Basic Auth](#using-basic-auth)
 
-## Setup
+## Preqrequisites
 
 Please see the [python client docs](https://github.com/G-Research/armada/blob/master/client/python/README.md) for getting the client setup.
 
