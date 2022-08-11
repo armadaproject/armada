@@ -1,4 +1,4 @@
-name: Run Python Linting and Unit Tests
+name: Python Client
 
 on:
   push:
@@ -28,7 +28,11 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  run-tox:
+  python-client-tox:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No python modified, not running python jobs"'
+  python-client-integration-tests:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No python modified, not running python jobs"'
