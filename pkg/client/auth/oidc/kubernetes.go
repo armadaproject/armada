@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 
@@ -25,7 +25,7 @@ type KubernetesDetails struct {
 func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error) {
 	tokenSource := functionTokenSource{
 		getToken: func() (*oauth2.Token, error) {
-			log.Println("Getting new token from IDS")
+			log.Info("Getting new authentication token")
 			kubernetesToken, err := getKubernetesToken()
 			if err != nil {
 				return nil, err
