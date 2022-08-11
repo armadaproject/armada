@@ -39,6 +39,9 @@ on:
 
 jobs:
   airflow-tox:
+    strategy:
+      matrix:
+        go: [ '1.18' ]
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No airflow operator code modified, not running airflow operator jobs"'
