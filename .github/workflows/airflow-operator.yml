@@ -1,4 +1,4 @@
-name: Run Python Armada Airflow Operator Linting and Unit Tests
+name: Python Airflow Operator
 
 on:
   push:
@@ -40,7 +40,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  run-tox:
+  airflow-tox:
     runs-on: ubuntu-latest
     strategy:
       matrix:
