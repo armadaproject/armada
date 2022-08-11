@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/oauth2/jws"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/oauth2"
 )
 
@@ -60,24 +61,51 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, err
 			}
 
-			var result map[string]interface{}
-			json.Unmarshal(body, &result)
-			
-			accessToken, _ := result["access_token"]
-			// TODO handle error
-			
-			token, _, err := new(jwt.Parser).ParseUnverified(fmt.Sprint(accessToken), jwt.MapClaims{})
+			token, err := parseOIDCToken(body)
 			if err != nil {
 				return nil, err
 			}
 
 			log.Printf("Access Token: %v \n", token.AccessToken)
 			log.Printf("Token Expiry: %v \n", token.Expiry)
-			return &token, nil
+			return token, nil
 		},
 	}
 
 	return &TokenCredentials{tokenSource: oauth2.ReuseTokenSource(nil, &tokenSource)}, nil
+}
+
+/**
+ * parseOIDCToken takes a JSON OIDC response and returns a correctly set OIDC token struct.
+ *
+ * See https://github.com/golang/oauth2/blob/8227340efae7cbdad9f68d6dff2b2c3306714564/jwt/jwt.go#L150
+ */
+func parseOIDCToken(body []byte) (*oauth2.Token, error) {
+	// tokenRes is the JSON response body.
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		IDToken     string `json:"id_token"`
+		ExpiresIn   int64  `json:"expires_in"` // relative seconds from now
+	}
+	if err := json.Unmarshal(body, &tokenRes); err != nil {
+		return nil, fmt.Errorf("kubernetes flow: cannot fetch token: %v", err)
+	}
+	token := &oauth2.Token{
+		AccessToken: tokenRes.AccessToken,
+		TokenType:   tokenRes.TokenType,
+	}
+	if secs := tokenRes.ExpiresIn; secs > 0 {
+		token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
+	}
+	if v := tokenRes.AccessToken; v != "" {
+		claimSet, err := jws.Decode(v)
+		if err != nil {
+			return nil, fmt.Errorf("kubernetes flow: error decoding JWT token: %v", err)
+		}
+		token.Expiry = time.Unix(claimSet.Exp, 0)
+	}
+	return token, nil
 }
 
 func getKubernetesToken() (string, error) {
