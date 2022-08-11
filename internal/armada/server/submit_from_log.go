@@ -488,11 +488,7 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 		}
 		jobIds[i] = id
 	}
-	_, err := srv.CancelJobsById(ctx, userId, jobIds)
-	if armadaerrors.IsNetworkError(err) {
-		return false, err
-	}
-	return true, err
+	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
 }
 
 // CancelJobSets processes several CancelJobSet events.
@@ -510,7 +506,11 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jo
 	} else if err != nil {
 		return true, err
 	}
+	//TODO Set userid correctly so we know who actually cancelled the jobset
+	return srv.BatchedCancelJobsById(ctx, queueName, jobIds)
+}
 
+func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, jobIds []string) (bool, error) {
 	// Split IDs into batches and process one batch at a time.
 	// To reduce the number of jobs stored in memory.
 	//
@@ -519,7 +519,7 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jo
 	// However, that should be fine.
 	jobIdBatches := util.Batch(jobIds, srv.SubmitServer.cancelJobsBatchSize)
 	for _, jobIdBatch := range jobIdBatches {
-		_, err := srv.CancelJobsById(ctx, queueName, jobIdBatch)
+		_, err := srv.CancelJobsById(ctx, userId, jobIdBatch)
 		if armadaerrors.IsNetworkError(err) {
 			return false, err
 		} else if err != nil {

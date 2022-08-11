@@ -46,6 +46,7 @@ expected_event_states = [
     "ingress_info",
     "reprioritizing",
     "updated",
+    "failedCompressed",
 ]
 
 expected_import_text = """from enum import Enum
@@ -100,6 +101,7 @@ class EventType(Enum):
     ingress_info = "ingress_info"
     reprioritizing = "reprioritizing"
     updated = "updated"
+    failedCompressed = "failedCompressed"
 
 '''
 

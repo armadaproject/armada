@@ -76,7 +76,6 @@ def test_submit_job():
     request_item = tester.create_job_request_item(
         priority=1,
         pod_spec=pod,
-        pod_specs=[pod],
         namespace="test",
         client_id="test",
         labels=labels,
@@ -159,3 +158,10 @@ def test_reprioritize_jobs():
     tester.reprioritize_jobs(
         new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
     )
+
+
+def test_get_job_events_stream():
+    events = tester.get_job_events_stream(queue="test", job_set_id="job-set-1")
+
+    for _ in events:
+        pass

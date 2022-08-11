@@ -1,5 +1,6 @@
 # Determine which platform we're on based on the kernel name
 platform := $(shell uname -s || echo unknown)
+host_arch := $(shell uname -m)
 PWD := $(shell pwd)
 # Check that all necessary executables are present
 # Using 'where' on Windows and 'which' on Unix-like systems, respectively
@@ -41,6 +42,19 @@ else
 	DOCKER_NET = --network=host
 endif
 
+ifeq ($(host_arch),arm64)
+	PROTO_DOCKERFILE = ./build/proto/Dockerfile.arm64
+else
+	PROTO_DOCKERFILE = ./build/proto/Dockerfile
+endif
+
+ifeq ($(DOCKER_RUN_AS_USER),)
+	DOCKER_RUN_AS_USER = -u $(shell id -u):$(shell id -g)
+endif
+ifeq ($(platform),windows32)
+	DOCKER_RUN_AS_USER =
+endif
+
 # For reproducibility, run build commands in docker containers with known toolchain versions.
 # INTEGRATION_ENABLED=true is needed for the e2e tests.
 #
@@ -55,10 +69,12 @@ endif
 DOCKER_GOPATH_TOKS := $(subst :, ,$(DOCKER_GOPATH:v%=%))
 DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 
-GO_CMD = docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
-	-e GOPROXY -e GOPRIVATE -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
+# This is used to generate published artifacts; to raise the golang version we publish and run
+# tests-in-docker against, you have to update the tag of the image used here.
+GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
+	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
-	golang:1.16-buster
+	golang:1.18-buster
 
 # Versions of third party API
 # Bump if you are updating
@@ -85,6 +101,11 @@ GIT_COMMIT := $(shell git rev-list --abbrev-commit -1 HEAD)
 # The RELEASE_VERSION environment variable is set by circleci (to insert into go build and output filenames)
 ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
+endif
+
+# The NUGET_API_KEY environment variable is set by circleci (to insert into dotnet nuget push commands)
+ifndef NUGET_API_KEY
+override NUGET_API_KEY = UNKNOWN_NUGET_API_KEY
 endif
 
 # use bash for running:
@@ -205,7 +226,11 @@ build-lookout-ingester:
 build-eventapi-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
 
-build: build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
+build-jobservice:
+	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
+
+
+build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -257,7 +282,7 @@ build-docker-lookout: node-setup
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
-	docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
@@ -268,7 +293,13 @@ build-docker-binoculars:
 	cp -a ./config/binoculars ./.build/binoculars/config
 	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
 
-build-docker: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
+build-docker-jobservice:
+	mkdir -p .build/jobservice
+	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
+	cp -a ./config/jobservice ./.build/jobservice/config
+	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
+
+build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
@@ -418,8 +449,10 @@ junit-report:
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
 setup-proto: download
+	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
+	# first delete files in this directory - by default it has write perms disabled.
+	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
 	rm -rf proto
-	mkdir -p proto
 	mkdir -p proto/google/api
 	mkdir -p proto/google/protobuf
 	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
@@ -433,21 +466,22 @@ setup-proto: download
 	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
 
 # Copy third party annotations from grpc-ecosystem
+	$(GO_CMD) bash -c " \
+	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
+	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
+	 cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google ; \
+	 cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/ ; \
+	 \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/ ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1 ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/ ; \
+	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/ ; \
+	 \
+	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1 ; \
+	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1 "
 
-	$(GO_CMD) cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api
-	$(GO_CMD) cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api
-	$(GO_CMD) cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google
-	$(GO_CMD) cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/
-
-#K8S MACHINERY API COPY
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/
-#K8S API COPY
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1
-	$(GO_CMD) cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1
+	chmod -R ug+w proto
 
 python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
@@ -461,9 +495,8 @@ airflow-operator:
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
 proto: setup-proto
-
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f ./build/proto/Dockerfile .
-	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
+	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
 	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
@@ -489,9 +522,17 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
-# Target for compiling the dotnet Armada client.
-dotnet: dotnet-setup
+# Target for compiling the dotnet Armada REST client
+dotnet: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
+	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
+
+# Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
+push-nuget: dotnet-setup setup-proto
+	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:

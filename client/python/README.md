@@ -1,22 +1,14 @@
-Armada Python Client
-=
+=======
+# Armada Python Client
 <hr />
 
-## How To Use This Application
-***
+The Armada Python client wraps the gRPC services defined in `submit.proto` and `events.proto`.
 
-> **These instructions are intended for end-users.** If you wish to develop against armada_client, please see our **[documentation on contributing](CONTRIBUTING.md )**
-
-1) Click on [armada_client](https://pypi.org/project/armada-client/).
-2) Read the file [CONTRIBUTING.md](CONTRIBUTING.md)
-3) Click [here](https://armadaproject.io/libraries) get an overview of Armada client libraries
-
-Python client wrapping the gRPC services defined in `submit.proto` and `events.proto`; allows for
-
+It supports the following Armada features:
 - submitting, cancelling, and re-prioritising jobs, and
 - watching for job events.
 
-
+## Installation
 ## Build
 Prerequisites:
 
@@ -42,16 +34,23 @@ We use tox for running our formatting and testing jobs in github actions.
 gRPC requires a server to start so our unit tests are not true unit tests.  We start a grpc server and then our unit tests run against that server.
 
 `poetry run pytest tests/unit/test_client.py`
+=======
+> **These instructions are intended for end-users.** If you wish to develop against armada_client, please see our **[documentation on contributing](CONTRIBUTING.md )**
 
-This is just a simple test that starts a grpc server in the background and verifies that we can call the client.
+### PyPI
 
-## Releasing
+The Armada python client is available from [armada_client](https://pypi.org/project/armada-client/). It can be installed
+with `pip install armada-client`. Documentation and examples of how to use the python can be found on the
+[Armada libraries webpage](https://armadaproject.io/libraries). 
 
-This is to be automated.
+### Build from Git
+Building from Git is a multi-step process unlike many other Python projects. This project extensively uses generated
+code, which is not committed into the repository.
 
-Manual Release:
+Before beginning, ensure you have:
+- A working docker client, or docker-compatible client available under `docker`.
+- Network access to fetch docker images and go dependencies.
 
-Log into the Armada-GROSS account on PyPI.
-Generate the API tokens and copy those tokens to ~/.pypirc.
-`poetry build`
-`poetry run twine upload dist/*`
+To generate all needed code, and install the python client:
+1) From the root of the repository, run `make python`
+2) Install the client using `pip install client/python`. It's strongly recommended you do this inside a virtualenv.

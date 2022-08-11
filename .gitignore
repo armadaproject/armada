@@ -45,6 +45,7 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
+client/DotNet.gRPC/Armada.Client.Grpc/generated
 
 # python
 # Pycache, dist, poetry versions
@@ -58,7 +59,7 @@ client/python/dist
 *_pb2_grpc.py
 client/python/armada_client/armada/
 .tox
-proto
+/proto
 proto-airflow
 client/python/docs/build/
 typings.py

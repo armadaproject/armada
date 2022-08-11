@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
 import "pkg/api/queue.proto";
@@ -131,6 +132,11 @@ message JobFailedEvent {
     Cause cause = 12;
 }
 
+// Only used internally by Armada
+message JobFailedEventCompressed {
+    bytes event = 1;
+}
+
 message JobSucceededEvent {
     string job_id = 1;
     string job_set_id = 2;
@@ -236,6 +242,7 @@ message EventMessage {
         JobIngressInfoEvent ingress_info = 17;
         JobReprioritizingEvent reprioritizing = 18;
         JobUpdatedEvent updated = 19;
+        JobFailedEventCompressed failedCompressed = 20;  // This event is for internal armada use only
     }
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/validation"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
@@ -359,6 +360,68 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	return &api.CancellationResult{
 		CancelledIds: cancelledIds,
 	}, nil
+}
+
+func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+	if req.Queue == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   req.Queue,
+			Message: "queue is empty",
+		}
+	}
+	if req.JobSetId == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "JobSetId",
+			Value:   req.JobSetId,
+			Message: "JobSetId is empty",
+		}
+	}
+
+	err := validation.ValidateJobSetFilter(req.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	if err != nil {
+		return nil, err
+	}
+
+	ids, err := srv.SubmitServer.jobRepository.GetJobSetJobIds(req.Queue, req.JobSetId, createJobSetFilter(req.Filter))
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error getting job IDs: %s", err)
+	}
+
+	sequence := &armadaevents.EventSequence{
+		Queue:      req.Queue,
+		JobSetName: req.JobSetId,
+		UserId:     userId,
+		Groups:     groups,
+		Events:     make([]*armadaevents.EventSequence_Event, 0, len(ids)),
+	}
+
+	for _, id := range ids {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(id)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+			},
+		})
+	}
+
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+
+	if err != nil {
+		log.WithError(err).Error("failed to send cancel job messages to pulsar")
+		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
+	}
+
+	return &types.Empty{}, err
 }
 
 func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
