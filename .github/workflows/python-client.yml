@@ -1,4 +1,4 @@
-name: Run Python Client Linting and Unit Tests
+name: Python Client
 
 on:
   push:
@@ -28,7 +28,7 @@ on:
       - '.github/workflows/python-tests/*'
 
 jobs:
-  run-tox:
+  python-client-tox:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: '3.8.10'
           path: 'client/python'
-  python-integration-tests:
+  python-client-integration-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:

@@ -46,4 +46,6 @@ message TestSpec {
 	string name = 10;
     // Randomize clientId if not provided
     bool random_client_id = 11;
+    // Toggle should testsuite scrape Armada Job (pod) logs
+    bool get_logs = 12;
 }
