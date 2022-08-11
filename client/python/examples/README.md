@@ -1,6 +1,6 @@
 # Python Client Examples
 
-Currently there are three example files:
+Currently there are five example files:
 
 - [simple.py](#simple.py)
 - [general.py](#general.py)
@@ -8,10 +8,7 @@ Currently there are three example files:
 - [cancelling.py](#cancellingpy)
 - [monitor.py](#monitor.py)
 
-There are also some codeblocks with useful code snippets:
-
-- [Using Basic Auth](#using-basic-auth)
-
+There is also a section on [Using Basic Auth](#using-basic-auth)
 
 ## Setup
 
@@ -19,13 +16,13 @@ Please see the [python client docs](https://github.com/G-Research/armada/blob/ma
 
 ### Running the examples
 
-Each example has three enviromental variables for setup
-
-```bash
-export ARMADA_SERVER=localhost
-export ARMADA_PORT=443
-export DISABLE_SSL=true
-```
+> Each example has three enviromental variables for setup
+>
+> ```bash
+> export ARMADA_SERVER=localhost
+> export ARMADA_PORT=443
+> export DISABLE_SSL=true
+>```
 
 You can then simply run one of the examples
 
