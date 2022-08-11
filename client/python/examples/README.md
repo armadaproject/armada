@@ -17,18 +17,16 @@ Please see the [python client docs](https://github.com/G-Research/armada/blob/ma
 ### Running the examples
 
 > Each example has three enviromental variables for setup
->
 > ```bash
 > export ARMADA_SERVER=localhost
 > export ARMADA_PORT=443
 > export DISABLE_SSL=true
 >```
 
-You can then simply run one of the examples
-
-```bash
-python3 simple.py
-```
+> You can then simply run one of the examples
+> ```bash
+> python3 simple.py
+> ```
 
 ## Example Files
 
@@ -41,30 +39,30 @@ then watch for the job to succeed or fail.
 
 #### Walkthrough
 
-```py
-def create_dummy_job(client: ArmadaClient):
-```
-Armada uses Kubernetes to control jobs, so we need to define a podspec that our jobs will use.
+> Armada uses Kubernetes to control jobs, so we need to define a podspec that our jobs will use.
+> ```py
+> def create_dummy_job(client: ArmadaClient):
+> ```
 
-```py
-if DISABLE_SSL:
-    channel = grpc.insecure_channel(f"{HOST}:{PORT}")
-else:
-    channel_credentials = grpc.ssl_channel_credentials()
-    channel = grpc.secure_channel(
-        f"{HOST}:{PORT}",
-        channel_credentials,
-    )
-```
+> If you are using a remote server, secure_channel should be used to ensure that all infomation is encrypted.
+> ```py
+> if DISABLE_SSL:
+>     channel = grpc.insecure_channel(f"{HOST}:{PORT}")
+> else:
+>     channel_credentials = grpc.ssl_channel_credentials()
+>     channel = grpc.secure_channel(
+>         f"{HOST}:{PORT}",
+>         channel_credentials,
+>     )
+> ```
 
-If you are using a remote server, secure_channel should be used to ensure that all infomation is encrypted.
+
+> All queues need a priority factor to be created, which is used to determine the order in which jobs are run.
+> ```py
+> client.create_queue(name=queue, priority_factor=1)
+> ```
 
 
-```py
-client.create_queue(name=queue, priority_factor=1)
-```
-
-All queues need a priority factor to be created, which is used to determine the order in which jobs are run.
 
 ### general.py
 
