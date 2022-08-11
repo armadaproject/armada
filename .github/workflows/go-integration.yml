@@ -68,19 +68,21 @@ jobs:
             path: test_reports/junit.xml
   stop-runner:
       name: Stop self-hosted runner
-      if: ${{ always() && github.repository == 'G-Research/armada' }}
+      if: always()
       needs:
         - start-runner
         - integration-tests
       runs-on: ubuntu-latest
       steps:
         - name: Configure AWS credentials
+          if: github.repository == 'G-Research/armada'
           uses: aws-actions/configure-aws-credentials@v1
           with:
             aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
             aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             aws-region: ${{ secrets.AWS_REGION }}
         - name: Stop EC2 runner
+          if: github.repository == 'G-Research/armada'
           uses: machulav/ec2-github-runner@v2
           with:
             mode: stop
