@@ -17,6 +17,9 @@ env:
 jobs:
   start-runner:
     name: Start runner in EC2
+    # Only G-Research/armada repo has secrets set to run these tests. A future
+    # enhancement would be to configure these jobs to run on free runners on
+    # forks, and on paid runners in G-Research/armada.
     if: github.repository == 'G-Research/armada'
     runs-on: ubuntu-latest
     outputs:
@@ -68,6 +71,9 @@ jobs:
             path: test_reports/junit.xml
   stop-runner:
       name: Stop self-hosted runner
+      # This tells github actions to run this step even if a previous step failed.
+      # This prevents us from having an outstanding runner leftover when tests
+      # are failing.
       if: always()
       needs:
         - start-runner
@@ -75,6 +81,8 @@ jobs:
       runs-on: ubuntu-latest
       steps:
         - name: Configure AWS credentials
+          # but we still have to skip the steps that do work, since we don't
+          # have secrets, unless we're in the G-Research org.
           if: github.repository == 'G-Research/armada'
           uses: aws-actions/configure-aws-credentials@v1
           with:
