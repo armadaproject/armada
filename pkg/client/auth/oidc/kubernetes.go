@@ -96,7 +96,7 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 		token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
 	}
 	if expiry, err := extractExpiry(tokenRes.AccessToken); err != nil {
-		if token.Expiry.After(*expiry) {
+		if token.Expiry.IsZero() || token.Expiry.After(*expiry) {
 			token.Expiry = *expiry
 		}
 	}
