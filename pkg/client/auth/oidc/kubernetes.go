@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/jws"
 )
 
 type KubernetesDetails struct {
@@ -99,13 +99,31 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 		token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
 	}
 	if v := tokenRes.AccessToken; v != "" {
-		claimSet, err := jws.Decode(v)
+		expiry, err := decode(v)
 		if err != nil {
 			return nil, fmt.Errorf("kubernetes flow: error decoding JWT token: %v", err)
 		}
-		token.Expiry = time.Unix(claimSet.Exp, 0)
+		token.Expiry = time.Unix(*expiry, 0)
 	}
 	return token, nil
+}
+
+func decode(payload string) (*int64, error) {
+	// decode returned id token to get expiry
+	s := strings.Split(payload, ".")
+	if len(s) < 2 {
+		// TODO(jbd): Provide more context about the error.
+		return nil, errors.New("jws: invalid token received")
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(s[1])
+	if err != nil {
+		return nil, err
+	}
+	var c struct {
+		Exp int64 `json:"exp"`
+	}
+	err = json.Unmarshal(decoded, c)
+	return &c.Exp, err
 }
 
 func getKubernetesToken() (string, error) {
