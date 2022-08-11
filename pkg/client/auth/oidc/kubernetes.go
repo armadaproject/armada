@@ -95,8 +95,10 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 	if secs := tokenRes.ExpiresIn; secs > 0 {
 		token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
 	}
-	if expiry, err := extractExpiry(tokenRes.AccessToken); err != nil && *expiry > 0 && *expiry < token.Expiry.Unix() {
-		token.Expiry = time.Unix(*expiry, 0)
+	if expiry, err := extractExpiry(tokenRes.AccessToken); err != nil {
+		if token.Expiry.After(*expiry) {
+			token.Expiry = *expiry
+		}
 	}
 	return token, nil
 }
@@ -106,7 +108,7 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
  *
  * A modified version of golang.org/x/oauth2/jws
  */
-func extractExpiry(payload string) (*int64, error) {
+func extractExpiry(payload string) (*time.Time, error) {
 	s := strings.Split(payload, ".")
 	if len(s) < 2 {
 		return nil, errors.New("kubernetes flow: invalid token received")
@@ -119,7 +121,14 @@ func extractExpiry(payload string) (*int64, error) {
 		Exp int64 `json:"exp"`
 	}
 	err = json.Unmarshal(decoded, &c)
-	return &c.Exp, err
+	if err != nil {
+		return nil, err
+	}
+	if c.Exp == 0 {
+		return nil, fmt.Errorf("kubernetes flow: expiration time in JWT shouldn't be 0")
+	}
+	ret := time.Unix(c.Exp, 0)
+	return &ret, nil
 }
 
 func getKubernetesToken() (string, error) {
