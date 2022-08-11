@@ -44,6 +44,8 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, err
 			}
 
+			defer resp.Body.Close()
+			
 			if resp.StatusCode == 400 {
 				var errResp oauthErrorResponse
 				err = json.NewDecoder(resp.Body).Decode(&errResp)
@@ -55,7 +57,6 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, makeErrorForHTTPResponse(resp)
 			}
 
-			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return nil, err
