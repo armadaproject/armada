@@ -122,7 +122,7 @@ func decode(payload string) (*int64, error) {
 	var c struct {
 		Exp int64 `json:"exp"`
 	}
-	err = json.Unmarshal(decoded, c)
+	err = json.Unmarshal(decoded, &c)
 	return &c.Exp, err
 }
 
