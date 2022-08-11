@@ -2,11 +2,11 @@
 
 Currently there are five examples:
 
-- [Intro to using the Python Client](#simplepy)
-- [Interacting with Queues and Jobs](#generalpy)
-- [A more detailed look at Queues](#queuespy)
-- [Methods for cancelling Jobs](#cancellingpy)
-- [Monitoring the state of Jobs in a Job Set](#monitorpy)
+- [Intro to using the Python Client - simple.py](#simplepy)
+- [Interacting with Queues and Jobs - general.py](#generalpy)
+- [A more detailed look at Queues - queues.py](#queuespy)
+- [Methods for cancelling Jobs - cancelling.py ](#cancellingpy)
+- [Monitoring the state of Jobs in a Job Set - monitor.py](#monitorpy)
 
 There is also a section on [Using Basic Auth](#using-basic-auth)
 
