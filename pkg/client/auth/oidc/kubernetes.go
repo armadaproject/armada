@@ -3,11 +3,15 @@ package oidc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/oauth2"
 )
 
@@ -20,6 +24,7 @@ type KubernetesDetails struct {
 func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error) {
 	tokenSource := functionTokenSource{
 		getToken: func() (*oauth2.Token, error) {
+			log.Println("Getting new token from IDS")
 			kubernetesToken, err := getKubernetesToken()
 			if err != nil {
 				return nil, err
@@ -49,17 +54,30 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, makeErrorForHTTPResponse(resp)
 			}
 
-			var token oauth2.Token
-			err = json.NewDecoder(resp.Body).Decode(&token)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return nil, err
 			}
 
+			var result map[string]interface{}
+			json.Unmarshal(body, &result)
+			
+			accessToken, _ := result["access_token"]
+			// TODO handle error
+			
+			token, _, err := new(jwt.Parser).ParseUnverified(fmt.Sprint(accessToken), jwt.MapClaims{})
+			if err != nil {
+				return nil, err
+			}
+
+			log.Printf("Access Token: %v \n", token.AccessToken)
+			log.Printf("Token Expiry: %v \n", token.Expiry)
 			return &token, nil
 		},
 	}
 
-	return &TokenCredentials{tokenSource: &tokenSource}, nil
+	return &TokenCredentials{tokenSource: oauth2.ReuseTokenSource(nil, &tokenSource)}, nil
 }
 
 func getKubernetesToken() (string, error) {
