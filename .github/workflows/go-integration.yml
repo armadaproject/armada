@@ -71,9 +71,9 @@ jobs:
             path: test_reports/junit.xml
   stop-runner:
       name: Stop self-hosted runner
-      # This tells github actions to run this step even if a previous step failed.
-      # This prevents us from having an outstanding runner leftover when tests
-      # are failing.
+      # This tells Github actions to run this job even if a dependent jobs
+      # failed. This prevents us from having an outstanding runner leftover
+      # when tests are failing.
       if: always()
       needs:
         - start-runner
