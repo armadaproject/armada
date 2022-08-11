@@ -17,7 +17,7 @@ env:
 jobs:
   start-runner:
     name: Start runner in EC2
-    if: github.repository == 'jayofdoom/armada'
+    if: github.repository == 'G-Research/armada'
     runs-on: ubuntu-latest
     outputs:
       runs-on: ${{ steps.start-ec2-runner.outputs.label }}
@@ -46,7 +46,7 @@ jobs:
             ]
   integration-tests:
       needs: start-runner
-      if: github.repository == 'jayofdoom/armada'
+      if: github.repository == 'G-Research/armada'
       runs-on: ${{ needs.start-runner.outputs.runs-on }}
       strategy:
         fail-fast: false
@@ -68,7 +68,7 @@ jobs:
             path: test_reports/junit.xml
   stop-runner:
       name: Stop self-hosted runner
-      if: ${{ always() && github.repository == 'jayofdoom/armada' }}
+      if: ${{ always() && github.repository == 'G-Research/armada' }}
       needs:
         - start-runner
         - integration-tests
