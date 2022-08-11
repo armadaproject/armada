@@ -63,7 +63,6 @@ then watch for the job to succeed or fail.
 > ```
 
 
-
 ### general.py
 
 [Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/general.py)
@@ -72,45 +71,41 @@ A more fledged out version of `simple.py` where we create a queue only if it doe
 
 #### Walkthrough
 
-```py
-def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType)
-```
 
-We use this function to check the status of a job, return false if the job failed and otherwise wait for the event state we are interested in.
+> We use this function to check the status of a job, return false if the job failed and otherwise wait for the event state we are interested in.
+> **Please note** that this is shown for demonstration purposes only. Subscribing to events like this to watch individual events like this will not scale well.
+> ```py
+> def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType)
+> ```
 
-**Please note** that this is shown for demonstration purposes only. Subscribing to events like this to watch individual events like this will not scale well.
+> We can use this code to get the job_id we are interested in from the event_stream.
+> ```py
+> job_id = resp.job_response_items[0].job_id
+> ```
 
-```py
-job_id = resp.job_response_items[0].job_id
-```
+> As the code documents, we need the sleep to wait for the job_set to be created, allowing for `client.get_job_events_stream` to not fail.
+> ```py
+> client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
+>
+> # Needed to allow for the delay in the job_set being created
+> time.sleep(2)
+> ```
 
-We can use this code to get the job_id we are interested in from the event_stream.
+> For any grpc-related errors, more detail can be found by checking the grpc.RpcError object. In this case, we use it to ignore if a queue has already been created or not.
+> ```py
+> try:
+>     client.create_queue(name=queue, priority_factor=1)
+>
+> # Handle the error we expect to maybe occur
+> except grpc.RpcError as e:
+>     code = e.code()
+>     if code == grpc.StatusCode.ALREADY_EXISTS:
+>         print(f"Queue {queue} already exists")
+>         client.update_queue(name=queue, priority_factor=1)
+>     else:
+>         raise e
+> ```
 
-
-```py
-client.reprioritize_jobs(new_priority=2, queue=queue, job_set_id=job_set_id)
-
-# Needed to allow for the delay in the job_set being created
-time.sleep(2)
-```
-
-As the code documents, we need the sleep to wait for the job_set to be created, allowing for `client.get_job_events_stream` to not fail.
-
-```py
-try:
-    client.create_queue(name=queue, priority_factor=1)
-
-# Handle the error we expect to maybe occur
-except grpc.RpcError as e:
-    code = e.code()
-    if code == grpc.StatusCode.ALREADY_EXISTS:
-        print(f"Queue {queue} already exists")
-        client.update_queue(name=queue, priority_factor=1)
-    else:
-        raise e
-```
-
-For any grpc-related errors, more detail can be found by checking the grpc.RpcError object. In this case, we use it to ignore if a queue has already been created or not.
 
 ### queues.py
 
@@ -120,19 +115,16 @@ A full example of creating a queue with all options.
 
 #### Walkthrough
 
-```py
-subject = Subject(type="Group", name="group1")
-permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
-```
+> Permissions are used to control who can do what with the queue.
+> ```py
+> subject = Subject(type="Group", name="group1")
+> permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
+> ```
 
-Permissions are used to control who can do what with the queue.
-
-```py
-resource_limits = {"cpu": 1.0, "memory": 1.0}
-```
-
-Resource limits are set similarly to [Kubernetes](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
-
+> Resource limits are set similarly to [Kubernetes](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
+> ```py
+> resource_limits = {"cpu": 1.0, "memory": 1.0}
+> ```
 
 ### cancelling.py
 
@@ -143,18 +135,16 @@ the job-set id.
 
 #### Walkthrough
 
-```py
-job_id = resp1.job_response_items[0].job_id
-client.cancel_jobs(job_id=job_id)
-```
+> To cancel a specific job, its job_id must be read from the `client.submit_jobs` response, and then it can be cancelled.
+> ```py
+> job_id = resp1.job_response_items[0].job_id
+> client.cancel_jobs(job_id=job_id)
+> ```
 
-To cancel a specific job, its job_id must be read from the `client.submit_jobs` response, and then it can be cancelled.
-
-```py
-client.cancel_jobs(queue=queue, job_set_id=job_set_id1)
-```
-
-You can also cancel all jobs on a job_set with its queue and job_set id.
+> You can also cancel all jobs on a job_set with its queue and job_set id.
+> ```py
+> client.cancel_jobs(queue=queue, job_set_id=job_set_id1)
+> ```
 
 ### monitor.py
 
@@ -166,60 +156,56 @@ Demonstrates how to run jobs, and also log all changes to that job or job_set in
 
 #### Walkthrough
 
-```py
-def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
-```
+> Watches all changes on a job_set. It attempts to connect multiple times instead of sleeping like in `general.py`. It also demonstrates using the clients `unmarshal_event_response()` method to better access the event object.
+> ```py
+> def watch_job_set(client: ArmadaClient, queue: str, job_set_id):
+> ```
 
-Watches all changes on a job_set. It attempts to connect multiple times instead of sleeping like in `general.py`. It also demonstrates using the clients `unmarshal_event_response()` method to better access the event object.
+> `workflow` is where the queue, job_set and job are created and run from. The other functions are watching the changes created by this workflow. It is very similar to `general.py`.
+> ```py
+> def workflow(client, queue, job_set_id):
+> ```
 
 
-```py
-def workflow(client, queue, job_set_id):
-```
-
-`workflow` is where the queue, job_set and job are created and run from. The other functions are watching the changes created by this workflow. It is very similar to `general.py`.
-
-```py
-thread = threading.Thread(target=workflow, args=(client, queue, job_set_id))
-
-watch_jobs = threading.Thread(
-    target=watch_job_set, args=(client, queue, job_set_id)
-)
-```
-
-We use threading to run the different parts of the code at the same time.
-
-You should end up with an output that looks like this
-
-```
-Queue test-general already exists
-Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.submitted
-Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.queued
-Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelling
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritizing
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritized
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.submitted
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.queued
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritizing
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.updated
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.submitted
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.queued
-Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelled
-Job 01g9j3wmggqmw2vmmj96cfkzh9 Terminated
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.updated
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritized
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.pending
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.leased
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.pending
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.leased
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.running
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.running
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.succeeded
-Job 01g9j3wmggqmw2vmmj9bfdnrm8 Terminated
-Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.succeeded
-Job 01g9j3wmggqmw2vmmj98f3bs57 Terminated
-3 jobs were terminated
-```
+> We use threading to run the different parts of the code at the same time.
+> ```py
+> thread = threading.Thread(target=workflow, args=(client, queue, job_set_id))
+>
+> watch_jobs = threading.Thread(
+>     target=watch_job_set, args=(client, queue, job_set_id)
+> )
+> ```
+> You should end up with an output that looks like this
+>
+> ```
+> Queue test-general already exists
+> Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.submitted
+> Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.queued
+> Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelling
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritizing
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritized
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.submitted
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.queued
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.reprioritizing
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.updated
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.submitted
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.queued
+> Job 01g9j3wmggqmw2vmmj96cfkzh9 - EventType.cancelled
+> Job 01g9j3wmggqmw2vmmj96cfkzh9 Terminated
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.updated
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.reprioritized
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.pending
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.leased
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.pending
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.leased
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.running
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.running
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 - EventType.succeeded
+> Job 01g9j3wmggqmw2vmmj9bfdnrm8 Terminated
+> Job 01g9j3wmggqmw2vmmj98f3bs57 - EventType.succeeded
+> Job 01g9j3wmggqmw2vmmj98f3bs57 Terminated
+> 3 jobs were terminated
+> ```
 
 ## Using Basic Auth
 
