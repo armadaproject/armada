@@ -1,3 +1,5 @@
+name: Lookout
+
 on:
   push:
     branches-ignore:
@@ -26,7 +28,7 @@ jobs:
           npm ci && npm run fmt || exit 1
           exit $(git status -s -uno | wc -l)
         working-directory: ./internal/lookout/ui
-  ts-unit:
+  ts-unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
