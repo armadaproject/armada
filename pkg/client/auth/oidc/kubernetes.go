@@ -83,7 +83,6 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 	var tokenRes struct {
 		AccessToken string `json:"access_token"`
 		TokenType   string `json:"token_type"`
-		IDToken     string `json:"id_token"`
 		ExpiresIn   int64  `json:"expires_in"` // relative seconds from now
 	}
 	if err := json.Unmarshal(body, &tokenRes); err != nil {
