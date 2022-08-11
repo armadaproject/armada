@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/oauth2/jws"
 	"io"
 	"log"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/jws"
 )
 
 type KubernetesDetails struct {
