@@ -2,11 +2,11 @@
 
 Currently there are five example files:
 
-- [simple.py](#simple.py)
-- [general.py](#general.py)
+- [simple.py](#simplepy)
+- [general.py](#generalpy)
 - [queues.py](#queuespy)
 - [cancelling.py](#cancellingpy)
-- [monitor.py](#monitor.py)
+- [monitor.py](#monitorpy)
 
 There is also a section on [Using Basic Auth](#using-basic-auth)
 
@@ -32,7 +32,7 @@ Please see the [python client docs](https://github.com/G-Research/armada/blob/ma
 
 ### simple.py
 
-[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/simple.py)
+[Link to File](./simple.py)
 
 Example of using the Armada client to create a queue, jobset and job,
 then watch for the job to succeed or fail.
@@ -65,7 +65,7 @@ then watch for the job to succeed or fail.
 
 ### general.py
 
-[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/general.py)
+[Link to File](./general.py)
 
 A more fledged out version of `simple.py` where we create a queue only if it doesn't exist, and then create a jobset and job, and wait until the job succeeds or fails.
 
@@ -109,7 +109,7 @@ A more fledged out version of `simple.py` where we create a queue only if it doe
 
 ### queues.py
 
-[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/queues.py)
+[Link to File](./queues.py)
 
 A full example of creating a queue with all options.
 
@@ -128,7 +128,7 @@ A full example of creating a queue with all options.
 
 ### cancelling.py
 
-[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/cancelling.py)
+[Link to File](./cancelling.py)
 
 A full example of cancelling jobs, either with their job id, or
 the job-set id.
@@ -148,7 +148,7 @@ the job-set id.
 
 ### monitor.py
 
-[Link to File](https://github.com/G-Research/armada/tree/master/client/python/examples/monitor.py)
+[Link to File](./monitor.py)
 
 Demonstrates how to run jobs, and also log all changes to that job or job_set in realtime concurrently.
 
