@@ -66,8 +66,6 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 				return nil, err
 			}
 
-			log.Printf("Access Token: %v \n", token.AccessToken)
-			log.Printf("Token Expiry: %v \n", token.Expiry)
 			return token, nil
 		},
 	}
@@ -99,7 +97,7 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 		token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
 	}
 	if v := tokenRes.AccessToken; v != "" {
-		expiry, err := decode(v)
+		expiry, err := extractExpiry(v)
 		if err != nil {
 			return nil, fmt.Errorf("kubernetes flow: error decoding JWT token: %v", err)
 		}
@@ -108,12 +106,15 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 	return token, nil
 }
 
-func decode(payload string) (*int64, error) {
-	// decode returned id token to get expiry
+/**
+ * extractExpiry retrieves the expiry time from the OIDC JWT
+ *
+ * A modified version of golang.org/x/oauth2/jws
+ */
+func extractExpiry(payload string) (*int64, error) {
 	s := strings.Split(payload, ".")
 	if len(s) < 2 {
-		// TODO(jbd): Provide more context about the error.
-		return nil, errors.New("jws: invalid token received")
+		return nil, errors.New("kubernetes flow: invalid token received")
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(s[1])
 	if err != nil {
