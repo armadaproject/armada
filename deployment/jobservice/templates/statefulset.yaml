@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "jobservice.labels.all" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicas }}
+  replicas: 1
   serviceName: {{ include "jobservice.name" . }}
   selector:
     matchLabels:
