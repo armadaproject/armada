@@ -92,23 +92,12 @@ func parseOIDCToken(body []byte) (*oauth2.Token, error) {
 		AccessToken: tokenRes.AccessToken,
 		TokenType:   tokenRes.TokenType,
 	}
-	var expiresInTime time.Time
 	if secs := tokenRes.ExpiresIn; secs > 0 {
 		token.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
-		expiresInTime = token.Expiry
 	}
-
-	var jwtTime time.Time
-	if v := tokenRes.AccessToken; v != "" {
-		expiry, err := extractExpiry(v)
-		if err != nil {
-			return nil, fmt.Errorf("kubernetes flow: error decoding JWT token: %v", err)
-		}
+	if expiry, err := extractExpiry(tokenRes.AccessToken); err != nil && *expiry > 0 && *expiry < token.Expiry.Unix() {
 		token.Expiry = time.Unix(*expiry, 0)
-		jwtTime = token.Expiry
 	}
-	log.Printf("Expires in + time.now(): %v", expiresInTime)
-	log.Printf("jwt parsed time: %v", jwtTime)
 	return token, nil
 }
 
