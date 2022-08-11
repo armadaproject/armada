@@ -45,7 +45,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 			}
 
 			defer resp.Body.Close()
-			
+
 			if resp.StatusCode == 400 {
 				var errResp oauthErrorResponse
 				err = json.NewDecoder(resp.Body).Decode(&errResp)
