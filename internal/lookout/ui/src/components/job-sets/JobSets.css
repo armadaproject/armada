@@ -72,3 +72,7 @@
     text-decoration: underline;
     cursor: pointer;
 }
+
+.MuiContainer-root {
+    width: 90% !important;
+}
