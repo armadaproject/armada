@@ -56,7 +56,7 @@ Real-time interactions between Armada developers and users occurs primarily in C
 
 ## Security
 
-Armada developers appreciate and encourage responsible disclosure of security vulnerabilities. If you believe you have a vulnerability to report, please contact the security team at [security@gr-oss.io](mailto:security@gr-oss.io) for triage.
+Armada developers appreciate and encourage coordinated disclosure of security vulnerabilities. If you believe you have a vulnerability to report, please contact the security team at [security@gr-oss.io](mailto:security@gr-oss.io) for triage.
 
 ## License
 
