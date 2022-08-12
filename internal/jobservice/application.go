@@ -25,14 +25,11 @@ type App struct {
 	Config *configuration.JobServiceConfiguration
 }
 
-func New(config *configuration.JobServiceConfiguration) *App {
-	return &App{
-		Config: config,
-	}
+func New() *App {
+	return &App{}
 }
 
-func (a *App) StartUp(ctx context.Context) error {
-	config := a.Config
+func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
