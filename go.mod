@@ -71,9 +71,9 @@ require (
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.22.4
-	k8s.io/apimachinery v0.22.4
-	k8s.io/client-go v0.22.4
+	k8s.io/api v0.24.3
+	k8s.io/apimachinery v0.24.3
+	k8s.io/client-go v0.24.3
 	k8s.io/component-base v0.22.4
 	k8s.io/component-helpers v0.22.4
 	k8s.io/kubelet v0.22.4
@@ -102,14 +102,15 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/dvsekhvalnov/jose2go v0.0.0-20200901110807-248326c1351b // indirect
-	github.com/evanphx/json-patch v4.11.0+incompatible // indirect
+	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
+	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.1 // indirect
-	github.com/go-logr/logr v0.4.0 // indirect
+	github.com/go-logr/logr v1.2.0 // indirect
 	github.com/go-openapi/errors v0.20.2 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
@@ -122,8 +123,8 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
+	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
-	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -166,6 +167,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mtibben/percent v0.2.1 // indirect
+	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/nats-io/jwt/v2 v2.2.1-0.20220330180145-442af02fd36a // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
@@ -196,7 +198,7 @@ require (
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
+	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
@@ -204,8 +206,8 @@ require (
 	gopkg.in/ini.v1 v1.66.3 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/klog/v2 v2.9.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
+	k8s.io/klog/v2 v2.60.1 // indirect
+	k8s.io/kube-openapi v0.0.0-20220328201542-3ee0da9b0b42 // indirect
 	lukechampine.com/uint128 v1.1.1 // indirect
 	modernc.org/cc/v3 v3.36.0 // indirect
 	modernc.org/ccgo/v3 v3.16.6 // indirect
@@ -215,5 +217,6 @@ require (
 	modernc.org/opt v0.1.1 // indirect
 	modernc.org/strutil v1.1.1 // indirect
 	modernc.org/token v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
+	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 )
