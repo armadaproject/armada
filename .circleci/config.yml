@@ -91,6 +91,7 @@ commands:
           helm package deployment/lookout/ -d charts/armada/
           helm package deployment/lookout-migration/ -d charts/armada/
           helm package deployment/binoculars/ -d charts/armada/
+          helm package deployment/jobservice/ -d charts/armada/
           helm repo index charts/
 
     - run:
@@ -208,6 +209,10 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
+            docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice-dev:${TAG}
+            docker push gresearchdev/armada-jobservice-dev:${TAG}
+
+
   release-armadactl:
     machine:
       docker_layer_caching: true
@@ -292,6 +297,10 @@ jobs:
             docker pull gresearchdev/armada-binoculars-dev:${TAG}
             docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
             docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
+
+            docker pull gresearchdev/armada-jobservice-dev:${TAG}
+            docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice:${RELEASE_TAG}
+            docker push gresearchdev/armada-jobservice:${RELEASE_TAG}
 
   release-charts:
     machine:
