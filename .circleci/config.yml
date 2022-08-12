@@ -209,7 +209,7 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
-            docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice-dev:${TAG}
+            docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
             docker push gresearchdev/armada-jobservice-dev:${TAG}
 
 
