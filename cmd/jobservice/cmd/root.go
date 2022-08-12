@@ -5,7 +5,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/jobservice"
-	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/pkg/client"
 )
 
@@ -20,11 +19,8 @@ func RootCmd() *cobra.Command {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
-	var config configuration.JobServiceConfiguration
-	common.LoadConfig(&config, "./config/jobservice", []string{})
-
 	cmd.AddCommand(
-		runCmd(jobservice.New(&config)),
+		runCmd(jobservice.New()),
 	)
 
 	return cmd

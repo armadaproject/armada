@@ -1,3 +1,5 @@
+name: Go Tests
+
 on:
   push:
     branches-ignore:
@@ -18,10 +20,19 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
 
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: "latest"
+          skip-pkg-cache: true
+          skip-build-cache: true
+          only-new-issues: true
+          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=0 --max-issues-per-linter=0 --sort-results ./..."
+
       - name: make code-checks
         run: make code-checks
 
-      # TODO(JayF): Consider moving this into its own step, that runs under a larger set of circumstances
+      # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
         run: |
@@ -30,6 +41,7 @@ jobs:
           git status -s -uno
           git --no-pager diff
           exit $(git status -s -uno | wc -l)
+
   go-unit-tests:
     runs-on: ubuntu-latest
     strategy:
