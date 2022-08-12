@@ -1,0 +1,30 @@
+image:
+  repository: gresearchdev/armada-server
+  tag: LATEST
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 300m
+  requests:
+    memory: 512Mi
+    cpu: 200m
+additionalLabels: {}
+terminationGracePeriodSeconds: 30
+replicas: 1
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
+ingress:
+  nameOverride: ""
+  annotations: {}
+  labels: {}
+prometheus:
+  enabled: false
+  labels: {}
+  scrapeInterval: 10s
+customServiceAccount: null
+serviceAccount: null
+
+applicationConfig:
+  grpcPort: 60063
