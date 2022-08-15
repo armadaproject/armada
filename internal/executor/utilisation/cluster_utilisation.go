@@ -132,11 +132,15 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource.Sub(totalPodResource)
 
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
-	nodes := []api.NodeInfo{}
+	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
+	nodes := make([]api.NodeInfo, 0, len(processingNodes))
 	for _, n := range processingNodes {
 		allocatable := common.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
+
+		nodePods := podsByNodes[n.Name]
+		allocatedResources := getAllocatedResourcesByPriority(nodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
@@ -144,6 +148,8 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			Taints:               n.Spec.Taints,
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
+			TotalResources:       availableResource,
+			AllocatedResources:   allocatedResources,
 		})
 	}
 
@@ -166,6 +172,43 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 		allocations[nodeName].Add(resourceRequest)
 	}
 	return allocations
+}
+
+func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
+	podsByNodes := make(map[string][]*v1.Pod)
+
+	for _, p := range pods {
+		podsByNodes[p.Spec.NodeName] = append(podsByNodes[p.Spec.NodeName], p)
+	}
+
+	return podsByNodes
+}
+
+func getAllocatedResourcesByPriority(pods []*v1.Pod) map[int32]api.ComputeResource {
+	resourceUsageByPriority := make(map[int32]api.ComputeResource)
+
+	podsByPriority := groupPodsByPriority(pods)
+
+	for priority, podsForPriority := range podsByPriority {
+		resources := api.ComputeResource{Resources: common.CalculateTotalResourceRequest(podsForPriority)}
+		resourceUsageByPriority[priority] = resources
+	}
+
+	return resourceUsageByPriority
+}
+
+func groupPodsByPriority(pods []*v1.Pod) map[int32][]*v1.Pod {
+	priorityMap := make(map[int32][]*v1.Pod)
+
+	for _, p := range pods {
+		var priority int32 = 0
+		if p.Spec.Priority != nil {
+			priority = *(p.Spec.Priority)
+		}
+		priorityMap[priority] = append(priorityMap[priority], p)
+	}
+
+	return priorityMap
 }
 
 // GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.

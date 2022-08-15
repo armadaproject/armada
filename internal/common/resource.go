@@ -24,7 +24,7 @@ func FromResourceList(list v1.ResourceList) ComputeResources {
 func (a ComputeResources) String() string {
 	str := ""
 
-	var keys []string
+	keys := make([]string, 0, len(a))
 	for k := range a {
 		keys = append(keys, k)
 	}
@@ -172,7 +172,7 @@ func QuantityAsFloat64(q resource.Quantity) float64 {
 	return unscaledFloat * math.Pow10(-int(scale))
 }
 
-// float version of compute resource, prefer calculations with quantity where possible
+// ComputeResourcesFloat is float version of compute resource, prefer calculations with quantity where possible
 type ComputeResourcesFloat map[string]float64
 
 func (a ComputeResourcesFloat) IsValid() bool {
@@ -244,7 +244,7 @@ func (a ComputeResourcesFloat) LimitWith(limit ComputeResourcesFloat) ComputeRes
 	return targetComputeResource
 }
 
-//The merged in values take precedence and override existing values for the same key
+// MergeWith represents the merged in values take precedence and override existing values for the same key
 func (a ComputeResourcesFloat) MergeWith(merged ComputeResourcesFloat) ComputeResourcesFloat {
 	targetComputeResource := a.DeepCopy()
 	for key, value := range merged {
@@ -276,13 +276,13 @@ func TotalJobResourceRequest(job *api.Job) ComputeResources {
 	return totalResources
 }
 
-//Resource request for a given pod is the maximum of:
-// - sum of all containers
-// - any individual init container
-//This is because:
-// - containers run in parallel (so need to sum resources)
-// - init containers run sequentially (so only their individual resource need be considered)
-//So pod resource usage is the max for each resource type (cpu/memory etc) that could be used at any given time
+// TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
+//  - sum of all containers
+//  - any individual init container
+// This is because:
+//  - containers run in parallel (so need to sum resources)
+//  - init containers run sequentially (so only their individual resource need be considered)
+// So pod resource usage is the max for each resource type (cpu/memory etc) that could be used at any given time
 func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 	totalResources := make(ComputeResources)
 	for _, container := range podSpec.Containers {
