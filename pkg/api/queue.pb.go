@@ -481,6 +481,9 @@ func (m *NodeInfo) GetAvailableResources() map[string]resource.Quantity {
 	return nil
 }
 
+// The Armada scheduler must account for taints, labels, and available resources.
+// These together make up the NodeType of a particular node.
+// Nodes with equal NodeType are considered as equivalent for scheduling and accounting.
 type NodeType struct {
 	Taints               []v1.Taint                   `protobuf:"bytes,1,rep,name=taints,proto3" json:"taints"`
 	Labels               map[string]string            `protobuf:"bytes,2,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -617,7 +620,9 @@ func (m *ClusterSchedulingInfoReport) GetMinimumJobSize() map[string]resource.Qu
 }
 
 type QueueLeasedReport struct {
-	Name            string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Queue name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Total resources allocated to jobs from this queue.
 	ResourcesLeased map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources_leased,json=resourcesLeased,proto3" json:"resourcesLeased,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -668,9 +673,10 @@ func (m *QueueLeasedReport) GetResourcesLeased() map[string]resource.Quantity {
 }
 
 type ClusterLeasedReport struct {
-	ClusterId  string               `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
-	ReportTime time.Time            `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
-	Queues     []*QueueLeasedReport `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`
+	ClusterId  string    `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
+	ReportTime time.Time `protobuf:"bytes,2,opt,name=report_time,json=reportTime,proto3,stdtime" json:"report_time"`
+	// For each queue, the total resources allocated to jobs from that queue.
+	Queues []*QueueLeasedReport `protobuf:"bytes,3,rep,name=queues,proto3" json:"queues,omitempty"`
 }
 
 func (m *ClusterLeasedReport) Reset()      { *m = ClusterLeasedReport{} }
