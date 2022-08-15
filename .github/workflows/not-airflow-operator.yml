@@ -1,4 +1,4 @@
-name: Run Python Armada Airflow Operator Linting and Unit Tests
+name: Python Airflow Operator
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - 'client/python/**'
       - 'build/python-client/**'
       - 'pkg/api/*.proto'
-      - '.github/workflows/python.yml'
+      - '.github/workflows/python-client.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
@@ -17,6 +17,8 @@ on:
       - '.github/workflows/airflow-operator.yml'
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
+      - '.github/workflows/python-tests/*'
+
   pull_request:
     branches-ignore:
       - gh-pages
@@ -24,7 +26,7 @@ on:
       - 'client/python/**'
       - 'build/python-client/**'
       - 'pkg/api/*.proto'
-      - '.github/workflows/python.yml'
+      - '.github/workflows/python-client.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
@@ -33,9 +35,13 @@ on:
       - '.github/workflows/airflow-operator.yml'
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
+      - '.github/workflows/python-tests/*'
 
 jobs:
-  run-tox:
+  airflow-tox:
+    strategy:
+      matrix:
+        go: [ '1.18' ]
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No airflow operator code modified, not running airflow operator jobs"'

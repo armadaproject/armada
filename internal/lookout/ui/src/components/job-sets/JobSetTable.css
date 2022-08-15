@@ -11,3 +11,8 @@
     font-weight: 700;
     text-transform: uppercase;
 }
+
+.job-set-table-job-set-name-cell {
+    white-space: normal !important;
+    word-break: break-word !important;
+}

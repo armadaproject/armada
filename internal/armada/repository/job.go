@@ -70,6 +70,7 @@ type JobRepository interface {
 	ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error)
 	DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error)
 	GetActiveJobIds(queue string, jobSetId string) ([]string, error)
+	GetJobSetJobIds(queue string, jobSetId string, filter *JobSetFilter) ([]string, error)
 	GetLeasedJobIds(queue string) ([]string, error)
 	UpdateStartTime(jobStartInfos []*JobStartInfo) ([]error, error)
 	UpdateJobs(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error)
@@ -838,10 +839,28 @@ func (repo *RedisJobRepository) GetQueueJobIds(queueName string) ([]string, erro
 }
 
 func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) ([]string, error) {
+	return repo.GetJobSetJobIds(queue, jobSetId, &JobSetFilter{
+		IncludeLeased: true,
+		IncludeQueued: true,
+	})
+}
+
+type JobSetFilter struct {
+	IncludeQueued bool
+	IncludeLeased bool
+}
+
+func (repo *RedisJobRepository) GetJobSetJobIds(queue string, jobSetId string, filter *JobSetFilter) ([]string, error) {
+	var queuedIdsCommandResult *redis.StringSliceCmd
+	var leasedIdsCommandResult *redis.StringSliceCmd
 
 	tx := repo.db.TxPipeline()
-	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
-	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
+	if filter == nil || filter.IncludeQueued {
+		queuedIdsCommandResult = tx.ZRange(jobQueuePrefix+queue, 0, -1)
+	}
+	if filter == nil || filter.IncludeLeased {
+		leasedIdsCommandResult = tx.ZRange(jobLeasedPrefix+queue, 0, -1)
+	}
 	jobSetIdsCommand := tx.SMembers(jobSetPrefix + jobSetId)
 
 	_, err := tx.Exec()
@@ -849,14 +868,20 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 		return nil, errors.WithStack(err)
 	}
 
-	queuedIds, err := queuedIdsCommand.Result()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	activeJobIds := []string{}
+	if filter == nil || filter.IncludeQueued {
+		queuedIds, err := queuedIdsCommandResult.Result()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		activeJobIds = append(activeJobIds, queuedIds...)
 	}
-
-	leasedIds, err := leasedIdsCommand.Result()
-	if err != nil {
-		return nil, errors.WithStack(err)
+	if filter == nil || filter.IncludeLeased {
+		leasedIds, err := leasedIdsCommandResult.Result()
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		activeJobIds = append(activeJobIds, leasedIds...)
 	}
 
 	jobSetIds, err := jobSetIdsCommand.Result()
@@ -864,14 +889,14 @@ func (repo *RedisJobRepository) GetActiveJobIds(queue string, jobSetId string) (
 		return nil, errors.WithStack(err)
 	}
 
-	activeIds := util.StringListToSet(append(queuedIds, leasedIds...))
-	activeSetIds := []string{}
+	activeIds := util.StringListToSet(activeJobIds)
+	activeJobSetIds := []string{}
 	for _, id := range jobSetIds {
 		if activeIds[id] {
-			activeSetIds = append(activeSetIds, id)
+			activeJobSetIds = append(activeJobSetIds, id)
 		}
 	}
-	return activeSetIds, nil
+	return activeJobSetIds, nil
 }
 
 // GetQueueActiveJobSets returns a list of length equal to the number of unique job sets

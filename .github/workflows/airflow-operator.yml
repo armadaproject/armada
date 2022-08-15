@@ -1,4 +1,4 @@
-name: Run Python Armada Airflow Operator Linting and Unit Tests
+name: Python Airflow Operator
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - 'client/python/**'
       - 'build/python-client/**'
       - 'pkg/api/*.proto'
-      - '.github/workflows/python.yml'
+      - '.github/workflows/python-client.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
@@ -18,6 +18,7 @@ on:
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
       - 'makefile'
+      - '.github/workflows/python-tests/*'
 
   pull_request:
     branches-ignore:
@@ -26,7 +27,7 @@ on:
       - 'client/python/**'
       - 'build/python-client/**'
       - 'pkg/api/*.proto'
-      - '.github/workflows/python.yml'
+      - '.github/workflows/python-client.yml'
       - 'docs/python_armada_client.md'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
@@ -36,25 +37,19 @@ on:
       - 'docs/python_airflow_operator.md'
       - 'scripts/build-airflow-operator.sh'
       - 'makefile'
+      - '.github/workflows/python-tests/*'
 
 jobs:
-  run-tox:
+  airflow-tox:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - uses: ./.github/workflows/go-setup
+      - run: make airflow-operator
+      - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8.10'
-      - run: pip install tox
-      # Generate the proto files for python, required for later steps
-      - run: make python
-      - run: make airflow-operator
-      - name: Run tox format environment
-        run: tox -e format
-        working-directory: third_party/airflow
-      - name: Verify docs updated if needed
-        run: tox -e docs-check
-        working-directory: third_party/airflow
-      - name: Run tox python 3.8 unit tests
-        run: tox -e py38
-        working-directory: third_party/airflow
+          path: third_party/airflow

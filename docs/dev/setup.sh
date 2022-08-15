@@ -31,3 +31,4 @@ echo "go run ./cmd/armada/main.go --config ./docs/dev/config/armada/base.yaml --
 echo "go run ./cmd/lookout/main.go --config ./docs/dev/config/lookout/$stream_backend.yaml"
 echo 'ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go'
 echo "go run ./cmd/binoculars/main.go --config ./docs/dev/config/binoculars/base.yaml"
+echo "go run ./cmd/jobservice/main.go run"

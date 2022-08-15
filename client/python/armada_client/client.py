@@ -1,18 +1,26 @@
 """
 Armada Python GRPC Client
+
+For the api definitions:
+https://armadaproject.io/api
 """
 
-from concurrent.futures import ThreadPoolExecutor
 import os
-from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Generator, List, Optional
+
+from google.protobuf import empty_pb2
+
 from armada_client.armada import (
     event_pb2,
     event_pb2_grpc,
-    usage_pb2_grpc,
-    submit_pb2_grpc,
     submit_pb2,
+    submit_pb2_grpc,
+    usage_pb2_grpc,
 )
+from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+from armada_client.permissions import Permissions
 
 
 class ArmadaClient:
@@ -39,11 +47,20 @@ class ArmadaClient:
         queue: str,
         job_set_id: str,
         from_message_id: Optional[str] = None,
-    ):
+    ) -> Generator[event_pb2.EventMessage, None, None]:
         """Get event stream for a job set.
 
         Uses the GetJobSetEvents rpc to get a stream of events relating
         to the provided job_set_id.
+
+        Usage:
+
+        .. code-block:: python
+
+            events = client.get_job_events_stream(...)
+            for event in events:
+                event = client.unmarshal_event_response(event)
+                print(event)
 
         :param queue: The name of the queue
         :param job_set_id: The name of the job set (a grouping of jobs)
@@ -59,7 +76,20 @@ class ArmadaClient:
         )
         return self.event_stub.GetJobSetEvents(jsr)
 
-    def submit_jobs(self, queue: str, job_set_id: str, job_request_items):
+    @staticmethod
+    def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
+        """
+        Unmarshal an event response from the gRPC server.
+
+        :param event: The event response from the gRPC server.
+        :return: An Event object.
+        """
+
+        return Event(event)
+
+    def submit_jobs(
+        self, queue: str, job_set_id: str, job_request_items
+    ) -> submit_pb2.JobSubmitResponse:
         """Submit a armada job.
 
         Uses SubmitJobs RPC to submit a job.
@@ -81,7 +111,7 @@ class ArmadaClient:
         queue: Optional[str] = None,
         job_id: Optional[str] = None,
         job_set_id: Optional[str] = None,
-    ):
+    ) -> submit_pb2.JobCancelRequest:
         """Cancel jobs in a given queue.
 
         Uses the CancelJobs RPC to cancel jobs. Either job_id or
@@ -104,7 +134,7 @@ class ArmadaClient:
         job_ids: Optional[List[str]] = None,
         job_set_id: Optional[str] = None,
         queue: Optional[str] = None,
-    ):
+    ) -> submit_pb2.JobReprioritizeResponse:
         """Reprioritize jobs with new_priority value.
 
         Uses ReprioritizeJobs RPC to set a new priority on a list of jobs
@@ -125,29 +155,73 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    def create_queue(self, name: str, **queue_params):
+    def create_queue(
+        self,
+        name: str,
+        priority_factor: Optional[float],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[Permissions]] = None,
+    ) -> empty_pb2.Empty:
         """Create the queue by name.
 
         Uses the CreateQueue RPC to create a queue.
 
         :param name: The name of the queue
-        :param queue_params: Queue Object
+        :param priority_factor: The priority factor for the queue
+        :param user_owners: The user owners for the queue
+        :param group_owners: The group owners for the queue
+        :param resource_limits: The resource limits for the queue
+        :param permissions: The permissions for the queue
         :return: A queue object per the Armada api definition.
         """
-        request = submit_pb2.Queue(name=name, **queue_params)
+
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
+
+        request = submit_pb2.Queue(
+            name=name,
+            priority_factor=priority_factor,
+            user_owners=user_owners,
+            group_owners=group_owners,
+            resource_limits=resource_limits,
+            permissions=permissions,
+        )
         response = self.submit_stub.CreateQueue(request)
         return response
 
-    def update_queue(self, name: str, **queue_params) -> None:
+    def update_queue(
+        self,
+        name: str,
+        priority_factor: Optional[float],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[Permissions]] = None,
+    ) -> None:
         """Update the queue of name with values in queue_params
 
         Uses UpdateQueue RPC to update the parameters on the queue.
 
         :param name: The name of the queue
-        :param queue_params: Queue Object
+        :param priority_factor: The priority factor for the queue
+        :param user_owners: The user owners for the queue
+        :param group_owners: The group owners for the queue
+        :param resource_limits: The resource limits for the queue
+        :param permissions: The permissions for the queue
         :return: None
         """
-        request = submit_pb2.Queue(name=name, **queue_params)
+
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
+
+        request = submit_pb2.Queue(
+            name=name,
+            priority_factor=priority_factor,
+            user_owners=user_owners,
+            group_owners=group_owners,
+            resource_limits=resource_limits,
+            permissions=permissions,
+        )
         self.submit_stub.UpdateQueue(request)
 
     def delete_queue(self, name: str) -> None:
@@ -161,7 +235,7 @@ class ArmadaClient:
         request = submit_pb2.QueueDeleteRequest(name=name)
         self.submit_stub.DeleteQueue(request)
 
-    def get_queue(self, name: str):
+    def get_queue(self, name: str) -> submit_pb2.Queue:
         """Get the queue by name.
 
         Uses the GetQueue RPC to get the queue.
@@ -173,7 +247,7 @@ class ArmadaClient:
         response = self.submit_stub.GetQueue(request)
         return response
 
-    def get_queue_info(self, name: str):
+    def get_queue_info(self, name: str) -> submit_pb2.QueueInfo:
         """Get the queue info by name.
 
         Uses the GetQueueInfo RPC to get queue info.
@@ -196,34 +270,53 @@ class ArmadaClient:
         """
         event_stream.cancel()
 
-    def create_job_request(
-        self,
-        queue: str,
-        job_set_id: str,
-        job_request_items: List[submit_pb2.JobSubmitRequestItem],
-    ):
-        """Create a job request.
-
-        :param queue: The name of the queue
-        :param job_set_id: The name of the job set (a grouping of jobs)
-        :param job_request_items: List of Job Request Items
-        :return: A job request object. See the api definition.
-        """
-        return submit_pb2.JobSubmitRequest(
-            queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
-        )
-
     def create_job_request_item(
-        self, pod_spec: core_v1.PodSpec, priority: int = 1, **job_item_params
-    ):
+        self,
+        priority: float = 1.0,
+        pod_spec: Optional[core_v1.PodSpec] = None,
+        pod_specs: Optional[List[core_v1.PodSpec]] = None,
+        namespace: Optional[str] = None,
+        client_id: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        annotations: Optional[Dict[str, str]] = None,
+        required_node_labels: Optional[Dict[str, str]] = None,
+        ingress: Optional[List[submit_pb2.IngressConfig]] = None,
+        services: Optional[List[submit_pb2.ServiceConfig]] = None,
+    ) -> submit_pb2.JobSubmitRequestItem:
         """Create a job request.
 
         :param priority: The priority of the job
-        :param pod_spec: The k8s pod spec of the job
-        :param job_item_params: All other job_item kwaarg
-               arguments as specified in the api definition.
+
+        :param  pod_spec: The k8s pod spec of the job
+        :type pod_spec:
+            Optional[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]
+
+        :param pod_specs: List of k8s pod specs of the job
+        :type pod_specs:
+            Optional[List[armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec]]
+
+        :param namespace: The namespace of the job
+        :param client_id: The client id of the job
+        :param labels: The labels of the job
+        :param annotations: The annotations of the job
+        :param required_node_labels: The required node labels of the job
+        :param ingress: The ingress of the job
+        :param services: The services of the job
         :return: A job item request object. See the api definition.
         """
+
+        if pod_spec and pod_specs:
+            raise ValueError("Only one of pod_spec and pod_specs can be specified")
+
         return submit_pb2.JobSubmitRequestItem(
-            priority=priority, pod_spec=pod_spec, **job_item_params
+            priority=priority,
+            pod_spec=pod_spec,
+            pod_specs=pod_specs,
+            namespace=namespace,
+            client_id=client_id,
+            labels=labels,
+            annotations=annotations,
+            required_node_labels=required_node_labels,
+            ingress=ingress,
+            services=services,
         )

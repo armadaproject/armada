@@ -91,6 +91,7 @@ commands:
           helm package deployment/lookout/ -d charts/armada/
           helm package deployment/lookout-migration/ -d charts/armada/
           helm package deployment/binoculars/ -d charts/armada/
+          helm package deployment/jobservice/ -d charts/armada/
           helm repo index charts/
 
     - run:
@@ -106,87 +107,10 @@ commands:
           git push -q origin HEAD
 
 jobs:
-  checks_and_unit_tests-ubuntu2004-go116: &checksAndUnitTests
-    machine:
-      docker_layer_caching: true
-      image: ubuntu-2004:202104-01
-      resource_class: xlarge
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
-    steps:
-      - checkout
-
-      - restore_cache: # restores saved cache if no changes are detected since last run
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Print GOPATH
-          command: echo '$(go env GOPATH)'
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /home/circleci/bin/
-            make download # no-op if we restored from cache
-
-      - save_cache: # if we downloaded new dependencies, cache those
-          key: go-mod-v3-{{ checksum "go.sum" }}
-          paths:
-            - "/home/circleci/go/pkg/mod"
-            - "/home/circleci/go/bin"
-
-      - run:
-          name: Check Go formatting
-          command: make code-checks
-
-      - run:
-          name: Check generated files
-          command: |
-            make proto
-            make dotnet
-            git status -s -uno
-            git --no-pager diff
-            exit $(git status -s -uno | wc -l)
-
-      - run:
-          name: Check TypeScript formatting
-          command: |
-            cd ./internal/lookout/ui
-            npm ci
-            npm run fmt
-            git status -s -uno
-            git --no-pager diff
-            exit $(git status -s -uno | wc -l)
-
-      - run:
-          name: Tests
-          command: make tests
-
-      - run:
-          name: Prepare reports
-          command: make junit-report
-          when: always
-
-      - store_test_results:
-          path: test_reports/junit.xml
-
-  checks_and_unit_tests-ubuntu2204-go118:
-    <<: *checksAndUnitTests
-    machine:
-      docker_layer_caching: true
-      image: ubuntu-2204:current
-      resource_class: xlarge
-
   build_and_integration_tests:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     environment:
       GO111MODULE: "on"
@@ -285,10 +209,14 @@ jobs:
             docker tag armadactl gresearchdev/armada-armadactl-dev:${TAG}
             docker push gresearchdev/armada-armadactl-dev:${TAG}
 
+            docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
+            docker push gresearchdev/armada-jobservice-dev:${TAG}
+
+
   release-armadactl:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     environment:
       GO111MODULE: "on"
@@ -329,7 +257,7 @@ jobs:
   release-docker-images:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2204:2022.07.1
       resource_class: medium
     environment:
       GO111MODULE: "on"
@@ -370,10 +298,14 @@ jobs:
             docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
             docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
 
+            docker pull gresearchdev/armada-jobservice-dev:${TAG}
+            docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice:${RELEASE_TAG}
+            docker push gresearchdev/armada-jobservice:${RELEASE_TAG}
+
   release-charts:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2004:202104-01
+      image: ubuntu-2204:2022.07.1
       resource_class: medium
     environment:
       GO111MODULE: "on"
@@ -390,18 +322,34 @@ jobs:
       - update-charts
 
   release-dotnet-client:
-    docker:
-      - image: mcr.microsoft.com/dotnet/core/sdk:3.0.101-alpine3.10
-    working_directory: /go/src/github.com/G-Research/armada
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-      
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
       - run:
-          name: Release dotnet client
+          name: Download dependencies
           command: |
-            RELEASE_TAG=${CIRCLE_TAG#"v"}
-            dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
-            dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+            make download # no-op if we restored from cache            
+
+      - run:
+          name: Push dotnet clients to nuget
+          command: |
+            RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
 
       - store_artifacts:
           path: bin/client/DotNet
@@ -411,8 +359,6 @@ workflows:
   build_and_deploy:
     jobs:
       -  build_and_integration_tests
-      -  checks_and_unit_tests-ubuntu2004-go116
-      -  checks_and_unit_tests-ubuntu2204-go118
       - release-armadactl:
           filters:
             tags:

@@ -83,6 +83,35 @@ func (ServiceType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_e998bacb27df16c1, []int{1}
 }
 
+// swagger:model
+type JobState int32
+
+const (
+	JobState_QUEUED  JobState = 0
+	JobState_PENDING JobState = 1
+	JobState_RUNNING JobState = 2
+)
+
+var JobState_name = map[int32]string{
+	0: "QUEUED",
+	1: "PENDING",
+	2: "RUNNING",
+}
+
+var JobState_value = map[string]int32{
+	"QUEUED":  0,
+	"PENDING": 1,
+	"RUNNING": 2,
+}
+
+func (x JobState) String() string {
+	return proto.EnumName(JobState_name, int32(x))
+}
+
+func (JobState) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{2}
+}
+
 type JobSubmitRequestItem struct {
 	Priority           float64           `protobuf:"fixed64,1,opt,name=priority,proto3" json:"priority,omitempty"`
 	Namespace          string            `protobuf:"bytes,3,opt,name=namespace,proto3" json:"namespace,omitempty"`
@@ -466,6 +495,110 @@ func (m *JobCancelRequest) GetQueue() string {
 }
 
 // swagger:model
+type JobSetCancelRequest struct {
+	JobSetId string        `protobuf:"bytes,1,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
+	Queue    string        `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
+	Filter   *JobSetFilter `protobuf:"bytes,3,opt,name=filter,proto3" json:"filter,omitempty"`
+}
+
+func (m *JobSetCancelRequest) Reset()      { *m = JobSetCancelRequest{} }
+func (*JobSetCancelRequest) ProtoMessage() {}
+func (*JobSetCancelRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{5}
+}
+func (m *JobSetCancelRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobSetCancelRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobSetCancelRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobSetCancelRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobSetCancelRequest.Merge(m, src)
+}
+func (m *JobSetCancelRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobSetCancelRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobSetCancelRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobSetCancelRequest proto.InternalMessageInfo
+
+func (m *JobSetCancelRequest) GetJobSetId() string {
+	if m != nil {
+		return m.JobSetId
+	}
+	return ""
+}
+
+func (m *JobSetCancelRequest) GetQueue() string {
+	if m != nil {
+		return m.Queue
+	}
+	return ""
+}
+
+func (m *JobSetCancelRequest) GetFilter() *JobSetFilter {
+	if m != nil {
+		return m.Filter
+	}
+	return nil
+}
+
+// swagger:model
+type JobSetFilter struct {
+	States []JobState `protobuf:"varint,1,rep,packed,name=states,proto3,enum=api.JobState" json:"states,omitempty"`
+}
+
+func (m *JobSetFilter) Reset()      { *m = JobSetFilter{} }
+func (*JobSetFilter) ProtoMessage() {}
+func (*JobSetFilter) Descriptor() ([]byte, []int) {
+	return fileDescriptor_e998bacb27df16c1, []int{6}
+}
+func (m *JobSetFilter) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *JobSetFilter) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_JobSetFilter.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *JobSetFilter) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobSetFilter.Merge(m, src)
+}
+func (m *JobSetFilter) XXX_Size() int {
+	return m.Size()
+}
+func (m *JobSetFilter) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobSetFilter.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_JobSetFilter proto.InternalMessageInfo
+
+func (m *JobSetFilter) GetStates() []JobState {
+	if m != nil {
+		return m.States
+	}
+	return nil
+}
+
+// swagger:model
 type JobReprioritizeRequest struct {
 	JobIds      []string `protobuf:"bytes,1,rep,name=job_ids,json=jobIds,proto3" json:"jobIds,omitempty"`
 	JobSetId    string   `protobuf:"bytes,2,opt,name=job_set_id,json=jobSetId,proto3" json:"jobSetId,omitempty"`
@@ -476,7 +609,7 @@ type JobReprioritizeRequest struct {
 func (m *JobReprioritizeRequest) Reset()      { *m = JobReprioritizeRequest{} }
 func (*JobReprioritizeRequest) ProtoMessage() {}
 func (*JobReprioritizeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{5}
+	return fileDescriptor_e998bacb27df16c1, []int{7}
 }
 func (m *JobReprioritizeRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -541,7 +674,7 @@ type JobReprioritizeResponse struct {
 func (m *JobReprioritizeResponse) Reset()      { *m = JobReprioritizeResponse{} }
 func (*JobReprioritizeResponse) ProtoMessage() {}
 func (*JobReprioritizeResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{6}
+	return fileDescriptor_e998bacb27df16c1, []int{8}
 }
 func (m *JobReprioritizeResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -585,7 +718,7 @@ type JobSubmitResponseItem struct {
 func (m *JobSubmitResponseItem) Reset()      { *m = JobSubmitResponseItem{} }
 func (*JobSubmitResponseItem) ProtoMessage() {}
 func (*JobSubmitResponseItem) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{7}
+	return fileDescriptor_e998bacb27df16c1, []int{9}
 }
 func (m *JobSubmitResponseItem) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -636,7 +769,7 @@ type JobSubmitResponse struct {
 func (m *JobSubmitResponse) Reset()      { *m = JobSubmitResponse{} }
 func (*JobSubmitResponse) ProtoMessage() {}
 func (*JobSubmitResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{8}
+	return fileDescriptor_e998bacb27df16c1, []int{10}
 }
 func (m *JobSubmitResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -685,7 +818,7 @@ type Queue struct {
 func (m *Queue) Reset()      { *m = Queue{} }
 func (*Queue) ProtoMessage() {}
 func (*Queue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{9}
+	return fileDescriptor_e998bacb27df16c1, []int{11}
 }
 func (m *Queue) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -764,7 +897,7 @@ type Queue_Permissions struct {
 func (m *Queue_Permissions) Reset()      { *m = Queue_Permissions{} }
 func (*Queue_Permissions) ProtoMessage() {}
 func (*Queue_Permissions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{9, 0}
+	return fileDescriptor_e998bacb27df16c1, []int{11, 0}
 }
 func (m *Queue_Permissions) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -815,7 +948,7 @@ type Queue_Permissions_Subject struct {
 func (m *Queue_Permissions_Subject) Reset()      { *m = Queue_Permissions_Subject{} }
 func (*Queue_Permissions_Subject) ProtoMessage() {}
 func (*Queue_Permissions_Subject) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{9, 0, 0}
+	return fileDescriptor_e998bacb27df16c1, []int{11, 0, 0}
 }
 func (m *Queue_Permissions_Subject) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -866,7 +999,7 @@ type QueueList struct {
 func (m *QueueList) Reset()      { *m = QueueList{} }
 func (*QueueList) ProtoMessage() {}
 func (*QueueList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{10}
+	return fileDescriptor_e998bacb27df16c1, []int{12}
 }
 func (m *QueueList) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -910,7 +1043,7 @@ type CancellationResult struct {
 func (m *CancellationResult) Reset()      { *m = CancellationResult{} }
 func (*CancellationResult) ProtoMessage() {}
 func (*CancellationResult) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{11}
+	return fileDescriptor_e998bacb27df16c1, []int{13}
 }
 func (m *CancellationResult) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -954,7 +1087,7 @@ type QueueGetRequest struct {
 func (m *QueueGetRequest) Reset()      { *m = QueueGetRequest{} }
 func (*QueueGetRequest) ProtoMessage() {}
 func (*QueueGetRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{12}
+	return fileDescriptor_e998bacb27df16c1, []int{14}
 }
 func (m *QueueGetRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -998,7 +1131,7 @@ type QueueInfoRequest struct {
 func (m *QueueInfoRequest) Reset()      { *m = QueueInfoRequest{} }
 func (*QueueInfoRequest) ProtoMessage() {}
 func (*QueueInfoRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{13}
+	return fileDescriptor_e998bacb27df16c1, []int{15}
 }
 func (m *QueueInfoRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1042,7 +1175,7 @@ type QueueDeleteRequest struct {
 func (m *QueueDeleteRequest) Reset()      { *m = QueueDeleteRequest{} }
 func (*QueueDeleteRequest) ProtoMessage() {}
 func (*QueueDeleteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{14}
+	return fileDescriptor_e998bacb27df16c1, []int{16}
 }
 func (m *QueueDeleteRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1087,7 +1220,7 @@ type QueueInfo struct {
 func (m *QueueInfo) Reset()      { *m = QueueInfo{} }
 func (*QueueInfo) ProtoMessage() {}
 func (*QueueInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{15}
+	return fileDescriptor_e998bacb27df16c1, []int{17}
 }
 func (m *QueueInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1139,7 +1272,7 @@ type JobSetInfo struct {
 func (m *JobSetInfo) Reset()      { *m = JobSetInfo{} }
 func (*JobSetInfo) ProtoMessage() {}
 func (*JobSetInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{16}
+	return fileDescriptor_e998bacb27df16c1, []int{18}
 }
 func (m *JobSetInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1197,7 +1330,7 @@ type QueueUpdateResponse struct {
 func (m *QueueUpdateResponse) Reset()      { *m = QueueUpdateResponse{} }
 func (*QueueUpdateResponse) ProtoMessage() {}
 func (*QueueUpdateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{17}
+	return fileDescriptor_e998bacb27df16c1, []int{19}
 }
 func (m *QueueUpdateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1247,7 +1380,7 @@ type BatchQueueUpdateResponse struct {
 func (m *BatchQueueUpdateResponse) Reset()      { *m = BatchQueueUpdateResponse{} }
 func (*BatchQueueUpdateResponse) ProtoMessage() {}
 func (*BatchQueueUpdateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{18}
+	return fileDescriptor_e998bacb27df16c1, []int{20}
 }
 func (m *BatchQueueUpdateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1291,7 +1424,7 @@ type QueueCreateResponse struct {
 func (m *QueueCreateResponse) Reset()      { *m = QueueCreateResponse{} }
 func (*QueueCreateResponse) ProtoMessage() {}
 func (*QueueCreateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{19}
+	return fileDescriptor_e998bacb27df16c1, []int{21}
 }
 func (m *QueueCreateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1341,7 +1474,7 @@ type BatchQueueCreateResponse struct {
 func (m *BatchQueueCreateResponse) Reset()      { *m = BatchQueueCreateResponse{} }
 func (*BatchQueueCreateResponse) ProtoMessage() {}
 func (*BatchQueueCreateResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_e998bacb27df16c1, []int{20}
+	return fileDescriptor_e998bacb27df16c1, []int{22}
 }
 func (m *BatchQueueCreateResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1380,6 +1513,7 @@ func (m *BatchQueueCreateResponse) GetFailedQueues() []*QueueCreateResponse {
 func init() {
 	proto.RegisterEnum("api.IngressType", IngressType_name, IngressType_value)
 	proto.RegisterEnum("api.ServiceType", ServiceType_name, ServiceType_value)
+	proto.RegisterEnum("api.JobState", JobState_name, JobState_value)
 	proto.RegisterType((*JobSubmitRequestItem)(nil), "api.JobSubmitRequestItem")
 	proto.RegisterMapType((map[string]string)(nil), "api.JobSubmitRequestItem.AnnotationsEntry")
 	proto.RegisterMapType((map[string]string)(nil), "api.JobSubmitRequestItem.LabelsEntry")
@@ -1389,6 +1523,8 @@ func init() {
 	proto.RegisterType((*ServiceConfig)(nil), "api.ServiceConfig")
 	proto.RegisterType((*JobSubmitRequest)(nil), "api.JobSubmitRequest")
 	proto.RegisterType((*JobCancelRequest)(nil), "api.JobCancelRequest")
+	proto.RegisterType((*JobSetCancelRequest)(nil), "api.JobSetCancelRequest")
+	proto.RegisterType((*JobSetFilter)(nil), "api.JobSetFilter")
 	proto.RegisterType((*JobReprioritizeRequest)(nil), "api.JobReprioritizeRequest")
 	proto.RegisterType((*JobReprioritizeResponse)(nil), "api.JobReprioritizeResponse")
 	proto.RegisterMapType((map[string]string)(nil), "api.JobReprioritizeResponse.ReprioritizationResultsEntry")
@@ -1414,6 +1550,7 @@ func init() {
 func init() { proto.RegisterFile("pkg/api/submit.proto", fileDescriptor_e998bacb27df16c1) }
 
 var fileDescriptor_e998bacb27df16c1 = []byte{
+<<<<<<< HEAD
 	// 1638 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x57, 0x5f, 0x6f, 0x1c, 0x49,
 	0x11, 0xf7, 0x78, 0xed, 0xf5, 0x6e, 0x8d, 0xff, 0xec, 0x75, 0xec, 0x78, 0x32, 0xf6, 0x6d, 0x96,
@@ -1518,6 +1655,120 @@ var fileDescriptor_e998bacb27df16c1 = []byte{
 	0xab, 0xb6, 0xf1, 0xf7, 0x57, 0x6d, 0xe3, 0x77, 0xaf, 0xdb, 0x0b, 0x5f, 0xbd, 0x6e, 0x2f, 0xbc,
 	0x7c, 0xdd, 0x5e, 0xf0, 0xeb, 0xb4, 0xd3, 0xef, 0xfc, 0x3b, 0x00, 0x00, 0xff, 0xff, 0xf0, 0x5c,
 	0x26, 0x2b, 0x30, 0x11, 0x00, 0x00,
+=======
+	// 1768 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x57, 0x5f, 0x6f, 0xdb, 0xc8,
+	0x11, 0x37, 0x25, 0x5b, 0x96, 0x86, 0xb2, 0xad, 0x6c, 0x64, 0x9b, 0xa1, 0x7d, 0x8a, 0xcb, 0xbb,
+	0xb4, 0x3a, 0xa3, 0xa5, 0x1a, 0x17, 0x87, 0xcb, 0x05, 0xb8, 0x02, 0xf9, 0xe3, 0xf8, 0xe4, 0x4b,
+	0x5d, 0x87, 0xbe, 0xb4, 0xd7, 0x87, 0xab, 0x40, 0x89, 0x63, 0x1d, 0x1d, 0x89, 0x64, 0xb8, 0x2b,
+	0x07, 0x6e, 0x51, 0xa0, 0xe8, 0x53, 0x5f, 0x0a, 0x14, 0xed, 0xb7, 0xe8, 0x37, 0xe8, 0x37, 0xe8,
+	0xe3, 0x01, 0x7d, 0x39, 0xa0, 0x40, 0xd1, 0xc6, 0x79, 0xea, 0x37, 0xe8, 0x5b, 0xb1, 0xb3, 0xa4,
+	0x44, 0xda, 0x92, 0xdd, 0xb4, 0xf7, 0xc6, 0x9d, 0xfd, 0xcd, 0x6f, 0x7f, 0x3b, 0x3b, 0x33, 0xbb,
+	0x84, 0x7a, 0xf4, 0xa2, 0xdf, 0x72, 0x23, 0xbf, 0xc5, 0x47, 0xdd, 0xa1, 0x2f, 0xec, 0x28, 0x0e,
+	0x45, 0xc8, 0x8a, 0x6e, 0xe4, 0x9b, 0x1b, 0xfd, 0x30, 0xec, 0x0f, 0xb0, 0x45, 0xa6, 0xee, 0xe8,
+	0xb8, 0x85, 0xc3, 0x48, 0x9c, 0x29, 0x84, 0x69, 0xbd, 0xb8, 0xc7, 0x6d, 0x3f, 0x24, 0xd7, 0x5e,
+	0x18, 0x63, 0xeb, 0xf4, 0x6e, 0xab, 0x8f, 0x01, 0xc6, 0xae, 0x40, 0x2f, 0xc1, 0x6c, 0x26, 0x04,
+	0x12, 0xe3, 0x06, 0x41, 0x28, 0x5c, 0xe1, 0x87, 0x01, 0x4f, 0x66, 0xbf, 0xd7, 0xf7, 0xc5, 0x97,
+	0xa3, 0xae, 0xdd, 0x0b, 0x87, 0xad, 0x7e, 0xd8, 0x0f, 0x27, 0xeb, 0xc8, 0x11, 0x0d, 0xe8, 0x4b,
+	0xc1, 0xad, 0x7f, 0x2f, 0x40, 0x7d, 0x3f, 0xec, 0x1e, 0x91, 0x4c, 0x07, 0x5f, 0x8e, 0x90, 0x8b,
+	0xb6, 0xc0, 0x21, 0x33, 0xa1, 0x1c, 0xc5, 0x7e, 0x18, 0xfb, 0xe2, 0xcc, 0xd0, 0xb6, 0xb4, 0xa6,
+	0xe6, 0x8c, 0xc7, 0x6c, 0x13, 0x2a, 0x81, 0x3b, 0x44, 0x1e, 0xb9, 0x3d, 0x34, 0x8a, 0x5b, 0x5a,
+	0xb3, 0xe2, 0x4c, 0x0c, 0x6c, 0x03, 0x2a, 0xbd, 0x81, 0x8f, 0x81, 0xe8, 0xf8, 0x9e, 0x51, 0xa6,
+	0xd9, 0xb2, 0x32, 0xb4, 0x3d, 0xf6, 0x31, 0x94, 0x06, 0x6e, 0x17, 0x07, 0xdc, 0x98, 0xdf, 0x2a,
+	0x36, 0xf5, 0x9d, 0x3b, 0xb6, 0x1b, 0xf9, 0xf6, 0x34, 0x05, 0xf6, 0x53, 0xc2, 0xed, 0x06, 0x22,
+	0x3e, 0x73, 0x12, 0x27, 0xf6, 0x14, 0xf4, 0xcc, 0x96, 0x8d, 0x05, 0xe2, 0xd8, 0x9e, 0xcd, 0xf1,
+	0x60, 0x02, 0x56, 0x44, 0x59, 0x77, 0xd6, 0x87, 0x7a, 0x8c, 0x2f, 0x47, 0x7e, 0x8c, 0x5e, 0x27,
+	0x08, 0x3d, 0xec, 0x24, 0xd2, 0x4a, 0x44, 0x7b, 0x77, 0x36, 0xad, 0x93, 0x78, 0x1d, 0x84, 0x1e,
+	0x66, 0x64, 0x3e, 0x2c, 0x18, 0x9a, 0xc3, 0xe2, 0x4b, 0x93, 0xec, 0x3e, 0x94, 0xa3, 0xd0, 0xeb,
+	0xf0, 0x08, 0x7b, 0x46, 0x61, 0x4b, 0x6b, 0xea, 0x3b, 0x1b, 0xb6, 0x3a, 0x69, 0x5a, 0x43, 0x9e,
+	0xb4, 0x7d, 0x7a, 0xd7, 0x3e, 0x0c, 0xbd, 0xa3, 0x08, 0x7b, 0x44, 0xb3, 0x18, 0xa9, 0x01, 0xbb,
+	0x07, 0x95, 0xd4, 0x97, 0x1b, 0x8b, 0xa4, 0xec, 0x2a, 0x67, 0xa7, 0x9c, 0x38, 0x72, 0xf6, 0x5d,
+	0x58, 0xf4, 0x83, 0x7e, 0x8c, 0x9c, 0x1b, 0x15, 0xf2, 0x63, 0xe4, 0xd0, 0x56, 0xb6, 0x47, 0x61,
+	0x70, 0xec, 0xf7, 0x9d, 0x14, 0xc2, 0x6c, 0x28, 0x73, 0x8c, 0x4f, 0xfd, 0x1e, 0x72, 0x03, 0x32,
+	0xf0, 0x23, 0x65, 0x4c, 0xe0, 0x63, 0x8c, 0xf9, 0x11, 0xe8, 0x99, 0xad, 0xb3, 0x1a, 0x14, 0x5f,
+	0xa0, 0x4a, 0x95, 0x8a, 0x23, 0x3f, 0x59, 0x1d, 0x16, 0x4e, 0xdd, 0xc1, 0x08, 0x69, 0xc7, 0x15,
+	0x47, 0x0d, 0xee, 0x17, 0xee, 0x69, 0xe6, 0x0f, 0xa1, 0x76, 0xf1, 0x60, 0xde, 0xca, 0x7f, 0x17,
+	0xd6, 0x67, 0x9c, 0xc0, 0xdb, 0xd0, 0x58, 0x7f, 0x2e, 0xc0, 0x52, 0x2e, 0x18, 0xac, 0x09, 0xf3,
+	0xe2, 0x2c, 0x42, 0x72, 0x5f, 0xde, 0xa9, 0x65, 0xc3, 0xf5, 0xd9, 0x59, 0x84, 0x74, 0x30, 0x84,
+	0x90, 0xac, 0x51, 0x18, 0x0b, 0x6e, 0x14, 0xb6, 0x8a, 0xcd, 0x25, 0x47, 0x0d, 0xd8, 0x6e, 0x3e,
+	0x3d, 0x8b, 0x14, 0xc6, 0x77, 0x2f, 0x47, 0xfd, 0x9a, 0xbc, 0xbc, 0x0d, 0xba, 0x18, 0xf0, 0x0e,
+	0x06, 0x6e, 0x77, 0x80, 0x9e, 0x31, 0xbf, 0xa5, 0x35, 0xcb, 0x0e, 0x08, 0xb9, 0x47, 0xb2, 0x50,
+	0x89, 0x61, 0x2c, 0x3a, 0xb2, 0xe8, 0x8c, 0x85, 0xa4, 0xc4, 0x30, 0x16, 0x07, 0xee, 0x10, 0xd9,
+	0xbb, 0xb0, 0x34, 0xe2, 0xd8, 0xe9, 0x0d, 0x46, 0x5c, 0x60, 0xdc, 0x3e, 0x34, 0x4a, 0xe4, 0x5f,
+	0x1d, 0x71, 0x7c, 0x94, 0xda, 0xfe, 0xdf, 0x23, 0xb0, 0x3e, 0x85, 0xa5, 0x5c, 0x62, 0xb0, 0xf7,
+	0xa6, 0x84, 0x2e, 0x41, 0xc8, 0xd0, 0x5d, 0x15, 0x36, 0xeb, 0x77, 0x1a, 0xd4, 0x2e, 0xd6, 0x99,
+	0x84, 0xbe, 0x1c, 0xe1, 0x08, 0x13, 0x3d, 0x6a, 0xc0, 0x36, 0x01, 0x4e, 0xc2, 0x6e, 0x87, 0x23,
+	0x75, 0x17, 0x25, 0xab, 0x7c, 0x12, 0x76, 0x8f, 0x50, 0x76, 0x97, 0x5d, 0xb8, 0x21, 0x67, 0x63,
+	0x45, 0xd1, 0xf1, 0x05, 0x0e, 0xd3, 0x53, 0xb8, 0x35, 0xb3, 0x9a, 0x9d, 0x95, 0x93, 0xb0, 0x9b,
+	0x19, 0x73, 0xeb, 0x0b, 0x92, 0xf3, 0xc8, 0x0d, 0x7a, 0x38, 0x48, 0xe5, 0xac, 0x42, 0x49, 0x52,
+	0xfb, 0x5e, 0xaa, 0xe7, 0x24, 0xec, 0xb6, 0xbd, 0x6b, 0xf4, 0x8c, 0xf7, 0x50, 0xcc, 0xec, 0xc1,
+	0x12, 0x70, 0x73, 0x9f, 0x10, 0xf9, 0x15, 0xf2, 0x54, 0xda, 0x2c, 0xaa, 0x42, 0x36, 0x1c, 0xef,
+	0x43, 0xe9, 0xd8, 0x1f, 0x08, 0x8c, 0x69, 0x05, 0x7d, 0xe7, 0xc6, 0x78, 0x97, 0x28, 0x9e, 0xd0,
+	0x84, 0x93, 0x00, 0xac, 0x0f, 0xa0, 0x9a, 0xb5, 0xb3, 0x3b, 0x50, 0xe2, 0xc2, 0x15, 0xc8, 0x0d,
+	0x6d, 0xab, 0xd8, 0x5c, 0xde, 0x59, 0x1a, 0xbb, 0x4a, 0xab, 0x93, 0x4c, 0x5a, 0xbf, 0xd5, 0x60,
+	0x6d, 0x5f, 0xc6, 0x27, 0xe9, 0xfe, 0xfe, 0x2f, 0x30, 0x15, 0xbc, 0x0e, 0x8b, 0x2a, 0x24, 0x8a,
+	0xa2, 0xe2, 0x94, 0x28, 0x26, 0xfc, 0x7f, 0x09, 0x0a, 0xfb, 0x16, 0x54, 0x03, 0x7c, 0xd5, 0x19,
+	0xdf, 0x39, 0xf3, 0x74, 0xe7, 0xe8, 0x01, 0xbe, 0x3a, 0x4c, 0x4c, 0xd6, 0xdf, 0x34, 0x58, 0xbf,
+	0x24, 0x85, 0x47, 0x61, 0xc0, 0x91, 0x09, 0x30, 0xe2, 0x89, 0x9d, 0xb2, 0xba, 0x13, 0x23, 0x1f,
+	0x0d, 0x84, 0x12, 0xa7, 0xef, 0x7c, 0x94, 0xee, 0x6f, 0x9a, 0xbf, 0xed, 0x5c, 0x70, 0x76, 0x94,
+	0xaf, 0x2a, 0xce, 0xf5, 0x78, 0xfa, 0xac, 0xb9, 0x0f, 0x9b, 0x57, 0x39, 0xbe, 0x55, 0x45, 0x3d,
+	0x86, 0xd5, 0x4c, 0x76, 0x2a, 0x59, 0x74, 0x13, 0xcf, 0xc8, 0xbc, 0x3a, 0x2c, 0x60, 0x1c, 0x87,
+	0x71, 0xca, 0x44, 0x03, 0xeb, 0x0b, 0xb8, 0x71, 0x89, 0x85, 0x7d, 0x02, 0x4c, 0x95, 0x85, 0x1a,
+	0x27, 0x75, 0xa1, 0xc2, 0x62, 0x5e, 0xac, 0x8b, 0xc9, 0xca, 0x4e, 0x8d, 0x0a, 0x63, 0x62, 0xe0,
+	0xd6, 0x79, 0x11, 0x16, 0x9e, 0xd1, 0x79, 0x31, 0x98, 0xa7, 0xee, 0xa3, 0x34, 0xd1, 0x37, 0xfb,
+	0x0e, 0xac, 0xa4, 0xe7, 0xd7, 0x39, 0x76, 0x7b, 0x22, 0x11, 0xa7, 0x39, 0xcb, 0xa9, 0xf9, 0x09,
+	0x59, 0x65, 0x83, 0x1b, 0x71, 0x8c, 0x3b, 0xe1, 0xab, 0x00, 0x63, 0x55, 0xa1, 0x15, 0x07, 0xa4,
+	0xe9, 0xc7, 0x64, 0x91, 0xd9, 0xd0, 0x8f, 0xc3, 0x51, 0x94, 0x22, 0xe6, 0x09, 0xa1, 0x93, 0x2d,
+	0x81, 0xec, 0xc1, 0x4a, 0x8c, 0x3c, 0x1c, 0xc5, 0x3d, 0xec, 0x0c, 0xfc, 0xa1, 0x2f, 0xd2, 0xe7,
+	0x40, 0x83, 0x76, 0x44, 0x2a, 0x6d, 0x27, 0x41, 0x3c, 0x25, 0x80, 0x3a, 0xcd, 0xe5, 0x38, 0x67,
+	0x64, 0xf7, 0x40, 0x8f, 0x30, 0x1e, 0xfa, 0x9c, 0x53, 0xd3, 0x56, 0x97, 0xff, 0x5a, 0x86, 0xe4,
+	0x70, 0x32, 0xeb, 0x64, 0xa1, 0xe6, 0x1f, 0x34, 0xd0, 0x33, 0x93, 0xf2, 0x9a, 0xe7, 0xa3, 0xee,
+	0x09, 0xf6, 0xc6, 0x49, 0xd7, 0x98, 0x4e, 0x63, 0x1f, 0x29, 0x98, 0x33, 0xc6, 0x53, 0x62, 0x60,
+	0xdc, 0x55, 0x9d, 0x51, 0x26, 0x86, 0x1c, 0x98, 0x77, 0x61, 0x31, 0x81, 0xca, 0x80, 0xbf, 0xf0,
+	0x83, 0x34, 0x09, 0xe8, 0x7b, 0x7c, 0x08, 0x85, 0xc9, 0x21, 0x98, 0x0f, 0xe0, 0xe6, 0x94, 0x5d,
+	0x5f, 0x97, 0x8a, 0x5a, 0x36, 0x15, 0x5b, 0x50, 0x21, 0xc9, 0x4f, 0x7d, 0x2e, 0x98, 0x05, 0x25,
+	0xaa, 0xd0, 0x74, 0x4b, 0x30, 0xd9, 0x92, 0x93, 0xcc, 0x58, 0x9f, 0x02, 0x53, 0xbd, 0x6c, 0x90,
+	0xa9, 0x01, 0xf6, 0x01, 0x2c, 0xf5, 0x94, 0x15, 0xbd, 0x49, 0x97, 0x78, 0x58, 0xfb, 0xd7, 0xdf,
+	0x6f, 0x57, 0xc7, 0x13, 0x6d, 0x8f, 0x3b, 0xb9, 0x91, 0x75, 0x07, 0x56, 0x88, 0x7d, 0x0f, 0xc7,
+	0x77, 0xc1, 0x94, 0x64, 0xb3, 0xbe, 0x0d, 0x35, 0x82, 0xb5, 0x83, 0xe3, 0xf0, 0x2a, 0x5c, 0x13,
+	0x18, 0xe1, 0x1e, 0xe3, 0x00, 0x05, 0x5e, 0x85, 0xfc, 0x3c, 0xd9, 0xb6, 0x64, 0x9c, 0x9a, 0xdf,
+	0x1f, 0xc2, 0x8a, 0xdb, 0x13, 0xfe, 0x29, 0x76, 0x92, 0xf6, 0xa6, 0x4e, 0x4b, 0xdf, 0x59, 0xc9,
+	0xb4, 0x5d, 0xd2, 0xb3, 0xa4, 0x70, 0xca, 0xc2, 0xad, 0x2e, 0xc0, 0x64, 0x72, 0x2a, 0xf5, 0x6d,
+	0xd0, 0x29, 0x96, 0x9e, 0xa4, 0xe6, 0x74, 0x24, 0x0b, 0x0e, 0x28, 0xd3, 0x7e, 0xd8, 0xa5, 0x37,
+	0xc1, 0x00, 0x5d, 0x9e, 0x02, 0x8a, 0x0a, 0xa0, 0x4c, 0x12, 0x60, 0xfd, 0x08, 0x6e, 0x92, 0xfa,
+	0xe7, 0x91, 0x27, 0xfb, 0x77, 0x5a, 0xfb, 0x5b, 0xd9, 0x6b, 0x34, 0x7f, 0x7a, 0x49, 0xe7, 0x9d,
+	0xde, 0x48, 0x7e, 0x06, 0xc6, 0x43, 0x57, 0xf4, 0xbe, 0x9c, 0xc6, 0xf9, 0x31, 0x2c, 0x1d, 0xbb,
+	0xbe, 0x3c, 0xd5, 0x5c, 0x66, 0x18, 0x13, 0xee, 0xbc, 0x83, 0x53, 0x55, 0xf0, 0x67, 0x2a, 0x5b,
+	0x52, 0xa5, 0x8f, 0x62, 0xfc, 0xc6, 0x95, 0x5e, 0xe0, 0xbc, 0x5e, 0x69, 0xde, 0x21, 0xaf, 0x74,
+	0xdb, 0x04, 0x3d, 0xf3, 0xfc, 0x63, 0x3a, 0x2c, 0x26, 0xc3, 0xda, 0xdc, 0xf6, 0xfb, 0xa0, 0x67,
+	0xde, 0x37, 0xac, 0x0a, 0x65, 0xf9, 0x16, 0x3d, 0x0c, 0x63, 0x51, 0x9b, 0x93, 0xa3, 0x4f, 0xd0,
+	0xf5, 0x06, 0x12, 0xaa, 0x6d, 0x7f, 0x1f, 0xca, 0xe9, 0xbd, 0xca, 0x00, 0x4a, 0xcf, 0x9e, 0xef,
+	0x3e, 0xdf, 0x7d, 0x5c, 0x9b, 0x93, 0x7c, 0x87, 0xbb, 0x07, 0x8f, 0xdb, 0x07, 0x7b, 0x35, 0x4d,
+	0x0e, 0x9c, 0xe7, 0x07, 0x07, 0x72, 0x50, 0xd8, 0x79, 0xb3, 0x08, 0x25, 0xd5, 0x90, 0xd9, 0x4f,
+	0x00, 0xd4, 0x17, 0xa5, 0xc1, 0xea, 0xd4, 0x67, 0x8c, 0xb9, 0x36, 0xbd, 0x8b, 0x5b, 0xb7, 0x7e,
+	0xf3, 0xd7, 0x37, 0x7f, 0x2c, 0xdc, 0xb4, 0x96, 0xe5, 0x8f, 0xe4, 0x49, 0xd8, 0x4d, 0xfe, 0x47,
+	0xef, 0x6b, 0xdb, 0xec, 0xa7, 0x00, 0xaa, 0x66, 0xf3, 0xbc, 0xb9, 0x37, 0x89, 0xb9, 0x4e, 0xe6,
+	0xcb, 0xb5, 0x7d, 0x99, 0x58, 0x95, 0xb0, 0x24, 0xfe, 0x39, 0x54, 0xc7, 0xc4, 0x47, 0x28, 0x98,
+	0x91, 0x29, 0x8e, 0x3c, 0xfb, 0x9a, 0xad, 0x7e, 0x65, 0xed, 0xf4, 0x1f, 0xd5, 0xde, 0x95, 0xff,
+	0xc2, 0xd6, 0x26, 0x91, 0xaf, 0x59, 0x37, 0x12, 0x72, 0x8e, 0x22, 0xc3, 0x1f, 0x40, 0x2d, 0x7b,
+	0x85, 0x93, 0xfc, 0x8d, 0xe9, 0x97, 0xbb, 0x5a, 0x66, 0xf3, 0xaa, 0x9b, 0xdf, 0xba, 0x4d, 0x8b,
+	0xdd, 0xb2, 0xea, 0xe9, 0x4e, 0x32, 0x97, 0x3d, 0xca, 0xf5, 0xf6, 0x40, 0x57, 0x49, 0xa2, 0x2e,
+	0xbe, 0x4c, 0x5e, 0xce, 0xdc, 0x40, 0x9d, 0x38, 0x97, 0xad, 0x8a, 0xe4, 0xa4, 0xcc, 0x93, 0x44,
+	0x3d, 0xa8, 0x66, 0x88, 0x38, 0x5b, 0x9e, 0x30, 0xc9, 0x4e, 0x6b, 0xbe, 0x43, 0xe3, 0x59, 0xb9,
+	0x6c, 0xbd, 0x47, 0xa4, 0x0d, 0xeb, 0x96, 0x24, 0xed, 0x4a, 0x14, 0x7a, 0xad, 0x1e, 0x61, 0x92,
+	0xec, 0x96, 0x8b, 0x1c, 0x80, 0xae, 0x8a, 0xef, 0xbf, 0x57, 0xbb, 0x41, 0xc4, 0xab, 0x66, 0x6d,
+	0xac, 0xb6, 0xf5, 0x4b, 0xd9, 0x94, 0x7e, 0x95, 0x88, 0xce, 0xf0, 0x5d, 0x2f, 0x3a, 0x5f, 0xf9,
+	0xa9, 0x68, 0x33, 0x27, 0x7a, 0x44, 0x98, 0x8c, 0xe8, 0xcf, 0x41, 0x57, 0xed, 0x59, 0x89, 0x5e,
+	0x9f, 0xac, 0x91, 0xeb, 0xda, 0x33, 0x77, 0x60, 0xd0, 0x2a, 0x6c, 0xfb, 0xd2, 0x0e, 0xd8, 0x13,
+	0x28, 0xef, 0xa1, 0x50, 0xb4, 0xf5, 0x09, 0xed, 0xe4, 0x6e, 0x31, 0x33, 0x11, 0x4a, 0x79, 0xd8,
+	0x65, 0x9e, 0xcf, 0xa0, 0x9a, 0xf2, 0x50, 0x0f, 0x5f, 0x9d, 0x78, 0x65, 0x2e, 0x20, 0x73, 0x39,
+	0x6f, 0xb6, 0xde, 0x21, 0xc2, 0x75, 0xb6, 0x7a, 0x91, 0xb0, 0xe5, 0x07, 0xc7, 0xe1, 0xc3, 0x0f,
+	0xbf, 0xfe, 0x67, 0x63, 0xee, 0xd7, 0xaf, 0x1b, 0xda, 0x5f, 0x5e, 0x37, 0xb4, 0xaf, 0x5e, 0x37,
+	0xb4, 0x7f, 0xbc, 0x6e, 0x68, 0xbf, 0x3f, 0x6f, 0xcc, 0x7d, 0x75, 0xde, 0x98, 0xfb, 0xfa, 0xbc,
+	0x31, 0xf7, 0xa7, 0x42, 0xfd, 0x41, 0x3c, 0x74, 0x3d, 0xf7, 0x30, 0x0e, 0xe5, 0x2b, 0xc0, 0x6e,
+	0x87, 0xf6, 0x83, 0xc8, 0xef, 0x96, 0x28, 0x00, 0x3f, 0xf8, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff,
+	0x86, 0x7c, 0x2d, 0xa9, 0x68, 0x12, 0x00, 0x00,
+>>>>>>> b79a3edc25c2f04803461c7a7cf2c70aa06fee1e
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1534,6 +1785,7 @@ const _ = grpc.SupportPackageIsVersion4
 type SubmitClient interface {
 	SubmitJobs(ctx context.Context, in *JobSubmitRequest, opts ...grpc.CallOption) (*JobSubmitResponse, error)
 	CancelJobs(ctx context.Context, in *JobCancelRequest, opts ...grpc.CallOption) (*CancellationResult, error)
+	CancelJobSet(ctx context.Context, in *JobSetCancelRequest, opts ...grpc.CallOption) (*types.Empty, error)
 	ReprioritizeJobs(ctx context.Context, in *JobReprioritizeRequest, opts ...grpc.CallOption) (*JobReprioritizeResponse, error)
 	CreateQueue(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*types.Empty, error)
 	CreateQueues(ctx context.Context, in *QueueList, opts ...grpc.CallOption) (*BatchQueueCreateResponse, error)
@@ -1564,6 +1816,15 @@ func (c *submitClient) SubmitJobs(ctx context.Context, in *JobSubmitRequest, opt
 func (c *submitClient) CancelJobs(ctx context.Context, in *JobCancelRequest, opts ...grpc.CallOption) (*CancellationResult, error) {
 	out := new(CancellationResult)
 	err := c.cc.Invoke(ctx, "/api.Submit/CancelJobs", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *submitClient) CancelJobSet(ctx context.Context, in *JobSetCancelRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+	out := new(types.Empty)
+	err := c.cc.Invoke(ctx, "/api.Submit/CancelJobSet", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1646,6 +1907,7 @@ func (c *submitClient) GetQueueInfo(ctx context.Context, in *QueueInfoRequest, o
 type SubmitServer interface {
 	SubmitJobs(context.Context, *JobSubmitRequest) (*JobSubmitResponse, error)
 	CancelJobs(context.Context, *JobCancelRequest) (*CancellationResult, error)
+	CancelJobSet(context.Context, *JobSetCancelRequest) (*types.Empty, error)
 	ReprioritizeJobs(context.Context, *JobReprioritizeRequest) (*JobReprioritizeResponse, error)
 	CreateQueue(context.Context, *Queue) (*types.Empty, error)
 	CreateQueues(context.Context, *QueueList) (*BatchQueueCreateResponse, error)
@@ -1665,6 +1927,9 @@ func (*UnimplementedSubmitServer) SubmitJobs(ctx context.Context, req *JobSubmit
 }
 func (*UnimplementedSubmitServer) CancelJobs(ctx context.Context, req *JobCancelRequest) (*CancellationResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelJobs not implemented")
+}
+func (*UnimplementedSubmitServer) CancelJobSet(ctx context.Context, req *JobSetCancelRequest) (*types.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelJobSet not implemented")
 }
 func (*UnimplementedSubmitServer) ReprioritizeJobs(ctx context.Context, req *JobReprioritizeRequest) (*JobReprioritizeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReprioritizeJobs not implemented")
@@ -1727,6 +1992,24 @@ func _Submit_CancelJobs_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SubmitServer).CancelJobs(ctx, req.(*JobCancelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Submit_CancelJobSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JobSetCancelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SubmitServer).CancelJobSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/api.Submit/CancelJobSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SubmitServer).CancelJobSet(ctx, req.(*JobSetCancelRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1886,6 +2169,10 @@ var _Submit_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelJobs",
 			Handler:    _Submit_CancelJobs_Handler,
+		},
+		{
+			MethodName: "CancelJobSet",
+			Handler:    _Submit_CancelJobSet_Handler,
 		},
 		{
 			MethodName: "ReprioritizeJobs",
@@ -2312,6 +2599,96 @@ func (m *JobCancelRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.JobId)
 		copy(dAtA[i:], m.JobId)
 		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobSetCancelRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobSetCancelRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSetCancelRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Filter != nil {
+		{
+			size, err := m.Filter.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintSubmit(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.Queue)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.JobSetId) > 0 {
+		i -= len(m.JobSetId)
+		copy(dAtA[i:], m.JobSetId)
+		i = encodeVarintSubmit(dAtA, i, uint64(len(m.JobSetId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *JobSetFilter) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *JobSetFilter) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *JobSetFilter) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.States) > 0 {
+		dAtA8 := make([]byte, len(m.States)*10)
+		var j7 int
+		for _, num := range m.States {
+			for num >= 1<<7 {
+				dAtA8[j7] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j7++
+			}
+			dAtA8[j7] = uint8(num)
+			j7++
+		}
+		i -= j7
+		copy(dAtA[i:], dAtA8[:j7])
+		i = encodeVarintSubmit(dAtA, i, uint64(j7))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -3237,6 +3614,43 @@ func (m *JobCancelRequest) Size() (n int) {
 	return n
 }
 
+func (m *JobSetCancelRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.JobSetId)
+	if l > 0 {
+		n += 1 + l + sovSubmit(uint64(l))
+	}
+	l = len(m.Queue)
+	if l > 0 {
+		n += 1 + l + sovSubmit(uint64(l))
+	}
+	if m.Filter != nil {
+		l = m.Filter.Size()
+		n += 1 + l + sovSubmit(uint64(l))
+	}
+	return n
+}
+
+func (m *JobSetFilter) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.States) > 0 {
+		l = 0
+		for _, e := range m.States {
+			l += sovSubmit(uint64(e))
+		}
+		n += 1 + sovSubmit(uint64(l)) + l
+	}
+	return n
+}
+
 func (m *JobReprioritizeRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3695,6 +4109,28 @@ func (this *JobCancelRequest) String() string {
 		`JobId:` + fmt.Sprintf("%v", this.JobId) + `,`,
 		`JobSetId:` + fmt.Sprintf("%v", this.JobSetId) + `,`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *JobSetCancelRequest) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&JobSetCancelRequest{`,
+		`JobSetId:` + fmt.Sprintf("%v", this.JobSetId) + `,`,
+		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
+		`Filter:` + strings.Replace(this.Filter.String(), "JobSetFilter", "JobSetFilter", 1) + `,`,
+		`}`,
+	}, "")
+	return s
+}
+func (this *JobSetFilter) String() string {
+	if this == nil {
+		return "nil"
+	}
+	s := strings.Join([]string{`&JobSetFilter{`,
+		`States:` + fmt.Sprintf("%v", this.States) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -5396,6 +5832,275 @@ func (m *JobCancelRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.Queue = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobSetCancelRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobSetCancelRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobSetCancelRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobSetId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobSetId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queue = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Filter", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSubmit
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Filter == nil {
+				m.Filter = &JobSetFilter{}
+			}
+			if err := m.Filter.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSubmit(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthSubmit
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *JobSetFilter) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSubmit
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: JobSetFilter: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: JobSetFilter: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType == 0 {
+				var v JobState
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSubmit
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= JobState(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.States = append(m.States, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSubmit
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthSubmit
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLengthSubmit
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				if elementCount != 0 && len(m.States) == 0 {
+					m.States = make([]JobState, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v JobState
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSubmit
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= JobState(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.States = append(m.States, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field States", wireType)
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipSubmit(dAtA[iNdEx:])
