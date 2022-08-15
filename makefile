@@ -476,7 +476,7 @@ setup-proto: download
 	mkdir -p proto/k8s.io/api/core/v1
 	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
 
-# Copy third party annotations from grpc-ecosystem
+	# Copy third party annotations from grpc-ecosystem
 	$(GO_CMD) bash -c " \
 	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
 	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
@@ -505,7 +505,6 @@ airflow-operator:
 	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
 	docker run --rm -u $(shell id -u):$(shell id -g) -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 	
-proto: setup-proto
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
 proto: setup-proto
