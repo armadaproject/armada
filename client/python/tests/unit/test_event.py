@@ -49,6 +49,7 @@ class FakeEventStreamMessage:
         ("ingress_info", EventType.ingress_info),
         ("reprioritizing", EventType.reprioritizing),
         ("updated", EventType.updated),
+        ("failedCompressed", EventType.failedCompressed),
     ],
 )
 def test_event_class(name, event_type):
@@ -84,6 +85,7 @@ def test_event_class(name, event_type):
         "ingress_info",
         "reprioritizing",
         "updated",
+        "failedCompressed",
     ],
 )
 def test_unmarshal_event_response(name):

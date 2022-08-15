@@ -70,7 +70,7 @@ job_set_id is required.
 
 
 
-#### create_job_request_item(pod_spec, priority=1.0, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
+#### create_job_request_item(priority=1.0, pod_spec=None, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
 Create a job request.
 
 
@@ -80,7 +80,7 @@ Create a job request.
     * **priority** (*float*) – The priority of the job
 
 
-    * **pod_spec** (*armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec*) – The k8s pod spec of the job
+    * **pod_spec** (*Optional**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]*) – The k8s pod spec of the job
 
 
     * **pod_specs** (*Optional**[**List**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]**]*) – List of k8s pod specs of the job

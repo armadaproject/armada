@@ -13,6 +13,12 @@ else
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell which $(exec)),some string,$(error "No $(exec) in PATH")))
 endif
 
+# Docker buildkit builds work in parallel, lowering build times. Outputs are compatable.
+# Ignored on docker <18.09. This may lead to slower builds and different logs in STDOUT,
+# but the image output is the same.
+# See https://docs.docker.com/develop/develop-images/build_enhancements/ for more info.
+export DOCKER_BUILDKIT = 1
+
 # Get the current date and time (to insert into go build)
 # On Windows, we need to use the powershell date command (alias of Get-Date) to get the full date-time string
 ifeq ($(platform),unknown)
@@ -101,6 +107,16 @@ GIT_COMMIT := $(shell git rev-list --abbrev-commit -1 HEAD)
 # The RELEASE_VERSION environment variable is set by circleci (to insert into go build and output filenames)
 ifndef RELEASE_VERSION
 override RELEASE_VERSION = UNKNOWN_VERSION
+endif
+
+# The RELEASE_TAG environment variable is set by circleci (to insert into go build and output filenames)
+ifndef RELEASE_TAG
+override RELEASE_TAG = UNKNOWN_TAG
+endif
+
+# The NUGET_API_KEY environment variable is set by circleci (to insert into dotnet nuget push commands)
+ifndef NUGET_API_KEY
+override NUGET_API_KEY = UNKNOWN_NUGET_API_KEY
 endif
 
 # use bash for running:
@@ -518,19 +534,16 @@ proto: setup-proto
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
 
 # Target for compiling the dotnet Armada REST client
-dotnet: dotnet-setup
+dotnet: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
+	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
-# Build and package the dotnet Armada GRPC client
-dotnet-grpc: dotnet-setup setup-proto
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada \
-		-w /go/src/armada armada-proto ./scripts/build-dotnet-client.sh
-
-dotnet-clean:
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/bin
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/obj
-	rm -rf client/DotNet.gRPC/Armada.Client.Grpc/generated
+# Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
+push-nuget: dotnet-setup setup-proto
+	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
+	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
+	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:

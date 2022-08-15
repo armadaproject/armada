@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/duration.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -43,4 +44,8 @@ message TestSpec {
 	Cancel cancel = 9;
 	// Test name. Defaults to the filename if not provided.
 	string name = 10;
+    // Randomize clientId if not provided
+    bool random_client_id = 11;
+    // Toggle should testsuite scrape Armada Job (pod) logs
+    bool get_logs = 12;
 }
