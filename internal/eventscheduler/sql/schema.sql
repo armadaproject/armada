@@ -36,7 +36,7 @@ CREATE TABLE executors (
 );
 
 CREATE TABLE pulsar (
-    topic text PRIMARY KEY,
+    topic text NOT NULL,
     ledgerId bigint NOT NULL,
     entryId bigint NOT NULL,
     batchIdx int not NULL,

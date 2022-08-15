@@ -105,12 +105,12 @@ func (srv *Ingester) Run(ctx context.Context) error {
 func (srv *Ingester) Init(ctx context.Context) error {
 	log := ctxlogrus.Extract(ctx)
 
-	// For each write to postgres, we store the Pulsar message id associated with the
-	// most recent value written. Here, at startup, we read the message id stored in
-	// postgres so that we can continue from where we left off.
+	// Each write to postgres is based on several messages read from several topics.
+	// For each such write, we write to postgres the id of the most recent Pulsar message
+	// for each topic (omitting any topics that didn't contribute to this write).
 	//
-	// Note that we may have written
-	// TODO: It's fine to not find an id. In that case, we should just not seek.
+	// Here, at startup, we read the message id stored in postgres for each partition and seek to those ids.
+	// We perform the same check for each write to postgres; doing it here as well is just an optimisation.
 	sqlMessageIds, err := srv.db.GetTopicMessageIds(ctx, srv.topic)
 	if err != nil {
 		return errors.WithStack(err)

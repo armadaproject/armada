@@ -13,9 +13,18 @@ import (
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
+type ErrStaleWrites struct {
+
+}
+
 // ErrStaleWrite is a custom error type returned by UpsertRecords if the db already contains
-// data as or more recent than what we're trying to write.
+// data more recent than what we're trying to write.
 type ErrStaleWrite struct {
+	Topic string
+	StaleWrites []StaleWrite
+}
+
+type StaleWrite struct {
 	// Message id of the most recent message attempted to write.
 	WriteMessageId pulsar.MessageID
 	// Message id stored in the database.
@@ -23,7 +32,15 @@ type ErrStaleWrite struct {
 }
 
 func (err *ErrStaleWrite) Error() string {
-	return fmt.Sprintf("stale write: id %s is less recent than %s", err.WriteMessageId, err.DbMessageId)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("stale write for topic %s: ", err.Topic))
+	for i, staleWrite := range err.StaleWrites {
+		sb.WriteString(fmt.Sprintf("%s is less recent than %s (%d-th partition)"), staleWrite.WriteMessageId, staleWrite.DbMessageId, staleWrite.DbMessageId.PartitionIdx())
+		if i != len(err.StaleWrites) - 1 {
+			sb.WriteString(", ")
+		}
+	}
+	return sb.String()
 }
 
 // UpsertRecords is an optimized SQL call for upserting many records in a single operation.
@@ -39,7 +56,7 @@ func (err *ErrStaleWrite) Error() string {
 //
 // The records to write should be structs with fields marked with "db" tags.
 // Field names and values are extracted using the NamesValuesFromRecord function;
-// see its definition for details.
+// see its definition for details. The first field is assumed to be its unique id.
 //
 // The temporary table is created with the provided schema, which should be of the form
 // (
@@ -49,11 +66,14 @@ func (err *ErrStaleWrite) Error() string {
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
 //
-// This function relies on Pulsar message ids for idempotent writes; the write fails if writeMessageId is stale,
-// i.e., if the message id stored in the database is as or more recent than writeMessageId.
-// If so, the returned error is of type ErrStaleWrite and contains the id stored in the db.
-// The message id is stored with primary key topicName.
-func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutils.PulsarMessageId, tableName string, topicName string, schema string, records []interface{}) error {
+// This function relies on Pulsar message ids for idempotent writes;
+// if a Pulsar message id stored in postgres is more recent than one provided to this function,
+// the insert is rolled back and a ErrStaleWrite error is returned.
+//
+// This function assumes all records are derived from a single (possibly partitioned) Pulsar topic
+// with name topicName.  writeMessageIds maps partition indices to the id of the most recently
+// received Pulsar message for that partition.
+func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMessageIds map[int]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -63,30 +83,35 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, writeMessageId *pulsarutil
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 
-		// Load the message id stored in the sql database
-		// We refer to the right message id instance by a uuid.
+		// Load the message ids stored in postgres.
 		queries := New(tx)
 		dbHasId := true
-		sqlWriteMessageId, err := queries.GetMessageId(ctx, topicName)
-		if err == pgx.ErrNoRows {
-			dbHasId = false
-		} else if err != nil {
+		sqlWriteMessageIds, err := queries.GetTopicMessageIds(ctx, topicName)
+		if err != pgx.ErrNoRows && err != nil {
 			return errors.WithStack(err)
 		}
-		dbMessageId := pulsarMessageIdFromPulsarRecord(sqlWriteMessageId)
 
-		// If the id loaded from the database is at least as recent as the one provided, abort the transaction.
-		// Since the data we're trying to write is stale (or at least not new).
-		isGreaterEqual, err := dbMessageId.GreaterEqual(writeMessageId)
-		if err != nil {
-			return err
+		for _, sqlWriteMessageId := range sqlWriteMessageIds {
+			dbMessageId := pulsarMessageIdFromPulsarRecord(sqlWriteMessageId)
+
+			// If the id loaded from the database is at least as recent as the one provided, abort the transaction.
+			// Since the data we're trying to write is stale (or at least not new).
+			if writeMessageId, ok := writeMessageIds[dbMessageId.PartitionIdx()] {
+				isGreater, err := dbMessageId.Greater(writeMessageId)
+				if err != nil {
+					return err
+				}
+
+				if isGreater {
+					return errors.WithStack(&ErrStaleWrite{
+						WriteMessageId: writeMessageId,
+						DbMessageId:    dbMessageId,
+					})
+				}				
+			}
 		}
-		if dbHasId && isGreaterEqual {
-			return errors.WithStack(&ErrStaleWrite{
-				WriteMessageId: writeMessageId,
-				DbMessageId:    dbMessageId,
-			})
-		}
+
+
 
 		// Otherwise, we have more recent data than what is already stored in the db that we should write.
 		// We also update the message id stored in the db to reflect these writes.
