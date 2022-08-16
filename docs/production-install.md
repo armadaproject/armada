@@ -12,7 +12,7 @@ The below sections will cover how to install the component into Kubernetes.
 
 #### Recommended prerequisites
 
-* Cert manager installed [https://hub.helm.sh/charts/jetstack/cert-manager](https://hub.helm.sh/charts/jetstack/cert-manager)
+* Cert manager installed [https://cert-manager.io/docs/installation/helm/#installing-with-helm](https://cert-manager.io/docs/installation/helm/#installing-with-helm)
 * gRPC compatible ingress controller installed for gRPC ingress such as [https://github.com/kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx)
 * Redis installed [https://github.com/helm/charts/tree/master/stable/redis-ha](https://github.com/helm/charts/tree/master/stable/redis-ha)
 * Optionally install NATS streaming server helm chart: [https://github.com/nats-io/k8s/tree/master/helm/charts/stan](https://github.com/nats-io/k8s/tree/master/helm/charts/stan) , additional docs: [https://docs.nats.io/nats-on-kubernetes/minimal-setup](https://docs.nats.io/nats-on-kubernetes/minimal-setup)
