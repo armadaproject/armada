@@ -244,6 +244,98 @@ func TestIdempotence(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestIdempotenceMultiPartition(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+
+		// Insert rows, read them back, and compare.
+		// Here, we emulate inserting a message based off of several partitions.
+		expected := makeRuns(10)
+		records := expected
+		start := time.Now()
+		writeMessageIds := map[int32]pulsar.MessageID{
+			0: pulsarutils.New(0, 1, 0, 0),
+			1: pulsarutils.New(0, 2, 1, 0),
+		}
+		err := UpsertRecords(ctx, db, "topic", writeMessageIds, tableName, RunsSchema, interfacesFromRuns(records))
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Printf("upserted %d records in %s\n", len(expected), time.Since(start))
+
+		actual, err := queries.ListRuns(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		// Insert with a lower id for one of the partitions and check that it fails.
+		dbMessageIds := writeMessageIds
+		writeMessageIds = map[int32]pulsar.MessageID{
+			0: pulsarutils.New(0, 1, 0, 0),
+			1: pulsarutils.New(0, 1, 1, 0),
+		}
+		records = makeRuns(1)
+		err = UpsertRecords(ctx, db, "topic", writeMessageIds, tableName, RunsSchema, interfacesFromRuns(records))
+		expectedErr := &ErrStaleWrite{
+			Topic: "topic",
+			StaleWrites: []StaleWrite{ // Stale write on the 1-th partition.
+				{
+					DbMessageId:    dbMessageIds[1],
+					WriteMessageId: writeMessageIds[1],
+				},
+			},
+		}
+		var e *ErrStaleWrite
+		if assert.ErrorAs(t, err, &e) {
+			if !assert.Equal(t, expectedErr, e) {
+				return nil
+			}
+
+			dbMessageId, ok := dbMessageIds[1].(*pulsarutils.PulsarMessageId)
+			if !assert.True(t, ok) {
+				return nil
+			}
+			writeMessageId, ok := writeMessageIds[1].(*pulsarutils.PulsarMessageId)
+			if !assert.True(t, ok) {
+				return nil
+			}
+
+			ok, err := dbMessageId.Equal(e.StaleWrites[0].DbMessageId)
+			if !assert.NoError(t, err) {
+				return nil
+			}
+			if !assert.True(t, ok) {
+				return nil
+			}
+
+			ok, err = writeMessageId.Equal(e.StaleWrites[0].WriteMessageId)
+			if !assert.NoError(t, err) {
+				return nil
+			}
+			if !assert.True(t, ok) {
+				return nil
+			}
+		} else {
+			return nil
+		}
+
+		actual, err = queries.ListRuns(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		if !assertRunsEqual(t, expected, actual) {
+			return nil
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestConcurrency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
