@@ -6,6 +6,9 @@ USER armada
 
 COPY ./jobservice /app/
 
+COPY ./config/ /app/config/jobservice
+
+
 WORKDIR /app
 
 ENTRYPOINT ["./jobservice"]

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "jobservice.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jobservice.labels.all" . | nindent 4 }}
+spec:
+  {{- if .Values.nodePort }}
+  type: NodePort
+  {{- end }}
+  selector:
+    {{- include "jobservice.labels.identity" . | nindent 4 }}
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: {{ .Values.applicationConfig.grpcPort }}
+      {{- if .Values.nodePort }}
+      nodePort: {{ .Values.nodePort }}
+      {{- end }}
