@@ -15,6 +15,9 @@ const oomKilledReason = "OOMKilled"
 const evictedReason = "Evicted"
 const deadlineExceeded = "DeadlineExceeded"
 
+// TODO: Need to detect pod preemption. So that job failed events can include a string indicating a pod was preempted.
+// We need this so that whatever system submitted the job knows the job was preempted.
+
 func ExtractPodFailedReason(pod *v1.Pod) string {
 	if pod.Status.Message != "" {
 		return pod.Status.Message
