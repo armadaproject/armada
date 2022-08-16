@@ -28,6 +28,13 @@ func New(ledgerID, entryID int64, partitionIdx, batchIdx int32) *PulsarMessageId
 	}
 }
 
+func (id *PulsarMessageId) String() string {
+	return fmt.Sprintf(
+		"PulsarMessageId{ledger: %d, entry: %d, partition: %d, batch: %d}",
+		id.ledgerID, id.entryID, id.partitionIdx, id.batchIdx,
+	)
+}
+
 // FromMessageId converts a pulsar.MessageID interface type to a *PulsarMessageId,
 // which can be used, e.g., for comparison.
 func FromMessageId(id pulsar.MessageID) *PulsarMessageId {
