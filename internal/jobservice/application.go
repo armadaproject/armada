@@ -32,7 +32,6 @@ func New() *App {
 }
 
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
-
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
@@ -43,7 +42,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 
 	dbDir := filepath.Dir(config.DatabasePath)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		err = os.Mkdir(dbDir, 0755)
+		err = os.Mkdir(dbDir, 0o755)
 		if err != nil {
 			log.Fatalf("Error: could not make directory at %s for Sqlite DB: %v", dbDir, err)
 		}
