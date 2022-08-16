@@ -34,12 +34,15 @@ type StaleWrite struct {
 
 func (err *ErrStaleWrite) Error() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("stale write for topic %s: ", err.Topic))
+	sb.WriteString(fmt.Sprintf("stale write for topic '%s'", err.Topic))
 	if len(err.StaleWrites) > 0 {
 		sb.WriteString(": ")
 	}
 	for i, staleWrite := range err.StaleWrites {
-		sb.WriteString(fmt.Sprintf("%s is less recent than %s (%d-th partition)", staleWrite.WriteMessageId, staleWrite.DbMessageId, staleWrite.DbMessageId.PartitionIdx()))
+		sb.WriteString(fmt.Sprintf(
+			"%d-th partition write %s is less recent than %s",
+			staleWrite.DbMessageId.PartitionIdx(), staleWrite.WriteMessageId, staleWrite.DbMessageId),
+		)
 		if i != len(err.StaleWrites)-1 {
 			sb.WriteString(", ")
 		}
