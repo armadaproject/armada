@@ -13,17 +13,18 @@ import (
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
-type ErrStaleWrites struct {
-
-}
-
-// ErrStaleWrite is a custom error type returned by UpsertRecords if the db already contains
+// ErrStaleWrite is returned by UpsertRecords if the db already contains
 // data more recent than what we're trying to write.
+//
+// Contains a StaleWrite struct for each partition for which the write is stale.
+// Since a write may be based of data from several partition of a topic.
 type ErrStaleWrite struct {
-	Topic string
+	Topic       string
 	StaleWrites []StaleWrite
 }
 
+// StaleWrite contains the message id associated with the write and
+// the message id already stored in the database for a particular (partition of a) topic.
 type StaleWrite struct {
 	// Message id of the most recent message attempted to write.
 	WriteMessageId pulsar.MessageID
@@ -34,21 +35,24 @@ type StaleWrite struct {
 func (err *ErrStaleWrite) Error() string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("stale write for topic %s: ", err.Topic))
+	if len(err.StaleWrites) > 0 {
+		sb.WriteString(": ")
+	}
 	for i, staleWrite := range err.StaleWrites {
-		sb.WriteString(fmt.Sprintf("%s is less recent than %s (%d-th partition)"), staleWrite.WriteMessageId, staleWrite.DbMessageId, staleWrite.DbMessageId.PartitionIdx())
-		if i != len(err.StaleWrites) - 1 {
+		sb.WriteString(fmt.Sprintf("%s is less recent than %s (%d-th partition)", staleWrite.WriteMessageId, staleWrite.DbMessageId, staleWrite.DbMessageId.PartitionIdx()))
+		if i != len(err.StaleWrites)-1 {
 			sb.WriteString(", ")
 		}
 	}
 	return sb.String()
 }
 
-// UpsertRecords is an optimized SQL call for upserting many records in a single operation.
+// UpsertRecords is an optimized SQL call for bulk upserts.
 //
 // For efficiency, this function:
 // 1. Creates an empty temporary SQL table.
 // 2. Inserts all records into the temporary table using the postgres-specific COPY wire protocol.
-// 3. Upserts all records from the temporary table into the table with name tableName.
+// 3. Upserts all records from the temporary table into the target table (as specified by tableName).
 //
 // The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 // https://www.postgresql.org/docs/current/populate.html
@@ -56,24 +60,26 @@ func (err *ErrStaleWrite) Error() string {
 //
 // The records to write should be structs with fields marked with "db" tags.
 // Field names and values are extracted using the NamesValuesFromRecord function;
-// see its definition for details. The first field is assumed to be its unique id.
+// see its definition for details. The first field is used as the primary key in SQL.
 //
 // The temporary table is created with the provided schema, which should be of the form
 // (
-//   id UUID PRIMARY KEY,
-//   width int NOT NULL,
-//   height int NOT NULL
+//
+//	id UUID PRIMARY KEY,
+//	width int NOT NULL,
+//	height int NOT NULL
+//
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
 //
 // This function relies on Pulsar message ids for idempotent writes;
 // if a Pulsar message id stored in postgres is more recent than one provided to this function,
-// the insert is rolled back and a ErrStaleWrite error is returned.
+// the transaction is rolled back and a ErrStaleWrite error is returned.
 //
 // This function assumes all records are derived from a single (possibly partitioned) Pulsar topic
-// with name topicName.  writeMessageIds maps partition indices to the id of the most recently
+// with name topicName. writeMessageIds maps partition indices to the id of the most recently
 // received Pulsar message for that partition.
-func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMessageIds map[int]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
+func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMessageIds map[int32]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -85,52 +91,61 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMes
 
 		// Load the message ids stored in postgres.
 		queries := New(tx)
-		dbHasId := true
 		sqlWriteMessageIds, err := queries.GetTopicMessageIds(ctx, topicName)
 		if err != pgx.ErrNoRows && err != nil {
 			return errors.WithStack(err)
 		}
 
+		// Check if the data stored in postgres is more recent than what we're trying to write.
+		staleWrites := make([]StaleWrite, 0)
 		for _, sqlWriteMessageId := range sqlWriteMessageIds {
+
+			// Convert from the SQL-specific representation of message ids to one that can be used for comparison.
 			dbMessageId := pulsarMessageIdFromPulsarRecord(sqlWriteMessageId)
 
-			// If the id loaded from the database is at least as recent as the one provided, abort the transaction.
-			// Since the data we're trying to write is stale (or at least not new).
-			if writeMessageId, ok := writeMessageIds[dbMessageId.PartitionIdx()] {
+			// If the id loaded from the database is more recent than the one provided, abort the transaction.
+			// Since the data we're trying to write is stale.
+			if writeMessageId, ok := writeMessageIds[dbMessageId.PartitionIdx()]; ok {
 				isGreater, err := dbMessageId.Greater(writeMessageId)
 				if err != nil {
 					return err
 				}
-
 				if isGreater {
-					return errors.WithStack(&ErrStaleWrite{
+					staleWrites = append(staleWrites, StaleWrite{
 						WriteMessageId: writeMessageId,
 						DbMessageId:    dbMessageId,
 					})
-				}				
+				}
+			}
+		}
+		if len(staleWrites) > 0 {
+			return &ErrStaleWrite{
+				Topic:       topicName,
+				StaleWrites: staleWrites,
 			}
 		}
 
-
-
 		// Otherwise, we have more recent data than what is already stored in the db that we should write.
-		// We also update the message id stored in the db to reflect these writes.
-		err = queries.UpsertMessageId(ctx, UpsertMessageIdParams{
-			Topic:        topicName,
-			Ledgerid:     writeMessageId.LedgerID(),
-			Entryid:      writeMessageId.EntryID(),
-			Batchidx:     writeMessageId.BatchIdx(),
-			Partitionidx: writeMessageId.PartitionIdx(),
-		})
-		if err != nil {
-			return errors.WithStack(err)
+		// Update the message id in postgres to reflect the data to be written.
+		//
+		// TODO: Add a call to insert these in a single call.
+		for _, writeMessageId := range writeMessageIds {
+			err = queries.UpsertMessageId(ctx, UpsertMessageIdParams{
+				Topic:        topicName,
+				Ledgerid:     writeMessageId.LedgerID(),
+				Entryid:      writeMessageId.EntryID(),
+				Batchidx:     writeMessageId.BatchIdx(),
+				Partitionidx: writeMessageId.PartitionIdx(),
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 
-		// Now, write the records into postgres.
+		// Write records into postgres.
 		// First, create a temporary table for loading data in bulk using the copy protocol.
-		//
-		// We're guaranteed there is at least one record.
-		tempTableName := "insert"
+		// The table is created with the provided schema.
+		tempTableName := "insert" // TODO: Is this name unique per transaction?
 		_, err = tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s %s ON COMMIT DROP;", tempTableName, schema))
 		if err != nil {
 			return errors.WithStack(err)
@@ -140,6 +155,8 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMes
 		// The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 		// https://www.postgresql.org/docs/current/populate.html
 		// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
+		//
+		// We're guaranteed there is at least one record.
 		names, _ := NamesValuesFromRecord(records[0])
 		if len(names) < 2 {
 			return errors.Errorf("Names() must return at least 2 elements, but got %v", names)
@@ -148,6 +165,7 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMes
 			pgx.Identifier{tempTableName},
 			names,
 			pgx.CopyFromSlice(len(records), func(i int) ([]interface{}, error) {
+				// TODO: Are we guaranteed that values always come in the order listed in the record? Otherwise we need to control the order.
 				_, values := NamesValuesFromRecord(records[i])
 				return values, nil
 			}),
@@ -191,10 +209,12 @@ func pulsarMessageIdFromPulsarRecord(pulsarRecord Pulsar) *pulsarutils.PulsarMes
 // NamesFromRecord returns a slice composed of the field names in a struct marked with "db" tags.
 //
 // For example, if x is an instance of a struct with definition
-// type Rectangle struct {
-//	Width int  `db:"width"`
-//	Height int `db:"height"`
-// },
+//
+//	type Rectangle struct {
+//		Width int  `db:"width"`
+//		Height int `db:"height"`
+//	},
+//
 // it returns ["width", "height"].
 func NamesFromRecord(x interface{}) []string {
 	t := reflect.TypeOf(x)
@@ -211,11 +231,13 @@ func NamesFromRecord(x interface{}) []string {
 // ValuesFromRecord returns a slice composed of the values of the fields in a struct marked with "db" tags.
 //
 // For example, if x is an instance of a struct with definition
-// type Rectangle struct {
-//  Name string,
-//	Width int  `db:"width"`
-//	Height int `db:"height"`
-// },
+//
+//	type Rectangle struct {
+//	 Name string,
+//		Width int  `db:"width"`
+//		Height int `db:"height"`
+//	},
+//
 // where Width = 5 and Height = 10, it returns [5, 10].
 func ValuesFromRecord(x interface{}) []interface{} {
 	t := reflect.TypeOf(x)
@@ -236,10 +258,12 @@ func ValuesFromRecord(x interface{}) []interface{} {
 // for fields of a struct marked with "db" tags.
 //
 // For example, if x is an instance of a struct with definition
-// type Rectangle struct {
-//	Width int  `db:"width"`
-//	Height int `db:"height"`
-// },
+//
+//	type Rectangle struct {
+//		Width int  `db:"width"`
+//		Height int `db:"height"`
+//	},
+//
 // where Width = 10 and Height = 5,
 // it returns ["width", "height"], [10, 5].
 //

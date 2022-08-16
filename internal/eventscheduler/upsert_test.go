@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
@@ -132,7 +133,7 @@ func TestUpsert(t *testing.T) {
 		// Insert rows, read them back, and compare.
 		expected := makeRuns(10)
 		start := time.Now()
-		err := UpsertRecords(ctx, db, pulsarutils.New(0, 0, 0, 0), tableName, "topic", RunsSchema, interfacesFromRuns(expected))
+		err := UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -149,7 +150,7 @@ func TestUpsert(t *testing.T) {
 		// Change one record, upsert, read back, and compare.
 		expected[0].Executor = "foo"
 		start = time.Now()
-		err = UpsertRecords(ctx, db, pulsarutils.New(0, 1, 0, 0), tableName, "topic", RunsSchema, interfacesFromRuns(expected))
+		err = UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -177,7 +178,7 @@ func TestIdempotence(t *testing.T) {
 		records := expected
 		start := time.Now()
 		writeMessageId := pulsarutils.New(0, 1, 0, 0)
-		err := UpsertRecords(ctx, db, writeMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
+		err := UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema, interfacesFromRuns(records))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -191,25 +192,38 @@ func TestIdempotence(t *testing.T) {
 			return nil
 		}
 
-		// Insert again with the same id and check that it fails.
+		// Insert with a lower id and check that it fails.
+		dbMessageId := writeMessageId
+		writeMessageId = pulsarutils.New(0, 0, 0, 0)
 		records = makeRuns(1)
-		err = UpsertRecords(ctx, db, writeMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
+		err = UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema, interfacesFromRuns(records))
+		expectedErr := &ErrStaleWrite{
+			Topic: "topic",
+			StaleWrites: []StaleWrite{
+				{
+					DbMessageId:    dbMessageId,
+					WriteMessageId: writeMessageId,
+				},
+			},
+		}
 		var e *ErrStaleWrite
 		if !assert.ErrorAs(t, err, &e) {
 			return nil
-		}
-		if !assert.NotNil(t, e.WriteMessageId) {
+		} else if !assert.Equal(t, expectedErr, e) {
 			return nil
 		}
-		if !assert.NotNil(t, e.DbMessageId) {
-			return nil
-		}
-		ok, err := writeMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
-		assert.NoError(t, err)
-		assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
-		ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
-		assert.NoError(t, err)
-		assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
+		// if !assert.NotEmpty(t, e.StaleWrites) {
+		// 	return nil
+		// }
+		// if !assert.Equal(t, 1, len(e.StaleWrites)) {
+		// 	return nil
+		// }
+		// ok, err := writeMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
+		// assert.NoError(t, err)
+		// assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
+		// ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
+		// assert.NoError(t, err)
+		// assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
 
 		actual, err = queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
@@ -219,33 +233,33 @@ func TestIdempotence(t *testing.T) {
 			return nil
 		}
 
-		// Insert with a past id and check that it fails.
-		records = makeRuns(1)
-		newWriteMessageId := pulsarutils.New(0, 0, 0, 0)
-		err = UpsertRecords(ctx, db, newWriteMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
-		if !assert.ErrorAs(t, err, &e) {
-			return nil
-		}
-		if !assert.NotNil(t, e.WriteMessageId) {
-			return nil
-		}
-		if !assert.NotNil(t, e.DbMessageId) {
-			return nil
-		}
-		ok, err = newWriteMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
-		assert.NoError(t, err)
-		assert.True(t, ok, "expected %s, but got %s", newWriteMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
-		ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
-		assert.NoError(t, err)
-		assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
+		// // Insert with a past id and check that it fails.
+		// records = makeRuns(1)
+		// newWriteMessageId := pulsarutils.New(0, 0, 0, 0)
+		// err = UpsertRecords(ctx, db, newWriteMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
+		// if !assert.ErrorAs(t, err, &e) {
+		// 	return nil
+		// }
+		// if !assert.NotNil(t, e.WriteMessageId) {
+		// 	return nil
+		// }
+		// if !assert.NotNil(t, e.DbMessageId) {
+		// 	return nil
+		// }
+		// ok, err = newWriteMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
+		// assert.NoError(t, err)
+		// assert.True(t, ok, "expected %s, but got %s", newWriteMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
+		// ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
+		// assert.NoError(t, err)
+		// assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
 
-		actual, err = queries.ListRuns(ctx)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		if !assertRunsEqual(t, expected, actual) {
-			return nil
-		}
+		// actual, err = queries.ListRuns(ctx)
+		// if !assert.NoError(t, err) {
+		// 	return nil
+		// }
+		// if !assertRunsEqual(t, expected, actual) {
+		// 	return nil
+		// }
 
 		return nil
 	})
@@ -263,7 +277,7 @@ func TestConcurrency(t *testing.T) {
 			expected := makeRuns(10)
 			executor := fmt.Sprintf("executor-%d", i)
 			setRunsExecutor(expected, executor)
-			err := UpsertRecords(ctx, db, pulsarutils.New(0, 0, 0, 0), tableName, fmt.Sprintf("topic-%d", i), RunsSchema, interfacesFromRuns(expected))
+			err := UpsertRecords(ctx, db, fmt.Sprintf("topic-%d", i), map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
 			if !assert.NoError(t, err) {
 				return nil
 			}
