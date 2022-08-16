@@ -1,8 +1,8 @@
 package pulsarutils
 
 import (
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
+	"github.com/severinson/pulsar-client-go/pulsar"
 )
 
 // PulsarError returns the first pulsar.Error in the chain,

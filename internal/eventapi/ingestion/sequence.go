@@ -7,8 +7,8 @@ import (
 
 	"github.com/G-Research/armada/internal/pulsarutils"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
+	"github.com/severinson/pulsar-client-go/pulsar"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/eventapi/model"

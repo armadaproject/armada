@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/armada/configuration"

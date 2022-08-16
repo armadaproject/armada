@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"

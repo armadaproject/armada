@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
+	"github.com/severinson/pulsar-client-go/pulsar"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

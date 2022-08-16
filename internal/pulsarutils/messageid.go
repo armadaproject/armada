@@ -3,8 +3,8 @@ package pulsarutils
 import (
 	"fmt"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
+	"github.com/severinson/pulsar-client-go/pulsar"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 )
