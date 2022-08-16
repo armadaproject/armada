@@ -140,7 +140,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		available.Sub(nodesUsage[n.Name])
 
 		nodePods := podsByNodes[n.Name]
-		allocatedResources := getAllocatedResourcesByPriority(nodePods)
+		allocated := getAllocatedResourcesByPriority(nodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
@@ -148,8 +148,8 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			Taints:               n.Spec.Taints,
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
-			TotalResources:       availableResource,
-			AllocatedResources:   allocatedResources,
+			TotalResources:       allocatable,
+			AllocatedResources:   allocated,
 		})
 	}
 
