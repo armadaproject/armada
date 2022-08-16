@@ -132,12 +132,10 @@ func TestUpsert(t *testing.T) {
 
 		// Insert rows, read them back, and compare.
 		expected := makeRuns(10)
-		start := time.Now()
 		err := UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Printf("upserted %d records in %s\n", len(expected), time.Since(start))
 
 		actual, err := queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
@@ -149,12 +147,10 @@ func TestUpsert(t *testing.T) {
 
 		// Change one record, upsert, read back, and compare.
 		expected[0].Executor = "foo"
-		start = time.Now()
 		err = UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Printf("updated %d records in %s\n", len(expected), time.Since(start))
 		actual, err = queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
 			return nil
@@ -176,13 +172,11 @@ func TestIdempotence(t *testing.T) {
 		// Insert rows, read them back, and compare.
 		expected := makeRuns(10)
 		records := expected
-		start := time.Now()
 		writeMessageId := pulsarutils.New(0, 1, 0, 0)
 		err := UpsertRecords(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema, interfacesFromRuns(records))
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Printf("upserted %d records in %s\n", len(expected), time.Since(start))
 
 		actual, err := queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
@@ -253,7 +247,6 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 		// Here, we emulate inserting a message based off of several partitions.
 		expected := makeRuns(10)
 		records := expected
-		start := time.Now()
 		writeMessageIds := map[int32]pulsar.MessageID{
 			0: pulsarutils.New(0, 1, 0, 0),
 			1: pulsarutils.New(0, 2, 1, 0),
@@ -262,7 +255,6 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Printf("upserted %d records in %s\n", len(expected), time.Since(start))
 
 		actual, err := queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
