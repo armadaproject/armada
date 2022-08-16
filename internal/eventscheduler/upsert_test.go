@@ -207,23 +207,29 @@ func TestIdempotence(t *testing.T) {
 			},
 		}
 		var e *ErrStaleWrite
-		if !assert.ErrorAs(t, err, &e) {
-			return nil
-		} else if !assert.Equal(t, expectedErr, e) {
+		if assert.ErrorAs(t, err, &e) {
+			if !assert.Equal(t, expectedErr, e) {
+				return nil
+			}
+
+			ok, err := dbMessageId.Equal(e.StaleWrites[0].DbMessageId)
+			if !assert.NoError(t, err) {
+				return nil
+			}
+			if !assert.True(t, ok) {
+				return nil
+			}
+
+			ok, err = writeMessageId.Equal(e.StaleWrites[0].WriteMessageId)
+			if !assert.NoError(t, err) {
+				return nil
+			}
+			if !assert.True(t, ok) {
+				return nil
+			}
+		} else {
 			return nil
 		}
-		// if !assert.NotEmpty(t, e.StaleWrites) {
-		// 	return nil
-		// }
-		// if !assert.Equal(t, 1, len(e.StaleWrites)) {
-		// 	return nil
-		// }
-		// ok, err := writeMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
-		// assert.NoError(t, err)
-		// assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
-		// ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
-		// assert.NoError(t, err)
-		// assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
 
 		actual, err = queries.ListRuns(ctx)
 		if !assert.NoError(t, err) {
@@ -232,34 +238,6 @@ func TestIdempotence(t *testing.T) {
 		if !assertRunsEqual(t, expected, actual) {
 			return nil
 		}
-
-		// // Insert with a past id and check that it fails.
-		// records = makeRuns(1)
-		// newWriteMessageId := pulsarutils.New(0, 0, 0, 0)
-		// err = UpsertRecords(ctx, db, newWriteMessageId, tableName, "topic", RunsSchema, interfacesFromRuns(records))
-		// if !assert.ErrorAs(t, err, &e) {
-		// 	return nil
-		// }
-		// if !assert.NotNil(t, e.WriteMessageId) {
-		// 	return nil
-		// }
-		// if !assert.NotNil(t, e.DbMessageId) {
-		// 	return nil
-		// }
-		// ok, err = newWriteMessageId.Equal(pulsarutils.FromMessageId(e.WriteMessageId))
-		// assert.NoError(t, err)
-		// assert.True(t, ok, "expected %s, but got %s", newWriteMessageId, pulsarutils.FromMessageId(e.WriteMessageId))
-		// ok, err = writeMessageId.Equal(pulsarutils.FromMessageId(e.DbMessageId))
-		// assert.NoError(t, err)
-		// assert.True(t, ok, "expected %s, but got %s", writeMessageId, pulsarutils.FromMessageId(e.DbMessageId))
-
-		// actual, err = queries.ListRuns(ctx)
-		// if !assert.NoError(t, err) {
-		// 	return nil
-		// }
-		// if !assertRunsEqual(t, expected, actual) {
-		// 	return nil
-		// }
 
 		return nil
 	})
