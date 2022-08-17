@@ -27,6 +27,7 @@ type KubernetesEvent interface {
 func (message *EventMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(message.Events)
 }
+
 func (message *EventMessage) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, message.Events)
 }
@@ -59,13 +60,13 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.Reprioritizing, nil
 	case *EventMessage_Reprioritized:
 		return event.Reprioritized, nil
-	case *EventMessage_Cancelling:
+	case *EventMessage_Canceling:
 		return event.Cancelling, nil
-	case *EventMessage_Cancelled:
+	case *EventMessage_Canceled:
 		return event.Cancelled, nil
 	case *EventMessage_Terminated:
 		return event.Terminated, nil
-	case *EventMessage_Utilisation:
+	case *EventMessage_Utilization:
 		return event.Utilisation, nil
 	case *EventMessage_IngressInfo:
 		return event.IngressInfo, nil
@@ -157,14 +158,14 @@ func Wrap(event Event) (*EventMessage, error) {
 		}, nil
 	case *JobCancellingEvent:
 		return &EventMessage{
-			Events: &EventMessage_Cancelling{
-				Cancelling: typed,
+			Events: &EventMessage_Canceling{
+				Canceling: typed,
 			},
 		}, nil
 	case *JobCancelledEvent:
 		return &EventMessage{
-			Events: &EventMessage_Cancelled{
-				Cancelled: typed,
+			Events: &EventMessage_Canceled{
+				Canceled: typed,
 			},
 		}, nil
 	case *JobTerminatedEvent:
@@ -175,8 +176,8 @@ func Wrap(event Event) (*EventMessage, error) {
 		}, nil
 	case *JobUtilisationEvent:
 		return &EventMessage{
-			Events: &EventMessage_Utilisation{
-				Utilisation: typed,
+			Events: &EventMessage_Utilization{
+				Utilization: typed,
 			},
 		}, nil
 	case *JobIngressInfoEvent:

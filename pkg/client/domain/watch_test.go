@@ -88,7 +88,7 @@ func TestWatchContext_GetCurrentStateSummary(t *testing.T) {
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "2"})
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "3"})
 
-	expected := "Queued:   1, Leased:   0, Pending:   1, Running:   1, Succeeded:   0, Failed:   0, Cancelled:   0"
+	expected := "Queued:   1, Leased:   0, Pending:   1, Running:   1, Succeeded:   0, Failed:   0, Canceled:   0"
 	result := watchContext.GetCurrentStateSummary()
 
 	assert.Equal(t, expected, result)
@@ -99,7 +99,7 @@ func TestWatchContext_GetCurrentStateSummary_IsCorrectlyAlteredOnUpdateToExistin
 
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1"})
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
-	expected := "Queued:   0, Leased:   0, Pending:   1, Running:   0, Succeeded:   0, Failed:   0, Cancelled:   0"
+	expected := "Queued:   0, Leased:   0, Pending:   1, Running:   0, Succeeded:   0, Failed:   0, Canceled:   0"
 	result := watchContext.GetCurrentStateSummary()
 	assert.Equal(t, result, expected)
 }
@@ -127,7 +127,7 @@ func TestWatchContext_GetNumberOfJobs(t *testing.T) {
 	assert.Equal(t, 2, result)
 }
 
-// Succeeded/failed/cancelled jobs are considered finished
+// Succeeded/failed/canceled jobs are considered finished
 func TestWatchContext_GetNumberOfFinishedJobs(t *testing.T) {
 	watchContext := NewWatchContext()
 

@@ -20,7 +20,7 @@ const (
 	JobRunning          JobState = "RUNNING"
 	JobSucceeded        JobState = "SUCCEEDED"
 	JobFailed           JobState = "FAILED"
-	JobCancelled        JobState = "CANCELLED"
+	JobCancelled        JobState = "CANCELED"
 	JobDuplicate        JobState = "DUPLICATE"
 	JobQueuedOrdinal             = 1
 	JobPendingOrdinal            = 2
@@ -56,7 +56,7 @@ var (
 	job_jobset     = goqu.I("job.jobset")
 	job_priority   = goqu.I("job.priority")
 	job_submitted  = goqu.I("job.submitted")
-	job_cancelled  = goqu.I("job.cancelled")
+	job_canceled  = goqu.I("job.cancelled")
 	job_job        = goqu.I("job.job")
 	job_state      = goqu.I("job.state")
 	job_duplicate  = goqu.I("job.duplicate")
@@ -87,7 +87,7 @@ type JobRow struct {
 	JobSet    sql.NullString  `db:"jobset"`
 	Priority  sql.NullFloat64 `db:"priority"`
 	Submitted sql.NullTime    `db:"submitted"`
-	Cancelled sql.NullTime    `db:"cancelled"`
+	Canceled sql.NullTime    `db:"canceled"`
 	JobJson   sql.NullString  `db:"job"`
 	State     sql.NullInt64   `db:"state"`
 	RunId     sql.NullString  `db:"run_id"`

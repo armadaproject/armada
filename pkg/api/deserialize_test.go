@@ -24,16 +24,16 @@ func TestDeserializeJobState_WhenInputInvalid(t *testing.T) {
 
 func testDeserializeJobStateString(t *testing.T, input string) error {
 	value := input
-	marshalled, err := json.Marshal(value)
+	marshaled, err := json.Marshal(value)
 	assert.NoError(t, err)
-	return deserializeJobState(marshalled)
+	return deserializeJobState(marshaled)
 }
 
 func testDeserializeJobStateInt(t *testing.T, input int) error {
 	value := input
-	marshalled, err := json.Marshal(value)
+	marshaled, err := json.Marshal(value)
 	assert.NoError(t, err)
-	return deserializeJobState(marshalled)
+	return deserializeJobState(marshaled)
 }
 
 func deserializeJobState(input []byte) error {

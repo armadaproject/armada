@@ -70,7 +70,7 @@ func TestCatchup(t *testing.T) {
 	wg.Add(1)
 	collectedEvents := make([][]*model.EventRow, 0)
 	go func() {
-		var index = 0
+		index := 0
 		for event := range subscription.Channel {
 			collectedEvents = append(collectedEvents, event)
 			if index == 0 {
@@ -102,7 +102,7 @@ func TestCatchup(t *testing.T) {
 func TestPoll(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
 
-	// Initialise with no events
+	// Initialize with no events
 	sequenceManager := NewStaticSequenceManager(map[int64]int64{defaultJobsetId: 0})
 
 	event1 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 1, Event: nil}
@@ -119,7 +119,7 @@ func TestPoll(t *testing.T) {
 	wg.Add(1)
 	collectedEvents := make([][]*model.EventRow, 0)
 	go func() {
-		var index = 0
+		index := 0
 		for event := range subscription.Channel {
 			collectedEvents = append(collectedEvents, event)
 			if index == 0 {
@@ -152,7 +152,7 @@ func TestPoll(t *testing.T) {
 func TestFromOffset(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
 
-	// Initialise with 3 events
+	// Initialize with 3 events
 	sequenceManager := NewStaticSequenceManager(map[int64]int64{defaultJobsetId: 3})
 
 	event1 := &model.EventRow{JobSetId: defaultJobsetId, SeqNo: 1, Event: nil}
@@ -169,7 +169,7 @@ func TestFromOffset(t *testing.T) {
 	wg.Add(1)
 	collectedEvents := make([][]*model.EventRow, 0)
 	go func() {
-		var index = 0
+		index := 0
 		for event := range subscription.Channel {
 			collectedEvents = append(collectedEvents, event)
 			if index == 0 {

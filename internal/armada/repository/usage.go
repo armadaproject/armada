@@ -15,9 +15,11 @@ type Usage struct {
 	CurrentUsagePerQueue map[string]float64
 }
 
-const clusterReportKey = "Cluster:Report"
-const clusterLeasedReportKey = "Cluster:Leased"
-const clusterPrioritiesPrefix = "Cluster:Priority:"
+const (
+	clusterReportKey        = "Cluster:Report"
+	clusterLeasedReportKey  = "Cluster:Leased"
+	clusterPrioritiesPrefix = "Cluster:Priority:"
+)
 
 type UsageRepository interface {
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
@@ -123,7 +125,7 @@ func (r *RedisUsageRepository) GetClusterPriorities(clusterIds []string) (map[st
 func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error {
 	data, err := proto.Marshal(report)
 	if err != nil {
-		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error marshalling report: %s", err)
+		return fmt.Errorf("[RedisUsageRepository.UpdateCluster] error marshaling report: %s", err)
 	}
 
 	pipe := r.db.TxPipeline()
@@ -148,7 +150,7 @@ func (r *RedisUsageRepository) UpdateCluster(report *api.ClusterUsageReport, pri
 func (r *RedisUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedReport) error {
 	data, err := proto.Marshal(report)
 	if err != nil {
-		return fmt.Errorf("[RedisUsageRepository.UpdateClusterLeased] error marshalling report: %s", err)
+		return fmt.Errorf("[RedisUsageRepository.UpdateClusterLeased] error marshaling report: %s", err)
 	}
 
 	_, err = r.db.HSet(clusterLeasedReportKey, report.ClusterId, data).Result()

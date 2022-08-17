@@ -24,7 +24,6 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
-
 	if !(config.Paralellism > 0) {
 		panic("Lookout ingester paralellism must be greater than 0")
 	}
@@ -50,10 +49,10 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		panic(err)
 	}
 
-	// initialise a jobsetMapper preloaded with the last day's mappings
+	// initialize a jobsetMapper preloaded with the last day's mappings
 	jobsetmapper, err := eventapi.NewJobsetMapper(eventDb, 100000, 24*time.Hour)
 	if err != nil {
-		log.Errorf("Error initialising jobset mapper")
+		log.Errorf("Error initializing jobset mapper")
 		panic(err)
 	}
 
@@ -61,7 +60,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		Topic: config.UpdateTopic,
 	})
 	if err != nil {
-		log.Errorf("Error initialising pulsar producer")
+		log.Errorf("Error initializing pulsar producer")
 		panic(err)
 	}
 

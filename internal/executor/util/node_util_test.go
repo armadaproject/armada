@@ -123,7 +123,7 @@ func TestExtractNodeNames(t *testing.T) {
 	result = ExtractNodeNames([]*v1.Node{node1, node2})
 	assert.Equal(t, []string{node1.Name, node2.Name}, result)
 
-	//Returns duplicates
+	// Returns duplicates
 	result = ExtractNodeNames([]*v1.Node{node1, node1})
 	assert.Equal(t, []string{node1.Name, node1.Name}, result)
 }

@@ -1,4 +1,4 @@
-package utilisation
+package utilization
 
 import (
 	"fmt"
@@ -36,8 +36,8 @@ func NewClusterUtilisationService(
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
-	trackedNodeLabels []string) *ClusterUtilisationService {
-
+	trackedNodeLabels []string,
+) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,

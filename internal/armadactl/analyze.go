@@ -36,7 +36,7 @@ func (a *App) Analyze(queue string, jobSetId string) error {
 				for _, e := range jobEvents {
 					data, err := json.Marshal(e)
 					if err != nil {
-						fmt.Fprintf(a.Out, "Error marshalling JSON: %s\n", err)
+						fmt.Fprintf(a.Out, "Error marshaling JSON: %s\n", err)
 					} else {
 						fmt.Fprintf(a.Out, "%s %s\n", reflect.TypeOf(*e), string(data))
 					}

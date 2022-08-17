@@ -53,7 +53,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			log.Warnf("Unknown event type: %T", esEvent)
 		}
 		if err != nil {
-			//TODO: would it be better to log a warning and continue- that way one bad event won't cause the stream to terminate?
+			// TODO: would it be better to log a warning and continue- that way one bad event won't cause the stream to terminate?
 			return nil, err
 		}
 		apiEvents = append(apiEvents, convertedEvents...)
@@ -109,8 +109,8 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 
 	return []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Cancelling{
-				Cancelling: &api.JobCancellingEvent{
+			Events: &api.EventMessage_Canceling{
+				Canceling: &api.JobCancellingEvent{
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
@@ -120,7 +120,6 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 			},
 		},
 	}, nil
-
 }
 
 func FromInternalCancelled(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.CancelledJob) ([]*api.EventMessage, error) {
@@ -131,8 +130,8 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 
 	return []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Cancelled{
-				Cancelled: &api.JobCancelledEvent{
+			Events: &api.EventMessage_Canceled{
+				Canceled: &api.JobCancelledEvent{
 					JobId:     jobId,
 					JobSetId:  jobSetName,
 					Queue:     queueName,
@@ -309,7 +308,6 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 			default:
 				log.Debugf("Ignoring event %T", reason)
 			}
-
 		}
 	}
 	return events, nil
@@ -445,25 +443,24 @@ func FromInternalResourceUtilisation(queueName string, time time.Time, e *armada
 		return nil, err
 	}
 
-	apiEvent :=
-		&api.JobUtilisationEvent{
-			JobId:                 jobId,
-			Queue:                 queueName,
-			Created:               time,
-			ClusterId:             e.GetResourceInfo().GetObjectMeta().GetExecutorId(),
-			KubernetesId:          e.GetResourceInfo().GetObjectMeta().GetKubernetesId(),
-			MaxResourcesForPeriod: e.MaxResourcesForPeriod,
-			NodeName:              e.GetResourceInfo().GetPodInfo().GetNodeName(),
-			PodNumber:             e.GetResourceInfo().GetPodInfo().GetPodNumber(),
-			PodName:               e.GetResourceInfo().GetObjectMeta().GetName(),
-			PodNamespace:          e.GetResourceInfo().GetObjectMeta().GetNamespace(),
-			TotalCumulativeUsage:  e.TotalCumulativeUsage,
-		}
+	apiEvent := &api.JobUtilisationEvent{
+		JobId:                 jobId,
+		Queue:                 queueName,
+		Created:               time,
+		ClusterId:             e.GetResourceInfo().GetObjectMeta().GetExecutorId(),
+		KubernetesId:          e.GetResourceInfo().GetObjectMeta().GetKubernetesId(),
+		MaxResourcesForPeriod: e.MaxResourcesForPeriod,
+		NodeName:              e.GetResourceInfo().GetPodInfo().GetNodeName(),
+		PodNumber:             e.GetResourceInfo().GetPodInfo().GetPodNumber(),
+		PodName:               e.GetResourceInfo().GetObjectMeta().GetName(),
+		PodNamespace:          e.GetResourceInfo().GetObjectMeta().GetNamespace(),
+		TotalCumulativeUsage:  e.TotalCumulativeUsage,
+	}
 
 	return []*api.EventMessage{
 		{
-			Events: &api.EventMessage_Utilisation{
-				Utilisation: apiEvent,
+			Events: &api.EventMessage_Utilization{
+				Utilization: apiEvent,
 			},
 		},
 	}, nil

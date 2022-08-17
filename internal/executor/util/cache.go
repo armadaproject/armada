@@ -133,7 +133,7 @@ func (podCache *mapPodCache) deleteExpired() {
 			delete(podCache.records, id)
 		}
 	}
-	//Set size here, so it also fixes the value if it ever gets out of sync
+	// Set size here, so it also fixes the value if it ever gets out of sync
 	podCache.sizeGauge.Set(float64(len(podCache.records)))
 }
 

@@ -45,7 +45,7 @@ func (r *RedisSchedulingInfoRepository) GetClusterSchedulingInfo() (map[string]*
 func (r *RedisSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *api.ClusterSchedulingInfoReport) error {
 	data, err := proto.Marshal(report)
 	if err != nil {
-		return fmt.Errorf("[RedisSchedulingInfoRepository.UpdateClusterSchedulingInfo] error marshalling: %s", err)
+		return fmt.Errorf("[RedisSchedulingInfoRepository.UpdateClusterSchedulingInfo] error marshaling: %s", err)
 	}
 
 	_, err = r.db.HSet(clusterSchedulingInfoReportKey, report.ClusterId, data).Result()

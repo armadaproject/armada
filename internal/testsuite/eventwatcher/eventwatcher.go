@@ -153,7 +153,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
 			if !ok {
-				break // Unrecognised job id
+				break // Unrecognized job id
 			}
 
 			// Record terminated jobs.
@@ -194,7 +194,7 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 		return true
 	case *api.EventMessage_Succeeded:
 		return true
-	case *api.EventMessage_Cancelled:
+	case *api.EventMessage_Canceled:
 		return true
 	case *api.EventMessage_DuplicateFound:
 		return true
@@ -202,8 +202,8 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 	return false
 }
 
-// WithCancelOnNoActiveJobs returns a context that is cancelled when there are no active jobs,
-// or if the parent is cancelled.
+// WithCancelOnNoActiveJobs returns a context that is canceled when there are no active jobs,
+// or if the parent is canceled.
 func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
 	numRemaining := len(jobIds)
@@ -250,8 +250,8 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 	}
 }
 
-// WithCancelOnFailed returns a context that is cancelled if a job fails,
-// or if the parent is cancelled.
+// WithCancelOnFailed returns a context that is canceled if a job fails,
+// or if the parent is canceled.
 func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 	for {
 		select {
@@ -274,7 +274,7 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 		select {
 		case <-parent.Done():
 			return g.Wait()
-		case <-ctx.Done(): // errgroup cancelled
+		case <-ctx.Done(): // errgroup canceled
 			return g.Wait()
 		case msg := <-C:
 			if ingressInfo := msg.GetIngressInfo(); ingressInfo != nil {
@@ -323,13 +323,13 @@ func getFromIngress(ctx context.Context, host string) error {
 	httpReq.Host = host
 
 	// It may take a moment before ingresses are registered with the ingress controller.
-	// so we retry until success or until ctx is cancelled.
+	// so we retry until success or until ctx is canceled.
 	var requestErr error
 	for {
 		select {
 		case <-ctx.Done():
-			// When cancelled, return the most recent request err,
-			// or if there have been no errors (context cancelled before the first attempt)
+			// When canceled, return the most recent request err,
+			// or if there have been no errors (context canceled before the first attempt)
 			// return the context error.
 			if requestErr == nil {
 				return ctx.Err()

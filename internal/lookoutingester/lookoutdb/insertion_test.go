@@ -20,28 +20,34 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-const runIdString = "123e4567-e89b-12d3-a456-426614174000"
+const (
+	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+)
 
 var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
 
-const jobSetName = "testJobset"
-const executorId = "testCluster"
-const nodeName = "testNode"
-const queue = "test-queue"
-const userId = "testUser"
-const priority = 3
-const updatePriority = 4
-const updateState = 5
-const podNumber = 6
-const jobJson = `{"foo": "bar"}`
-const jobProto = "hello world"
-const containerName = "testContainer"
+const (
+	jobSetName     = "testJobset"
+	executorId     = "testCluster"
+	nodeName       = "testNode"
+	queue          = "test-queue"
+	userId         = "testUser"
+	priority       = 3
+	updatePriority = 4
+	updateState    = 5
+	podNumber      = 6
+	jobJson        = `{"foo": "bar"}`
+	jobProto       = "hello world"
+	containerName  = "testContainer"
+)
 
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-var updateTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
-var startTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
-var finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+var (
+	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
+	startTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
+	finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+)
 
 // An invalid job id that exceeds th varchar count
 var invalidId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -58,7 +64,7 @@ type JobRow struct {
 	State     int64
 	Duplicate bool
 	Updated   time.Time
-	Cancelled *time.Time
+	Canceled *time.Time
 }
 
 type JobRunRow struct {
@@ -294,10 +300,8 @@ func TestUpdateJobsScalar(t *testing.T) {
 }
 
 func TestUpdateJobsWithCancelled(t *testing.T) {
-
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
-		intial := []*model.CreateJobInstruction{{
+		initial := []*model.CreateJobInstruction{{
 			JobId:     jobIdString,
 			Queue:     queue,
 			Owner:     userId,
@@ -323,7 +327,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 		}}
 
 		// Insert
-		CreateJobs(ctx.Background(), db, intial)
+		CreateJobs(ctx.Background(), db, initial)
 
 		// Cancel the job
 		UpdateJobs(ctx.Background(), db, update1)
@@ -331,7 +335,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 		// Update the job- this should be discarded
 		UpdateJobs(ctx.Background(), db, update2)
 
-		// Assert the state is still cancelled
+		// Assert the state is still canceled
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, repository.JobCancelledOrdinal, int(job.State))
 
@@ -342,7 +346,6 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 
 func TestCreateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Simple create
 		CreateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		job := getJob(t, db, jobIdString)
@@ -369,7 +372,6 @@ func TestCreateJobsScalar(t *testing.T) {
 
 func TestCreateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job so we can satisfy PK
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -402,7 +404,6 @@ func TestCreateJobRunsBatch(t *testing.T) {
 
 func TestCreateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job so we can satisfy PK
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -433,7 +434,6 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 func TestUpdateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job and run
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -472,7 +472,6 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 
 func TestUpdateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job and run
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -510,7 +509,6 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -555,7 +553,6 @@ func TestEmptyUpdate(t *testing.T) {
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -604,7 +601,6 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestConflateJobUpdates(T *testing.T) {
-
 	// Empty
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{})
 	assert.Equal(T, []*model.UpdateJobInstruction{}, updates)
@@ -631,7 +627,7 @@ func TestConflateJobUpdates(T *testing.T) {
 }
 
 func TestConflateJobUpdatesWithCancelled(T *testing.T) {
-	//Updates after the cancelled shouldn't be processed
+
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
 		{JobId: jobIdString, State: pointer.Int32(repository.JobRunningOrdinal)},
@@ -644,7 +640,6 @@ func TestConflateJobUpdatesWithCancelled(T *testing.T) {
 }
 
 func TestConflateJobRunUpdates(T *testing.T) {
-
 	// Empty
 	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{})
 	assert.Equal(T, []*model.UpdateJobRunInstruction{}, updates)
@@ -675,7 +670,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	job := JobRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled FROM job WHERE job_id = $1`,
+		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, canceled FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(&job.JobId, &job.Queue, &job.Owner, &job.JobSet, &job.Priority, &job.Submitted, &job.State, &job.Duplicate, &job.Updated, &job.JobJson, &job.JobProto, &job.Cancelled)
 	assert.Nil(t, err)

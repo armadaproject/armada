@@ -41,7 +41,6 @@ var log = logrus.NewEntry(logrus.StandardLogger())
 func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, bufferSize int, receiveTimeout time.Duration, backoffTime time.Duration) chan *ConsumerMessage {
 	out := make(chan *ConsumerMessage, bufferSize)
 	go func() {
-
 		// Periodically log the number of processed messages.
 		logInterval := 60 * time.Second
 		lastLogged := time.Now()
@@ -50,7 +49,7 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 		lastMessageId = nil
 		lastPublishTime := time.Now()
 
-		// Run until ctx is cancelled.
+		// Run until ctx is canceled.
 		for {
 
 			// Periodic logging.
@@ -67,7 +66,7 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 				lastLogged = time.Now()
 			}
 
-			// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
+			// Exit if the context has been canceled. Otherwise, get a message from Pulsar.
 			select {
 			case <-ctx.Done():
 				log.Infof("Shutting down pulsar receiver %d", consumerId)
@@ -81,7 +80,7 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 				if errors.Is(err, context.DeadlineExceeded) {
 					log.Debugf("No message received")
 					cancel()
-					break //expected
+					break // expected
 				}
 				cancel()
 				// If receiving fails, try again in the hope that the problem is transient.

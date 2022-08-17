@@ -27,9 +27,8 @@ type PulsarFromPulsar struct {
 	Logger *logrus.Entry
 }
 
-// Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
+// Run the service that reads from Pulsar and updates Armada until the provided context is canceled.
 func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {
@@ -60,7 +59,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 	lastMessageId = nil
 	lastPublishTime := time.Now()
 
-	// Run until ctx is cancelled.
+	// Run until ctx is canceled.
 	for {
 
 		// Periodic logging.
@@ -80,7 +79,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 			lastLogged = time.Now()
 		}
 
-		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
+		// Exit if the context has been canceled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
 			return nil
@@ -90,7 +89,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				break //expected
+				break // expected
 			}
 
 			// If receiving fails, try again in the hope that the problem is transient.

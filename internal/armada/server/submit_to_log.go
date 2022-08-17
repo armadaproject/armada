@@ -50,7 +50,6 @@ type PulsarSubmitServer struct {
 // TODO: Add input validation to make sure messages can be inserted to the database.
 // TODO: Check job size and reject jobs that could never be scheduled. Maybe by querying the scheduler for its limits.
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
 		return nil, err
@@ -247,7 +246,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
-
 	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
 	// If both queue and jobSetId are provided, we assume that those are correct
@@ -326,7 +324,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		Events:     make([]*armadaevents.EventSequence_Event, 1, 1),
 	}
 
-	// Empty JobId indicates that all jobs in the job set should be cancelled.
+	// Empty JobId indicates that all jobs in the job set should be canceled.
 	if req.JobId == "" {
 		sequence.Events[0] = &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_CancelJobSet{
@@ -425,7 +423,6 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 }
 
 func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
-
 	// If either queue or jobSetId is missing, we get the job set and queue associated
 	// with the first job id in the request.
 	//
@@ -514,7 +511,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobIds), len(req.JobIds)),
 	}
 
-	// No job ids implicitly indicates that all jobs in the job set should be re-prioritised.
+	// No job ids implicitly indicates that all jobs in the job set should be re-prioritized.
 	if len(req.JobIds) == 0 {
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
@@ -527,7 +524,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 		results[fmt.Sprintf("all jobs in job set %s", req.JobSetId)] = ""
 	}
 
-	// Otherwise, only the specified jobs should be re-prioritised.
+	// Otherwise, only the specified jobs should be re-prioritized.
 	for i, jobIdString := range req.JobIds {
 
 		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdString)
@@ -629,28 +626,33 @@ func principalHasQueuePermissions(principal authorization.Principal, q queue.Que
 func (srv *PulsarSubmitServer) CreateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.CreateQueue(ctx, req)
 }
+
 func (srv *PulsarSubmitServer) CreateQueues(ctx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
 	return srv.SubmitServer.CreateQueues(ctx, req)
 }
+
 func (srv *PulsarSubmitServer) UpdateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.UpdateQueue(ctx, req)
 }
+
 func (srv *PulsarSubmitServer) UpdateQueues(ctx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
 	return srv.SubmitServer.UpdateQueues(ctx, req)
 }
+
 func (srv *PulsarSubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
 	return srv.SubmitServer.DeleteQueue(ctx, req)
 }
+
 func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
 	return srv.SubmitServer.GetQueue(ctx, req)
 }
+
 func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	return srv.SubmitServer.GetQueueInfo(ctx, req)
 }
 
 // SubmitApiEvents converts several api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
 func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []*api.EventMessage) error {
-
 	// Because (queue, userId, jobSetId) may differ between events,
 	// several sequences may be necessary.
 	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents)
@@ -703,7 +705,6 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 
 // PublishToPulsar sends pulsar messages async
 func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
-
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)

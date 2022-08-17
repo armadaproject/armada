@@ -49,7 +49,6 @@ func TestSubmitJob_EmptyPodSpec(t *testing.T) {
 
 func TestSubmitJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		_, err := client.CreateQueue(ctx, &api.Queue{
 			Name:           "test",
 			PriorityFactor: 1,
@@ -79,7 +78,6 @@ func TestSubmitJob(t *testing.T) {
 
 func TestAutomQueueCreation(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
 
@@ -102,7 +100,6 @@ func TestAutomQueueCreation(t *testing.T) {
 
 func TestCancelJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		_, err := client.CreateQueue(ctx, &api.Queue{
 			Name:           "test",
 			PriorityFactor: 1,
@@ -143,7 +140,6 @@ func TestCancelJob(t *testing.T) {
 
 func TestCancelJobSet(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		_, err := client.CreateQueue(ctx, &api.Queue{
 			Name:           "test",
 			PriorityFactor: 1,
@@ -211,15 +207,16 @@ func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quanti
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
 				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{{
-						Name:  "Container1",
-						Image: "index.docker.io/library/ubuntu:latest",
-						Args:  []string{"sleep", "10s"},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					Containers: []v1.Container{
+						{
+							Name:  "Container1",
+							Image: "index.docker.io/library/ubuntu:latest",
+							Args:  []string{"sleep", "10s"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+							},
 						},
-					},
 					},
 				},
 				Priority: 0,
@@ -334,7 +331,7 @@ func setupServer(conn *grpc.ClientConn) {
 	if err != nil {
 		panic(err)
 	}
-	//Make initial lease request to populate cluster node info
+	// Make initial lease request to populate cluster node info
 	leaseClient := api.NewAggregatedQueueClient(conn)
 	_, err = leaseJobs(leaseClient, ctx, common.ComputeResources{})
 	if err != nil {

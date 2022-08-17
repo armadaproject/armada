@@ -36,7 +36,6 @@ type flag struct {
 }
 
 func TestCreate(t *testing.T) {
-
 	// TODO there are no tests for invalid input because cobra silently discards those inputs without raising errors
 	tests := map[string]struct {
 		Flags          []flag
@@ -55,7 +54,6 @@ func TestCreate(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Create app object, cobra command, and hijack the app setup process to insert a
 			// function that does validation
 			a := armadactl.New()
@@ -110,7 +108,6 @@ func TestCreate(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-
 	// Create app object, cobra command, and hijack the app setup process to insert a
 	// function that does validation
 	a := armadactl.New()
@@ -138,7 +135,6 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDescribe(t *testing.T) {
-
 	// Create app object, cobra command, and hijack the app setup process to insert a
 	// function that does validation
 	a := armadactl.New()
@@ -166,7 +162,6 @@ func TestDescribe(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-
 	// TODO there are no tests for invalid input because cobra silently discards those inputs without raising errors
 	tests := map[string]struct {
 		Flags          []flag
@@ -185,7 +180,6 @@ func TestUpdate(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Create app object, cobra command, and hijack the app setup process to insert a
 			// function that does validation
 			a := armadactl.New()

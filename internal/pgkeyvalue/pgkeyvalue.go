@@ -87,7 +87,6 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 }
 
 func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
-
 	// Overwriting isn't allowed.
 	if _, ok := c.cache.Get(key); ok {
 		return false, nil
@@ -96,7 +95,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 	// Otherwise, get and set the key in a transaction.
 	var exists *bool
 	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
-
 		// Check if the key already exists in postgres.
 		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
 		err := tx.QueryRow(ctx, sql, key).Scan(&exists)
@@ -115,7 +113,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 
 		return nil
 	})
-
 	// We need to return on error (in particular tx rollback)
 	// to avoid writing to the cache after failing to write to postgres.
 	if err != nil {
@@ -135,7 +132,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 // Get returns the value associated with the provided key,
 // or &armadaerrors.ErrNotFound if the key can't be found.
 func (c *PGKeyValueStore) Get(ctx context.Context, key string) ([]byte, error) {
-
 	// First check the local cache.
 	if value, ok := c.cache.Get(key); ok {
 		return value.([]byte), nil
@@ -175,7 +171,7 @@ func (c *PGKeyValueStore) Cleanup(ctx context.Context, lifespan time.Duration) e
 }
 
 // PeriodicCleanup starts a goroutine that automatically runs the cleanup job
-// every interval until the provided context is cancelled.
+// every interval until the provided context is canceled.
 func (c *PGKeyValueStore) PeriodicCleanup(ctx context.Context, interval time.Duration, lifespan time.Duration) error {
 	var log *logrus.Entry
 	if c.Logger == nil {

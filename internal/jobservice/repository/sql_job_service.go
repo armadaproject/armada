@@ -90,8 +90,8 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 		jobProtoResponse.State = js.JobServiceResponse_FAILED
 	case "SUCCEEDED":
 		jobProtoResponse.State = js.JobServiceResponse_SUCCEEDED
-	case "CANCELLED":
-		jobProtoResponse.State = js.JobServiceResponse_CANCELLED
+	case "CANCELED":
+		jobProtoResponse.State = js.JobServiceResponse_CANCELED
 	case "JOB_ID_NOT_FOUND":
 		jobProtoResponse.State = js.JobServiceResponse_JOB_ID_NOT_FOUND
 	}
@@ -144,7 +144,6 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 	if !ok {
 		s.jobSetSubscribe.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 	}
-
 }
 
 // UnSubscribe to JobSet and delete all the jobs in the database

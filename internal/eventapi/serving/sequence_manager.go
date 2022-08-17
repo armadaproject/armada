@@ -24,7 +24,7 @@ type DefaultSequenceManager struct {
 	sequences map[int64]int64
 }
 
-// NewUpdatingSequenceManager returns a SequenceManager that is initialised from the eventDb and then receives
+// NewUpdatingSequenceManager returns a SequenceManager that is initialized from the eventDb and then receives
 // updates from pulsar
 func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, pulsarClient pulsar.Client, updateTopic string) (*DefaultSequenceManager, error) {
 	// Snapshot the time before we fetch from the db.  This allows us to later subscribe to pulsar messages from before
@@ -90,7 +90,7 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 }
 
 // NewStaticSequenceManager returns a SequenceManager that only updates if `Update` is called.
-// This is mainly usefuly for test purposes
+// This is mainly usefully for test purposes
 func NewStaticSequenceManager(initialSequences map[int64]int64) *DefaultSequenceManager {
 	om := &DefaultSequenceManager{
 		sequences: initialSequences,

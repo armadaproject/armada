@@ -130,7 +130,7 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
 			Pending(cluster, "e1").
 			Running(cluster, "e2", node).
-			Cancelled()
+			Canceled()
 
 		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)
@@ -285,7 +285,7 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 
 			NewJobSimulator(t, jobStore).
 				CreateJob(queue).
-				Cancelled()
+				Canceled()
 		}
 
 		// All the same, except for last
@@ -303,7 +303,7 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 
 			NewJobSimulator(t, jobStore).
 				CreateJobWithJobSet(queue, "job-set-2").
-				Cancelled()
+				Canceled()
 		}
 
 		otherTime := someTime.Add(10 * time.Minute)
@@ -361,7 +361,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 
 			NewJobSimulator(t, jobStore).
 				CreateJob(queue).
-				Cancelled()
+				Canceled()
 		}
 
 		for i := 0; i < 10; i++ {
@@ -378,7 +378,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 
 			NewJobSimulator(t, jobStore).
 				CreateJobWithJobSet(queue, "job-set-2").
-				Cancelled()
+				Canceled()
 		}
 
 		NewJobSimulator(t, jobStore).
@@ -426,7 +426,7 @@ func TestGetJobSetInfos_GetOnlyActiveJobSets(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-4").
-			Cancelled()
+			Canceled()
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-5").

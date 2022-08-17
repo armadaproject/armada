@@ -677,7 +677,7 @@ func Test_Failed(t *testing.T) {
 	})
 }
 
-func Test_Cancelled(t *testing.T) {
+func Test_Canceled(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobId := util.NewULID()
@@ -759,7 +759,6 @@ func Test_DuplicateOutOfOrder(t *testing.T) {
 
 		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
 			"SELECT state FROM job"))
-
 	})
 }
 
@@ -865,7 +864,6 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 
 func Test_JobUpdatedEvent(t *testing.T) {
 	t.Run("job exists", func(t *testing.T) {
-
 		newPriority := 123.0
 
 		oldAnnotations := map[string]string{userAnnotationPrefix + "a": "b", userAnnotationPrefix + "1": "2"}
@@ -925,7 +923,6 @@ func Test_JobUpdatedEvent(t *testing.T) {
 	})
 
 	t.Run("existing job has later timestamp than event", func(t *testing.T) {
-
 		oldPriority := 123.0
 		oldAnnotations := map[string]string{userAnnotationPrefix + "a": "b", userAnnotationPrefix + "1": "2"}
 

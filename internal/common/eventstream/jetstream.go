@@ -29,7 +29,8 @@ type JetstreamEventStream struct {
 
 func NewJetstreamEventStream(
 	opts *configuration.JetstreamConfig,
-	consumerOpts ...jsm.ConsumerOption) (*JetstreamEventStream, error) {
+	consumerOpts ...jsm.ConsumerOption,
+) (*JetstreamEventStream, error) {
 	natsConn, err := nats.Connect(strings.Join(opts.Servers, ","))
 	if err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func (c *JetstreamEventStream) Publish(events []*api.EventMessage) []error {
 	for _, event := range events {
 		data, err := proto.Marshal(event)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error while marshalling event: %v", err))
+			errs = append(errs, fmt.Errorf("error while marshaling event: %v", err))
 		}
 		err = c.conn.Publish(c.subject, data)
 		if err != nil {

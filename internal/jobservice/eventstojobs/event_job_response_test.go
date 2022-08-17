@@ -42,8 +42,8 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED},
 		},
 		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_Cancelled{}},
-			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Canceled{}},
+			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELED},
 		},
 		{
 			eventMessage: api.EventMessage{Events: &api.EventMessage_Queued{}},
@@ -54,7 +54,7 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_Cancelling{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Canceling{}},
 			jobResponse:  nil,
 		},
 		{
@@ -94,7 +94,7 @@ func TestIsEventResponse(t *testing.T) {
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{Events: &api.EventMessage_Utilisation{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Utilization{}},
 			jobResponse:  nil,
 		},
 	}
@@ -129,7 +129,7 @@ func TestIsTerminalEvent(t *testing.T) {
 			jobServiceEvent: true,
 		},
 		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_Cancelled{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Canceled{}},
 			jobServiceEvent: true,
 		},
 		{
@@ -141,7 +141,7 @@ func TestIsTerminalEvent(t *testing.T) {
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_Cancelling{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Canceling{}},
 			jobServiceEvent: false,
 		},
 		{
@@ -181,7 +181,7 @@ func TestIsTerminalEvent(t *testing.T) {
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{Events: &api.EventMessage_Utilisation{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Utilization{}},
 			jobServiceEvent: false,
 		},
 	}
@@ -201,7 +201,7 @@ type isStateResponse struct {
 func TestIsTerminalState(t *testing.T) {
 	stateMessages := []isStateResponse{
 		{
-			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
+			state:         &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELED},
 			terminalState: true,
 		},
 		{

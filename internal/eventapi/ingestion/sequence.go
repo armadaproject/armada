@@ -62,7 +62,7 @@ func SendSequenceUpdate(ctx context.Context, inputMsgs []*model.PulsarEventRow, 
 				}
 			}
 		} else {
-			log.Warnf("Error marshalling sequence update %+v", errors.WithStack(err))
+			log.Warnf("Error marshaling sequence update %+v", errors.WithStack(err))
 		}
 	}
 	return messageIds

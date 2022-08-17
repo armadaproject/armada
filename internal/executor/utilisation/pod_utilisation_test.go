@@ -1,4 +1,4 @@
-package utilisation
+package utilization
 
 import (
 	"testing"

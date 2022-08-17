@@ -214,7 +214,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 				queueInfo.OldestQueuedJob = &lookout.JobInfo{
 					Job:       job,
 					Runs:      []*lookout.RunInfo{},
-					Cancelled: nil,
+					Canceled: nil,
 					JobState:  string(JobQueued),
 				}
 				currentTime := r.clock.Now()
@@ -258,7 +258,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 					queueInfo.LongestRunningJob = &lookout.JobInfo{
 						Job:       job,
 						Runs:      []*lookout.RunInfo{makeRunFromRow(&row)},
-						Cancelled: nil,
+						Canceled: nil,
 						JobState:  string(JobRunning),
 					}
 				}

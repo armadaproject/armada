@@ -104,7 +104,7 @@ func TestGetJobs_GetCancelledJob(t *testing.T) {
 		runningTime := someTime.Add(2 * time.Second)
 		cancelledTime := someTime.Add(3 * time.Second)
 
-		cancelled := NewJobSimulator(t, jobStore).
+		canceled := NewJobSimulator(t, jobStore).
 			CreateJobAtTime(queue, someTime).
 			PendingAtTime(cluster, k8sId1, pendingTime).
 			RunningAtTime(cluster, k8sId1, node, runningTime).
@@ -327,7 +327,7 @@ func TestGetJobs_FilterQueuedJobs(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -336,7 +336,7 @@ func TestGetJobs_FilterQueuedJobs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, queued.job, jobInfos[0].Job)
-		assert.Nil(t, jobInfos[0].Cancelled)
+		assert.Nil(t, jobInfos[0].Canceled)
 		assert.Equal(t, string(JobQueued), jobInfos[0].JobState)
 		assert.Empty(t, jobInfos[0].Runs)
 	})
@@ -373,7 +373,7 @@ func TestGetJobs_FilterPendingJobs(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -382,7 +382,7 @@ func TestGetJobs_FilterPendingJobs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, pending.job, jobInfos[0].Job)
-		assert.Nil(t, jobInfos[0].Cancelled)
+		assert.Nil(t, jobInfos[0].Canceled)
 		assert.Equal(t, string(JobPending), jobInfos[0].JobState)
 		assert.Equal(t, 1, len(jobInfos[0].Runs))
 	})
@@ -419,7 +419,7 @@ func TestGetJobs_FilterRunningJobs(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -428,7 +428,7 @@ func TestGetJobs_FilterRunningJobs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, running.job, jobInfos[0].Job)
-		assert.Nil(t, jobInfos[0].Cancelled)
+		assert.Nil(t, jobInfos[0].Canceled)
 		assert.Equal(t, string(JobRunning), jobInfos[0].JobState)
 		assert.Equal(t, 2, len(jobInfos[0].Runs))
 	})
@@ -465,7 +465,7 @@ func TestGetJobs_FilterSucceededJobs(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -474,7 +474,7 @@ func TestGetJobs_FilterSucceededJobs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, succeeded.job, jobInfos[0].Job)
-		assert.Nil(t, jobInfos[0].Cancelled)
+		assert.Nil(t, jobInfos[0].Canceled)
 		assert.Equal(t, string(JobSucceeded), jobInfos[0].JobState)
 		assert.Equal(t, 1, len(jobInfos[0].Runs))
 	})
@@ -511,7 +511,7 @@ func TestGetJobs_FilterFailedJobs(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -520,7 +520,7 @@ func TestGetJobs_FilterFailedJobs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, failed.job, jobInfos[0].Job)
-		assert.Nil(t, jobInfos[0].Cancelled)
+		assert.Nil(t, jobInfos[0].Canceled)
 		assert.Equal(t, string(JobFailed), jobInfos[0].JobState)
 		assert.Equal(t, 1, len(jobInfos[0].Runs))
 	})
@@ -555,9 +555,9 @@ func TestGetJobs_FilterCancelledJobs(t *testing.T) {
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		cancelled := NewJobSimulator(t, jobStore).
+		canceled := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -566,7 +566,7 @@ func TestGetJobs_FilterCancelledJobs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, cancelled.job, jobInfos[0].Job)
-		assert.NotNil(t, jobInfos[0].Cancelled)
+		assert.NotNil(t, jobInfos[0].Canceled)
 		assert.Equal(t, string(JobCancelled), jobInfos[0].JobState)
 		assert.Empty(t, jobInfos[0].Runs)
 	})
@@ -614,9 +614,9 @@ func TestGetJobs_FilterMultipleStates(t *testing.T) {
 			CreateJob(queue).
 			Failed(cluster, k8sId5, node, "Something bad")
 
-		cancelled := NewJobSimulator(t, jobStore).
+		canceled := NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -675,7 +675,7 @@ func TestGetJobs_FilterBySingleJobSet(t *testing.T) {
 
 		job6 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -743,7 +743,7 @@ func TestGetJobs_FilterByMultipleJobSets(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -793,7 +793,7 @@ func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 
 		job6 := NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet3).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -846,7 +846,7 @@ func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, jobSet4).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
@@ -893,7 +893,7 @@ func TestGetJobs_FilterByJobId(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			JobId: job.job.Id,
@@ -936,7 +936,7 @@ func TestGetJobs_FilterByJobIdWithWrongQueue(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Queue: "queue-2",
@@ -979,7 +979,7 @@ func TestGetJobs_FilterByJobIdWithWrongJobSet(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			JobId:     job.job.Id,
@@ -1022,7 +1022,7 @@ func TestGetJobs_FilterByOwner(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Owner: "other-user",
@@ -1069,7 +1069,7 @@ func TestGetJobs_FilterByOwnerStartsWith(t *testing.T) {
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
-			Cancelled()
+			Canceled()
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Owner: "other-user",
@@ -1431,6 +1431,5 @@ func TestGetJobs_RemovesDuplicateJobsByDefault(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, duplicate.job, jobInfos[0].Job)
-
 	})
 }

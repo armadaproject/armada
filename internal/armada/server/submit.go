@@ -49,7 +49,6 @@ func NewSubmitServer(
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
-
 	return &SubmitServer{
 		permissions:              permissions,
 		jobRepository:            jobRepository,
@@ -58,7 +57,8 @@ func NewSubmitServer(
 		schedulingInfoRepository: schedulingInfoRepository,
 		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
-		schedulingConfig:         schedulingConfig}
+		schedulingConfig:         schedulingConfig,
+	}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -434,8 +434,8 @@ func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
 }
 
 // CancelJobs cancels jobs identified by the request.
-// If the request contains a job ID, only the job with that ID is cancelled.
-// If the request contains a queue name and a job set ID, all jobs matching those are cancelled.
+// If the request contains a job ID, only the job with that ID is canceled.
+// If the request contains a queue name and a job set ID, all jobs matching those are canceled.
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
 		return server.cancelJobsById(ctx, request.JobId)
@@ -545,25 +545,25 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*a
 
 	err = reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
 	if err != nil {
-		return nil, fmt.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %w", err)
+		return nil, fmt.Errorf("[cancelJobs] error reporting jobs marked as canceled: %w", err)
 	}
 
 	deletionResult, err := server.jobRepository.DeleteJobs(jobs)
 	if err != nil {
 		return nil, fmt.Errorf("[cancelJobs] error deleting jobs: %w", err)
 	}
-	cancelled := []*api.Job{}
+	canceled := []*api.Job{}
 	cancelledIds := []string{}
 	for job, err := range deletionResult {
 		if err != nil {
-			log.Errorf("[cancelJobs] error cancelling job with ID %s: %s", job.Id, err)
+			log.Errorf("[cancelJobs] error canceling job with ID %s: %s", job.Id, err)
 		} else {
-			cancelled = append(cancelled, job)
+			canceled = append(canceled, job)
 			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}
 
-	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
+	err = reportJobsCancelled(server.eventStore, principal.GetName(), canceled)
 	if err != nil {
 		return nil, fmt.Errorf("[cancelJobs] error reporting job cancellation: %w", err)
 	}
@@ -649,7 +649,6 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 }
 
 func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
-
 	// TODO There's a bug here.
 	// The function passed to UpdateJobs is called under an optimistic lock.
 	// If the jobs to be updated are mutated by another thread concurrently,
@@ -766,7 +765,8 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 }
 
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
-	getTime func() time.Time, getUlid func() string) ([]*api.Job, error) {
+	getTime func() time.Time, getUlid func() string,
+) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {

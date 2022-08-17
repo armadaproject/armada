@@ -1,4 +1,4 @@
-package utilisation
+package utilization
 
 import (
 	"testing"
@@ -104,7 +104,8 @@ func submitPod(clusterContext context.ClusterContext) *v1.Pod {
 					Requests: podResources,
 				},
 			},
-		}}}
+		}},
+	}
 
 	clusterContext.SubmitPod(pod, "owner", nil)
 	return pod

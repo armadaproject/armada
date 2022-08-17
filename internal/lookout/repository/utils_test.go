@@ -218,7 +218,7 @@ func (js *JobSimulator) FailedAtTime(cluster string, k8sId string, node string, 
 	return js
 }
 
-func (js *JobSimulator) Cancelled() *JobSimulator {
+func (js *JobSimulator) Canceled() *JobSimulator {
 	return js.CancelledAtTime(time.Now())
 }
 

@@ -15,7 +15,6 @@ import (
 )
 
 func TestOpenIdAuthService(t *testing.T) {
-
 	payload, _ := json.Marshal(map[string]interface{}{
 		"sub":    "me",
 		"iss":    "fake_issuer",

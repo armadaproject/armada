@@ -12,7 +12,7 @@ type Formatter func(input interface{}) ([]byte, error)
 func JsonFormatter(input interface{}) ([]byte, error) {
 	data, err := json.MarshalIndent(input, "", "\t")
 	if err != nil {
-		return nil, errors.WithMessage(err, "error marshalling event durations as json")
+		return nil, errors.WithMessage(err, "error marshaling event durations as json")
 	}
 	return data, nil
 }
@@ -20,7 +20,7 @@ func JsonFormatter(input interface{}) ([]byte, error) {
 func YamlFormatter(input interface{}) ([]byte, error) {
 	output, err := yaml.Marshal(input)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "error marshalling data to yaml")
+		return nil, errors.WithMessagef(err, "error marshaling data to yaml")
 	}
 	return output, nil
 }

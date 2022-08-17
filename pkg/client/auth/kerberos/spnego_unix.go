@@ -65,11 +65,9 @@ func NewSPNEGOCredentials(serverUrl string, spnegoConfig ClientConfig) (grpc_cre
 		return nil, err
 	}
 	return s, nil
-
 }
 
 func (s *spnegoCredentials) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-
 	err := s.renewClient()
 	if err != nil {
 		return nil, fmt.Errorf("could not renew client: %v", err)

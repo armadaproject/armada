@@ -41,14 +41,14 @@ func TestGetInstanceCurrentFractionOfResourceInUse_ErrorsWhenMissingMetrics(t *t
 		lastCheck: time.Now(),
 	}
 
-	//In use size metric missing
+	// In use size metric missing
 	instance.metrics = map[string]float64{
 		etcdInUseSizeBytesMetricName: 10,
 	}
 	_, err := healthChecker.getInstanceCurrentFractionOfResourceInUse(instance)
 	assert.Error(t, err)
 
-	//Total size metric missing
+	// Total size metric missing
 	instance.metrics = map[string]float64{
 		etcdInUseSizeBytesMetricName: 10,
 	}
@@ -66,21 +66,21 @@ func TestGetInstanceCurrentFractionOfResourceInUse_ErrorsWhenLastScrapeIsTooOld(
 }
 
 func TestIsWithinSoftHealthLimit(t *testing.T) {
-	//Current usage is 10%, under 30% limit
+	// Current usage is 10%, under 30% limit
 	healthChecker := makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(10, 100))
 	assert.True(t, healthChecker.IsWithinSoftHealthLimit())
 
-	//Current usage is 30%, at 30% limit
+	// Current usage is 30%, at 30% limit
 	healthChecker = makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(30, 100))
 	assert.False(t, healthChecker.IsWithinSoftHealthLimit())
 
-	//Current usage is 60%, over 30% limit
+	// Current usage is 60%, over 30% limit
 	healthChecker = makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(60, 100))
 	assert.False(t, healthChecker.IsWithinSoftHealthLimit())
 }
 
 func TestIsWithinSoftHealthLimit_WithMinAvailable(t *testing.T) {
-	//Current usage is 10%, under 30% limit
+	// Current usage is 10%, under 30% limit
 	healthChecker := makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(10, 100), makeInvalidEtcdInstanceMonitor(), makeInvalidEtcdInstanceMonitor())
 
 	healthChecker.etcdConfiguration.MinimumAvailable = 0
@@ -94,25 +94,25 @@ func TestIsWithinSoftHealthLimit_WithMinAvailable(t *testing.T) {
 }
 
 func TestIsWithinSoftHealthLimit_TakesMaxOfAllInstances(t *testing.T) {
-	//Max usage is 10%, under 30% limit
+	// Max usage is 10%, under 30% limit
 	healthChecker := makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(10, 100), makeValidEtcdInstanceMonitor(20, 100))
 	assert.True(t, healthChecker.IsWithinSoftHealthLimit())
 
-	//Max usage is 50%, over 30% limit
+	// Max usage is 50%, over 30% limit
 	healthChecker = makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(30, 100), makeValidEtcdInstanceMonitor(50, 100))
 	assert.False(t, healthChecker.IsWithinSoftHealthLimit())
 }
 
 func TestIsWithinHardHealthLimit(t *testing.T) {
-	//Current usage is 10%, under 50% limit
+	// Current usage is 10%, under 50% limit
 	healthChecker := makeEtcHealthMonitorWithInstances(0.5, 0.5, makeValidEtcdInstanceMonitor(10, 100))
 	assert.True(t, healthChecker.IsWithinHardHealthLimit())
 
-	//Current usage is 50%, at 50% limit
+	// Current usage is 50%, at 50% limit
 	healthChecker = makeEtcHealthMonitorWithInstances(0.5, 0.5, makeValidEtcdInstanceMonitor(50, 100))
 	assert.False(t, healthChecker.IsWithinHardHealthLimit())
 
-	//Current usage is 60%, over 50% limit
+	// Current usage is 60%, over 50% limit
 	healthChecker = makeEtcHealthMonitorWithInstances(0.5, 0.5, makeValidEtcdInstanceMonitor(60, 100))
 	assert.False(t, healthChecker.IsWithinHardHealthLimit())
 }

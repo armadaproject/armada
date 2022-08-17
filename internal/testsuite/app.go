@@ -83,7 +83,6 @@ func (a *App) Version() error {
 }
 
 func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcase, error) {
-
 	// Load test spec.
 	testSpec, err := TestSpecFromFilePath(filePath)
 	if err != nil {
@@ -152,7 +151,7 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 }
 
 // GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
-// and then consumes events until ctx is cancelled.
+// and then consumes events until ctx is canceled.
 func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiConnectionDetails) func(context.Context, chan *api.EventMessage, map[string]bool) error {
 	return func(ctx context.Context, ch chan *api.EventMessage, jobIds map[string]bool) error {
 		return client.WithSubmitClient(apiConnectionDetails, func(sc api.SubmitClient) error {
@@ -344,9 +343,9 @@ func submitWithCancel(testSpec *api.TestSpec, jobIdMap map[string]bool, out io.W
 					JobId:    jobId,
 				})
 				if err != nil {
-					_, _ = fmt.Fprintf(out, "\nError cancelling jobs: %s\n", err.Error())
+					_, _ = fmt.Fprintf(out, "\nError canceling jobs: %s\n", err.Error())
 				} else if len(res.GetCancelledIds()) > 0 {
-					_, _ = fmt.Fprintf(out, "\nCancelled %v\n", res.GetCancelledIds())
+					_, _ = fmt.Fprintf(out, "\nCanceled %v\n", res.GetCancelledIds())
 				}
 				return err
 			})

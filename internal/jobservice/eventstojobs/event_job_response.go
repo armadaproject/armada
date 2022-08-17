@@ -19,8 +19,8 @@ func EventsToJobResponse(message api.EventMessage) *js.JobServiceResponse {
 		return &js.JobServiceResponse{State: js.JobServiceResponse_FAILED, Error: message.GetFailed().Reason}
 	case *api.EventMessage_Succeeded:
 		return &js.JobServiceResponse{State: js.JobServiceResponse_SUCCEEDED}
-	case *api.EventMessage_Cancelled:
-		return &js.JobServiceResponse{State: js.JobServiceResponse_CANCELLED}
+	case *api.EventMessage_Canceled:
+		return &js.JobServiceResponse{State: js.JobServiceResponse_CANCELED}
 	}
 
 	return nil
@@ -29,21 +29,19 @@ func EventsToJobResponse(message api.EventMessage) *js.JobServiceResponse {
 // Check if api.EventMessage is terminal event
 func IsEventTerminal(message api.EventMessage) bool {
 	switch message.Events.(type) {
-	case *api.EventMessage_DuplicateFound, *api.EventMessage_Cancelled, *api.EventMessage_Succeeded, *api.EventMessage_Failed:
+	case *api.EventMessage_DuplicateFound, *api.EventMessage_Canceled, *api.EventMessage_Succeeded, *api.EventMessage_Failed:
 		return true
 	default:
 		return false
 	}
-
 }
 
 // Check if JobServiceResponse is terminal
 func IsStateTerminal(State js.JobServiceResponse_State) bool {
 	switch State {
-	case js.JobServiceResponse_DUPLICATE_FOUND, js.JobServiceResponse_CANCELLED, js.JobServiceResponse_SUCCEEDED, js.JobServiceResponse_FAILED:
+	case js.JobServiceResponse_DUPLICATE_FOUND, js.JobServiceResponse_CANCELED, js.JobServiceResponse_SUCCEEDED, js.JobServiceResponse_FAILED:
 		return true
 	default:
 		return false
 	}
-
 }

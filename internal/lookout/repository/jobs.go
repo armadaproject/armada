@@ -82,7 +82,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			job_jobset,
 			job_priority,
 			job_submitted,
-			job_cancelled,
+			job_canceled,
 			job_job,
 			job_state,
 			jobRun_runId,
@@ -206,7 +206,7 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 				}
 				jobMap[jobId] = &lookout.JobInfo{
 					Job:       job,
-					Cancelled: ParseNullTime(row.Cancelled),
+					Canceled: ParseNullTime(row.Cancelled),
 					JobState:  state,
 					Runs:      []*lookout.RunInfo{},
 					JobJson:   ParseNullString(row.JobJson),

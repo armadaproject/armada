@@ -33,12 +33,15 @@ import (
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const pulsarUrl = "pulsar://localhost:6650"
-const pulsarTopic = "persistent://armada/armada/events"
-const pulsarSubscription = "e2e-test"
-const armadaUrl = "localhost:50051"
-const armadaQueueName = "e2e-test-queue"
-const armadaUserId = "anonymous"
-const defaultPulsarTimeout = 30 * time.Second
+
+const (
+	pulsarTopic          = "persistent://armada/armada/events"
+	pulsarSubscription   = "e2e-test"
+	armadaUrl            = "localhost:50051"
+	armadaQueueName      = "e2e-test-queue"
+	armadaUserId         = "anonymous"
+	defaultPulsarTimeout = 30 * time.Second
+)
 
 // We setup kind to expose ingresses on this ULR.
 const ingressUrl = "http://localhost:5000"
@@ -214,10 +217,9 @@ func TestDedup(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// Test submitting several jobs, cancelling all of them, and checking that at least 1 is cancelled.
+// Test submitting several jobs, canceling all of them, and checking that at least 1 is canceled.
 func TestSubmitCancelJobs(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// The ingress job runs until canceled.
 		req := createJobSubmitRequestWithIngress()
 		numJobs := len(req.JobRequestItems)
@@ -256,7 +258,7 @@ func TestSubmitCancelJobs(t *testing.T) {
 			assert.Equal(t, []string{r.JobId}, res.CancelledIds)
 		}
 
-		// Check that the job is cancelled (cancel, cancelled).
+		// Check that the job is canceled (cancel, canceled).
 		numEventsExpected = numJobs * 2
 		sequences, err = receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
@@ -286,7 +288,8 @@ func TestSubmitCancelJobs(t *testing.T) {
 				Events: []*armadaevents.EventSequence_Event{
 					{Event: &armadaevents.EventSequence_Event_CancelJob{}},
 					{Event: &armadaevents.EventSequence_Event_CancelledJob{}},
-				}}
+				},
+			}
 			if ok := isSequenceTypef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
 				return nil
 			}
@@ -297,10 +300,9 @@ func TestSubmitCancelJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// Test cancelling a job set.
+// Test canceling a job set.
 func TestSubmitCancelJobSet(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Submit a few jobs that fail after a few seconds
 		numJobs := 2
 		req := createJobSubmitRequestWithError(numJobs)
@@ -323,7 +325,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 			return nil
 		}
 
-		// Test that we get submit, cancel job set, and cancelled messages.
+		// Test that we get submit, cancel job set, and canceled messages.
 		numEventsExpected := numJobs + 1 + numJobs
 		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
@@ -341,7 +343,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 			UserId:     armadaUserId,
 			Events:     []*armadaevents.EventSequence_Event{},
 		}
-		for _, _ = range res.JobResponseItems {
+		for range res.JobResponseItems {
 			expected.Events = append(
 				expected.Events,
 				&armadaevents.EventSequence_Event{
@@ -355,7 +357,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 				Event: &armadaevents.EventSequence_Event_CancelJobSet{},
 			},
 		)
-		for _, _ = range res.JobResponseItems {
+		for range res.JobResponseItems {
 			expected.Events = append(
 				expected.Events,
 				&armadaevents.EventSequence_Event{
@@ -474,7 +476,6 @@ func TestIngress(t *testing.T) {
 
 func TestService(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Create a job running an nginx server accessible via a headless service.
 		req := createJobSubmitRequestWithService()
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
@@ -650,7 +651,6 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 
 func TestSubmitJobWithError(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Submit a few jobs that fail after a few seconds
 		numJobs := 1
 		req := createJobSubmitRequestWithError(numJobs)
@@ -726,7 +726,6 @@ func TestSubmitJobWithError(t *testing.T) {
 
 // expectedSequenceFromJobRequestItem returns the expected event sequence for a particular job request and response.
 func expectedSequenceFromRequestItem(jobSetName string, jobId *armadaevents.Uuid, reqi *api.JobSubmitRequestItem) *armadaevents.EventSequence {
-
 	// Any objects created for the job in addition to the main object.
 	// We only check that the correct number of objects of each type is created.
 	// Later, we may wish to also check the fields of the objects.
@@ -1345,7 +1344,6 @@ func createJobSubmitRequestWithError(numJobs int) *api.JobSubmitRequest {
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
 func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
-
 	// Connection to the Armada API. To submit API requests.
 	conn, err := client.CreateApiConnection(&client.ApiConnectionDetails{ArmadaUrl: armadaUrl})
 	if err != nil {
@@ -1364,7 +1362,7 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 
 	// Redirect Pulsar logs to a file since it's very verbose.
 	_ = os.Mkdir("../../.test", os.ModePerm)
-	f, err := os.OpenFile("../../.test/pulsar.log", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	f, err := os.OpenFile("../../.test/pulsar.log", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o666)
 	if err != nil {
 		return errors.WithStack(err)
 	}

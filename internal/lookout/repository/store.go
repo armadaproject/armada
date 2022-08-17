@@ -98,13 +98,13 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 			"job_id":    event.JobId,
 			"queue":     event.Queue,
 			"jobset":    event.JobSetId,
-			"cancelled": ToUTC(event.Created),
+			"canceled": ToUTC(event.Created),
 			"state":     JobStateToIntMap[JobCancelled],
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
 			"queue":     event.Queue,
 			"jobset":    event.JobSetId,
-			"cancelled": ToUTC(event.Created),
+			"canceled": ToUTC(event.Created),
 			"state":     JobStateToIntMap[JobCancelled],
 		}))
 
@@ -164,7 +164,6 @@ func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) erro
 }
 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
-
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -258,7 +257,6 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 	}
 
 	return tx.Wrap(func() error {
-
 		if err := upsertJobRun(tx, jobRunRecord); err != nil {
 			return err
 		}

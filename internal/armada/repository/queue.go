@@ -87,7 +87,7 @@ func (r *RedisQueueRepository) GetQueue(name string) (queue.Queue, error) {
 func (r *RedisQueueRepository) CreateQueue(queue queue.Queue) error {
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error marshalling queue: %s", err)
+		return fmt.Errorf("[RedisQueueRepository.CreateQueue] error marshaling queue: %s", err)
 	}
 
 	// HSetNX sets a key-value pair if the key doesn't already exist.
@@ -116,7 +116,7 @@ func (r *RedisQueueRepository) UpdateQueue(queue queue.Queue) error {
 
 	data, err := proto.Marshal(queue.ToAPI())
 	if err != nil {
-		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error marshalling queue: %s", err)
+		return fmt.Errorf("[RedisQueueRepository.UpdateQueue] error marshaling queue: %s", err)
 	}
 
 	result := r.db.HSet(queueHashKey, queue.Name, data)

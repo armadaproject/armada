@@ -1,4 +1,4 @@
-package utilisation
+package utilization
 
 import (
 	"sync"
@@ -37,7 +37,6 @@ func NewUtilisationEventReporter(
 	eventReporter reporter.EventReporter,
 	reportingPeriod time.Duration,
 ) *UtilisationEventReporter {
-
 	r := &UtilisationEventReporter{
 		clusterContext:    clusterContext,
 		podUtilisation:    podUtilisation,
@@ -143,7 +142,7 @@ func (r *UtilisationEventReporter) queueEventWithRetry(event api.Event, retry in
 	var callback func(e error)
 	callback = func(e error) {
 		if e != nil {
-			log.Errorf("failed to report utilisation: %v", e)
+			log.Errorf("failed to report utilization: %v", e)
 			retry--
 			if retry > 0 {
 				r.eventReporter.QueueEvent(event, callback)

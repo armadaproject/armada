@@ -49,7 +49,6 @@ func Test_HappyPath(t *testing.T) {
 }
 
 func Test_BatchSize(t *testing.T) {
-
 	t.Run("different batch sizes", func(t *testing.T) {
 		batchSizes := []int{1, 2, 5, 10, 100}
 		for _, size := range batchSizes {

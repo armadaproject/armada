@@ -72,8 +72,8 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.WithStack(err)
 		}
 
-		// Create a context that is cancelled on SIGINT/SIGTERM.
-		// Ensures test jobs are cancelled on ctrl-C.
+		// Create a context that is canceled on SIGINT/SIGTERM.
+		// Ensures test jobs are canceled on ctrl-C.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		stopSignal := make(chan os.Signal, 1)

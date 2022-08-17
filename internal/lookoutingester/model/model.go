@@ -26,7 +26,7 @@ type UpdateJobInstruction struct {
 	Priority  *int32
 	State     *int32
 	Updated   time.Time
-	Cancelled *time.Time
+	Canceled *time.Time
 	Duplicate *bool
 }
 

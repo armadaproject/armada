@@ -9,8 +9,10 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type JobStatus string
-type PodStatus string
+type (
+	JobStatus string
+	PodStatus string
+)
 
 const (
 	Submitted = "Submitted"
@@ -21,7 +23,7 @@ const (
 	Running   = "Running"
 	Succeeded = "Succeeded"
 	Failed    = "Failed"
-	Cancelled = "Cancelled"
+	Canceled = "Canceled"
 )
 
 type JobInfo struct {
@@ -47,17 +49,17 @@ func init() {
 		Running,
 		Succeeded,
 		Failed,
-		Cancelled,
+		Canceled,
 	}
 	inactiveStates = []JobStatus{
 		Succeeded,
 		Failed,
-		Cancelled,
+		Canceled,
 	}
 }
 
-//WatchContext keeps track of the current state when processing a stream of events
-//It is not threadsafe and is expected to only ever be used in a single thread
+// WatchContext keeps track of the current state when processing a stream of events
+// It is not threadsafe and is expected to only ever be used in a single thread
 type WatchContext struct {
 	state        map[string]*JobInfo
 	stateSummary map[JobStatus]int
@@ -156,7 +158,7 @@ func (context *WatchContext) AreJobsFinished(ids []string) bool {
 
 		if !ok || (state.Status != Succeeded &&
 			state.Status != Failed &&
-			state.Status != Cancelled) {
+			state.Status != Canceled) {
 			return false
 		}
 	}
@@ -197,7 +199,7 @@ func updateJobInfo(info *JobInfo, event api.Event) {
 		info.Status = Queued
 		resetPodStatus(info)
 	case *api.JobCancelledEvent:
-		info.Status = Cancelled
+		info.Status = Canceled
 
 	// pod events:
 	case *api.JobPendingEvent:
@@ -248,8 +250,8 @@ func updatePodStatus(info *JobInfo, event api.KubernetesEvent, status PodStatus)
 	info.PodLastUpdated[podNumber] = event.GetCreated()
 	info.PodStatus[podNumber] = status
 
-	//if info.Status == Cancelled {
-	//	// cancelled is final state
+	//if info.Status == Canceled {
+	//	// canceled is final state
 	//	return
 	//}
 
@@ -263,7 +265,7 @@ func updatePodStatus(info *JobInfo, event api.KubernetesEvent, status PodStatus)
 	}
 
 	if info.LastUpdate.After(lastPodUpdate) {
-		//job state is newer than all pod updates
+		// job state is newer than all pod updates
 		return
 	}
 	info.LastUpdate = lastPodUpdate

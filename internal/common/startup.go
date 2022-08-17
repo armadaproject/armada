@@ -57,7 +57,6 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string
 	v.AutomaticEnv()
 
 	err := v.Unmarshal(config, addDecodeHook(quantityDecodeHook))
-
 	if err != nil {
 		log.Error(err)
 		os.Exit(-1)
@@ -81,8 +80,8 @@ func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOpti
 func quantityDecodeHook(
 	from reflect.Type,
 	to reflect.Type,
-	data interface{}) (interface{}, error) {
-
+	data interface{},
+) (interface{}, error) {
 	if to != reflect.TypeOf(resource.Quantity{}) {
 		return data, nil
 	}
@@ -130,7 +129,8 @@ func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()
 func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: mux}
+		Handler: mux,
+	}
 
 	go func() {
 		log.Printf("Starting http server listening on %d", port)

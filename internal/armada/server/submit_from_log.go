@@ -37,9 +37,8 @@ type SubmitFromLog struct {
 	Logger *logrus.Entry
 }
 
-// Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
+// Run the service that reads from Pulsar and updates Armada until the provided context is canceled.
 func (srv *SubmitFromLog) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {
@@ -70,7 +69,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 	lastMessageId = nil
 	lastPublishTime := time.Now()
 
-	// Run until ctx is cancelled.
+	// Run until ctx is canceled.
 	for {
 
 		// Periodic logging.
@@ -90,7 +89,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			lastLogged = time.Now()
 		}
 
-		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
+		// Exit if the context has been canceled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
 			return nil
@@ -100,7 +99,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				break //expected
+				break // expected
 			}
 
 			// If receiving fails, try again in the hope that the problem is transient.
@@ -153,7 +152,7 @@ func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadae
 	log := ctxlogrus.Extract(ctx)
 
 	// Sub-functions should always increment the events index unless they experience a transient error.
-	// However, if a permanent error is mis-categorised as transient, we may get stuck forever.
+	// However, if a permanent error is mis-categorized as transient, we may get stuck forever.
 	// To avoid that issue, we return immediately if timeout time has passed
 	// (i.e., if processing a sequence takes more than timeout time, some events may be ignored).
 	// If no events were processed, the corresponding Pulsar message won't be ack'd.
@@ -319,7 +318,6 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 // Specifically, events are not processed if writing to the database results in a network-related error.
 // For any other error, the jobs are marked as failed and the events are considered to have been processed.
 func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups []string, queueName string, jobSetName string, es []*armadaevents.SubmitJob) (bool, error) {
-
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
@@ -396,7 +394,6 @@ func apiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, 
 
 // apiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-
 	// check that we have a valid jobId
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
@@ -483,7 +480,7 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
-			//TODO: should we instead cancel the jobs we can here?
+			// TODO: should we instead cancel the jobs we can here?
 			return false, err
 		}
 		jobIds[i] = id
@@ -499,14 +496,13 @@ func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, queueName string, j
 }
 
 func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jobSetName string) (bool, error) {
-
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err
 	} else if err != nil {
 		return true, err
 	}
-	//TODO Set userid correctly so we know who actually cancelled the jobset
+
 	return srv.BatchedCancelJobsById(ctx, queueName, jobIds)
 }
 
@@ -515,7 +511,7 @@ func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId stri
 	// To reduce the number of jobs stored in memory.
 	//
 	// In case of network error, we indicate the events were not processed.
-	// Because some batches may have already been processed, retrying may cause jobs to be cancelled multiple times.
+	// Because some batches may have already been processed, retrying may cause jobs to be canceled multiple times.
 	// However, that should be fine.
 	jobIdBatches := util.Batch(jobIds, srv.SubmitServer.cancelJobsBatchSize)
 	for _, jobIdBatch := range jobIdBatches {
@@ -539,7 +535,6 @@ func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId stri
 
 // CancelJobsById cancels all jobs with the specified ids.
 func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, jobIds []string) ([]string, error) {
-
 	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
@@ -555,23 +550,23 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, job
 		return nil, err
 	}
 
-	// Check which jobs cancelled successfully.
+	// Check which jobs canceled successfully.
 	// Collect any errors into a multierror.
 	var result *multierror.Error
-	cancelled := []*api.Job{}
+	canceled := []*api.Job{}
 	cancelledIds := []string{}
 	for job, err := range deletionResult {
 		if err != nil {
 			result = multierror.Append(result, err)
 		} else {
-			cancelled = append(cancelled, job)
+			canceled = append(canceled, job)
 			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}
 
-	// Report the jobs that cancelled successfully.
-	// Any error in doing so is a sibling to the errors with cancelling individual jobs.
-	result = multierror.Append(result, reportJobsCancelled(srv.SubmitServer.eventStore, userId, cancelled))
+	// Report the jobs that canceled successfully.
+	// Any error in doing so is a sibling to the errors with canceling individual jobs.
+	result = multierror.Append(result, reportJobsCancelled(srv.SubmitServer.eventStore, userId, canceled))
 
 	return cancelledIds, result.ErrorOrNil()
 }
@@ -586,7 +581,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
-			//TODO: should we instead reprioritize the jobs we can here?
+			// TODO: should we instead reprioritize the jobs we can here?
 			return true, err
 		}
 		jobIds[i] = id

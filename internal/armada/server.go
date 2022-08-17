@@ -43,7 +43,6 @@ import (
 )
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
-
 	log.Info("Armada server starting")
 	defer log.Info("Armada server shutting down")
 
@@ -52,7 +51,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	healthChecks.Add(startupCompleteCheck)
 
 	// Run all services within an errgroup to propagate errors between services.
-	// Defer cancelling the parent context to ensure the errgroup is cancelled on return.
+	// Defer canceling the parent context to ensure the errgroup is canceled on return.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
@@ -73,7 +72,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	authServices := auth.ConfigureAuth(config.Auth)
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 
-	// Shut down grpcServer if the context is cancelled.
+	// Shut down grpcServer if the context is canceled.
 	// Give the server 5 seconds to shut down gracefully.
 	services = append(services, func() error {
 		<-ctx.Done()
@@ -396,8 +395,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		return grpcServer.Serve(lis)
 	})
 
-	// Start all services and wait for the context to be cancelled,
-	// which if the parent context is cancelled or if any of the services returns an error.
+	// Start all services and wait for the context to be canceled,
+	// which if the parent context is canceled or if any of the services returns an error.
 	// We start all services at the end of the function to ensure all services are ready.
 	for _, service := range services {
 		g.Go(service)
