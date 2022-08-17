@@ -223,7 +223,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 		}
 	case *armadaevents.EventSequence_Event_CancelJobSet:
 		es := collectCancelJobSetEvents(ctx, i, sequence)
-		ok, err = srv.CancelJobSets(ctx, sequence.Queue, sequence.JobSetName, es)
+		ok, err = srv.CancelJobSets(ctx, sequence.UserId, sequence.Queue, sequence.JobSetName, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -494,11 +494,11 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 // CancelJobSets processes several CancelJobSet events.
 // Because event sequences are specific to queue and job set, all CancelJobSet events in a sequence are equivalent,
 // and we only need to call CancelJobSet once.
-func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, queueName string, jobSetName string, es []*armadaevents.CancelJobSet) (bool, error) {
-	return srv.CancelJobSet(ctx, queueName, jobSetName)
+func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, userId string, queueName string, jobSetName string, es []*armadaevents.CancelJobSet) (bool, error) {
+	return srv.CancelJobSet(ctx, userId, queueName, jobSetName)
 }
 
-func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jobSetName string) (bool, error) {
+func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queueName string, jobSetName string) (bool, error) {
 
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
@@ -506,8 +506,7 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jo
 	} else if err != nil {
 		return true, err
 	}
-	//TODO Set userid correctly so we know who actually cancelled the jobset
-	return srv.BatchedCancelJobsById(ctx, queueName, jobIds)
+	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
 }
 
 func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, jobIds []string) (bool, error) {
