@@ -763,7 +763,7 @@ func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string
 	// If we have any client Ids add them to store
 	if len(kvs) > 0 {
 		addedKvs, err := srv.KVStore.AddBatch(ctx, kvs)
-		if err == nil {
+		if err != nil {
 			return nil, err
 		}
 		ret := make(map[string]string, len(addedKvs))
@@ -775,7 +775,7 @@ func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string
 			}
 		}
 		return ret, nil
-	} else {
-		return nil, nil
 	}
+
+	return nil, nil
 }
