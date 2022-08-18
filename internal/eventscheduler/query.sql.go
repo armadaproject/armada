@@ -23,8 +23,10 @@ SELECT topic, ledgerid, entryid, batchidx, partitionidx FROM pulsar WHERE topic 
 // -- name: UpsertRecords :exec
 // INSERT INTO records (id, value, payload)
 // SELECT unnest(@ids) AS id,
-//        unnest(@values) AS names,
-//        unnest(@payloads) AS payloads
+//
+//	unnest(@values) AS names,
+//	unnest(@payloads) AS payloads
+//
 // ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, payload = EXCLUDED.payload;
 // -- name: UpdateRecord :exec
 // UPDATE records SET value = $2, payload = $3 WHERE id = $1;
