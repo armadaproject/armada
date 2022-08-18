@@ -97,7 +97,7 @@ func IdempotentUpsert(ctx context.Context, db *pgx.Conn, topicName string, write
 			return err
 		}
 
-		err = CopyProtocolUpsert(ctx, tx, topicName, tableName, schema, records)
+		err = CopyProtocolUpsert(ctx, tx, tableName, schema, records)
 		if err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ func IdempotentUpsert(ctx context.Context, db *pgx.Conn, topicName string, write
 }
 
 // Upsert is like [IdempotentUpsert], except the it does no idempotency check.
-func Upsert(ctx context.Context, db *pgx.Conn, topicName string, tableName string, schema string, records []interface{}) error {
+func Upsert(ctx context.Context, db *pgx.Conn, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -116,7 +116,7 @@ func Upsert(ctx context.Context, db *pgx.Conn, topicName string, tableName strin
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		return CopyProtocolUpsert(ctx, tx, topicName, tableName, schema, records)
+		return CopyProtocolUpsert(ctx, tx, tableName, schema, records)
 	})
 }
 
@@ -177,7 +177,7 @@ func IdempotencyCheck(ctx context.Context, tx DBTX, topicName string, writeMessa
 	return nil
 }
 
-func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, topicName string, tableName string, schema string, records []interface{}) error {
+func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
 
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.

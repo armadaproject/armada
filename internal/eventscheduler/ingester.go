@@ -20,6 +20,12 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+// func NewJobsIngester(topic string, ) *Ingester {
+// 	return &Ingester{
+
+// 	}
+// }
+
 // Service responsible for writing records derived from pulsar messages into postgres.
 //
 // At a high level, the ingester:
@@ -34,24 +40,25 @@ import (
 // I.e., to populate multiple tables with different record types (e.g., jobs and leases),
 // a separate ingester instance is required for each record type.
 type Ingester struct {
-	// Name of Pulsar topic and consumer on which to receive messages.
-	topic string
-	// Postgres table to write records into.
-	table string
+	// Used to setup a Pulsar consumer.
+	PulsarClient    pulsar.Client
+	ConsumerOptions pulsar.ConsumerOptions
+	// Postgres Table to write records into.
+	Table string
 	// Schema of the table data is written into.
 	// Required for UpsertRecords; see this function for docs.
-	schema string
-	// Pulsar consumer on which to receive messages.
-	consumer pulsar.Consumer
+	Schema string
 	// Write to postgres at least this often (assuming there are records to write).
-	maxWriteInterval time.Duration
+	MaxWriteInterval time.Duration
 	// Write current batch to postgres if at least this many records have been written to it.
-	maxWriteRecords int
+	MaxWriteRecords int
+	// Connection to the postgres database used for persistence.
+	Db *pgx.Conn
 	// For each partition, store the id of the most recent message.
 	// Used to detect unexpected seeks.
 	lastMessageIdByPartition map[int32]pulsar.MessageID
-	// Connection to the postgres database used for persistence.
-	db *pgx.Conn
+	// Pulsar consumer on which to receive messages.
+	consumer pulsar.Consumer
 	// Optional logger.
 	// If not provided, the default logrus logger is used.
 	Logger *logrus.Entry
@@ -85,10 +92,10 @@ func (srv *Ingester) ShouldWrite(batch *Batch) bool {
 	if batch == nil {
 		return false
 	}
-	if time.Since(batch.createdAt) > srv.maxWriteInterval {
+	if time.Since(batch.createdAt) > srv.MaxWriteInterval {
 		return true
 	}
-	if len(batch.records) > srv.maxWriteRecords {
+	if len(batch.records) > srv.MaxWriteRecords {
 		return true
 	}
 	return false
@@ -104,6 +111,7 @@ func (srv *Ingester) Run(ctx context.Context) error {
 	} else {
 		log = logrus.StandardLogger().WithField("service", "SchedulerIngester")
 	}
+
 	log.Info("service started")
 
 	// Create a processing pipeline
@@ -116,6 +124,13 @@ func (srv *Ingester) Run(ctx context.Context) error {
 	//
 	// On any other error, return the error to the caller of this function.
 	for {
+
+		// Scheduler ingester
+		consumer, err := srv.PulsarClient.Subscribe(srv.ConsumerOptions)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		defer consumer.Close()
 
 		// All services run within an errgroup.
 		g, ctx := errgroup.WithContext(ctx)
@@ -134,7 +149,7 @@ func (srv *Ingester) Run(ctx context.Context) error {
 		g.Go(func() error { return srv.ProcessBatches(ctx, batchChannel) })
 
 		// Run pipeline until any error.
-		err := g.Wait()
+		err = g.Wait()
 		// TODO: Detect recoverable errors.
 		if err != nil {
 			// Unrecoverable error; exit.
@@ -247,6 +262,8 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 			// on the same partition to detect such out-of-order messages.
 			//
 			// Note that, while possible, this should be a rare occurrence.
+			//
+			// TODO: We should check for this and restart the consumer if it happens.
 			partitionIdx := msg.ID().PartitionIdx()
 			if lastMessageId, ok := srv.lastMessageIdByPartition[partitionIdx]; ok {
 				msgIsOufOfOrder, err := pulsarutils.FromMessageId(lastMessageId).GreaterEqual(msg.ID())
@@ -273,16 +290,18 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 }
 
 func (srv *Ingester) ProcessBatches(ctx context.Context, batchChannel <-chan *Batch) error {
+	log := ctxlogrus.Extract(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case batch := <-batchChannel:
 			// Write records into postgres.
-			err := Upsert(ctx, srv.db, srv.topic, srv.table, srv.schema, batch.records)
+			err := Upsert(ctx, srv.Db, srv.Table, srv.Schema, batch.records)
 			if err != nil {
 				return err // TODO: Keep retrying on transient faults.
 			}
+			log.Infof("wrote %d records into postgres", len(batch.records))
 
 			// Ack all messages that were used to create the batch.
 			// Acking is only safe once data has been written to postgres.
