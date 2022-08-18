@@ -3,10 +3,10 @@ package eventscheduler
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
@@ -20,62 +20,87 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// The logic is
-// 1. Open a KeyShared subscription.
-// 2. Collect stuff for a bit.
-// 3. Try to write that to the db. Handle ErrStaleWrite.
+// Service responsible for writing records derived from pulsar messages into postgres.
 //
-// On ErrStaleWrite, discard everything, seek the stale partitions to what the error says. Seek everything else to the last successful write.
-// Re-start reading from Pulsar.
+// At a high level, the ingester:
+// 1. Reads messages from pulsar, which are used to create records.
+// 2. Records are collected in a batch until some amount of time has passed or some number of records have been collected.
+// 3. The records that make up the batch are upserted into postgres in a single operation.
+// 4. The pulsar messages read to produce the batch are acked.
 //
-// If handling multiple tables, those need to be processed in the same transaction.
-// To ensure the message ids are kept in sync.
-// Otherwise I could have two separate consumers, each handling its own table.
-// That may be a cleaner approach, actually.
-// Since it separates the failure domains.
-// The only drawback is having to look over each message sequence twice.
-// But that's probably fine.
-
-// Service responsible for populating the underlying postgres database,
-// from which the scheduler gets its state, with jobs and runs (i.e., job lease) info.
+// Upserts are idempotent. Specifically, stale writes are detected
+// (i.e., if the data in postgres is more recent than the data to be written.).
+//
+// On stale write, the ingester seeks to the correct position for each topic partition
+// before resuming reading. In this way, we ensure exactly once semantics when writing into postgres.
+//
+// Each ingester instance can only write into a single postgres table.
+// I.e., to populate multiple tables with different record types (e.g., jobs and leases),
+// a separate ingester instance is required for each record type.
 type Ingester struct {
 	// Name of Pulsar topic and consumer on which to receive messages.
-	topic    string
+	topic string
+	// Postgres table to write records into.
+	table string
+	// Schema of the table data is written into.
+	// Required for UpsertRecords; see this function for docs.
+	schema string
+	// Pulsar consumer on which to receive messages.
 	consumer pulsar.Consumer
+	// Write to postgres at least this often (assuming there are records to write).
+	maxWriteInterval time.Duration
+	// Write current batch to postgres if at least this many records have been written to it.
+	maxWriteRecords int
 	// Connection to the postgres database used for persistence.
-	db *Queries
-	// Data to be written into postgres on the next flush.
-	runs map[armadaevents.Uuid]*Run
-	jobs map[armadaevents.Uuid]*Job
-	// Message ids to ack on successful flush.
-	messageIds []pulsar.MessageID
-	Logger     *logrus.Entry
-	mu         sync.Mutex
+	db *pgx.Conn
+	// Optional logger.
+	// If not provided, the default logrus logger is used.
+	Logger *logrus.Entry
 }
 
 // Batch of records to be written to postgres in bulk.
 type Batch struct {
+	// Time at which this batch was created.
+	createdAt time.Time
+	// Ids of messages processed to create this batch.
+	MessageIds []pulsar.MessageID
 	// Records to be written on the next write to postgres.
 	records []interface{}
-	// Message ids to ack on successful write to postgres.
-	messageIds []pulsar.MessageID
+	// The message id of the most recent message seen for each partition.
+	// Used to detect stale writes when writing to postgres,
+	// i.e., detecting if the data stored in postgres is more recent than what we're trying to write.
+	lastMessageIdByPartition map[int32]pulsar.MessageID
 	// The message id of the first message we've seen for each partition.
 	// Necessary in case of a stale write, in which case we may need to seek to the start for some partitions.
 	firstMessageIdByPartition map[int32]pulsar.MessageID
 }
 
-func NewIngester(topic string, consumer pulsar.Consumer, db DBTX) *Ingester {
-	return &Ingester{
-		topic:      topic,
-		consumer:   consumer,
-		db:         &Queries{db: db},
-		runs:       make(map[armadaevents.Uuid]*Run),
-		jobs:       make(map[armadaevents.Uuid]*Job),
-		messageIds: make([]pulsar.MessageID, 0),
-	}
+// ErrStaleBatch indicates that some (or all) records in batch are derivded from partitions
+// for which the data stored in postgres is more recent.
+type ErrStaleBatch struct {
+	Batch         *Batch
+	ErrStaleWrite *ErrStaleWrite
 }
 
-// Maintain the view of the scheduler state by reading from the log and writing to postgres.
+func (err *ErrStaleBatch) Error() string {
+	return fmt.Sprintf("stale write for batch %+v: %s", err.Batch, err.ErrStaleWrite)
+}
+
+// ShouldWrite returns true if this batch should be written into postgres.
+func (srv *Ingester) ShouldWrite(batch *Batch) bool {
+	if batch == nil {
+		return false
+	}
+	if time.Since(batch.createdAt) > srv.maxWriteInterval {
+		return true
+	}
+	if len(batch.records) > srv.maxWriteRecords {
+		return true
+	}
+	return false
+}
+
+// Run the ingester until experiencing an unrecoverable error.
 func (srv *Ingester) Run(ctx context.Context) error {
 
 	// Get the configured logger, or the standard logger if none is provided.
@@ -87,17 +112,94 @@ func (srv *Ingester) Run(ctx context.Context) error {
 	}
 	log.Info("service started")
 
-	// Receive Pulsar messages asynchronously.
-	g, ctx := errgroup.WithContext(ctx)
-	pulsarToChannel := pulsarutils.NewPulsarToChannel(srv.consumer)
-	g.Go(func() error { return pulsarToChannel.Run(ctx) })
+	// Create a processing pipeline
+	// receive from pulsar -> batch messages -> write to postgres and ack messages.
+	//
+	// On ErrStaleWrite:
+	// 1. Stop and tear down the pipeline.
+	// 2. Seek each partition to the correct position.
+	// 3. Setup a new pipeline and start again.
+	//
+	// On any other error, return the error to the caller of this function.
+	for {
 
-	// Run until ctx is cancelled.
+		// All services run within an errgroup.
+		g, ctx := errgroup.WithContext(ctx)
+		ctx = ctxlogrus.ToContext(ctx, log)
+
+		// Receive Pulsar messages asynchronously.
+		pulsarToChannel := pulsarutils.NewPulsarToChannel(srv.consumer)
+		g.Go(func() error { return pulsarToChannel.Run(ctx) })
+
+		// Batch messages for writing into postgres.
+		// Batches are forwarded on batchChannel.
+		batchChannel := make(chan *Batch)
+		g.Go(func() error { return srv.ProcessMessages(ctx, pulsarToChannel.C, batchChannel) })
+
+		// Write batches to postgres and, for each batch, ack all pulsar messages the batch was made up of.
+		g.Go(func() error { return srv.ProcessBatches(ctx, batchChannel) })
+
+		// Run pipeline until any error.
+		err := g.Wait()
+
+		// If the error is of type ErrStaleWrite, we've tried to write stale data into postgres.
+		// To resolve, we need to seek all partitions that made up the batch to the
+		// - partitions corresponding to stale writes to the id stored in postgres and
+		// - all other partitions to the id of the first message for that partition in the batch.
+		var e *ErrStaleBatch
+		if errors.As(err, e) {
+
+			// Map partition indices to the message id to seek to for all stale partitions.
+			staleWriteByPartition := make(map[int32]pulsar.MessageID)
+			for _, staleWrite := range e.ErrStaleWrite.StaleWrites {
+				partitionIdx := staleWrite.DbMessageId.PartitionIdx()
+				if staleWrite.WriteMessageId.PartitionIdx() != partitionIdx {
+					return errors.Errorf("mismatched message ids %v", staleWrite)
+				}
+				if _, ok := staleWriteByPartition[partitionIdx]; ok {
+					return errors.Errorf("duplicate StaleWrite %v for partition %d", staleWrite, partitionIdx)
+				}
+				staleWriteByPartition[partitionIdx] = staleWrite
+			}
+
+			// Seek non-stale partitions to the start of the batch.
+			// Because we don't know how which messages are in the pipeline,
+			// the only safe option is to discard all data not yet written to postgres and starting over.
+			//
+			// TODO: It may be even better to get ids out of postgres and seek to those.
+			// TODO: That could be achieved by bundling the
+			for partitionIdx, messageId := range e.Batch.firstMessageIdByPartition {
+				if _, ok := staleWriteByPartition[partitionIdx]; !ok {
+					srv.consumer.Seek(messageId)
+				}
+			}
+
+			// Seek stale partitions to the id stored in postgres.
+
+			// For each stale
+		} else if err != nil {
+			// Unrecoverable error; exit.
+			return err
+		}
+	}
+}
+
+func (srv *Ingester) ProcessMessages(ctx context.Context, messageChannel <-chan pulsar.Message, batchChannel chan<- *Batch) error {
+	log := ctxlogrus.Extract(ctx)
+
+	// In-progress batch. Initialized automatically by ProcessMessage.
+	var batch *Batch
+
+	// Ticker to trigger checking if we should write the current batch to postgres.
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	// Run until ctx is canceled.
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case msg := <-pulsarToChannel.C:
+		case msg := <-messageChannel:
 
 			// Incoming gRPC requests are annotated with a unique id,
 			// which is included with the corresponding Pulsar message.
@@ -112,22 +214,138 @@ func (srv *Ingester) Run(ctx context.Context) error {
 			messageLogger := log.WithFields(logrus.Fields{"messageId": msg.ID(), requestid.MetadataKey: requestId})
 			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
 
-			// Unmarshal and validate the message.
-			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
+			var err error
+			batch, err = srv.ProcessMessage(ctxWithLogger, msg, batch)
 			if err != nil {
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
-				srv.consumer.Ack(msg)
-				break
 			}
-			fmt.Println(sequence)
+		case <-ticker.C: // Periodically check if we should write to postgres.
+			if srv.ShouldWrite(batch) {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case batchChannel <- batch:
+					batch = nil
+				}
+			}
+		}
+	}
+}
 
-			// err = srv.ProcessSequence(ctx, sequence)
-			// if err != nil {
-			// 	logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
-			// 	srv.consumer.Ack(msg)
-			// 	break
-			// }
-			srv.consumer.Ack(msg)
+func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, batch *Batch) (*Batch, error) {
+	if msg == nil {
+		return batch, nil
+	}
+
+	// Create a fresh batch if we don't already have one.
+	if batch == nil {
+		batch = &Batch{
+			createdAt:                 time.Now(),
+			MessageIds:                make([]pulsar.MessageID, 0),
+			records:                   make([]interface{}, 0),
+			firstMessageIdByPartition: make(map[int32]pulsar.MessageID),
+			lastMessageIdByPartition:  make(map[int32]pulsar.MessageID),
+		}
+	}
+
+	// Store the message id in the batch.
+	// So we can ack messages once they've been written to postgres.
+	//
+	// It's fine to write to postgres and then not ack, since stale writes are detected.
+	// But it's not fine to ack messages not written to postgres,
+	// since skipping messages isn't detected.
+	batch.MessageIds = append(batch.MessageIds, msg.ID())
+
+	// Unmarshal and validate the message.
+	sequence, err := eventutil.UnmarshalEventSequence(ctx, msg.Payload())
+	if err != nil {
+		return batch, err
+	}
+	if sequence == nil || len(sequence.Events) == 0 {
+		return batch, nil
+	}
+
+	for _, event := range sequence.GetEvents() {
+		if eventSubmitJob, ok := event.Event.(*armadaevents.EventSequence_Event_SubmitJob); ok {
+			submitJob := eventSubmitJob.SubmitJob
+			messageIndexPointer := msg.Index()
+			var messageIndex uint64
+			if messageIndexPointer != nil {
+				messageIndex = *messageIndexPointer
+			}
+			job := Job{
+				Jobid:        armadaevents.UuidFromProtoUuid(submitJob.JobId),
+				Jobset:       sequence.GetJobSetName(),
+				Queue:        sequence.GetQueue(),
+				Priority:     int64(submitJob.Priority),
+				Message:      msg.Payload(),
+				Messageindex: int64(messageIndex), // TODO: Possible precision problem.
+			}
+
+			// Any consumer can seek on any topic partition.
+			// An unexpected seek may cause messages to be delivered out of order,
+			// i.e., a received messages may not be newer than the previous message.
+			//
+			// We compare the id of each received message with that of the previous message
+			// on the same partition to detect such out-of-order messages.
+			//
+			// Note that, while possible, this should be a rare occurrence.
+			partitionIdx := msg.ID().PartitionIdx()
+			if lastMessageId, ok := batch.lastMessageIdByPartition[partitionIdx]; ok {
+				msgIsOufOfOrder, err := pulsarutils.FromMessageId(lastMessageId).GreaterEqual(msg.ID())
+				if err != nil {
+					return batch, err
+				}
+				if msgIsOufOfOrder {
+					// pulsarutils.PulsarMessageId prints nicely, so we convert to those.
+					return batch, fmt.Errorf(
+						"unexpected seek detected: received messages out of order for topic %s: id of received message is %s, but the previous message has id %s",
+						msg.Topic(), pulsarutils.FromMessageId(msg.ID()), pulsarutils.FromMessageId(lastMessageId),
+					)
+				}
+			}
+
+			// Update the batch.
+			batch.MessageIds = append(batch.MessageIds, msg.ID())
+			batch.records = append(batch.records, job)
+			if _, ok := batch.firstMessageIdByPartition[partitionIdx]; !ok {
+				batch.firstMessageIdByPartition[partitionIdx] = msg.ID()
+			}
+			batch.lastMessageIdByPartition[partitionIdx] = msg.ID()
+		}
+	}
+
+	return batch, nil
+}
+
+func (srv *Ingester) ProcessBatches(ctx context.Context, batchChannel <-chan *Batch) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case batch := <-batchChannel:
+			// Write records into postgres.
+			err := UpsertRecords(ctx, srv.db, srv.topic, batch.lastMessageIdByPartition, srv.table, srv.schema, batch.records)
+
+			// Detect stale writes and bundle the batch with the ErrStaleWrite.
+			var e *ErrStaleWrite
+			if errors.As(err, e) {
+				return errors.WithStack(&ErrStaleBatch{
+					Batch:         batch,
+					ErrStaleWrite: e,
+				})
+			} else if err != nil {
+				return err
+			}
+
+			// Ack all messages that were used to create the batch.
+			// Acking is only safe once data has been written to postgres.
+			for _, messageId := range batch.MessageIds {
+				err := srv.consumer.AckID(messageId)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
 		}
 	}
 }
