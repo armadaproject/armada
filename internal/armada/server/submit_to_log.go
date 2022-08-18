@@ -730,7 +730,7 @@ func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string
 		return ret, nil
 	}
 
-	// Armada checks for duplicate job submissions if a ClientId (i.e., a deuplication id) is provided.
+	// Armada checks for duplicate job submissions if a ClientId (i.e., a deduplication id) is provided.
 	// Deduplication is based on storing the combined hash of the ClientId and queue.
 	// For storage efficiency, we store hashes instead of user-provided strings.
 	combinedHashData := make([]byte, 40)
@@ -771,7 +771,7 @@ func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string
 			if apiJob.ClientId != "" {
 				hash := combinedHashFromClientId[apiJob.ClientId]
 				originalJobId := addedKvs[fmt.Sprintf("%x", hash)]
-				ret[apiJob.GetId()] = fmt.Sprintf("%x", originalJobId)
+				ret[apiJob.GetId()] = string(originalJobId)
 			}
 		}
 		return ret, nil
