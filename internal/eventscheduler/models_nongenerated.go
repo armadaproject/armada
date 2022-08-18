@@ -2,7 +2,6 @@ package eventscheduler
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -10,53 +9,52 @@ import (
 	"github.com/G-Research/armada/internal/eventscheduler/sql"
 )
 
-var RunsSchema string
-var PulsarSchema string
-
-func init() {
-	s := sql.SchemaTemplate()
-
-	schema, err := schemaFromString(s, "runs")
-	if err != nil {
-		err = errors.Wrap(err, "failed to read runs schema")
-		panic(err)
-	}
-	RunsSchema = schema
-
-	schema, err = schemaFromString(s, "pulsar")
-	if err != nil {
-		err = errors.Wrap(err, "failed to read pulsar schema")
-		panic(err)
-	}
-	PulsarSchema = schema
+func RunsSchema() string {
+	return schemaByTable("runs")
 }
 
-func schemaFromFile(filename, tableName string) (string, error) {
-	dat, err := os.ReadFile(filename)
+func JobsSchema() string {
+	return schemaByTable("jobs")
+}
+
+func PulsarSchema() string {
+	return schemaByTable("pulsar")
+}
+
+func schemaByTable(table string) string {
+	s := sql.SchemaTemplate()
+	schema, err := schemaFromString(s, table)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read runs SQL schema")
+		err = errors.Wrapf(err, "failed to read schema for table %s", table)
+		panic(err)
 	}
-	return schemaFromString(string(dat), tableName)
+	return schema
 }
 
 // schemaFromString searches for and returns the column name definitions for a given table.
 //
 // For example, if s is equal to the following string
 // CREATE TABLE rectangle (
-//   id UUID PRIMARY KEY,
-//   width int NOT NULL,
-//   height int NOT NULL
+//
+//	id UUID PRIMARY KEY,
+//	width int NOT NULL,
+//	height int NOT NULL
+//
 // );
 //
 // CREATE TABLE circle (
-//   id UUID PRIMARY KEY,
-//   radius int NOT NULL
+//
+//	id UUID PRIMARY KEY,
+//	radius int NOT NULL
+//
 // );
 //
 // Then schemaFromString(s, "circle"), returns
 // (
-//   id UUID PRIMARY KEY,
-//   radius int NOT NULL
+//
+//	id UUID PRIMARY KEY,
+//	radius int NOT NULL
+//
 // )
 func schemaFromString(s, tableName string) (string, error) {
 	sl := strings.ToLower(s) // Lower-case to handle inconsistent case, e.g., CREATE TABLE and create table.
@@ -80,25 +78,3 @@ func schemaFromString(s, tableName string) (string, error) {
 	k += len(");")
 	return s[i+j : i+j+k-1], nil
 }
-
-func (r Run) Schema() string {
-	return RunsSchema
-}
-
-// func (x Run) Names() []string {
-// 	t := reflect.TypeOf(x)
-// 	names := make([]string, t.NumField())
-// 	for i := 0; i < t.NumField(); i++ {
-// 		names[i] = t.Field(i).Tag.Get("db")
-// 	}
-// 	return names
-// }
-
-// func (x Run) Values() []interface{} {
-// 	v := reflect.ValueOf(x)
-// 	values := make([]interface{}, v.NumField())
-// 	for i := 0; i < v.NumField(); i++ {
-// 		values[i] = v.Field(i).Interface()
-// 	}
-// 	return values
-// }

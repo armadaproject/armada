@@ -112,12 +112,12 @@ func withSetup(action func(queries *Queries, db *pgx.Conn, tableName string) err
 		return err
 	}
 
-	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE runs %s;", RunsSchema))
+	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE runs %s;", RunsSchema()))
 	if err != nil {
 		return err
 	}
 
-	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE pulsar %s;", PulsarSchema))
+	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE pulsar %s;", PulsarSchema()))
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func TestUpsert(t *testing.T) {
 
 		// Insert rows, read them back, and compare.
 		expected := makeRuns(10)
-		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
+		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema(), interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -147,7 +147,7 @@ func TestUpsert(t *testing.T) {
 
 		// Change one record, upsert, read back, and compare.
 		expected[0].Executor = "foo"
-		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
+		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, tableName, RunsSchema(), interfacesFromRuns(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -173,7 +173,7 @@ func TestIdempotence(t *testing.T) {
 		expected := makeRuns(10)
 		records := expected
 		writeMessageId := pulsarutils.New(0, 1, 0, 0)
-		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema, interfacesFromRuns(records))
+		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema(), interfacesFromRuns(records))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -190,7 +190,7 @@ func TestIdempotence(t *testing.T) {
 		dbMessageId := writeMessageId
 		writeMessageId = pulsarutils.New(0, 0, 0, 0)
 		records = makeRuns(1)
-		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema, interfacesFromRuns(records))
+		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema(), interfacesFromRuns(records))
 		expectedErr := &ErrStaleWrite{
 			Topic: "topic",
 			StaleWrites: []StaleWrite{
@@ -251,7 +251,7 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 			0: pulsarutils.New(0, 1, 0, 0),
 			1: pulsarutils.New(0, 2, 1, 0),
 		}
-		err := IdempotentUpsert(ctx, db, "topic", writeMessageIds, tableName, RunsSchema, interfacesFromRuns(records))
+		err := IdempotentUpsert(ctx, db, "topic", writeMessageIds, tableName, RunsSchema(), interfacesFromRuns(records))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -271,7 +271,7 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 			1: pulsarutils.New(0, 1, 1, 0),
 		}
 		records = makeRuns(1)
-		err = IdempotentUpsert(ctx, db, "topic", writeMessageIds, tableName, RunsSchema, interfacesFromRuns(records))
+		err = IdempotentUpsert(ctx, db, "topic", writeMessageIds, tableName, RunsSchema(), interfacesFromRuns(records))
 		expectedErr := &ErrStaleWrite{
 			Topic: "topic",
 			StaleWrites: []StaleWrite{ // Stale write on the 1-th partition.
@@ -339,7 +339,7 @@ func TestConcurrency(t *testing.T) {
 			expected := makeRuns(10)
 			executor := fmt.Sprintf("executor-%d", i)
 			setRunsExecutor(expected, executor)
-			err := IdempotentUpsert(ctx, db, fmt.Sprintf("topic-%d", i), map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema, interfacesFromRuns(expected))
+			err := IdempotentUpsert(ctx, db, fmt.Sprintf("topic-%d", i), map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema(), interfacesFromRuns(expected))
 			if !assert.NoError(t, err) {
 				return nil
 			}
