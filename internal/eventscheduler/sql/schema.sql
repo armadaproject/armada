@@ -10,7 +10,7 @@ CREATE TABLE jobs (
     priority bigint NOT NULL,
      -- Dict mapping resource type to amount requested.
      -- TODO: We may want a proto message containing the minimal amount of data the scheduler needs.
-    claims json NOT NULL,
+    -- claims json NOT NULL,
     -- SubmitJob Pulsar message stored as a proto buffer.
     message bytea NOT NULL,
     messageIndex bigint NOT NULL

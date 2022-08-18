@@ -25,14 +25,10 @@ import (
 // At a high level, the ingester:
 // 1. Reads messages from pulsar, which are used to create records.
 // 2. Records are collected in a batch until some amount of time has passed or some number of records have been collected.
-// 3. The records that make up the batch are upserted into postgres in a single operation.
+// 3. The records that make up the batch are bulk upserted into postgres.
 // 4. The pulsar messages read to produce the batch are acked.
 //
-// Upserts are idempotent. Specifically, stale writes are detected
-// (i.e., if the data in postgres is more recent than the data to be written.).
-//
-// On stale write, the ingester seeks to the correct position for each topic partition
-// before resuming reading. In this way, we ensure exactly once semantics when writing into postgres.
+// Because we just store records, upserts are idempotent.
 //
 // Each ingester instance can only write into a single postgres table.
 // I.e., to populate multiple tables with different record types (e.g., jobs and leases),
@@ -51,6 +47,9 @@ type Ingester struct {
 	maxWriteInterval time.Duration
 	// Write current batch to postgres if at least this many records have been written to it.
 	maxWriteRecords int
+	// For each partition, store the id of the most recent message.
+	// Used to detect unexpected seeks.
+	lastMessageIdByPartition map[int32]pulsar.MessageID
 	// Connection to the postgres database used for persistence.
 	db *pgx.Conn
 	// Optional logger.
@@ -63,16 +62,11 @@ type Batch struct {
 	// Time at which this batch was created.
 	createdAt time.Time
 	// Ids of messages processed to create this batch.
+	// Note that these don't map one-to-one to records,
+	// since only a subset of the messages may have resulted in a record being created.
 	MessageIds []pulsar.MessageID
 	// Records to be written on the next write to postgres.
 	records []interface{}
-	// The message id of the most recent message seen for each partition.
-	// Used to detect stale writes when writing to postgres,
-	// i.e., detecting if the data stored in postgres is more recent than what we're trying to write.
-	lastMessageIdByPartition map[int32]pulsar.MessageID
-	// The message id of the first message we've seen for each partition.
-	// Necessary in case of a stale write, in which case we may need to seek to the start for some partitions.
-	firstMessageIdByPartition map[int32]pulsar.MessageID
 }
 
 // ErrStaleBatch indicates that some (or all) records in batch are derivded from partitions
@@ -141,43 +135,8 @@ func (srv *Ingester) Run(ctx context.Context) error {
 
 		// Run pipeline until any error.
 		err := g.Wait()
-
-		// If the error is of type ErrStaleWrite, we've tried to write stale data into postgres.
-		// To resolve, we need to seek all partitions that made up the batch to the
-		// - partitions corresponding to stale writes to the id stored in postgres and
-		// - all other partitions to the id of the first message for that partition in the batch.
-		var e *ErrStaleBatch
-		if errors.As(err, e) {
-
-			// Map partition indices to the message id to seek to for all stale partitions.
-			staleWriteByPartition := make(map[int32]pulsar.MessageID)
-			for _, staleWrite := range e.ErrStaleWrite.StaleWrites {
-				partitionIdx := staleWrite.DbMessageId.PartitionIdx()
-				if staleWrite.WriteMessageId.PartitionIdx() != partitionIdx {
-					return errors.Errorf("mismatched message ids %v", staleWrite)
-				}
-				if _, ok := staleWriteByPartition[partitionIdx]; ok {
-					return errors.Errorf("duplicate StaleWrite %v for partition %d", staleWrite, partitionIdx)
-				}
-				staleWriteByPartition[partitionIdx] = staleWrite
-			}
-
-			// Seek non-stale partitions to the start of the batch.
-			// Because we don't know how which messages are in the pipeline,
-			// the only safe option is to discard all data not yet written to postgres and starting over.
-			//
-			// TODO: It may be even better to get ids out of postgres and seek to those.
-			// TODO: That could be achieved by bundling the
-			for partitionIdx, messageId := range e.Batch.firstMessageIdByPartition {
-				if _, ok := staleWriteByPartition[partitionIdx]; !ok {
-					srv.consumer.Seek(messageId)
-				}
-			}
-
-			// Seek stale partitions to the id stored in postgres.
-
-			// For each stale
-		} else if err != nil {
+		// TODO: Detect recoverable errors.
+		if err != nil {
 			// Unrecoverable error; exit.
 			return err
 		}
@@ -240,18 +199,16 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 	// Create a fresh batch if we don't already have one.
 	if batch == nil {
 		batch = &Batch{
-			createdAt:                 time.Now(),
-			MessageIds:                make([]pulsar.MessageID, 0),
-			records:                   make([]interface{}, 0),
-			firstMessageIdByPartition: make(map[int32]pulsar.MessageID),
-			lastMessageIdByPartition:  make(map[int32]pulsar.MessageID),
+			createdAt:  time.Now(),
+			MessageIds: make([]pulsar.MessageID, 0),
+			records:    make([]interface{}, 0),
 		}
 	}
 
 	// Store the message id in the batch.
 	// So we can ack messages once they've been written to postgres.
 	//
-	// It's fine to write to postgres and then not ack, since stale writes are detected.
+	// It's fine to write to postgres and then not ack, since writes are idempotent.
 	// But it's not fine to ack messages not written to postgres,
 	// since skipping messages isn't detected.
 	batch.MessageIds = append(batch.MessageIds, msg.ID())
@@ -291,7 +248,7 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 			//
 			// Note that, while possible, this should be a rare occurrence.
 			partitionIdx := msg.ID().PartitionIdx()
-			if lastMessageId, ok := batch.lastMessageIdByPartition[partitionIdx]; ok {
+			if lastMessageId, ok := srv.lastMessageIdByPartition[partitionIdx]; ok {
 				msgIsOufOfOrder, err := pulsarutils.FromMessageId(lastMessageId).GreaterEqual(msg.ID())
 				if err != nil {
 					return batch, err
@@ -304,14 +261,11 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 					)
 				}
 			}
+			srv.lastMessageIdByPartition[partitionIdx] = msg.ID()
 
 			// Update the batch.
 			batch.MessageIds = append(batch.MessageIds, msg.ID())
 			batch.records = append(batch.records, job)
-			if _, ok := batch.firstMessageIdByPartition[partitionIdx]; !ok {
-				batch.firstMessageIdByPartition[partitionIdx] = msg.ID()
-			}
-			batch.lastMessageIdByPartition[partitionIdx] = msg.ID()
 		}
 	}
 
@@ -325,17 +279,9 @@ func (srv *Ingester) ProcessBatches(ctx context.Context, batchChannel <-chan *Ba
 			return ctx.Err()
 		case batch := <-batchChannel:
 			// Write records into postgres.
-			err := UpsertRecords(ctx, srv.db, srv.topic, batch.lastMessageIdByPartition, srv.table, srv.schema, batch.records)
-
-			// Detect stale writes and bundle the batch with the ErrStaleWrite.
-			var e *ErrStaleWrite
-			if errors.As(err, e) {
-				return errors.WithStack(&ErrStaleBatch{
-					Batch:         batch,
-					ErrStaleWrite: e,
-				})
-			} else if err != nil {
-				return err
+			err := Upsert(ctx, srv.db, srv.topic, srv.table, srv.schema, batch.records)
+			if err != nil {
+				return err // TODO: Keep retrying on transient faults.
 			}
 
 			// Ack all messages that were used to create the batch.
@@ -348,114 +294,4 @@ func (srv *Ingester) ProcessBatches(ctx context.Context, batchChannel <-chan *Ba
 			}
 		}
 	}
-}
-
-// func (srv *Ingester) Init(ctx context.Context) error {
-// 	log := ctxlogrus.Extract(ctx)
-
-// 	// Each write to postgres is based on several messages read from several topics.
-// 	// For each such write, we write to postgres the id of the most recent Pulsar message
-// 	// for each topic (omitting any topics that didn't contribute to this write).
-// 	//
-// 	// Here, at startup, we read the message id stored in postgres for each partition and seek to those ids.
-// 	// We perform the same check for each write to postgres; doing it here as well is just an optimisation.
-// 	sqlMessageIds, err := srv.db.GetTopicMessageIds(ctx, srv.topic)
-// 	if err != nil {
-// 		return errors.WithStack(err)
-// 	}
-
-// 	// Here, we need to seek on each of the individual partitions.
-// 	// When we write, we need to compare against all the individual partitions.
-// 	// We can write the partitions that weren't stale and then re-seek the others.
-// 	srv.consumer.Seek()
-
-// 	messageId := pulsarutils.New(
-// 		sqlMessageId.Ledgerid,
-// 		sqlMessageId.Entryid,
-// 		sqlMessageId.Partitionidx,
-// 		sqlMessageId.Batchidx,
-// 	)
-// 	err = srv.consumer.Seek(messageId)
-// 	if err != nil {
-// 		return errors.WithStack(err)
-// 	}
-// }
-
-// SeekPartitions seeks individual partitions of a topic.
-func SeekPartitions(ctx context.Context, client pulsar.Client, consumer pulsar.Consumer, topic string, messageIds []pulsar.MessageID) (pulsar.Consumer, error) {
-	// log := ctxlogrus.Extract(ctx)
-
-	// Check that there isn't more than one message id for any partition.
-	messageIdByPartition := make(map[int32]pulsar.MessageID)
-	for _, messageId := range messageIds {
-		if _, ok := messageIdByPartition[messageId.PartitionIdx()]; ok {
-			return nil, errors.Errorf("duplicate message id for %s-%d", topic, messageId.PartitionIdx())
-		}
-		messageIdByPartition[messageId.PartitionIdx()] = messageId
-	}
-
-	// // Give up the original subscription to allow those created above to take over.
-	// err := consumer.Unsubscribe()
-	// if err != nil {
-	// 	return nil, errors.WithStack(err)
-	// }
-
-	// A Pulsar topic partition is just a topic with a special name.
-	// I.e., a topic the name of which is suffixed with the partition index.
-	// Here, we create consumers for each topic that just do a seek followed by an unsubscribe.
-	g, _ := errgroup.WithContext(ctx)
-	for _, messageId := range messageIdByPartition {
-		messageId := messageId
-		err := consumer.Seek(messageId)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		g.Go(func() error {
-			// partitionTopic := fmt.Sprintf("%s-partition-%d", topic, messageId.PartitionIdx())
-			// consumer, err := client.Subscribe(pulsar.ConsumerOptions{
-			// 	Topic:            partitionTopic,
-			// 	SubscriptionName: consumer.Subscription(),
-			// 	Type:             pulsar.KeyShared,
-			// })
-			// if err != nil {
-			// 	fmt.Println("=============== subscribe failed")
-			// 	return errors.WithStack(err)
-			// }
-			// defer func() {
-			// 	err := consumer.Unsubscribe()
-			// 	if err != nil {
-			// 		err = errors.WithStack(err)
-			// 		logging.WithStacktrace(log, err).Errorf("+++++++++++++++++++++++++++ failed to unsubscribe to topic %s on subscription %s", partitionTopic, consumer.Subscription())
-			// 	}
-			// }()
-			// err = consumer.Seek(messageId)
-			// if err != nil {
-			// 	fmt.Println("=============== seek failed")
-			// 	return errors.WithStack(err)
-			// }
-			return nil
-		})
-	}
-
-	// Wait for the seek to complete.
-	err := g.Wait()
-	if err != nil {
-		return nil, err
-	}
-
-	time.Sleep(10 * time.Second)
-
-	// // Re-subscribe to the partitioned topic.
-	// // Note that this may result in being given a different set of partitions than what the original consumer held.
-	// fmt.Println("===================== re-subscribing on ", consumer.Subscription(), " - ", topic)
-	// newConsumer, err := client.Subscribe(pulsar.ConsumerOptions{
-	// 	Topic:            topic,
-	// 	SubscriptionName: consumer.Subscription(),
-	// 	Type:             pulsar.KeyShared,
-	// })
-	// if err != nil {
-	// 	return nil, errors.WithStack(err)
-	// }
-
-	return consumer, nil
 }
