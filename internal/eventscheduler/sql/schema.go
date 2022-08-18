@@ -15,12 +15,16 @@ func SchemaTemplate() string {
 		");\n" +
 		"\n" +
 		"CREATE TABLE jobs (\n" +
-		"    jobId UUID PRIMARY KEY,\n" +
-		"    jobSetHash bit(256) NOT NULL,\n" +
+		"    job_id UUID PRIMARY KEY,\n" +
+		"    job_set text NOT NULL,\n" +
 		"    queue text NOT NULL,\n" +
-		"    priority double precision NOT NULL,\n" +
+		"    priority bigint NOT NULL,\n" +
 		"     -- Dict mapping resource type to amount requested.\n" +
-		"    claims json NOT NULL\n" +
+		"     -- TODO: We may want a proto message containing the minimal amount of data the scheduler needs.\n" +
+		"    -- claims json NOT NULL,\n" +
+		"    -- SubmitJob Pulsar message stored as a proto buffer.\n" +
+		"    message bytea NOT NULL,\n" +
+		"    message_index bigint NOT NULL\n" +
 		");\n" +
 		"\n" +
 		"CREATE TABLE runs (\n" +
@@ -40,18 +44,18 @@ func SchemaTemplate() string {
 		"    -- Map from resource type to total amount available of that resource.\n" +
 		"    -- The following pairs are required: \"cpu\", \"memory\", \"storage\".\n" +
 		"    -- In addition, any accelerators (e.g., A100_16GB) must be included.\n" +
-		"    totalResources json NOT NULL,\n" +
+		"    total_resources json NOT NULL,\n" +
 		"    -- Map from resource type to max amount of that resource available on any node.\n" +
 		"    -- Must contain a pair for each resource type in totalResources.\n" +
-		"    maxResources json NOT NULL\n" +
+		"    max_resources json NOT NULL\n" +
 		");\n" +
 		"\n" +
 		"CREATE TABLE pulsar (\n" +
-		"    topic text PRIMARY KEY,\n" +
-		"    ledgerId bigint NOT NULL,\n" +
-		"    entryId bigint NOT NULL,\n" +
-		"    batchIdx int not NULL,\n" +
-		"    partitionIdx int NOT NULL\n" +
+		"    topic text NOT NULL,\n" +
+		"    ledger_id bigint NOT NULL,\n" +
+		"    entry_id bigint NOT NULL,\n" +
+		"    batch_idx int not NULL,\n" +
+		"    partition_idx int NOT NULL\n" +
 		");\n" +
 		""
 	return tmpl

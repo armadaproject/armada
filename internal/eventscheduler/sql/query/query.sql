@@ -25,5 +25,5 @@ SELECT * FROM runs ORDER BY run_id;
 SELECT * FROM pulsar WHERE topic = $1;
 
 -- name: UpsertMessageId :exec
-INSERT INTO pulsar (topic, ledgerId, entryId, batchIdx, partitionIdx) VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (topic) DO UPDATE SET ledgerId = EXCLUDED.ledgerId, entryId = EXCLUDED.entryId, batchIdx = EXCLUDED.batchIdx, partitionIdx = EXCLUDED.partitionIdx;
+INSERT INTO pulsar (topic, ledger_id, entry_id, batch_idx, partition_idx) VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (topic) DO UPDATE SET ledgerId = EXCLUDED.ledger_id, entry_id = EXCLUDED.entry_id, batch_idx = EXCLUDED.batch_idx, partition_idx = EXCLUDED.partition_idx;

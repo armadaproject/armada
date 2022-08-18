@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/severinson/pulsar-client-go/pulsar"
 
@@ -82,7 +83,7 @@ func (err *ErrStaleWrite) Error() string {
 // This function assumes all records are derived from a single (possibly partitioned) Pulsar topic
 // with name topicName. writeMessageIds maps partition indices to the id of the most recently
 // received Pulsar message for that partition.
-func IdempotentUpsert(ctx context.Context, db *pgx.Conn, topicName string, writeMessageIds map[int32]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
+func IdempotentUpsert(ctx context.Context, db *pgxpool.Pool, topicName string, writeMessageIds map[int32]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -107,7 +108,7 @@ func IdempotentUpsert(ctx context.Context, db *pgx.Conn, topicName string, write
 }
 
 // Upsert is like [IdempotentUpsert], except the it does no idempotency check.
-func Upsert(ctx context.Context, db *pgx.Conn, tableName string, schema string, records []interface{}) error {
+func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -165,10 +166,10 @@ func IdempotencyCheck(ctx context.Context, tx DBTX, topicName string, writeMessa
 	for _, writeMessageId := range writeMessageIds {
 		err = queries.UpsertMessageId(ctx, UpsertMessageIdParams{
 			Topic:        topicName,
-			Ledgerid:     writeMessageId.LedgerID(),
-			Entryid:      writeMessageId.EntryID(),
-			Batchidx:     writeMessageId.BatchIdx(),
-			Partitionidx: writeMessageId.PartitionIdx(),
+			LedgerID:     writeMessageId.LedgerID(),
+			EntryID:      writeMessageId.EntryID(),
+			BatchIdx:     writeMessageId.BatchIdx(),
+			PartitionIdx: writeMessageId.PartitionIdx(),
 		})
 		if err != nil {
 			return errors.WithStack(err)
@@ -178,6 +179,8 @@ func IdempotencyCheck(ctx context.Context, tx DBTX, topicName string, writeMessa
 }
 
 func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
+
+	fmt.Println("=========== upsert into ", tableName, " with ", tx, " and schema ", schema)
 
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.
@@ -235,10 +238,10 @@ func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema
 
 func pulsarMessageIdFromPulsarRecord(pulsarRecord Pulsar) *pulsarutils.PulsarMessageId {
 	return pulsarutils.New(
-		pulsarRecord.Ledgerid,
-		pulsarRecord.Entryid,
-		pulsarRecord.Partitionidx,
-		pulsarRecord.Batchidx,
+		pulsarRecord.LedgerID,
+		pulsarRecord.EntryID,
+		pulsarRecord.PartitionIdx,
+		pulsarRecord.BatchIdx,
 	)
 }
 

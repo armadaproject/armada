@@ -4,8 +4,8 @@ CREATE TABLE queues (
 );
 
 CREATE TABLE jobs (
-    jobId UUID PRIMARY KEY,
-    jobSet text NOT NULL,
+    job_id UUID PRIMARY KEY,
+    job_set text NOT NULL,
     queue text NOT NULL,
     priority bigint NOT NULL,
      -- Dict mapping resource type to amount requested.
@@ -13,7 +13,7 @@ CREATE TABLE jobs (
     -- claims json NOT NULL,
     -- SubmitJob Pulsar message stored as a proto buffer.
     message bytea NOT NULL,
-    messageIndex bigint NOT NULL
+    message_index bigint NOT NULL
 );
 
 CREATE TABLE runs (
@@ -33,16 +33,16 @@ CREATE TABLE executors (
     -- Map from resource type to total amount available of that resource.
     -- The following pairs are required: "cpu", "memory", "storage".
     -- In addition, any accelerators (e.g., A100_16GB) must be included.
-    totalResources json NOT NULL,
+    total_resources json NOT NULL,
     -- Map from resource type to max amount of that resource available on any node.
     -- Must contain a pair for each resource type in totalResources.
-    maxResources json NOT NULL
+    max_resources json NOT NULL
 );
 
 CREATE TABLE pulsar (
     topic text NOT NULL,
-    ledgerId bigint NOT NULL,
-    entryId bigint NOT NULL,
-    batchIdx int not NULL,
-    partitionIdx int NOT NULL
+    ledger_id bigint NOT NULL,
+    entry_id bigint NOT NULL,
+    batch_idx int not NULL,
+    partition_idx int NOT NULL
 );

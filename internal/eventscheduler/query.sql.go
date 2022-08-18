@@ -14,7 +14,7 @@ const getTopicMessageIds = `-- name: GetTopicMessageIds :many
 
 
 
-SELECT topic, ledgerid, entryid, batchidx, partitionidx FROM pulsar WHERE topic = $1
+SELECT topic, ledger_id, entry_id, batch_idx, partition_idx FROM pulsar WHERE topic = $1
 `
 
 // -- name: UpsertRecord :exec
@@ -43,10 +43,10 @@ func (q *Queries) GetTopicMessageIds(ctx context.Context, topic string) ([]Pulsa
 		var i Pulsar
 		if err := rows.Scan(
 			&i.Topic,
-			&i.Ledgerid,
-			&i.Entryid,
-			&i.Batchidx,
-			&i.Partitionidx,
+			&i.LedgerID,
+			&i.EntryID,
+			&i.BatchIdx,
+			&i.PartitionIdx,
 		); err != nil {
 			return nil, err
 		}
@@ -93,25 +93,25 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 }
 
 const upsertMessageId = `-- name: UpsertMessageId :exec
-INSERT INTO pulsar (topic, ledgerId, entryId, batchIdx, partitionIdx) VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (topic) DO UPDATE SET ledgerId = EXCLUDED.ledgerId, entryId = EXCLUDED.entryId, batchIdx = EXCLUDED.batchIdx, partitionIdx = EXCLUDED.partitionIdx
+INSERT INTO pulsar (topic, ledger_id, entry_id, batch_idx, partition_idx) VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (topic) DO UPDATE SET ledgerId = EXCLUDED.ledger_id, entry_id = EXCLUDED.entry_id, batch_idx = EXCLUDED.batch_idx, partition_idx = EXCLUDED.partition_idx
 `
 
 type UpsertMessageIdParams struct {
 	Topic        string `db:"topic"`
-	Ledgerid     int64  `db:"ledgerid"`
-	Entryid      int64  `db:"entryid"`
-	Batchidx     int32  `db:"batchidx"`
-	Partitionidx int32  `db:"partitionidx"`
+	LedgerID     int64  `db:"ledger_id"`
+	EntryID      int64  `db:"entry_id"`
+	BatchIdx     int32  `db:"batch_idx"`
+	PartitionIdx int32  `db:"partition_idx"`
 }
 
 func (q *Queries) UpsertMessageId(ctx context.Context, arg UpsertMessageIdParams) error {
 	_, err := q.db.Exec(ctx, upsertMessageId,
 		arg.Topic,
-		arg.Ledgerid,
-		arg.Entryid,
-		arg.Batchidx,
-		arg.Partitionidx,
+		arg.LedgerID,
+		arg.EntryID,
+		arg.BatchIdx,
+		arg.PartitionIdx,
 	)
 	return err
 }

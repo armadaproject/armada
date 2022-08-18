@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
@@ -77,15 +77,15 @@ func TestNamesValuesFromRecordPointer(t *testing.T) {
 	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message}, values)
 }
 
-func withSetup(action func(queries *Queries, db *pgx.Conn, tableName string) error) error {
+func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string) error) error {
 	ctx := context.Background()
 
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
-	db, err := pgx.Connect(ctx, connectionString)
+	db, err := pgxpool.Connect(ctx, connectionString)
 	if err != nil {
 		return err
 	}
-	defer db.Close(ctx)
+	defer db.Close()
 
 	err = db.Ping(ctx)
 	if err != nil {
@@ -128,7 +128,7 @@ func withSetup(action func(queries *Queries, db *pgx.Conn, tableName string) err
 func TestUpsert(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
 
 		// Insert rows, read them back, and compare.
 		expected := makeRuns(10)
@@ -167,7 +167,7 @@ func TestUpsert(t *testing.T) {
 func TestIdempotence(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
 
 		// Insert rows, read them back, and compare.
 		expected := makeRuns(10)
@@ -241,7 +241,7 @@ func TestIdempotence(t *testing.T) {
 func TestIdempotenceMultiPartition(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
 
 		// Insert rows, read them back, and compare.
 		// Here, we emulate inserting a message based off of several partitions.
@@ -331,7 +331,7 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 func TestConcurrency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgx.Conn, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
 
 		// Each thread inserts non-overlapping rows, reads them back, and compares.
 		for i := 0; i < 100; i++ {

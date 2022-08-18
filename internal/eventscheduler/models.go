@@ -13,25 +13,25 @@ import (
 
 type Executor struct {
 	ID             string      `db:"id"`
-	Totalresources pgtype.JSON `db:"totalresources"`
-	Maxresources   pgtype.JSON `db:"maxresources"`
+	TotalResources pgtype.JSON `db:"total_resources"`
+	MaxResources   pgtype.JSON `db:"max_resources"`
 }
 
 type Job struct {
-	Jobid        uuid.UUID `db:"jobid"`
-	Jobset       string    `db:"jobset"`
+	JobID        uuid.UUID `db:"job_id"`
+	JobSet       string    `db:"job_set"`
 	Queue        string    `db:"queue"`
 	Priority     int64     `db:"priority"`
 	Message      []byte    `db:"message"`
-	Messageindex int64     `db:"messageindex"`
+	MessageIndex int64     `db:"message_index"`
 }
 
 type Pulsar struct {
 	Topic        string `db:"topic"`
-	Ledgerid     int64  `db:"ledgerid"`
-	Entryid      int64  `db:"entryid"`
-	Batchidx     int32  `db:"batchidx"`
-	Partitionidx int32  `db:"partitionidx"`
+	LedgerID     int64  `db:"ledger_id"`
+	EntryID      int64  `db:"entry_id"`
+	BatchIdx     int32  `db:"batch_idx"`
+	PartitionIdx int32  `db:"partition_idx"`
 }
 
 type Queue struct {

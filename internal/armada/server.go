@@ -9,6 +9,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
@@ -194,6 +195,16 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var submitServerToRegister api.SubmitServer
 	submitServerToRegister = submitServer
 
+	// If pool settings are provided, open a connection pool to be shared by all services.
+	var pool *pgxpool.Pool
+	if len(config.Postgres.Connection) != 0 {
+		pool, err = postgres.OpenPgxPool(config.Postgres)
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+	}
+
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
 	// Store a list of all Pulsar components to use during cleanup later.
 	if config.Pulsar.Enabled {
@@ -239,14 +250,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 		// If postgres details were provided, enable deduplication.
 		if config.Pulsar.DedupTable != "" {
-			log.Info("Pulsar submit API deduplication enabled")
-			db, err := postgres.OpenPgxPool(config.Postgres)
-			if err != nil {
-				return err
+			if pool == nil {
+				return errors.New("deduplication is enabled, but no postgres settings are provided")
 			}
-			defer db.Close()
+			log.Info("Pulsar submit API deduplication enabled")
 
-			store, err := pgkeyvalue.New(db, 1000000, config.Pulsar.DedupTable)
+			store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
 			if err != nil {
 				return err
 			}
@@ -334,89 +343,95 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		// Experimental scheduler based on Pulsar messages.
 		// Runs alongside the default scheduler- only handles jobs that explicitly handles this scheduler.
 		//
-		// Processor
-		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: "pulsar-scheduler-processor",
-			Type:             pulsar.Exclusive,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		defer consumer.Close()
-		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             "pulsar-scheduler-processor",
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		})
-		if err != nil {
-			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
-		}
-		defer producer.Close()
-		schedulerProcessor := eventscheduler.NewSchedulerProcessor(consumer, producer)
-		services = append(services, func() error {
-			return schedulerProcessor.Run(ctx)
-		})
+		// // Processor
+		// consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		// 	Topic:            config.Pulsar.JobsetEventsTopic,
+		// 	SubscriptionName: "pulsar-scheduler-processor",
+		// 	Type:             pulsar.Exclusive,
+		// })
+		// if err != nil {
+		// 	return errors.WithStack(err)
+		// }
+		// defer consumer.Close()
+		// producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+		// 	Name:             "pulsar-scheduler-processor",
+		// 	CompressionType:  compressionType,
+		// 	CompressionLevel: compressionLevel,
+		// 	BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+		// 	Topic:            config.Pulsar.JobsetEventsTopic,
+		// })
+		// if err != nil {
+		// 	return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
+		// }
+		// defer producer.Close()
+		// schedulerProcessor := eventscheduler.NewSchedulerProcessor(consumer, producer)
+		// services = append(services, func() error {
+		// 	return schedulerProcessor.Run(ctx)
+		// })
 
-		// Ingester
-		//
-		// TODO: This won't work if there are several replicas of the server. Since the ingester and scheduler needs to be co-located currently.
-		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: "pulsar-scheduler-ingester",
-			Type:             pulsar.Exclusive,
-		})
-		if err != nil {
-			return errors.WithStack(err)
+		// Scheduler jobs ingester.
+		schedulerIngester := eventscheduler.Ingester{
+			PulsarClient: pulsarClient,
+			ConsumerOptions: pulsar.ConsumerOptions{
+				Topic:            config.Pulsar.JobsetEventsTopic,
+				SubscriptionName: "pulsar-scheduler-ingester",
+				Type:             pulsar.KeyShared,
+			},
+			Table:            "jobs",
+			Schema:           eventscheduler.JobsSchema(),
+			MaxWriteInterval: 10 * time.Second,
+			MaxWriteRecords:  10000,
+			Db:               pool,
 		}
-		defer consumer.Close()
-		// This producer does not need a name; having multiple producers is safe.
-		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		})
-		if err != nil {
-			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
-		}
-		defer producer.Close()
-		schedulerIngester := eventscheduler.NewSchedulerIngester(consumer, producer, schedulerProcessor)
 		services = append(services, func() error {
 			return schedulerIngester.Run(ctx)
 		})
 
-		// Create a separate gRPC server for this scheduler.
-		// Since it needs to listen on another port.
-		authServices := auth.ConfigureAuth(config.Auth)
-		schedulerGrpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
-		api.RegisterAggregatedQueueServer(schedulerGrpcServer, schedulerIngester)
-		api.RegisterUsageServer(schedulerGrpcServer, schedulerIngester)
-		api.RegisterEventServer(schedulerGrpcServer, schedulerIngester)
+		// // This producer does not need a name; having multiple producers is safe.
+		// producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
+		// 	CompressionType:  compressionType,
+		// 	CompressionLevel: compressionLevel,
+		// 	BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+		// 	Topic:            config.Pulsar.JobsetEventsTopic,
+		// })
+		// if err != nil {
+		// 	return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
+		// }
+		// defer producer.Close()
+		// schedulerIngester := eventscheduler.NewSchedulerIngester(consumer, producer, schedulerProcessor)
+		// services = append(services, func() error {
+		// 	return schedulerIngester.Run(ctx)
+		// })
 
-		// Shut down grpcServer if the context is cancelled.
-		// Give the server 5 seconds to shut down gracefully.
-		services = append(services, func() error {
-			<-ctx.Done()
-			go func() {
-				time.Sleep(5 * time.Second)
-				schedulerGrpcServer.Stop()
-			}()
-			schedulerGrpcServer.GracefulStop()
-			return nil
-		})
+		// // Create a separate gRPC server for this scheduler.
+		// // Since it needs to listen on another port.
+		// authServices := auth.ConfigureAuth(config.Auth)
+		// schedulerGrpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+		// api.RegisterAggregatedQueueServer(schedulerGrpcServer, schedulerIngester)
+		// api.RegisterUsageServer(schedulerGrpcServer, schedulerIngester)
+		// api.RegisterEventServer(schedulerGrpcServer, schedulerIngester)
 
-		// Cancel the errgroup if grpcServer.Serve returns an error.
-		log.Infof("Experimental gRPC server listening on %d", 50052)
-		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 50052))
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		services = append(services, func() error {
-			return schedulerGrpcServer.Serve(lis)
-		})
+		// // Shut down grpcServer if the context is cancelled.
+		// // Give the server 5 seconds to shut down gracefully.
+		// services = append(services, func() error {
+		// 	<-ctx.Done()
+		// 	go func() {
+		// 		time.Sleep(5 * time.Second)
+		// 		schedulerGrpcServer.Stop()
+		// 	}()
+		// 	schedulerGrpcServer.GracefulStop()
+		// 	return nil
+		// })
+
+		// // Cancel the errgroup if grpcServer.Serve returns an error.
+		// log.Infof("Experimental gRPC server listening on %d", 50052)
+		// lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 50052))
+		// if err != nil {
+		// 	return errors.WithStack(err)
+		// }
+		// services = append(services, func() error {
+		// 	return schedulerGrpcServer.Serve(lis)
+		// })
 	} else {
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
@@ -424,11 +439,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var eventApi *serving.EventApi = nil
 	// Setup new events api if enabled
 	if config.EventApi.Enabled {
-
-		// Set up eventDb
-		pool, err := postgres.OpenPgxPool(config.Postgres)
-		if err != nil {
-			panic(err)
+		if pool == nil {
+			return errors.New("new EventAPI is enabled, but no postgres settings are provided")
 		}
 		eventDb := eventdb.NewEventDb(pool)
 

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
@@ -53,7 +53,7 @@ type Ingester struct {
 	// Write current batch to postgres if at least this many records have been written to it.
 	MaxWriteRecords int
 	// Connection to the postgres database used for persistence.
-	Db *pgx.Conn
+	Db *pgxpool.Pool
 	// For each partition, store the id of the most recent message.
 	// Used to detect unexpected seeks.
 	lastMessageIdByPartition map[int32]pulsar.MessageID
@@ -131,6 +131,7 @@ func (srv *Ingester) Run(ctx context.Context) error {
 			return errors.WithStack(err)
 		}
 		defer consumer.Close()
+		srv.consumer = consumer
 
 		// All services run within an errgroup.
 		g, ctx := errgroup.WithContext(ctx)
@@ -246,12 +247,12 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 				messageIndex = *messageIndexPointer
 			}
 			job := Job{
-				Jobid:        armadaevents.UuidFromProtoUuid(submitJob.JobId),
-				Jobset:       sequence.GetJobSetName(),
+				JobID:        armadaevents.UuidFromProtoUuid(submitJob.JobId),
+				JobSet:       sequence.GetJobSetName(),
 				Queue:        sequence.GetQueue(),
 				Priority:     int64(submitJob.Priority),
 				Message:      msg.Payload(),
-				Messageindex: int64(messageIndex), // TODO: Possible precision problem.
+				MessageIndex: int64(messageIndex), // TODO: Possible precision problem.
 			}
 
 			// Any consumer can seek on any topic partition.
@@ -265,6 +266,9 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 			//
 			// TODO: We should check for this and restart the consumer if it happens.
 			partitionIdx := msg.ID().PartitionIdx()
+			if srv.lastMessageIdByPartition == nil {
+				srv.lastMessageIdByPartition = make(map[int32]pulsar.MessageID)
+			}
 			if lastMessageId, ok := srv.lastMessageIdByPartition[partitionIdx]; ok {
 				msgIsOufOfOrder, err := pulsarutils.FromMessageId(lastMessageId).GreaterEqual(msg.ID())
 				if err != nil {
