@@ -50,7 +50,7 @@ func (err *ErrStaleWrite) Error() string {
 	return sb.String()
 }
 
-// UpsertRecords is an optimized SQL call for bulk upserts.
+// IdempotentUpsert is an optimized SQL call for bulk upserts.
 //
 // For efficiency, this function:
 // 1. Creates an empty temporary SQL table.
@@ -82,7 +82,7 @@ func (err *ErrStaleWrite) Error() string {
 // This function assumes all records are derived from a single (possibly partitioned) Pulsar topic
 // with name topicName. writeMessageIds maps partition indices to the id of the most recently
 // received Pulsar message for that partition.
-func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMessageIds map[int32]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
+func IdempotentUpsert(ctx context.Context, db *pgx.Conn, topicName string, writeMessageIds map[int32]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -103,6 +103,20 @@ func UpsertRecords(ctx context.Context, db *pgx.Conn, topicName string, writeMes
 		}
 
 		return nil
+	})
+}
+
+// Upsert is like [IdempotentUpsert], except the it does no idempotency check.
+func Upsert(ctx context.Context, db *pgx.Conn, topicName string, tableName string, schema string, records []interface{}) error {
+	if len(records) == 0 {
+		return nil
+	}
+	return db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		return CopyProtocolUpsert(ctx, tx, topicName, tableName, schema, records)
 	})
 }
 
