@@ -63,6 +63,7 @@
   },
   "proxy": "http://localhost:8089",
   "devDependencies": {
+    "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3",
     "react-scripts": "^5.0.1",
     "@svgr/webpack": "^6.2.1"
