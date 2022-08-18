@@ -492,7 +492,7 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 // Because event sequences are specific to queue and job set, all CancelJobSet events in a sequence are equivalent,
 // and we only need to call CancelJobSet once.
 func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, userId string,
-	queueName string, jobSetName string, es []*armadaevents.CancelJobSet,
+	queueName string, jobSetName string, _ []*armadaevents.CancelJobSet,
 ) (bool, error) {
 	return srv.CancelJobSet(ctx, userId, queueName, jobSetName)
 }
