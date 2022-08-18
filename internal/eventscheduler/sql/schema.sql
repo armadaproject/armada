@@ -5,11 +5,15 @@ CREATE TABLE queues (
 
 CREATE TABLE jobs (
     jobId UUID PRIMARY KEY,
-    jobSetHash bit(256) NOT NULL,
+    jobSet text NOT NULL,
     queue text NOT NULL,
-    priority double precision NOT NULL,
+    priority bigint NOT NULL,
      -- Dict mapping resource type to amount requested.
-    claims json NOT NULL
+     -- TODO: We may want a proto message containing the minimal amount of data the scheduler needs.
+    claims json NOT NULL,
+    -- SubmitJob Pulsar message stored as a proto buffer.
+    message bytea NOT NULL,
+    messageIndex bigint NOT NULL
 );
 
 CREATE TABLE runs (

@@ -18,11 +18,13 @@ type Executor struct {
 }
 
 type Job struct {
-	Jobid      uuid.UUID   `db:"jobid"`
-	Jobsethash interface{} `db:"jobsethash"`
-	Queue      string      `db:"queue"`
-	Priority   float64     `db:"priority"`
-	Claims     pgtype.JSON `db:"claims"`
+	Jobid        uuid.UUID   `db:"jobid"`
+	Jobset       string      `db:"jobset"`
+	Queue        string      `db:"queue"`
+	Priority     int64       `db:"priority"`
+	Claims       pgtype.JSON `db:"claims"`
+	Message      []byte      `db:"message"`
+	Messageindex int64       `db:"messageindex"`
 }
 
 type Pulsar struct {

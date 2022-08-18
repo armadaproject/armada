@@ -1,7 +1,7 @@
 # Compile with "sqlc generate -f internal/eventscheduler/sql/sql.yaml" from the project root directory.
 version: 2
 sql:
-  - schema: "schema"
+  - schema: "schema.sql"
     queries: "query/query.sql"
     engine: "postgresql"
     gen:
