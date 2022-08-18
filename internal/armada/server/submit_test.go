@@ -1288,6 +1288,118 @@ func TestSubmitServer_CancelJobs_Permissions(t *testing.T) {
 	})
 }
 
+func TestSubmitServer_CancelJobSet_Permissions(t *testing.T) {
+	emptyPerms := make(map[permission.Permission][]string)
+	perms := map[permission.Permission][]string{
+		permissions.CancelJobs:    {"cancel-jobs-group"},
+		permissions.CancelAnyJobs: {"cancel-any-jobs-group"},
+	}
+	q := queue.Queue{
+		Name: "test-queue",
+		Permissions: []queue.Permissions{
+			{
+				Subjects: []queue.PermissionSubject{{
+					Kind: "Group",
+					Name: "cancel-queue-group",
+				}},
+				Verbs: []queue.PermissionVerb{queue.PermissionVerbCancel},
+			},
+		},
+		PriorityFactor: 1,
+	}
+	job := &api.Job{
+		Id:        util.NewULID(),
+		JobSetId:  "job-set-1",
+		Queue:     "test-queue",
+		Namespace: "test-queue",
+		Created:   time.Now(),
+	}
+
+	t.Run("no permissions", func(t *testing.T) {
+		withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			_, err = s.jobRepository.AddJobs([]*api.Job{job})
+			assert.NoError(t, err)
+
+			principal := authorization.NewStaticPrincipal("alice", []string{})
+			ctx := authorization.WithPrincipal(context.Background(), principal)
+
+			_, err = s.CancelJobSet(ctx, &api.JobSetCancelRequest{
+				Queue:    "test-queue",
+				JobSetId: "job-set-1",
+			})
+			e, ok := status.FromError(err)
+			assert.True(t, ok)
+			assert.Equal(t, codes.PermissionDenied, e.Code())
+		})
+	})
+
+	t.Run("global permissions", func(t *testing.T) {
+		withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			_, err = s.jobRepository.AddJobs([]*api.Job{job})
+			assert.NoError(t, err)
+
+			principal := authorization.NewStaticPrincipal("alice", []string{"cancel-any-jobs-group"})
+			ctx := authorization.WithPrincipal(context.Background(), principal)
+
+			_, err = s.CancelJobSet(ctx, &api.JobSetCancelRequest{
+				Queue:    "test-queue",
+				JobSetId: "job-set-1",
+			})
+			e, ok := status.FromError(err)
+			assert.True(t, ok)
+			assert.Equal(t, codes.OK, e.Code())
+		})
+	})
+
+	t.Run("queue permission without specific global permission", func(t *testing.T) {
+		withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			_, err = s.jobRepository.AddJobs([]*api.Job{job})
+			assert.NoError(t, err)
+
+			principal := authorization.NewStaticPrincipal("alice", []string{"cancel-queue-group"})
+			ctx := authorization.WithPrincipal(context.Background(), principal)
+
+			_, err = s.CancelJobSet(ctx, &api.JobSetCancelRequest{
+				Queue:    "test-queue",
+				JobSetId: "job-set-1",
+			})
+			e, ok := status.FromError(err)
+			assert.True(t, ok)
+			assert.Equal(t, codes.PermissionDenied, e.Code())
+		})
+	})
+
+	t.Run("queue permission", func(t *testing.T) {
+		withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			err := s.queueRepository.CreateQueue(q)
+			assert.NoError(t, err)
+			_, err = s.jobRepository.AddJobs([]*api.Job{job})
+			assert.NoError(t, err)
+
+			principal := authorization.NewStaticPrincipal("alice", []string{"cancel-jobs-group", "cancel-queue-group"})
+			ctx := authorization.WithPrincipal(context.Background(), principal)
+
+			_, err = s.CancelJobSet(ctx, &api.JobSetCancelRequest{
+				Queue:    "test-queue",
+				JobSetId: "job-set-1",
+			})
+			e, ok := status.FromError(err)
+			assert.True(t, ok)
+			assert.Equal(t, codes.OK, e.Code())
+		})
+	})
+}
+
 func TestSubmitServer_ReprioritizeJobs_Permissions(t *testing.T) {
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{

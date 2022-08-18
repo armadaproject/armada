@@ -39,7 +39,6 @@ type SubmitFromLog struct {
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *SubmitFromLog) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {
@@ -100,7 +99,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				break //expected
+				break // expected
 			}
 
 			// If receiving fails, try again in the hope that the problem is transient.
@@ -223,7 +222,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 		}
 	case *armadaevents.EventSequence_Event_CancelJobSet:
 		es := collectCancelJobSetEvents(ctx, i, sequence)
-		ok, err = srv.CancelJobSets(ctx, sequence.Queue, sequence.JobSetName, es)
+		ok, err = srv.CancelJobSets(ctx, sequence.UserId, sequence.Queue, sequence.JobSetName, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -319,7 +318,6 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 // Specifically, events are not processed if writing to the database results in a network-related error.
 // For any other error, the jobs are marked as failed and the events are considered to have been processed.
 func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups []string, queueName string, jobSetName string, es []*armadaevents.SubmitJob) (bool, error) {
-
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
@@ -396,7 +394,6 @@ func apiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, 
 
 // apiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-
 	// check that we have a valid jobId
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
@@ -483,34 +480,34 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
-			//TODO: should we instead cancel the jobs we can here?
+			// TODO: should we instead cancel the jobs we can here?
 			return false, err
 		}
 		jobIds[i] = id
 	}
-	_, err := srv.CancelJobsById(ctx, userId, jobIds)
-	if armadaerrors.IsNetworkError(err) {
-		return false, err
-	}
-	return true, err
+	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
 }
 
 // CancelJobSets processes several CancelJobSet events.
 // Because event sequences are specific to queue and job set, all CancelJobSet events in a sequence are equivalent,
 // and we only need to call CancelJobSet once.
-func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, queueName string, jobSetName string, es []*armadaevents.CancelJobSet) (bool, error) {
-	return srv.CancelJobSet(ctx, queueName, jobSetName)
+func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, userId string,
+	queueName string, jobSetName string, _ []*armadaevents.CancelJobSet,
+) (bool, error) {
+	return srv.CancelJobSet(ctx, userId, queueName, jobSetName)
 }
 
-func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jobSetName string) (bool, error) {
-
+func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queueName string, jobSetName string) (bool, error) {
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err
 	} else if err != nil {
 		return true, err
 	}
+	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
+}
 
+func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, jobIds []string) (bool, error) {
 	// Split IDs into batches and process one batch at a time.
 	// To reduce the number of jobs stored in memory.
 	//
@@ -519,7 +516,7 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jo
 	// However, that should be fine.
 	jobIdBatches := util.Batch(jobIds, srv.SubmitServer.cancelJobsBatchSize)
 	for _, jobIdBatch := range jobIdBatches {
-		_, err := srv.CancelJobsById(ctx, queueName, jobIdBatch)
+		_, err := srv.CancelJobsById(ctx, userId, jobIdBatch)
 		if armadaerrors.IsNetworkError(err) {
 			return false, err
 		} else if err != nil {
@@ -539,7 +536,6 @@ func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jo
 
 // CancelJobsById cancels all jobs with the specified ids.
 func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, jobIds []string) ([]string, error) {
-
 	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
@@ -586,7 +582,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
-			//TODO: should we instead reprioritize the jobs we can here?
+			// TODO: should we instead reprioritize the jobs we can here?
 			return true, err
 		}
 		jobIds[i] = id

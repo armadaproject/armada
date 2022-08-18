@@ -1,4 +1,4 @@
-name: "Setup go environment for tests"
+name: "Go environment setup"
 description: "Sets up go environment and installs deps for go testing of armada"
 
 runs:
