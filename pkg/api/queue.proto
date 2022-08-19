@@ -91,6 +91,9 @@ message NodeInfo {
     map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
 }
 
+// The Armada scheduler must account for taints, labels, and available resources.
+// These together make up the NodeType of a particular node.
+// Nodes with equal NodeType are considered as equivalent for scheduling and accounting.
 message NodeType {
     repeated k8s.io.api.core.v1.Taint taints = 1 [(gogoproto.nullable) = false];
     map<string,string> labels = 2;
@@ -107,13 +110,16 @@ message ClusterSchedulingInfoReport {
 }
 
 message QueueLeasedReport {
+    // Queue name.
     string name = 1;
+    // Total resources allocated to jobs from this queue.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_leased = 2 [(gogoproto.nullable) = false];
 }
 
 message ClusterLeasedReport {
     string cluster_id = 1;
     google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    // For each queue, the total resources allocated to jobs from that queue.
     repeated QueueLeasedReport queues = 3;
 }
 

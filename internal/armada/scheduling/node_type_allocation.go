@@ -5,6 +5,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+// nodeTypeAllocation stores the available resources for all nodes of a specific node type.
 type nodeTypeAllocation struct {
 	nodeType           api.NodeType
 	availableResources common.ComputeResourcesFloat
