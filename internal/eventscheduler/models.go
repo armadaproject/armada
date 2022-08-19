@@ -26,6 +26,13 @@ type Job struct {
 	MessageIndex int64     `db:"message_index"`
 }
 
+type Nodeinfo struct {
+	NodeName     string    `db:"node_name"`
+	Message      []byte    `db:"message"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
+}
+
 type Pulsar struct {
 	Topic        string `db:"topic"`
 	LedgerID     int64  `db:"ledger_id"`

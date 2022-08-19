@@ -21,6 +21,10 @@ func PulsarSchema() string {
 	return schemaByTable("pulsar")
 }
 
+func NodeInfoSchema() string {
+	return schemaByTable("nodeinfo")
+}
+
 func schemaByTable(table string) string {
 	s := sql.SchemaTemplate()
 	schema, err := schemaFromString(s, table)

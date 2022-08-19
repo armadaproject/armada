@@ -58,6 +58,35 @@ func (q *Queries) GetTopicMessageIds(ctx context.Context, topic string) ([]Pulsa
 	return items, nil
 }
 
+const listNodeInfo = `-- name: ListNodeInfo :many
+SELECT node_name, message, serial, last_modified FROM nodeinfo ORDER BY serial
+`
+
+func (q *Queries) ListNodeInfo(ctx context.Context) ([]Nodeinfo, error) {
+	rows, err := q.db.Query(ctx, listNodeInfo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Nodeinfo
+	for rows.Next() {
+		var i Nodeinfo
+		if err := rows.Scan(
+			&i.NodeName,
+			&i.Message,
+			&i.Serial,
+			&i.LastModified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRuns = `-- name: ListRuns :many
 
 SELECT run_id, job_id, executor, assignment, deleted, last_modified FROM runs ORDER BY run_id
@@ -94,7 +123,7 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 
 const upsertMessageId = `-- name: UpsertMessageId :exec
 INSERT INTO pulsar (topic, ledger_id, entry_id, batch_idx, partition_idx) VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (topic) DO UPDATE SET ledgerId = EXCLUDED.ledger_id, entry_id = EXCLUDED.entry_id, batch_idx = EXCLUDED.batch_idx, partition_idx = EXCLUDED.partition_idx
+ON CONFLICT (topic, partition_idx) DO UPDATE SET ledger_id = EXCLUDED.ledger_id, entry_id = EXCLUDED.entry_id, batch_idx = EXCLUDED.batch_idx
 `
 
 type UpsertMessageIdParams struct {

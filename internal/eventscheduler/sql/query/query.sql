@@ -4,6 +4,9 @@
 -- name: ListRuns :many
 SELECT * FROM runs ORDER BY run_id;
 
+-- name: ListNodeInfo :many
+SELECT * FROM nodeinfo ORDER BY serial;
+
 -- -- name: UpsertRecord :exec
 -- INSERT INTO records (id, value, payload) VALUES ($1, $2, $3)
 -- ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, payload = EXCLUDED.payload;
@@ -26,4 +29,4 @@ SELECT * FROM pulsar WHERE topic = $1;
 
 -- name: UpsertMessageId :exec
 INSERT INTO pulsar (topic, ledger_id, entry_id, batch_idx, partition_idx) VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (topic) DO UPDATE SET ledgerId = EXCLUDED.ledger_id, entry_id = EXCLUDED.entry_id, batch_idx = EXCLUDED.batch_idx, partition_idx = EXCLUDED.partition_idx;
+ON CONFLICT (topic, partition_idx) DO UPDATE SET ledger_id = EXCLUDED.ledger_id, entry_id = EXCLUDED.entry_id, batch_idx = EXCLUDED.batch_idx;

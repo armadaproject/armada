@@ -14,6 +14,7 @@ import (
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/G-Research/armada/internal/eventscheduler/sql"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
@@ -92,35 +93,54 @@ func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string)
 		return err
 	}
 
-	_, err = db.Exec(ctx, "DROP TABLE IF EXISTS records")
+	// Drop all existing tables.
+	for _, table := range []string{"queues", "jobs", "runs", "executors", "pulsar", "nodeinfo"} {
+		_, err = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
+		if err != nil {
+			return err
+		}
+	}
+
+	// Setup fresh tables.
+	_, err = db.Exec(ctx, sql.SchemaTemplate())
 	if err != nil {
 		return err
 	}
 
-	_, err = db.Exec(ctx, "DROP TABLE IF EXISTS runs")
-	if err != nil {
-		return err
-	}
+	// _, err = db.Exec(ctx, "DROP TABLE IF EXISTS runs")
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = db.Exec(ctx, "DROP TABLE IF EXISTS pulsar")
-	if err != nil {
-		return err
-	}
+	// _, err = db.Exec(ctx, "DROP TABLE IF EXISTS nodeinfo")
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE records %s;", SCHEMA))
-	if err != nil {
-		return err
-	}
+	// _, err = db.Exec(ctx, "DROP TABLE IF EXISTS pulsar")
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE runs %s;", RunsSchema()))
-	if err != nil {
-		return err
-	}
+	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE records %s;", SCHEMA))
+	// if err != nil {
+	// 	return err
+	// }
 
-	_, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE pulsar %s;", PulsarSchema()))
-	if err != nil {
-		return err
-	}
+	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE runs %s;", RunsSchema()))
+	// if err != nil {
+	// 	return err
+	// }
+
+	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE nodeinfo %s;", NodeInfoSchema()))
+	// if err != nil {
+	// 	return err
+	// }
+
+	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE pulsar %s;", PulsarSchema()))
+	// if err != nil {
+	// 	return err
+	// }
 
 	return action(New(db), db, "runs")
 }
@@ -431,4 +451,108 @@ func interfacesFromRuns(runs []Run) []interface{} {
 		rv[i] = v
 	}
 	return rv
+}
+
+func TestAutoIncrement(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+
+		actual, err := queries.ListNodeInfo(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Println("============== initially")
+		for _, v := range actual {
+			fmt.Println(v)
+		}
+
+		// Insert two rows. These should automatically get auto-incrementing serial numbers
+		// 0 and 1, respectively.
+		var records []interface{}
+		records = append(
+			records,
+			Nodeinfo{
+				NodeName: "foo",
+				Message:  make([]byte, 0),
+			},
+			Nodeinfo{
+				NodeName: "bar",
+				Message:  []byte{1},
+			},
+		)
+		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+
+		actual, err = queries.ListNodeInfo(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Println("============== first upsert")
+		for _, v := range actual {
+			fmt.Println(v)
+		}
+		assert.Equal(t, 2, len(actual))
+		assert.Equal(t, int64(1), actual[0].Serial)
+		assert.Equal(t, int64(2), actual[1].Serial)
+		assert.Equal(t, "foo", actual[0].NodeName)
+		assert.Equal(t, "bar", actual[1].NodeName)
+
+		// Update one of the records.
+		// Should automatically set the serial of the row to 2.
+		records = make([]interface{}, 0)
+		records = append(records, Nodeinfo{
+			NodeName: "bar",
+			Message:  []byte{2}, // Need to update message to ensure the trigger fires.
+		})
+
+		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+
+		actual, err = queries.ListNodeInfo(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Println("============== second upsert")
+		for _, v := range actual {
+			fmt.Println(v)
+		}
+		assert.Equal(t, 2, len(actual))
+		assert.Equal(t, int64(1), actual[0].Serial)
+		assert.Equal(t, int64(4), actual[1].Serial)
+		assert.Equal(t, "foo", actual[0].NodeName)
+		assert.Equal(t, "bar", actual[1].NodeName)
+
+		// Update one of the records.
+		// Should automatically set the serial of the row to 2.
+		records = make([]interface{}, 0)
+		records = append(records, Nodeinfo{
+			NodeName: "baz",
+			Message:  []byte{2},
+		})
+
+		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+
+		actual, err = queries.ListNodeInfo(ctx)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		fmt.Println("============== third upsert")
+		for _, v := range actual {
+			fmt.Println(v)
+		}
+		assert.Equal(t, 3, len(actual))
+		assert.Equal(t, int64(5), actual[2].Serial)
+		assert.Equal(t, "baz", actual[2].NodeName)
+
+		return nil
+	})
+	assert.NoError(t, err)
 }
