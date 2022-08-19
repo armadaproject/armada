@@ -64,7 +64,7 @@ func New(db *pgxpool.Pool, cacheSize int, tableName string) (*PGKeyValueStore, e
 }
 
 // Add adds a key-value pair. Returns true if successful and false if the key already exists.
-// The posgres table backing the key-value storage is created automatically if it doesn't already exist.
+// The postgres table backing the key-value storage is created automatically if it doesn't already exist.
 func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bool, error) {
 	ok, err := c.add(ctx, key, value)
 
@@ -78,10 +78,10 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 	return ok, err
 }
 
-// AddBatch adds a batch of key-value pairs, with any key that already exists in the store being skipped. The returned map
-// contains the resulting mappings for all provided keys
-// The posgres table backing the key-value storage is created automatically if it doesn't already exist.
-func (c *PGKeyValueStore) AddBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
+// LoadOrStoreBatch returns the existing values for the supplied keys if present.  Otherwise, it stores and returns
+// the supplied value.
+// The postgres table backing the key-value storage is created automatically if it doesn't already exist.
+func (c *PGKeyValueStore) LoadOrStoreBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
 	ret, err := c.addBatch(ctx, batch)
 
 	// If the table doesn't exist, create it and try again.

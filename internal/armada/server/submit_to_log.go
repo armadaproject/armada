@@ -75,7 +75,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	// Convert the API jobs to log jobs.
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
 
-	originalIds, err := srv.deduplicateJobs(ctx, req.Queue, apiJobs)
+	originalIds, err := srv.getOriginalJobIds(ctx, req.Queue, apiJobs)
 	if err != nil {
 		return nil, err
 	}
@@ -719,7 +719,10 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	return result.ErrorOrNil()
 }
 
-func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string, apiJobs []*api.Job) (map[string]string, error) {
+// getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
+// on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
+// Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
+func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, queue string, apiJobs []*api.Job) (map[string]string, error) {
 
 	// If we don't have a KV store, then just return original mappings
 	if srv.KVStore == nil {
@@ -762,7 +765,7 @@ func (srv *PulsarSubmitServer) deduplicateJobs(ctx context.Context, queue string
 
 	// If we have any client Ids add them to store
 	if len(kvs) > 0 {
-		addedKvs, err := srv.KVStore.AddBatch(ctx, kvs)
+		addedKvs, err := srv.KVStore.LoadOrStoreBatch(ctx, kvs)
 		if err != nil {
 			return nil, err
 		}

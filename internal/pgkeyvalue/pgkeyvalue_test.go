@@ -67,7 +67,7 @@ func TestAdd(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestAddBatch(t *testing.T) {
+func TestLoadOrStoreBatch(t *testing.T) {
 	cacheSize := 100
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		store, err := New(db, cacheSize, "cachetable")
@@ -79,12 +79,12 @@ func TestAddBatch(t *testing.T) {
 			{"bar", []byte{0x2}},
 		}
 		expected1 := map[string][]byte{"foo": {0x1}, "bar": {0x2}}
-		added, err := store.AddBatch(context.Background(), kv1)
+		added, err := store.LoadOrStoreBatch(context.Background(), kv1)
 		assert.NoError(t, err)
 		assert.Equal(t, expected1, added)
 
 		// Add items again
-		added, err = store.AddBatch(context.Background(), kv1)
+		added, err = store.LoadOrStoreBatch(context.Background(), kv1)
 		assert.NoError(t, err)
 		assert.Equal(t, expected1, added)
 
@@ -97,7 +97,7 @@ func TestAddBatch(t *testing.T) {
 		expected2 := map[string][]byte{"foo": {0x1}, "bar": {0x2}, "baz": {0x3}}
 
 		// Asset that only one is added
-		added, err = store.AddBatch(context.Background(), kv2)
+		added, err = store.LoadOrStoreBatch(context.Background(), kv2)
 		assert.NoError(t, err)
 		assert.Equal(t, added, expected2)
 
@@ -107,7 +107,7 @@ func TestAddBatch(t *testing.T) {
 			{"bar", []byte{0x5}},
 		}
 		expected3 := map[string][]byte{"foo": {0x1}, "bar": {0x2}}
-		added, err = store.AddBatch(context.Background(), kv3)
+		added, err = store.LoadOrStoreBatch(context.Background(), kv3)
 		assert.NoError(t, err)
 		assert.Equal(t, added, expected3)
 
