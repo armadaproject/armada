@@ -62,10 +62,16 @@ message StreamingLeaseRequest {
     string cluster_id = 1;
     // Nodes are split into pools. This field indicates for which pool jobs are leased.
     string pool = 2;
+    // Total resources available for scheduling across all nodes.    
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
+    // For each queue, the total resources allocated to jobs from that queue.    
     ClusterLeasedReport cluster_leased_report = 4 [(gogoproto.nullable) = false];
+    // Jobs submitted to this executor must require at least this amount of resources.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 5 [(gogoproto.nullable) = false];
-    // 
+    // For each node in the cluster:
+    // - the total resources on that node,
+    // - the amount of resources already assigned to jobs, and
+    // - any taints and labels on the node.
     repeated NodeInfo nodes = 6 [(gogoproto.nullable) = false];
     // Ids of received jobs. Used to ack received jobs.
     repeated string ReceivedJobIds = 7;

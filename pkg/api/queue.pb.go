@@ -326,11 +326,17 @@ type StreamingLeaseRequest struct {
 	// Each cluster has a unique name associated with it.
 	ClusterId string `protobuf:"bytes,1,opt,name=cluster_id,json=clusterId,proto3" json:"clusterId,omitempty"`
 	// Nodes are split into pools. This field indicates for which pool jobs are leased.
-	Pool                string                       `protobuf:"bytes,2,opt,name=pool,proto3" json:"pool,omitempty"`
-	Resources           map[string]resource.Quantity `protobuf:"bytes,3,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	ClusterLeasedReport ClusterLeasedReport          `protobuf:"bytes,4,opt,name=cluster_leased_report,json=clusterLeasedReport,proto3" json:"cluster_leased_report"`
-	MinimumJobSize      map[string]resource.Quantity `protobuf:"bytes,5,rep,name=minimum_job_size,json=minimumJobSize,proto3" json:"minimumJobSize,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	//
+	Pool string `protobuf:"bytes,2,opt,name=pool,proto3" json:"pool,omitempty"`
+	// Total resources available for scheduling across all nodes.
+	Resources map[string]resource.Quantity `protobuf:"bytes,3,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// For each queue, the total resources allocated to jobs from that queue.
+	ClusterLeasedReport ClusterLeasedReport `protobuf:"bytes,4,opt,name=cluster_leased_report,json=clusterLeasedReport,proto3" json:"cluster_leased_report"`
+	// Jobs submitted to this executor must require at least this amount of resources.
+	MinimumJobSize map[string]resource.Quantity `protobuf:"bytes,5,rep,name=minimum_job_size,json=minimumJobSize,proto3" json:"minimumJobSize,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// For each node in the cluster:
+	// - the total resources on that node,
+	// - the amount of resources already assigned to jobs, and
+	// - any taints and labels on the node.
 	Nodes []NodeInfo `protobuf:"bytes,6,rep,name=nodes,proto3" json:"nodes"`
 	// Ids of received jobs. Used to ack received jobs.
 	ReceivedJobIds []string `protobuf:"bytes,7,rep,name=ReceivedJobIds,proto3" json:"ReceivedJobIds,omitempty"`
