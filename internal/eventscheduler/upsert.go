@@ -180,8 +180,6 @@ func IdempotencyCheck(ctx context.Context, tx DBTX, topicName string, writeMessa
 
 func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
 
-	fmt.Println("=========== upsert into ", tableName, " with ", tx, " and schema ", schema)
-
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.
 	// The table is created with the provided schema.
