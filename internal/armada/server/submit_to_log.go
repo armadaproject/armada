@@ -733,31 +733,20 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, queue stri
 		return ret, nil
 	}
 
+	hash := func(queue string, clientId string) [20]byte {
+		combined := fmt.Sprintf("%s:%s", queue, clientId)
+		return sha1.Sum([]byte(combined))
+	}
+
 	// Armada checks for duplicate job submissions if a ClientId (i.e., a deduplication id) is provided.
 	// Deduplication is based on storing the combined hash of the ClientId and queue.
 	// For storage efficiency, we store hashes instead of user-provided strings.
-	combinedHashData := make([]byte, 40)
-	queueHash := sha1.Sum([]byte(queue))
-	for i, b := range queueHash {
-		combinedHashData[i] = b
-	}
-	combinedHashFromClientId := make(map[string][20]byte)
 	kvs := make([]*pgkeyvalue.KeyValue, 0, len(apiJobs))
 	for _, apiJob := range apiJobs {
 		if apiJob.ClientId != "" {
-			// Hash the ClientId together with the queue (or get it from the table, if possible).
-			combinedHash, ok := combinedHashFromClientId[apiJob.ClientId]
-			if !ok {
-				clientIdHash := sha1.Sum([]byte(apiJob.ClientId))
-				// Compute the combined hash.
-				for i, b := range clientIdHash {
-					combinedHashData[i+20] = b
-				}
-				combinedHash = sha1.Sum(combinedHashData)
-				combinedHashFromClientId[apiJob.ClientId] = combinedHash
-			}
+			clientIdHash := hash(apiJob.Queue, apiJob.ClientId)
 			kvs = append(kvs, &pgkeyvalue.KeyValue{
-				Key:   fmt.Sprintf("%x", combinedHash),
+				Key:   fmt.Sprintf("%x", clientIdHash),
 				Value: []byte(apiJob.GetId()),
 			})
 		}
@@ -772,8 +761,8 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, queue stri
 		ret := make(map[string]string, len(addedKvs))
 		for _, apiJob := range apiJobs {
 			if apiJob.ClientId != "" {
-				hash := combinedHashFromClientId[apiJob.ClientId]
-				originalJobId := addedKvs[fmt.Sprintf("%x", hash)]
+				clientIdHash := hash(apiJob.Queue, apiJob.ClientId)
+				originalJobId := addedKvs[fmt.Sprintf("%x", clientIdHash)]
 				ret[apiJob.GetId()] = string(originalJobId)
 			}
 		}

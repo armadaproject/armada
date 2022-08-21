@@ -90,7 +90,6 @@ func (c *PGKeyValueStore) LoadOrStoreBatch(ctx context.Context, batch []*KeyValu
 		c.createTable(ctx)
 		ret, err = c.addBatch(ctx, batch)
 	}
-
 	return ret, err
 }
 
@@ -111,68 +110,51 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
 
 	addedByKey := map[string][]byte{}
-	keysToLookup := make([]string, 0, len(batch))
-	keysFound := 0
+	keysToAdd := map[string][]byte{}
 
 	// first check the cache to see if we have added anything
 	for _, kv := range batch {
 		if val, ok := c.cache.Get(kv.Key); ok {
 			addedByKey[kv.Key] = val.([]byte)
-			keysFound++
 		} else {
-			keysToLookup = append(keysToLookup, kv.Key)
+			keysToAdd[kv.Key] = kv.Value
 		}
 	}
 
-	if keysFound == len(batch) {
+	if len(addedByKey) == len(batch) {
 		return addedByKey, nil
 	}
 
-	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
-
-		// See which keys are already in the db
-		sql := fmt.Sprintf("SELECT key, value from %s WHERE key = ANY($1)", c.tableName)
-		rows, err := tx.Query(ctx, sql, keysToLookup)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		for rows.Next() {
-			var key = ""
-			var value []byte = nil
-			err := rows.Scan(&key, &value)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			keysFound++
-			addedByKey[key] = value
-		}
-
-		if keysFound == len(batch) {
-			return nil
-		}
-
-		// any keys missing from addedByKey now need to be inserted
-		valueStrings := make([]string, 0, len(batch))
-		valueArgs := make([]interface{}, 0, len(batch)*2)
-		i := 0
-		now := time.Now().UTC()
-		for _, kv := range batch {
-			if _, exists := addedByKey[kv.Key]; !exists {
-				valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3))
-				valueArgs = append(valueArgs, kv.Key)
-				valueArgs = append(valueArgs, kv.Value)
-				valueArgs = append(valueArgs, now)
-				i++
-				addedByKey[kv.Key] = kv.Value
-			}
-		}
-		stmt := fmt.Sprintf("INSERT INTO %s (key, value, inserted) VALUES %s", c.tableName, strings.Join(valueStrings, ","))
-		_, err = tx.Exec(ctx, stmt, valueArgs...)
-		return errors.WithStack(err)
-	})
+	valueStrings := make([]string, 0, len(batch))
+	valueArgs := make([]interface{}, 0, len(batch)*2)
+	i := 0
+	now := time.Now().UTC()
+	for k, v := range keysToAdd {
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3))
+		valueArgs = append(valueArgs, k)
+		valueArgs = append(valueArgs, v)
+		valueArgs = append(valueArgs, now)
+		i++
+	}
+	stmt := fmt.Sprintf(
+		"INSERT INTO %s (key, value, inserted) VALUES %s ON CONFLICT (key) DO UPDATE SET key=EXCLUDED.key  RETURNING key, value",
+		c.tableName,
+		strings.Join(valueStrings, ","))
+	rows, err := c.db.Query(ctx, stmt, valueArgs...)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
+	}
+
+	for rows.Next() {
+		var key = ""
+		var value []byte = nil
+		err := rows.Scan(&key, &value)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		c.cache.Add(key, value)
+		addedByKey[key] = value
 	}
 
 	return addedByKey, nil
@@ -254,48 +236,6 @@ func (c *PGKeyValueStore) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	return *value, nil
-}
-
-func (c *PGKeyValueStore) GetBatch(ctx context.Context, keys []string) (map[string][]byte, error) {
-
-	vals := make(map[string][]byte, len(keys))
-
-	// First check the local cache.
-	for _, key := range keys {
-		if value, ok := c.cache.Get(key); ok {
-			vals[key] = value.([]byte)
-		}
-	}
-
-	// Otherwise, check postgres.
-	sql := fmt.Sprintf("SELECT key, value from %s where KEY=any($1)", c.tableName)
-	rows, err := c.db.Query(ctx, sql, keys)
-
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	for rows.Next() {
-		var key = ""
-		var value []byte = nil
-		err := rows.Scan(&key, &value)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		vals[key] = value
-	}
-
-	// sanity check we have everything
-	for _, key := range keys {
-		if _, ok := vals[key]; !ok {
-			return nil, errors.WithStack(&armadaerrors.ErrNotFound{
-				Type:  "Postgres key-value pair",
-				Value: key,
-			})
-		}
-	}
-
-	return vals, nil
 }
 
 // Cleanup removes all key-value pairs older than lifespan.
