@@ -11,11 +11,11 @@ jobs:
           resources:
             limits:
               nvidia.com/gpu: 1
-              memory: 10Mi
+              memory: 200Mi
               cpu: 100m
             requests:
               nvidia.com/gpu: 1
-              memory: 10Mi
+              memory: 200Mi
               cpu: 100m
 ---
 timeout: "100s"
