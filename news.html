@@ -1,0 +1,38 @@
+---
+title: News and Events
+layout: default
+description: Armada news and Events
+featured_image: /assets/img/social.jpg
+---
+<section id="news" class="section-content">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12">
+                <h1 class="text-center">News</h1>
+                <div class="row">
+                    {% for article in site.news %}
+                    <div class="col-lg-4 col-md-6 col-sm-6 col-xs-12 article">
+                        {%if article.image %}
+                        <a href="{{ article.url }}">
+                            <div class="article-image article-image-container" style="background: center no-repeat url(/media/news/title/{{ article.image }});"></div>
+                        </a>
+                        {% endif %}
+                        <a href="{{ article.url }}"><h3><b>{{ article.title }}</b></h3></a>
+                        <p>{{ article.excerpt }}</p>
+                        <a href="{{ article.url }}"><span>Read More</span></a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-lg-12">
+                <br><br>
+                <h1 class="text-center">Event Calendar</h1>
+                <div class="row">
+                    <iframe src="https://calendar.google.com/calendar/embed?src=c_duoua9l58o305bsa39udvk3ihk%40group.calendar.google.com&ctz=America%2FLos_Angeles" style="border: 0" width="980" height="600" frameborder="0" scrolling="no"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

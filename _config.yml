@@ -7,6 +7,9 @@ collections:
   pages:
     output: true
     permalink: /:name
+  news:
+    output: true
+    permalink: /news/:name
 
 defaults:
   -
@@ -20,12 +23,11 @@ defaults:
       type: "pages"
     values:
       layout: "default"
-  -
-    scope:
+  - scope:
       path: ""
       type: "posts"
     values:
-      layout: "post" 
+      layout: "post"
 
 sass:
   sass_dir: assets/styles
@@ -37,5 +39,5 @@ plugins:
   - jekyll-sitemap
 
 paginate: 6
-paginate_path: "/blog/page:num/"
+paginate_path: "/news/page:num/"
   

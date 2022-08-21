@@ -31,6 +31,8 @@ blog_settings:
   # 3. Add a color of the icon - text-primary, text-success, text-info, text-danger, text-warning and text-default all work! 
 menu_settings:
   menu_items:
+    - title: 'News & Events'
+      url: '/news'
     - title: 'Design'
       url: '/design'    
     - title: 'Documentation'
