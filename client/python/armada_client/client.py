@@ -155,76 +155,7 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    def create_queue(
-        self,
-        name: str,
-        priority_factor: Optional[float],
-        user_owners: Optional[List[str]] = None,
-        group_owners: Optional[List[str]] = None,
-        resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[List[Permissions]] = None,
-    ) -> empty_pb2.Empty:
-        """Create the queue by name.
-
-        Uses the CreateQueue RPC to create a queue.
-
-        :param name: The name of the queue
-        :param priority_factor: The priority factor for the queue
-        :param user_owners: The user owners for the queue
-        :param group_owners: The group owners for the queue
-        :param resource_limits: The resource limits for the queue
-        :param permissions: The permissions for the queue
-        :return: A queue object per the Armada api definition.
-        """
-
-        permissions = [p.to_grpc() for p in permissions] if permissions else None
-
-        request = submit_pb2.Queue(
-            name=name,
-            priority_factor=priority_factor,
-            user_owners=user_owners,
-            group_owners=group_owners,
-            resource_limits=resource_limits,
-            permissions=permissions,
-        )
-        response = self.submit_stub.CreateQueue(request)
-        return response
-
-    def update_queue(
-        self,
-        name: str,
-        priority_factor: Optional[float],
-        user_owners: Optional[List[str]] = None,
-        group_owners: Optional[List[str]] = None,
-        resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[List[Permissions]] = None,
-    ) -> None:
-        """Update the queue of name with values in queue_params
-
-        Uses UpdateQueue RPC to update the parameters on the queue.
-
-        :param name: The name of the queue
-        :param priority_factor: The priority factor for the queue
-        :param user_owners: The user owners for the queue
-        :param group_owners: The group owners for the queue
-        :param resource_limits: The resource limits for the queue
-        :param permissions: The permissions for the queue
-        :return: None
-        """
-
-        permissions = [p.to_grpc() for p in permissions] if permissions else None
-
-        request = submit_pb2.Queue(
-            name=name,
-            priority_factor=priority_factor,
-            user_owners=user_owners,
-            group_owners=group_owners,
-            resource_limits=resource_limits,
-            permissions=permissions,
-        )
-        self.submit_stub.UpdateQueue(request)
-
-    def send_create_queue_request(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
+    def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
         Uses the CreateQueue RPC to create a queue.
 
@@ -234,7 +165,7 @@ class ArmadaClient:
         response = self.submit_stub.CreateQueue(queue)
         return response
 
-    def send_update_queue_request(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
+    def update_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
         Uses the UpdateQueue RPC to update a queue.
 

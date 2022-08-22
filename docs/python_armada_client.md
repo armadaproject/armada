@@ -120,37 +120,17 @@ Create a job request.
 
 
 
-#### create_queue(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
-Create the queue by name.
-
+#### create_queue(queue)
 Uses the CreateQueue RPC to create a queue.
 
 
 * **Parameters**
 
     
-    * **name** (*str*) – The name of the queue
+    * **queues** – A list of queues to create.
 
 
-    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
-
-
-    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
-
-
-    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
-
-
-    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
-
-
-    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
-
-
-
-* **Returns**
-
-    A queue object per the Armada api definition.
+    * **queue** (*armada.submit_pb2.Queue*) – 
 
 
 
@@ -346,46 +326,6 @@ or job set.
 
 
 
-#### send_create_queue_request(queue)
-Uses the CreateQueue RPC to create a queue.
-
-
-* **Parameters**
-
-    
-    * **queues** – A list of queues to create.
-
-
-    * **queue** (*armada.submit_pb2.Queue*) – 
-
-
-
-* **Return type**
-
-    google.protobuf.empty_pb2.Empty
-
-
-
-#### send_update_queue_request(queue)
-Uses the UpdateQueue RPC to update a queue.
-
-
-* **Parameters**
-
-    
-    * **queues** – A list of queues to create.
-
-
-    * **queue** (*armada.submit_pb2.Queue*) – 
-
-
-
-* **Return type**
-
-    google.protobuf.empty_pb2.Empty
-
-
-
 #### submit_jobs(queue, job_set_id, job_request_items)
 Submit a armada job.
 
@@ -464,43 +404,23 @@ Closes the provided event_stream.queue
 
 
 
-#### update_queue(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
-Update the queue of name with values in queue_params
-
-Uses UpdateQueue RPC to update the parameters on the queue.
+#### update_queue(queue)
+Uses the UpdateQueue RPC to update a queue.
 
 
 * **Parameters**
 
     
-    * **name** (*str*) – The name of the queue
+    * **queues** – A list of queues to create.
 
 
-    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
-
-
-    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
-
-
-    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
-
-
-    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
-
-
-    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
-
-
-
-* **Returns**
-
-    None
+    * **queue** (*armada.submit_pb2.Queue*) – 
 
 
 
 * **Return type**
 
-    None
+    google.protobuf.empty_pb2.Empty
 
 
 ## armada_client.event module

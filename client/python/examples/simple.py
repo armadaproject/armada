@@ -69,7 +69,8 @@ def simple_workflow():
 
     client = ArmadaClient(channel)
 
-    client.create_queue(name=queue, priority_factor=1)
+    queue_req = client.create_queue_request(name=queue, priority_factor=1)
+    client.create_queue(queue_req)
 
     # Create the PodSpec for the job
     job_request_items = create_dummy_job(client)
