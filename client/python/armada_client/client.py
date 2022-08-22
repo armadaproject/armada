@@ -175,7 +175,9 @@ class ArmadaClient:
         response = self.submit_stub.UpdateQueue(queue)
         return response
 
-    def create_queues(self, queues: List[submit_pb2.Queue]) -> empty_pb2.Empty:
+    def create_queues(
+        self, queues: List[submit_pb2.Queue]
+    ) -> submit_pb2.BatchQueueCreateResponse:
         """
         Uses the CreateQueues RPC to create a list of queues.
 
@@ -186,7 +188,9 @@ class ArmadaClient:
         response = self.submit_stub.CreateQueues(queue_list)
         return response
 
-    def update_queues(self, queues: List[submit_pb2.Queue]) -> empty_pb2.Empty:
+    def update_queues(
+        self, queues: List[submit_pb2.Queue]
+    ) -> submit_pb2.BatchQueueUpdateResponse:
         """
         Uses the UpdateQueues RPC to update a list of queues.
 
