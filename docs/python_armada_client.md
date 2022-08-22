@@ -126,11 +126,7 @@ Uses the CreateQueue RPC to create a queue.
 
 * **Parameters**
 
-    
-    * **queues** – A list of queues to create.
-
-
-    * **queue** (*armada.submit_pb2.Queue*) – 
+    **queue** (*armada.submit_pb2.Queue*) – A queue to create.
 
 
 
@@ -410,11 +406,7 @@ Uses the UpdateQueue RPC to update a queue.
 
 * **Parameters**
 
-    
-    * **queues** – A list of queues to create.
-
-
-    * **queue** (*armada.submit_pb2.Queue*) – 
+    **queue** (*armada.submit_pb2.Queue*) – A queue to update.
 
 
 
