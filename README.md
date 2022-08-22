@@ -40,7 +40,7 @@ For instructions of how to setup and develop Armada, see:
 - [Installation in production](./docs/production-install.md)
 
 For API reference, see:
-- [Api Documentation](./docs/api.md)
+- [API Documentation](./docs/api.md)
 
 We expect readers of the documentation to have a basic understanding of Docker and Kubernetes; see, e.g., the following links:
 
