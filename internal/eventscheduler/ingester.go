@@ -241,18 +241,12 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 	for _, event := range sequence.GetEvents() {
 		if eventSubmitJob, ok := event.Event.(*armadaevents.EventSequence_Event_SubmitJob); ok {
 			submitJob := eventSubmitJob.SubmitJob
-			messageIndexPointer := msg.Index()
-			var messageIndex uint64
-			if messageIndexPointer != nil {
-				messageIndex = *messageIndexPointer
-			}
 			job := Job{
-				JobID:        armadaevents.UuidFromProtoUuid(submitJob.JobId),
-				JobSet:       sequence.GetJobSetName(),
-				Queue:        sequence.GetQueue(),
-				Priority:     int64(submitJob.Priority),
-				Message:      msg.Payload(),
-				MessageIndex: int64(messageIndex), // TODO: Possible precision problem.
+				JobID:         armadaevents.UuidFromProtoUuid(submitJob.JobId),
+				JobSet:        sequence.GetJobSetName(),
+				Queue:         sequence.GetQueue(),
+				Priority:      int64(submitJob.Priority),
+				SubmitMessage: msg.Payload(),
 			}
 
 			// Any consumer can seek on any topic partition.
