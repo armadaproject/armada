@@ -186,7 +186,7 @@ Uses the CreateQueues RPC to create a list of queues.
 
 * **Return type**
 
-    google.protobuf.empty_pb2.Empty
+    armada.submit_pb2.BatchQueueCreateResponse
 
 
 
@@ -444,7 +444,7 @@ Uses the UpdateQueues RPC to update a list of queues.
 
 * **Return type**
 
-    google.protobuf.empty_pb2.Empty
+    armada.submit_pb2.BatchQueueUpdateResponse
 
 
 ## armada_client.event module
