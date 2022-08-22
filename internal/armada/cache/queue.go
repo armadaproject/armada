@@ -16,6 +16,8 @@ import (
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
+const objectsToLoadBatchSize = 10000
+
 type empty struct{}
 type stringSet map[string]empty
 
@@ -68,10 +70,9 @@ func (c *QueueCache) Refresh() {
 	clusterInfoByPool := scheduling.GroupSchedulingInfoByPool(activeClusterInfo)
 
 	for _, q := range queues {
-
 		err := c.calculateRunningJobMetrics(q, activeClusterInfo)
 		if e != nil {
-			log.Errorf("Faiuled calculating running jobs metrics for queue %s because %s", q.Name, e)
+			log.Errorf("Failed calculating running jobs metrics for queue %s because %s", q.Name, e)
 			continue
 		}
 
@@ -80,54 +81,7 @@ func (c *QueueCache) Refresh() {
 			log.Errorf("Failed calculating queued job metrics for queue %s because %s", q.Name, err)
 			continue
 		}
-
-		resourceUsageByPool := map[string]*metrics.ResourceMetricsRecorder{}
-		nonMatchingJobs := map[string]stringSet{}
-		queueDurationByPool := map[string]*metrics.FloatMetricsRecorder{}
-		currentTime := time.Now()
-		err := c.jobRepository.IterateQueueJobs(q.Name, func(job *api.Job) {
-
-			jobResources := common.TotalJobResourceRequest(job)
-			nonMatchingClusters := stringSet{}
-			queuedTime := currentTime.Sub(job.Created)
-
-			for pool, infos := range clusterInfoByPool {
-				matches := false
-				for _, schedulingInfo := range infos {
-					if ok, _ := scheduling.MatchSchedulingRequirements(job, schedulingInfo); ok {
-						matches = true
-					} else {
-						nonMatchingClusters[schedulingInfo.ClusterId] = empty{}
-					}
-				}
-
-				if matches {
-					r, exists := resourceUsageByPool[pool]
-					if !exists {
-						r = metrics.NewResourceMetricsRecorder()
-						resourceUsageByPool[pool] = r
-					}
-					r.Record(jobResources.AsFloat())
-
-					qd, exists := queueDurationByPool[pool]
-					if !exists {
-						qd = metrics.NewDefaultJobDurationMetricsRecorder()
-						queueDurationByPool[pool] = qd
-					}
-					qd.Record(queuedTime.Seconds())
-				}
-			}
-			nonMatchingJobs[job.Id] = nonMatchingClusters
-		})
-
-		if err != nil {
-			log.Errorf("Error while getting queue %s resources %s", q.Name, err)
-		}
-
-		c.updateQueuedNonMatchingJobs(q.Name, nonMatchingJobs)
-		c.updateQueueMetrics(q.Name, resourceUsageByPool, queueDurationByPool)
 	}
-	c.calculateRunningJobStats(queues, activeClusterInfo)
 }
 
 func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport) error {
@@ -140,7 +94,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByP
 	nonMatchingJobs := map[string]stringSet{}
 	queueDurationByPool := map[string]*metrics.FloatMetricsRecorder{}
 	currentTime := time.Now()
-	for _, chunkJobIds := range util.Chunk(queuedJobIds, 500) {
+	for _, chunkJobIds := range util.Chunk(queuedJobIds, objectsToLoadBatchSize) {
 		queuedJobs, e := c.jobRepository.GetExistingJobsByIds(chunkJobIds)
 		if e != nil {
 			return fmt.Errorf("failed loading jobs - %s", e)
@@ -199,77 +153,16 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 		return fmt.Errorf("failed getting lease job ids - %s", e)
 	}
 
-	leasedJobs, e := c.jobRepository.GetExistingJobsByIds(leasedJobsIds)
-	if e != nil {
-		return fmt.Errorf("failed getting leased jobs - %s", e)
-	}
-
-	runInfo, e := c.jobRepository.GetJobRunInfos(leasedJobsIds)
-	if e != nil {
-		return fmt.Errorf("failed getting job run info - %s", e)
-	}
-
-	now := time.Now()
-	for _, job := range leasedJobs {
-		runInfo, present := runInfo[job.Id]
-		if !present {
-			continue
-		}
-		pool, present := clusterIdToPool[runInfo.CurrentClusterId]
-		if !present {
-			continue
-		}
-		jobResources := common.TotalJobResourceRequest(job)
-		runTime := now.Sub(runInfo.StartTime)
-
-		r, exists := durationMetricsRecorderByPool[pool]
-		if !exists {
-			r = metrics.NewDefaultJobDurationMetricsRecorder()
-			durationMetricsRecorderByPool[pool] = r
-		}
-		r.Record(runTime.Seconds())
-
-		resource, exists := resourceMetricsRecorderByPool[pool]
-		if !exists {
-			resource = metrics.NewResourceMetricsRecorder()
-			resourceMetricsRecorderByPool[pool] = resource
-		}
-		resource.Record(jobResources.AsFloat())
-	}
-
-	c.updateRunningMetrics(queue.Name, resourceMetricsRecorderByPool, durationMetricsRecorderByPool)
-	return nil
-}
-
-func (c *QueueCache) calculateRunningJobStats(
-	queues []queue.Queue, activeClusterInfos map[string]*api.ClusterSchedulingInfoReport) {
-
-	clusterIdToPool := map[string]string{}
-	for _, clusterInfo := range activeClusterInfos {
-		clusterIdToPool[clusterInfo.ClusterId] = clusterInfo.Pool
-	}
-
-	for _, q := range queues {
-		durationMetricsRecorderByPool := make(map[string]*metrics.FloatMetricsRecorder)
-		resourceMetricsRecorderByPool := make(map[string]*metrics.ResourceMetricsRecorder)
-		leasedJobsIds, e := c.jobRepository.GetLeasedJobIds(q.Name)
+	for _, chunkJobIds := range util.Chunk(leasedJobsIds, objectsToLoadBatchSize) {
+		leasedJobs, e := c.jobRepository.GetExistingJobsByIds(chunkJobIds)
 		if e != nil {
-			log.Errorf("Error getting leased jobs for queue(%s) when calculating run duration metrics %s", q.Name, e)
-			continue
+			return fmt.Errorf("failed getting leased jobs - %s", e)
 		}
 
-		leasedJobs, e := c.jobRepository.GetExistingJobsByIds(leasedJobsIds)
+		runInfo, e := c.jobRepository.GetJobRunInfos(chunkJobIds)
 		if e != nil {
-			log.Errorf("Error getting queue(%s) run duration metrics %s", q.Name, e)
-			continue
+			return fmt.Errorf("failed getting job run info - %s", e)
 		}
-
-		runInfo, e := c.jobRepository.GetJobRunInfos(leasedJobsIds)
-		if e != nil {
-			log.Errorf("Error getting queue(%s) run duration metrics %s", q.Name, e)
-			continue
-		}
-
 		now := time.Now()
 		for _, job := range leasedJobs {
 			runInfo, present := runInfo[job.Id]
@@ -297,9 +190,10 @@ func (c *QueueCache) calculateRunningJobStats(
 			}
 			resource.Record(jobResources.AsFloat())
 		}
-
-		c.updateRunningMetrics(q.Name, resourceMetricsRecorderByPool, durationMetricsRecorderByPool)
 	}
+
+	c.updateRunningMetrics(queue.Name, resourceMetricsRecorderByPool, durationMetricsRecorderByPool)
+	return nil
 }
 
 func (c *QueueCache) updateQueueMetrics(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder,
