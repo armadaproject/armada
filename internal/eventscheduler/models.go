@@ -18,12 +18,15 @@ type Executor struct {
 }
 
 type Job struct {
-	JobID        uuid.UUID `db:"job_id"`
-	JobSet       string    `db:"job_set"`
-	Queue        string    `db:"queue"`
-	Priority     int64     `db:"priority"`
-	Message      []byte    `db:"message"`
-	MessageIndex int64     `db:"message_index"`
+	JobID         uuid.UUID `db:"job_id"`
+	JobSet        string    `db:"job_set"`
+	Queue         string    `db:"queue"`
+	UserID        string    `db:"user_id"`
+	Groups        []string  `db:"groups"`
+	Priority      int64     `db:"priority"`
+	SubmitMessage []byte    `db:"submit_message"`
+	Serial        int64     `db:"serial"`
+	LastModified  time.Time `db:"last_modified"`
 }
 
 type Nodeinfo struct {
@@ -52,6 +55,7 @@ type Run struct {
 	Executor       string      `db:"executor"`
 	Assignment     pgtype.JSON `db:"assignment"`
 	SentToExecutor bool        `db:"sent_to_executor"`
+	Cancelled      bool        `db:"cancelled"`
 	Serial         int64       `db:"serial"`
 	LastModified   time.Time   `db:"last_modified"`
 }

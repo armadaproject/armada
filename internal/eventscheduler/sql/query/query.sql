@@ -7,11 +7,27 @@ SELECT * FROM runs ORDER BY run_id;
 -- name: SelectNewRunsForExecutor :many
 SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false);
 
+-- name: SelectRunsFromExecutorAndJobs :many
+SELECT * FROM runs WHERE (executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::UUID[]));
+
+-- name: SelectNewRunsForExecutorWithLimit :many
+SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false) LIMIT $2;
+
 -- name: MarkRunAsSent :exec
 UPDATE runs SET sent_to_executor = true WHERE run_id = $1;
 
 -- name: MarkRunsAsSent :exec
 UPDATE runs SET sent_to_executor = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: SelectJobsFromIds :many
+SELECT * FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+-- SELECT (user_id, groups, queue, submit_message) FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+
+-- name: SelectQueueJobSetFromId :one
+SELECT job_id, queue, job_set FROM jobs where job_id = $1;
+
+-- name: SelectQueueJobSetFromIds :many
+SELECT job_id, queue, job_set FROM jobs where job_id = ANY(sqlc.arg(job_ids)::UUID[]);
 
 -- name: ListNodeInfo :many
 SELECT * FROM nodeinfo ORDER BY serial;

@@ -7,13 +7,16 @@ CREATE TABLE jobs (
     job_id UUID PRIMARY KEY,
     job_set text NOT NULL,
     queue text NOT NULL,
+    user_id text NOT NULL,
+    groups text[] NOT NULL DEFAULT array[]::text[],
     priority bigint NOT NULL,
      -- Dict mapping resource type to amount requested.
-     -- TODO: We may want a proto message containing the minimal amount of data the scheduler needs.
+     -- TODO: We need proto message containing the minimal amount of data the scheduler needs.
     -- claims json NOT NULL,
     -- SubmitJob Pulsar message stored as a proto buffer.
-    message bytea NOT NULL,
-    message_index bigint NOT NULL
+    submit_message bytea NOT NULL,
+    serial bigserial NOT NULL,
+    last_modified TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE runs (
@@ -26,6 +29,8 @@ CREATE TABLE runs (
     -- True if this run has been sent to the executor already.
     -- Used to control which runs are sent to the executor when it requests jobs.
     sent_to_executor boolean NOT NULL,
+    -- Indicates if this lease has been cancelled.
+    cancelled boolean NOT NULL,
     serial bigserial NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL
 );
@@ -87,5 +92,10 @@ EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_runs
 BEFORE INSERT ON runs
+FOR EACH ROW
+EXECUTE FUNCTION trg_increment_serial_set_last_modified();
+
+CREATE TRIGGER next_serial_on_insert_jobs
+BEFORE INSERT ON jobs
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();

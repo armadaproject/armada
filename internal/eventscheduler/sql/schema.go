@@ -18,13 +18,16 @@ func SchemaTemplate() string {
 		"    job_id UUID PRIMARY KEY,\n" +
 		"    job_set text NOT NULL,\n" +
 		"    queue text NOT NULL,\n" +
+		"    user_id text NOT NULL,\n" +
+		"    groups text[] NOT NULL DEFAULT array[]::text[],\n" +
 		"    priority bigint NOT NULL,\n" +
 		"     -- Dict mapping resource type to amount requested.\n" +
-		"     -- TODO: We may want a proto message containing the minimal amount of data the scheduler needs.\n" +
+		"     -- TODO: We need proto message containing the minimal amount of data the scheduler needs.\n" +
 		"    -- claims json NOT NULL,\n" +
 		"    -- SubmitJob Pulsar message stored as a proto buffer.\n" +
-		"    message bytea NOT NULL,\n" +
-		"    message_index bigint NOT NULL\n" +
+		"    submit_message bytea NOT NULL,\n" +
+		"    serial bigserial NOT NULL,\n" +
+		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
 		"\n" +
 		"CREATE TABLE runs (\n" +
@@ -37,6 +40,8 @@ func SchemaTemplate() string {
 		"    -- True if this run has been sent to the executor already.\n" +
 		"    -- Used to control which runs are sent to the executor when it requests jobs.\n" +
 		"    sent_to_executor boolean NOT NULL,\n" +
+		"    -- Indicates if this lease has been cancelled.\n" +
+		"    cancelled boolean NOT NULL,\n" +
 		"    serial bigserial NOT NULL,\n" +
 		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
@@ -98,6 +103,11 @@ func SchemaTemplate() string {
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_runs\n" +
 		"BEFORE INSERT ON runs\n" +
+		"FOR EACH ROW\n" +
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"CREATE TRIGGER next_serial_on_insert_jobs\n" +
+		"BEFORE INSERT ON jobs\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();"
 	return tmpl
