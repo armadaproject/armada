@@ -9,15 +9,6 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   parseBooleans: true,
 }
 
-type JobsQueryParams = {
-  queue?: string
-  job_set?: string
-  job_states?: string[] | string
-  newest_first?: boolean
-  job_id?: string
-  owner?: string
-}
-
 export function makeQueryString(
   defaultColumns: ColumnSpec<string | boolean | string[]>[],
   annotationColumns: ColumnSpec<string>[],
