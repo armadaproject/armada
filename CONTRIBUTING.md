@@ -43,12 +43,20 @@ Note the names of the branch must follow proper docker names:
 
 >A tag name must be valid ASCII and may contain lowercase and uppercase letters, digits, underscores, periods and dashes. A tag name may not start with a period or a dash and may contain a maximum of 128 characters.
 
-## Discussions
+## Chat & Discussions
 
-Sometimes, it's good to hash things out in real time.  GH Discussions is a place to chat with other Armada developers and get feedback and support (even if it's just moral support!).
+Sometimes, it's good to hash things out in real time.
 
-To join the conversation there, go to Discussions:
+Armada uses GH Discussions for long form communication and design discussions. To join the conversation there, go to Discussions:
 * [https://github.com/G-Research/armada/discussions](https://github.com/G-Research/armada/discussions)
+
+Real-time interactions between Armada developers and users occurs primarily in CNCF Slack. To join us there:
+* If you already have an account on CNCF Slack, join #armada on [https://cloud-native.slack.io](https://cloud-native.slack.io).
+* If you need an inviation to CNCF Slack, you can get one at [https://slack.cncf.io](https://slack.cncf.io).
+
+## Security
+
+Armada developers appreciate and encourage coordinated disclosure of security vulnerabilities. If you believe you have a vulnerability to report, please contact the security team at [security@gr-oss.io](mailto:security@gr-oss.io) for triage.
 
 ## License
 
