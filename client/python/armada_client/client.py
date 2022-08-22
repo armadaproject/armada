@@ -177,7 +177,7 @@ class ArmadaClient:
 
     def create_queues(self, queues: List[submit_pb2.Queue]) -> empty_pb2.Empty:
         """
-        Uses the CreateQueue RPC to create a list of queues.
+        Uses the CreateQueues RPC to create a list of queues.
 
         :param queues: A list of queues to create.
         """
@@ -188,7 +188,7 @@ class ArmadaClient:
 
     def update_queues(self, queues: List[submit_pb2.Queue]) -> empty_pb2.Empty:
         """
-        Uses the UpdateQueue RPC to update a list of queues.
+        Uses the UpdateQueues RPC to update a list of queues.
 
         :param queues: A list of queues to update.
         """
