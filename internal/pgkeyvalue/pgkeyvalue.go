@@ -126,7 +126,7 @@ func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[
 	}
 
 	valueStrings := make([]string, 0, len(batch))
-	valueArgs := make([]interface{}, 0, len(batch)*2)
+	valueArgs := make([]interface{}, 0, len(batch)*3)
 	i := 0
 	now := time.Now().UTC()
 	for k, v := range keysToAdd {
