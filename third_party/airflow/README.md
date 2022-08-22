@@ -4,15 +4,15 @@ An Airflow operator for interfacing with the armada client
 
 ## Background
 
-Airflow is an open source project focused on orchestrating Direct Acylic Graphs (DAGs) across different compute platforms.  To interface Airflow with Armada, we had to create a armada operator.  This repository is the implementation of the armada operator.
+Airflow is an open source project focused on orchestrating Direct Acylic Graphs (DAGs) across different compute platforms.  To interface Airflow with Armada, you should use our armada operator.
 
 ## Airflow
 
-We followed the [airflow documentation](https://airflow.apache.org/) for setting up a simple test server.  
+The [airflow documentation](https://airflow.apache.org/) was used for setting up a simple test server.  
 
 [setup-local-airflow.sh](./setup-local-airflow.sh) demonstrates how to run airflow locally using Airflow's SequentialExecutor.  This is only used for testing purposes.
 
-I suggest creating a ~/airflow/dags folder and copying the dag files under examples in that location.  This allows you to test the DAG in your airflow test server.
+Adding custom dags requires you to create a ~/airflow/dags folder and copying the dag files under examples in that location.  This allows you to test the DAG in your airflow test server.
 
 ## Examples
 
@@ -38,7 +38,7 @@ From the top level of the repo, you should run `make airflow-operator`.  This wi
 
 You can install the package via `pip3 install third_party/airflow`. 
 
-We have a tox file that streamlines development lifecycle.  For development, you can install black, tox, mypy and flake8.
+You can use our tox file that streamlines development lifecycle.  For development, you can install black, tox, mypy and flake8.
 
 `python3.8 -m tox -e py8` will run unit tests.
 
