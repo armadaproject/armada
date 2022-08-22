@@ -175,7 +175,7 @@ Create a queue request object.
 
 
 #### create_queues(queues)
-Uses the CreateQueue RPC to create a list of queues.
+Uses the CreateQueues RPC to create a list of queues.
 
 
 * **Parameters**
@@ -433,7 +433,7 @@ Uses the UpdateQueue RPC to update a queue.
 
 
 #### update_queues(queues)
-Uses the UpdateQueue RPC to update a list of queues.
+Uses the UpdateQueues RPC to update a list of queues.
 
 
 * **Parameters**
