@@ -194,7 +194,7 @@ Create a queue request object.
 
 * **Return type**
 
-    None
+    armada.submit_pb2.Queue
 
 
 
@@ -367,7 +367,7 @@ Uses the CreateQueue RPC to create a queue.
 
 
 #### send_update_queue_request(queue)
-Uses the CreateQueue RPC to update a queue.
+Uses the UpdateQueue RPC to update a queue.
 
 
 * **Parameters**
