@@ -238,8 +238,17 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	if err != nil {
 		return errors.WithMessage(err, "error creating job logger")
 	}
+	executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
 	if testSpec.GetLogs {
-		g.Go(func() error { return jobLogger.Run(ctx) })
+		if executorClustersDefined {
+			g.Go(func() error { return jobLogger.Run(ctx) })
+		} else {
+			_, _ = fmt.Fprintf(
+				a.Out,
+				"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
+				testSpec.Name,
+			)
+		}
 	}
 
 	// Split the events into multiple channels, one for each downstream service.
@@ -268,7 +277,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	a.reports = append(a.reports, report)
 
 	// Armada JobSet logs
-	if testSpec.GetLogs {
+	if testSpec.GetLogs && executorClustersDefined {
 		jobLogger.PrintLogs()
 	}
 
@@ -279,9 +288,6 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 }
 
 func (a *App) createJobLogger(testSpec *api.TestSpec) (*joblogger.JobLogger, error) {
-	if len(a.Params.ApiConnectionDetails.ExecutorClusters) == 0 {
-		return nil, errors.New("no executor clusters configured to scrape for logs")
-	}
 	namespace, err := getJobNamespace(testSpec)
 	if err != nil {
 		return nil, err
