@@ -159,7 +159,7 @@ class ArmadaClient:
         """
         Uses the CreateQueue RPC to create a queue.
 
-        :param queues: A list of queues to create.
+        :param queue: A queue to create.
         """
 
         response = self.submit_stub.CreateQueue(queue)
@@ -169,7 +169,7 @@ class ArmadaClient:
         """
         Uses the UpdateQueue RPC to update a queue.
 
-        :param queues: A list of queues to create.
+        :param queue: A queue to update.
         """
 
         response = self.submit_stub.UpdateQueue(queue)
