@@ -67,6 +67,55 @@ func TestAdd(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestLoadOrStoreBatch(t *testing.T) {
+	cacheSize := 100
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		store, err := New(db, cacheSize, "cachetable")
+		assert.NoError(t, err)
+
+		// Add two items
+		kv1 := []*KeyValue{
+			{"foo", []byte{0x1}},
+			{"bar", []byte{0x2}},
+		}
+		expected1 := map[string][]byte{"foo": {0x1}, "bar": {0x2}}
+		added, err := store.LoadOrStoreBatch(context.Background(), kv1)
+		assert.NoError(t, err)
+		assert.Equal(t, expected1, added)
+
+		// Add items again
+		added, err = store.LoadOrStoreBatch(context.Background(), kv1)
+		assert.NoError(t, err)
+		assert.Equal(t, expected1, added)
+
+		// Add three items
+		kv2 := []*KeyValue{
+			{"foo", []byte{0x1}},
+			{"bar", []byte{0x2}},
+			{"baz", []byte{0x3}},
+		}
+		expected2 := map[string][]byte{"foo": {0x1}, "bar": {0x2}, "baz": {0x3}}
+
+		// Asset that only one is added
+		added, err = store.LoadOrStoreBatch(context.Background(), kv2)
+		assert.NoError(t, err)
+		assert.Equal(t, added, expected2)
+
+		// Add a duplicate
+		kv3 := []*KeyValue{
+			{"foo", []byte{0x4}},
+			{"bar", []byte{0x5}},
+		}
+		expected3 := map[string][]byte{"foo": {0x1}, "bar": {0x2}}
+		added, err = store.LoadOrStoreBatch(context.Background(), kv3)
+		assert.NoError(t, err)
+		assert.Equal(t, added, expected3)
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestAddGet(t *testing.T) {
 	cacheSize := 100
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
