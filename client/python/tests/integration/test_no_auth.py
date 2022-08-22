@@ -113,7 +113,7 @@ def test_batch_update_and_create_queues(client: ArmadaClient):
     queue = client.create_queue_request(name=queue_name, priority_factor=1)
     client.create_queue(queue)
 
-    updated_queue = client.update_queue_request(name=queue_name, priority_factor=2)
+    updated_queue = client.create_queue_request(name=queue_name, priority_factor=2)
     client.update_queue(updated_queue)
 
 
