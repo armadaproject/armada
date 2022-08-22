@@ -35,3 +35,15 @@ func DeepCopyListUint32(list []uint32) []uint32 {
 	}
 	return result
 }
+
+func Chunk(list []string, size int) [][]string {
+	chunks := [][]string{}
+	for start := 0; start < len(list); start += size {
+		end := start + size
+		if end > len(list) {
+			end = len(list)
+		}
+		chunks = append(chunks, list[start:end])
+	}
+	return chunks
+}
