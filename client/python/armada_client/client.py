@@ -236,7 +236,7 @@ class ArmadaClient:
 
     def send_update_queue_request(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
-        Uses the CreateQueue RPC to update a queue.
+        Uses the UpdateQueue RPC to update a queue.
 
         :param queues: A list of queues to create.
         """
@@ -298,7 +298,7 @@ class ArmadaClient:
         group_owners: Optional[List[str]] = None,
         resource_limits: Optional[Dict[str, float]] = None,
         permissions: Optional[List[Permissions]] = None,
-    ) -> None:
+    ) -> submit_pb2.Queue:
         """
         Create a queue request object.
 
