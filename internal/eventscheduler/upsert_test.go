@@ -458,17 +458,8 @@ func TestAutoIncrement(t *testing.T) {
 	defer cancel()
 	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
 
-		actual, err := queries.ListNodeInfo(ctx)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		fmt.Println("============== initially")
-		for _, v := range actual {
-			fmt.Println(v)
-		}
-
 		// Insert two rows. These should automatically get auto-incrementing serial numbers
-		// 0 and 1, respectively.
+		// 1 and 2, respectively.
 		var records []interface{}
 		records = append(
 			records,
@@ -481,18 +472,14 @@ func TestAutoIncrement(t *testing.T) {
 				Message:  []byte{1},
 			},
 		)
-		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
 		if !assert.NoError(t, err) {
 			return nil
 		}
 
-		actual, err = queries.ListNodeInfo(ctx)
+		actual, err := queries.ListNodeInfo(ctx)
 		if !assert.NoError(t, err) {
 			return nil
-		}
-		fmt.Println("============== first upsert")
-		for _, v := range actual {
-			fmt.Println(v)
 		}
 		assert.Equal(t, 2, len(actual))
 		assert.Equal(t, int64(1), actual[0].Serial)
@@ -501,11 +488,11 @@ func TestAutoIncrement(t *testing.T) {
 		assert.Equal(t, "bar", actual[1].NodeName)
 
 		// Update one of the records.
-		// Should automatically set the serial of the row to 2.
+		// Should automatically set the serial of the row to 3.
 		records = make([]interface{}, 0)
 		records = append(records, Nodeinfo{
 			NodeName: "bar",
-			Message:  []byte{2}, // Need to update message to ensure the trigger fires.
+			Message:  []byte{2},
 		})
 
 		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
@@ -517,18 +504,14 @@ func TestAutoIncrement(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Println("============== second upsert")
-		for _, v := range actual {
-			fmt.Println(v)
-		}
 		assert.Equal(t, 2, len(actual))
 		assert.Equal(t, int64(1), actual[0].Serial)
-		assert.Equal(t, int64(4), actual[1].Serial)
+		assert.Equal(t, int64(3), actual[1].Serial)
 		assert.Equal(t, "foo", actual[0].NodeName)
 		assert.Equal(t, "bar", actual[1].NodeName)
 
 		// Update one of the records.
-		// Should automatically set the serial of the row to 2.
+		// Should automatically set the serial of the row to 3.
 		records = make([]interface{}, 0)
 		records = append(records, Nodeinfo{
 			NodeName: "baz",
@@ -544,13 +527,57 @@ func TestAutoIncrement(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		fmt.Println("============== third upsert")
-		for _, v := range actual {
-			fmt.Println(v)
-		}
 		assert.Equal(t, 3, len(actual))
-		assert.Equal(t, int64(5), actual[2].Serial)
+		assert.Equal(t, int64(4), actual[2].Serial)
 		assert.Equal(t, "baz", actual[2].NodeName)
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+// Plain:
+// upserted 10000 records in 150.714434ms
+
+// Both
+// upserted 10000 records in 314.750961ms
+
+// Only serial
+// upserted 10000 records in 309.336981ms
+
+// Only timestamp
+// upserted 10000 records in 203.027894ms
+
+// Accessing the series directly
+// upserted 10000 records in 210.879139ms
+
+// Getting table name and schema programatically
+// upserted 10000 records in 241.215724ms
+
+func TestFoo(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+		var records []interface{}
+		for i := 0; i < 10000; i++ {
+			records = append(
+				records,
+				Nodeinfo{
+					NodeName: uuid.NewString(),
+					Message:  make([]byte, 0),
+				},
+			)
+		}
+
+		start := time.Now()
+		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		if !assert.NoError(t, err) {
+			return nil
+		}
+		elapsed := time.Since(start)
+
+		fmt.Printf("upserted %d records in %s (%d records per second)\n", len(records), elapsed, int64(elapsed)/int64(len(records))/1e9)
+		// fmt.Println("upserted in ", time.Since(start), " seconds")
 
 		return nil
 	})

@@ -89,7 +89,7 @@ func (q *Queries) ListNodeInfo(ctx context.Context) ([]Nodeinfo, error) {
 
 const listRuns = `-- name: ListRuns :many
 
-SELECT run_id, job_id, executor, assignment, deleted, last_modified FROM runs ORDER BY run_id
+SELECT run_id, job_id, executor, assignment, sent_to_executor, serial, last_modified FROM runs ORDER BY run_id
 `
 
 // -- name: GetRecord :one
@@ -108,7 +108,8 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 			&i.JobID,
 			&i.Executor,
 			&i.Assignment,
-			&i.Deleted,
+			&i.SentToExecutor,
+			&i.Serial,
 			&i.LastModified,
 		); err != nil {
 			return nil, err

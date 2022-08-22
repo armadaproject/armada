@@ -215,29 +215,17 @@ func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema
 		return errors.Errorf("only %d out of %d rows were inserted", n, len(records))
 	}
 
-	onConflictColumns := make([]string, 0, len(names))
-	for _, name := range names[1:] {
-		if name == "serial" {
-			continue
-		}
-		if name == "last_modified" {
-			continue
-		}
-		onConflictColumns = append(onConflictColumns, name)
-	}
-
 	// Move those rows into the main table, using ON CONFLICT rules to over-write existing rows.
 	var b strings.Builder
 	fmt.Fprintf(&b, "INSERT INTO %s SELECT * from %s ", tableName, tempTableName)
 	fmt.Fprintf(&b, "ON CONFLICT (%s) DO UPDATE SET ", names[0])
-	for i, name := range onConflictColumns {
+	for i, name := range names {
 		fmt.Fprintf(&b, "%s = EXCLUDED.%s", name, name)
-		if i != len(onConflictColumns)-1 {
+		if i != len(names)-1 {
 			fmt.Fprintf(&b, ", ")
 		}
 	}
 	fmt.Fprint(&b, ";")
-	fmt.Println("============= ", b.String())
 	_, err = tx.Exec(ctx, b.String())
 	if err != nil {
 		return errors.WithStack(err)
@@ -325,15 +313,6 @@ func NamesValuesFromRecord(x interface{}) ([]string, []interface{}) {
 	values := make([]interface{}, 0, v.NumField())
 	for i := 0; i < t.NumField(); i++ {
 		name := t.Field(i).Tag.Get("db")
-
-		// TODO: find a less hacky way to do this.
-		if name == "serial" {
-			continue
-		}
-		if name == "last_modified" {
-			continue
-		}
-
 		if name != "" {
 			names = append(names, name)
 			value := v.Field(i).Interface()

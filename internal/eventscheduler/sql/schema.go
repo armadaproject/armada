@@ -34,9 +34,11 @@ func SchemaTemplate() string {
 		"    executor text NOT NULL,\n" +
 		"    -- Info of where this job is assigned to run. NULL until assigned to a node.\n" +
 		"    assignment json,\n" +
-		"    -- Tombstone value.\n" +
-		"    deleted bool NOT NULL,\n" +
-		"    last_modified timestamp with time zone NOT NULL\n" +
+		"    -- True if this run has been sent to the executor already.\n" +
+		"    -- Used to control which runs are sent to the executor when it requests jobs.\n" +
+		"    sent_to_executor boolean NOT NULL,\n" +
+		"    serial bigserial NOT NULL,\n" +
+		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
 		"\n" +
 		"CREATE TABLE executors (\n" +
@@ -74,16 +76,18 @@ func SchemaTemplate() string {
 		"    last_modified TIMESTAMPTZ NOT NULL DEFAULT NOW()\n" +
 		");\n" +
 		"\n" +
-		"-- Auto-increment nodeinfo.serial on insert and update.\n" +
+		"-- Automatically increment serial and set last_modified on insert.\n" +
+		"-- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.\n" +
 		"--\n" +
 		"-- Source:\n" +
 		"-- https://dba.stackexchange.com/questions/294727/how-to-auto-increment-a-serial-column-on-update\n" +
-		"CREATE OR REPLACE FUNCTION trg_increment_serial_nodeinfo()\n" +
+		"CREATE OR REPLACE FUNCTION trg_increment_serial_set_last_modified()\n" +
 		"  RETURNS trigger\n" +
 		"  LANGUAGE plpgsql AS\n" +
 		"$func$\n" +
 		"BEGIN\n" +
-		"  NEW.serial := nextval(pg_get_serial_sequence('public.nodeinfo', 'serial'));\n" +
+		"  -- NEW.serial := nextval(TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME || '_serial_seq');\n" +
+		"  NEW.serial := nextval(CONCAT(TG_TABLE_SCHEMA, '.', TG_TABLE_NAME, '_serial_seq'));\n" +
 		"  NEW.last_modified := NOW();\n" +
 		"  RETURN NEW;\n" +
 		"END\n" +
@@ -92,33 +96,6 @@ func SchemaTemplate() string {
 		"CREATE TRIGGER next_serial_on_insert_nodeinfo\n" +
 		"BEFORE INSERT ON nodeinfo\n" +
 		"FOR EACH ROW\n" +
-		"EXECUTE FUNCTION trg_increment_serial_nodeinfo();\n" +
-		"\n" +
-		"CREATE TRIGGER next_serial_on_update_nodeinfo\n" +
-		"BEFORE UPDATE ON nodeinfo\n" +
-		"FOR EACH ROW\n" +
-		"WHEN (OLD.message IS DISTINCT FROM NEW.message)\n" +
-		"EXECUTE FUNCTION trg_increment_serial_nodeinfo();\n" +
-		"\n" +
-		"-- -- Automatically set last_modified on update.\n" +
-		"-- --\n" +
-		"-- -- Source:\n" +
-		"-- -- https://stackoverflow.com/questions/52426656/track-last-modification-timestamp-of-a-row-in-postgres\n" +
-		"-- CREATE OR REPLACE FUNCTION trg_set_timestamp_nodeinfo()\n" +
-		"--   RETURNS TRIGGER\n" +
-		"--   LANGUAGE plpgsql AS\n" +
-		"-- $func$\n" +
-		"-- BEGIN\n" +
-		"--   NEW.serial = OLD.serial;\n" +
-		"--   NEW.last_modified = OLD.last_modified;\n" +
-		"--   RETURN NEW;\n" +
-		"-- END\n" +
-		"-- $func$;\n" +
-		"\n" +
-		"-- CREATE TRIGGER set_timestamp_on_update_nodeinfo\n" +
-		"-- BEFORE UPDATE ON nodeinfo\n" +
-		"-- FOR EACH ROW\n" +
-		"-- WHEN (OLD.message IS DISTINCT FROM NEW.message)\n" +
-		"-- EXECUTE FUNCTION trg_set_timestamp_nodeinfo();"
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();"
 	return tmpl
 }

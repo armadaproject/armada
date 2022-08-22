@@ -23,9 +23,11 @@ CREATE TABLE runs (
     executor text NOT NULL,
     -- Info of where this job is assigned to run. NULL until assigned to a node.
     assignment json,
-    -- Tombstone value.
-    deleted bool NOT NULL,
-    last_modified timestamp with time zone NOT NULL
+    -- True if this run has been sent to the executor already.
+    -- Used to control which runs are sent to the executor when it requests jobs.
+    sent_to_executor boolean NOT NULL,
+    serial bigserial NOT NULL,
+    last_modified TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE executors (
@@ -63,17 +65,17 @@ CREATE TABLE nodeinfo (
     last_modified TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Auto-increment nodeinfo.serial on insert and update.
--- TODO: This triggers a double increment on update. Not a problem. But a bit wasteful.
+-- Automatically increment serial and set last_modified on insert.
+-- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.
 --
 -- Source:
 -- https://dba.stackexchange.com/questions/294727/how-to-auto-increment-a-serial-column-on-update
-CREATE OR REPLACE FUNCTION trg_increment_serial_nodeinfo()
+CREATE OR REPLACE FUNCTION trg_increment_serial_set_last_modified()
   RETURNS trigger
   LANGUAGE plpgsql AS
 $func$
 BEGIN
-  NEW.serial := nextval(pg_get_serial_sequence('public.nodeinfo', 'serial'));
+  NEW.serial := nextval(CONCAT(TG_TABLE_SCHEMA, '.', TG_TABLE_NAME, '_serial_seq'));
   NEW.last_modified := NOW();
   RETURN NEW;
 END
@@ -82,31 +84,4 @@ $func$;
 CREATE TRIGGER next_serial_on_insert_nodeinfo
 BEFORE INSERT ON nodeinfo
 FOR EACH ROW
-EXECUTE FUNCTION trg_increment_serial_nodeinfo();
-
-CREATE TRIGGER next_serial_on_update_nodeinfo
-BEFORE UPDATE ON nodeinfo
-FOR EACH ROW
-WHEN (OLD.message IS DISTINCT FROM NEW.message)
-EXECUTE FUNCTION trg_increment_serial_nodeinfo();
-
--- -- Automatically set last_modified on update.
--- --
--- -- Source:
--- -- https://stackoverflow.com/questions/52426656/track-last-modification-timestamp-of-a-row-in-postgres
--- CREATE OR REPLACE FUNCTION trg_set_timestamp_nodeinfo()
---   RETURNS TRIGGER
---   LANGUAGE plpgsql AS
--- $func$
--- BEGIN
---   NEW.serial = OLD.serial;
---   NEW.last_modified = OLD.last_modified;
---   RETURN NEW;
--- END
--- $func$;
-
--- CREATE TRIGGER set_timestamp_on_update_nodeinfo
--- BEFORE UPDATE ON nodeinfo
--- FOR EACH ROW
--- WHEN (OLD.message IS DISTINCT FROM NEW.message)
--- EXECUTE FUNCTION trg_set_timestamp_nodeinfo();
+EXECUTE FUNCTION trg_increment_serial_set_last_modified();
