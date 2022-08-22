@@ -7,6 +7,8 @@ package eventscheduler
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const getTopicMessageIds = `-- name: GetTopicMessageIds :many
@@ -96,6 +98,56 @@ SELECT run_id, job_id, executor, assignment, sent_to_executor, serial, last_modi
 // SELECT * FROM records WHERE id = $1 LIMIT 1;
 func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 	rows, err := q.db.Query(ctx, listRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Run
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.RunID,
+			&i.JobID,
+			&i.Executor,
+			&i.Assignment,
+			&i.SentToExecutor,
+			&i.Serial,
+			&i.LastModified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markRunAsSent = `-- name: MarkRunAsSent :exec
+UPDATE runs SET sent_to_executor = true WHERE run_id = $1
+`
+
+func (q *Queries) MarkRunAsSent(ctx context.Context, runID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markRunAsSent, runID)
+	return err
+}
+
+const markRunsAsSent = `-- name: MarkRunsAsSent :exec
+UPDATE runs SET sent_to_executor = true WHERE run_id = ANY($1::UUID[])
+`
+
+func (q *Queries) MarkRunsAsSent(ctx context.Context, runIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markRunsAsSent, runIds)
+	return err
+}
+
+const selectNewRunsForExecutor = `-- name: SelectNewRunsForExecutor :many
+SELECT run_id, job_id, executor, assignment, sent_to_executor, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false)
+`
+
+func (q *Queries) SelectNewRunsForExecutor(ctx context.Context, executor string) ([]Run, error) {
+	rows, err := q.db.Query(ctx, selectNewRunsForExecutor, executor)
 	if err != nil {
 		return nil, err
 	}

@@ -47,10 +47,11 @@ type Queue struct {
 }
 
 type Run struct {
-	RunID        uuid.UUID   `db:"run_id"`
-	JobID        uuid.UUID   `db:"job_id"`
-	Executor     string      `db:"executor"`
-	Assignment   pgtype.JSON `db:"assignment"`
-	Deleted      bool        `db:"deleted"`
-	LastModified time.Time   `db:"last_modified"`
+	RunID          uuid.UUID   `db:"run_id"`
+	JobID          uuid.UUID   `db:"job_id"`
+	Executor       string      `db:"executor"`
+	Assignment     pgtype.JSON `db:"assignment"`
+	SentToExecutor bool        `db:"sent_to_executor"`
+	Serial         int64       `db:"serial"`
+	LastModified   time.Time   `db:"last_modified"`
 }

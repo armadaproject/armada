@@ -7,11 +7,15 @@ import (
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 )
 
 type ExecutorApi struct {
+	db *pgxpool.Pool
 }
 
 func (srv *ExecutorApi) LeaseJobs(ctx context.Context, req *api.LeaseRequest) (*api.JobLease, error) {
@@ -24,14 +28,21 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	return nil
 }
 
-func (srv *ExecutorApi) writeNodeInfoToPostgres(nodeInfos []api.NodeInfo) error {
-	// for _, nodeInfo := range nodeInfos {
-	// 	bytes, err := proto.Marshal(&nodeInfo)
-	// 	if err != nil {
-	// 		return errors.WithStack(err)
-	// 	}
-	// }
-	return nil
+// writeNodeInfoToPostgres writes the NodeInfo messages received from an executor into postgres
+// with the name of the node set as the primary key, i.e., the node name must be unique across all clusters.
+func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, nodeInfos []api.NodeInfo) error {
+	records := make([]interface{}, 0)
+	for _, nodeInfo := range nodeInfos {
+		message, err := proto.Marshal(&nodeInfo)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		records = append(records, Nodeinfo{
+			NodeName: nodeInfo.GetName(),
+			Message:  message,
+		})
+	}
+	return Upsert(ctx, srv.db, "nodeinfo", NodeInfoSchema(), records)
 }
 
 func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {

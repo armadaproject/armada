@@ -4,6 +4,15 @@
 -- name: ListRuns :many
 SELECT * FROM runs ORDER BY run_id;
 
+-- name: SelectNewRunsForExecutor :many
+SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false);
+
+-- name: MarkRunAsSent :exec
+UPDATE runs SET sent_to_executor = true WHERE run_id = $1;
+
+-- name: MarkRunsAsSent :exec
+UPDATE runs SET sent_to_executor = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
 -- name: ListNodeInfo :many
 SELECT * FROM nodeinfo ORDER BY serial;
 

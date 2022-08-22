@@ -70,14 +70,13 @@ func SchemaTemplate() string {
 		"    node_name text PRIMARY KEY,\n" +
 		"    -- Most recently received NodeInfo message for this node.\n" +
 		"    message bytea NOT NULL,\n" +
-		"    -- Serial auto-incrementing on write and update.\n" +
-		"    -- Used to only read rows that were updated since the last write.\n" +
 		"    serial bigserial NOT NULL,\n" +
 		"    last_modified TIMESTAMPTZ NOT NULL DEFAULT NOW()\n" +
 		");\n" +
 		"\n" +
 		"-- Automatically increment serial and set last_modified on insert.\n" +
 		"-- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.\n" +
+		"-- All new/updated rows can be queried by querying for all rows with serial larger than that of the most recent query.\n" +
 		"--\n" +
 		"-- Source:\n" +
 		"-- https://dba.stackexchange.com/questions/294727/how-to-auto-increment-a-serial-column-on-update\n" +
@@ -86,7 +85,6 @@ func SchemaTemplate() string {
 		"  LANGUAGE plpgsql AS\n" +
 		"$func$\n" +
 		"BEGIN\n" +
-		"  -- NEW.serial := nextval(TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME || '_serial_seq');\n" +
 		"  NEW.serial := nextval(CONCAT(TG_TABLE_SCHEMA, '.', TG_TABLE_NAME, '_serial_seq'));\n" +
 		"  NEW.last_modified := NOW();\n" +
 		"  RETURN NEW;\n" +
@@ -95,6 +93,11 @@ func SchemaTemplate() string {
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_nodeinfo\n" +
 		"BEFORE INSERT ON nodeinfo\n" +
+		"FOR EACH ROW\n" +
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"CREATE TRIGGER next_serial_on_insert_runs\n" +
+		"BEFORE INSERT ON runs\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();"
 	return tmpl
