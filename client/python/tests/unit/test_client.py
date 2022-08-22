@@ -119,7 +119,8 @@ def test_create_queue_full():
 
 def test_create_queues():
     queue = tester.create_queue_request(name="test", priority_factor=1)
-    tester.create_queues([queue])
+    queue2 = tester.create_queue_request(name="test2", priority_factor=1)
+    tester.create_queues([queue, queue2])
 
 
 def test_create_queues_full():
@@ -139,7 +140,9 @@ def test_create_queues_full():
         permissions=[permissions],
     )
 
-    tester.create_queues([queue])
+    queue2 = tester.create_queue_request(name="test2", priority_factor=1)
+
+    tester.create_queues([queue, queue2])
 
 
 def test_get_queue():
@@ -186,7 +189,8 @@ def test_update_queue_full():
 
 def test_update_queues():
     queue = tester.create_queue_request(name="test", priority_factor=1)
-    tester.update_queues([queue])
+    queue2 = tester.create_queue_request(name="test2", priority_factor=1)
+    tester.update_queues([queue, queue2])
 
 
 def test_update_queues_full():
@@ -205,7 +209,9 @@ def test_update_queues_full():
         resource_limits=resource_limits,
         permissions=[permissions],
     )
-    tester.update_queues([queue])
+    queue2 = tester.create_queue_request(name="test2", priority_factor=1)
+
+    tester.update_queues([queue, queue2])
 
 
 def test_reprioritize_jobs():

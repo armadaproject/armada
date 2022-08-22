@@ -108,13 +108,28 @@ def create_queue(client: ArmadaClient, queue_name):
 def test_batch_update_and_create_queues(client: ArmadaClient):
     # Need to separately create queue name so that it is not
     # automatically created by the fixture.
-    queue_name = f"queue-{uuid.uuid1()}"
+    queue_name1 = f"queue-{uuid.uuid1()}"
+    queue_name2 = f"queue-{uuid.uuid1()}"
 
-    queue = client.create_queue_request(name=queue_name, priority_factor=1)
-    client.create_queues([queue])
+    queue1 = client.create_queue_request(name=queue_name1, priority_factor=1)
+    queue2 = client.create_queue_request(name=queue_name2, priority_factor=1)
+    client.create_queues([queue1, queue2])
 
-    updated_queue = client.create_queue_request(name=queue_name, priority_factor=2)
-    client.update_queues([updated_queue])
+    queue1 = client.get_queue(name=queue_name1)
+    queue2 = client.get_queue(name=queue_name2)
+
+    assert queue1.name == queue2.name
+    assert queue1.priority_factor == queue2.priority_factor
+
+    updated_queue1 = client.create_queue_request(name=queue_name1, priority_factor=2)
+    updated_queue2 = client.create_queue_request(name=queue_name2, priority_factor=2)
+    client.update_queues([updated_queue1, updated_queue2])
+
+    queue1 = client.get_queue(name=queue_name1)
+    queue2 = client.get_queue(name=queue_name2)
+
+    assert queue1.name == queue2.name
+    assert queue1.priority_factor == queue2.priority_factor
 
 
 def test_get_queue(client: ArmadaClient, queue_name):
