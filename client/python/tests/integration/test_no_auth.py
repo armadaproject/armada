@@ -118,7 +118,6 @@ def test_batch_update_and_create_queues(client: ArmadaClient):
     queue1 = client.get_queue(name=queue_name1)
     queue2 = client.get_queue(name=queue_name2)
 
-    assert queue1.name == queue2.name
     assert queue1.priority_factor == queue2.priority_factor
 
     updated_queue1 = client.create_queue_request(name=queue_name1, priority_factor=2)
@@ -128,7 +127,6 @@ def test_batch_update_and_create_queues(client: ArmadaClient):
     queue1 = client.get_queue(name=queue_name1)
     queue2 = client.get_queue(name=queue_name2)
 
-    assert queue1.name == queue2.name
     assert queue1.priority_factor == queue2.priority_factor
 
 
