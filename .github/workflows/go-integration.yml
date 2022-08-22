@@ -8,49 +8,10 @@ on:
     branches-ignore:
       - gh-pages
 
-env:
-  GOPATH: /actions-runner/go
-  GOCACHE: /actions-runner/gocache
-  GITHUB_WORKSPACE: /actions-runner/go/src/github.com/G-Research/armada
-  HOME: /actions-runner
-
 jobs:
-  start-runner:
-    name: Start runner in EC2
-    # Only G-Research/armada repo has secrets set to run these tests. A future
-    # enhancement would be to configure these jobs to run on free runners on
-    # forks, and on paid runners in G-Research/armada.
-    if: github.repository == 'G-Research/armada'
-    runs-on: ubuntu-latest
-    outputs:
-      runs-on: ${{ steps.start-ec2-runner.outputs.label }}
-      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      - name: Start EC2 runner
-        id: start-ec2-runner
-        uses: machulav/ec2-github-runner@v2
-        with:
-          mode: start
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          ec2-image-id: ami-0d3d3ae42ef82e511
-          ec2-instance-type: c5.2xlarge
-          subnet-id: subnet-06ae121731a8cddc2
-          security-group-id: sg-0a0571fdd1322701f
-          aws-resource-tags: >
-            [
-              {"Key": "Name", "Value": "ec2-github-runner"},
-              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
-            ]
   integration-tests:
       needs: start-runner
-      if: github.repository == 'G-Research/armada'
-      runs-on: ${{ needs.start-runner.outputs.runs-on }}
+      runs-on: buildjet-8vcpu-ubuntu-2204
       strategy:
         fail-fast: false
         matrix:
@@ -69,31 +30,3 @@ jobs:
           with:
             name: junit.xml
             path: test_reports/junit.xml
-  stop-runner:
-      name: Stop self-hosted runner
-      # This tells Github actions to run this job even if a dependent jobs
-      # failed. This prevents us from having an outstanding runner leftover
-      # when tests are failing.
-      if: always()
-      needs:
-        - start-runner
-        - integration-tests
-      runs-on: ubuntu-latest
-      steps:
-        - name: Configure AWS credentials
-          # but we still have to skip the steps that do work, since we don't
-          # have secrets, unless we're in the G-Research org.
-          if: github.repository == 'G-Research/armada'
-          uses: aws-actions/configure-aws-credentials@v1
-          with:
-            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            aws-region: ${{ secrets.AWS_REGION }}
-        - name: Stop EC2 runner
-          if: github.repository == 'G-Research/armada'
-          uses: machulav/ec2-github-runner@v2
-          with:
-            mode: stop
-            label: ${{ needs.start-runner.outputs.runs-on }}
-            ec2-instance-id: ${{ needs.start-runner.outputs.ec2-instance-id }}
-            github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
