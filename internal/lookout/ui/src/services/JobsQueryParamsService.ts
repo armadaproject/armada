@@ -80,7 +80,6 @@ export default class JobsQueryParamsService {
   }
 
   saveState(state: JobsContainerState) {
-    console.log(state.defaultColumns)
     this.routeComponentProps.history.push({
       ...this.routeComponentProps.location,
       search: makeQueryString(state.defaultColumns, state.annotationColumns),
