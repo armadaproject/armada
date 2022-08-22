@@ -22,7 +22,7 @@ function loadedDataIsValid(loadedData: Record<string, unknown>): boolean {
   )
 }
 
-function convertToLocalStorageState(loadedData: Record<string, unknown>): [JobsLocalStorageState, boolean] {
+export function convertToLocalStorageState(loadedData: Record<string, unknown>): [JobsLocalStorageState, boolean] {
   const state: JobsLocalStorageState = {}
 
   if (!loadedDataIsValid(loadedData)) {

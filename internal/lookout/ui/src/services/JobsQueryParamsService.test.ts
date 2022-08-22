@@ -24,6 +24,7 @@ describe("makeQueryString", () => {
     const queryString = makeQueryString(columns, [])
     assertStringHasQueryParams(["queue=test"], queryString)
   })
+
   test("makes string with filter with space", () => {
     const columns = [
       {
