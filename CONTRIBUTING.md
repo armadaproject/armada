@@ -22,7 +22,7 @@ If you want to brainstorm a potential new feature, hop on over to the Discussion
 
 ### Setup
 
-setup everything you’ll need to get started running and developing Armada:
+Setup everything you’ll need to get started running and developing Armada:
 
 * [Developer setup](https://armadaproject.io/developer)
 
