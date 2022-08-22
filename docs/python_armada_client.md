@@ -160,6 +160,44 @@ Uses the CreateQueue RPC to create a queue.
 
 
 
+#### create_queue_request(name, priority_factor, user_owners=None, group_owners=None, resource_limits=None, permissions=None)
+Create a queue request object.
+
+
+* **Parameters**
+
+    
+    * **name** (*str*) – The name of the queue
+
+
+    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
+
+
+    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+
+
+    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+
+
+    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+
+
+    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
+
+
+
+* **Returns**
+
+    A queue request object.
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### delete_queue(name)
 Delete an empty queue by name.
 
@@ -305,6 +343,46 @@ or job set.
 * **Return type**
 
     armada.submit_pb2.JobReprioritizeResponse
+
+
+
+#### send_create_queue_request(queue)
+Uses the CreateQueue RPC to create a queue.
+
+
+* **Parameters**
+
+    
+    * **queues** – A list of queues to create.
+
+
+    * **queue** (*armada.submit_pb2.Queue*) – 
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
+
+
+
+#### send_update_queue_request(queue)
+Uses the CreateQueue RPC to update a queue.
+
+
+* **Parameters**
+
+    
+    * **queues** – A list of queues to create.
+
+
+    * **queue** (*armada.submit_pb2.Queue*) – 
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
 
 
 
