@@ -175,6 +175,28 @@ class ArmadaClient:
         response = self.submit_stub.UpdateQueue(queue)
         return response
 
+    def create_queues(self, queues: List[submit_pb2.Queue]) -> empty_pb2.Empty:
+        """
+        Uses the CreateQueue RPC to create a list of queues.
+
+        :param queues: A list of queues to create.
+        """
+
+        queue_list = submit_pb2.QueueList(queues=queues)
+        response = self.submit_stub.CreateQueues(queue_list)
+        return response
+
+    def update_queues(self, queues: List[submit_pb2.Queue]) -> empty_pb2.Empty:
+        """
+        Uses the UpdateQueue RPC to update a list of queues.
+
+        :param queues: A list of queues to update.
+        """
+
+        queue_list = submit_pb2.QueueList(queues=queues)
+        response = self.submit_stub.UpdateQueues(queue_list)
+        return response
+
     def delete_queue(self, name: str) -> None:
         """Delete an empty queue by name.
 

@@ -105,6 +105,18 @@ def create_queue(client: ArmadaClient, queue_name):
     wait_for(client, queue=queue_name)
 
 
+def test_batch_update_and_create_queues(client: ArmadaClient):
+    # Need to seperately create queue name so that it is not
+    # automatically created by the fixture.
+    queue_name = f"queue-{uuid.uuid1()}"
+
+    queue = client.create_queue_request(name=queue_name, priority_factor=1)
+    client.create_queue(queue)
+
+    updated_queue = client.update_queue_request(name=queue_name, priority_factor=2)
+    client.update_queue(updated_queue)
+
+
 def test_get_queue(client: ArmadaClient, queue_name):
     queue = client.get_queue(name=queue_name)
     assert queue.name == queue_name

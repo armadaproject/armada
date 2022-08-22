@@ -117,6 +117,31 @@ def test_create_queue_full():
     tester.create_queue(queue)
 
 
+def test_create_queues():
+    queue = tester.create_queue_request(name="test", priority_factor=1)
+    tester.create_queues([queue])
+
+
+def test_create_queues_full():
+    resource_limits = {
+        "cpu": 0.2,
+    }
+
+    sub = Subject("Group", "group1")
+    permissions = Permissions([sub], ["get", "post"])
+
+    queue = tester.create_queue_request(
+        name="test",
+        priority_factor=1,
+        user_owners=["test"],
+        group_owners=["test"],
+        resource_limits=resource_limits,
+        permissions=[permissions],
+    )
+
+    tester.create_queues([queue])
+
+
 def test_get_queue():
     assert tester.get_queue("test").name == "test"
 
@@ -157,6 +182,30 @@ def test_update_queue_full():
         permissions=[permissions],
     )
     tester.update_queue(queue)
+
+
+def test_update_queues():
+    queue = tester.create_queue_request(name="test", priority_factor=1)
+    tester.update_queues([queue])
+
+
+def test_update_queues_full():
+    resource_limits = {
+        "cpu": 0.2,
+    }
+
+    sub = Subject("Group", "group1")
+    permissions = Permissions([sub], ["get", "post"])
+
+    queue = tester.create_queue_request(
+        name="test",
+        priority_factor=1,
+        user_owners=["test"],
+        group_owners=["test"],
+        resource_limits=resource_limits,
+        permissions=[permissions],
+    )
+    tester.update_queues([queue])
 
 
 def test_reprioritize_jobs():
