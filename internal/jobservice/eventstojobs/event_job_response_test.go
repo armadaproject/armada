@@ -22,79 +22,79 @@ type eventResponse struct {
 func TestIsEventResponse(t *testing.T) {
 	eventMessages := []response{
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Submitted{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Submitted{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUBMITTED},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_DuplicateFound{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_DuplicateFound{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_DUPLICATE_FOUND},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Running{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Running{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Failed{&api.JobFailedEvent{Reason: "Failed Test"}}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Failed{Failed: &api.JobFailedEvent{Reason: "Failed Test"}}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "Failed Test"},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Succeeded{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Succeeded{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Cancelled{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Cancelled{}},
 			jobResponse:  &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED},
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Queued{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Queued{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Pending{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Pending{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Cancelling{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Cancelling{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_IngressInfo{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_IngressInfo{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Updated{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Updated{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_LeaseExpired{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_LeaseExpired{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_LeaseReturned{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_LeaseReturned{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Leased{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Leased{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Terminated{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Terminated{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_UnableToSchedule{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_UnableToSchedule{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Reprioritized{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Reprioritized{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Reprioritized{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Reprioritized{}},
 			jobResponse:  nil,
 		},
 		{
-			eventMessage: api.EventMessage{&api.EventMessage_Utilisation{}},
+			eventMessage: api.EventMessage{Events: &api.EventMessage_Utilisation{}},
 			jobResponse:  nil,
 		},
 	}
@@ -109,79 +109,79 @@ func TestIsEventResponse(t *testing.T) {
 func TestIsTerminalEvent(t *testing.T) {
 	eventMessages := []eventResponse{
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Submitted{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Submitted{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_DuplicateFound{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_DuplicateFound{}},
 			jobServiceEvent: true,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Running{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Running{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Failed{&api.JobFailedEvent{Reason: "Failed Test"}}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Failed{Failed: &api.JobFailedEvent{Reason: "Failed Test"}}},
 			jobServiceEvent: true,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Succeeded{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Succeeded{}},
 			jobServiceEvent: true,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Cancelled{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Cancelled{}},
 			jobServiceEvent: true,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Queued{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Queued{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Pending{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Pending{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Cancelling{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Cancelling{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_IngressInfo{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_IngressInfo{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Updated{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Updated{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_LeaseExpired{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_LeaseExpired{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_LeaseReturned{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_LeaseReturned{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Leased{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Leased{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Terminated{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Terminated{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_UnableToSchedule{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_UnableToSchedule{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Reprioritized{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Reprioritized{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Reprioritized{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Reprioritized{}},
 			jobServiceEvent: false,
 		},
 		{
-			eventMessage:    api.EventMessage{&api.EventMessage_Utilisation{}},
+			eventMessage:    api.EventMessage{Events: &api.EventMessage_Utilisation{}},
 			jobServiceEvent: false,
 		},
 	}

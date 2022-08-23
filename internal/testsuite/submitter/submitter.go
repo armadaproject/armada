@@ -18,6 +18,8 @@ type Submitter struct {
 	Queue      string
 	JobSetName string
 	Jobs       []*api.JobSubmitRequestItem
+	// If true, generate random clientId for Job, if not already provided
+	RandomClientId bool
 	// Number of batches of jobs to submit.
 	// A value of 0 indicates infinity.
 	NumBatches uint32
@@ -40,6 +42,7 @@ func NewSubmitterFromTestSpec(conn *client.ApiConnectionDetails, testSpec *api.T
 		NumBatches:           testSpec.NumBatches,
 		BatchSize:            testSpec.BatchSize,
 		Interval:             testSpec.Interval,
+		RandomClientId:       testSpec.RandomClientId,
 	}
 }
 
@@ -82,7 +85,15 @@ func (srv *Submitter) Run(ctx context.Context) error {
 		JobSetId: srv.JobSetName,
 	}
 	for i := 0; i < int(srv.BatchSize); i++ {
-		req.JobRequestItems = append(req.JobRequestItems, srv.Jobs...)
+		// workaround to always create new structs instead of copying the pointer
+		// that way, we can change some job values without affecting other jobs
+		for _, job := range srv.Jobs {
+			cloned := *job
+			req.JobRequestItems = append(req.JobRequestItems, &cloned)
+		}
+	}
+	if srv.RandomClientId {
+		client.AddClientIds(req.JobRequestItems)
 	}
 	return client.WithSubmitClient(srv.ApiConnectionDetails, func(c api.SubmitClient) error {
 

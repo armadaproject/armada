@@ -84,7 +84,6 @@ with DAG(
         task_id="armada",
         name="armada",
         queue="test",
-        job_set_id="job-set-1",
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=submit_sleep_job(),

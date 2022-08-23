@@ -16,22 +16,22 @@ import (
 // Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
 	queue                string
-	jobsetid             string
-	jobid                string
+	jobSetId             string
+	jobId                string
 	jobServiceConfig     *configuration.JobServiceConfiguration
-	jobServiceRepository repository.InMemoryJobServiceRepository
+	jobServiceRepository repository.SQLJobService
 }
 
 func NewEventsToJobService(
 	queue string,
-	jobsetid string,
-	jobid string,
+	jobSetId string,
+	jobId string,
 	jobServiceConfig *configuration.JobServiceConfiguration,
-	jobServiceRepository repository.InMemoryJobServiceRepository) *EventsToJobService {
+	jobServiceRepository repository.SQLJobService) *EventsToJobService {
 	return &EventsToJobService{
 		queue:                queue,
-		jobsetid:             jobsetid,
-		jobid:                jobid,
+		jobSetId:             jobSetId,
+		jobId:                jobId,
 		jobServiceConfig:     jobServiceConfig,
 		jobServiceRepository: jobServiceRepository,
 	}
@@ -45,15 +45,13 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 
 func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
 	var fromMessageId string
-	// Primary key for JobSet invovles queue and jobset
-	queueJobSetKey := eventToJobService.queue + eventToJobService.jobsetid
 	conn, connErr := client.CreateApiConnection(clientConnect)
-	eventToJobService.jobServiceRepository.SubscribeJobSet(queueJobSetKey)
 	if connErr != nil {
 		log.Warnf("Connection Issues with EventClient %v", connErr)
 		return connErr
 	}
 	defer conn.Close()
+	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		// Once we unsubscribed from the job-set, we need to close the GRPC connection.
@@ -61,7 +59,7 @@ func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.
 		// This will log an error to the jobservice log saying that the connection was used.
 		ticker := time.NewTicker(time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
-			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(queueJobSetKey) {
+			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.queue, eventToJobService.jobSetId) {
 				return conn.Close()
 			}
 		}
@@ -75,7 +73,7 @@ func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.
 		}
 		eventClient := api.NewEventClient(conn)
 		stream, err := eventClient.GetJobSetEvents(ctx, &api.JobSetRequest{
-			Id:             eventToJobService.jobsetid,
+			Id:             eventToJobService.jobSetId,
 			Queue:          eventToJobService.queue,
 			Watch:          true,
 			FromMessageId:  fromMessageId,
@@ -96,12 +94,8 @@ func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.
 			currentJobId := api.JobIdFromApiEvent(msg.Message)
 			jobStatus := EventsToJobResponse(*msg.Message)
 			if jobStatus != nil {
-				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobsetid, currentJobId, *jobStatus)
-				updateErr := eventToJobService.jobServiceRepository.UpdateJobServiceDb(currentJobId, jobTable)
-				if updateErr != nil {
-					log.Error(updateErr)
-					return updateErr
-				}
+				jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
+				eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobTable)
 			}
 		}
 	})

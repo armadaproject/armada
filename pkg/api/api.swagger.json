@@ -227,6 +227,36 @@
         }
       }
     },
+    "/v1/jobset/cancel": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CancelJobSet",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobSetCancelRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/queue": {
       "post": {
         "tags": [
@@ -486,6 +516,9 @@
         },
         "failed": {
           "$ref": "#/definitions/apiJobFailedEvent"
+        },
+        "failedCompressed": {
+          "$ref": "#/definitions/apiJobFailedEventCompressed"
         },
         "ingressInfo": {
           "$ref": "#/definitions/apiJobIngressInfoEvent"
@@ -808,6 +841,16 @@
         }
       }
     },
+    "apiJobFailedEventCompressed": {
+      "type": "object",
+      "title": "Only used internally by Armada",
+      "properties": {
+        "event": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
     "apiJobIngressInfoEvent": {
       "type": "object",
       "properties": {
@@ -1094,6 +1137,33 @@
         }
       }
     },
+    "apiJobSetCancelRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/apiJobSetFilter"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobSetFilter": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiJobState"
+          }
+        }
+      }
+    },
     "apiJobSetInfo": {
       "type": "object",
       "properties": {
@@ -1133,6 +1203,16 @@
           "type": "boolean"
         }
       }
+    },
+    "apiJobState": {
+      "type": "string",
+      "title": "swagger:model",
+      "default": "QUEUED",
+      "enum": [
+        "QUEUED",
+        "PENDING",
+        "RUNNING"
+      ]
     },
     "apiJobSubmitRequest": {
       "type": "object",

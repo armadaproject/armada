@@ -1,3 +1,5 @@
+# See https://developers.google.com/protocol-buffers/docs/reference/go-generated
+# for details on this syntax for mapping proto files to Go import path types
 export TYPES=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,\
@@ -70,4 +72,4 @@ protoc \
 --proto_path=/proto \
 --grpc-gateway_out=logtostderr=true,$TYPES:. \
 --swagger_out=logtostderr=true,$TYPES,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/binoculars/api:. \
-pkg/api/binoculars/binoculars.proto \
+pkg/api/binoculars/binoculars.proto

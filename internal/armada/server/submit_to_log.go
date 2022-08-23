@@ -17,6 +17,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/validation"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
@@ -71,71 +72,34 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
-	// Armada checks for duplicate job submissions if a ClientId (i.e., a deuplication id) is provided.
-	// Deduplication is based on storing the combined hash of the ClientId and queue.
-	// For storage efficiency, we store hashes instead of user-provided strings.
-	// For computational efficiency, we create a lookup table to avoid computing the same hash twice.
-	combinedHashData := make([]byte, 40)
-	queueHash := sha1.Sum([]byte(req.Queue))
-	for i, b := range queueHash {
-		combinedHashData[i] = b
-	}
-	combinedHashFromClientId := make(map[string][20]byte)
-	jobDuplicateFoundEvents := make([]*api.JobDuplicateFoundEvent, 0)
-
 	// Convert the API jobs to log jobs.
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
+
+	originalIds, err := srv.getOriginalJobIds(ctx, apiJobs)
+	if err != nil {
+		return nil, err
+	}
+	jobDuplicateFoundEvents := make([]*api.JobDuplicateFoundEvent, 0)
 	for i, apiJob := range apiJobs {
 		responses[i] = &api.JobSubmitResponseItem{
 			JobId: apiJob.GetId(),
 		}
 
-		// If a ClientId (i.e., a deuplication id) is provided,
+		// If a ClientId (i.e., a deduplication id) is provided,
 		// check for previous job submissions with the ClientId for this queue.
 		// If we find a duplicate, insert the previous jobId in the corresponding response
 		// and generate a job duplicate found event.
-		if apiJob.ClientId != "" && srv.KVStore != nil {
-
-			// Hash the ClientId together with the queue (or get it from the table, if possible).
-			combinedHash, ok := combinedHashFromClientId[apiJob.ClientId]
-			if !ok {
-				clientIdHash := sha1.Sum([]byte(apiJob.ClientId))
-
-				// Compute the combined hash.
-				for i, b := range clientIdHash {
-					combinedHashData[i+20] = b
-				}
-				combinedHash = sha1.Sum(combinedHashData)
-				combinedHashFromClientId[apiJob.ClientId] = combinedHash
-			}
-
-			// Check if we've seen the hash before.
-			// ok=true indicates insertion was successful,
-			// whereas ok=false indicates the key already exists
-			// (i.e., this submission is a duplicate).
-			dedupKey := fmt.Sprintf("%x", combinedHash)
-			ok, err := srv.KVStore.Add(ctx, dedupKey, []byte(apiJob.GetId()))
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-			if !ok { // duplicate found
-				originalJobId, err := srv.KVStore.Get(ctx, dedupKey)
-				if err != nil {
-					return nil, errors.WithStack(err)
-				}
-
-				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
-					JobId:         responses[i].JobId,
-					Queue:         req.Queue,
-					JobSetId:      req.JobSetId,
-					Created:       time.Now(),
-					OriginalJobId: string(originalJobId),
-				})
-				responses[i].JobId = string(originalJobId)
-
-				// The job shouldn't be submitted twice. Move on to the next job.
-				continue
-			}
+		if apiJob.ClientId != "" && originalIds[apiJob.GetId()] != apiJob.GetId() {
+			jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
+				JobId:         responses[i].JobId,
+				Queue:         req.Queue,
+				JobSetId:      req.JobSetId,
+				Created:       time.Now(),
+				OriginalJobId: originalIds[apiJob.GetId()],
+			})
+			responses[i].JobId = originalIds[apiJob.GetId()]
+			// The job shouldn't be submitted twice. Move on to the next job.
+			continue
 		}
 
 		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 0 {
@@ -359,6 +323,68 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	return &api.CancellationResult{
 		CancelledIds: cancelledIds,
 	}, nil
+}
+
+func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+	if req.Queue == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   req.Queue,
+			Message: "queue is empty",
+		}
+	}
+	if req.JobSetId == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "JobSetId",
+			Value:   req.JobSetId,
+			Message: "JobSetId is empty",
+		}
+	}
+
+	err := validation.ValidateJobSetFilter(req.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	if err != nil {
+		return nil, err
+	}
+
+	ids, err := srv.SubmitServer.jobRepository.GetJobSetJobIds(req.Queue, req.JobSetId, createJobSetFilter(req.Filter))
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error getting job IDs: %s", err)
+	}
+
+	sequence := &armadaevents.EventSequence{
+		Queue:      req.Queue,
+		JobSetName: req.JobSetId,
+		UserId:     userId,
+		Groups:     groups,
+		Events:     make([]*armadaevents.EventSequence_Event, 0, len(ids)),
+	}
+
+	for _, id := range ids {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(id)
+		if err != nil {
+			return nil, err
+		}
+
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+			},
+		})
+	}
+
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+
+	if err != nil {
+		log.WithError(err).Error("failed to send cancel job messages to pulsar")
+		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
+	}
+
+	return &types.Empty{}, err
 }
 
 func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
@@ -691,4 +717,57 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 		result = multierror.Append(result, <-ch)
 	}
 	return result.ErrorOrNil()
+}
+
+// getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
+// on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
+// Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
+func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
+
+	// If we don't have a KV store, then just return original mappings
+	if srv.KVStore == nil {
+		ret := make(map[string]string, len(apiJobs))
+		for _, apiJob := range apiJobs {
+			ret[apiJob.GetId()] = apiJob.GetId()
+		}
+		return ret, nil
+	}
+
+	hash := func(queue string, clientId string) [20]byte {
+		combined := fmt.Sprintf("%s:%s", queue, clientId)
+		return sha1.Sum([]byte(combined))
+	}
+
+	// Armada checks for duplicate job submissions if a ClientId (i.e., a deduplication id) is provided.
+	// Deduplication is based on storing the combined hash of the ClientId and queue.
+	// For storage efficiency, we store hashes instead of user-provided strings.
+	kvs := make([]*pgkeyvalue.KeyValue, 0, len(apiJobs))
+	for _, apiJob := range apiJobs {
+		if apiJob.ClientId != "" {
+			clientIdHash := hash(apiJob.Queue, apiJob.ClientId)
+			kvs = append(kvs, &pgkeyvalue.KeyValue{
+				Key:   fmt.Sprintf("%x", clientIdHash),
+				Value: []byte(apiJob.GetId()),
+			})
+		}
+	}
+
+	// If we have any client Ids add them to store
+	if len(kvs) > 0 {
+		addedKvs, err := srv.KVStore.LoadOrStoreBatch(ctx, kvs)
+		if err != nil {
+			return nil, err
+		}
+		ret := make(map[string]string, len(addedKvs))
+		for _, apiJob := range apiJobs {
+			if apiJob.ClientId != "" {
+				clientIdHash := hash(apiJob.Queue, apiJob.ClientId)
+				originalJobId := addedKvs[fmt.Sprintf("%x", clientIdHash)]
+				ret[apiJob.GetId()] = string(originalJobId)
+			}
+		}
+		return ret, nil
+	}
+
+	return nil, nil
 }
