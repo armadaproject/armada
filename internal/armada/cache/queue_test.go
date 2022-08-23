@@ -93,10 +93,10 @@ func TestCalculateRunningJobStats_WhenMultiPool(t *testing.T) {
 		runTimeMetrics := result.Durations
 		resourceMetrics := result.Resources
 
-		assert.Equal(t, len(runTimeMetrics), 1)
+		assert.Equal(t, len(runTimeMetrics), 2)
 		assert.Equal(t, runTimeMetrics[cluster1.Pool].GetCount(), uint64(2))
 		assert.Equal(t, runTimeMetrics[cluster2.Pool].GetCount(), uint64(1))
-		assert.Equal(t, len(resourceMetrics), 1)
+		assert.Equal(t, len(resourceMetrics), 2)
 		assert.Equal(t, resourceMetrics[cluster1.Pool]["cpu"].GetCount(), uint64(2))
 		assert.Equal(t, resourceMetrics[cluster2.Pool]["cpu"].GetCount(), uint64(1))
 	})
