@@ -9,7 +9,7 @@ import (
 func analyzeCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{
-		Use:     "Analyze <queue> <jobSet>",
+		Use:     "analyze <queue> <jobSet>",
 		Aliases: []string{"gen"},
 		Short:   "Analyze job events in job set.",
 		Args:    cobra.ExactArgs(2),

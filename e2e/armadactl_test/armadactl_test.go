@@ -261,7 +261,7 @@ jobs:
 		}
 	}
 
-	// analyse
+	// analyze
 	err = retry.Do(
 		func() error {
 			err = app.Analyze(name, "set1")
@@ -287,7 +287,7 @@ jobs:
 		retry.Attempts(100), // default retry delay is 100ms and it may take 10 seconds for the server to commit a job
 	)
 	if err != nil {
-		t.Fatalf("error on calling Analyse: %s", err)
+		t.Fatalf("error on calling Analyze: %s", err)
 	}
 
 	// resources
