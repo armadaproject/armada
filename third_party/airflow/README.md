@@ -40,7 +40,7 @@ You can install the package via `pip3 install third_party/airflow`.
 
 You can use our tox file that streamlines development lifecycle.  For development, you can install black, tox, mypy and flake8.
 
-`python3.8 -m tox -e py8` will run unit tests.
+`python3.8 -m tox -e py38` will run unit tests.
 
 `python3.8 -m tox -e format` will run a format check
 
