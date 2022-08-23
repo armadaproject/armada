@@ -85,7 +85,7 @@ func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error 
 }
 
 func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
-	events := make([]*api.EventMessage, len(batch), len(batch))
+	events := make([]*api.EventMessage, 0, len(batch))
 	for _, msg := range batch {
 		event := msg.EventMessage
 		// For submitted events we null out the podspec(s)
