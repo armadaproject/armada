@@ -20,11 +20,8 @@ import (
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
-)
-
-const (
+	jobIdString    = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString    = "123e4567-e89b-12d3-a456-426614174000"
 	jobSetName     = "testJobset"
 	executorId     = "testCluster"
 	nodeName       = "testNode"
