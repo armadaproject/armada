@@ -16,30 +16,30 @@ def creating_full_queues_example(client, queue):
     Will skip if the queue already exists.
     """
 
-    subject = Subject(type="Group", name="group1")
+    subject = Subject(kind="Group", name="group1")
     permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
 
     resource_limits = {"cpu": 1.0, "memory": 1.0}
 
-    client.create_queue(
+    queue_req = client.create_queue_request(
         name=queue,
         priority_factor=3.0,
         user_owners=["user1"],
         group_owners=["group1"],
         resource_limits=resource_limits,
-        permissions=permissions,
+        permissions=[permissions],
     )
 
     # Make sure we handle the queue already existing
     try:
-        client.create_queue(name=queue, priority_factor=1)
+        client.create_queue(queue_req)
 
     # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
             print(f"Queue {queue} already exists")
-            client.update_queue(name=queue, priority_factor=1)
+            client.update_queue(queue_req)
         else:
             raise e
 

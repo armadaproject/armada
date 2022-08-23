@@ -84,16 +84,18 @@ def quick_create_queue(client, queue):
     Will skip if the queue already exists.
     """
 
+    queue_req = client.create_queue_request(name=queue, priority_factor=1)
+
     # Make sure we handle the queue already existing
     try:
-        client.create_queue(name=queue, priority_factor=1)
+        client.create_queue(queue_req)
 
     # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
             print(f"Queue {queue} already exists")
-            client.update_queue(name=queue, priority_factor=1)
+            client.update_queue(queue_req)
         else:
             raise e
 
