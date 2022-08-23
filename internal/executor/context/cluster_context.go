@@ -128,7 +128,7 @@ func NewClusterContext(
 		},
 	})
 
-	// Use node informer so it is initialized properly
+	// Use node informer so it is initialised properly
 	context.nodeInformer.Lister()
 	context.serviceInformer.Lister()
 	context.ingressInformer.Lister()

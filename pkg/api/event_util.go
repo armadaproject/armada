@@ -23,7 +23,7 @@ type KubernetesEvent interface {
 	GetPodNamespace() string
 }
 
-// customize oneof serialization
+// customise oneof serialisation
 func (message *EventMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(message.Events)
 }

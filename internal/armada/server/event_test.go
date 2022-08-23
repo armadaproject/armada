@@ -67,7 +67,7 @@ func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
 		err := s.GetJobSetEvents(&api.JobSetRequest{
 			Id:             "job-set-1",
 			Watch:          false,
-			Queue:          "non-existant-queue",
+			Queue:          "non-existent-queue",
 			ErrorIfMissing: false,
 		}, stream)
 		e, ok := status.FromError(err)

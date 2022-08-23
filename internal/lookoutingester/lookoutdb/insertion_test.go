@@ -298,7 +298,7 @@ func TestUpdateJobsScalar(t *testing.T) {
 
 func TestUpdateJobsWithCancelled(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		intial := []*model.CreateJobInstruction{{
+		initial := []*model.CreateJobInstruction{{
 			JobId:     jobIdString,
 			Queue:     queue,
 			Owner:     userId,
@@ -324,7 +324,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 		}}
 
 		// Insert
-		CreateJobs(ctx.Background(), db, intial)
+		CreateJobs(ctx.Background(), db, initial)
 
 		// Cancel the job
 		UpdateJobs(ctx.Background(), db, update1)

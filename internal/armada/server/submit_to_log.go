@@ -65,7 +65,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	// Create legacy API jobs from the requests.
-	// We use the legacy code for the conversion to ensure that behavior doesn't change.
+	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
 	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
 		return nil, err
@@ -520,7 +520,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	}, nil
 }
 
-// Authorize authorizes a user request to submit a state transition message to the log.
+// Authorize authorises a user request to submit a state transition message to the log.
 // User information used for authorization is extracted from the provided context.
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.

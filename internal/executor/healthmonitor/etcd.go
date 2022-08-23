@@ -286,7 +286,7 @@ func (srv *EtcdHealthMonitor) getInstanceCurrentFractionOfResourceInUse(instance
 	}
 
 	if instance.lastCheck.IsZero() {
-		return 0, fmt.Errorf("no scrape has ever occured for this instance, possibly etcd health check is still initialising")
+		return 0, fmt.Errorf("no scrape has ever occurred for this instance, possibly etcd health check is still initialising")
 	}
 
 	metricsAge := time.Since(instance.lastCheck)
