@@ -27,6 +27,12 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
     def UpdateQueue(self, request, context):
         return empty_pb2.Empty()
 
+    def CreateQueues(self, request, context):
+        return submit_pb2.BatchQueueCreateResponse()
+
+    def UpdateQueues(self, request, context):
+        return submit_pb2.BatchQueueUpdateResponse()
+
 
 class EventService(event_pb2_grpc.EventServicer):
     def GetJobSetEvents(self, request, context):
