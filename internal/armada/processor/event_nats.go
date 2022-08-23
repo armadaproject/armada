@@ -85,13 +85,19 @@ func (p *RedisEventProcessor) handleMessage(message *eventstream.Message) error 
 }
 
 func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
-	events := make([]*api.EventMessage, len(batch), len(batch))
-	for i, msg := range batch {
-		events[i] = msg.EventMessage
+	events := make([]*api.EventMessage, 0, len(batch))
+	for _, msg := range batch {
+		event := msg.EventMessage
 		// For submitted events we null out the podspec(s)
-		if events[i].GetSubmitted() != nil {
-			events[i].GetSubmitted().Job.PodSpecs = nil
-			events[i].GetSubmitted().Job.PodSpec = nil
+		if event.GetSubmitted() != nil {
+			event.GetSubmitted().Job.PodSpecs = nil
+			event.GetSubmitted().Job.PodSpec = nil
+		}
+
+		// Filter out JobUpdated events as they are purely for internal consumption
+		isJobUpdatedEvent := msg.EventMessage.GetUpdated() != nil
+		if !isJobUpdatedEvent {
+			events = append(events, msg.EventMessage)
 		}
 	}
 
