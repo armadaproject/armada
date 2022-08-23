@@ -574,3 +574,9 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
     		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
     		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
+
+resetsql:
+	docker rm -f postgres
+	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	$(GO_TEST_CMD) sqlc generate -f internal/eventscheduler/sql/sql.yaml
+	$(GO_TEST_CMD) templify -e -p=sql internal/eventscheduler/sql/schema.sql	
