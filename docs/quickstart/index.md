@@ -1,6 +1,6 @@
 # Armada Quickstart
 
-The purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
+The main purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
 
 ## Pre-requisites
 
@@ -13,7 +13,7 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters.
 
-You should then clone this repository and step into it:
+Clone [this](https://github.com/G-Research/armada) repository:
 
 ```bash
 git clone https://github.com/G-Research/armada.git
@@ -27,10 +27,10 @@ Armada is a resource intensive application due to the need to run multiple Kuber
 ### One-click Setup
 
 To install Armada and all its dependencies you can use this script: 
-https://github.com/G-Research/armada/blob/master/docs/local/setup.sh
+[https://github.com/G-Research/armada/blob/master/docs/local/setup.sh](https://github.com/G-Research/armada/blob/master/docs/local/setup.sh)
 
-Likewise this script will remove the Armada components from your system: 
-https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh
+Likewise you can remove the Armada components from your system: 
+[https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh](https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh)
 
 
 ## Usage

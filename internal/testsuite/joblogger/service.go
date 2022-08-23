@@ -75,6 +75,10 @@ func (srv *JobLogger) validateConfig() error {
 }
 
 func (srv *JobLogger) Run(ctx context.Context) error {
+	if len(srv.clusters) == 0 {
+		return pkgerrors.New("no executor clusters configured to scrape for logs")
+	}
+
 	kubeconfig, err := getKubeConfigPath()
 	if err != nil {
 		return pkgerrors.WithMessage(err, "cannot find kubeconfig path")
