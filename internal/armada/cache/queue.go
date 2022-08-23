@@ -70,15 +70,15 @@ func (c *QueueCache) Refresh() {
 	clusterInfoByPool := scheduling.GroupSchedulingInfoByPool(activeClusterInfo)
 
 	for _, q := range queues {
-		err := c.calculateRunningJobMetrics(q, activeClusterInfo)
+		e := c.calculateRunningJobMetrics(q, activeClusterInfo)
 		if e != nil {
 			log.Errorf("Failed calculating running jobs metrics for queue %s because %s", q.Name, e)
 			continue
 		}
 
-		err = c.calculateQueuedJobMetrics(q, clusterInfoByPool)
-		if err != nil {
-			log.Errorf("Failed calculating queued job metrics for queue %s because %s", q.Name, err)
+		e = c.calculateQueuedJobMetrics(q, clusterInfoByPool)
+		if e != nil {
+			log.Errorf("Failed calculating queued job metrics for queue %s because %s", q.Name, e)
 			continue
 		}
 	}
@@ -94,7 +94,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByP
 	nonMatchingJobs := map[string]stringSet{}
 	queueDurationByPool := map[string]*metrics.FloatMetricsRecorder{}
 	currentTime := time.Now()
-	for _, chunkJobIds := range util.Chunk(queuedJobIds, objectsToLoadBatchSize) {
+	for _, chunkJobIds := range util.Batch(queuedJobIds, objectsToLoadBatchSize) {
 		queuedJobs, e := c.jobRepository.GetExistingJobsByIds(chunkJobIds)
 		if e != nil {
 			return fmt.Errorf("failed loading jobs - %s", e)
@@ -153,7 +153,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 		return fmt.Errorf("failed getting lease job ids - %s", e)
 	}
 
-	for _, chunkJobIds := range util.Chunk(leasedJobsIds, objectsToLoadBatchSize) {
+	for _, chunkJobIds := range util.Batch(leasedJobsIds, objectsToLoadBatchSize) {
 		leasedJobs, e := c.jobRepository.GetExistingJobsByIds(chunkJobIds)
 		if e != nil {
 			return fmt.Errorf("failed getting leased jobs - %s", e)

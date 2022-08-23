@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/pkg/client/queue"
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 func TestCalculateRunningJobStats(t *testing.T) {
