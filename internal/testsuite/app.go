@@ -83,7 +83,6 @@ func (a *App) Version() error {
 }
 
 func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcase, error) {
-
 	// Load test spec.
 	testSpec, err := TestSpecFromFilePath(filePath)
 	if err != nil {

@@ -30,7 +30,6 @@ import (
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
-
 	err := validateConfig(config)
 	if err != nil {
 		log.Errorf("Invalid config: %s", err)
@@ -76,7 +75,6 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 }
 
 func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
-
 	conn, err := createConnectionToApi(config)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)

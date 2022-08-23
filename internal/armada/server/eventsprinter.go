@@ -29,7 +29,6 @@ type EventsPrinter struct {
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *EventsPrinter) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {
@@ -63,7 +62,6 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 
 	// Run until ctx is cancelled.
 	for {
-
 		// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 		select {
 		case <-ctx.Done():
@@ -73,7 +71,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
-			if errors.Is(err, context.DeadlineExceeded) { //expected
+			if errors.Is(err, context.DeadlineExceeded) { // expected
 				log.Info("no new messages from Pulsar (or another instance holds the subscription)")
 				break
 			} else if err != nil {

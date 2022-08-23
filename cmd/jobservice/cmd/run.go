@@ -29,6 +29,7 @@ func runCmd(app *jobservice.App) *cobra.Command {
 
 	return cmd
 }
+
 func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		g, ctx := errgroup.WithContext(context.Background())

@@ -48,7 +48,7 @@ func (r *EventApi) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_
 	if err != nil {
 		return err
 	}
-	var upTo = int64(math.MaxInt64)
+	upTo := int64(math.MaxInt64)
 	if !request.Watch {
 		upTo, err = r.getLastMessageId(request.Queue, request.Id)
 		if err != nil {

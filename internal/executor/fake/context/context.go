@@ -287,7 +287,8 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 				},
 				Status: v1.NodeStatus{
 					Allocatable: s.Allocatable,
-				}}
+				},
+			}
 			c.nodes = append(c.nodes, node)
 			c.nodeAvailableResource[node.Name] = common.FromResourceList(s.Allocatable)
 		}

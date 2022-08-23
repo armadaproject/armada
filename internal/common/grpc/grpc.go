@@ -30,16 +30,16 @@ import (
 func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
-	authServices []authorization.AuthService) *grpc.Server {
-
+	authServices []authorization.AuthService,
+) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
 	// There are separate interceptors for unary and streaming gRPC calls.
 	unaryInterceptors := []grpc.UnaryServerInterceptor{}
 	streamInterceptors := []grpc.StreamServerInterceptor{}
 
-	//Automatically recover from panics
-	//NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor
+	// Automatically recover from panics
+	// NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor
 	recovery := grpc_recovery.WithRecoveryHandler(panicRecoveryHandler)
 	unaryInterceptors = append(unaryInterceptors, grpc_recovery.UnaryServerInterceptor(recovery))
 	streamInterceptors = append(streamInterceptors, grpc_recovery.StreamServerInterceptor(recovery))

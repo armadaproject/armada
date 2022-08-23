@@ -27,6 +27,7 @@ type KubernetesEvent interface {
 func (message *EventMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(message.Events)
 }
+
 func (message *EventMessage) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, message.Events)
 }

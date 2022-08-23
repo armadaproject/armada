@@ -3,10 +3,9 @@ package ingestion
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
-
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -41,9 +40,8 @@ func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, buffer
 	return out
 }
 
-//ConvertMsg converts pulsar messages into events that we can insert into the database
+// ConvertMsg converts pulsar messages into events that we can insert into the database
 func (rc *MessageRowConverter) ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage) (*model.PulsarEventRow, error) {
-
 	pulsarMsg := msg.Message
 
 	// If it's not a control message then just propagate the message

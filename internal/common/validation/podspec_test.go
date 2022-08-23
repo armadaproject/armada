@@ -24,7 +24,6 @@ func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
-
 	cpu := resource.MustParse("1")
 	cpu2 := resource.MustParse("2")
 	memory := resource.MustParse("512Mi")

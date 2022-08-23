@@ -26,8 +26,8 @@ func CreateGatewayHandler(
 	apiBasePath string,
 	corsAllowedOrigins []string,
 	spec string,
-	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
-
+	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
+) (shutdown func()) {
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
 
 	grpcAddress := fmt.Sprintf(":%d", grpcPort)

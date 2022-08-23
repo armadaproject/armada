@@ -11,9 +11,11 @@ import (
 
 var imagePullBackOffStatesSet = util.StringListToSet([]string{"ImagePullBackOff", "ErrImagePull"})
 
-const oomKilledReason = "OOMKilled"
-const evictedReason = "Evicted"
-const deadlineExceeded = "DeadlineExceeded"
+const (
+	oomKilledReason  = "OOMKilled"
+	evictedReason    = "Evicted"
+	deadlineExceeded = "DeadlineExceeded"
+)
 
 // TODO: Need to detect pod preemption. So that job failed events can include a string indicating a pod was preempted.
 // We need this so that whatever system submitted the job knows the job was preempted.
@@ -79,8 +81,8 @@ func ExtractFailedPodContainerStatuses(pod *v1.Pod) []*api.ContainerStatus {
 
 	for _, containerStatus := range containerStatuses {
 		if containerStatus.State.Terminated == nil {
-			//This function is meant to be finding exit stauses of containers
-			//Skip non-finished containers
+			// This function is meant to be finding exit stauses of containers
+			// Skip non-finished containers
 			continue
 		}
 		status := &api.ContainerStatus{

@@ -11,8 +11,11 @@ import "github.com/apache/pulsar-client-go/pulsar"
 // Hence, consumers can distinguish between control and utilisation messages by inspecting this property.
 // If the property isn't included, the message should be interpreted as a control message.
 const PULSAR_MESSAGE_TYPE_PROPERTY = "type"
-const PULSAR_UTILISATION_MESSAGE = "utilisation"
-const PULSAR_CONTROL_MESSAGE = "control"
+
+const (
+	PULSAR_UTILISATION_MESSAGE = "utilisation"
+	PULSAR_CONTROL_MESSAGE     = "control"
+)
 
 // IsControlMessage returns true if msg is a control message, and false otherwise.
 func IsControlMessage(msg pulsar.Message) bool {

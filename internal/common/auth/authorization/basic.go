@@ -34,7 +34,6 @@ func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principa
 func (authService *BasicAuthService) loginUser(username string, password string) (Principal, error) {
 	userInfo, ok := authService.users[username]
 	if ok && userInfo.Password == password {
-
 		return NewStaticPrincipal(username, userInfo.Groups), nil
 	}
 	return nil, invalidCredentials
