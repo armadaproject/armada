@@ -168,7 +168,7 @@ def test_cancel_jobset():
     test_create_queue()
     test_submit_job()
     tester.cancel_jobset(
-        queue="test", job_set_id="job-set-1", filter_states=[JobState.RUNNING]
+        queue="test", job_set_id="job-set-1", filter_states=[JobState.RUNNING, JobState.PENDING]
     )
 
 
