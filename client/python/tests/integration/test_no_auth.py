@@ -189,7 +189,7 @@ def test_submit_job_and_cancelling_with_filter(client: ArmadaClient, queue_name)
 
     client.cancel_jobset(
         queue=queue_name,
-        job_set_id="job-set-1",
+        job_set_id=job_set_name,
         filter_states=[JobState.RUNNING, JobState.PENDING],
     )
 
