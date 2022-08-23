@@ -30,6 +30,7 @@ linters-settings:
     locale: UK
     ignore-words:
       - analyze
+      - serialize
   revive:
     rules:
       - name: blank-imports
