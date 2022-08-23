@@ -14,6 +14,12 @@ def get_all_job_event_classes():
 
 
 def get_job_states():
+    """
+    submit_pb2.JobState.DESCRIPTOR holds the enum data of JobState.
+
+    `name` is the name of the enum value.
+    `value` is the value of the enum value.
+    """
     return [
         (name, value)
         for name, value in zip(
@@ -38,7 +44,11 @@ def gen_file(states, classes, jobstates):
         f"\n\nclass EventType(Enum):{states_docstring}\n" f"{enum_options}\n\n"
     )
 
-    jobstates_docstring = '\n    """\n' + "    Enum for the job states." + '\n    """\n'
+    jobstates_docstring = (
+        '\n    """\n'
+        + "    Enum for the job states.\n    Used by cancel_jobset."
+        + '\n    """\n'
+    )
     jobstates_text = (
         f"\nclass JobState(Enum):{jobstates_docstring}\n" f"{job_states}\n\n"
     )

@@ -135,6 +135,7 @@ expected_jobstates_text = '''
 class JobState(Enum):
     """
     Enum for the job states.
+    Used by cancel_jobset.
     """
 
     QUEUED = 0

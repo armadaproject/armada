@@ -147,7 +147,7 @@ class ArmadaClient:
         """
 
         job_filter = submit_pb2.JobSetFilter(
-            states=(state.value for state in filter_states)
+            states=[state.value for state in filter_states]
         )
         request = submit_pb2.JobSetCancelRequest(
             queue=queue, job_set_id=job_set_id, filter=job_filter
