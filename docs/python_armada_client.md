@@ -174,6 +174,22 @@ Create a queue request object.
 
 
 
+#### create_queues(queues)
+Uses the CreateQueues RPC to create a list of queues.
+
+
+* **Parameters**
+
+    **queues** (*List**[**armada.submit_pb2.Queue**]*) – A list of queues to create.
+
+
+
+* **Return type**
+
+    armada.submit_pb2.BatchQueueCreateResponse
+
+
+
 #### delete_queue(name)
 Delete an empty queue by name.
 
@@ -413,6 +429,22 @@ Uses the UpdateQueue RPC to update a queue.
 * **Return type**
 
     google.protobuf.empty_pb2.Empty
+
+
+
+#### update_queues(queues)
+Uses the UpdateQueues RPC to update a list of queues.
+
+
+* **Parameters**
+
+    **queues** (*List**[**armada.submit_pb2.Queue**]*) – A list of queues to update.
+
+
+
+* **Return type**
+
+    armada.submit_pb2.BatchQueueUpdateResponse
 
 
 ## armada_client.event module
