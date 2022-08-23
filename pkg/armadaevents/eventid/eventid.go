@@ -43,7 +43,7 @@ func (id *EventId) BatchIdx() int32 {
 	return id.messageId.BatchIdx()
 }
 
-func (id *EventId) Serialize() []byte {
+func (id *EventId) Serialise() []byte {
 	panic("not implemented")
 }
 

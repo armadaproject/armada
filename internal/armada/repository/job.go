@@ -91,7 +91,7 @@ func NewRedisJobRepository(
 	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
 }
 
-// TODO DuplicateDetected should be remove in favor of setting the error to
+// TODO DuplicateDetected should be remove in favour of setting the error to
 // indicate the job already exists (e.g., by creating ErrJobExists).
 type SubmitJobResult struct {
 	JobId             string

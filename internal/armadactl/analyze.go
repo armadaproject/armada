@@ -11,7 +11,7 @@ import (
 	"github.com/G-Research/armada/pkg/client/domain"
 )
 
-func (a *App) Analyze(queue string, jobSetId string) error {
+func (a *App) Analyse(queue string, jobSetId string) error {
 	fmt.Fprintf(a.Out, "Querying queue %s for job set %s\n", queue, jobSetId)
 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(ec api.EventClient) error {
 		events := map[string][]*api.Event{}

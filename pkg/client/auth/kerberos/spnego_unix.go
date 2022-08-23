@@ -81,7 +81,7 @@ func (s *spnegoCredentials) GetRequestMetadata(ctx context.Context, uri ...strin
 	}
 	st, err := spnegoClient.InitSecContext()
 	if err != nil {
-		return nil, fmt.Errorf("could not initialize context: %v", err)
+		return nil, fmt.Errorf("could not initialise context: %v", err)
 	}
 	token, err := st.Marshal()
 	if err != nil {

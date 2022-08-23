@@ -55,7 +55,7 @@ func (id *PulsarMessageId) BatchIdx() int32 {
 	return id.batchIdx
 }
 
-func (id *PulsarMessageId) Serialize() []byte {
+func (id *PulsarMessageId) Serialise() []byte {
 	panic("not implemented")
 }
 

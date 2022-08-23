@@ -43,7 +43,7 @@ func (stream *StanEventStream) Publish(events []*api.EventMessage) []error {
 	for _, m := range events {
 		messageData, err := proto.Marshal(m)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error while marshaling event: %v", err))
+			errs = append(errs, fmt.Errorf("error while marshalling event: %v", err))
 		}
 		_, err = stream.stanClient.PublishAsync(stream.subject, messageData, func(subj string, err error) {
 			if err != nil {

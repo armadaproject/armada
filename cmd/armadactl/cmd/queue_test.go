@@ -6,7 +6,7 @@ order) to the underlying API of armadactl, which, during normal operation, is th
 package.
 
 It does so by hijacking the armadactl setup process and replacing the PreRunE function of the Cobra
-"create queue" command, which initializes the armadactl app, with a function that replaces the
+"create queue" command, which initialises the armadactl app, with a function that replaces the
 regular queue API of armadactl with a version that compares against hard-coded correct values.
 
 */

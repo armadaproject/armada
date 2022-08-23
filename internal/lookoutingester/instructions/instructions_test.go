@@ -368,7 +368,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	}
 	assert.Equal(t, expected, instructions)
 
-	// Run Suceeded
+	// Run Succeeded
 	msg4 := NewMsg(baseTime, jobRunSucceeded)
 	instructions = ConvertMsg(context.Background(), msg4, userAnnotationPrefix, compressor)
 	expected = &model.InstructionSet{
@@ -377,7 +377,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	}
 	assert.Equal(t, expected, instructions)
 
-	// Job Suceeded
+	// Job Succeeded
 	msg5 := NewMsg(baseTime, jobSucceeded)
 	instructions = ConvertMsg(context.Background(), msg5, userAnnotationPrefix, compressor)
 	expected = &model.InstructionSet{

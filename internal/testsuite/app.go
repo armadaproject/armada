@@ -42,7 +42,7 @@ type App struct {
 	// but can be overridden in tests to make assertions on the applications's output.
 	Out io.Writer
 	// Source of randomness. Tests can use a mocked random source in order to provide
-	// deterministic testing behavior.
+	// deterministic testing behaviour.
 	Random io.Reader
 	// Benchmark reports from test files
 	reports []*eventbenchmark.TestCaseBenchmarkReport
@@ -138,7 +138,7 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 		return nil, err
 	}
 
-	// Randomize jobSetName for each test to ensure we're only getting events for this run.
+	// Randomise jobSetName for each test to ensure we're only getting events for this run.
 	fileName := filepath.Base(filePath)
 	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	testSpec.JobSetId = fileName + "-" + shortuuid.New()

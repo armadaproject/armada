@@ -61,7 +61,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 	log.Infof("Deleting jobs which haven't changed since cutoff=%v, batch size=%v", cutoff.Format(postgresFormat), batchSizeLimit)
 	_, err := db.ExecContext(ctx, queryText)
 	if err == nil {
-		log.Infof("Deleting jobs finished sucessfully")
+		log.Infof("Deleting jobs finished successfully")
 	} else {
 		log.Warnf("Deleting jobs failed")
 	}

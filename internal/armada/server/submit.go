@@ -633,7 +633,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	principalName := authorization.GetPrincipal(ctx).GetName()
 	err = reportJobsReprioritizing(server.eventStore, principalName, jobs, request.NewPriority)
 	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error reporting job re-prioritization: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error reporting job re-prioritisation: %s", err)
 	}
 
 	jobIds := []string{}
@@ -642,7 +642,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	}
 	results, err := server.reprioritizeJobs(jobIds, request.NewPriority, principalName)
 	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error re-prioritizing jobs: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error re-prioritising jobs: %s", err)
 	}
 
 	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil

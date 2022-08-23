@@ -9,9 +9,9 @@ import (
 func analyzeCmd() *cobra.Command {
 	a := armadactl.New()
 	cmd := &cobra.Command{
-		Use:     "analyze <queue> <jobSet>",
+		Use:     "analyse <queue> <jobSet>",
 		Aliases: []string{"gen"},
-		Short:   "Analyze job events in job set.",
+		Short:   "Analyse job events in job set.",
 		Args:    cobra.ExactArgs(2),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
