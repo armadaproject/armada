@@ -28,6 +28,8 @@ linters-settings:
     suggest-new: true
   misspell:
     locale: UK
+    ignore-words:
+      - analyze
   revive:
     rules:
       - name: blank-imports

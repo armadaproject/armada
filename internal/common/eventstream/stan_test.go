@@ -19,11 +19,11 @@ type MockStanClient struct {
 }
 
 func (c *MockStanClient) PublishAsync(subject string, data []byte, ah stan.AckHandler) (string, error) {
-	if c.behavior == "fail" {
+	if c.behaviour == "fail" {
 		ah(subject, errors.New("something bad happened"))
 		return subject, nil
 	}
-	if c.behavior == "callback_timeout" {
+	if c.behaviour == "callback_timeout" {
 		// Never invoke the callback
 		return subject, nil
 	}
