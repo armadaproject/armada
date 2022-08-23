@@ -13,6 +13,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/G-Research/armada/internal/testsuite/joblogger"
+
 	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
 	"github.com/G-Research/armada/internal/testsuite/eventlogger"
 
@@ -232,6 +234,23 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	watcher.Out = a.Out
 	g.Go(func() error { return watcher.Run(ctx) })
 
+	jobLogger, err := a.createJobLogger(testSpec)
+	if err != nil {
+		return errors.WithMessage(err, "error creating job logger")
+	}
+	executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
+	if testSpec.GetLogs {
+		if executorClustersDefined {
+			g.Go(func() error { return jobLogger.Run(ctx) })
+		} else {
+			_, _ = fmt.Fprintf(
+				a.Out,
+				"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
+				testSpec.Name,
+			)
+		}
+	}
+
 	// Split the events into multiple channels, one for each downstream service.
 	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, ingressCh, logCh, noActiveCh, benchmarkCh}...)
 	g.Go(func() error { return splitter.Run(ctx) })
@@ -254,13 +273,49 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 
 	// benchmark
 	report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
-	report.Print(a.Out)
+	report.PrintStatistics(a.Out)
 	a.reports = append(a.reports, report)
+
+	// Armada JobSet logs
+	if testSpec.GetLogs && executorClustersDefined {
+		jobLogger.PrintLogs()
+	}
 
 	// Cancel any jobs we haven't seen a terminal event for.
 	_ = client.WithSubmitClient(a.Params.ApiConnectionDetails, submitWithCancel(testSpec, terminatedByJobId, a.Out))
 
 	return err
+}
+
+func (a *App) createJobLogger(testSpec *api.TestSpec) (*joblogger.JobLogger, error) {
+	namespace, err := getJobNamespace(testSpec)
+	if err != nil {
+		return nil, err
+	}
+	jobLogger, err := joblogger.New(
+		a.Params.ApiConnectionDetails.ExecutorClusters,
+		namespace,
+		joblogger.WithOutput(a.Out),
+		joblogger.WithJobSetId(testSpec.GetJobSetId()),
+		joblogger.WithQueue(testSpec.GetQueue()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return jobLogger, nil
+}
+
+// getJobNamespace extracts the namespace in which the job will be created
+// current assumption is that all jobs will execute in the same namespace
+func getJobNamespace(testSpec *api.TestSpec) (string, error) {
+	if len(testSpec.Jobs) == 0 {
+		return "", errors.New("no jobs in test spec")
+	}
+	namespace := testSpec.GetJobs()[0].Namespace
+	if namespace == "" {
+		return "default", nil
+	}
+	return testSpec.GetJobs()[0].Namespace, nil
 }
 
 func (a *App) printTestHeader(testSpec *api.TestSpec, logInterval time.Duration) {

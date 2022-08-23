@@ -3,10 +3,11 @@ package repository
 import "time"
 
 type SubscribeTable struct {
-	subscribedJobSet     string
+	queue                string
+	jobSet               string
 	lastRequestTimeStamp int64
 }
 
-func NewSubscribeTable(queueJobSet string) *SubscribeTable {
-	return &SubscribeTable{subscribedJobSet: queueJobSet, lastRequestTimeStamp: time.Now().Unix()}
+func NewSubscribeTable(queue string, jobSet string) *SubscribeTable {
+	return &SubscribeTable{queue: queue, jobSet: jobSet, lastRequestTimeStamp: time.Now().Unix()}
 }

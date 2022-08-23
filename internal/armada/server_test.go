@@ -141,6 +141,49 @@ func TestCancelJob(t *testing.T) {
 	})
 }
 
+func TestCancelJobSet(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+
+		_, err := client.CreateQueue(ctx, &api.Queue{
+			Name:           "test",
+			PriorityFactor: 1,
+		})
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+
+		cpu, _ := resource.ParseQuantity("1")
+		memory, _ := resource.ParseQuantity("512Mi")
+
+		SubmitJob(client, ctx, cpu, memory, t)
+		SubmitJob(client, ctx, cpu, memory, t)
+
+		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+		assert.Equal(t, 1, len(leasedResponse.Job))
+
+		queuedCount, leasedCount := getQueueStateSummary(ctx, t, client, "test")
+		assert.Equal(t, queuedCount, 1)
+		assert.Equal(t, leasedCount, 1)
+
+		_, err = client.CancelJobSet(ctx,
+			&api.JobSetCancelRequest{
+				JobSetId: "set",
+				Queue:    "test",
+				Filter: &api.JobSetFilter{
+					States: []api.JobState{api.JobState_QUEUED},
+				},
+			})
+		assert.NoError(t, err)
+
+		queuedCount, leasedCount = getQueueStateSummary(ctx, t, client, "test")
+		assert.Equal(t, queuedCount, 0)
+		assert.Equal(t, leasedCount, 1)
+	})
+}
+
 func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
 	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
@@ -148,6 +191,19 @@ func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, avail
 		Resources: availableResource,
 		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
 	})
+}
+
+func getQueueStateSummary(ctx context.Context, t *testing.T, client api.SubmitClient, queue string) (queuedCount int, leasedCount int) {
+	queueInfo, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: queue})
+	assert.NoError(t, err)
+	queuedCount = 0
+	leasedCount = 0
+
+	for _, jobSetInfo := range queueInfo.ActiveJobSets {
+		queuedCount += int(jobSetInfo.QueuedJobs)
+		leasedCount += int(jobSetInfo.LeasedJobs)
+	}
+	return queuedCount, leasedCount
 }
 
 func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quantity, memory resource.Quantity, t *testing.T) string {

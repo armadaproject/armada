@@ -1,5 +1,6 @@
 import React from "react"
 
+import Truncate from "react-truncate"
 import { TableCellProps, Table as VirtualizedTable } from "react-virtualized"
 import { Column, defaultTableCellRenderer } from "react-virtualized"
 
@@ -36,6 +37,14 @@ function cellRendererForState(
   return defaultTableCellRenderer(cellProps)
 }
 
+function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
+  return (
+    <Truncate width={width * 1.5} lines={1}>
+      {cellProps.cellData}
+    </Truncate>
+  )
+}
+
 export default function JobSetTable(props: JobSetTableProps) {
   return (
     <div
@@ -47,7 +56,7 @@ export default function JobSetTable(props: JobSetTableProps) {
       <VirtualizedTable
         rowGetter={({ index }) => props.jobSets[index]}
         rowCount={props.jobSets.length}
-        rowHeight={40}
+        rowHeight={50}
         headerHeight={60}
         height={props.height}
         width={props.width}
@@ -76,10 +85,16 @@ export default function JobSetTable(props: JobSetTableProps) {
           )
         }}
       >
-        <Column dataKey="jobSetId" width={0.25 * props.width} label="Job Set" />
+        <Column
+          dataKey="jobSetId"
+          width={0.5 * props.width}
+          label="Job Set"
+          cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, 0.5 * props.width)}
+          className="job-set-table-job-set-name-cell"
+        />
         <Column
           dataKey="latestSubmissionTime"
-          width={0.25 * props.width}
+          width={0.15 * props.width}
           label="Submission Time"
           headerRenderer={(cellProps) => (
             <SortableHeaderCell
@@ -93,35 +108,35 @@ export default function JobSetTable(props: JobSetTableProps) {
         />
         <Column
           dataKey="jobsQueued"
-          width={0.1 * props.width}
+          width={0.07 * props.width}
           label="Queued"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Queued")}
         />
         <Column
           dataKey="jobsPending"
-          width={0.1 * props.width}
+          width={0.07 * props.width}
           label="Pending"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Pending")}
         />
         <Column
           dataKey="jobsRunning"
-          width={0.1 * props.width}
+          width={0.07 * props.width}
           label="Running"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Running")}
         />
         <Column
           dataKey="jobsSucceeded"
-          width={0.1 * props.width}
+          width={0.07 * props.width}
           label="Succeeded"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Succeeded")}
         />
         <Column
           dataKey="jobsFailed"
-          width={0.1 * props.width}
+          width={0.07 * props.width}
           label="Failed"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
