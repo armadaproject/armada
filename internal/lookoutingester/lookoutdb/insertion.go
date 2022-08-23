@@ -673,9 +673,7 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 
 // filterEventsForCancelledJobs queries the database for any jobs that are in the cancelled state and removes them from the list of
 // instructions.  This is necessary because Armada will generate event stauses even for jobs that have been cancelled
-//
-//	The proper solution here is to make it so once a job is cancelled, no more events are generated for it, but until
-//
+// The proper solution here is to make it so once a job is cancelled, no more events are generated for it, but until
 // that day we have to manually filter them out here.
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
 // in the cancelling state.  If, however, the database returns a non-retryable error it will give up and simply not

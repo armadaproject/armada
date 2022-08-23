@@ -32,9 +32,8 @@ import (
 )
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
-const pulsarUrl = "pulsar://localhost:6650"
-
 const (
+	pulsarUrl            = "pulsar://localhost:6650"
 	pulsarTopic          = "persistent://armada/armada/events"
 	pulsarSubscription   = "e2e-test"
 	armadaUrl            = "localhost:50051"
