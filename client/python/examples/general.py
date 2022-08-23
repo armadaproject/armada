@@ -71,7 +71,6 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
     for event in event_stream:
 
         event = client.unmarshal_event_response(event)
-
         if event.message.job_id == job_id:
             if event.type == event_state:
                 return True
@@ -122,16 +121,21 @@ def creating_queues_example(client, queue):
     Also changes the priority of the queue to 2 for demonstration purposes.
     """
 
+    queue_req = client.create_queue_request(name=queue, priority_factor=1)
+
     # Make sure we handle the queue already existing
     try:
-        client.create_queue(name=queue, priority_factor=1)
+        client.create_queue(queue_req)
 
     # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
+
             print(f"Queue {queue} already exists")
-            client.update_queue(name=queue, priority_factor=1)
+            queue_req = client.create_queue_request(name=queue, priority_factor=1)
+            client.update_queue(queue_req)
+
         else:
             raise e
 
@@ -140,7 +144,8 @@ def creating_queues_example(client, queue):
 
     info = client.get_queue(name=queue)
 
-    client.update_queue(name=queue, priority_factor=2)
+    queue_req = client.create_queue_request(name=queue, priority_factor=2)
+    client.update_queue(queue_req)
 
     info = client.get_queue(name=queue)
     print(f"Queue {queue} now has a priority factor of {info.priority_factor}")

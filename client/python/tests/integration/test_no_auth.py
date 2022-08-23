@@ -100,7 +100,8 @@ def get_queue():
 @pytest.fixture(scope="session", autouse=True)
 def create_queue(client: ArmadaClient, queue_name):
 
-    client.create_queue(name=queue_name, priority_factor=1)
+    queue = client.create_queue_request(name=queue_name, priority_factor=1)
+    client.create_queue(queue)
     wait_for(client, queue=queue_name)
 
 
