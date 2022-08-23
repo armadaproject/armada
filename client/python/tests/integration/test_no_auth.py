@@ -9,7 +9,7 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
-from armada_client.typings import JobState, EventType
+from armada_client.typings import JobState
 
 
 def submit_sleep_job(client):
