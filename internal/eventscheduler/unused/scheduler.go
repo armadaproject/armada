@@ -9,6 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// The ingester sort of works.
+// The API sort of also works.
+// There's more stuff that needs to go into the ingester. Like inserting everything.
+// The scheduler needs to be written. It should load data in a loop and create leases.
+// Let's start by writing the scheduler data loading logic. Make it keep track of what's in the system and print it.
+// Once I can see it can keep the state updated I can write the scheduling logic itself.
+
 // TODO: Concerns:
 // - Make sure we can run the scheduler with high availability (i.e., with failover).
 //   Look at the library for writing k8s controllers, which supports leader election. Also how the k8s scheduler does failover.
@@ -29,13 +36,13 @@ import (
 // per-cluster schedulers. Here, we describe the meta-scheduler, which we refer to as "the scheduler".
 //
 // The meta-scheduler subsystem consists of three components:
-// - The scheduler, which is responsible for assigning jobs to executors.
-//   For performance, relies only on in-memory storage during normal operation.
-//   Submits scheduling decisions to the log in the form of lease messages, i.e., tuples (jobId, executorId).
-// - The query API, which is responsible for returning leases associated with an executor.
-//   Relies on a postgres database for storage.
-// - The log processor, which is responsible for updating the in-memory storage of the scheduler and postgres
-//   based on log messages.
+//   - The scheduler, which is responsible for assigning jobs to executors.
+//     For performance, relies only on in-memory storage during normal operation.
+//     Submits scheduling decisions to the log in the form of lease messages, i.e., tuples (jobId, executorId).
+//   - The query API, which is responsible for returning leases associated with an executor.
+//     Relies on a postgres database for storage.
+//   - The log processor, which is responsible for updating the in-memory storage of the scheduler and postgres
+//     based on log messages.
 //
 // During startup, the scheduler initialises its in-memory storage from postgres.
 //
@@ -62,25 +69,25 @@ import (
 // cases, this is to increase the chance that large incoming jobs can be scheduled in a timely fashion.
 //
 // The scheduling algorithm works as follows:
-// 1. Select the queue furthest below its target resource usage.
-// 2. Select the highest priority job from that queue.
-// 3. Filter out all clusters the job could never be run on.
-//    If no clusters remain, mark the job as unschedulable, remove it from the queue, and exit.
-// 4. Filter out all clusters above its lower resource usage threshold.
-//    If no clusters remain, sleep for a bit before restarting the scheduling process.
-//    If the job can't be scheduled on any cluster without exceeding its upper threshold,
-//    temporarily remove the queue from the scheduler and exit.
-// 5. Select all clusters on which the job could be run immediately (i.e., all sufficiently undersubscribed clusters).
-//    If this list is non-empty, assign the job to the most full such cluster (using a bin packing strategy) and exit.
-// 6. Order the list of clusters from step 4 by resource contention and assign the job to the
-//    cluster with the lowest resource contention. Note that, at this point, assigning the job to any cluster results in
-//    it becoming oversubscribed if it was not already.
+//  1. Select the queue furthest below its target resource usage.
+//  2. Select the highest priority job from that queue.
+//  3. Filter out all clusters the job could never be run on.
+//     If no clusters remain, mark the job as unschedulable, remove it from the queue, and exit.
+//  4. Filter out all clusters above its lower resource usage threshold.
+//     If no clusters remain, sleep for a bit before restarting the scheduling process.
+//     If the job can't be scheduled on any cluster without exceeding its upper threshold,
+//     temporarily remove the queue from the scheduler and exit.
+//  5. Select all clusters on which the job could be run immediately (i.e., all sufficiently undersubscribed clusters).
+//     If this list is non-empty, assign the job to the most full such cluster (using a bin packing strategy) and exit.
+//  6. Order the list of clusters from step 4 by resource contention and assign the job to the
+//     cluster with the lowest resource contention. Note that, at this point, assigning the job to any cluster results in
+//     it becoming oversubscribed if it was not already.
 //
 // In addition, the scheduler filters out jobs using the following rules:
-// - For each resource, no job may claim more than some fraction of the total amount of resources.
-// - No queue may be assigned more than some fraction of the total amount of cluster resources.
-// - Jobs marked as "fragile" may only be assigned to a cluster at most once and may not be preempted.
-//   Non-fragile jobs may be re-assigned on failure and may be preempted.
+//   - For each resource, no job may claim more than some fraction of the total amount of resources.
+//   - No queue may be assigned more than some fraction of the total amount of cluster resources.
+//   - Jobs marked as "fragile" may only be assigned to a cluster at most once and may not be preempted.
+//     Non-fragile jobs may be re-assigned on failure and may be preempted.
 //
 // When the scheduler assigns a job to a cluster, it simultaneously updates its in-memory state and submits a "lease"
 // message, i.e., a tuple (job_id, executor_id), to the log. The lease is only visible via the query API once the

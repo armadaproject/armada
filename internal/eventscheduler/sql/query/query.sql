@@ -32,6 +32,33 @@ SELECT job_id, queue, job_set FROM jobs where job_id = ANY(sqlc.arg(job_ids)::UU
 -- name: ListNodeInfo :many
 SELECT * FROM nodeinfo ORDER BY serial;
 
+-- name: UpdateJobPriorityById :exec
+UPDATE jobs SET priority = $1 WHERE job_id = $2;
+
+-- name: UpdateJobPriorityByJobSet :exec
+UPDATE jobs SET priority = $1 WHERE job_set = $2;
+
+-- name: CancelJobById :exec
+UPDATE jobs SET cancelled = true WHERE job_id = $1;
+
+-- name: CancelJobsById :exec
+UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+
+-- name: CancelJobsBySet :exec
+UPDATE jobs SET cancelled = true WHERE job_set = $1;
+
+-- name: CancelJobsBySets :exec
+UPDATE jobs SET cancelled = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
+
+-- name: MarkJobRunRunningById :exec
+UPDATE runs SET running = true WHERE job_id = $1;
+
+-- name: MarkJobRunsRunningById :exec
+UPDATE runs SET running = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+
+-- name: MarkJobRunFailedById :exec
+UPDATE runs SET error = $1 WHERE job_id = $2;
+
 -- -- name: UpsertRecord :exec
 -- INSERT INTO records (id, value, payload) VALUES ($1, $2, $3)
 -- ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, payload = EXCLUDED.payload;

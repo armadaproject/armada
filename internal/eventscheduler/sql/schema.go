@@ -21,6 +21,8 @@ func SchemaTemplate() string {
 		"    user_id text NOT NULL,\n" +
 		"    groups text[] NOT NULL DEFAULT array[]::text[],\n" +
 		"    priority bigint NOT NULL,\n" +
+		"    -- Indicates if this job has been cancelled by a user.\n" +
+		"    cancelled boolean NOT NULL,\n" +
 		"     -- Dict mapping resource type to amount requested.\n" +
 		"     -- TODO: We need proto message containing the minimal amount of data the scheduler needs.\n" +
 		"    -- claims json NOT NULL,\n" +
@@ -36,12 +38,22 @@ func SchemaTemplate() string {
 		"    -- Executor this job run is assigned to.\n" +
 		"    executor text NOT NULL,\n" +
 		"    -- Info of where this job is assigned to run. NULL until assigned to a node.\n" +
+		"    -- TODO: We probably want this to be proto.\n" +
 		"    assignment json,\n" +
 		"    -- True if this run has been sent to the executor already.\n" +
 		"    -- Used to control which runs are sent to the executor when it requests jobs.\n" +
 		"    sent_to_executor boolean NOT NULL,\n" +
 		"    -- Indicates if this lease has been cancelled.\n" +
 		"    cancelled boolean NOT NULL,\n" +
+		"    -- Set to true once a JobRunRunning messages is received for this run.\n" +
+		"    -- I.e., is true if the run has ever been started, even if it later failed.\n" +
+		"    running boolean NOT NULL,\n" +
+		"    -- Set to true if a JobRunSucceeded message is received for this run.\n" +
+		"    succeeded boolean NOT NULL,\n" +
+		"    -- Most recently received terminal error.\n" +
+		"    -- If not NULL, this job has failed.\n" +
+		"    -- There shuld only be at most one terminal error for any given run.\n" +
+		"    error bytea,\n" +
 		"    serial bigserial NOT NULL,\n" +
 		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +

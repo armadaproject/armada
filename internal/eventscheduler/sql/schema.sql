@@ -10,6 +10,8 @@ CREATE TABLE jobs (
     user_id text NOT NULL,
     groups text[] NOT NULL DEFAULT array[]::text[],
     priority bigint NOT NULL,
+    -- Indicates if this job has been cancelled by a user.
+    cancelled boolean NOT NULL,
      -- Dict mapping resource type to amount requested.
      -- TODO: We need proto message containing the minimal amount of data the scheduler needs.
     -- claims json NOT NULL,
@@ -25,12 +27,22 @@ CREATE TABLE runs (
     -- Executor this job run is assigned to.
     executor text NOT NULL,
     -- Info of where this job is assigned to run. NULL until assigned to a node.
+    -- TODO: We probably want this to be proto.
     assignment json,
     -- True if this run has been sent to the executor already.
     -- Used to control which runs are sent to the executor when it requests jobs.
     sent_to_executor boolean NOT NULL,
     -- Indicates if this lease has been cancelled.
     cancelled boolean NOT NULL,
+    -- Set to true once a JobRunRunning messages is received for this run.
+    -- I.e., is true if the run has ever been started, even if it later failed.
+    running boolean NOT NULL,
+    -- Set to true if a JobRunSucceeded message is received for this run.
+    succeeded boolean NOT NULL,
+    -- Most recently received terminal error.
+    -- If not NULL, this job has failed.
+    -- There shuld only be at most one terminal error for any given run.
+    error bytea,
     serial bigserial NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL
 );

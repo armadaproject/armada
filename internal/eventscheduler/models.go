@@ -24,6 +24,7 @@ type Job struct {
 	UserID        string    `db:"user_id"`
 	Groups        []string  `db:"groups"`
 	Priority      int64     `db:"priority"`
+	Cancelled     bool      `db:"cancelled"`
 	SubmitMessage []byte    `db:"submit_message"`
 	Serial        int64     `db:"serial"`
 	LastModified  time.Time `db:"last_modified"`
@@ -56,6 +57,9 @@ type Run struct {
 	Assignment     pgtype.JSON `db:"assignment"`
 	SentToExecutor bool        `db:"sent_to_executor"`
 	Cancelled      bool        `db:"cancelled"`
+	Running        bool        `db:"running"`
+	Succeeded      bool        `db:"succeeded"`
+	Error          []byte      `db:"error"`
 	Serial         int64       `db:"serial"`
 	LastModified   time.Time   `db:"last_modified"`
 }
