@@ -183,20 +183,11 @@ def test_submit_job_and_cancelling_with_filter(client: ArmadaClient, queue_name)
 
     wait_for(client, queue=queue_name, job_set_id=job_set_name)
 
-    event_stream = client.get_job_events_stream(
-        queue=queue_name, job_set_id=job_set_name
-    )
-
     client.cancel_jobset(
         queue=queue_name,
         job_set_id=job_set_name,
         filter_states=[JobState.RUNNING, JobState.PENDING],
     )
-
-    for event in event_stream:
-        event = client.unmarshal_event_response(event)
-        if event.type == EventType.cancelled:
-            break
 
 
 def test_get_job_events_stream(client: ArmadaClient, queue_name):
