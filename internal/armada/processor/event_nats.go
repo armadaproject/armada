@@ -88,6 +88,11 @@ func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
 	events := make([]*api.EventMessage, len(batch), len(batch))
 	for i, msg := range batch {
 		events[i] = msg.EventMessage
+		// For submitted events we null out the podspec(s)
+		if events[i].GetSubmitted() != nil {
+			events[i].GetSubmitted().Job.PodSpecs = nil
+			events[i].GetSubmitted().Job.PodSpec = nil
+		}
 	}
 
 	err := p.repository.ReportEvents(events)
