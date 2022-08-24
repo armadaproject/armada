@@ -66,6 +66,10 @@ jobs:
 
   configure-integration-tests-runner-type:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.18' ]
     outputs:
       runner-type: ${{ steps.runner-type-setup.outputs.runner-type }}
     steps:
