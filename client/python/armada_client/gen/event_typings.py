@@ -17,16 +17,10 @@ def get_job_states():
     """
     submit_pb2.JobState.DESCRIPTOR holds the enum data of JobState.
 
-    `name` is the name of the enum value.
-    `value` is the value of the enum value.
+    `enum.name` is the name of the enum value.
+    `enum.number` is the value of the enum value.
     """
-    return [
-        (name, value)
-        for name, value in zip(
-            submit_pb2.JobState.DESCRIPTOR.values_by_name,
-            submit_pb2.JobState.DESCRIPTOR.values_by_number,
-        )
-    ]
+    return [(enum.name, enum.number) for enum in submit_pb2.JobState.DESCRIPTOR.values]
 
 
 def gen_file(states, classes, jobstates):
