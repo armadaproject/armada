@@ -81,6 +81,8 @@ jobs:
           else
             echo "::set-output name=runner-type::ubuntu-latest"
           fi
+      - name: echo output from previous test
+        run: echo ${{ steps.runner-type-setup.outputs.runner-type }}
 
   go-integration-tests:
     needs:
