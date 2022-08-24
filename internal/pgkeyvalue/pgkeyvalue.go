@@ -108,7 +108,6 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 }
 
 func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
-
 	addedByKey := map[string][]byte{}
 	keysToAdd := map[string][]byte{}
 
@@ -141,13 +140,12 @@ func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[
 		c.tableName,
 		strings.Join(valueStrings, ","))
 	rows, err := c.db.Query(ctx, stmt, valueArgs...)
-
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	for rows.Next() {
-		var key = ""
+		key := ""
 		var value []byte = nil
 		err := rows.Scan(&key, &value)
 		if err != nil {
@@ -161,7 +159,6 @@ func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[
 }
 
 func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
-
 	// Overwriting isn't allowed.
 	if _, ok := c.cache.Get(key); ok {
 		return false, nil
@@ -170,7 +167,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 	// Otherwise, get and set the key in a transaction.
 	var exists *bool
 	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
-
 		// Check if the key already exists in postgres.
 		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
 		err := tx.QueryRow(ctx, sql, key).Scan(&exists)
@@ -189,7 +185,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 
 		return nil
 	})
-
 	// We need to return on error (in particular tx rollback)
 	// to avoid writing to the cache after failing to write to postgres.
 	if err != nil {
@@ -209,7 +204,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 // Get returns the value associated with the provided key,
 // or &armadaerrors.ErrNotFound if the key can't be found.
 func (c *PGKeyValueStore) Get(ctx context.Context, key string) ([]byte, error) {
-
 	// First check the local cache.
 	if value, ok := c.cache.Get(key); ok {
 		return value.([]byte), nil

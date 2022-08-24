@@ -65,7 +65,6 @@ func (lookup *LDAPGroupLookup) readFromCache(SIDs []string) []string {
 }
 
 func (lookup *LDAPGroupLookup) updateCache(SIDs []string) error {
-
 	missing := lookup.getMissingGroups(SIDs)
 
 	if len(missing) == 0 {
@@ -167,8 +166,8 @@ func decodeSID(b []byte) string {
 		authority = authority | uint(b[i])<<uint(8*(5-(i-2)))
 	}
 
-	var offset = 8
-	var size = 4
+	offset := 8
+	size := 4
 	var subAuthorities []uint
 	for i := 0; i < subAuthorityCount; i++ {
 		var subAuthority uint

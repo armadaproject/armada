@@ -12,7 +12,7 @@ type LeasePayloadLimit struct {
 // numberOfJobsLimit            - This is the maximum number of jobs per lease payload
 // payloadSizeLimitBytes        - This is the maximum size of all the Jobs in the lease payload in bytes
 // maxExpectedJobSizeBytes      - This is the maximum expected job size in bytes
-//                                It is used as a threshold to determine when adding more jobs would exceed payloadSizeLimitBytes
+// It is used as a threshold to determine when adding more jobs would exceed payloadSizeLimitBytes
 func NewLeasePayloadLimit(numberOfJobsLimit int, payloadSizeLimitBytes int, maxExpectedJobSizeBytes int) LeasePayloadLimit {
 	return LeasePayloadLimit{
 		remainingJobCount:              numberOfJobsLimit,

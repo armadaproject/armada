@@ -18,7 +18,8 @@ type QueueSchedulingInfo struct {
 func NewQueueSchedulingInfo(
 	remainingSchedulingLimit common.ComputeResourcesFloat,
 	schedulingShare common.ComputeResourcesFloat,
-	adjustedShare common.ComputeResourcesFloat) *QueueSchedulingInfo {
+	adjustedShare common.ComputeResourcesFloat,
+) *QueueSchedulingInfo {
 	return &QueueSchedulingInfo{
 		remainingSchedulingLimit: remainingSchedulingLimit.DeepCopy(),
 		schedulingShare:          schedulingShare.DeepCopy(),
@@ -78,7 +79,6 @@ func filterQueuesWithNoCapacity(queueSchedulingInfo map[*api.Queue]*QueueSchedul
 }
 
 func sliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]common.ComputeResourcesFloat {
-
 	inversePriorities := make(map[*api.Queue]float64)
 	inverseSum := 0.0
 

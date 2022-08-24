@@ -186,6 +186,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorMatchesNoNodes_ReturnsFa
 	assert.False(t, resultFlag)
 	assert.Error(t, err)
 }
+
 func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_ReturnsSecondNode(t *testing.T) {
 	podSpec := &v1.PodSpec{NodeSelector: map[string]string{"a": "b"}}
 
@@ -216,6 +217,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutAllNodes_ReturnsFalse(t
 	assert.False(t, resultFlag)
 	assert.Error(t, err)
 }
+
 func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecondNode(t *testing.T) {
 	podSpec := &v1.PodSpec{Tolerations: []v1.Toleration{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}}
 

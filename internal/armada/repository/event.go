@@ -16,8 +16,10 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const eventStreamPrefix = "Events:"
-const dataKey = "message"
+const (
+	eventStreamPrefix = "Events:"
+	dataKey           = "message"
+)
 
 type EventStore interface {
 	ReportEvents(message []*api.EventMessage) error
@@ -37,7 +39,6 @@ type RedisEventRepository struct {
 }
 
 func NewRedisEventRepository(db redis.UniversalClient, eventRetention configuration.EventRetentionPolicy) *RedisEventRepository {
-
 	// This is basically the default config but with a max of 100 rather than 8 and a min of 10 rather than 0.
 	poolConfig := pool.ObjectPoolConfig{
 		MaxTotal:                 100,
@@ -140,7 +141,6 @@ func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId strin
 }
 
 func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {
-
 	if lastId == "" {
 		lastId = "0"
 	}

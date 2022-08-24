@@ -11,9 +11,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
@@ -377,101 +374,6 @@ func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups 
 	result = multierror.Append(result, err)
 
 	return true, result.ErrorOrNil()
-}
-
-func apiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, jobSetName string, time time.Time, es []*armadaevents.SubmitJob) ([]*api.Job, error) {
-	var result *multierror.Error
-	jobs := make([]*api.Job, len(es), len(es))
-	for i, e := range es {
-		job, err := apiJobFromLogSubmitJob(userId, groups, queueName, jobSetName, time, e)
-		result = multierror.Append(result, err)
-		if err == nil {
-			jobs[i] = job
-		}
-	}
-	return jobs, result.ErrorOrNil()
-}
-
-// apiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
-func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-	// check that we have a valid jobId
-	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
-	if err != nil {
-		return nil, err
-	}
-
-	// We only support PodSpecs as main object.
-	mainObject, ok := e.MainObject.Object.(*armadaevents.KubernetesMainObject_PodSpec)
-	if !ok {
-		return nil, errors.Errorf("expected *PodSpecWithAvoidList, but got %v", e.MainObject.Object)
-	}
-	podSpec := mainObject.PodSpec.PodSpec
-
-	// The job submit message contains a bag of additional k8s objects to create as part of the job.
-	// We need to separate those out into service and ingress types.
-	k8sServices := make([]*v1.Service, 0)
-	k8sIngresses := make([]*networking.Ingress, 0)
-	k8sPodSpecs := make([]*v1.PodSpec, 0)
-	k8sPodSpecs = append(k8sPodSpecs, podSpec)
-	for _, object := range e.Objects {
-
-		// The job-level ObjectMeta is the default.
-		objectMeta := metav1.ObjectMeta{
-			Namespace:   e.ObjectMeta.Namespace,
-			Annotations: e.ObjectMeta.Annotations,
-			Labels:      e.ObjectMeta.Labels,
-		}
-
-		// If a per-object ObjectMeta is provided, it takes precedence over the job-level one.
-		if object.ObjectMeta != nil {
-			objectMeta.Namespace = object.ObjectMeta.Namespace
-			objectMeta.Annotations = object.ObjectMeta.Annotations
-			objectMeta.Labels = object.ObjectMeta.Labels
-			objectMeta.Name = object.ObjectMeta.Name
-		}
-		switch o := object.Object.(type) {
-		case *armadaevents.KubernetesObject_Service:
-			k8sServices = append(k8sServices, &v1.Service{
-				ObjectMeta: objectMeta,
-				Spec:       *o.Service,
-			})
-		case *armadaevents.KubernetesObject_Ingress:
-			k8sIngresses = append(k8sIngresses, &networking.Ingress{
-				ObjectMeta: objectMeta,
-				Spec:       *o.Ingress,
-			})
-		case *armadaevents.KubernetesObject_PodSpec:
-			k8sPodSpecs = append(k8sPodSpecs, o.PodSpec.PodSpec)
-		default:
-			err := &armadaerrors.ErrInvalidArgument{
-				Name:    "Objects",
-				Value:   o,
-				Message: "unsupported k8s object",
-			}
-			return nil, errors.WithStack(err)
-		}
-	}
-
-	return &api.Job{
-		Id:       jobId,
-		ClientId: e.DeduplicationId,
-		Queue:    queueName,
-		JobSetId: jobSetName,
-
-		Namespace:   e.ObjectMeta.Namespace,
-		Labels:      e.ObjectMeta.Labels,
-		Annotations: e.ObjectMeta.Annotations,
-
-		K8SIngress: k8sIngresses,
-		K8SService: k8sServices,
-
-		Priority: float64(e.Priority),
-
-		PodSpecs:                 k8sPodSpecs,
-		Created:                  time,
-		Owner:                    ownerId,
-		QueueOwnershipUserGroups: groups,
-	}, nil
 }
 
 // CancelJobs cancels all jobs specified by the provided events in a single operation.

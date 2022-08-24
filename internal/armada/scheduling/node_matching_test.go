@@ -73,7 +73,6 @@ func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) 
 }
 
 func Test_AggregateNodeTypesAllocations(t *testing.T) {
-
 	nodes := []api.NodeInfo{
 		{
 			Name:                 "n1",
@@ -112,8 +111,8 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		},
 	}, aggregated)
 }
-func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T) {
 
+func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T) {
 	nodes := []api.NodeInfo{
 		{
 			Name:                 "n1",

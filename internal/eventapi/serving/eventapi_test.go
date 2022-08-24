@@ -46,23 +46,27 @@ func (ec *testEventContext) Context() context.Context {
 	return context.Background()
 }
 
-const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-const queue = "test-queue"
-const jobset = "test-jobset"
-const user = "test-user"
+const (
+	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
+	queue       = "test-queue"
+	jobset      = "test-jobset"
+	user        = "test-user"
+)
 
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-var cancelledEvent = &armadaevents.CancelledJob{JobId: jobIdProto}
-var expectedApiEvent = &api.EventMessage_Cancelled{
-	Cancelled: &api.JobCancelledEvent{
-		JobId:     jobIdString,
-		JobSetId:  jobset,
-		Queue:     queue,
-		Created:   baseTime,
-		Requestor: user,
-	},
-}
+var (
+	baseTime, _      = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	jobIdProto, _    = armadaevents.ProtoUuidFromUlidString(jobIdString)
+	cancelledEvent   = &armadaevents.CancelledJob{JobId: jobIdProto}
+	expectedApiEvent = &api.EventMessage_Cancelled{
+		Cancelled: &api.JobCancelledEvent{
+			JobId:     jobIdString,
+			JobSetId:  jobset,
+			Queue:     queue,
+			Created:   baseTime,
+			Requestor: user,
+		},
+	}
+)
 var jobsetMapper = &eventapi.StaticJobsetMapper{JobsetIds: map[string]int64{"test-queue:test-jobset": 1}}
 
 // Test that if you ask for events and there are no events available then you return immediately
@@ -173,6 +177,7 @@ func compressBytes(s []byte) ([]byte, error) {
 	w.Close()
 	return b.Bytes(), err
 }
+
 func withEventApi(action func(eventApi *EventApi, context *testEventContext)) {
 	context := &testEventContext{
 		eventChannel:        make(chan []*model.EventRow, 10),

@@ -29,17 +29,18 @@ func NewJobManager(
 	clusterIdentity context2.ClusterIdentity,
 	jobContext job.JobContext,
 	eventReporter reporter.EventReporter,
-	jobLeaseService LeaseService) *JobManager {
+	jobLeaseService LeaseService,
+) *JobManager {
 	return &JobManager{
 		clusterIdentity: clusterIdentity,
 		jobContext:      jobContext,
 		eventReporter:   eventReporter,
-		jobLeaseService: jobLeaseService}
+		jobLeaseService: jobLeaseService,
+	}
 }
 
 func (m *JobManager) ManageJobLeases() {
 	jobs, err := m.jobContext.GetJobs()
-
 	if err != nil {
 		log.Errorf("Failed to manage job leases due to %s", err)
 		return
@@ -140,12 +141,12 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 	}
 
 	for _, runningJob := range allRunningJobs {
-		//Skip already reported
+		// Skip already reported
 		if runningJob.Issue == nil || runningJob.Issue.Reported {
 			continue
 		}
 
-		//Skip those that failed to be reported done
+		// Skip those that failed to be reported done
 		if _, present := jobsFailedToBeReportedDone[runningJob.JobId]; present {
 			continue
 		}

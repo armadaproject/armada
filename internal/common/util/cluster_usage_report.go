@@ -20,7 +20,7 @@ func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources 
 }
 
 // GetClusterAvailableCapacity returns the total resource to be shared amongst queues.
-// This is the total capacity avaliable to armada on schedulable nodes + the capacity currently
+// This is the total capacity available to armada on schedulable nodes + the capacity currently
 // in use on unschedulable nodes.
 func GetClusterAvailableCapacity(report *api.ClusterUsageReport) common.ComputeResources {
 	result := common.ComputeResources{}

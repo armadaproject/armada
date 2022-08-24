@@ -15,7 +15,6 @@ import (
 
 // Authenticator wraps an external command + environment that can be used to generate an access token.
 type Authenticator struct {
-
 	// Set by the config
 	Cmd  string
 	Args []string
@@ -33,7 +32,6 @@ type Authenticator struct {
 }
 
 func NewAuthenticator(config CommandDetails) grpc_credentials.PerRPCCredentials {
-
 	a := &Authenticator{
 		Cmd:         config.Cmd,
 		Args:        config.Args,
