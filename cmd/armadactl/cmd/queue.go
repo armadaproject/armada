@@ -59,7 +59,6 @@ Job priority is evaluated inside queue, queue has its own priority.`,
 				GroupOwners:    groups,
 				ResourceLimits: resourceLimits,
 			})
-
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
 			}
@@ -164,7 +163,6 @@ func queueUpdateCmdWithApp(a *armadactl.App) *cobra.Command {
 				GroupOwners:    groups,
 				ResourceLimits: resourceLimits,
 			})
-
 			if err != nil {
 				return fmt.Errorf("invalid queue data: %s", err)
 			}

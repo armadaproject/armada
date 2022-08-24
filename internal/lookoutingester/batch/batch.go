@@ -13,7 +13,6 @@ import (
 // Batch batches up Instruction sets from a channel.  Batches are created whenever maxItems InstructionSets have been
 // received or maxTimeout has elapsed since the last batch was created (whichever occurs first).
 func Batch(values <-chan *model.InstructionSet, maxItems int, maxTimeout time.Duration, bufferSize int, clock clock.Clock) chan *model.InstructionSet {
-
 	out := make(chan *model.InstructionSet, bufferSize)
 
 	go func() {
@@ -52,14 +51,13 @@ func Batch(values <-chan *model.InstructionSet, maxItems int, maxTimeout time.Du
 // TODO- this function is relatively efficient but is too verbose.
 // Generics should help, when they become
 func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
-
-	var lenMessageIds = 0
-	var lenJobsToCreate = 0
-	var lenJobsToUpdate = 0
-	var lenJobRunsToCreate = 0
-	var lenJobRunsToUpdate = 0
-	var lenUserAnnotationsToCreate = 0
-	var lenJobRunConaintersToCreate = 0
+	lenMessageIds := 0
+	lenJobsToCreate := 0
+	lenJobsToUpdate := 0
+	lenJobRunsToCreate := 0
+	lenJobRunsToUpdate := 0
+	lenUserAnnotationsToCreate := 0
+	lenJobRunConaintersToCreate := 0
 
 	for _, instructionSet := range batch {
 		lenMessageIds += len(instructionSet.MessageIds)
@@ -78,13 +76,13 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 	userAnnotationsToCreate := make([]*model.CreateUserAnnotationInstruction, lenUserAnnotationsToCreate)
 	jobRunContainersToCreate := make([]*model.CreateJobRunContainerInstruction, lenJobRunConaintersToCreate)
 
-	var messageIdIdx = 0
-	var jobsToCreateIdx = 0
-	var jobsToUpdateIdx = 0
-	var jobRunsToCreateIdx = 0
-	var jobRunsToUpdateIdx = 0
-	var userAnnotationsToCreateIdx = 0
-	var jobRunContainersToCreateIdx = 0
+	messageIdIdx := 0
+	jobsToCreateIdx := 0
+	jobsToUpdateIdx := 0
+	jobRunsToCreateIdx := 0
+	jobRunsToUpdateIdx := 0
+	userAnnotationsToCreateIdx := 0
+	jobRunContainersToCreateIdx := 0
 
 	for _, instructionSet := range batch {
 

@@ -133,7 +133,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	}
 
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
-	// Initialize it by copying the jobIds map.
+	// Initialise it by copying the jobIds map.
 	terminatedByJobId := make(map[string]bool)
 	for jobId, hasTerminated := range jobIds {
 		terminatedByJobId[jobId] = hasTerminated

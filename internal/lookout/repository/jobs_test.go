@@ -1431,6 +1431,5 @@ func TestGetJobs_RemovesDuplicateJobsByDefault(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, duplicate.job, jobInfos[0].Job)
-
 	})
 }

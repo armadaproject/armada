@@ -12,7 +12,6 @@ type ClientConfig struct {
 }
 
 func urlToSpn(apiUrl string) (string, error) {
-
 	// prevent "server:port" being parsed as scheme=server host=port
 	if !strings.Contains(apiUrl, "//") {
 		apiUrl = "//" + apiUrl

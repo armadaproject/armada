@@ -21,7 +21,6 @@ const (
 )
 
 func TestFiles(t *testing.T) {
-
 	// Load in Armada config.
 	armadaConfigFile := os.Getenv("ARMADA_CONFIG")
 	if armadaConfigFile == "" {

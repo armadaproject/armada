@@ -40,8 +40,8 @@ func NewJobLeaseService(
 	clusterContext context2.ClusterContext,
 	queueClient api.AggregatedQueueClient,
 	minimumJobSize common.ComputeResources,
-	avoidNodeLabelsOnRetry []string) *JobLeaseService {
-
+	avoidNodeLabelsOnRetry []string,
+) *JobLeaseService {
 	return &JobLeaseService{
 		clusterContext:         clusterContext,
 		queueClient:            queueClient,
@@ -100,7 +100,6 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *comm
 	ch := make(chan *api.StreamingJobLease, 10)
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-
 		// Close channel to ensure sending goroutine exits.
 		defer close(ch)
 
@@ -241,7 +240,8 @@ func (jobLeaseService *JobLeaseService) RenewJobLeases(jobs []*job.RunningJob) (
 	renewedJobIds, err := jobLeaseService.queueClient.RenewLease(ctx,
 		&api.RenewLeaseRequest{
 			ClusterId: jobLeaseService.clusterContext.GetClusterId(),
-			Ids:       jobIds})
+			Ids:       jobIds,
+		})
 	if err != nil {
 		log.Errorf("Failed to renew lease for jobs because %s", err)
 		return nil, err

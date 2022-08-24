@@ -17,7 +17,6 @@ import (
 )
 
 func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
-
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 

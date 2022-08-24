@@ -129,13 +129,12 @@ func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
 	q.removeFinishedPods(podNames)
 }
 
-/*
- We define an active pod as:
- - Any pod that is not Failed/Succeeded and doesn't have a deletion timestamp within the last inactivePodGracePeriod
-   - This rules out pods that get stuck in terminating for greater than inactivePodGracePeriod
- - Any pod that is Failed/Succeeded within the last inactivePodGracePeriod
-   - The kubelet stops reporting metrics for completed pods, just having a grace period to try catch any last metrics
-*/
+// We define an active pod as:
+// - Any pod that is not Failed/Succeeded and doesn't have a deletion timestamp within the last inactivePodGracePeriod
+//   - This rules out pods that get stuck in terminating for greater than inactivePodGracePeriod
+//
+// - Any pod that is Failed/Succeeded within the last inactivePodGracePeriod
+//   - The kubelet stops reporting metrics for completed pods, just having a grace period to try catch any last metrics
 func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.Node {
 	managedPods := util.FilterPods(pods, util.IsManagedPod)
 	nodesWithActiveManagedPods := []*v1.Node{}
@@ -144,12 +143,12 @@ func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.No
 
 		hasActivePod := false
 		for _, pod := range podsOnNode {
-			//Active pods not stuck terminating
+			// Active pods not stuck terminating
 			if !util.IsInTerminalState(pod) && (pod.DeletionTimestamp == nil || pod.DeletionTimestamp.Add(inactivePodGracePeriod).After(time.Now())) {
 				hasActivePod = true
 				break
 			}
-			//Recent completed pods
+			// Recent completed pods
 			lastStatusChange, err := util.LastStatusChange(pod)
 			if util.IsInTerminalState(pod) && err == nil && lastStatusChange.Add(inactivePodGracePeriod).After(time.Now()) {
 				hasActivePod = true

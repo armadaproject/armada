@@ -30,14 +30,15 @@ func NewUsageServer(
 	priorityHalfTime time.Duration,
 	schedulingConfig *configuration.SchedulingConfig,
 	usageRepository repository.UsageRepository,
-	queueRepository repository.QueueRepository) *UsageServer {
-
+	queueRepository repository.QueueRepository,
+) *UsageServer {
 	return &UsageServer{
 		permissions:      permissions,
 		priorityHalfTime: priorityHalfTime,
 		schedulingConfig: schedulingConfig,
 		usageRepository:  usageRepository,
-		queueRepository:  queueRepository}
+		queueRepository:  queueRepository,
+	}
 }
 
 func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {

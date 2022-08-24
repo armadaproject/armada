@@ -70,7 +70,7 @@ func TestCatchup(t *testing.T) {
 	wg.Add(1)
 	collectedEvents := make([][]*model.EventRow, 0)
 	go func() {
-		var index = 0
+		index := 0
 		for event := range subscription.Channel {
 			collectedEvents = append(collectedEvents, event)
 			if index == 0 {
@@ -119,7 +119,7 @@ func TestPoll(t *testing.T) {
 	wg.Add(1)
 	collectedEvents := make([][]*model.EventRow, 0)
 	go func() {
-		var index = 0
+		index := 0
 		for event := range subscription.Channel {
 			collectedEvents = append(collectedEvents, event)
 			if index == 0 {
@@ -169,7 +169,7 @@ func TestFromOffset(t *testing.T) {
 	wg.Add(1)
 	collectedEvents := make([][]*model.EventRow, 0)
 	go func() {
-		var index = 0
+		index := 0
 		for event := range subscription.Channel {
 			collectedEvents = append(collectedEvents, event)
 			if index == 0 {

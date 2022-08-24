@@ -142,7 +142,8 @@ func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string) ap
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, containerStatuses []*api.ContainerStatus,
-	exitCodes map[string]int32, clusterId string) api.Event {
+	exitCodes map[string]int32, clusterId string,
+) api.Event {
 	return &api.JobFailedEvent{
 		JobId:             pod.Labels[domain.JobId],
 		JobSetId:          pod.Annotations[domain.JobSetId],

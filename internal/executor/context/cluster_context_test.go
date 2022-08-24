@@ -416,7 +416,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_AllowsRepeatedDeleteCallTo
 	clusterContext.ProcessPodsToDelete()
 	assert.Equal(t, len(client.Fake.Actions()), 2)
 
-	//Wait time required between repeated delete calls
+	// Wait time required between repeated delete calls
 	time.Sleep(timeBetweenRepeatedDeleteCalls + 200*time.Millisecond)
 
 	submitPodsWithWait(t, clusterContext, pod)
@@ -462,7 +462,7 @@ func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 	batchPod := createBatchPod()
 	submitPodsWithWait(t, clusterContext, nonBatchPod, batchPod)
 
-	clusterContext.Stop() //This prevents newly submitted pods being picked up by the informers
+	clusterContext.Stop() // This prevents newly submitted pods being picked up by the informers
 	transientBatchPod := createBatchPod()
 	submitPod(t, clusterContext, transientBatchPod)
 
@@ -471,7 +471,7 @@ func TestKubernetesClusterContext_GetAllPods(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, len(allPods), 3)
 
-	//Confirm the pods returned are the ones created
+	// Confirm the pods returned are the ones created
 	podSet := util2.StringListToSet(util.ExtractNames(allPods))
 	assert.True(t, podSet[nonBatchPod.Name])
 	assert.True(t, podSet[batchPod.Name])
@@ -483,7 +483,7 @@ func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testin
 
 	batchPod := createSubmittedBatchPod(t, clusterContext)
 
-	//Forcibly add pod back to cache, so now it exists in kubernetes + cache
+	// Forcibly add pod back to cache, so now it exists in kubernetes + cache
 	clusterContext.submittedPods.Add(batchPod)
 
 	allPods, err := clusterContext.GetAllPods()
@@ -491,7 +491,7 @@ func TestKubernetesClusterContext_GetAllPods_DeduplicatesTransientPods(t *testin
 	assert.Nil(t, err)
 	assert.Equal(t, len(allPods), 1)
 
-	//Confirm the pods returned are the ones created
+	// Confirm the pods returned are the ones created
 	podSet := util2.StringListToSet(util.ExtractNames(allPods))
 	assert.True(t, podSet[batchPod.Name])
 }
@@ -503,7 +503,7 @@ func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTra
 	batchPod := createBatchPod()
 	submitPodsWithWait(t, clusterContext, nonBatchPod, batchPod)
 
-	clusterContext.Stop() //This prevents newly submitted pods being picked up by the informers
+	clusterContext.Stop() // This prevents newly submitted pods being picked up by the informers
 	transientBatchPod := createBatchPod()
 	submitPod(t, clusterContext, transientBatchPod)
 
@@ -512,7 +512,7 @@ func TestKubernetesClusterContext_GetBatchPods_ReturnsOnlyBatchPods_IncludingTra
 	assert.Nil(t, err)
 	assert.Equal(t, len(allPods), 2)
 
-	//Confirm the pods returned are the ones created
+	// Confirm the pods returned are the ones created
 	podSet := util2.StringListToSet(util.ExtractNames(allPods))
 	assert.True(t, podSet[batchPod.Name])
 	assert.True(t, podSet[transientBatchPod.Name])
@@ -539,7 +539,7 @@ func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *test
 
 	batchPod := createSubmittedBatchPod(t, clusterContext)
 
-	//Forcibly add pod back to cache, so now it exists in kubernetes + cache
+	// Forcibly add pod back to cache, so now it exists in kubernetes + cache
 	clusterContext.submittedPods.Add(batchPod)
 
 	allPods, err := clusterContext.GetBatchPods()
@@ -547,7 +547,7 @@ func TestKubernetesClusterContext_GetBatchPods_DeduplicatesTransientPods(t *test
 	assert.Nil(t, err)
 	assert.Equal(t, len(allPods), 1)
 
-	//Confirm the pods returned are the ones created
+	// Confirm the pods returned are the ones created
 	podSet := util2.StringListToSet(util.ExtractNames(allPods))
 	assert.True(t, podSet[batchPod.Name])
 }
@@ -559,7 +559,7 @@ func TestKubernetesClusterContext_GetActiveBatchPods_ReturnsOnlyBatchPods_Exclud
 	batchPod := createBatchPod()
 	submitPodsWithWait(t, clusterContext, batchPod, nonBatchPod)
 
-	clusterContext.Stop() //This prevents newly submitted pods being picked up by the informers
+	clusterContext.Stop() // This prevents newly submitted pods being picked up by the informers
 	transientBatchPod := createBatchPod()
 	submitPod(t, clusterContext, transientBatchPod)
 
@@ -759,6 +759,7 @@ func (p *FakeClientProvider) ClientForUser(user string, groups []string) (kubern
 	p.users = append(p.users, user)
 	return p.FakeClient, nil
 }
+
 func (p *FakeClientProvider) Client() kubernetes.Interface {
 	return p.FakeClient
 }

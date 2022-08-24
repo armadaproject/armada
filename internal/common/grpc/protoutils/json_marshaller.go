@@ -8,7 +8,7 @@ import (
 	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
 )
 
-// Minimal implementation of marshaller using default json package, this assumes all proto messages can be nicely marshaled with it
+// Minimal implementation of marshaller using default json package, this assumes all proto messages can be nicely marshalled with it
 // For kubernetes objects this works much better then default JSONpb
 // To handle one of feature of protocol bufers custom json marshaller is required
 

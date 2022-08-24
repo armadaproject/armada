@@ -9,30 +9,36 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 )
 
-const submitJobsPermission permission.Permission = "submit_jobs"
-const createQueuePermission permission.Permission = "create_queue"
-const executeJobsPermission permission.Permission = "execute_jobs"
-const watchEventsPermission permission.Permission = "watch_events"
+const (
+	submitJobsPermission  permission.Permission = "submit_jobs"
+	createQueuePermission permission.Permission = "create_queue"
+	executeJobsPermission permission.Permission = "execute_jobs"
+	watchEventsPermission permission.Permission = "watch_events"
+)
 
-const submitterGroup = "submitterGroup"
-const adminGroup = "adminGroup"
-const unimportantGroup = "unimportantGroup"
-const creatorScope = "creatorScope"
-const executorClaim = "executorClaim"
-const thingOwningGroup = "thingOwningGroup"
+const (
+	submitterGroup   = "submitterGroup"
+	adminGroup       = "adminGroup"
+	unimportantGroup = "unimportantGroup"
+	creatorScope     = "creatorScope"
+	executorClaim    = "executorClaim"
+	thingOwningGroup = "thingOwningGroup"
+)
 
 var ctx = context.Background()
 
-var checker *PrincipalPermissionChecker
-var admin Principal
-var submitter Principal
-var otherUser Principal
-var userWithCreatorScope Principal
-var userWithExecutorClaim Principal
-var thingOwnerDirect Principal
-var thingOwnerDirectAndViaGroup Principal
-var thingNonOwner Principal
-var thingOwnerViaGroup Principal
+var (
+	checker                     *PrincipalPermissionChecker
+	admin                       Principal
+	submitter                   Principal
+	otherUser                   Principal
+	userWithCreatorScope        Principal
+	userWithExecutorClaim       Principal
+	thingOwnerDirect            Principal
+	thingOwnerDirectAndViaGroup Principal
+	thingNonOwner               Principal
+	thingOwnerViaGroup          Principal
+)
 
 type OwnedThing struct {
 	UserOwners  []string
@@ -87,6 +93,7 @@ func TestPrincipalPermissionChecker_EveryoneCanDoEveryoneThings(t *testing.T) {
 func TestPrincipalPermissionChecker_UserJustInGroupWithPermissionCan(t *testing.T) {
 	assert.True(t, checker.UserHasPermission(WithPrincipal(ctx, admin), submitJobsPermission))
 }
+
 func TestPrincipalPermissionChecker_OtherUserJustInGroupWithPermissionCan(t *testing.T) {
 	assert.True(t, checker.UserHasPermission(WithPrincipal(ctx, submitter), submitJobsPermission))
 }
