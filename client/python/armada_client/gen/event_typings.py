@@ -15,10 +15,11 @@ def get_all_job_event_classes():
 
 def get_job_states():
     """
-    submit_pb2.JobState.DESCRIPTOR holds the enum data of JobState.
+    submit_pb2.JobState.DESCRIPTOR.value holds a list
+    of custom google protobuf "enums".
 
-    `enum.name` is the name of the enum value.
-    `enum.number` is the value of the enum value.
+    `enum.name` is the name of the enum.
+    `enum.number` is the value of the enum.
     """
     return [(enum.name, enum.number) for enum in submit_pb2.JobState.DESCRIPTOR.values]
 
