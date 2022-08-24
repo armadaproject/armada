@@ -17,7 +17,7 @@ export default function DetailRow(props: DetailRowProps) {
       <TableCell className="field-label">{props.name}</TableCell>
       <TableCell className="field-value">
         {props.isAnnotation && validator.isURL(props.value) ? (
-          <Link href={props.value}>{props.value}</Link>
+          <Link onClick={() =>window.open(props.value)}>{props.value}</Link>
         ) : (
           <span className={props.className || ""}>{props.value}</span>
         )}
