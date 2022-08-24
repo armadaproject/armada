@@ -13,7 +13,6 @@ import (
 )
 
 func Test_getAction_WhenNoContainers_AndNoChecks_ReturnsWait(t *testing.T) {
-
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{})
 	assert.Nil(t, err)
 
@@ -89,7 +88,6 @@ func Test_getAction_WhenTwoFailedContainers_AndTwoChecks_MostDrasticActionWins(t
 }
 
 func Test_getAction_WhenOneFailedContainer_FirstMatchingCheckIsNotTimedOut_ButLaterMatchingCheckIsTimedOut_Waits(t *testing.T) {
-
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{
 		{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute * 10, ReasonRegexp: "ImagePullBackOff"},
 		{Action: config.ActionRetry, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: ".*"},
@@ -106,7 +104,6 @@ func Test_getAction_WhenOneFailedContainer_FirstMatchingCheckIsNotTimedOut_ButLa
 }
 
 func Test_getAction_Inverse_Works(t *testing.T) {
-
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{
 		{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "ImagePullBackOff", Inverse: true},
 	})

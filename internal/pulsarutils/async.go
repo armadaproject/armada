@@ -41,7 +41,6 @@ var log = logrus.NewEntry(logrus.StandardLogger())
 func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, bufferSize int, receiveTimeout time.Duration, backoffTime time.Duration) chan *ConsumerMessage {
 	out := make(chan *ConsumerMessage, bufferSize)
 	go func() {
-
 		// Periodically log the number of processed messages.
 		logInterval := 60 * time.Second
 		lastLogged := time.Now()
@@ -81,7 +80,7 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 				if errors.Is(err, context.DeadlineExceeded) {
 					log.Debugf("No message received")
 					cancel()
-					break //expected
+					break // expected
 				}
 				cancel()
 				// If receiving fails, try again in the hope that the problem is transient.

@@ -15,9 +15,11 @@ type Usage struct {
 	CurrentUsagePerQueue map[string]float64
 }
 
-const clusterReportKey = "Cluster:Report"
-const clusterLeasedReportKey = "Cluster:Leased"
-const clusterPrioritiesPrefix = "Cluster:Priority:"
+const (
+	clusterReportKey        = "Cluster:Report"
+	clusterLeasedReportKey  = "Cluster:Leased"
+	clusterPrioritiesPrefix = "Cluster:Priority:"
+)
 
 type UsageRepository interface {
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)

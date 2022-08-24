@@ -20,12 +20,14 @@ func NewLeaseManager(
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
-	leaseExpiryDuration time.Duration) *LeaseManager {
+	leaseExpiryDuration time.Duration,
+) *LeaseManager {
 	return &LeaseManager{
 		jobRepository:       jobRepository,
 		queueRepository:     queueRepository,
 		eventStore:          eventStore,
-		leaseExpiryDuration: leaseExpiryDuration}
+		leaseExpiryDuration: leaseExpiryDuration,
+	}
 }
 
 func (l *LeaseManager) ExpireLeases() {

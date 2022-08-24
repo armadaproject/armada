@@ -96,7 +96,6 @@ func (srv *Submitter) Run(ctx context.Context) error {
 		client.AddClientIds(req.JobRequestItems)
 	}
 	return client.WithSubmitClient(srv.ApiConnectionDetails, func(c api.SubmitClient) error {
-
 		// Create a closed ticker channel; receiving on tickerCh returns immediately.
 		C := make(chan time.Time)
 		close(C)

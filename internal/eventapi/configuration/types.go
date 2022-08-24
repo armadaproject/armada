@@ -7,7 +7,6 @@ import (
 )
 
 type EventIngesterConfiguration struct {
-
 	// Database configuration
 	Postgres configuration.PostgresConfig
 	// General Pulsar configuration

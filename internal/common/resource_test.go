@@ -47,7 +47,7 @@ func TestCalculateTotalResource(t *testing.T) {
 	node1 := makeNodeWithResource(resources)
 	node2 := makeNodeWithResource(resources)
 
-	//Expected is resources * 2 nodes
+	// Expected is resources * 2 nodes
 	expectedResult := FromResourceList(resources)
 	expectedResult.Add(expectedResult)
 
@@ -60,7 +60,7 @@ func TestCalculateTotalResourceRequest_ShouldSumAllPods(t *testing.T) {
 	pod1 := makePodWithResource([]*v1.ResourceList{&resources}, []*v1.ResourceList{})
 	pod2 := makePodWithResource([]*v1.ResourceList{&resources}, []*v1.ResourceList{})
 
-	//Expected is resources * 2 containers
+	// Expected is resources * 2 containers
 	expectedResult := makeContainerResource(200, 100)
 
 	result := CalculateTotalResourceRequest([]*v1.Pod{&pod1, &pod2})
@@ -71,7 +71,7 @@ func TestTotalResourceRequest_ShouldSumAllContainers(t *testing.T) {
 	resources := makeContainerResource(100, 50)
 	pod := makePodWithResource([]*v1.ResourceList{&resources, &resources}, []*v1.ResourceList{})
 
-	//Expected is resources * 2 containers
+	// Expected is resources * 2 containers
 	expectedResult := makeContainerResource(200, 100)
 
 	result := TotalPodResourceRequest(&pod.Spec)
@@ -81,7 +81,7 @@ func TestTotalResourceRequest_ShouldSumAllContainers(t *testing.T) {
 func TestTotalResourceRequestShouldReportMaxInitContainerValues(t *testing.T) {
 	highCpuResource := makeContainerResource(1000, 5)
 	highRamResource := makeContainerResource(100, 500)
-	//With init containers, it should take the max of each individual resource from all init containers
+	// With init containers, it should take the max of each individual resource from all init containers
 	expectedResult := makeContainerResource(1000, 500)
 
 	pod := makePodWithResource([]*v1.ResourceList{}, []*v1.ResourceList{&highCpuResource, &highRamResource})
@@ -95,9 +95,9 @@ func TestTotalResourceRequest_ShouldCombineMaxInitContainerResourcesWithSummedCo
 	highCpuResource := makeContainerResource(1000, 50)
 
 	pod := makePodWithResource([]*v1.ResourceList{&standardResource, &standardResource}, []*v1.ResourceList{&standardResource, &highCpuResource})
-	//It should sum the containers and compare value to each init container, taking the max
-	//Cpu is 1000, as the sum of the two containers is 200, which is lower than the max of any given init container (1000)
-	//Memory is 100, as the sum of the two containers is 100, which is higher than the max of any given init container (both init containers are 50 each)
+	// It should sum the containers and compare value to each init container, taking the max
+	// Cpu is 1000, as the sum of the two containers is 200, which is lower than the max of any given init container (1000)
+	// Memory is 100, as the sum of the two containers is 100, which is higher than the max of any given init container (both init containers are 50 each)
 	expectedResult := makeContainerResource(1000, 100)
 
 	result := TotalPodResourceRequest(&pod.Spec)

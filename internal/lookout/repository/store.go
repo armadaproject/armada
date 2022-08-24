@@ -164,7 +164,6 @@ func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) erro
 }
 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
-
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -258,7 +257,6 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 	}
 
 	return tx.Wrap(func() error {
-
 		if err := upsertJobRun(tx, jobRunRecord); err != nil {
 			return err
 		}
