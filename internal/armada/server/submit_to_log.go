@@ -50,7 +50,6 @@ type PulsarSubmitServer struct {
 // TODO: Add input validation to make sure messages can be inserted to the database.
 // TODO: Check job size and reject jobs that could never be scheduled. Maybe by querying the scheduler for its limits.
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
 		return nil, err
@@ -530,6 +529,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 func (srv *PulsarSubmitServer) Authorize(ctx context.Context, queueName string, anyPerm permission.Permission, perm queue.PermissionVerb) (userId string, groups []string, err error) {
 	principal := authorization.GetPrincipal(ctx)
 	userId = principal.GetName()
+	groups = principal.GetGroupNames()
 	q, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
 		return
@@ -547,20 +547,6 @@ func (srv *PulsarSubmitServer) Authorize(ctx context.Context, queueName string, 
 		}
 	}
 
-	// Armada impersonates the principal that submitted the job when interacting with k8s.
-	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
-	// This is an optimisation to avoid passing around groups unnecessarily.
-	principalSubject := queue.PermissionSubject{
-		Name: userId,
-		Kind: queue.PermissionSubjectKindUser,
-	}
-	if !q.HasPermission(principalSubject, perm) {
-		for _, subject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
-			if q.HasPermission(subject, perm) {
-				groups = append(groups, subject.Name)
-			}
-		}
-	}
 	return
 }
 

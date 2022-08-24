@@ -297,24 +297,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
-	principalSubject := queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	}
-
-	// Armada impersonates the principal that submitted the job when interacting with k8s.
-	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
-	// This is an optimisation to avoid passing around groups unnecessarily.
-	groups := []string{}
-	if !q.HasPermission(principalSubject, queue.PermissionVerbSubmit) {
-		for _, groupSubject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
-			if q.HasPermission(groupSubject, queue.PermissionVerbSubmit) {
-				groups = append(groups, groupSubject.Name)
-			}
-		}
-	}
-
-	jobs, e := server.createJobs(req, principal.GetName(), groups)
+	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
 	if e != nil {
 		reqJson, _ := json.Marshal(req)
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
