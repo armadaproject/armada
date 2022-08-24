@@ -78,28 +78,6 @@ type Ingester struct {
 	Logger *logrus.Entry
 }
 
-// // Batch of records to be written to postgres in bulk.
-// type Batch struct {
-// 	// Time at which this batch was created.
-// 	createdAt time.Time
-// 	// Ids of messages processed to create this batch.
-// 	// Note that these don't map one-to-one to records,
-// 	// since only a subset of the messages may have resulted in a record being created.
-// 	MessageIds []pulsar.MessageID
-// 	// Records to be written on the next write to postgres.
-// 	records []interface{}
-// }
-
-// The problem only occurs if within a particular batch there
-// are jobs submitted after the reprioritise job set.
-// I could manually exclude those jobs.
-// When I get a job, just check which job sets are being reprioritised and add the job to an exclude list.
-// I need this also for cancellations.
-// Later, if I get a new
-// I could also break off the batch if I detect a new job that would be included with a prior reprioritisation or cancellation.
-// I think that's the right call. Return a slice of batches and break it up so that each batch is correct.
-// And if there's more than one, always send all but the first to be applied.
-
 // Batch of changes to be written to postgres.
 type Batch struct {
 	// Time at which this batch was created.
@@ -173,6 +151,7 @@ func (err *ErrStaleBatch) Error() string {
 }
 
 // ShouldWrite returns true if this batch should be written into postgres.
+// TODO: Update
 func (srv *Ingester) ShouldWrite(batch *Batch) bool {
 	if batch == nil {
 		return false
@@ -201,13 +180,6 @@ func (srv *Ingester) Run(ctx context.Context) error {
 
 	// Create a processing pipeline
 	// receive from pulsar -> batch messages -> write to postgres and ack messages.
-	//
-	// On ErrStaleWrite:
-	// 1. Stop and tear down the pipeline.
-	// 2. Seek each partition to the correct position.
-	// 3. Setup a new pipeline and start again.
-	//
-	// On any other error, return the error to the caller of this function.
 	for {
 
 		// Scheduler ingester
@@ -312,9 +284,7 @@ func (srv *Ingester) ProcessMessages(ctx context.Context, messageChannel <-chan 
 			// If we have more than 1 batch, apply all but the last immedtately.
 			batchesToApply := make([]*Batch, 0)
 			if len(batches) > 1 {
-				for _, batch := range batches[:len(batches)-1] {
-					batchesToApply = append(batchesToApply, batch)
-				}
+				batchesToApply = append(batchesToApply, batches[:len(batches)-1]...)
 				batches = []*Batch{batches[len(batches)-1]}
 			}
 
@@ -334,7 +304,6 @@ func (srv *Ingester) ProcessMessages(ctx context.Context, messageChannel <-chan 
 				case <-ctx.Done():
 					return ctx.Err()
 				case batchChannel <- batch:
-					batch = nil
 				}
 			}
 
@@ -344,9 +313,9 @@ func (srv *Ingester) ProcessMessages(ctx context.Context, messageChannel <-chan 
 				case <-ctx.Done():
 					return ctx.Err()
 				case batchChannel <- batch:
-					batch = nil
 				}
 			}
+			batches = make([]*Batch, 0)
 		}
 	}
 }
@@ -578,16 +547,22 @@ func (srv *Ingester) ProcessBatch(ctx context.Context, batch *Batch) error {
 
 	// Mark job runs as running.
 	if len(batch.JobRunsRunning) > 0 {
-		queries.MarkJobRunsRunningById(ctx, batch.JobRunsRunning)
+		err := queries.MarkJobRunsRunningById(ctx, batch.JobRunsRunning)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	// Mark job runs as failed.
 	// TODO: This will be slow if there's a large number of ids.
 	for jobId, msg := range batch.TerminalJobRunErrors {
-		queries.MarkJobRunFailedById(ctx, MarkJobRunFailedByIdParams{
+		err := queries.MarkJobRunFailedById(ctx, MarkJobRunFailedByIdParams{
 			JobID: jobId,
 			Error: msg,
 		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return nil

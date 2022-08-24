@@ -32,6 +32,15 @@ SELECT job_id, queue, job_set FROM jobs where job_id = ANY(sqlc.arg(job_ids)::UU
 -- name: ListNodeInfo :many
 SELECT * FROM nodeinfo ORDER BY serial;
 
+-- name: SelectNewNodeInfo :many
+SELECT * FROM nodeinfo WHERE serial > $1 ORDER BY serial;
+
+-- name: SelectNewJobs :many
+SELECT * FROM jobs WHERE serial > $1 ORDER BY serial;
+
+-- name: SelectNewRuns :many
+SELECT * FROM runs WHERE serial > $1 ORDER BY serial;
+
 -- name: UpdateJobPriorityById :exec
 UPDATE jobs SET priority = $1 WHERE job_id = $2;
 

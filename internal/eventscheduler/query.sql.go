@@ -249,6 +249,106 @@ func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]
 	return items, nil
 }
 
+const selectNewJobs = `-- name: SelectNewJobs :many
+SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, submit_message, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial
+`
+
+func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectNewJobs, serial)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.JobID,
+			&i.JobSet,
+			&i.Queue,
+			&i.UserID,
+			&i.Groups,
+			&i.Priority,
+			&i.Cancelled,
+			&i.SubmitMessage,
+			&i.Serial,
+			&i.LastModified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectNewNodeInfo = `-- name: SelectNewNodeInfo :many
+SELECT node_name, message, serial, last_modified FROM nodeinfo WHERE serial > $1 ORDER BY serial
+`
+
+func (q *Queries) SelectNewNodeInfo(ctx context.Context, serial int64) ([]Nodeinfo, error) {
+	rows, err := q.db.Query(ctx, selectNewNodeInfo, serial)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Nodeinfo
+	for rows.Next() {
+		var i Nodeinfo
+		if err := rows.Scan(
+			&i.NodeName,
+			&i.Message,
+			&i.Serial,
+			&i.LastModified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectNewRuns = `-- name: SelectNewRuns :many
+SELECT run_id, job_id, executor, assignment, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE serial > $1 ORDER BY serial
+`
+
+func (q *Queries) SelectNewRuns(ctx context.Context, serial int64) ([]Run, error) {
+	rows, err := q.db.Query(ctx, selectNewRuns, serial)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Run
+	for rows.Next() {
+		var i Run
+		if err := rows.Scan(
+			&i.RunID,
+			&i.JobID,
+			&i.Executor,
+			&i.Assignment,
+			&i.SentToExecutor,
+			&i.Cancelled,
+			&i.Running,
+			&i.Succeeded,
+			&i.Error,
+			&i.Serial,
+			&i.LastModified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectNewRunsForExecutor = `-- name: SelectNewRunsForExecutor :many
 SELECT run_id, job_id, executor, assignment, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false)
 `

@@ -370,21 +370,28 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		// })
 
 		// Scheduler jobs ingester.
-		schedulerIngester := eventscheduler.Ingester{
+		schedulerIngester := &eventscheduler.Ingester{
 			PulsarClient: pulsarClient,
 			ConsumerOptions: pulsar.ConsumerOptions{
 				Topic:            config.Pulsar.JobsetEventsTopic,
 				SubscriptionName: "pulsar-scheduler-ingester",
 				Type:             pulsar.KeyShared,
 			},
-			Table:            "jobs",
-			Schema:           eventscheduler.JobsSchema(),
+			JobsTable:        "jobs",
+			JobsSchema:       eventscheduler.JobsSchema(),
+			RunsTable:        "runs",
+			RunsSchema:       eventscheduler.JobsSchema(),
 			MaxWriteInterval: 10 * time.Second,
 			MaxWriteRecords:  10000,
 			Db:               pool,
 		}
 		services = append(services, func() error {
 			return schedulerIngester.Run(ctx)
+		})
+
+		scheduler := eventscheduler.NewScheduler(pool)
+		services = append(services, func() error {
+			return scheduler.Run(ctx)
 		})
 
 		// // This producer does not need a name; having multiple producers is safe.
