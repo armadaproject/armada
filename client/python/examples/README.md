@@ -115,6 +115,11 @@ A full example of creating a queue with all options.
 
 #### Walkthrough
 
+> We use `create_queue_request` to create the initial request for the queue.
+> ```py
+> def create_queue_request(client, queue):
+> ```
+
 > Permissions are used to control who can do what with the queue.
 > ```py
 > subject = Subject(type="Group", name="group1")
@@ -124,6 +129,23 @@ A full example of creating a queue with all options.
 > Resource limits are set similarly to [Kubernetes](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
 > ```py
 > resource_limits = {"cpu": 1.0, "memory": 1.0}
+> ```
+
+We then have two functions:
+
+> `creating_full_queue_example()` which is used to create a single queue using `create_queue()`
+> ```py
+> def creating_full_queue_example(client, queue):
+> ```
+
+> `creating_multiple_queues_example()` which is used to create a multiple queues using `create_queues()`
+> ```py
+> def creating_multiple_queues_example(client, queue):
+> ```
+>
+> We also use the response of `create_queues()` to detect any errors
+> ```py
+> resp = client.create_queues([queue_req1, queue_req2])
 > ```
 
 ### cancelling.py
