@@ -34,7 +34,7 @@ func TestMapPodCache_Add_Metrics(t *testing.T) {
 	pod := makeManagedPod("job1")
 	cache := NewTimeExpiringPodCache(time.Minute, time.Second, "metric1")
 
-	//Repeated add to the same key, only counts as 1
+	// Repeated add to the same key, only counts as 1
 	cache.Add(pod)
 	cache.Add(pod)
 	assert.Equal(t, 1, getMetricGaugeCurrentValue(cache))

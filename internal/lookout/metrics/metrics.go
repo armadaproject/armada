@@ -14,7 +14,7 @@ var dbOpenConnectionsDesc = prometheus.NewDesc(
 )
 
 var dbOpenConnectionsUtilizationDesc = prometheus.NewDesc(
-	MetricPrefix+"db_open_connections_utilization",
+	MetricPrefix+"db_open_connections_utilisation",
 	"Percentage of connections used over total allowed connections to database",
 	nil,
 	nil,

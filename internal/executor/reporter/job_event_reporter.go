@@ -38,14 +38,14 @@ type JobEventReporter struct {
 }
 
 func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClient api.EventClient) (*JobEventReporter, chan bool) {
-
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventClient:      eventClient,
 		clusterContext:   clusterContext,
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
-		eventQueuedMutex: sync.Mutex{}}
+		eventQueuedMutex: sync.Mutex{},
+	}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -131,7 +131,6 @@ func (eventReporter *JobEventReporter) QueueEvent(event api.Event, callback func
 
 func (eventReporter *JobEventReporter) processEventQueue(stop chan bool) {
 	for {
-
 		select {
 		case <-stop:
 			for i := len(eventReporter.eventBuffer); i > 0; i -= batchSize {

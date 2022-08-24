@@ -25,7 +25,8 @@ username: user1
 password: password123
 
 The location of this file can be passed in using the --config argument.
-If not provided, $HOME/.armadactl.yaml is used.`}
+If not provided, $HOME/.armadactl.yaml is used.`,
+	}
 
 	client.AddArmadaApiConnectionCommandlineArgs(cmd)
 

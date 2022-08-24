@@ -16,7 +16,6 @@ type ClientPasswordDetails struct {
 }
 
 func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, error) {
-
 	ctx := context.Background()
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)

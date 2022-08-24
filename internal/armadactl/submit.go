@@ -15,7 +15,6 @@ import (
 // Submit a job, represented by a file, to the Armada server.
 // If dry-run is true, the job file is validated but not submitted.
 func (a *App) Submit(path string, dryRun bool) error {
-
 	ok, err := validation.ValidateSubmitFile(path)
 	if !ok {
 		return err

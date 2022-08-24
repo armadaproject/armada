@@ -130,7 +130,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 		})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(fakeEventStore.events))
-		//Reset received events for each lease call
+		// Reset received events for each lease call
 		fakeEventStore.events = []*api.EventMessage{}
 	}
 
