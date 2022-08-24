@@ -277,11 +277,13 @@ func TotalJobResourceRequest(job *api.Job) ComputeResources {
 }
 
 // TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
-//  - sum of all containers
-//  - any individual init container
+//   - sum of all containers
+//   - any individual init container
+//
 // This is because:
-//  - containers run in parallel (so need to sum resources)
-//  - init containers run sequentially (so only their individual resource need be considered)
+//   - containers run in parallel (so need to sum resources)
+//   - init containers run sequentially (so only their individual resource need be considered)
+//
 // So pod resource usage is the max for each resource type (cpu/memory etc) that could be used at any given time
 func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 	totalResources := make(ComputeResources)

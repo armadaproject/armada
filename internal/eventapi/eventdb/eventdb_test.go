@@ -191,7 +191,6 @@ func TestGetOrCreateJobsetId(t *testing.T) {
 
 func TestGetEvents(t *testing.T) {
 	err := WithDatabase(func(db *EventDb) error {
-
 		ctx := context.Background()
 
 		events := []*model.EventRow{
@@ -220,7 +219,8 @@ func TestGetEvents(t *testing.T) {
 			Events: []*model.EventRow{
 				{JobSetId: 1, SeqNo: 1, Event: []byte{1}},
 				{JobSetId: 1, SeqNo: 2, Event: []byte{2}},
-			}}}
+			},
+		}}
 		assert.NoError(t, err)
 		request := &model.EventRequest{SubscriptionId: 1, Jobset: 1, Sequence: -1}
 		response, err := db.GetEvents([]*model.EventRequest{request}, 100)
@@ -232,7 +232,8 @@ func TestGetEvents(t *testing.T) {
 			SubscriptionId: 1,
 			Events: []*model.EventRow{
 				{JobSetId: 1, SeqNo: 2, Event: []byte{2}},
-			}}}
+			},
+		}}
 		assert.NoError(t, err)
 		request = &model.EventRequest{SubscriptionId: 1, Jobset: 1, Sequence: 1}
 		response, err = db.GetEvents([]*model.EventRequest{request}, 100)
@@ -244,7 +245,8 @@ func TestGetEvents(t *testing.T) {
 			SubscriptionId: 1,
 			Events: []*model.EventRow{
 				{JobSetId: 1, SeqNo: 1, Event: []byte{1}},
-			}}}
+			},
+		}}
 		assert.NoError(t, err)
 		request = &model.EventRequest{SubscriptionId: 1, Jobset: 1, Sequence: -1}
 		response, err = db.GetEvents([]*model.EventRequest{request}, 1)

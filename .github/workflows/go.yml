@@ -26,8 +26,7 @@ jobs:
           version: "latest"
           skip-pkg-cache: true
           skip-build-cache: true
-          only-new-issues: true
-          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=0 --max-issues-per-linter=0 --sort-results ./..."
+          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=1 --max-issues-per-linter=0 --sort-results ./..."
 
       - name: make code-checks
         run: make code-checks

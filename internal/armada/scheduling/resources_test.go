@@ -33,7 +33,7 @@ func assertCpuResourceSoftEqual(t *testing.T, expected, actual queueResources) {
 	}
 	assert.ElementsMatch(t, expectQs, actualQs)
 
-	for q, _ := range expected {
+	for q := range expected {
 		actualRsrc, exists := actual[q]
 		assert.True(t, exists)
 		assert.NotNil(t, actualRsrc)
@@ -43,7 +43,6 @@ func assertCpuResourceSoftEqual(t *testing.T, expected, actual queueResources) {
 }
 
 func Test_sliceResources(t *testing.T) {
-
 	q1 := &api.Queue{Name: "q1"}
 	q2 := &api.Queue{Name: "q2"}
 	q3 := &api.Queue{Name: "q3"}
@@ -68,7 +67,6 @@ func Test_sliceResources(t *testing.T) {
 }
 
 func Test_sliceResources_highImbalance(t *testing.T) {
-
 	q1 := &api.Queue{Name: "q1"}
 	q2 := &api.Queue{Name: "q2"}
 
@@ -88,7 +86,6 @@ func Test_sliceResources_highImbalance(t *testing.T) {
 }
 
 func Test_SliceResourceWithLimits_SchedulingShareMatchesAdjusted_WhenNoQueuesAtLimit(t *testing.T) {
-
 	q1 := &api.Queue{Name: "q1"}
 	q2 := &api.Queue{Name: "q2"}
 	q3 := &api.Queue{Name: "q3"}
@@ -146,7 +143,7 @@ func Test_SliceResourceWithLimits_SchedulingShareCorrespondsWithPriority(t *test
 
 	slices := SliceResourceWithLimits(scarcity, queueSchedulingInfo, queuePriorities, resourceToSlice)
 
-	//Both queues have the same priority so should have the same scheduling share
+	// Both queues have the same priority so should have the same scheduling share
 	assert.Equal(t, slices[q1].schedulingShare, fourCpu)
 	assert.Equal(t, slices[q2].schedulingShare, fourCpu)
 }
@@ -173,7 +170,7 @@ func Test_SliceResourceWithLimits_AdjustedShare(t *testing.T) {
 
 	slices := SliceResourceWithLimits(scarcity, queueSchedulingInfo, queuePriorities, resourceToSlice)
 
-	//Both queues have the same priority however q1 is limited to 2cpu
+	// Both queues have the same priority however q1 is limited to 2cpu
 	assert.Equal(t, slices[q1].adjustedShare, twoCpu)
 	assert.Equal(t, slices[q2].adjustedShare, fourCpu)
 }

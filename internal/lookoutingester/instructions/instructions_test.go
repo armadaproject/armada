@@ -28,25 +28,31 @@ import (
 // Standard Set of events for common tests
 //
 
-const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-const runIdString = "123e4567-e89b-12d3-a456-426614174000"
-const userAnnotationPrefix = "test_prefix/"
+const (
+	jobIdString          = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString          = "123e4567-e89b-12d3-a456-426614174000"
+	userAnnotationPrefix = "test_prefix/"
+)
 
-var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-var runIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+var (
+	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
+	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+)
 
-const jobSetName = "testJobset"
-const executorId = "testCluster"
-const nodeName = "testNode"
-const podName = "test-pod"
-const queue = "test-queue"
-const userId = "testUser"
-const namespace = "test-ns"
-const priority = 3
-const newPriority = 4
-const podNumber = 6
-const errMsg = "sample error message"
-const leaseReturnedMsg = "lease returned error message"
+const (
+	jobSetName       = "testJobset"
+	executorId       = "testCluster"
+	nodeName         = "testNode"
+	podName          = "test-pod"
+	queue            = "test-queue"
+	userId           = "testUser"
+	namespace        = "test-ns"
+	priority         = 3
+	newPriority      = 4
+	podNumber        = 6
+	errMsg           = "sample error message"
+	leaseReturnedMsg = "lease returned error message"
+)
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 
@@ -219,13 +225,13 @@ var jobSucceeded = &armadaevents.EventSequence_Event{
 	},
 }
 
-var expectedApiJob, _ = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
-var expectedApiJobJson, _ = json.Marshal(expectedApiJob)
-var expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
+var (
+	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
+	expectedApiJobJson, _  = json.Marshal(expectedApiJob)
+	expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
+)
 
-//
 // Standard Set of expected rows for common tests
-//
 var expectedSubmit = model.CreateJobInstruction{
 	JobId:     jobIdString,
 	Queue:     queue,
@@ -336,7 +342,6 @@ func TestHappyPathSingleUpdate(t *testing.T) {
 }
 
 func TestHappyPathMultiUpdate(t *testing.T) {
-
 	compressor := &compress.NoOpCompressor{}
 
 	// Submit
@@ -368,7 +373,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	}
 	assert.Equal(t, expected, instructions)
 
-	// Run Suceeded
+	// Run Succeeded
 	msg4 := NewMsg(baseTime, jobRunSucceeded)
 	instructions = ConvertMsg(context.Background(), msg4, userAnnotationPrefix, compressor)
 	expected = &model.InstructionSet{
@@ -377,7 +382,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	}
 	assert.Equal(t, expected, instructions)
 
-	// Job Suceeded
+	// Job Succeeded
 	msg5 := NewMsg(baseTime, jobSucceeded)
 	instructions = ConvertMsg(context.Background(), msg5, userAnnotationPrefix, compressor)
 	expected = &model.InstructionSet{
@@ -385,7 +390,6 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg5.Message.ID(), 0, msg5.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
-
 }
 
 func TestCancelled(t *testing.T) {
@@ -449,7 +453,6 @@ func TestFailedWithMissingRunId(t *testing.T) {
 }
 
 func TestHandlePodTerminated(t *testing.T) {
-
 	terminatedMsg := "test pod terminated msg"
 
 	podTerminated := &armadaevents.EventSequence_Event{
@@ -488,11 +491,9 @@ func TestHandlePodTerminated(t *testing.T) {
 		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
-
 }
 
 func TestHandlePodUnschedulable(t *testing.T) {
-
 	unschedulableMsg := "test pod unschedulable msg"
 
 	podUnschedulable := &armadaevents.EventSequence_Event{
@@ -532,7 +533,6 @@ func TestHandlePodUnschedulable(t *testing.T) {
 		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
-
 }
 
 func TestSubmitWithNullChar(t *testing.T) {
@@ -606,7 +606,6 @@ func TestFailedWithNullCharInError(t *testing.T) {
 }
 
 func TestInvalidEvent(t *testing.T) {
-
 	// This event is invalid as it doesn't have a job id or a run id
 	invalidEvent := &armadaevents.EventSequence_Event{
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
@@ -647,7 +646,8 @@ func TestAnnotations(t *testing.T) {
 			JobId: jobIdString,
 			Key:   "a",
 			Value: "b",
-		}}
+		},
+	}
 	annotationInstructions := extractAnnotations(jobIdString, annotations, userAnnotationPrefix)
 	assert.Equal(t, expected, annotationInstructions)
 }

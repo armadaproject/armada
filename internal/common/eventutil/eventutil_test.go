@@ -373,7 +373,6 @@ func testContainer(name string) v1.Container {
 }
 
 func TestCompactSequences_Basic(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -431,7 +430,6 @@ func TestCompactSequences_Basic(t *testing.T) {
 }
 
 func TestCompactSequences_JobSetOrder(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -535,7 +533,6 @@ func TestCompactSequences_JobSetOrder(t *testing.T) {
 }
 
 func TestCompactSequences_Groups(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",

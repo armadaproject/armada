@@ -215,7 +215,6 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 }
 
 func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
-
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
 		jobRequest := &api.JobSubmitRequest{
@@ -379,9 +378,9 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 		firstEvent := messages[0]
 		secondEvent := messages[1]
 
-		//First event should be submitted
+		// First event should be submitted
 		assert.NotNil(t, firstEvent.Message.GetSubmitted())
-		//Second event should be queued
+		// Second event should be queued
 		assert.NotNil(t, secondEvent.Message.GetQueued())
 	})
 }
@@ -400,14 +399,14 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 			jobIds = append(jobIds, jobItem.JobId)
 		}
 
-		//Get jobs for jobIds returned
+		// Get jobs for jobIds returned
 		jobs, _ := s.jobRepository.GetExistingJobsByIds(jobIds)
 		jobSet := make(map[string]*api.Job, 5)
 		for _, job := range jobs {
 			jobSet[job.Id] = job
 		}
 
-		//Confirm submitted spec and created spec line up, using order of returned jobIds to correlate submitted to created
+		// Confirm submitted spec and created spec line up, using order of returned jobIds to correlate submitted to created
 		for i := 0; i < len(jobRequest.JobRequestItems); i++ {
 			requestItem := jobRequest.JobRequestItems[i]
 			returnedId := jobIds[i]
@@ -483,7 +482,6 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 	t.Run("one job", func(t *testing.T) {
 		withSubmitServerAndRepos(func(s *SubmitServer, jobRepo repository.JobRepository, events repository.EventRepository) {
-
 			newPriority := 123.0
 
 			jobSetId := util.NewULID()
@@ -1518,7 +1516,7 @@ func readJobEvents(events repository.EventRepository, jobSetId string) ([]*api.E
 		return nil, err
 	}
 
-	//Sort events based on Redis stream ID order (Actual stored order)
+	// Sort events based on Redis stream ID order (Actual stored order)
 	sort.Slice(messages, func(i, j int) bool {
 		return messages[i].Id < messages[j].Id
 	})

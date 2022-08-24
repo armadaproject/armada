@@ -12,10 +12,12 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-var evictedPod *v1.Pod
-var oomPod *v1.Pod
-var customErrorPod *v1.Pod
-var deadlineExceededPod *v1.Pod
+var (
+	evictedPod          *v1.Pod
+	oomPod              *v1.Pod
+	customErrorPod      *v1.Pod
+	deadlineExceededPod *v1.Pod
+)
 
 func init() {
 	evictedPod = createEvictedPod()
@@ -189,7 +191,7 @@ func createEvictedPod() *v1.Pod {
 }
 
 func createDeadlineExceededPod() *v1.Pod {
-	//For DeadlineExceeded, Kubernetes leaves the container statuses as Running even though it kills them on the host
+	// For DeadlineExceeded, Kubernetes leaves the container statuses as Running even though it kills them on the host
 	containerStatus := v1.ContainerStatus{
 		Name: "app",
 		State: v1.ContainerState{

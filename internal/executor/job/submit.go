@@ -22,8 +22,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const admissionWebhookValidationFailureMessage string = "admission webhook"
-
 type Submitter interface {
 	SubmitJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails
 }
@@ -40,8 +38,8 @@ func NewSubmitter(
 	clusterContext context.ClusterContext,
 	podDefaults *configuration.PodDefaults,
 	submissionThreadCount int,
-	fatalPodSubmissionErrors []string) *SubmitService {
-
+	fatalPodSubmissionErrors []string,
+) *SubmitService {
 	return &SubmitService{
 		clusterContext:           clusterContext,
 		podDefaults:              podDefaults,
@@ -116,7 +114,6 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 // This function may fail partly, i.e., it may successfully create a subset of the requested objects before failing.
 // In case of failure, any already created objects are not cleaned up.
 func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
-
 	pod := util2.CreatePod(job, allocationService.podDefaults, i)
 	// Ensure the K8SService and K8SIngress fields are populated
 	allocationService.populateServicesIngresses(job, pod)
@@ -183,14 +180,14 @@ func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, 
 			)
 
 			// We need to use indexing here since Spec.Rules isn't pointers.
-			for i, _ := range ingress.Spec.Rules {
+			for i := range ingress.Spec.Rules {
 				ingress.Spec.Rules[i].Host += allocationService.podDefaults.Ingress.HostnameSuffix
 			}
 
 			// We need to use indexing here since Spec.TLS isn't pointers.
-			for i, _ := range ingress.Spec.TLS {
+			for i := range ingress.Spec.TLS {
 				ingress.Spec.TLS[i].SecretName += allocationService.podDefaults.Ingress.CertNameSuffix
-				for j, _ := range ingress.Spec.TLS[i].Hosts {
+				for j := range ingress.Spec.TLS[i].Hosts {
 					ingress.Spec.TLS[i].Hosts[j] += allocationService.podDefaults.Ingress.HostnameSuffix
 				}
 			}

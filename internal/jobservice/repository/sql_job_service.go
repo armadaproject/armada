@@ -144,7 +144,6 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 	if !ok {
 		s.jobSetSubscribe.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 	}
-
 }
 
 // UnSubscribe to JobSet and delete all the jobs in the database
