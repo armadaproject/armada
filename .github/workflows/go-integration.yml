@@ -10,7 +10,7 @@ on:
 
 jobs:
   go-integration-tests:
-    if: github.repository_owner == "G-Research"
+    if: github.repository_owner == 'G-Research'
     runs-on: buildjet-4vcpu-ubuntu-2204
     strategy:
       fail-fast: false
