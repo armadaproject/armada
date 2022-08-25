@@ -7,11 +7,11 @@ import (
 )
 
 type TokenCredentials struct {
-	tokenSource oauth2.TokenSource
+	TokenSource oauth2.TokenSource
 }
 
 func (c *TokenCredentials) GetRequestMetadata(context.Context, ...string) (map[string]string, error) {
-	jwt, err := c.getJWT(c.tokenSource)
+	jwt, err := c.getJWT(c.TokenSource)
 	if err != nil {
 		return nil, err
 	}
@@ -32,10 +32,10 @@ func (c *TokenCredentials) getJWT(source oauth2.TokenSource) (string, error) {
 	return t.AccessToken, nil
 }
 
-type functionTokenSource struct {
-	getToken func() (*oauth2.Token, error)
+type FunctionTokenSource struct {
+	GetToken func() (*oauth2.Token, error)
 }
 
-func (f *functionTokenSource) Token() (*oauth2.Token, error) {
-	return f.getToken()
+func (f *FunctionTokenSource) Token() (*oauth2.Token, error) {
+	return f.GetToken()
 }
