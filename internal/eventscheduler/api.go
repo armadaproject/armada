@@ -23,9 +23,10 @@ import (
 
 type ExecutorApi struct {
 	api.UnimplementedAggregatedQueueServer
-	db             *pgxpool.Pool
-	MaxJobsPerCall int
+	api.UnimplementedEventServer
 	Producer       pulsar.Producer
+	Db             *pgxpool.Pool
+	MaxJobsPerCall int
 }
 
 func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
@@ -39,13 +40,13 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 
 	// Lease requests include the current resource utilisation for all nodes managed by this executor.
 	// We write this data into postgres to make it available to the scheduler.
-	err = srv.writeNodeInfoToPostgres(stream.Context(), req.Nodes)
+	err = srv.writeNodeInfoToPostgres(stream.Context(), req.ClusterId, req.Nodes)
 	if err != nil {
 		return err
 	}
 
 	// Get leases assigned to this executor.
-	queries := New(srv.db)
+	queries := New(srv.Db)
 	runs, err := queries.SelectNewRunsForExecutorWithLimit(
 		stream.Context(),
 		SelectNewRunsForExecutorWithLimitParams{
@@ -183,7 +184,7 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 
 // writeNodeInfoToPostgres writes the NodeInfo messages received from an executor into postgres
 // with the name of the node set as the primary key, i.e., the node name must be unique across all clusters.
-func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, nodeInfos []api.NodeInfo) error {
+func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorName string, nodeInfos []api.NodeInfo) error {
 	records := make([]interface{}, 0)
 	for _, nodeInfo := range nodeInfos {
 		message, err := proto.Marshal(&nodeInfo)
@@ -192,10 +193,11 @@ func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, nodeInfos [
 		}
 		records = append(records, Nodeinfo{
 			NodeName: nodeInfo.GetName(),
+			Executor: executorName,
 			Message:  message,
 		})
 	}
-	return Upsert(ctx, srv.db, "nodeinfo", NodeInfoSchema(), records)
+	return Upsert(ctx, srv.Db, "nodeinfo", NodeInfoSchema(), records)
 }
 
 func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {
@@ -217,7 +219,7 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 		jobIds[i] = jobId
 	}
 
-	queries := New(srv.db)
+	queries := New(srv.Db)
 	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
 		JobIds:   jobIds,
@@ -244,7 +246,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 	log := ctxlogrus.Extract(ctx)
 	log.Infof("executor %s returned %s", req.ClusterId, req.JobId)
 
-	queries := New(srv.db)
+	queries := New(srv.Db)
 
 	jobId, err := uuid.Parse(req.JobId)
 	if err != nil {
@@ -307,7 +309,7 @@ func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.I
 	log := ctxlogrus.Extract(ctx)
 	log.Infof("jobs %v reported done", req.Ids)
 
-	queries := New(srv.db)
+	queries := New(srv.Db)
 
 	jobIds := make([]uuid.UUID, len(req.Ids))
 	for i, s := range req.Ids {
@@ -395,13 +397,5 @@ func (srv *ExecutorApi) Report(ctx context.Context, apiEvent *api.EventMessage) 
 
 // PublishToPulsar sends pulsar messages async
 func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
-
-	// Reduce the number of sequences to send to the minimum possible,
-	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
-	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, 4194304) // 4MB
-	if err != nil {
-		return err
-	}
-	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences)
+	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.Producer, 4194304) // 4 MB
 }

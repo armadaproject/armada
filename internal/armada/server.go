@@ -195,6 +195,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var submitServerToRegister api.SubmitServer
 	submitServerToRegister = submitServer
 
+	var pulsarExecutorApiServer *eventscheduler.ExecutorApi
+
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var pool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
@@ -380,7 +382,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			JobsTable:        "jobs",
 			JobsSchema:       eventscheduler.JobsSchema(),
 			RunsTable:        "runs",
-			RunsSchema:       eventscheduler.JobsSchema(),
+			RunsSchema:       eventscheduler.RunsSchema(),
 			MaxWriteInterval: 10 * time.Second,
 			MaxWriteRecords:  10000,
 			Db:               pool,
@@ -389,10 +391,26 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return schedulerIngester.Run(ctx)
 		})
 
+		// New event-based scheduler.
 		scheduler := eventscheduler.NewScheduler(pool)
 		services = append(services, func() error {
 			return scheduler.Run(ctx)
 		})
+
+		apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		pulsarExecutorApiServer = &eventscheduler.ExecutorApi{
+			Producer:       apiProducer,
+			Db:             pool,
+			MaxJobsPerCall: 100,
+		}
 
 		// // This producer does not need a name; having multiple producers is safe.
 		// producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
@@ -486,8 +504,13 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
-	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
-	api.RegisterEventServer(grpcServer, eventServer)
+	if pulsarExecutorApiServer != nil {
+		api.RegisterAggregatedQueueServer(grpcServer, pulsarExecutorApiServer)
+		api.RegisterEventServer(grpcServer, pulsarExecutorApiServer)
+	} else {
+		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
+		api.RegisterEventServer(grpcServer, eventServer)
+	}
 
 	grpc_prometheus.Register(grpcServer)
 

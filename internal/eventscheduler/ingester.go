@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/common/eventutil/eventid"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -55,13 +56,6 @@ type Ingester struct {
 	// Used to setup a Pulsar consumer.
 	PulsarClient    pulsar.Client
 	ConsumerOptions pulsar.ConsumerOptions
-	// Postgres Table to write records into.
-	JobsTable string
-	RunsTable string
-	// Schema of the table data is written into.
-	// Required for UpsertRecords; see this function for docs.
-	JobsSchema string
-	RunsSchema string
 	// Write to postgres at least this often (assuming there are records to write).
 	MaxWriteInterval time.Duration
 	// Write current batch to postgres if at least this many records have been written to it.
@@ -98,28 +92,33 @@ type Batch struct {
 	Reprioritisations []*ReprioritisationBatch
 	// Set of job sets to be canceled.
 	// The map is used as a set, i.e., the value of the bool doesn't matter.
-	CancelledJobSets map[string]bool
+	JobSetsCancelled map[string]bool
 	// Set of jobs to be canceled.
 	// The map is used as a set, i.e., the value of the bool doesn't matter.
-	CancelledJobs map[uuid.UUID]bool
+	JobsCancelled map[uuid.UUID]bool
+	// Set of jobs that have succeeded.
+	JobsSucceeded map[uuid.UUID]bool
+	// Any job error messages received.
+	JobErrors []JobError
 	// Map from run id to a struct describing the set of physical resources assigned to that run.
-	JobAssignments map[uuid.UUID][]byte
-	// List of ids of job runs that have started running.
-	JobRunsRunning []uuid.UUID
-	// List of ids of job runs that have succeeded.
-	JobRunsSucceeded []uuid.UUID
-	// Job run errors collected.
-	// Non-terminal job run errors are ignored.
-	TerminalJobRunErrors map[uuid.UUID][]byte
+	JobRunAssignments map[uuid.UUID]*JobRunAssignment
+	// Ids of job runs that have started running.
+	JobRunsRunning map[uuid.UUID]bool
+	// Ids of job runs that have succeeded.
+	JobRunsSucceeded map[uuid.UUID]bool
+	// Any job run error messages received.
+	JobRunErrors []JobRunError
 }
 
 func NewBatch() *Batch {
 	return &Batch{
-		CreatedAt:            time.Now(),
-		CancelledJobSets:     make(map[string]bool),
-		CancelledJobs:        make(map[uuid.UUID]bool),
-		JobAssignments:       make(map[uuid.UUID][]byte),
-		TerminalJobRunErrors: make(map[uuid.UUID][]byte),
+		CreatedAt:         time.Now(),
+		JobSetsCancelled:  make(map[string]bool),
+		JobsCancelled:     make(map[uuid.UUID]bool),
+		JobsSucceeded:     make(map[uuid.UUID]bool),
+		JobRunAssignments: make(map[uuid.UUID]*JobRunAssignment),
+		JobRunsRunning:    make(map[uuid.UUID]bool),
+		JobRunsSucceeded:  make(map[uuid.UUID]bool),
 	}
 }
 
@@ -356,14 +355,14 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 	}
 
 	// Update the current batch.
-	for _, event := range sequence.GetEvents() {
+	for i, event := range sequence.GetEvents() {
 		switch e := event.Event.(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			// If there are job set operations to be applied,
 			// we can't add new jobs for any affected job sets to this batch.
 			// Since jobs submitted after those operations should not be affected.
 			// To that end, we create new batches as necessary here.
-			if _, ok := batch.CancelledJobSets[sequence.GetJobSetName()]; ok {
+			if _, ok := batch.JobSetsCancelled[sequence.GetJobSetName()]; ok {
 				batches = append(batches, NewBatch())
 				batch = batches[len(batches)-1]
 			}
@@ -377,6 +376,8 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 			batch.Jobs = append(batch.Jobs, Job{
 				JobID:         armadaevents.UuidFromProtoUuid(e.SubmitJob.JobId),
 				JobSet:        sequence.GetJobSetName(),
+				UserID:        sequence.GetUserId(),
+				Groups:        sequence.GetGroups(),
 				Queue:         sequence.GetQueue(),
 				Priority:      int64(e.SubmitJob.Priority),
 				SubmitMessage: msg.Payload(),
@@ -414,33 +415,65 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 
 			newPriority := int64(e.ReprioritiseJobSet.GetPriority())
 			reprioritisation.PrioritiesByJobSet[sequence.GetJobSetName()] = newPriority
+		case *armadaevents.EventSequence_Event_CancelJobSet:
+			batch.JobSetsCancelled[sequence.GetJobSetName()] = true
 		case *armadaevents.EventSequence_Event_CancelJob:
 			jobId := armadaevents.UuidFromProtoUuid(e.CancelJob.GetJobId())
-			batch.CancelledJobs[jobId] = true
-		case *armadaevents.EventSequence_Event_CancelJobSet:
-			batch.CancelledJobSets[sequence.GetJobSetName()] = true
+			batch.JobsCancelled[jobId] = true
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			jobId := armadaevents.UuidFromProtoUuid(e.JobSucceeded.GetJobId())
+			batch.JobsSucceeded[jobId] = true
+		case *armadaevents.EventSequence_Event_JobErrors:
+			eventId := eventid.New(msg.ID(), i).String()
+			for j, jobError := range e.JobErrors.GetErrors() {
+				bytes, err := proto.Marshal(jobError)
+				if err != nil {
+					err = errors.WithStack(err)
+					logging.WithStacktrace(log, err).Error("failed to marshal JobError")
+				}
+				batch.JobErrors = append(batch.JobErrors, JobError{
+					// To ensure inserts are idempotent,
+					// we need to mark each row with a deterministic id.
+					ID:       fmt.Sprintf("%s-%d", eventId, j),
+					JobID:    armadaevents.UuidFromProtoUuid(e.JobErrors.GetJobId()),
+					Error:    bytes,
+					Terminal: jobError.GetTerminal(),
+				})
+			}
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			jobId := armadaevents.UuidFromProtoUuid(e.JobRunAssigned.GetJobId())
+			runId := armadaevents.UuidFromProtoUuid(e.JobRunAssigned.GetRunId())
 			bytes, err := proto.Marshal(e.JobRunAssigned)
 			if err != nil {
 				err = errors.WithStack(err)
 				logging.WithStacktrace(log, err).Error("failed to marshal JobRunAssigned")
 			}
-			batch.JobAssignments[jobId] = bytes
+			batch.JobRunAssignments[runId] = &JobRunAssignment{
+				RunID:      runId,
+				Assignment: bytes,
+			}
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			jobId := armadaevents.UuidFromProtoUuid(e.JobRunRunning.GetJobId())
-			batch.JobRunsRunning = append(batch.JobRunsRunning, jobId)
+			batch.JobRunsRunning[jobId] = true
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			jobId := armadaevents.UuidFromProtoUuid(e.JobRunSucceeded.GetJobId())
-			batch.JobRunsRunning = append(batch.JobRunsSucceeded, jobId)
+			batch.JobRunsSucceeded[jobId] = true
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			jobId := armadaevents.UuidFromProtoUuid(e.JobRunErrors.GetJobId())
-			bytes, err := proto.Marshal(e.JobRunErrors)
-			if err != nil {
-				err = errors.WithStack(err)
-				logging.WithStacktrace(log, err).Error("failed to marshal JobRunErrors")
+			eventId := eventid.New(msg.ID(), i).String()
+			for j, jobRunError := range e.JobRunErrors.GetErrors() {
+				bytes, err := proto.Marshal(jobRunError)
+				if err != nil {
+					err = errors.WithStack(err)
+					logging.WithStacktrace(log, err).Error("failed to marshal JobRunError")
+				}
+				batch.JobRunErrors = append(batch.JobRunErrors, JobRunError{
+					// To ensure inserts are idempotent,
+					// we need to mark each row with a deterministic id.
+					ID:       fmt.Sprintf("%s-%d", eventId, j),
+					RunID:    armadaevents.UuidFromProtoUuid(e.JobRunErrors.GetRunId()),
+					Error:    bytes,
+					Terminal: jobRunError.GetTerminal(),
+				})
 			}
-			batch.TerminalJobRunErrors[jobId] = bytes
 		}
 	}
 	return batches, nil
@@ -476,29 +509,29 @@ func (srv *Ingester) ProcessBatch(ctx context.Context, batch *Batch) error {
 	log := ctxlogrus.Extract(ctx)
 	queries := New(srv.Db)
 
-	// Jobs can be upserted efficiently.
+	// Jobs
 	records := make([]interface{}, len(batch.Jobs))
 	for i, job := range batch.Jobs {
 		records[i] = job
 	}
-	err := Upsert(ctx, srv.Db, srv.JobsTable, srv.JobsSchema, records)
+	err := Upsert(ctx, srv.Db, "jobs", JobsSchema(), records)
 	if err != nil {
 		return err // TODO: Keep retrying on transient failures.
 	}
 	log.Infof("wrote %d jobs into postgres", len(records))
 
-	// Runs can be upserted efficiently.
+	// Job runs
 	records = make([]interface{}, len(batch.Runs))
 	for i, run := range batch.Runs {
 		records[i] = run
 	}
-	err = Upsert(ctx, srv.Db, srv.RunsTable, srv.RunsSchema, records)
+	err = Upsert(ctx, srv.Db, "runs", RunsSchema(), records)
 	if err != nil {
 		return err // TODO: Keep retrying on transient failures.
 	}
 	log.Infof("wrote %d jobs into postgres", len(records))
 
-	// Apply reprioritisations.
+	// Reprioritisations
 	for _, reprioritisation := range batch.Reprioritisations {
 		for jobSet, priority := range reprioritisation.PrioritiesByJobSet {
 			err := queries.UpdateJobPriorityByJobSet(ctx, UpdateJobPriorityByJobSetParams{
@@ -511,6 +544,7 @@ func (srv *Ingester) ProcessBatch(ctx context.Context, batch *Batch) error {
 		}
 
 		// TODO: This will be slow if there's a large number of ids.
+		// Could be addressed by using a separate table for priority + upsert.
 		for jobId, priority := range reprioritisation.PrioritiesByJob {
 			err := queries.UpdateJobPriorityById(ctx, UpdateJobPriorityByIdParams{
 				JobID:    jobId,
@@ -522,48 +556,119 @@ func (srv *Ingester) ProcessBatch(ctx context.Context, batch *Batch) error {
 		}
 	}
 
-	// Cancel jobs.
-	jobSets := make([]string, 0, len(batch.CancelledJobSets))
-	for jobSet, _ := range batch.CancelledJobSets {
+	// Job sets cancelled
+	jobSets := make([]string, 0, len(batch.JobSetsCancelled))
+	for jobSet, _ := range batch.JobSetsCancelled {
 		jobSets = append(jobSets, jobSet)
 	}
 	if len(jobSets) > 0 {
-		err := queries.CancelJobsBySets(ctx, jobSets)
+		err := queries.MarkJobsCancelledBySets(ctx, jobSets)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsCancelledBySets(ctx, jobSets)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
 
-	jobIds := make([]uuid.UUID, 0, len(batch.CancelledJobs))
-	for jobId, _ := range batch.CancelledJobs {
-		jobIds = append(jobIds, jobId)
-	}
-	if len(jobIds) > 0 {
-		err = queries.CancelJobsById(ctx, jobIds)
+	// Jobs cancelled
+	if len(batch.JobsCancelled) > 0 {
+		jobIds := idsFromMap(batch.JobsCancelled)
+		err := queries.MarkJobsCancelledById(ctx, jobIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsCancelledByJobId(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
 
-	// Mark job runs as running.
+	// Jobs succeeded
+	err = queries.MarkJobsSucceededById(ctx, idsFromMap(batch.JobsSucceeded))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Job errors
+	records = make([]interface{}, len(batch.JobErrors))
+	failedJobIds := make([]uuid.UUID, 0)
+	for i, jobError := range batch.JobErrors {
+		records[i] = jobError
+		if jobError.Terminal {
+			failedJobIds = append(failedJobIds, jobError.JobID)
+		}
+	}
+	err = Upsert(ctx, srv.Db, "job_errors", JobErrorsSchema(), records)
+	if err != nil {
+		return err // TODO: Keep retrying on transient failures.
+	}
+	log.Infof("wrote %d errors into postgres", len(records))
+
+	// For terminal errors, mark the corresponding job as failed.
+	if len(failedJobIds) > 0 {
+		queries.MarkJobsFailedById(ctx, failedJobIds)
+	}
+
+	// Job run assignments
+	i := 0
+	records = make([]interface{}, len(batch.JobRunAssignments))
+	for v, _ := range batch.JobRunAssignments {
+		records[i] = v
+		i++
+	}
+	err = Upsert(ctx, srv.Db, "job_run_assignments", JobRunAssignmentSchema(), records)
+	if err != nil {
+		return err // TODO: Keep retrying on transient failures.
+	}
+	log.Infof("wrote %d assignments into postgres", len(records))
+
+	// Job runs running
 	if len(batch.JobRunsRunning) > 0 {
-		err := queries.MarkJobRunsRunningById(ctx, batch.JobRunsRunning)
+		err := queries.MarkJobRunsRunningById(ctx, idsFromMap(batch.JobRunsRunning))
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
 
-	// Mark job runs as failed.
-	// TODO: This will be slow if there's a large number of ids.
-	for jobId, msg := range batch.TerminalJobRunErrors {
-		err := queries.MarkJobRunFailedById(ctx, MarkJobRunFailedByIdParams{
-			JobID: jobId,
-			Error: msg,
-		})
+	// Job runs succeeded
+	if len(batch.JobRunsSucceeded) > 0 {
+		err := queries.MarkJobRunsSucceededById(ctx, idsFromMap(batch.JobRunsSucceeded))
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	}
+
+	// Job run errors
+	records = make([]interface{}, len(batch.JobRunErrors))
+	failedJobRunIds := make([]uuid.UUID, 0)
+	for i, jobRunError := range batch.JobRunErrors {
+		records[i] = jobRunError
+		if jobRunError.Terminal {
+			failedJobIds = append(failedJobRunIds, jobRunError.RunID)
+		}
+	}
+	err = Upsert(ctx, srv.Db, "job_run_errors", JobRunErrorsSchema(), records)
+	if err != nil {
+		return err // TODO: Keep retrying on transient failures.
+	}
+	log.Infof("wrote %d run errors into postgres", len(records))
+
+	// For terminal errors, mark the corresponding job as failed.
+	if len(failedJobRunIds) > 0 {
+		queries.MarkJobRunsFailedById(ctx, failedJobRunIds)
 	}
 
 	return nil
+}
+
+func idsFromMap(set map[uuid.UUID]bool) []uuid.UUID {
+	ids := make([]uuid.UUID, len(set))
+	i := 0
+	for id := range set {
+		ids[i] = id
+		i++
+	}
+	return ids
 }

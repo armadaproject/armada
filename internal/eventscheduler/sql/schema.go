@@ -16,13 +16,19 @@ func SchemaTemplate() string {
 		"\n" +
 		"CREATE TABLE jobs (\n" +
 		"    job_id UUID PRIMARY KEY,\n" +
+		"    -- TODO: We could store a hash to reduce memory.\n" +
 		"    job_set text NOT NULL,\n" +
 		"    queue text NOT NULL,\n" +
 		"    user_id text NOT NULL,\n" +
-		"    groups text[] NOT NULL DEFAULT array[]::text[],\n" +
+		"    groups text[],\n" +
 		"    priority bigint NOT NULL,\n" +
 		"    -- Indicates if this job has been cancelled by a user.\n" +
-		"    cancelled boolean NOT NULL,\n" +
+		"    cancelled boolean NOT NULL DEFAULT false,\n" +
+		"    -- Set to true when a JobSucceeded event has been received for this job by the ingester.\n" +
+		"    succeeded boolean NOT NULL DEFAULT false,\n" +
+		"    -- Set to true when a terminal JobErrors event has been received for this job by the ingester.\n" +
+		"    -- The error itself is written into the job_errors table.\n" +
+		"    failed boolean NOT NULL DEFAULT false,\n" +
 		"     -- Dict mapping resource type to amount requested.\n" +
 		"     -- TODO: We need proto message containing the minimal amount of data the scheduler needs.\n" +
 		"    -- claims json NOT NULL,\n" +
@@ -35,11 +41,13 @@ func SchemaTemplate() string {
 		"CREATE TABLE runs (\n" +
 		"    run_id UUID PRIMARY KEY,\n" +
 		"    job_id UUID NOT NULL,\n" +
+		"    -- Needed to efficiently cancel all runs for a particular job set.\n" +
+		"    -- TODO: We could store a hash to reduce memory.\n" +
+		"    job_set TEXT NOT NULL,\n" +
 		"    -- Executor this job run is assigned to.\n" +
 		"    executor text NOT NULL,\n" +
-		"    -- Info of where this job is assigned to run. NULL until assigned to a node.\n" +
 		"    -- TODO: We probably want this to be proto.\n" +
-		"    assignment json,\n" +
+		"    -- assignment json,\n" +
 		"    -- True if this run has been sent to the executor already.\n" +
 		"    -- Used to control which runs are sent to the executor when it requests jobs.\n" +
 		"    sent_to_executor boolean NOT NULL,\n" +
@@ -58,38 +66,82 @@ func SchemaTemplate() string {
 		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
 		"\n" +
-		"CREATE TABLE executors (\n" +
-		"    id text PRIMARY KEY,\n" +
-		"    -- Map from resource type to total amount available of that resource.\n" +
-		"    -- The following pairs are required: \"cpu\", \"memory\", \"storage\".\n" +
-		"    -- In addition, any accelerators (e.g., A100_16GB) must be included.\n" +
-		"    total_resources json NOT NULL,\n" +
-		"    -- Map from resource type to max amount of that resource available on any node.\n" +
-		"    -- Must contain a pair for each resource type in totalResources.\n" +
-		"    max_resources json NOT NULL\n" +
+		"-- Info of physical resources assigned to job runs.\n" +
+		"-- Populated based on JobRunAssigned Pulsar messages.\n" +
+		"-- Job runs with no entry in this table have not yet been assigned resources.\n" +
+		"CREATE TABLE job_run_assignments (\n" +
+		"    run_id UUID PRIMARY KEY,\n" +
+		"    -- Encoded proto message storing the assignment.\n" +
+		"    assignment bytea NOT NULL,\n" +
+		"    serial bigserial NOT NULL,\n" +
+		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
 		"\n" +
-		"CREATE TABLE pulsar (    \n" +
-		"    -- Pulsar topic name. Should not include partition index.\n" +
-		"    topic text NOT NULL,\n" +
-		"    -- pulsar.MessageID fields.\n" +
-		"    ledger_id bigint NOT NULL,\n" +
-		"    entry_id bigint NOT NULL,\n" +
-		"    batch_idx int not NULL,\n" +
-		"    partition_idx int NOT NULL\n" +
+		"CREATE TABLE job_errors (\n" +
+		"    -- To ensure inserts are idempotent, we to asociate with each error a unique id\n" +
+		"    -- that can be computed deterministically by the ingester.\n" +
+		"    id text PRIMARY KEY,\n" +
+		"    job_id UUID NOT NULL,\n" +
+		"    -- Byte array containing a JobErrors proto message.\n" +
+		"    error bytea NOT NULL,\n" +
+		"    -- Indicates if this error is terminal.\n" +
+		"    -- The presence of a terminal error indicates this job has failed.\n" +
+		"    terminal boolean NOT NULL DEFAULT false,\n" +
+		"    serial bigserial NOT NULL,\n" +
+		"    last_modified TIMESTAMPTZ NOT NULL\n" +
+		");\n" +
+		"\n" +
+		"CREATE INDEX job_errors_id ON job_errors (job_id);\n" +
+		"\n" +
+		"-- There should ever only be one terminal error for any job.\n" +
+		"-- We avoid creating the index as unique to avoid failing inserts on programming bugs.\n" +
+		"CREATE INDEX job_errors_id_terminal ON job_errors (job_id, terminal);\n" +
+		"\n" +
+		"CREATE TABLE job_run_errors (\n" +
+		"    -- To ensure inserts are idempotent, we to asociate with each error a unique id\n" +
+		"    -- that can be computed deterministically by the ingester.    \n" +
+		"    id text PRIMARY KEY,\n" +
+		"    run_id UUID NOT NULL,\n" +
+		"    -- Byte array containing a JobRunErrors proto message.    \n" +
+		"    error bytea NOT NULL,\n" +
+		"    -- Indicates if this error is terminal.\n" +
+		"    -- The presence of a terminal error indicates this job run has failed.\n" +
+		"    terminal boolean NOT NULL DEFAULT false,\n" +
+		"    serial bigserial NOT NULL,\n" +
+		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
 		"\n" +
 		"-- The combination topic name and partition index must be unique.\n" +
-		"CREATE UNIQUE INDEX topic_partition ON pulsar (topic, partition_idx);\n" +
+		"CREATE INDEX job_run_errors_id ON job_run_errors (run_id);\n" +
+		"\n" +
+		"-- There should ever only be one terminal error for any run.\n" +
+		"-- We avoid creating the index as unique to avoid failing inserts on programming bugs.\n" +
+		"CREATE INDEX job_run_errors_id_terminal ON job_run_errors (run_id, terminal);\n" +
+		"\n" +
+		"-- CREATE TABLE executors (\n" +
+		"--     id text PRIMARY KEY,\n" +
+		"--     -- Map from resource type to total amount available of that resource.\n" +
+		"--     -- The following pairs are required: \"cpu\", \"memory\", \"storage\".\n" +
+		"--     -- In addition, any accelerators (e.g., A100_16GB) must be included.\n" +
+		"--     total_resources json NOT NULL,\n" +
+		"--     -- Map from resource type to max amount of that resource available on any node.\n" +
+		"--     -- Must contain a pair for each resource type in totalResources.\n" +
+		"--     max_resources json NOT NULL\n" +
+		"-- );\n" +
 		"\n" +
 		"CREATE TABLE nodeinfo (\n" +
 		"    -- Name of the node. Must be unique across all clusters.\n" +
-		"    node_name text PRIMARY KEY,\n" +
+		"    node_name text NOT NULL,\n" +
+		"    -- Name of the executor responsible for this node.\n" +
+		"    executor text NOT NULL,\n" +
 		"    -- Most recently received NodeInfo message for this node.\n" +
 		"    message bytea NOT NULL,\n" +
 		"    serial bigserial NOT NULL,\n" +
 		"    last_modified TIMESTAMPTZ NOT NULL DEFAULT NOW()\n" +
 		");\n" +
+		"\n" +
+		"-- The combination node name and executor must be unique.\n" +
+		"CREATE UNIQUE INDEX node_name_executor ON nodeinfo (node_name, executor);\n" +
 		"\n" +
 		"-- Automatically increment serial and set last_modified on insert.\n" +
 		"-- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.\n" +
@@ -108,8 +160,8 @@ func SchemaTemplate() string {
 		"END\n" +
 		"$func$;\n" +
 		"\n" +
-		"CREATE TRIGGER next_serial_on_insert_nodeinfo\n" +
-		"BEFORE INSERT ON nodeinfo\n" +
+		"CREATE TRIGGER next_serial_on_insert_jobs\n" +
+		"BEFORE INSERT ON jobs\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
@@ -118,9 +170,38 @@ func SchemaTemplate() string {
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
-		"CREATE TRIGGER next_serial_on_insert_jobs\n" +
-		"BEFORE INSERT ON jobs\n" +
+		"CREATE TRIGGER next_serial_on_insert_job_run_assignments\n" +
+		"BEFORE INSERT ON job_run_assignments\n" +
 		"FOR EACH ROW\n" +
-		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();"
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"CREATE TRIGGER next_serial_on_insert_job_errors\n" +
+		"BEFORE INSERT ON job_errors\n" +
+		"FOR EACH ROW\n" +
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"CREATE TRIGGER next_serial_on_insert_job_run_errors\n" +
+		"BEFORE INSERT ON job_run_errors\n" +
+		"FOR EACH ROW\n" +
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"CREATE TRIGGER next_serial_on_insert_nodeinfo\n" +
+		"BEFORE INSERT ON nodeinfo\n" +
+		"FOR EACH ROW\n" +
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"-- Used to store Pulsar message ids for idempotency checks.\n" +
+		"CREATE TABLE pulsar (\n" +
+		"    -- Pulsar topic name. Should not include partition index.\n" +
+		"    topic text NOT NULL,\n" +
+		"    -- pulsar.MessageID fields.\n" +
+		"    ledger_id bigint NOT NULL,\n" +
+		"    entry_id bigint NOT NULL,\n" +
+		"    batch_idx int not NULL,\n" +
+		"    partition_idx int NOT NULL\n" +
+		");\n" +
+		"\n" +
+		"-- The combination topic name and partition index must be unique.\n" +
+		"CREATE UNIQUE INDEX topic_partition ON pulsar (topic, partition_idx);"
 	return tmpl
 }

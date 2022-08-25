@@ -8,14 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 )
-
-type Executor struct {
-	ID             string      `db:"id"`
-	TotalResources pgtype.JSON `db:"total_resources"`
-	MaxResources   pgtype.JSON `db:"max_resources"`
-}
 
 type Job struct {
 	JobID         uuid.UUID `db:"job_id"`
@@ -25,13 +18,41 @@ type Job struct {
 	Groups        []string  `db:"groups"`
 	Priority      int64     `db:"priority"`
 	Cancelled     bool      `db:"cancelled"`
+	Succeeded     bool      `db:"succeeded"`
+	Failed        bool      `db:"failed"`
 	SubmitMessage []byte    `db:"submit_message"`
 	Serial        int64     `db:"serial"`
 	LastModified  time.Time `db:"last_modified"`
 }
 
+type JobError struct {
+	ID           string    `db:"id"`
+	JobID        uuid.UUID `db:"job_id"`
+	Error        []byte    `db:"error"`
+	Terminal     bool      `db:"terminal"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
+}
+
+type JobRunAssignment struct {
+	RunID        uuid.UUID `db:"run_id"`
+	Assignment   []byte    `db:"assignment"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
+}
+
+type JobRunError struct {
+	ID           string    `db:"id"`
+	RunID        uuid.UUID `db:"run_id"`
+	Error        []byte    `db:"error"`
+	Terminal     bool      `db:"terminal"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
+}
+
 type Nodeinfo struct {
 	NodeName     string    `db:"node_name"`
+	Executor     string    `db:"executor"`
 	Message      []byte    `db:"message"`
 	Serial       int64     `db:"serial"`
 	LastModified time.Time `db:"last_modified"`
@@ -51,15 +72,15 @@ type Queue struct {
 }
 
 type Run struct {
-	RunID          uuid.UUID   `db:"run_id"`
-	JobID          uuid.UUID   `db:"job_id"`
-	Executor       string      `db:"executor"`
-	Assignment     pgtype.JSON `db:"assignment"`
-	SentToExecutor bool        `db:"sent_to_executor"`
-	Cancelled      bool        `db:"cancelled"`
-	Running        bool        `db:"running"`
-	Succeeded      bool        `db:"succeeded"`
-	Error          []byte      `db:"error"`
-	Serial         int64       `db:"serial"`
-	LastModified   time.Time   `db:"last_modified"`
+	RunID          uuid.UUID `db:"run_id"`
+	JobID          uuid.UUID `db:"job_id"`
+	JobSet         string    `db:"job_set"`
+	Executor       string    `db:"executor"`
+	SentToExecutor bool      `db:"sent_to_executor"`
+	Cancelled      bool      `db:"cancelled"`
+	Running        bool      `db:"running"`
+	Succeeded      bool      `db:"succeeded"`
+	Error          []byte    `db:"error"`
+	Serial         int64     `db:"serial"`
+	LastModified   time.Time `db:"last_modified"`
 }

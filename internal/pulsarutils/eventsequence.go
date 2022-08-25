@@ -8,11 +8,26 @@ import (
 	"github.com/pkg/errors"
 	"github.com/severinson/pulsar-client-go/pulsar"
 
+	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// PublishSequence publishes several sequences concurrently.
+// CompactAndPublishSequences reduces the number of sequences to the smallest possible,
+// while respecting per-job set ordering and max Pulsar message size, and then publishes to Pulsar.
+func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes int) error {
+	// Reduce the number of sequences to send to the minimum possible,
+	// and then break up any sequences larger than maxMessageSizeInBytes.
+	sequences = eventutil.CompactEventSequences(sequences)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, maxMessageSizeInBytes)
+	if err != nil {
+		return err
+	}
+	return PublishSequences(ctx, producer, sequences)
+}
+
+// PublishSequence publishes several event sequences to Pulsar.
+// For efficiency, all sequences are queued for publishing and then flushed.
 // Returns once all sequences have been received by Pulsar.
 //
 // To reduce the number of separate sequences sent and ensure limit message size, call

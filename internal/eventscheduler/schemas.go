@@ -25,6 +25,18 @@ func NodeInfoSchema() string {
 	return schemaByTable("nodeinfo")
 }
 
+func JobErrorsSchema() string {
+	return schemaByTable("job_errors")
+}
+
+func JobRunErrorsSchema() string {
+	return schemaByTable("job_run_errors")
+}
+
+func JobRunAssignmentSchema() string {
+	return schemaByTable("job_run_assignments")
+}
+
 func schemaByTable(table string) string {
 	s := sql.SchemaTemplate()
 	schema, err := schemaFromString(s, table)
