@@ -12,7 +12,6 @@ import (
 )
 
 func WithTestDb(migrations []migration, action func(db *pgxpool.Pool) error) error {
-
 	ctx := context.Background()
 
 	// Connect and create a dedicated database for the test

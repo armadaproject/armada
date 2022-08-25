@@ -27,7 +27,8 @@ func NewEventsToJobService(
 	jobSetId string,
 	jobId string,
 	jobServiceConfig *configuration.JobServiceConfiguration,
-	jobServiceRepository repository.SQLJobService) *EventsToJobService {
+	jobServiceRepository repository.SQLJobService,
+) *EventsToJobService {
 	return &EventsToJobService{
 		queue:                queue,
 		jobSetId:             jobSetId,
@@ -39,7 +40,6 @@ func NewEventsToJobService(
 
 // Subscribes to a JobSet from jobsetid
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
-
 	return eventToJobService.streamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
 }
 

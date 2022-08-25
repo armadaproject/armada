@@ -52,7 +52,7 @@ func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(
 
 	runningPod := makeRunningPod()
 	addPod(t, fakeClusterContext, runningPod)
-	//Prevent renewal of lease for pod
+	// Prevent renewal of lease for pod
 	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
 
 	pods, err := fakeClusterContext.GetBatchPods()
@@ -73,7 +73,7 @@ func TestJobManager_DoesNothing_IfLeaseRenewalPreventOnFinishedPod(t *testing.T)
 	fakeClusterContext, mockLeaseService, mockEventsReporter, jobManager := makejobManagerWithTestDoubles()
 	runningPod := makeSucceededPod()
 	addPod(t, fakeClusterContext, runningPod)
-	//Prevent renewal of lease for pod
+	// Prevent renewal of lease for pod
 	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
 
 	pods, err := fakeClusterContext.GetBatchPods()

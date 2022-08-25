@@ -13,8 +13,10 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type empty struct{}
-type stringSet map[string]empty
+type (
+	empty     struct{}
+	stringSet map[string]empty
+)
 
 type QueueCache struct {
 	queueRepository          repository.QueueRepository
@@ -38,7 +40,8 @@ func NewQueueCache(
 		schedulingInfoRepository: schedulingInfoRepository,
 		queueDurations:           map[string]map[string]*metrics.FloatMetrics{},
 		queuedResources:          map[string]map[string]metrics.ResourceMetrics{},
-		queueNonMatchingJobIds:   map[string]map[string]stringSet{}}
+		queueNonMatchingJobIds:   map[string]map[string]stringSet{},
+	}
 
 	return collector
 }
@@ -97,7 +100,6 @@ func (c *QueueCache) Refresh() {
 			}
 			nonMatchingJobs[job.Id] = nonMatchingClusters
 		})
-
 		if err != nil {
 			log.Errorf("Error while getting queue %s resources %s", queue.Name, err)
 		}
@@ -108,7 +110,8 @@ func (c *QueueCache) Refresh() {
 }
 
 func (c *QueueCache) updateQueueMetrics(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder,
-	queueDurationsByPool map[string]*metrics.FloatMetricsRecorder) {
+	queueDurationsByPool map[string]*metrics.FloatMetricsRecorder,
+) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 

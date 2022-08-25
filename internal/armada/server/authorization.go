@@ -77,7 +77,8 @@ func checkQueuePermission(
 	ctx context.Context,
 	q queue.Queue,
 	globalPermission permission.Permission,
-	verb queue.PermissionVerb) error {
+	verb queue.PermissionVerb,
+) error {
 	err := checkPermission(p, ctx, globalPermission)
 	if err != nil {
 		return err

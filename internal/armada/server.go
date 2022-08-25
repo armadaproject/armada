@@ -43,7 +43,6 @@ import (
 )
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
-
 	log.Info("Armada server starting")
 	defer log.Info("Armada server shutting down")
 

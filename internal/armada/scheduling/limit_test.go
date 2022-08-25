@@ -61,7 +61,9 @@ func createJob() *api.Job {
 			Resources: v1.ResourceRequirements{
 				Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
 				Limits:   v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
-			}}}}
+			},
+		}},
+	}
 	return &api.Job{
 		Id:        "test",
 		JobSetId:  "jobSet",

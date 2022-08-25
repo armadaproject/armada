@@ -32,7 +32,6 @@ func TestCheckStreamExists(t *testing.T) {
 }
 
 func TestReadEvents(t *testing.T) {
-
 	withRedisEventRepository(func(r *RedisEventRepository) {
 		created := time.Now().UTC()
 		event := createEvent("test", "jobset", created)
