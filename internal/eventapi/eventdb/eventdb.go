@@ -32,7 +32,6 @@ func NewEventDb(db *pgxpool.Pool) *EventDb {
 // Next the events are insrted using the postgres copy protocol
 // Finally the sequence numbers are updated
 func (e *EventDb) UpdateEvents(ctx context.Context, events []*model.EventRow) error {
-
 	jobsetIds := distinctJobsets(events)
 
 	// If there's nothing to insert then we can just return
@@ -46,10 +45,8 @@ func (e *EventDb) UpdateEvents(ctx context.Context, events []*model.EventRow) er
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		// First filter out any events where there is no row or the sequenceNo is equal to or lower than sequenceNos we already have
 		sequenceNos, err := loadSequenceNosForIds(ctx, tx, jobsetIds)
-
 		if err != nil {
 			return err
 		}
@@ -126,7 +123,6 @@ func (e *EventDb) InsertSeqNos(ctx context.Context, seqNos []*model.SeqNoRow) er
 // InsertEvents inserts a batch of events into the event table using the copy protocol
 // Any existing events will not be overwritten.
 func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) error {
-
 	tmpTable := database.UniqueTableName("event")
 
 	createTmp := func(tx pgx.Tx) error {
@@ -174,7 +170,6 @@ func (e *EventDb) InsertEvents(ctx context.Context, events []*model.EventRow) er
 // jobsets, each with a relatively small number of rows available.  This allows us to fetch the rows for multiple
 // jobsets in  a single query, which should be more efficient than making a large number of queries
 func (e *EventDb) GetEvents(requests []*model.EventRequest, limit int) ([]*model.EventResponse, error) {
-
 	// Build up a query of the form:
 	// SELECT 1 as reqIdx, sequence, payload
 	// 	FROM events
@@ -293,14 +288,12 @@ func (e *EventDb) LoadEvents(ctx context.Context) ([]*model.EventRow, error) {
 
 // GetOrCreateJobsetId will retrieve a mapping from (queue, jobset) -> jobsetId or create a new one if one doesn't exist
 func (e *EventDb) GetOrCreateJobsetId(ctx context.Context, queue string, jobset string) (int64, error) {
-
 	_, err := e.db.Exec(
 		ctx,
 		`INSERT INTO jobset (queue, jobset, created) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;`,
 		queue,
 		jobset,
 		time.Now().In(time.UTC))
-
 	if err != nil {
 		return 0, errors.WithStack(err)
 	}
@@ -333,7 +326,6 @@ func loadSequenceNosForIds(ctx context.Context, querier pgxtype.Querier, jobsetI
 // lastSeqNumbers determines the last sequence number for each jobset in the input event rows
 // this function  assumes that the input event rows are already sorted by seq number
 func lastSeqNumbers(events []*model.EventRow) []*model.SeqNoRow {
-
 	seqNosById := make(map[int64]int64)
 
 	for _, event := range events {

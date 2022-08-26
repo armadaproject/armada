@@ -202,7 +202,7 @@ func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 }
 
 func FindLastContainerStartTime(pod *v1.Pod) time.Time {
-	//Fallback to pod creation if there is no container
+	// Fallback to pod creation if there is no container
 	startTime := pod.CreationTimestamp.Time
 	for _, c := range pod.Status.ContainerStatuses {
 		if s := c.State.Running; s != nil {
@@ -218,7 +218,6 @@ func FindLastContainerStartTime(pod *v1.Pod) time.Time {
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
 	deadline := time.Now().Add(-duration)
 	lastStatusChange, err := LastStatusChange(pod)
-
 	if err != nil {
 		log.Errorf("Problem determining last state change for pod %v: %v", pod.Name, err)
 		return false

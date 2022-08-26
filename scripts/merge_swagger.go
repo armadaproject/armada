@@ -13,7 +13,6 @@ import (
 )
 
 func main() {
-
 	grpcDoc, err := loads.Spec("pkg/api/" + os.Args[1])
 	if err != nil {
 		panic(err)
@@ -71,7 +70,6 @@ func prefixTypeWithGoPackageName(definitions spec.Definitions) {
 	for from, to := range renames {
 		renameDefinition(definitions, from, to)
 	}
-
 }
 
 func renameDefinition(definitions spec.Definitions, from, to string) {
@@ -125,7 +123,6 @@ func removeUnusedDefinitions(s *spec.Swagger) {
 				}
 
 			}
-
 		}
 	}
 }

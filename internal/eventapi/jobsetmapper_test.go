@@ -13,8 +13,6 @@ import (
 	"github.com/G-Research/armada/internal/eventapi/eventdb/schema/statik"
 )
 
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-
 func TestHappyPath(t *testing.T) {
 	err := WithDatabase(func(db *eventdb.EventDb) error {
 		ctx := context.Background()

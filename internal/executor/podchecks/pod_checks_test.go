@@ -15,7 +15,6 @@ type podCheckTest struct {
 }
 
 func Test_GetAction(t *testing.T) {
-
 	// ActionFail trumps ActionRetry trumps ActionWait
 	tests := []podCheckTest{
 		{eventAction: ActionWait, containerStateAction: ActionWait, expectedResult: ActionWait},

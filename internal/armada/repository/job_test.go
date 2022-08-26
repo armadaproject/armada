@@ -34,7 +34,6 @@ func TestJobAddDifferentQueuesCanHaveSameClientId(t *testing.T) {
 
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		leasedAgain, e := r.TryLeaseJobs("cluster2", "queue1", []*api.Job{job})
@@ -278,7 +277,6 @@ func TestDeleteWithSomeMissingJobs(t *testing.T) {
 
 func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-
 		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
 
 		result, err := r.DeleteJobs([]*api.Job{job})
@@ -314,12 +312,12 @@ func TestGetJobSetJobIds(t *testing.T) {
 		queuedJob := addTestJob(t, r, "queue1")
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
-		//Gives all on when no filter provided
+		// Gives all on when no filter provided
 		ids, e := r.GetJobSetJobIds("queue1", "set1", nil)
 		assert.Nil(t, e)
 		assert.Equal(t, 2, len(ids))
 
-		//Gives all on when filter includes all options
+		// Gives all on when filter includes all options
 		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
 			IncludeQueued: true,
 			IncludeLeased: true,
@@ -327,7 +325,7 @@ func TestGetJobSetJobIds(t *testing.T) {
 		assert.Nil(t, e)
 		assert.Equal(t, 2, len(ids))
 
-		//Gives only queued when queued filter provided
+		// Gives only queued when queued filter provided
 		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
 			IncludeQueued: true,
 			IncludeLeased: false,
@@ -336,7 +334,7 @@ func TestGetJobSetJobIds(t *testing.T) {
 		assert.Equal(t, 1, len(ids))
 		assert.Equal(t, ids[0], queuedJob.Id)
 
-		//Gives only leased when leased filter provided
+		// Gives only leased when leased filter provided
 		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
 			IncludeQueued: false,
 			IncludeLeased: true,
@@ -803,6 +801,7 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_SameBatch(t *testing.T) {
 	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 10)
 }
+
 func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_DifferentBatch(t *testing.T) {
 	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 1)
 }
@@ -865,7 +864,6 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 }
 
 func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements, tolerations []v1.Toleration) *api.Job {
-
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
 		Id:       util.NewULID(),
@@ -901,7 +899,8 @@ func withRepository(action func(r *RedisJobRepository)) {
 }
 
 func withRepositoryUsingJobDefaults(
-	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository)) {
+	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository),
+) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()

@@ -3,13 +3,12 @@ Package armadactl contains all the business logic for armadactl.
 It has no dependency on either viper or cobra libraries, and can be unit tested.
 
 Output writer for the App is configurable so that tests can easily capture
-and perform assertions on it. Params are initialized in the param package,
+and perform assertions on it. Params are initialised in the param package,
 so that this package can be clear of viper dependency.
 
-TODO there should be a type that uniquely represents a job, instead of having to pass around several parameters
+# TODO there should be a type that uniquely represents a job, instead of having to pass around several parameters
 
 TODO add methods for querying more detailed info about queues and jobs (current priority and so on)
-
 */
 package armadactl
 
@@ -29,7 +28,7 @@ type App struct {
 	// but can be overridden in tests to make assertions on the applications's output.
 	Out io.Writer
 	// Source of randomness. Tests can use a mocked random source in order to provide
-	// deterministic testing behavior.
+	// deterministic testing behaviour.
 	Random io.Reader
 }
 

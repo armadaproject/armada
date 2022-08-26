@@ -124,12 +124,12 @@ func TestGetOldestPodsWithQueueFairShare(t *testing.T) {
 		queue3Pod1,
 	}
 
-	//Gets oldest from largest queue
+	// Gets oldest from largest queue
 	oldestPods := getOldestPodsWithQueueFairShare(pods, 1)
 	assert.Len(t, oldestPods, 1)
 	assert.True(t, contains(oldestPods, queue1Pod3))
 
-	//Gets oldest with share over queues
+	// Gets oldest with share over queues
 	oldestPods = getOldestPodsWithQueueFairShare(pods, 3)
 	assert.Len(t, oldestPods, 3)
 	assert.True(t, contains(oldestPods, queue1Pod3))
@@ -146,7 +146,7 @@ func TestGetOldestPodsWithQueueFairShare_HandlesTooHighPodLimit(t *testing.T) {
 		queue1Pod1,
 	}
 
-	//Gets oldest from largest queue
+	// Gets oldest from largest queue
 	oldestPods := getOldestPodsWithQueueFairShare(pods, 2)
 	assert.Len(t, oldestPods, 1)
 	assert.True(t, contains(oldestPods, queue1Pod1))
@@ -164,7 +164,7 @@ func TestGetOldestPodsWithQueueFairShare_ConsidersPodsWithoutTimingDataAsOldest(
 		queue1Pod2,
 	}
 
-	//Gets oldest from largest queue
+	// Gets oldest from largest queue
 	oldestPods := getOldestPodsWithQueueFairShare(pods, 1)
 	assert.Len(t, oldestPods, 1)
 	assert.True(t, contains(oldestPods, queue1Pod2))
