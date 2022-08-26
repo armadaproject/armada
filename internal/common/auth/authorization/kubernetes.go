@@ -68,7 +68,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		Kid string `json:"kid"`
 	}
 
-	if err := json.Unmarshal(decoded, unmarshalled); err != nil {
+	if err := json.Unmarshal(decoded, &unmarshalled); err != nil {
 		return "", err
 	}
 
@@ -106,6 +106,7 @@ func reviewToken(clusterUrl string, token string) (string, error) {
 	}
 
 	client := &http.Client{Transport: tr}
+
 	resp, err := client.Do(reviewRequest)
 	if err != nil {
 		return "", err
