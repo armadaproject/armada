@@ -523,7 +523,7 @@ func TestHasCurrentStateBeenReported_TrueWhenAnnotationExistsForCurrentPhase(t *
 func TestHasCurrentStateBeenReported_FalseWhenNoAnnotationExistsForCurrentPhase(t *testing.T) {
 	pod := v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			//Annotation for different phase
+			// Annotation for different phase
 			Annotations: map[string]string{string(v1.PodPending): time.Now().String()},
 		},
 		Status: v1.PodStatus{
@@ -710,18 +710,18 @@ func TestRemovePodsFromQueue_EmptyLists(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
 	}
 
-	//All lists empty
+	// All lists empty
 	list := []*v1.Pod{}
 	toRemove := []*v1.Pod{}
 	result := RemovePodsFromList(list, toRemove)
 	assert.Empty(t, result)
 
-	//Remove list empty
+	// Remove list empty
 	list = []*v1.Pod{pod1, pod2}
 	result = RemovePodsFromList(list, toRemove)
 	assert.Equal(t, result, list)
 
-	//Input list empty
+	// Input list empty
 	list = []*v1.Pod{}
 	toRemove = []*v1.Pod{pod1}
 	result = RemovePodsFromList(list, toRemove)

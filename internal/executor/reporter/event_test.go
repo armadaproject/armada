@@ -22,7 +22,6 @@ func TestCreateEventForCurrentState_WhenPodPending(t *testing.T) {
 
 	_, ok := result.(*api.JobPendingEvent)
 	assert.True(t, ok)
-
 }
 
 func TestCreateEventForCurrentState_WhenPodRunning(t *testing.T) {

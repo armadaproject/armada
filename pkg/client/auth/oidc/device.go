@@ -83,9 +83,11 @@ type oauthErrorResponse struct {
 	Error string `json:"error"`
 }
 
-var authorizationPending = "authorization_pending"
-var expiredToken = "expiredtoken"
-var slowDown = "slow_down"
+var (
+	authorizationPending = "authorization_pending"
+	expiredToken         = "expiredtoken"
+	slowDown             = "slow_down"
+)
 
 func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFlowResponse, error) {
 	resp, err := c.PostForm(config.ProviderUrl+"/connect/deviceauthorization",

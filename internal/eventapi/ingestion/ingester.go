@@ -24,7 +24,6 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
-
 	if !(config.Paralellism > 0) {
 		panic("Lookout ingester paralellism must be greater than 0")
 	}

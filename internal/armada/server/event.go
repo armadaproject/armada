@@ -32,8 +32,8 @@ func NewEventServer(
 	eventRepository repository.EventRepository,
 	eventStore repository.EventStore,
 	queueRepository repository.QueueRepository,
-	eventApi *serving.EventApi) *EventServer {
-
+	eventApi *serving.EventApi,
+) *EventServer {
 	return &EventServer{
 		permissions:     permissions,
 		eventRepository: eventRepository,
@@ -105,7 +105,7 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, stre
 	fromId := request.FromMessageId
 
 	var timeout time.Duration = -1
-	var stopAfter = ""
+	stopAfter := ""
 	if request.Watch {
 		timeout = 5 * time.Second
 	} else {

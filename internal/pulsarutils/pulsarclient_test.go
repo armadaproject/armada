@@ -11,7 +11,6 @@ import (
 )
 
 func TestParsePulsarCompressionType(t *testing.T) {
-
 	// No compression
 	comp, err := ParsePulsarCompressionType("")
 	assert.NoError(t, err)
@@ -38,7 +37,6 @@ func TestParsePulsarCompressionType(t *testing.T) {
 }
 
 func TestParsePulsarCompressionLevel(t *testing.T) {
-
 	// No compression
 	comp, err := ParsePulsarCompressionLevel("")
 	assert.NoError(t, err)
@@ -88,7 +86,6 @@ func TestCreatePulsarClientHappyPath(t *testing.T) {
 	}
 	_, err = NewPulsarClient(config)
 	assert.NoError(t, err)
-
 }
 
 func TestCreatePulsarClientInvalidAuth(t *testing.T) {

@@ -21,9 +21,11 @@ import (
 	"github.com/G-Research/armada/internal/executor/metrics"
 )
 
-const etcdInUseSizeBytesMetricName string = "etcd_mvcc_db_total_size_in_use_in_bytes"
-const etcdTotalSizeBytesMetricName string = "etcd_server_quota_backend_bytes"
-const etcdMemberUrl string = "url"
+const (
+	etcdInUseSizeBytesMetricName string = "etcd_mvcc_db_total_size_in_use_in_bytes"
+	etcdTotalSizeBytesMetricName string = "etcd_server_quota_backend_bytes"
+	etcdMemberUrl                string = "url"
+)
 
 type EtcdLimitHealthMonitor interface {
 	IsWithinSoftHealthLimit() bool
@@ -122,7 +124,7 @@ func (srv *EtcdHealthMonitor) Run(ctx context.Context) {
 	log.WithField("service", "EtcdHealthMonitor").Info("started ETCD health monitor")
 	defer log.WithField("service", "EtcdHealthMonitor").Info("exited ETCD health monitor")
 
-	var taskDurationHistogram = promauto.NewHistogram(
+	taskDurationHistogram := promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    metrics.ArmadaExecutorMetricsPrefix + "etcd_health_check_latency_seconds",
 			Help:    "Background loop etcd health check latency in seconds",
@@ -284,7 +286,7 @@ func (srv *EtcdHealthMonitor) getInstanceCurrentFractionOfResourceInUse(instance
 	}
 
 	if instance.lastCheck.IsZero() {
-		return 0, fmt.Errorf("no scrape has ever occured for this instance, possibly etcd health check is still initialising")
+		return 0, fmt.Errorf("no scrape has ever occurred for this instance, possibly etcd health check is still initialising")
 	}
 
 	metricsAge := time.Since(instance.lastCheck)

@@ -1,0 +1,32 @@
+name: Go End to End (free)
+
+on:
+  push:
+    branches-ignore:
+      - master
+  pull_request:
+    branches-ignore:
+      - gh-pages
+
+jobs:
+  go-integration-tests:
+    if: github.repository_owner != 'G-Research'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+      - run: make build-ci
+      - run: make tests-e2e-setup
+      - run: make tests-e2e-no-setup
+        env:
+          INTEGRATION_ENABLED: true
+      - run: make junit-report
+      - name: Upload junit report
+        uses: actions/upload-artifact@v2.2.4
+        with:
+          name: junit.xml
+          path: test_reports/junit.xml

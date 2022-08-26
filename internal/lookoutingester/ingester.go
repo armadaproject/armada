@@ -25,7 +25,6 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Lookout database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.LookoutIngesterConfiguration) {
-
 	if !(config.Paralellism > 0) {
 		panic("Lookout ingester paralellism must be greater than 0")
 	}
@@ -100,7 +99,6 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	// wait for a shutdown event
 	wg.Wait()
 	log.Info("Shutdown event received- closing")
-
 }
 
 // mergeInstructions takes an array of channels and merges them into a single channel

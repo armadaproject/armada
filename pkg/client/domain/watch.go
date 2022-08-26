@@ -9,8 +9,10 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-type JobStatus string
-type PodStatus string
+type (
+	JobStatus string
+	PodStatus string
+)
 
 const (
 	Submitted = "Submitted"
@@ -56,8 +58,8 @@ func init() {
 	}
 }
 
-//WatchContext keeps track of the current state when processing a stream of events
-//It is not threadsafe and is expected to only ever be used in a single thread
+// WatchContext keeps track of the current state when processing a stream of events
+// It is not threadsafe and is expected to only ever be used in a single thread
 type WatchContext struct {
 	state        map[string]*JobInfo
 	stateSummary map[JobStatus]int
@@ -263,7 +265,7 @@ func updatePodStatus(info *JobInfo, event api.KubernetesEvent, status PodStatus)
 	}
 
 	if info.LastUpdate.After(lastPodUpdate) {
-		//job state is newer than all pod updates
+		// job state is newer than all pod updates
 		return
 	}
 	info.LastUpdate = lastPodUpdate

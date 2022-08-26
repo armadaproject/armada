@@ -44,7 +44,6 @@ func NewPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, error) 
 }
 
 func ParsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionType, error) {
-
 	switch strings.ToLower(compressionTypeStr) {
 	case "", "none":
 		return pulsar.NoCompression, nil
@@ -64,7 +63,6 @@ func ParsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionTy
 }
 
 func ParsePulsarCompressionLevel(compressionLevelStr string) (pulsar.CompressionLevel, error) {
-
 	switch strings.ToLower(compressionLevelStr) {
 	case "", "default":
 		return pulsar.Default, nil

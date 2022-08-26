@@ -18,7 +18,6 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 	fmt.Println("Topic:", topic)
 	fmt.Println("Subscription", subscription)
 	return withSetup(url, topic, subscription, func(ctx context.Context, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Number of active jobs.
 		numJobs := 0
 
@@ -124,11 +123,6 @@ func isSubmitJob(e *armadaevents.EventSequence_Event) bool {
 	return ok
 }
 
-func isJobRunLeased(e *armadaevents.EventSequence_Event) bool {
-	_, ok := (e.Event).(*armadaevents.EventSequence_Event_JobRunLeased)
-	return ok
-}
-
 func isJobFailed(e *armadaevents.EventSequence_Event) bool {
 	if m, ok := (e.Event).(*armadaevents.EventSequence_Event_JobRunErrors); ok {
 		for _, err := range m.JobRunErrors.Errors {
@@ -148,11 +142,6 @@ func isJobFailed(e *armadaevents.EventSequence_Event) bool {
 		return true
 	}
 	return false
-}
-
-func isJobRunSucceeded(e *armadaevents.EventSequence_Event) bool {
-	_, ok := (e.Event).(*armadaevents.EventSequence_Event_JobRunSucceeded)
-	return ok
 }
 
 func isJobSucceeded(e *armadaevents.EventSequence_Event) bool {
@@ -205,7 +194,6 @@ func stripPodSpec(spec *v1.PodSpec) *v1.PodSpec {
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
 func withSetup(url, topic, subscription string, action func(ctx context.Context, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
-
 	pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: url,
 	})
