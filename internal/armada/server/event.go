@@ -5,18 +5,16 @@ import (
 	"errors"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/G-Research/armada/internal/eventapi/model"
-	"github.com/G-Research/armada/internal/eventapi/serving"
-
 	"github.com/gogo/protobuf/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/eventapi/model"
+	"github.com/G-Research/armada/internal/eventapi/serving"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )

@@ -379,10 +379,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 				SubscriptionName: "pulsar-scheduler-ingester",
 				Type:             pulsar.KeyShared,
 			},
-			JobsTable:        "jobs",
-			JobsSchema:       eventscheduler.JobsSchema(),
-			RunsTable:        "runs",
-			RunsSchema:       eventscheduler.RunsSchema(),
 			MaxWriteInterval: 10 * time.Second,
 			MaxWriteRecords:  10000,
 			Db:               pool,
@@ -392,7 +388,17 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		})
 
 		// New event-based scheduler.
-		scheduler := eventscheduler.NewScheduler(pool)
+		// TODO: I think we can safely re-use the same producer for all components.
+		schedulerProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			CompressionType:  compressionType,
+			CompressionLevel: compressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		scheduler := eventscheduler.NewScheduler(schedulerProducer, pool)
 		services = append(services, func() error {
 			return scheduler.Run(ctx)
 		})
@@ -505,6 +511,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	if pulsarExecutorApiServer != nil {
+		pulsarExecutorApiServer.EventServer = eventServer // Embed the Redis-backed event server.
 		api.RegisterAggregatedQueueServer(grpcServer, pulsarExecutorApiServer)
 		api.RegisterEventServer(grpcServer, pulsarExecutorApiServer)
 	} else {

@@ -174,17 +174,27 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	// Check if the job can be scheduled on any executor,
-	// to avoid having users wait for a job that may never be scheduled
-	allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if err != nil {
-		err = errors.WithMessage(err, "error getting scheduling info")
-		return nil, err
+	// to avoid having users wait for a job that may never be scheduled.
+	//
+	// We only perform this check for jobs submitted to the legacy scheduler.
+	legacySchedulerJobs := make([]*api.Job, 0, len(apiJobs))
+	for _, apiJob := range apiJobs {
+		if apiJob.Scheduler == "" {
+			legacySchedulerJobs = append(legacySchedulerJobs, apiJob)
+		}
 	}
-	if ok, err := validateJobsCanBeScheduled(apiJobs, allClusterSchedulingInfo); !ok {
+	if len(legacySchedulerJobs) > 0 {
+		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
 		if err != nil {
-			return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
-		} else {
-			return nil, errors.Errorf("can't schedule job for user %s", userId)
+			err = errors.WithMessage(err, "error getting scheduling info")
+			return nil, err
+		}
+		if ok, err := validateJobsCanBeScheduled(legacySchedulerJobs, allClusterSchedulingInfo); !ok {
+			if err != nil {
+				return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
+			} else {
+				return nil, errors.Errorf("can't schedule job for user %s", userId)
+			}
 		}
 	}
 
