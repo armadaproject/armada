@@ -168,6 +168,15 @@ the job-set id.
 > client.cancel_jobs(queue=queue, job_set_id=job_set_id1)
 > ```
 
+> If you want to cancel a jobset, but only jobs in certain states, you can use `cancel_jobset()`
+> ```py
+> client.cancel_jobset(
+>     queue=queue, job_set_id=job_set_id, filter=[JobState.PENDING, JobState.RUNNING]
+> )
+> ```
+>
+> You can set `ilter_states` to either \[JobState.Queued] or [JobState.PENDING, JobState.RUNNING]
+
 ### monitor.py
 
 [Link to File](./monitor.py)
