@@ -1,4 +1,4 @@
-package native
+package kubernetes
 
 import (
 	"bytes"
@@ -19,14 +19,14 @@ const (
 	tokenRequestEndpoint = "/api/v1/namespaces/%s/serviceaccounts/%s/token"
 )
 
-type KubernetesNativeAuthDetails struct {
+type NativeAuthDetails struct {
 	Expiry         int64
 	APIUrl         string
 	Namespace      string
 	ServiceAccount string
 }
 
-func AuthenticateKubernetesNative(config KubernetesNativeAuthDetails) (*oidc.TokenCredentials, error) {
+func AuthenticateKubernetesNative(config NativeAuthDetails) (*oidc.TokenCredentials, error) {
 	localKubernetesToken, err := getKubernetesToken() // Only need to get the token once
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func AuthenticateKubernetesNative(config KubernetesNativeAuthDetails) (*oidc.Tok
 func parseToken(body []byte) (*oauth2.Token, error) {
 	var unmarshalledToken responseBody
 	if err := json.Unmarshal(body, &unmarshalledToken); err != nil {
-		return nil, fmt.Errorf("kubernetes native auth: cannot unmarshal token: %v", err)
+		return nil, fmt.Errorf("kubernetes kubernetes auth: cannot unmarshal token: %v", err)
 	}
 
 	return &oauth2.Token{

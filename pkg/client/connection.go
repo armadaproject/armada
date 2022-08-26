@@ -2,7 +2,7 @@ package client
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/pkg/client/auth/native"
+	"github.com/G-Research/armada/pkg/client/auth/kubernetes"
 	"net/http"
 	"strings"
 	"time"
@@ -38,7 +38,7 @@ type ApiConnectionDetails struct {
 	GrpcKeepAliveTimeout time.Duration
 	// Authentication options.
 	BasicAuth                   common.LoginCredentials
-	KubernetesNativeAuth        native.KubernetesNativeAuthDetails
+	KubernetesNativeAuth        kubernetes.NativeAuthDetails
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
@@ -101,7 +101,7 @@ func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredenti
 	if config.BasicAuth.Username != "" {
 		return &config.BasicAuth, nil
 	} else if config.KubernetesNativeAuth.APIUrl != "" {
-		return native.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
+		return kubernetes.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
 	} else if config.OpenIdAuth.ProviderUrl != "" {
 		return oidc.AuthenticatePkce(config.OpenIdAuth)
 	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {

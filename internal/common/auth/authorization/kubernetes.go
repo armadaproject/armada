@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/auth/configuration"
 	"io"
 	"net/http"
 	"os"
@@ -26,9 +27,15 @@ type KubernetesNativeAuthService struct {
 	KidMappingFileLocation string
 }
 
+func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) KubernetesNativeAuthService {
+	return KubernetesNativeAuthService{
+		KidMappingFileLocation: config.KidMappingFileLocation,
+	}
+}
+
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
-	token, err := grpcAuth.AuthFromMD(ctx, "bearer")
+	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "valid token was not provided with request")
 	}
