@@ -49,6 +49,9 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 
 	// Make request to token review endpoint
 	name, err := reviewToken(url, token)
+	if err != nil {
+		return nil, err
+	}
 
 	// Return very basic principal
 	return NewStaticPrincipal(name, []string{}), nil
