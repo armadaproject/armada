@@ -2,8 +2,10 @@ package domain
 
 import "github.com/G-Research/armada/internal/common"
 
-const AcceleratorDutyCycle = "armadaproject.io/accelerator-duty-cycle"
-const AcceleratorMemory = "armadaproject.io/accelerator-memory"
+const (
+	AcceleratorDutyCycle = "armadaproject.io/accelerator-duty-cycle"
+	AcceleratorMemory    = "armadaproject.io/accelerator-memory"
+)
 
 type UtilisationData struct {
 	CurrentUsage    common.ComputeResources

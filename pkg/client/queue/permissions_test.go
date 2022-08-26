@@ -62,5 +62,4 @@ func TestPermissionsToAPI(t *testing.T) {
 	if err := quick.Check(testCase, nil); err != nil {
 		t.Fatal(err)
 	}
-
 }

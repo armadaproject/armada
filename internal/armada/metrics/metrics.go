@@ -31,7 +31,8 @@ func ExposeDataMetrics(
 		jobRepository:            jobRepository,
 		usageRepository:          usageRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queueMetrics:             queueMetrics}
+		queueMetrics:             queueMetrics,
+	}
 	prometheus.MustRegister(collector)
 	return collector
 }
@@ -225,7 +226,6 @@ func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 }
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
-
 	queues, e := c.queueRepository.GetAllQueues()
 	if e != nil {
 		log.Errorf("Error while getting queue metrics %s", e)
@@ -468,8 +468,8 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 
 func (c *QueueInfoCollector) calculateRunningJobStats(
 	queues []*api.Queue, activeClusterInfos map[string]*api.ClusterSchedulingInfoReport) (
-	map[string]map[string]*FloatMetrics, map[string]map[string]ResourceMetrics) {
-
+	map[string]map[string]*FloatMetrics, map[string]map[string]ResourceMetrics,
+) {
 	runDurationMetrics := make(map[string]map[string]*FloatMetrics)
 	runResourceMetrics := make(map[string]map[string]ResourceMetrics)
 

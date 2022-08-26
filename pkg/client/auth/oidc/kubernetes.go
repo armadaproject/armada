@@ -39,7 +39,6 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 					"grant_type":       {"kubernetes"},
 					"client_assertion": {kubernetesToken},
 				})
-
 			if err != nil {
 				return nil, err
 			}

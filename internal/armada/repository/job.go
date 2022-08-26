@@ -18,18 +18,18 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-const jobObjectPrefix = "Job:"             // {jobId}            - job protobuf object
-const jobStartTimePrefix = "Job:StartTime" // {jobId}            - map clusterId -> startTime
-const jobQueuePrefix = "Job:Queue:"        // {queue}            - sorted set of jobIds by priority
-const jobLeasedPrefix = "Job:Leased:"      // {queue}            - sorted set of jobIds by lease renewal time
-const jobSetPrefix = "Job:Set:"            // {jobSetId}         - set of jobIds
-const jobClusterMapKey = "Job:ClusterId"   //                    - map jobId -> cluster
-const jobRetriesPrefix = "Job:Retries:"    // {jobId}            - number of retry attempts
-const jobClientIdPrefix = "job:ClientId:"  // {queue}:{clientId} - corresponding jobId
-const keySeparator = ":"
-
-// Number of jobs queried from Redis at a time in IterateQueueJobs.
-const queueResourcesBatchSize = 20000
+const (
+	jobObjectPrefix         = "Job:"          // {jobId}            - job protobuf object
+	jobStartTimePrefix      = "Job:StartTime" // {jobId}            - map clusterId -> startTime
+	jobQueuePrefix          = "Job:Queue:"    // {queue}            - sorted set of jobIds by priority
+	jobLeasedPrefix         = "Job:Leased:"   // {queue}            - sorted set of jobIds by lease renewal time
+	jobSetPrefix            = "Job:Set:"      // {jobSetId}         - set of jobIds
+	jobClusterMapKey        = "Job:ClusterId" //                    - map jobId -> cluster
+	jobRetriesPrefix        = "Job:Retries:"  // {jobId}            - number of retry attempts
+	jobClientIdPrefix       = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
+	keySeparator            = ":"
+	queueResourcesBatchSize = 20000 // Number of jobs queried from Redis at a time in IterateQueueJobs.
+)
 
 type ErrJobNotFound struct {
 	JobId     string
@@ -87,11 +87,12 @@ type RedisJobRepository struct {
 
 func NewRedisJobRepository(
 	db redis.UniversalClient,
-	retentionPolicy configuration.DatabaseRetentionPolicy) *RedisJobRepository {
+	retentionPolicy configuration.DatabaseRetentionPolicy,
+) *RedisJobRepository {
 	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
 }
 
-// TODO DuplicateDetected should be remove in favor of setting the error to
+// TODO DuplicateDetected should be remove in favour of setting the error to
 // indicate the job already exists (e.g., by creating ErrJobExists).
 type SubmitJobResult struct {
 	JobId             string
@@ -658,7 +659,6 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 //
 // This process is attempted up to maxRetries times and each attempt is separated by retryDelay.
 func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), maxRetries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
-
 	// Redis supports transactions via optimistic locking using the WATCH/READ/SET pattern
 	// First, we mark all keys that the operation depends on
 	// Hence, keysToWatch must contain all keys read from inside txf (see below)
@@ -670,7 +670,6 @@ func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator fu
 	// Transactional function
 	result := make([]UpdateJobResult, 0, len(ids))
 	txf := func(tx *redis.Tx) error {
-
 		// Read all data the operation depends on
 		// All keys read by GetExistingJobsByIds must be added to keysToWatch
 		jobs, err := repo.GetExistingJobsByIds(ids)
@@ -903,7 +902,6 @@ func (repo *RedisJobRepository) GetJobSetJobIds(queue string, jobSetId string, f
 // in the given queue, where each element contains the number of queued and leased jobs
 // that are part of that job set.
 func (repo *RedisJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
-
 	tx := repo.db.TxPipeline()
 	queuedIdsCommand := tx.ZRange(jobQueuePrefix+queue, 0, -1)
 	leasedIdsCommand := tx.ZRange(jobLeasedPrefix+queue, 0, -1)
@@ -1042,7 +1040,6 @@ func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, err
 }
 
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]string, error) {
-
 	now := time.Now()
 	pipe := repo.db.Pipeline()
 
@@ -1083,7 +1080,8 @@ func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 			jobObjectPrefix + job.Id,
 			jobSetPrefix + job.JobSetId,
 			jobSetPrefix + job.Queue + keySeparator + job.JobSetId,
-			jobClientIdPrefix + job.Queue + keySeparator + job.ClientId},
+			jobClientIdPrefix + job.Queue + keySeparator + job.ClientId,
+		},
 		job.Id, job.Priority, *jobData, job.ClientId)
 }
 
@@ -1122,8 +1120,10 @@ func leaseJob(db redis.Cmdable, queueName string, clusterId string, jobId string
 		clusterId, jobId, float64(now.UnixNano()))
 }
 
-const alreadyAllocatedByDifferentCluster = -42
-const jobCancelled = -43
+const (
+	alreadyAllocatedByDifferentCluster = -42
+	jobCancelled                       = -43
+)
 
 var leaseJobScript = redis.NewScript(`
 local queue = KEYS[1]

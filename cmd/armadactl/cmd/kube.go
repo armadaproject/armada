@@ -22,7 +22,6 @@ In bash, you can execute it directly like this:
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			jobId, err := cmd.Flags().GetString("jobId")
 			if err != nil {
 				return fmt.Errorf("error reading jobId: %s", err)

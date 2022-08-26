@@ -12,12 +12,11 @@ import (
 )
 
 func TestJobLease_GetAvoidNodeLabels_EverythingSetUpCorrectly_ReturnsLabels(t *testing.T) {
-
 	avoidNodeLabels := []string{"a", "c"}
 
 	pod := &v1.Pod{Spec: v1.PodSpec{NodeName: "node1"}}
 
-	var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+	testAppConfig := configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
 	node := &fakeContext.NodeSpec{Name: "node1", Count: 1}
 	node.Labels = map[string]string{"a": "aa", "b": "bb", "c": "cc"}
@@ -27,16 +26,14 @@ func TestJobLease_GetAvoidNodeLabels_EverythingSetUpCorrectly_ReturnsLabels(t *t
 
 	assert.Equal(t, makeOrderedMap(label{name: "a", val: "aa"}, label{name: "c", val: "cc"}), labels)
 	assert.Nil(t, err)
-
 }
 
 func TestJobLease_GetAvoidNodeLabels_NodeNameNotSet_ReturnsEmptyMap(t *testing.T) {
-
 	avoidNodeLabels := []string{"a"}
 
 	pod := &v1.Pod{Spec: v1.PodSpec{}}
 
-	var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+	testAppConfig := configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
 	node := &fakeContext.NodeSpec{Name: "node1", Count: 1}
 	node.Labels = map[string]string{"a": "aa"}
@@ -49,12 +46,11 @@ func TestJobLease_GetAvoidNodeLabels_NodeNameNotSet_ReturnsEmptyMap(t *testing.T
 }
 
 func TestJobLease_GetAvoidNodeLabels_NoMatchingLabels_ReturnsError(t *testing.T) {
-
 	avoidNodeLabels := []string{"a"}
 
 	pod := &v1.Pod{Spec: v1.PodSpec{NodeName: "node1"}}
 
-	var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
+	testAppConfig := configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
 	node := &fakeContext.NodeSpec{Name: "node1", Count: 1}
 	node.Labels = map[string]string{"b": "bb"}
@@ -64,7 +60,6 @@ func TestJobLease_GetAvoidNodeLabels_NoMatchingLabels_ReturnsError(t *testing.T)
 
 	assert.NotNil(t, err)
 	assert.Nil(t, labels)
-
 }
 
 func makeOrderedMap(labels ...label) *api.OrderedStringMap {

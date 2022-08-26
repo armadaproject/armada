@@ -24,8 +24,10 @@ const (
 	nodeTypeLabel     = "nodeType"
 )
 
-const UnassignedNodeType = "unassigned"
-const UnknownNodeType = "unknown"
+const (
+	UnassignedNodeType = "unassigned"
+	UnknownNodeType    = "unknown"
+)
 
 var podCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod",
@@ -76,7 +78,8 @@ func ExposeClusterContextMetrics(
 	context context.ClusterContext,
 	utilisationService utilisation.UtilisationService,
 	queueUtilisationService utilisation.PodUtilisationService,
-	nodeInfoService node.NodeInfoService) *ClusterContextMetrics {
+	nodeInfoService node.NodeInfoService,
+) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,

@@ -14,7 +14,6 @@ import (
 // TODO We should have separate methods to operate on individual jobs and job sets
 func (a *App) Reprioritize(jobId string, queueName string, jobSet string, priorityFactor float64) error {
 	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
-
 		var jobIds []string
 		if jobId != "" {
 			jobIds = append(jobIds, jobId)

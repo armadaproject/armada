@@ -53,7 +53,8 @@ func NewAggregatedQueueServer(
 		queueRepository:          queueRepository,
 		usageRepository:          usageRepository,
 		eventStore:               eventStore,
-		schedulingInfoRepository: schedulingInfoRepository}
+		schedulingInfoRepository: schedulingInfoRepository,
+	}
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
@@ -139,7 +140,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-
 	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
 		return err
 	}
