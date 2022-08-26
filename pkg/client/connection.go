@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/pkg/client/auth/kubernetes"
 	"net/http"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/client/auth/exec"
 	"github.com/G-Research/armada/pkg/client/auth/kerberos"
+	"github.com/G-Research/armada/pkg/client/auth/kubernetes"
 	"github.com/G-Research/armada/pkg/client/auth/oidc"
 )
 

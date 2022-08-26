@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/auth/configuration"
 	"io"
 	"net/http"
 	"os"
@@ -16,6 +15,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
 const (
