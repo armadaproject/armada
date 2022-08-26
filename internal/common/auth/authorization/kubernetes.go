@@ -37,7 +37,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Retrieve token from context.
 	val := metautils.ExtractIncoming(ctx).Get("authorization")
 	log.Info("Header value: %s", val)
-	
+
 	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication header: %v", err)
