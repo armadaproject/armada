@@ -10,7 +10,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	
+
 	"golang.org/x/oauth2"
 
 	"github.com/G-Research/armada/pkg/client/auth/oidc"
