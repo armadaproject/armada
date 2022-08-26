@@ -11,12 +11,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/G-Research/armada/internal/common/auth/configuration"
 	grpcAuth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
-	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
 const (
@@ -36,10 +33,9 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
-	log.Info("Trying kubernetes native authentication")
 	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "valid token was not provided with request")
+		return nil, fmt.Errorf("failed to retrieve authentication header: %v", err)
 	}
 	// Check Cache
 
