@@ -36,7 +36,7 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
 	val := metautils.ExtractIncoming(ctx).Get("authorization")
-	log.Info("Header value: %s", val)
+	log.Infof("Header value: %s", val)
 
 	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
