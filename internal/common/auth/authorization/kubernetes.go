@@ -86,8 +86,8 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 }
 
 func reviewToken(clusterUrl string, token string) (string, error) {
-	var url = clusterUrl + tokenReviewEndpoint
-	var data = fmt.Sprintf(`
+	url := clusterUrl + tokenReviewEndpoint
+	data := fmt.Sprintf(`
 {
   "kind": "TokenReview",
   "apiVersion": "authentication.k8s.io/v1"
