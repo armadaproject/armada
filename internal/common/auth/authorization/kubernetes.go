@@ -11,9 +11,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/G-Research/armada/internal/common/auth/configuration"
 	grpcAuth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
 const (
