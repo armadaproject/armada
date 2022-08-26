@@ -54,13 +54,8 @@ func LeaseJobs(ctx context.Context,
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
 	clusterPriorities map[string]map[string]float64,
-<<<<<<< HEAD
-	activeQueues []*api.Queue) ([]*api.Job, error) { // Queues to consider for scheduling.
-
-=======
 	activeQueues []*api.Queue,
 ) ([]*api.Job, error) {
->>>>>>> 8633d0bcbbd99ec1778896464c715d7139e65dbf
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 
