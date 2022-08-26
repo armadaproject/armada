@@ -27,7 +27,7 @@ type NativeAuthDetails struct {
 	ServiceAccount string
 }
 
-func AuthenticateKubernetesNative(config NativeAuthDetails) (*oidc.TokenCredentials, error) {
+func AuthenticateKubernetesNative(config NativeAuthDetails) (*NativeTokenCredentials, error) {
 	localKubernetesToken, err := getKubernetesToken() // Only need to get the token once
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func AuthenticateKubernetesNative(config NativeAuthDetails) (*oidc.TokenCredenti
 		},
 	}
 
-	return &oidc.TokenCredentials{TokenSource: oauth2.ReuseTokenSource(nil, &tokenSource)}, nil
+	return &NativeTokenCredentials{TokenSource: oauth2.ReuseTokenSource(nil, &tokenSource)}, nil
 }
 
 // parseToken reads the TokenRequest response body and puts it into the form of an oauth2 token
