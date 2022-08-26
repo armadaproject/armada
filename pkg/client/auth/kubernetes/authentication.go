@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,7 +55,10 @@ func AuthenticateKubernetesNative(config NativeAuthDetails) (*NativeTokenCredent
 			request.Header.Add("Authorization", "Bearer "+localKubernetesToken)
 			request.Header.Add("Content-Type", "application/json; charset=utf-8")
 
-			client := &http.Client{}
+			tr := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{Transport: tr}
 			resp, err := client.Do(request)
 			if err != nil {
 				return nil, fmt.Errorf("error getting temporary token: %v", err)

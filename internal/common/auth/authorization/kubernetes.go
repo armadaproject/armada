@@ -3,6 +3,7 @@ package authorization
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"strings"
 
 	grpcAuth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -35,12 +35,9 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
-	val := metautils.ExtractIncoming(ctx).Get("authorization")
-	log.Infof("Header value: %s", val)
-
 	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve authentication header: %v", err)
+		return nil, missingCredentials
 	}
 	// Check Cache
 
@@ -104,7 +101,11 @@ func reviewToken(clusterUrl string, token string) (string, error) {
 	reviewRequest.Header.Add("Authorization", "Bearer"+token)
 	reviewRequest.Header.Add("Content-Type", "application/json; charset=utf-8")
 
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	client := &http.Client{Transport: tr}
 	resp, err := client.Do(reviewRequest)
 	if err != nil {
 		return "", err
