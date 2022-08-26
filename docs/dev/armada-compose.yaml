@@ -85,5 +85,10 @@ services:
   job-service:
     container_name: job-service
     image: armada-jobservice
+    environment:
+      - APP_UID
+      - APP_GID
+    volumes:
+      - ${PWD}/.build/jobservice:/run
     command:
       - "run"
