@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	grpcAuth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -34,6 +35,9 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
+	val := metautils.ExtractIncoming(ctx).Get("authorization")
+	log.Info("Header value: %s", val)
+	
 	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve authentication header: %v", err)
