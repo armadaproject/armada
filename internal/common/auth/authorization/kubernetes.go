@@ -36,6 +36,7 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
+	log.Info("Trying kubernetes native authentication")
 	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "valid token was not provided with request")
