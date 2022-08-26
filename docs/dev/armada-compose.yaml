@@ -86,6 +86,8 @@ services:
     container_name: job-service
     image: armada-jobservice
     environment:
+    # You must set APP_UID=nnnn and APP_GID=nnnn (on separate lines) in a .env
+    # file at the root of the Armada repo, to use this.
       - APP_UID
       - APP_GID
     volumes:
