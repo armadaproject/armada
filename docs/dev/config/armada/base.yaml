@@ -17,3 +17,14 @@ auth:
     execute_jobs: ["everyone"]
 pulsar:
   enabled: false
+  URL: "pulsar://pulsar:6650"
+redis:
+  addrs:
+    - "redis:6379"
+eventsRedis:
+  addrs:
+    - "redis:6379"
+eventapi:
+  postgres:
+    connection:
+      host: "postgres"

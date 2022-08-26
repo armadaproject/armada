@@ -1,0 +1,89 @@
+version: "3.8"
+services:
+  # Infrastructure services needed for Armada
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - "6379:6379"
+  postgres:
+    container_name: postgres
+    image: postgres
+    environment:
+      - "POSTGRES_PASSWORD=psw"
+    ports:
+      - "5432:5432"
+  jetstream:
+    container_name: jetstream
+    image: nats:2.6.1-alpine
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    volumes:
+      - ./config/jetstream:/app
+    command:
+      - "-c"
+      - "/app/jetstream.conf"
+  stan:
+    container_name: stan
+    image: nats-streaming
+    command: "-p 4223 -m 8223"
+    ports:
+      - "4223:4223"
+      - "8223:8223"
+  pulsar:
+    container_name: pulsar
+    image: apachepulsar/pulsar:2.10.0
+    profiles: ["linux"]
+    volumes:
+      - ../../scripts/pulsar.sh:/pulsar.sh
+    entrypoint: sh -c "bin/pulsar standalone && . /pulsar.sh"
+    ports: 
+      - "6650:6650"
+#
+# The Armada server and affiliated services
+  armada-server:
+    container_name: armada
+    image: armada
+    command:
+      - "--config"
+      - "/app/config/armada/base.yaml"
+      - "--config"
+      - "/app/config/armada/stan.yaml"
+    depends_on:
+      - redis
+      - postgres
+      - jetstream
+      - stan
+  lookout:
+    container_name: lookout
+    image: armada-lookout
+    command:
+      - "--config"
+      - "/app/config/lookout/stan.yaml"
+    depends_on:
+      - armada-server
+  executor:
+    container_name: executor
+    image: armada-fakeexecutor
+    ports:
+      - "9001:9001"
+    environment:
+      - "ARMADA_APPLICATION_CLUSTERID=demo-a"
+      - "ARMADA_METRIC_PORT=9001"
+    depends_on:
+      - armada-server
+  binoculars:
+    container_name: binoculars
+    image: armada-binoculars
+    command:
+      - "--config"
+      - "/app/config/binoculars/base.yaml"
+    depends_on:
+      - armada-server
+  job-service:
+    container_name: job-service
+    image: armada-jobservice
+    command:
+      - "run"
