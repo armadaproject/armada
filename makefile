@@ -354,7 +354,7 @@ rebuild-executor: build-docker-executor
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
-		-e ARMADA_APICONNECTION_ARMADAURL="server:50052" \
+		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
@@ -403,7 +403,7 @@ tests-e2e-setup: setup-cluster
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
 		-e ARMADA_KUBERNETES_STUCKPODEXPIRY=15s \
-		-e ARMADA_APICONNECTION_ARMADAURL="server:50052" \
+		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 
@@ -534,6 +534,7 @@ proto: setup-proto
 	# fix all imports ordering
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
+	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/eventscheduler/schedulerobjects/
 
 sql:
 	$(GO_TEST_CMD) sqlc generate -f internal/eventscheduler/sql/sql.yaml
@@ -577,6 +578,8 @@ generate:
 
 resetsql:
 	docker rm -f postgres
-	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	$(GO_TEST_CMD) sqlc generate -f internal/eventscheduler/sql/sql.yaml
-	$(GO_TEST_CMD) templify -e -p=sql internal/eventscheduler/sql/schema.sql	
+	$(GO_TEST_CMD) templify -e -p=sql internal/eventscheduler/sql/schema.sql
+	sleep 1
+	bash scripts/postgres.sh
