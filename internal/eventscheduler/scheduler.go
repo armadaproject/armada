@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
@@ -60,18 +61,31 @@ type Scheduler struct {
 
 // JobRuns is a collection of all runs associated with a particular job.
 type JobRuns struct {
-	ActiveRuns     []*Run
-	TerminatedRuns []*Run
+	// Any runs associated with this job that have not terminated.
+	// Map from run id to run.
+	ActiveRuns map[uuid.UUID]*Run
+	// Any runs associated with this job for which the ingester has received
+	// a terminal event (i.e., succeeded, failed, or cancelled).
+	// Map from run id to run.
+	InactiveRuns map[uuid.UUID]*Run
 }
 
-func NewScheduler(db *pgxpool.Pool) *Scheduler {
+func NewJobRuns() *JobRuns {
+	return &JobRuns{
+		ActiveRuns:   make(map[uuid.UUID]*Run),
+		InactiveRuns: make(map[uuid.UUID]*Run),
+	}
+}
+
+func NewScheduler(producer pulsar.Producer, db *pgxpool.Pool) *Scheduler {
 	return &Scheduler{
-		Jobs:                  make(map[uuid.UUID]*Job),
-		Runs:                  make(map[uuid.UUID]*Run),
-		Nodes:                 make(map[string]*Nodeinfo),
+		Producer:              producer,
 		Db:                    db,
+		ActiveJobs:            make(map[uuid.UUID]*Job),
+		RunsByJobId:           make(map[uuid.UUID]*JobRuns),
+		Nodes:                 make(map[string]*Nodeinfo),
 		Executors:             make(map[string]time.Time),
-		ExecutorAliveDuration: time.Minute,
+		ExecutorAliveDuration: 5 * time.Minute,
 	}
 }
 
@@ -86,7 +100,7 @@ func (srv *Scheduler) Run(ctx context.Context) error {
 	log.Info("service started")
 
 	refreshTicker := time.NewTicker(10 * time.Second)
-	scheduleTicker := time.NewTicker(1 * time.Second)
+	scheduleTicker := time.NewTicker(11 * time.Second)
 	for {
 		select {
 		case <-ctx.Done():
@@ -99,15 +113,17 @@ func (srv *Scheduler) Run(ctx context.Context) error {
 				"NodesSerial": srv.NodesSerial,
 			})
 			ctxWithLogger := ctxlogrus.ToContext(groupCtx, entry)
-			g.Go(func() error { return srv.updateJobs(ctxWithLogger) })
-			g.Go(func() error { return srv.updateRuns(ctxWithLogger) })
+			g.Go(func() error { return srv.updateJobsRuns(ctxWithLogger) })
 			g.Go(func() error { return srv.updateNodes(ctxWithLogger) })
 			err := g.Wait()
 			if err != nil {
-				return err
+				logging.WithStacktrace(log, err).Info("failed to read from postgres")
 			}
 		case <-scheduleTicker.C:
-
+			err := srv.schedule(ctx)
+			if err != nil {
+				logging.WithStacktrace(log, err).Info("failed to schedule jobs")
+			}
 		}
 	}
 }
@@ -136,7 +152,10 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 	queries := New(srv.Db)
 
 	// New jobs.
-	jobs, err := queries.SelectNewActiveJobs(ctx, srv.JobsSerial)
+	// TODO: We shouldn't load all columns.
+	// TODO: The first time this runs, we should get only active jobs. After that we should get all jobs.
+	// jobs, err := queries.SelectNewActiveJobs(ctx, srv.JobsSerial)
+	jobs, err := queries.SelectNewJobs(ctx, srv.JobsSerial)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -144,11 +163,17 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 	for _, job := range jobs {
 		job := job
 
+		// Keep the serial number updated.
+		if job.Serial > srv.JobsSerial {
+			srv.JobsSerial = job.Serial
+		}
+
 		// If the job is inactive, remove it from the set of active jobs
 		// and remove all runs associated with the job.
 		if job.Cancelled || job.Succeeded || job.Failed {
 			delete(srv.ActiveJobs, job.JobID)
 			delete(srv.RunsByJobId, job.JobID)
+			continue
 		}
 
 		// If we've never seen this job before, it should be added to the queue.
@@ -158,14 +183,9 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 
 		// Add the job to the set of active jobs.
 		srv.ActiveJobs[job.JobID] = &job
-
-		// Keep the serial number updated.
-		if job.Serial > srv.JobsSerial {
-			srv.JobsSerial = job.Serial
-		}
 	}
 
-	// New runs for all active jobs.
+	// New runs for active jobs.
 	i := 0
 	jobIds := make([]uuid.UUID, len(srv.ActiveJobs))
 	for jobId, _ := range srv.ActiveJobs {
@@ -180,38 +200,45 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 		return errors.WithStack(err)
 	}
 
-	//
-
-	return nil
-}
-
-// Whenever we see a terminal run failure, we need to decide if it should be enqueued again.
-// At that point, we should also give back some resource usage to the owner of that job.
-
-// updateJob updates the in-memory representation of a job.
-// This function is called when an existing job is changed.
-func (srv *Scheduler) updateJob(ctx context.Context, job *Job) error {
-	// TODO: Update job priority.
-	// If the job is cancelled, we need to cancel any outstanding runs.
-	// Actually, a cancelled run fails lease renewal.
-}
-
-func (srv *Scheduler) updateRuns(ctx context.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	queries := New(srv.Db)
-	runs, err := queries.SelectNewRuns(ctx, srv.RunsSerial)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	log.Infof("got updated runs: %+v", runs)
 	for _, run := range runs {
 		run := run
-		srv.Runs[run.RunID] = &run
+
+		// Keep the serial number updated.
 		if run.Serial > srv.RunsSerial {
 			srv.RunsSerial = run.Serial
 		}
+
+		jobRuns, ok := srv.RunsByJobId[run.JobID]
+		if !ok {
+			jobRuns = NewJobRuns()
+			srv.RunsByJobId[run.JobID] = jobRuns
+		}
+
+		// Move runs that terminate from the set of active runs to the set of inactive runs,
+		// and consider if the job should be rescheduled.
+		if run.Cancelled || run.Succeeded || run.Failed {
+			delete(jobRuns.ActiveRuns, run.RunID)
+			jobRuns.InactiveRuns[run.RunID] = &run
+			if srv.shouldReScheduleJob(jobRuns) {
+				srv.enqueueJob(run.JobID)
+			}
+			continue
+		}
 	}
+
 	return nil
+}
+
+func (srv *Scheduler) shouldReScheduleJob(jobRuns *JobRuns) bool {
+	// TODO: Look into any previous runs to determine if we should try running the job again.
+	if len(jobRuns.ActiveRuns) == 0 {
+		return false
+	}
+	return false
+}
+
+func (srv *Scheduler) enqueueJob(jobId uuid.UUID) {
+	srv.QueuedJobIds = append(srv.QueuedJobIds, jobId)
 }
 
 func (srv *Scheduler) schedule(ctx context.Context) error {
@@ -229,7 +256,11 @@ func (srv *Scheduler) schedule(ctx context.Context) error {
 	// Before sending to Pulsar, these are reduced to the minimal number possible.
 	i := rand.Intn(len(executors))
 	sequences := make([]*armadaevents.EventSequence, 0)
-	for _, job := range srv.JobQueue {
+	for _, jobId := range srv.QueuedJobIds {
+		job, ok := srv.ActiveJobs[jobId]
+		if !ok {
+			continue
+		}
 		sequences = append(sequences, &armadaevents.EventSequence{
 			Queue:      job.Queue,
 			JobSetName: job.JobSet,
@@ -251,6 +282,9 @@ func (srv *Scheduler) schedule(ctx context.Context) error {
 		})
 		i = (i + 1) % len(executors)
 	}
+
+	// Since we always create leases for all jobs, empty the queue.
+	srv.QueuedJobIds = make([]uuid.UUID, 0)
 
 	// Reduce the number of sequences to the minimal number possible,
 	// and publish to Pulsar.

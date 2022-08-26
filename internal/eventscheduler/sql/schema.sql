@@ -1,3 +1,18 @@
+
+-- TODO: Consistently compress proto messages.
+-- TODO: Cleanup may be expensive. Investigate.
+-- TODO: Research how postgres ANY works and what its limitations are.
+-- TODO: Backup solution inserting one by one.
+-- TODO: Look into go generics.
+-- TODO: Consider consistently mapping queues and job sets to unique integers. Maybe also node selectors, tolerations, and taints.
+
+-- TODO: Turns out postgres ANY compares one by one with each element given to it.
+-- The solution seems to be to either use a VALUES clause + join or COPY + join.
+-- https://stackoverflow.com/questions/34627026/in-vs-any-operator-in-postgresql
+-- https://dba.stackexchange.com/questions/91247/optimizing-a-postgres-query-with-a-large-in
+-- https://stackoverflow.com/questions/24647503/performance-issue-in-update-query
+-- https://stackoverflow.com/questions/17813492/postgres-not-in-performance
+
 CREATE TABLE queues (
     name text PRIMARY KEY,
     weight double precision NOT NULL
@@ -9,20 +24,20 @@ CREATE TABLE jobs (
     job_set text NOT NULL,
     queue text NOT NULL,
     user_id text NOT NULL,
-    groups text[],
+    groups text[], -- Consider storing compressed. Could be large. Tell postgres to not compress if we did it ourselves.
     priority bigint NOT NULL,
     -- Indicates if this job has been cancelled by a user.
+    -- TODO: Corresponds to should be cancelled.
     cancelled boolean NOT NULL DEFAULT false,
     -- Set to true when a JobSucceeded event has been received for this job by the ingester.
     succeeded boolean NOT NULL DEFAULT false,
     -- Set to true when a terminal JobErrors event has been received for this job by the ingester.
     -- The error itself is written into the job_errors table.
     failed boolean NOT NULL DEFAULT false,
-     -- Dict mapping resource type to amount requested.
-     -- TODO: We need proto message containing the minimal amount of data the scheduler needs.
-    -- claims json NOT NULL,
-    -- SubmitJob Pulsar message stored as a proto buffer.
+    -- SubmitJob message stored as a proto buffer.
     submit_message bytea NOT NULL,
+    -- JobSchedulingInfo message stored as a proto buffer.
+    scheduling_info bytea NOT NULL,
     serial bigserial NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL
 );
@@ -32,6 +47,7 @@ CREATE TABLE runs (
     job_id UUID NOT NULL,
     -- Needed to efficiently cancel all runs for a particular job set.
     -- TODO: We could store a hash to reduce memory.
+    -- TODO: We have to use queue-jobset for uniqueness. Maybe hash them together.
     job_set TEXT NOT NULL,
     -- Executor this job run is assigned to.
     executor text NOT NULL,
@@ -39,18 +55,17 @@ CREATE TABLE runs (
     -- assignment json,
     -- True if this run has been sent to the executor already.
     -- Used to control which runs are sent to the executor when it requests jobs.
-    sent_to_executor boolean NOT NULL,
+    sent_to_executor boolean NOT NULL DEFAULT false,
     -- Indicates if this lease has been cancelled.
-    cancelled boolean NOT NULL,
+    cancelled boolean NOT NULL DEFAULT false,
     -- Set to true once a JobRunRunning messages is received for this run.
     -- I.e., is true if the run has ever been started, even if it later failed.
-    running boolean NOT NULL,
+    running boolean NOT NULL DEFAULT false,
     -- Set to true if a JobRunSucceeded message is received for this run.
-    succeeded boolean NOT NULL,
-    -- Most recently received terminal error.
-    -- If not NULL, this job has failed.
-    -- There shuld only be at most one terminal error for any given run.
-    error bytea,
+    succeeded boolean NOT NULL DEFAULT false,
+    -- Set to true when a terminal JobRunErrors event has been received for this run by the ingester.
+    -- The error itself is written into the job_run_errors table.
+    failed boolean NOT NULL DEFAULT false,
     serial bigserial NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL
 );
@@ -69,6 +84,7 @@ CREATE TABLE job_run_assignments (
 CREATE TABLE job_errors (
     -- To ensure inserts are idempotent, we to asociate with each error a unique id
     -- that can be computed deterministically by the ingester.
+    -- TODO: We could use a hash to improve efficiency.
     id text PRIMARY KEY,
     job_id UUID NOT NULL,
     -- Byte array containing a JobErrors proto message.
@@ -88,7 +104,7 @@ CREATE INDEX job_errors_id_terminal ON job_errors (job_id, terminal);
 
 CREATE TABLE job_run_errors (
     -- To ensure inserts are idempotent, we to asociate with each error a unique id
-    -- that can be computed deterministically by the ingester.    
+    -- that can be computed deterministically by the ingester.
     id text PRIMARY KEY,
     run_id UUID NOT NULL,
     -- Byte array containing a JobRunErrors proto message.    
@@ -119,6 +135,9 @@ CREATE INDEX job_run_errors_id_terminal ON job_run_errors (run_id, terminal);
 -- );
 
 CREATE TABLE nodeinfo (
+    -- The concatenation of executor and node name.
+    -- TODO: We need a unique primary key for the upsert logic. But we should do something smarter.
+    executor_node_name text PRIMARY KEY,
     -- Name of the node. Must be unique across all clusters.
     node_name text NOT NULL,
     -- Name of the executor responsible for this node.

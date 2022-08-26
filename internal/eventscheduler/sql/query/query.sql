@@ -19,6 +19,9 @@ UPDATE runs SET sent_to_executor = true WHERE run_id = $1;
 -- name: MarkRunsAsSent :exec
 UPDATE runs SET sent_to_executor = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 
+-- name: MarkRunsAsSentByExecutorAndJobId :exec
+UPDATE runs SET sent_to_executor = true WHERE executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+
 -- name: SelectJobsFromIds :many
 SELECT * FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
 

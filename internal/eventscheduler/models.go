@@ -11,18 +11,19 @@ import (
 )
 
 type Job struct {
-	JobID         uuid.UUID `db:"job_id"`
-	JobSet        string    `db:"job_set"`
-	Queue         string    `db:"queue"`
-	UserID        string    `db:"user_id"`
-	Groups        []string  `db:"groups"`
-	Priority      int64     `db:"priority"`
-	Cancelled     bool      `db:"cancelled"`
-	Succeeded     bool      `db:"succeeded"`
-	Failed        bool      `db:"failed"`
-	SubmitMessage []byte    `db:"submit_message"`
-	Serial        int64     `db:"serial"`
-	LastModified  time.Time `db:"last_modified"`
+	JobID          uuid.UUID `db:"job_id"`
+	JobSet         string    `db:"job_set"`
+	Queue          string    `db:"queue"`
+	UserID         string    `db:"user_id"`
+	Groups         []string  `db:"groups"`
+	Priority       int64     `db:"priority"`
+	Cancelled      bool      `db:"cancelled"`
+	Succeeded      bool      `db:"succeeded"`
+	Failed         bool      `db:"failed"`
+	SubmitMessage  []byte    `db:"submit_message"`
+	SchedulingInfo []byte    `db:"scheduling_info"`
+	Serial         int64     `db:"serial"`
+	LastModified   time.Time `db:"last_modified"`
 }
 
 type JobError struct {
@@ -51,11 +52,12 @@ type JobRunError struct {
 }
 
 type Nodeinfo struct {
-	NodeName     string    `db:"node_name"`
-	Executor     string    `db:"executor"`
-	Message      []byte    `db:"message"`
-	Serial       int64     `db:"serial"`
-	LastModified time.Time `db:"last_modified"`
+	ExecutorNodeName string    `db:"executor_node_name"`
+	NodeName         string    `db:"node_name"`
+	Executor         string    `db:"executor"`
+	Message          []byte    `db:"message"`
+	Serial           int64     `db:"serial"`
+	LastModified     time.Time `db:"last_modified"`
 }
 
 type Pulsar struct {
@@ -80,7 +82,7 @@ type Run struct {
 	Cancelled      bool      `db:"cancelled"`
 	Running        bool      `db:"running"`
 	Succeeded      bool      `db:"succeeded"`
-	Error          []byte    `db:"error"`
+	Failed         bool      `db:"failed"`
 	Serial         int64     `db:"serial"`
 	LastModified   time.Time `db:"last_modified"`
 }

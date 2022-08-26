@@ -2,6 +2,7 @@ package eventscheduler
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,9 @@ import (
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -23,10 +26,12 @@ import (
 
 type ExecutorApi struct {
 	api.UnimplementedAggregatedQueueServer
-	api.UnimplementedEventServer
+	// Embed the Redis-backed event server.
+	// Provides methods for dual-publishing events etc.
+	*server.EventServer
 	Producer       pulsar.Producer
 	Db             *pgxpool.Pool
-	MaxJobsPerCall int
+	MaxJobsPerCall int32
 }
 
 func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
@@ -51,22 +56,27 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 		stream.Context(),
 		SelectNewRunsForExecutorWithLimitParams{
 			Executor: req.GetClusterId(),
-			Limit:    int32(srv.MaxJobsPerCall),
+			Limit:    srv.MaxJobsPerCall,
 		},
 	)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	log.Infof("leasing jobs to executor> %+v", runs)
 
 	// Get data stored in sql for these jobs.
 	// In particular, the Pulsar submit job message for each job.
 	jobIds := make([]uuid.UUID, len(runs))
 	for i, run := range runs {
-		jobIds[i] = run.RunID
+		jobIds[i] = run.JobID
 	}
 	sqlJobs, err := queries.SelectJobsFromIds(stream.Context(), jobIds)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	if len(sqlJobs) != len(runs) {
+		err := errors.Errorf("expected %d jobs, but only got %d", len(runs), len(sqlJobs))
+		logging.WithStacktrace(log, err).Error("jobs missing from postgres")
 	}
 
 	// Unmarshal the submit job messages.
@@ -86,21 +96,18 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	jobTime := time.Now()
 	jobsToLease := make([]*api.Job, len(logJobs))
 	for i, logJob := range logJobs {
-		legacyJob, err := eventutil.ApiJobsFromLogSubmitJobs(
+		legacyJob, err := eventutil.ApiJobFromLogSubmitJob(
 			sqlJobs[i].UserID,
 			sqlJobs[i].Groups,
 			sqlJobs[i].Queue,
 			sqlJobs[i].JobSet,
 			jobTime,
-			[]*armadaevents.SubmitJob{logJob},
+			logJob,
 		)
 		if err != nil {
 			return err
 		}
-		if len(legacyJob) != 1 {
-			return errors.Errorf("expected exactly 1 job, but got %v", legacyJob)
-		}
-		jobsToLease[i] = legacyJob[0]
+		jobsToLease[i] = legacyJob
 	}
 
 	// The server streams jobs to the executor.
@@ -135,7 +142,21 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	})
 
 	// Listen for job ids being streamed back as they're received.
+	// Defer marking all acked as sent in postgres.
 	ackedJobIds := make([]uuid.UUID, 0, numJobs)
+	defer func() {
+		if len(ackedJobIds) > 0 {
+			// Use the background context to run even if the stream context is cancelled.
+			err := queries.MarkRunsAsSentByExecutorAndJobId(context.Background(), MarkRunsAsSentByExecutorAndJobIdParams{
+				Executor: req.GetClusterId(),
+				JobIds:   ackedJobIds,
+			})
+			if err != nil {
+				err = errors.WithStack(err)
+				logging.WithStacktrace(log, err).Error("failed to mark runs as sent in postgres")
+			}
+		}
+	}()
 	g.Go(func() error {
 		numJobs := numJobs // Assign a local variable to guarantee there are no race conditions.
 		for atomic.LoadUint32(&numAcked) < numJobs {
@@ -146,11 +167,12 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 				return err
 			}
 			atomic.AddUint32(&numAcked, uint32(len(ack.ReceivedJobIds)))
-			for _, jobIdString := range ack.ReceivedJobIds {
-				jobId, err := uuid.Parse(jobIdString)
+			for _, s := range ack.ReceivedJobIds {
+				protoUuid, err := armadaevents.ProtoUuidFromUlidString(s)
 				if err != nil {
 					return errors.WithStack(err)
 				}
+				jobId := armadaevents.UuidFromProtoUuid(protoUuid)
 				ackedJobIds = append(ackedJobIds, jobId) // Mark job as sent.
 			}
 		}
@@ -173,12 +195,6 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 		log.WithError(err).Error("error sending the number of acks")
 	}
 
-	// Update postgres to mark these runs as sent.
-	err = queries.MarkRunsAsSent(stream.Context(), ackedJobIds)
-	if err != nil {
-		return errors.Wrap(err, "failed to mark runs as sent in postgres")
-	}
-
 	return nil
 }
 
@@ -192,9 +208,10 @@ func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorNam
 			return errors.WithStack(err)
 		}
 		records = append(records, Nodeinfo{
-			NodeName: nodeInfo.GetName(),
-			Executor: executorName,
-			Message:  message,
+			ExecutorNodeName: fmt.Sprintf("%s-%s", executorName, nodeInfo.GetName()),
+			NodeName:         nodeInfo.GetName(),
+			Executor:         executorName,
+			Message:          message,
 		})
 	}
 	return Upsert(ctx, srv.Db, "nodeinfo", NodeInfoSchema(), records)
@@ -212,11 +229,11 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 
 	jobIds := make([]uuid.UUID, len(req.Ids))
 	for i, s := range req.Ids {
-		jobId, err := uuid.Parse(s)
+		protoUuid, err := armadaevents.ProtoUuidFromUlidString(s)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		jobIds[i] = jobId
+		jobIds[i] = armadaevents.UuidFromProtoUuid(protoUuid)
 	}
 
 	queries := New(srv.Db)
@@ -228,10 +245,15 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 		return nil, errors.WithStack(err)
 	}
 
-	responseIds := make([]string, len(runs))
-	for i, run := range runs {
+	responseIds := make([]string, 0, len(runs))
+	for _, run := range runs {
 		if !run.Cancelled {
-			responseIds[i] = run.JobID.String()
+			protoUuid := armadaevents.ProtoUuidFromUuid(run.JobID)
+			responseId, err := armadaevents.UlidStringFromProtoUuid(protoUuid)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			responseIds = append(responseIds, responseId)
 		}
 	}
 
@@ -248,10 +270,11 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 
 	queries := New(srv.Db)
 
-	jobId, err := uuid.Parse(req.JobId)
+	protoUuid, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	jobId := armadaevents.UuidFromProtoUuid(protoUuid)
 
 	row, err := queries.SelectQueueJobSetFromId(ctx, jobId)
 	if err != nil {
@@ -265,37 +288,38 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if len(runs) != 1 {
-		return nil, errors.Errorf("expected 1 run, but got %v", runs)
-	}
 
+	// Return all leases for this job associated with this executor.
+	// Needed to work around the fact that executors have no concept of job runs.
 	sequence := &armadaevents.EventSequence{
 		Queue:      row.Queue,
 		JobSetName: row.JobSet,
 	}
-	sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				RunId: armadaevents.ProtoUuidFromUuid(runs[0].RunID),
-				JobId: armadaevents.ProtoUuidFromUuid(jobId),
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
-						Reason: &armadaevents.Error_PodLeaseReturned{
-							PodLeaseReturned: &armadaevents.PodLeaseReturned{
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId:   req.ClusterId,
-									KubernetesId: "", // TODO: The fields explicitly set empty here should be set, but are not available in req.
+	for _, run := range runs {
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId: armadaevents.ProtoUuidFromUuid(run.RunID),
+					JobId: armadaevents.ProtoUuidFromUuid(jobId),
+					Errors: []*armadaevents.Error{
+						{
+							Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
+							Reason: &armadaevents.Error_PodLeaseReturned{
+								PodLeaseReturned: &armadaevents.PodLeaseReturned{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   req.ClusterId,
+										KubernetesId: "", // TODO: The fields explicitly set empty here should be set, but are not available in req.
+									},
+									PodNumber: 0,
+									Message:   "",
 								},
-								PodNumber: 0,
-								Message:   "",
 							},
 						},
 					},
 				},
 			},
-		},
-	})
+		})
+	}
 
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
 	if err != nil {
@@ -313,7 +337,12 @@ func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.I
 
 	jobIds := make([]uuid.UUID, len(req.Ids))
 	for i, s := range req.Ids {
-		jobId, err := uuid.Parse(s)
+		protoUuid, err := armadaevents.ProtoUuidFromUlidString(s)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		jobId := armadaevents.UuidFromProtoUuid(protoUuid)
+
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -368,32 +397,32 @@ func (srv *ExecutorApi) ReportUsage(ctx context.Context, req *api.ClusterUsageRe
 	return &types.Empty{}, nil
 }
 
-func (srv *ExecutorApi) ReportMultiple(ctx context.Context, apiEvents *api.EventList) (*types.Empty, error) {
-	// Because (queue, userId, jobSetId) may differ between events,
-	// several sequences may be necessary.
-	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents.Events)
-	if err != nil {
-		return &types.Empty{}, err
-	}
-	if len(sequences) == 0 {
-		return &types.Empty{}, nil
-	}
-	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
-}
+// func (srv *ExecutorApi) ReportMultiple(ctx context.Context, apiEvents *api.EventList) (*types.Empty, error) {
+// 	// Because (queue, userId, jobSetId) may differ between events,
+// 	// several sequences may be necessary.
+// 	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents.Events)
+// 	if err != nil {
+// 		return &types.Empty{}, err
+// 	}
+// 	if len(sequences) == 0 {
+// 		return &types.Empty{}, nil
+// 	}
+// 	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
+// }
 
-func (srv *ExecutorApi) Report(ctx context.Context, apiEvent *api.EventMessage) (*types.Empty, error) {
-	// Because (queue, userId, jobSetId) may differ between events,
-	// several sequences may be necessary.
-	sequences, err := eventutil.EventSequencesFromApiEvents([]*api.EventMessage{apiEvent})
-	if err != nil {
-		return &types.Empty{}, err
-	}
-	if len(sequences) == 0 {
-		return &types.Empty{}, nil
-	}
+// func (srv *ExecutorApi) Report(ctx context.Context, apiEvent *api.EventMessage) (*types.Empty, error) {
+// 	// Because (queue, userId, jobSetId) may differ between events,
+// 	// several sequences may be necessary.
+// 	sequences, err := eventutil.EventSequencesFromApiEvents([]*api.EventMessage{apiEvent})
+// 	if err != nil {
+// 		return &types.Empty{}, err
+// 	}
+// 	if len(sequences) == 0 {
+// 		return &types.Empty{}, nil
+// 	}
 
-	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
-}
+// 	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
+// }
 
 // PublishToPulsar sends pulsar messages async
 func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {

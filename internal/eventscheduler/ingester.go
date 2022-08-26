@@ -13,11 +13,13 @@ import (
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/eventutil/eventid"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/eventscheduler/schedulerobjects"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -138,17 +140,6 @@ func NewReprioritisationBatch() *ReprioritisationBatch {
 	}
 }
 
-// ErrStaleBatch indicates that some (or all) records in batch are derivded from partitions
-// for which the data stored in postgres is more recent.
-type ErrStaleBatch struct {
-	Batch         *Batch
-	ErrStaleWrite *ErrStaleWrite
-}
-
-func (err *ErrStaleBatch) Error() string {
-	return fmt.Sprintf("stale write for batch %+v: %s", err.Batch, err.ErrStaleWrite)
-}
-
 // ShouldWrite returns true if this batch should be written into postgres.
 // TODO: Update
 func (srv *Ingester) ShouldWrite(batch *Batch) bool {
@@ -181,7 +172,7 @@ func (srv *Ingester) Run(ctx context.Context) error {
 	// receive from pulsar -> batch messages -> write to postgres and ack messages.
 	for {
 
-		// Scheduler ingester
+		// Scheduler ingester.
 		consumer, err := srv.PulsarClient.Subscribe(srv.ConsumerOptions)
 		if err != nil {
 			return errors.WithStack(err)
@@ -358,6 +349,12 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 	for i, event := range sequence.GetEvents() {
 		switch e := event.Event.(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
+
+			// Filter out jobs not intended for this scheduler.
+			if e.SubmitJob.Scheduler != "pulsar" {
+				continue
+			}
+
 			// If there are job set operations to be applied,
 			// we can't add new jobs for any affected job sets to this batch.
 			// Since jobs submitted after those operations should not be affected.
@@ -373,19 +370,39 @@ func (srv *Ingester) ProcessMessage(ctx context.Context, msg pulsar.Message, bat
 					break
 				}
 			}
+
+			// Store the job submit message so that it can be sent to an executor.
+			submitJobBytes, err := proto.Marshal(e.SubmitJob)
+			if err != nil {
+				return batches, errors.WithStack(err)
+			}
+
+			// Produce a minimal representation of the job for the scheduler.
+			// To avoid the scheduler needing to load the entire job spec.
+			schedulingInfo, err := schedulingInfoFromSubmitJob(e.SubmitJob)
+			if err != nil {
+				return batches, err
+			}
+			schedulingInfoBytes, err := proto.Marshal(schedulingInfo)
+			if err != nil {
+				return batches, errors.WithStack(err)
+			}
+
 			batch.Jobs = append(batch.Jobs, Job{
-				JobID:         armadaevents.UuidFromProtoUuid(e.SubmitJob.JobId),
-				JobSet:        sequence.GetJobSetName(),
-				UserID:        sequence.GetUserId(),
-				Groups:        sequence.GetGroups(),
-				Queue:         sequence.GetQueue(),
-				Priority:      int64(e.SubmitJob.Priority),
-				SubmitMessage: msg.Payload(),
+				JobID:          armadaevents.UuidFromProtoUuid(e.SubmitJob.JobId),
+				JobSet:         sequence.GetJobSetName(),
+				UserID:         sequence.GetUserId(),
+				Groups:         sequence.GetGroups(),
+				Queue:          sequence.GetQueue(),
+				Priority:       int64(e.SubmitJob.Priority),
+				SubmitMessage:  submitJobBytes,
+				SchedulingInfo: schedulingInfoBytes,
 			})
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			batch.Runs = append(batch.Runs, Run{
 				RunID:    armadaevents.UuidFromProtoUuid(e.JobRunLeased.GetRunId()),
 				JobID:    armadaevents.UuidFromProtoUuid(e.JobRunLeased.GetJobId()),
+				JobSet:   sequence.GetJobSetName(),
 				Executor: e.JobRunLeased.GetExecutorId(),
 			})
 		case *armadaevents.EventSequence_Event_ReprioritiseJob:
@@ -608,14 +625,17 @@ func (srv *Ingester) ProcessBatch(ctx context.Context, batch *Batch) error {
 
 	// For terminal errors, mark the corresponding job as failed.
 	if len(failedJobIds) > 0 {
-		queries.MarkJobsFailedById(ctx, failedJobIds)
+		err := queries.MarkJobsFailedById(ctx, failedJobIds)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Job run assignments
 	i := 0
 	records = make([]interface{}, len(batch.JobRunAssignments))
-	for v, _ := range batch.JobRunAssignments {
-		records[i] = v
+	for _, v := range batch.JobRunAssignments {
+		records[i] = *v
 		i++
 	}
 	err = Upsert(ctx, srv.Db, "job_run_assignments", JobRunAssignmentSchema(), records)
@@ -646,7 +666,7 @@ func (srv *Ingester) ProcessBatch(ctx context.Context, batch *Batch) error {
 	for i, jobRunError := range batch.JobRunErrors {
 		records[i] = jobRunError
 		if jobRunError.Terminal {
-			failedJobIds = append(failedJobRunIds, jobRunError.RunID)
+			failedJobRunIds = append(failedJobRunIds, jobRunError.RunID)
 		}
 	}
 	err = Upsert(ctx, srv.Db, "job_run_errors", JobRunErrorsSchema(), records)
@@ -671,4 +691,87 @@ func idsFromMap(set map[uuid.UUID]bool) []uuid.UUID {
 		i++
 	}
 	return ids
+}
+
+// schedulingInfoFromSubmitJob returns a minimal representation of a job
+// containing only the info needed by the scheduler.
+func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
+
+	// Component common to all jobs.
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		Lifetime:        submitJob.Lifetime,
+		AtMostOnce:      submitJob.AtMostOnce,
+		Preemptible:     submitJob.Preemptible,
+		ConcurrencySafe: submitJob.ConcurrencySafe,
+	}
+
+	// Scheduling requirements specific to the objects that make up this job.
+	switch object := submitJob.MainObject.Object.(type) {
+	case *armadaevents.KubernetesMainObject_PodSpec:
+		podSpec := object.PodSpec.PodSpec
+		resourceRequirements := aggregatePodResourceRequirements(podSpec)
+		tolerations := make([]*v1.Toleration, len(podSpec.Tolerations))
+		for i, toleration := range podSpec.Tolerations {
+			toleration := toleration
+			tolerations[i] = &toleration
+		}
+		var priority int32
+		if podSpec.Priority != nil {
+			priority = *podSpec.Priority
+		}
+		preemptionPolicy := "PreemptLowerPriority"
+		if podSpec.PreemptionPolicy != nil {
+			preemptionPolicy = string(*podSpec.PreemptionPolicy)
+		}
+		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
+			PodRequirements: &schedulerobjects.PodRequirements{
+				NodeSelector:         podSpec.NodeSelector,
+				Affinity:             podSpec.Affinity,
+				Tolerations:          tolerations,
+				Priority:             priority,
+				PreemptionPolicy:     preemptionPolicy,
+				ResourceRequirements: &resourceRequirements,
+			},
+		}
+		schedulingInfo.ObjectRequirements = append(
+			schedulingInfo.ObjectRequirements,
+			&schedulerobjects.ObjectRequirements{Requirements: requirements},
+		)
+	default:
+		return nil, errors.Errorf("unsupported object type %T", object)
+	}
+	return schedulingInfo, nil
+}
+
+// aggregatePodResourceRequirements returns a ResourceRequirements
+// capturing the total resource requirements of all containers that make up a pod.
+func aggregatePodResourceRequirements(podSpec *v1.PodSpec) v1.ResourceRequirements {
+	containerRequirements := make([]v1.ResourceRequirements, len(podSpec.Containers))
+	for i, container := range podSpec.Containers {
+		containerRequirements[i] = container.Resources
+	}
+	return aggregateResourceRequirements(containerRequirements...)
+}
+
+// aggregateResourceRequirements returns a ResourceRequirements
+// the limits and requests of which is the sum of the limits and requests
+// over all requirements given as arguments.
+func aggregateResourceRequirements(requirements ...v1.ResourceRequirements) v1.ResourceRequirements {
+	rv := v1.ResourceRequirements{
+		Limits:   make(v1.ResourceList),
+		Requests: make(v1.ResourceList),
+	}
+	for _, v := range requirements {
+		for resource, quantity := range v.Limits {
+			q := rv.Limits[resource]
+			q.Add(quantity)
+			rv.Limits[resource] = q
+		}
+		for resource, quantity := range v.Requests {
+			q := rv.Requests[resource]
+			q.Add(quantity)
+			rv.Requests[resource] = q
+		}
+	}
+	return rv
 }

@@ -61,7 +61,7 @@ func (q *Queries) GetTopicMessageIds(ctx context.Context, topic string) ([]Pulsa
 }
 
 const listNodeInfo = `-- name: ListNodeInfo :many
-SELECT node_name, executor, message, serial, last_modified FROM nodeinfo ORDER BY serial
+SELECT executor_node_name, node_name, executor, message, serial, last_modified FROM nodeinfo ORDER BY serial
 `
 
 func (q *Queries) ListNodeInfo(ctx context.Context) ([]Nodeinfo, error) {
@@ -74,6 +74,7 @@ func (q *Queries) ListNodeInfo(ctx context.Context) ([]Nodeinfo, error) {
 	for rows.Next() {
 		var i Nodeinfo
 		if err := rows.Scan(
+			&i.ExecutorNodeName,
 			&i.NodeName,
 			&i.Executor,
 			&i.Message,
@@ -92,7 +93,7 @@ func (q *Queries) ListNodeInfo(ctx context.Context) ([]Nodeinfo, error) {
 
 const listRuns = `-- name: ListRuns :many
 
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs ORDER BY run_id
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs ORDER BY run_id
 `
 
 // -- name: GetRecord :one
@@ -115,7 +116,7 @@ func (q *Queries) ListRuns(ctx context.Context) ([]Run, error) {
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
-			&i.Error,
+			&i.Failed,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -352,8 +353,22 @@ func (q *Queries) MarkRunsAsSent(ctx context.Context, runIds []uuid.UUID) error 
 	return err
 }
 
+const markRunsAsSentByExecutorAndJobId = `-- name: MarkRunsAsSentByExecutorAndJobId :exec
+UPDATE runs SET sent_to_executor = true WHERE executor = $1 AND job_id = ANY($2::UUID[])
+`
+
+type MarkRunsAsSentByExecutorAndJobIdParams struct {
+	Executor string      `db:"executor"`
+	JobIds   []uuid.UUID `db:"job_ids"`
+}
+
+func (q *Queries) MarkRunsAsSentByExecutorAndJobId(ctx context.Context, arg MarkRunsAsSentByExecutorAndJobIdParams) error {
+	_, err := q.db.Exec(ctx, markRunsAsSentByExecutorAndJobId, arg.Executor, arg.JobIds)
+	return err
+}
+
 const selectJobsFromIds = `-- name: SelectJobsFromIds :many
-SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, serial, last_modified FROM jobs WHERE job_id = ANY($1::UUID[])
+SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE job_id = ANY($1::UUID[])
 `
 
 func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]Job, error) {
@@ -376,6 +391,7 @@ func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]
 			&i.Succeeded,
 			&i.Failed,
 			&i.SubmitMessage,
+			&i.SchedulingInfo,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -390,7 +406,7 @@ func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]
 }
 
 const selectNewActiveJobs = `-- name: SelectNewActiveJobs :many
-SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, serial, last_modified FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AND cancelled = false ORDER BY serial
+SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AND cancelled = false ORDER BY serial
 `
 
 func (q *Queries) SelectNewActiveJobs(ctx context.Context, serial int64) ([]Job, error) {
@@ -413,6 +429,7 @@ func (q *Queries) SelectNewActiveJobs(ctx context.Context, serial int64) ([]Job,
 			&i.Succeeded,
 			&i.Failed,
 			&i.SubmitMessage,
+			&i.SchedulingInfo,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -427,7 +444,7 @@ func (q *Queries) SelectNewActiveJobs(ctx context.Context, serial int64) ([]Job,
 }
 
 const selectNewJobs = `-- name: SelectNewJobs :many
-SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial
+SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial
 `
 
 func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error) {
@@ -450,6 +467,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error
 			&i.Succeeded,
 			&i.Failed,
 			&i.SubmitMessage,
+			&i.SchedulingInfo,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -464,7 +482,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error
 }
 
 const selectNewNodeInfo = `-- name: SelectNewNodeInfo :many
-SELECT node_name, executor, message, serial, last_modified FROM nodeinfo WHERE serial > $1 ORDER BY serial
+SELECT executor_node_name, node_name, executor, message, serial, last_modified FROM nodeinfo WHERE serial > $1 ORDER BY serial
 `
 
 func (q *Queries) SelectNewNodeInfo(ctx context.Context, serial int64) ([]Nodeinfo, error) {
@@ -477,6 +495,7 @@ func (q *Queries) SelectNewNodeInfo(ctx context.Context, serial int64) ([]Nodein
 	for rows.Next() {
 		var i Nodeinfo
 		if err := rows.Scan(
+			&i.ExecutorNodeName,
 			&i.NodeName,
 			&i.Executor,
 			&i.Message,
@@ -494,7 +513,7 @@ func (q *Queries) SelectNewNodeInfo(ctx context.Context, serial int64) ([]Nodein
 }
 
 const selectNewRuns = `-- name: SelectNewRuns :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE serial > $1 ORDER BY serial
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE serial > $1 ORDER BY serial
 `
 
 func (q *Queries) SelectNewRuns(ctx context.Context, serial int64) ([]Run, error) {
@@ -515,7 +534,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, serial int64) ([]Run, error
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
-			&i.Error,
+			&i.Failed,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -530,7 +549,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, serial int64) ([]Run, error
 }
 
 const selectNewRunsForExecutor = `-- name: SelectNewRunsForExecutor :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false)
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false)
 `
 
 func (q *Queries) SelectNewRunsForExecutor(ctx context.Context, executor string) ([]Run, error) {
@@ -551,7 +570,7 @@ func (q *Queries) SelectNewRunsForExecutor(ctx context.Context, executor string)
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
-			&i.Error,
+			&i.Failed,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -566,7 +585,7 @@ func (q *Queries) SelectNewRunsForExecutor(ctx context.Context, executor string)
 }
 
 const selectNewRunsForExecutorWithLimit = `-- name: SelectNewRunsForExecutorWithLimit :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false) LIMIT $2
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false) LIMIT $2
 `
 
 type SelectNewRunsForExecutorWithLimitParams struct {
@@ -592,7 +611,7 @@ func (q *Queries) SelectNewRunsForExecutorWithLimit(ctx context.Context, arg Sel
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
-			&i.Error,
+			&i.Failed,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -607,7 +626,7 @@ func (q *Queries) SelectNewRunsForExecutorWithLimit(ctx context.Context, arg Sel
 }
 
 const selectNewRunsForJobs = `-- name: SelectNewRunsForJobs :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::UUID[]) ORDER BY serial
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::UUID[]) ORDER BY serial
 `
 
 type SelectNewRunsForJobsParams struct {
@@ -633,7 +652,7 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
-			&i.Error,
+			&i.Failed,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -695,7 +714,7 @@ func (q *Queries) SelectQueueJobSetFromIds(ctx context.Context, jobIds []uuid.UU
 }
 
 const selectRunsFromExecutorAndJobs = `-- name: SelectRunsFromExecutorAndJobs :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, error, serial, last_modified FROM runs WHERE (executor = $1 AND job_id = ANY($2::UUID[]))
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE (executor = $1 AND job_id = ANY($2::UUID[]))
 `
 
 type SelectRunsFromExecutorAndJobsParams struct {
@@ -721,7 +740,7 @@ func (q *Queries) SelectRunsFromExecutorAndJobs(ctx context.Context, arg SelectR
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
-			&i.Error,
+			&i.Failed,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {

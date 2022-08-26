@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
@@ -94,7 +93,7 @@ func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string)
 	}
 
 	// Drop all existing tables.
-	for _, table := range []string{"queues", "jobs", "runs", "executors", "pulsar", "nodeinfo"} {
+	for _, table := range []string{"queues", "jobs", "runs", "job_errors", "job_run_errors", "pulsar", "nodeinfo"} {
 		_, err = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
 		if err != nil {
 			return err
@@ -106,41 +105,6 @@ func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string)
 	if err != nil {
 		return err
 	}
-
-	// _, err = db.Exec(ctx, "DROP TABLE IF EXISTS runs")
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = db.Exec(ctx, "DROP TABLE IF EXISTS nodeinfo")
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = db.Exec(ctx, "DROP TABLE IF EXISTS pulsar")
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE records %s;", SCHEMA))
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE runs %s;", RunsSchema()))
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE nodeinfo %s;", NodeInfoSchema()))
-	// if err != nil {
-	// 	return err
-	// }
-
-	// _, err = db.Exec(ctx, fmt.Sprintf("CREATE TABLE pulsar %s;", PulsarSchema()))
-	// if err != nil {
-	// 	return err
-	// }
 
 	return action(New(db), db, "runs")
 }
@@ -426,14 +390,7 @@ func makeRuns(n int) []Run {
 			RunID:        uuid.New(),
 			JobID:        uuid.New(),
 			Executor:     uuid.NewString(), // A randomly generated string used for tests.
-			Assignment:   pgtype.JSON{},
 			LastModified: time.Date(2022, time.July, 13, 9, 27, 0, 0, time.Local),
-		}
-		err := runs[i].Assignment.Set(struct { // Upsert fails if the json is empty.
-			Node string `json:"node"`
-		}{Node: "foo"})
-		if err != nil {
-			panic(err)
 		}
 	}
 	return runs

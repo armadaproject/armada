@@ -9,7 +9,22 @@ package sql
 // SchemaTemplate is a generated function returning the template as a string.
 // That string should be parsed by the functions of the golang's template package.
 func SchemaTemplate() string {
-	var tmpl = "CREATE TABLE queues (\n" +
+	var tmpl = "\n" +
+		"-- TODO: Consistently compress proto messages.\n" +
+		"-- TODO: Cleanup may be expensive. Investigate.\n" +
+		"-- TODO: Research how postgres ANY works and what its limitations are.\n" +
+		"-- TODO: Backup solution inserting one by one.\n" +
+		"-- TODO: Look into go generics.\n" +
+		"-- TODO: Consider consistently mapping queues and job sets to unique integers. Maybe also node selectors, tolerations, and taints.\n" +
+		"\n" +
+		"-- TODO: Turns out postgres ANY compares one by one with each element given to it.\n" +
+		"-- The solution seems to be to either use a VALUES clause + join or COPY + join.\n" +
+		"-- https://stackoverflow.com/questions/34627026/in-vs-any-operator-in-postgresql\n" +
+		"-- https://dba.stackexchange.com/questions/91247/optimizing-a-postgres-query-with-a-large-in\n" +
+		"-- https://stackoverflow.com/questions/24647503/performance-issue-in-update-query\n" +
+		"-- https://stackoverflow.com/questions/17813492/postgres-not-in-performance\n" +
+		"\n" +
+		"CREATE TABLE queues (\n" +
 		"    name text PRIMARY KEY,\n" +
 		"    weight double precision NOT NULL\n" +
 		");\n" +
@@ -20,20 +35,20 @@ func SchemaTemplate() string {
 		"    job_set text NOT NULL,\n" +
 		"    queue text NOT NULL,\n" +
 		"    user_id text NOT NULL,\n" +
-		"    groups text[],\n" +
+		"    groups text[], -- Consider storing compressed. Could be large. Tell postgres to not compress if we did it ourselves.\n" +
 		"    priority bigint NOT NULL,\n" +
 		"    -- Indicates if this job has been cancelled by a user.\n" +
+		"    -- TODO: Corresponds to should be cancelled.\n" +
 		"    cancelled boolean NOT NULL DEFAULT false,\n" +
 		"    -- Set to true when a JobSucceeded event has been received for this job by the ingester.\n" +
 		"    succeeded boolean NOT NULL DEFAULT false,\n" +
 		"    -- Set to true when a terminal JobErrors event has been received for this job by the ingester.\n" +
 		"    -- The error itself is written into the job_errors table.\n" +
 		"    failed boolean NOT NULL DEFAULT false,\n" +
-		"     -- Dict mapping resource type to amount requested.\n" +
-		"     -- TODO: We need proto message containing the minimal amount of data the scheduler needs.\n" +
-		"    -- claims json NOT NULL,\n" +
-		"    -- SubmitJob Pulsar message stored as a proto buffer.\n" +
+		"    -- SubmitJob message stored as a proto buffer.\n" +
 		"    submit_message bytea NOT NULL,\n" +
+		"    -- JobSchedulingInfo message stored as a proto buffer.\n" +
+		"    scheduling_info bytea NOT NULL,\n" +
 		"    serial bigserial NOT NULL,\n" +
 		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
@@ -43,6 +58,7 @@ func SchemaTemplate() string {
 		"    job_id UUID NOT NULL,\n" +
 		"    -- Needed to efficiently cancel all runs for a particular job set.\n" +
 		"    -- TODO: We could store a hash to reduce memory.\n" +
+		"    -- TODO: We have to use queue-jobset for uniqueness. Maybe hash them together.\n" +
 		"    job_set TEXT NOT NULL,\n" +
 		"    -- Executor this job run is assigned to.\n" +
 		"    executor text NOT NULL,\n" +
@@ -50,18 +66,17 @@ func SchemaTemplate() string {
 		"    -- assignment json,\n" +
 		"    -- True if this run has been sent to the executor already.\n" +
 		"    -- Used to control which runs are sent to the executor when it requests jobs.\n" +
-		"    sent_to_executor boolean NOT NULL,\n" +
+		"    sent_to_executor boolean NOT NULL DEFAULT false,\n" +
 		"    -- Indicates if this lease has been cancelled.\n" +
-		"    cancelled boolean NOT NULL,\n" +
+		"    cancelled boolean NOT NULL DEFAULT false,\n" +
 		"    -- Set to true once a JobRunRunning messages is received for this run.\n" +
 		"    -- I.e., is true if the run has ever been started, even if it later failed.\n" +
-		"    running boolean NOT NULL,\n" +
+		"    running boolean NOT NULL DEFAULT false,\n" +
 		"    -- Set to true if a JobRunSucceeded message is received for this run.\n" +
-		"    succeeded boolean NOT NULL,\n" +
-		"    -- Most recently received terminal error.\n" +
-		"    -- If not NULL, this job has failed.\n" +
-		"    -- There shuld only be at most one terminal error for any given run.\n" +
-		"    error bytea,\n" +
+		"    succeeded boolean NOT NULL DEFAULT false,\n" +
+		"    -- Set to true when a terminal JobRunErrors event has been received for this run by the ingester.\n" +
+		"    -- The error itself is written into the job_run_errors table.\n" +
+		"    failed boolean NOT NULL DEFAULT false,\n" +
 		"    serial bigserial NOT NULL,\n" +
 		"    last_modified TIMESTAMPTZ NOT NULL\n" +
 		");\n" +
@@ -80,6 +95,7 @@ func SchemaTemplate() string {
 		"CREATE TABLE job_errors (\n" +
 		"    -- To ensure inserts are idempotent, we to asociate with each error a unique id\n" +
 		"    -- that can be computed deterministically by the ingester.\n" +
+		"    -- TODO: We could use a hash to improve efficiency.\n" +
 		"    id text PRIMARY KEY,\n" +
 		"    job_id UUID NOT NULL,\n" +
 		"    -- Byte array containing a JobErrors proto message.\n" +
@@ -99,7 +115,7 @@ func SchemaTemplate() string {
 		"\n" +
 		"CREATE TABLE job_run_errors (\n" +
 		"    -- To ensure inserts are idempotent, we to asociate with each error a unique id\n" +
-		"    -- that can be computed deterministically by the ingester.    \n" +
+		"    -- that can be computed deterministically by the ingester.\n" +
 		"    id text PRIMARY KEY,\n" +
 		"    run_id UUID NOT NULL,\n" +
 		"    -- Byte array containing a JobRunErrors proto message.    \n" +
@@ -130,6 +146,9 @@ func SchemaTemplate() string {
 		"-- );\n" +
 		"\n" +
 		"CREATE TABLE nodeinfo (\n" +
+		"    -- The concatenation of executor and node name.\n" +
+		"    -- TODO: We need a unique primary key for the upsert logic. But we should do something smarter.\n" +
+		"    executor_node_name text PRIMARY KEY,\n" +
 		"    -- Name of the node. Must be unique across all clusters.\n" +
 		"    node_name text NOT NULL,\n" +
 		"    -- Name of the executor responsible for this node.\n" +
