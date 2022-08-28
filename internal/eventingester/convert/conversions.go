@@ -16,7 +16,7 @@ import (
 
 // MessageRowConverter raw converts pulsar messages into events that we can store in Redis
 type MessageRowConverter struct {
-	compressor compress.Compressor
+	Compressor compress.Compressor
 }
 
 // Convert takes a  channel of pulsar message batches and outputs a channel of batched events that we store in Redis
@@ -76,7 +76,7 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 			log.WithError(err).Warnf("Could not marshall proto for msg %s", batch[i].Message.ID())
 			continue
 		}
-		compressedBytes, err := rc.compressor.Compress(bytes)
+		compressedBytes, err := rc.Compressor.Compress(bytes)
 		if err != nil {
 			log.WithError(err).Warnf("Could not compress event for msg %s", batch[i].Message.ID())
 			continue

@@ -31,13 +31,13 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	log.Info("Event Ingester Starting")
 
-	redis := redis.NewUniversalClient(&config.Redis)
+	rc := redis.NewUniversalClient(&config.Redis)
 	defer func() {
-		if err := redis.Close(); err != nil {
+		if err := rc.Close(); err != nil {
 			log.WithError(err).Error("failed to close events Redis client")
 		}
 	}()
-	eventDb := store.NewRedisEventStore(redis, config.EventRetentionPolicy)
+	eventDb := store.NewRedisEventStore(rc, config.EventRetentionPolicy)
 
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 	defer pulsarClient.Close()
@@ -73,7 +73,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		panic(err)
 	}
 	converter := &convert.MessageRowConverter{
-		compressor: compressor,
+		Compressor: compressor,
 	}
 	events := convert.Convert(ctx, batchedMsgs, 5, converter)
 
