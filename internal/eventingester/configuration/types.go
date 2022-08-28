@@ -3,12 +3,14 @@ package configuration
 import (
 	"time"
 
+	"github.com/go-redis/redis"
+
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 type EventIngesterConfiguration struct {
 	// Database configuration
-	Postgres configuration.PostgresConfig
+	Redis redis.UniversalOptions
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name
@@ -23,8 +25,13 @@ type EventIngesterConfiguration struct {
 	PulsarReceiveTimeout time.Duration
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
-	// Number of goroutines to be used for receiving messages and converting them to instructions
-	Paralellism int
 	// Pulsar Topic on which sequence updates will be sent
 	UpdateTopic string
+	// Time after which events will be deleted from the db
+	EventRetentionPolicy EventRetentionPolicy
+}
+
+type EventRetentionPolicy struct {
+	ExpiryEnabled     bool
+	RetentionDuration time.Duration
 }

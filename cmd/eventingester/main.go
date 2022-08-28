@@ -3,14 +3,15 @@ package main
 import (
 	ctx "context"
 
+	"github.com/G-Research/armada/internal/eventingester"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/eventapi/configuration"
-	"github.com/G-Research/armada/internal/eventapi/eventdb/schema/statik"
-	"github.com/G-Research/armada/internal/eventapi/ingestion"
+	"github.com/G-Research/armada/internal/eventingester/configuration"
+	"github.com/G-Research/armada/internal/eventingester/store/schema/statik"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 
 	"github.com/G-Research/armada/internal/common"
@@ -41,7 +42,7 @@ func main() {
 			log.Fatal(err)
 		}
 	} else {
-		ingestion.Run(&config)
+		eventingester.Run(&config)
 	}
 }
 

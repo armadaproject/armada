@@ -8,9 +8,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/eventapi"
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
-	"github.com/G-Research/armada/internal/eventapi/serving"
+	"github.com/G-Research/armada/internal/eventingester"
+	"github.com/G-Research/armada/internal/eventingester/serving"
+	"github.com/G-Research/armada/internal/eventingester/store"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
@@ -343,7 +343,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		if err != nil {
 			panic(err)
 		}
-		eventDb := eventdb.NewEventDb(pool)
+		eventDb := store.NewEventDb(pool)
 
 		// Setup pulsar
 		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
@@ -355,7 +355,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			panic(err)
 		}
 
-		jobsetMapper, err := eventapi.NewJobsetMapper(eventDb, config.EventApi.JobsetCacheSize, 24*time.Hour)
+		jobsetMapper, err := eventingester.NewJobsetMapper(eventDb, config.EventApi.JobsetCacheSize, 24*time.Hour)
 		if err != nil {
 			panic(err)
 		}
