@@ -6,12 +6,6 @@ import (
 	"net"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
-	"github.com/G-Research/armada/internal/eventingester"
-	"github.com/G-Research/armada/internal/eventingester/serving"
-	"github.com/G-Research/armada/internal/eventingester/store"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -334,40 +328,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
 
-	var eventApi *serving.EventApi = nil
-	// Setup new events api if enabled
-	if config.EventApi.Enabled {
-
-		// Set up eventDb
-		pool, err := postgres.OpenPgxPool(config.Postgres)
-		if err != nil {
-			panic(err)
-		}
-		eventDb := store.NewEventDb(pool)
-
-		// Setup pulsar
-		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
-		if err != nil {
-			panic(err)
-		}
-		sequenceManager, err := serving.NewUpdatingSequenceManager(context.Background(), eventDb, pulsarClient, config.EventApi.UpdateTopic)
-		if err != nil {
-			panic(err)
-		}
-
-		jobsetMapper, err := eventingester.NewJobsetMapper(eventDb, config.EventApi.JobsetCacheSize, 24*time.Hour)
-		if err != nil {
-			panic(err)
-		}
-
-		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, config.EventApi.QueryConcurrency, 10000, clock.RealClock{})
-		eventApi = serving.NewEventApi(jobsetMapper, subscriptionManager, sequenceManager)
-	}
-
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
-	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository, eventApi)
+	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	// Allows for registering functions to be run periodically in the background.
