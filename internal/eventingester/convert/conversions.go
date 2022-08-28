@@ -32,7 +32,6 @@ func Convert(ctx context.Context, msgs chan []*pulsarutils.ConsumerMessage, buff
 }
 
 func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsarutils.ConsumerMessage) *model.BatchUpdate {
-
 	// First unmarshall everything
 	messageIds := make([]*pulsarutils.ConsumerMessageId, len(batch))
 	events := make([]*model.Event, 0, len(batch))
@@ -94,5 +93,4 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 		MessageIds: messageIds,
 		Events:     events,
 	}
-
 }

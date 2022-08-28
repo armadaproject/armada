@@ -7,8 +7,10 @@ import (
 	"github.com/go-redis/redis"
 )
 
-const eventStreamPrefix = "Events:"
-const dataKey = "message"
+const (
+	eventStreamPrefix = "Events:"
+	dataKey           = "message"
+)
 
 type EventStore interface {
 	ReportEvents(message model.BatchUpdate) error

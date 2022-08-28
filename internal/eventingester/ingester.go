@@ -26,7 +26,6 @@ import (
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
-
 	log := logrus.StandardLogger().WithField("service", "EventIngester")
 	ctx := ctxlogrus.ToContext(createContextWithShutdown(), log)
 

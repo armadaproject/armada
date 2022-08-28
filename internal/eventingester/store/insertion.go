@@ -45,10 +45,10 @@ func insert(db *RedisEventStore, rows []*model.Event) {
 
 func WithRetry(executeDb func() error) error {
 	// TODO: arguably this should come from config
-	var backOff = 1
+	backOff := 1
 	const maxBackoff = 60
 	const maxRetries = 10
-	var numRetries = 0
+	numRetries := 0
 	var err error = nil
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		err := executeDb()
