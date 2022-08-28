@@ -70,6 +70,38 @@ job_set_id is required.
 
 
 
+#### cancel_jobset(queue, job_set_id, filter_states)
+Cancel jobs in a given queue.
+
+Uses the CancelJobSet RPC to cancel jobs.
+A filter is used to only cancel jobs in certain states.
+
+
+* **Parameters**
+
+    
+    * **queue** (*str*) – The name of the queue
+
+
+    * **job_set_id** (*str*) – An array of JobSubmitRequestItems.
+
+
+    * **filter_states** (*List**[**armada_client.typings.JobState**]*) – A list of states to filter by.
+
+
+
+* **Returns**
+
+    An empty response.
+
+
+
+* **Return type**
+
+    google.protobuf.empty_pb2.Empty
+
+
+
 #### create_job_request_item(priority=1.0, pod_spec=None, pod_specs=None, namespace=None, client_id=None, labels=None, annotations=None, required_node_labels=None, ingress=None, services=None)
 Create a job request.
 
