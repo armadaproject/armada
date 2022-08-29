@@ -611,5 +611,5 @@ build-dev-jobservice:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
 	cp -a ./docs/dev/config/jobservice ./.build/jobservice/config
 	docker build --build-arg APP_UID=$(shell id -u) --build-arg APP_GID=$(shell id -g) \
-		$(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
+		$(dockerFlags) -t armada-jobservice -f ./docs/dev/build/jobservice/Dockerfile ./.build/jobservice
 

@@ -1,6 +1,9 @@
 FROM alpine:3.10
 
-RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
+ARG APP_UID
+ARG APP_GID
+
+RUN addgroup -S -g ${APP_GID} armada && adduser -S -u ${APP_UID} armada -G armada
 
 USER armada
 
