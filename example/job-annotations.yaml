@@ -4,6 +4,7 @@ jobs:
   - priority: 0
     annotations:
       armadaproject.io/armada: https://github.com/G-Research/armada 
+      armadaproject.io/hello: world
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
