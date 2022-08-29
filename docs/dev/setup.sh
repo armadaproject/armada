@@ -9,8 +9,8 @@ echo "Using $stream_backend"
 
 COMPOSE_CMD='docker-compose'
 
-DCLIENT_VERSION=$(docker version -f '{{.Client.Version}}')
-if echo $DCLIENT_VERSION | grep -q '^2' ; then
+docker compose > /dev/null 2>&1
+if [ $? -eq 0 ] ; then
   COMPOSE_CMD='docker compose'
 fi
 

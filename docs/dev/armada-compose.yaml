@@ -92,6 +92,6 @@ services:
       - APP_UID
       - APP_GID
     volumes:
-      - ${PWD}/.build/jobservice:/run
+      - ${PWD}:/run
     command:
       - "run"

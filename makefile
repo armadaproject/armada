@@ -580,9 +580,9 @@ build-dev-server:
 	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
 
 build-dev-fakeexecutor:
-	mkdir -p .build/fakeexecutor
+	mkdir -p .build/fakeexecutor/config
 	$(GO_CMD) $(gobuildlinux) -o ./.build/fakeexecutor/fakeexecutor cmd/fakeexecutor/main.go
-	cp -a ./docs/dev/config/executor ./.build/fakeexecutor/config
+	cp -a ./docs/dev/config/executor/* ./.build/fakeexecutor/config/
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
 
 build-dev-lookout: node-setup
