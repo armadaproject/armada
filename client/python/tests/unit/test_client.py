@@ -13,6 +13,7 @@ from armada_client.k8s.io.apimachinery.pkg.api.resource import (
 )
 
 from armada_client.permissions import Permissions, Subject
+from armada_client.typings import JobState
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -161,6 +162,16 @@ def test_cancel_jobs():
     test_create_queue()
     test_submit_job()
     tester.cancel_jobs(queue="test", job_set_id="job-set-1", job_id="job1")
+
+
+def test_cancel_jobset():
+    test_create_queue()
+    test_submit_job()
+    tester.cancel_jobset(
+        queue="test",
+        job_set_id="job-set-1",
+        filter_states=[JobState.RUNNING, JobState.PENDING],
+    )
 
 
 def test_update_queue():

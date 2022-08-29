@@ -9,6 +9,7 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
+from armada_client.typings import JobState
 
 
 def submit_sleep_job(client):
@@ -170,6 +171,23 @@ def test_submit_job_and_cancel_by_queue_job_set(client: ArmadaClient, queue_name
 
     expected = f"all jobs in job set {job_set_name}"
     assert expected == cancelled_message.cancelled_ids[0]
+
+
+def test_submit_job_and_cancelling_with_filter(client: ArmadaClient, queue_name):
+    job_set_name = f"set-{uuid.uuid4()}"
+    client.submit_jobs(
+        queue=queue_name,
+        job_set_id=job_set_name,
+        job_request_items=submit_sleep_job(client),
+    )
+
+    wait_for(client, queue=queue_name, job_set_id=job_set_name)
+
+    client.cancel_jobset(
+        queue=queue_name,
+        job_set_id=job_set_name,
+        filter_states=[JobState.RUNNING, JobState.PENDING],
+    )
 
 
 def test_get_job_events_stream(client: ArmadaClient, queue_name):
