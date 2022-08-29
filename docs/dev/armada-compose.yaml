@@ -46,6 +46,8 @@ services:
   armada-server:
     container_name: armada
     image: armada
+    ports:
+      - "50051:50051"
     command:
       - "--config"
       - "/app/config/armada/base.yaml"
