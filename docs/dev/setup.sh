@@ -27,7 +27,7 @@ run_service() {
 
 echo -n "Looking for running Kind cluster $CLUSTER_NAME ..."
 running_clusters=$(kind get clusters)
-if [ $running_clusters != "$CLUSTER_NAME" ] ; then
+if [ "$running_clusters" != "$CLUSTER_NAME" ] ; then
   echo "not found.  Creating Kind cluster $CLUSTER_NAME"
   kind create cluster --name $CLUSTER_NAME --config ./docs/dev/kind.yaml
 else
