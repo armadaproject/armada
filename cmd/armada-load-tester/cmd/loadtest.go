@@ -65,7 +65,6 @@ var loadtestCmd = &cobra.Command{
 		filePath := args[0]
 		loadTestSpec := &domain.LoadTestSpecification{}
 		err := util.BindJsonOrYaml(filePath, loadTestSpec)
-
 		if err != nil {
 			log.Error(err)
 			os.Exit(1)

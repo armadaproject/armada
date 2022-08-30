@@ -94,8 +94,8 @@ func NewClusterContext(
 	configuration configuration.ApplicationConfiguration,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor) *KubernetesClusterContext {
-
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+) *KubernetesClusterContext {
 	kubernetesClient := kubernetesClientProvider.Client()
 
 	factory := informers.NewSharedInformerFactoryWithOptions(kubernetesClient, 0)
@@ -128,7 +128,7 @@ func NewClusterContext(
 		},
 	})
 
-	//Use node informer so it is initialized properly
+	// Use node informer so it is initialised properly
 	context.nodeInformer.Lister()
 	context.serviceInformer.Lister()
 	context.ingressInformer.Lister()
@@ -220,7 +220,6 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node
 
 	res := request.Do(ctx)
 	rawJson, err := res.Raw()
-
 	if err != nil {
 		return nil, fmt.Errorf("request error %s (body %s)", err, string(rawJson))
 	}
@@ -234,7 +233,6 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node
 }
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
-
 	// If a health monitor is provided, reject pods when etcd is at its hard limit.
 	if c.etcdHealthMonitor != nil && !c.etcdHealthMonitor.IsWithinHardHealthLimit() {
 		err := errors.WithStack(&armadaerrors.ErrCreateResource{
@@ -252,7 +250,6 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 	}
 
 	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{})
-
 	if err != nil {
 		c.submittedPods.Delete(util.ExtractPodKey(pod))
 	}

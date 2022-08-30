@@ -29,7 +29,8 @@ type JetstreamEventStream struct {
 
 func NewJetstreamEventStream(
 	opts *configuration.JetstreamConfig,
-	consumerOpts ...jsm.ConsumerOption) (*JetstreamEventStream, error) {
+	consumerOpts ...jsm.ConsumerOption,
+) (*JetstreamEventStream, error) {
 	natsConn, err := nats.Connect(strings.Join(opts.Servers, ","))
 	if err != nil {
 		return nil, err

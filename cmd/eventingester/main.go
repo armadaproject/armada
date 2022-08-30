@@ -16,8 +16,10 @@ import (
 	"github.com/G-Research/armada/internal/common"
 )
 
-const CustomConfigLocation string = "config"
-const MigrateDatabase string = "migrateDatabase"
+const (
+	CustomConfigLocation string = "config"
+	MigrateDatabase      string = "migrateDatabase"
+)
 
 func init() {
 	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")

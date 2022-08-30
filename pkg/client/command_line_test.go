@@ -38,7 +38,6 @@ func writeTemp(data []byte) (string, func(), error) {
 }
 
 func TestLoadClientConfig(t *testing.T) {
-
 	tests := map[string]struct {
 		valid bool                // true if loading the config given in data should return an error
 		data  []byte              // config data

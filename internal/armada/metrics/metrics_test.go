@@ -159,7 +159,6 @@ func addTestJob(t *testing.T, r *repository.RedisJobRepository, queue string) *a
 }
 
 func addTestJobWithRequirements(t *testing.T, r *repository.RedisJobRepository, queue string, clientId string, requirements v1.ResourceRequirements) *api.Job {
-
 	jobs := []*api.Job{
 		{
 			Id:       util.NewULID(),

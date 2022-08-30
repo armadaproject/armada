@@ -90,7 +90,7 @@ func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, p
 }
 
 // NewStaticSequenceManager returns a SequenceManager that only updates if `Update` is called.
-// This is mainly usefuly for test purposes
+// This is mainly useful for test purposes
 func NewStaticSequenceManager(initialSequences map[int64]int64) *DefaultSequenceManager {
 	om := &DefaultSequenceManager{
 		sequences: initialSequences,

@@ -9,42 +9,18 @@ linters:
   disable-all: true
   enable:
     - lll
-    - misspell
     - gofumpt
-    - govet
     - deadcode
     - goimports
     - ineffassign
-    - varcheck
-    - errcheck
-    - revive
-    - gosec
-    - gosimple
+    - misspell
 
 linters-settings:
   lll:
-    line-length: 150
-  maligned:
-    suggest-new: true
+    line-length: 261
   misspell:
-    locale: US
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: indent-error-flow
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
+    locale: UK
+    ignore-words:
+      - analyze
+      - serialize
+

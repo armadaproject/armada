@@ -37,7 +37,6 @@ func NewUtilisationEventReporter(
 	eventReporter reporter.EventReporter,
 	reportingPeriod time.Duration,
 ) *UtilisationEventReporter {
-
 	r := &UtilisationEventReporter{
 		clusterContext:    clusterContext,
 		podUtilisation:    podUtilisation,

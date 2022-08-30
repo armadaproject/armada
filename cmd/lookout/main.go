@@ -24,9 +24,11 @@ import (
 	lookoutApi "github.com/G-Research/armada/pkg/api/lookout"
 )
 
-const CustomConfigLocation string = "config"
-const MigrateDatabase string = "migrateDatabase"
-const PruneDatabase = "pruneDatabase"
+const (
+	CustomConfigLocation string = "config"
+	MigrateDatabase      string = "migrateDatabase"
+	PruneDatabase               = "pruneDatabase"
+)
 
 func init() {
 	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
