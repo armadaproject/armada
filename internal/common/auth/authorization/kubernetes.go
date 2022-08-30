@@ -39,7 +39,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
 	log.Infof("Auth header \"%s\", \"%s\"", authHeader[0], authHeader[1])
-	if authHeader[0] != "KubernetesAuth" {
+	if len(authHeader) < 2 || authHeader[0] != "KubernetesAuth" {
 		return nil, missingCredentials
 	}
 
@@ -167,6 +167,7 @@ type reviewBody struct {
 
 func parseAuth(auth string) (string, string, error) {
 	jsonData, err := base64.RawURLEncoding.DecodeString(auth)
+	log.Printf("Decoded JSON data: %s", jsonData)
 	if err != nil {
 		return "", "", err
 	}
