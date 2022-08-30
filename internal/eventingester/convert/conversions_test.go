@@ -97,30 +97,20 @@ func TestMultipleMessages(t *testing.T) {
 	assert.NoError(t, err)
 	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg1, msg2})
-	expectedSequence1 := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{cancelled},
-	}
-	expectedSequence2 := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
+	expectedSequence := armadaevents.EventSequence{
+		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
 	}
 	assert.Equal(t, []*pulsarutils.ConsumerMessageId{
 		{msg1.Message.ID(), 0, msg1.ConsumerId},
 		{msg2.Message.ID(), 0, msg2.ConsumerId},
 	}, batchUpdate.MessageIds)
-	assert.Equal(t, 2, len(batchUpdate.Events))
-	event1 := batchUpdate.Events[0]
-	assert.Equal(t, queue, event1.Queue)
-	assert.Equal(t, jobset, event1.Jobset)
-	es, err := extractEventSeq(event1.Event)
+	assert.Equal(t, 1, len(batchUpdate.Events))
+	event := batchUpdate.Events[0]
+	assert.Equal(t, queue, event.Queue)
+	assert.Equal(t, jobset, event.Jobset)
+	es, err := extractEventSeq(event.Event)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence1.Events, es.Events)
-
-	event2 := batchUpdate.Events[1]
-	assert.Equal(t, queue, event2.Queue)
-	assert.Equal(t, jobset, event2.Jobset)
-	es, err = extractEventSeq(event2.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence2.Events, es.Events)
+	assert.Equal(t, expectedSequence.Events, es.Events)
 }
 
 func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *pulsarutils.ConsumerMessage {
