@@ -19,13 +19,14 @@ import (
 
 func TestCalculateRunningJobStats(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
 		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 
 		clusterInfo := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, clusterInfo.ClusterId, now)
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, clusterInfo.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJobWithResource(queue1.Name, "1", "1000"), clusterInfo.ClusterId, now.Add(-time.Minute*30))
+		addRunningJob(t, queueCache.jobRepository, createJobWithResource(queue1.Name, "2", "2000"), clusterInfo.ClusterId, now.Add(-time.Minute*20))
+		addRunningJob(t, queueCache.jobRepository, createJobWithResource(queue1.Name, "3", "3000"), clusterInfo.ClusterId, now.Add(-time.Minute*10))
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
@@ -35,26 +36,42 @@ func TestCalculateRunningJobStats(t *testing.T) {
 		assert.Equal(t, len(runTimeMetrics), 1)
 		assert.NotNil(t, runTimeMetrics)
 		assert.NotNil(t, runTimeMetrics[clusterInfo.Pool])
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetCount(), uint64(2))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetCount(), uint64(3))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMin(), float64(60*10))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMedian(), float64(60*20))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMax(), float64(60*30))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetSum(), float64(60*60))
+
 		assert.Equal(t, len(resourceMetrics), 1)
 		assert.NotNil(t, resourceMetrics)
 		assert.NotNil(t, resourceMetrics[clusterInfo.Pool])
 		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["cpu"])
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetCount(), uint64(2))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMin(), float64(1))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMedian(), float64(2))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMax(), float64(3))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetSum(), float64(6))
+
+		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["memory"])
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMin(), float64(1000))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMedian(), float64(2000))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMax(), float64(3000))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetSum(), float64(6000))
 	})
 }
 
 func TestCalculateRunningJobStats_WhenMultiCluster(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 		cluster1 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
 		cluster2 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster2", "cpu")
-		now := time.Now()
 
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster1.ClusterId, now)
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster1.ClusterId, now)
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster2.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster1.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster1.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster2.ClusterId, now)
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
@@ -70,15 +87,15 @@ func TestCalculateRunningJobStats_WhenMultiCluster(t *testing.T) {
 
 func TestCalculateRunningJobStats_WhenMultiPool(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 		cluster1 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
 		cluster2 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster2", "gpu")
-		now := time.Now()
 
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster1.ClusterId, now)
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster1.ClusterId, now)
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster2.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster1.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster1.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster2.ClusterId, now)
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
@@ -96,12 +113,12 @@ func TestCalculateRunningJobStats_WhenMultiPool(t *testing.T) {
 
 func TestCalculateRunningJobStats_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
-		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
+		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 
 		cluster1 := addInactiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
-		addRunningJob(t, queueCache.jobRepository, queue1.Name, cluster1.ClusterId, now)
+		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster1.ClusterId, now)
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
@@ -115,11 +132,13 @@ func TestCalculateRunningJobStats_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 
 func TestGetQueuedJobMetrics(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		clusterInfo := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
-		addTestJob(t, queueCache.jobRepository, queue1.Name)
-		addTestJob(t, queueCache.jobRepository, queue1.Name)
+		addJob(t, queueCache.jobRepository, createJobWithResourceAndStartTime(queue1.Name, "1", "1000000000", now.Add(-time.Minute*10)))
+		addJob(t, queueCache.jobRepository, createJobWithResourceAndStartTime(queue1.Name, "2", "2000000000", now.Add(-time.Minute*20)))
+		addJob(t, queueCache.jobRepository, createJobWithResourceAndStartTime(queue1.Name, "3", "3000000000", now.Add(-time.Minute*30)))
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
@@ -129,23 +148,40 @@ func TestGetQueuedJobMetrics(t *testing.T) {
 		assert.Equal(t, len(runTimeMetrics), 1)
 		assert.NotNil(t, runTimeMetrics)
 		assert.NotNil(t, runTimeMetrics[clusterInfo.Pool])
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetCount(), uint64(2))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetCount(), uint64(3))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMin(), float64(60*10))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMedian(), float64(60*20))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMax(), float64(60*30))
+		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetSum(), float64(60*60))
+
 		assert.Equal(t, len(resourceMetrics), 1)
 		assert.NotNil(t, resourceMetrics)
 		assert.NotNil(t, resourceMetrics[clusterInfo.Pool])
 		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["cpu"])
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetCount(), uint64(2))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMin(), float64(1))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMedian(), float64(2))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMax(), float64(3))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetSum(), float64(6))
+
+		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["memory"])
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMin(), float64(1000000000))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMedian(), float64(2000000000))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMax(), float64(3000000000))
+		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetSum(), float64(6000000000))
 	})
 }
 
 func TestGetQueuedJobMetrics_CountedOnce_WhenMultiCluster(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 		cluster1 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
 		addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster2", "cpu")
 
-		addTestJob(t, queueCache.jobRepository, queue1.Name)
+		addJob(t, queueCache.jobRepository, createJob(queue1.Name))
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
@@ -161,11 +197,12 @@ func TestGetQueuedJobMetrics_CountedOnce_WhenMultiCluster(t *testing.T) {
 
 func TestGetQueuedJobMetrics_CountedForEachMatchingPool_WhenMultiPool(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 		cluster1 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
 		cluster2 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster2", "cpu2")
-		addTestJob(t, queueCache.jobRepository, queue1.Name)
+		addJob(t, queueCache.jobRepository, createJob(queue1.Name))
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
@@ -183,10 +220,11 @@ func TestGetQueuedJobMetrics_CountedForEachMatchingPool_WhenMultiPool(t *testing
 
 func TestGetQueuedJobMetrics_NotCounted_WhenJobCannotScheduleOntoCluster(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 		cluster1 := addActiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
-		addTestJob(t, queueCache.jobRepository, queue1.Name)
+		addJob(t, queueCache.jobRepository, createJob(queue1.Name))
 
 		// Make minimum job size masssive, so no jobs are schedulable
 		cluster1.MinimumJobSize = map[string]resource.Quantity{
@@ -208,11 +246,12 @@ func TestGetQueuedJobMetrics_NotCounted_WhenJobCannotScheduleOntoCluster(t *test
 
 func TestGetQueuedJobMetrics_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 	withRepository(func(r *redis.Client) {
-		queueCache := createQueueCache(r)
+		now := time.Now()
+		queueCache := createQueueCache(r, &util.DummyClock{T: now})
 		queue1 := addQueue(t, queueCache.queueRepository, "queue1")
 
 		addInactiveCluster(t, queueCache.schedulingInfoRepository, "cluster1", "cpu")
-		addTestJob(t, queueCache.jobRepository, queue1.Name)
+		addJob(t, queueCache.jobRepository, createJob(queue1.Name))
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
@@ -224,12 +263,12 @@ func TestGetQueuedJobMetrics_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 	})
 }
 
-func createQueueCache(redisClient redis.UniversalClient) *QueueCache {
+func createQueueCache(redisClient redis.UniversalClient, clock util.Clock) *QueueCache {
 	jobRepo := repository.NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
 	schedulingInfoRepo := repository.NewRedisSchedulingInfoRepository(redisClient)
 
-	return NewQueueCache(queueRepo, jobRepo, schedulingInfoRepo)
+	return NewQueueCache(clock, queueRepo, jobRepo, schedulingInfoRepo)
 }
 
 func addInactiveCluster(t *testing.T, r repository.SchedulingInfoRepository, clusterId string, pool string) *api.ClusterSchedulingInfoReport {
@@ -272,9 +311,9 @@ func addQueue(t *testing.T, r repository.QueueRepository, queueName string) *que
 	return &q
 }
 
-func addRunningJob(t *testing.T, r repository.JobRepository, queue string, cluster string, startTime time.Time) *api.Job {
-	job := addTestJob(t, r, queue)
-	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
+func addRunningJob(t *testing.T, r repository.JobRepository, job *api.Job, cluster string, startTime time.Time) *api.Job {
+	job = addJob(t, r, job)
+	leased, e := r.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
 	assert.NoError(t, e)
 	assert.Equal(t, 1, len(leased))
 	assert.Equal(t, job.Id, leased[0].Id)
@@ -289,42 +328,42 @@ func addRunningJob(t *testing.T, r repository.JobRepository, queue string, clust
 	return job
 }
 
-func addTestJob(t *testing.T, r repository.JobRepository, queue string) *api.Job {
-	cpu := resource.MustParse("1")
-	memory := resource.MustParse("512Mi")
-
-	return addTestJobWithRequirements(t, r, queue, "", v1.ResourceRequirements{
-		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
-		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-	})
-}
-
-func addTestJobWithRequirements(t *testing.T, r repository.JobRepository, queue string, clientId string, requirements v1.ResourceRequirements) *api.Job {
-	jobs := []*api.Job{
-		{
-			Id:       util.NewULID(),
-			ClientId: clientId,
-			Queue:    queue,
-			JobSetId: "set1",
-			PodSpec: &v1.PodSpec{
-				Containers: []v1.Container{
-					{
-						Resources: requirements,
-					},
-				},
-			},
-			Created:                  time.Now(),
-			Owner:                    "user",
-			QueueOwnershipUserGroups: []string{},
-		},
-	}
-
-	results, e := r.AddJobs(jobs)
+func addJob(t *testing.T, r repository.JobRepository, job *api.Job) *api.Job {
+	results, e := r.AddJobs([]*api.Job{job})
 	assert.Nil(t, e)
 	for _, result := range results {
 		assert.Empty(t, result.Error)
 	}
-	return jobs[0]
+	return job
+}
+
+func createJob(queue string) *api.Job {
+	return createJobWithResourceAndStartTime(queue, "1", "1Gi", time.Now())
+}
+
+func createJobWithResource(queue string, cpu string, memory string) *api.Job {
+	return createJobWithResourceAndStartTime(queue, cpu, memory, time.Now())
+}
+
+func createJobWithResourceAndStartTime(queue string, cpu string, memory string, createdTime time.Time) *api.Job {
+	return &api.Job{
+		Id:       util.NewULID(),
+		Queue:    queue,
+		JobSetId: "set1",
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits:   v1.ResourceList{"cpu": resource.MustParse(cpu), "memory": resource.MustParse(memory)},
+						Requests: v1.ResourceList{"cpu": resource.MustParse(cpu), "memory": resource.MustParse(memory)},
+					},
+				},
+			},
+		},
+		Created:                  createdTime,
+		Owner:                    "user",
+		QueueOwnershipUserGroups: []string{},
+	}
 }
 
 func withRepository(action func(r *redis.Client)) {

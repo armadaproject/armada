@@ -3,7 +3,6 @@ package cache
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -24,6 +23,7 @@ type (
 )
 
 type QueueCache struct {
+	clock                    util.Clock
 	queueRepository          repository.QueueRepository
 	jobRepository            repository.JobRepository
 	schedulingInfoRepository repository.SchedulingInfoRepository
@@ -38,11 +38,13 @@ type QueueCache struct {
 }
 
 func NewQueueCache(
+	clock util.Clock,
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
 ) *QueueCache {
 	collector := &QueueCache{
+		clock:                    clock,
 		queueRepository:          queueRepository,
 		jobRepository:            jobRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
@@ -96,7 +98,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByP
 	resourceUsageByPool := map[string]*metrics.ResourceMetricsRecorder{}
 	nonMatchingJobs := map[string]stringSet{}
 	queueDurationByPool := map[string]*metrics.FloatMetricsRecorder{}
-	currentTime := time.Now()
+	currentTime := c.clock.Now().UTC()
 	for _, chunkJobIds := range util.Batch(queuedJobIds, objectsToLoadBatchSize) {
 		queuedJobs, e := c.jobRepository.GetExistingJobsByIds(chunkJobIds)
 		if e != nil {
@@ -106,7 +108,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByP
 		for _, job := range queuedJobs {
 			jobResources := common.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
-			queuedTime := currentTime.Sub(job.Created)
+			queuedTime := currentTime.Sub(job.Created.UTC())
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -166,7 +168,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 		if e != nil {
 			return fmt.Errorf("failed getting job run info - %s", e)
 		}
-		now := time.Now()
+		now := c.clock.Now().UTC()
 		for _, job := range leasedJobs {
 			runInfo, present := runInfo[job.Id]
 			if !present {
@@ -177,7 +179,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 				continue
 			}
 			jobResources := common.TotalJobResourceRequest(job)
-			runTime := now.Sub(runInfo.StartTime)
+			runTime := now.Sub(runInfo.StartTime.UTC())
 
 			r, exists := durationMetricsRecorderByPool[pool]
 			if !exists {

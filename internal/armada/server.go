@@ -365,7 +365,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
+	queueCache := cache.NewQueueCache(&util.DefaultClock{}, queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository, eventApi)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
