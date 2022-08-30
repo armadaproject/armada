@@ -15,7 +15,6 @@ type ClientCredentialsDetails struct {
 }
 
 func AuthenticateWithClientCredentials(config ClientCredentialsDetails) (*TokenCredentials, error) {
-
 	ctx := context.Background()
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)

@@ -64,7 +64,8 @@ func NewClusterJobContext(
 	clusterContext context.ClusterContext,
 	pendingPodChecker podchecks.PodChecker,
 	stuckTerminatingPodExpiry time.Duration,
-	updateThreadCount int) *ClusterJobContext {
+	updateThreadCount int,
+) *ClusterJobContext {
 	jobContext := &ClusterJobContext{
 		clusterContext:            clusterContext,
 		stuckTerminatingPodExpiry: stuckTerminatingPodExpiry,
@@ -171,7 +172,6 @@ func (c *ClusterJobContext) registerIssue(jobId string, issue *PodIssue) {
 }
 
 func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
-
 	c.activeJobIdsMutex.Lock()
 	defer c.activeJobIdsMutex.Unlock()
 
@@ -211,7 +211,6 @@ func (c *ClusterJobContext) addIssues(jobs []*RunningJob) []*RunningJob {
 }
 
 func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
-
 	for _, pod := range runningJob.ActivePods {
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckTerminatingPodExpiry).Before(time.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
@@ -221,7 +220,8 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 				Pods:           runningJob.ActivePods,
 				Message:        "pod stuck in terminating phase, this might be due to platform problems",
 				Retryable:      false,
-				Type:           StuckTerminating}
+				Type:           StuckTerminating,
+			}
 			runningJob.Issue = issue
 			c.registerIssue(runningJob.JobId, issue)
 			break

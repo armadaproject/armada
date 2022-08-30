@@ -31,7 +31,6 @@ var (
 )
 
 func TestBatchByMaxItems(t *testing.T) {
-
 	inputChan := make(chan *model.InstructionSet)
 	testClock := clock.NewFakeClock(time.Now())
 	outputChan := Batch(inputChan, defaultMaxItems, defaultMaxTimeOut, defaultBufferSize, testClock)
@@ -68,7 +67,6 @@ func TestBatchByMaxItems(t *testing.T) {
 }
 
 func TestBatchByTime(t *testing.T) {
-
 	inputChan := make(chan *model.InstructionSet)
 	testClock := clock.NewFakeClock(time.Now())
 	outputChan := Batch(inputChan, defaultMaxItems, defaultMaxTimeOut, defaultBufferSize, testClock)

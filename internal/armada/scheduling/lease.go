@@ -50,8 +50,8 @@ func LeaseJobs(ctx context.Context,
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
 	clusterPriorities map[string]map[string]float64,
-	activeQueues []*api.Queue) ([]*api.Job, error) {
-
+	activeQueues []*api.Queue,
+) ([]*api.Job, error) {
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 
@@ -110,7 +110,8 @@ func calculateQueueSchedulingLimits(
 	schedulingLimitPerQueue common.ComputeResourcesFloat,
 	resourceLimitPerQueue common.ComputeResourcesFloat,
 	totalCapacity *common.ComputeResources,
-	currentQueueResourceAllocation map[string]common.ComputeResources) map[*api.Queue]*QueueSchedulingInfo {
+	currentQueueResourceAllocation map[string]common.ComputeResources,
+) map[*api.Queue]*QueueSchedulingInfo {
 	schedulingInfo := make(map[*api.Queue]*QueueSchedulingInfo, len(activeQueues))
 	for _, queue := range activeQueues {
 		remainingGlobalLimit := resourceLimitPerQueue.DeepCopy()
@@ -190,7 +191,6 @@ func (c *leaseContext) assignJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
 }
 
 func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job, error) {
-
 	jobs := []*api.Job{}
 	if limit.AtLimit() {
 		return jobs, nil
