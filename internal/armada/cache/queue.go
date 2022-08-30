@@ -18,8 +18,10 @@ import (
 
 const objectsToLoadBatchSize = 10000
 
-type empty struct{}
-type stringSet map[string]empty
+type (
+	empty     struct{}
+	stringSet map[string]empty
+)
 
 type QueueCache struct {
 	queueRepository          repository.QueueRepository
@@ -48,7 +50,8 @@ func NewQueueCache(
 		queuedResources:          map[string]map[string]metrics.ResourceMetrics{},
 		queueNonMatchingJobIds:   map[string]map[string]stringSet{},
 		runningDurations:         map[string]map[string]*metrics.FloatMetrics{},
-		runningResources:         map[string]map[string]metrics.ResourceMetrics{}}
+		runningResources:         map[string]map[string]metrics.ResourceMetrics{},
+	}
 
 	return collector
 }
@@ -197,7 +200,8 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 }
 
 func (c *QueueCache) updateQueueMetrics(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder,
-	queueDurationsByPool map[string]*metrics.FloatMetricsRecorder) {
+	queueDurationsByPool map[string]*metrics.FloatMetricsRecorder,
+) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 

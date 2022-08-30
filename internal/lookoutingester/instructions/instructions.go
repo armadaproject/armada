@@ -46,7 +46,6 @@ func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, buffer
 // In the case that no events can be parsed (e.g. the message is not valid protobuf), an empty InstructionSet containing
 // only the messageId will be returned.
 func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnotationPrefix string, compressor compress.Compressor) *model.InstructionSet {
-
 	pulsarMsg := msg.Message
 
 	// Put the requestId into a message-specific context and logger,
@@ -173,7 +172,6 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 }
 
 func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
-
 	// This intermediate variable exists because we want our output to be deterministic
 	// Iteration over a map in go is non-deterministic so we read everything into annotations
 	// and then sort it.
@@ -203,7 +201,6 @@ func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnno
 }
 
 func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -219,7 +216,6 @@ func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, u
 }
 
 func handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
 	if err != nil {
 		return err
@@ -235,7 +231,6 @@ func handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDe
 }
 
 func handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -252,7 +247,6 @@ func handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *mod
 }
 
 func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -273,7 +267,7 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 		return err
 	}
 
-	var isTerminal = false
+	isTerminal := false
 
 	for _, e := range event.GetErrors() {
 		if e.Terminal {
@@ -293,14 +287,12 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 }
 
 func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.GetRunId())
-
 	if err != nil {
 		return err
 	}
@@ -361,7 +353,6 @@ func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, upda
 }
 
 func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
-
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
 		return errors.WithStack(err)

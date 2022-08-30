@@ -22,7 +22,6 @@ const postgresFormat = "2006-01-02 15:04:05.000000"
 // For performance reasons we don't use a transaction here and so an error may indicate that
 // Some jobs were deleted.
 func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
-
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 
@@ -61,7 +60,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 	log.Infof("Deleting jobs which haven't changed since cutoff=%v, batch size=%v", cutoff.Format(postgresFormat), batchSizeLimit)
 	_, err := db.ExecContext(ctx, queryText)
 	if err == nil {
-		log.Infof("Deleting jobs finished sucessfully")
+		log.Infof("Deleting jobs finished successfully")
 	} else {
 		log.Warnf("Deleting jobs failed")
 	}

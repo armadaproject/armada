@@ -25,9 +25,7 @@ import (
 // Partly reimplementing github.com/jcmturner/gokrb5/v8/spnego/http.go for GRPC
 // Copying constants as they are private
 const (
-	// spnegoNegTokenRespKRBAcceptCompleted - The response on successful authentication always has this header. Capturing as const so we don't have marshaling and encoding overhead.
-	spnegoNegTokenRespKRBAcceptCompleted = "Negotiate oRQwEqADCgEAoQsGCSqGSIb3EgECAg=="
-	// spnegoNegTokenRespReject - The response on a failed authentication always has this rejection header. Capturing as const so we don't have marshaling and encoding overhead.
+	// spnegoNegTokenRespReject - The response on a failed authentication always has this rejection header. Capturing as const so we don't have marshalling and encoding overhead.
 	spnegoNegTokenRespReject = "Negotiate oQcwBaADCgEC"
 	// spnegoNegTokenRespIncompleteKRB5 - Response token specifying incomplete context and KRB5 as the supported mechtype.
 	spnegoNegTokenRespIncompleteKRB5 = "Negotiate oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
@@ -126,7 +124,6 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 			// Original library sets ticket accepted header here, but this breaks python
 			// request-negotiate-sspi module
 			// removing the header as workaround before moving away from kerberos
-			// _ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespKRBAcceptCompleted))
 			return NewStaticPrincipal(user, userGroups), nil
 		}
 		log.Error("Failed to read ad credentials")

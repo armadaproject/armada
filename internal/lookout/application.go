@@ -30,7 +30,6 @@ func (l LogRusLogger) Printf(format string, v ...interface{}) {
 }
 
 func StartUp(config configuration.LookoutConfiguration, healthChecks *health.MultiChecker) (func(), *sync.WaitGroup) {
-
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 

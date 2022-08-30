@@ -57,7 +57,8 @@ func NewKubernetesClientProvider(impersonateUsers bool, qps float32, burst int) 
 	return &ConfigKubernetesClientProvider{
 			restConfig:       restConfig,
 			impersonateUsers: impersonateUsers,
-			client:           client},
+			client:           client,
+		},
 		nil
 }
 

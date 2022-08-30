@@ -49,7 +49,6 @@ func NewSubmitServer(
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
-
 	return &SubmitServer{
 		permissions:              permissions,
 		jobRepository:            jobRepository,
@@ -58,7 +57,8 @@ func NewSubmitServer(
 		schedulingInfoRepository: schedulingInfoRepository,
 		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
-		schedulingConfig:         schedulingConfig}
+		schedulingConfig:         schedulingConfig,
+	}
 }
 
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
@@ -633,7 +633,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	principalName := authorization.GetPrincipal(ctx).GetName()
 	err = reportJobsReprioritizing(server.eventStore, principalName, jobs, request.NewPriority)
 	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error reporting job re-prioritization: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error reporting job re-prioritisation: %s", err)
 	}
 
 	jobIds := []string{}
@@ -642,14 +642,13 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	}
 	results, err := server.reprioritizeJobs(jobIds, request.NewPriority, principalName)
 	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error re-prioritizing jobs: %s", err)
+		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error re-prioritising jobs: %s", err)
 	}
 
 	return &api.JobReprioritizeResponse{ReprioritizationResults: results}, nil
 }
 
 func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float64, principalName string) (map[string]string, error) {
-
 	// TODO There's a bug here.
 	// The function passed to UpdateJobs is called under an optimistic lock.
 	// If the jobs to be updated are mutated by another thread concurrently,
@@ -766,7 +765,8 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 }
 
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
-	getTime func() time.Time, getUlid func() string) ([]*api.Job, error) {
+	getTime func() time.Time, getUlid func() string,
+) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {

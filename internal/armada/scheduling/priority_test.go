@@ -11,7 +11,6 @@ import (
 )
 
 func TestPriorityService_GetQueuePriorities(t *testing.T) {
-
 	q1 := &api.Queue{Name: "queue1", PriorityFactor: 2}
 	q2 := &api.Queue{Name: "queue2", PriorityFactor: 1}
 	q3 := &api.Queue{Name: "queue3", PriorityFactor: 1}

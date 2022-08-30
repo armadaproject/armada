@@ -34,7 +34,6 @@ func IsEventTerminal(message api.EventMessage) bool {
 	default:
 		return false
 	}
-
 }
 
 // Check if JobServiceResponse is terminal
@@ -45,5 +44,4 @@ func IsStateTerminal(State js.JobServiceResponse_State) bool {
 	default:
 		return false
 	}
-
 }

@@ -43,7 +43,7 @@ func (stream *StanEventStream) Publish(events []*api.EventMessage) []error {
 	for _, m := range events {
 		messageData, err := proto.Marshal(m)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error while marshaling event: %v", err))
+			errs = append(errs, fmt.Errorf("error while marshalling event: %v", err))
 		}
 		_, err = stream.stanClient.PublishAsync(stream.subject, messageData, func(subj string, err error) {
 			if err != nil {
@@ -161,7 +161,8 @@ type StanClientConnection struct {
 
 func NewStanClientConnection(
 	stanClusterID, clientID string, servers []string,
-	options ...stan.Option) (*StanClientConnection, error) {
+	options ...stan.Option,
+) (*StanClientConnection, error) {
 	// as underlying NATS connection reconnects automatically, there is no need to renew it
 	// keeping one NATS connection around will make message ack work better during STAN connection lost event
 	nc, err := nats.Connect(
@@ -169,7 +170,6 @@ func NewStanClientConnection(
 		nats.Name(clientID),
 		nats.MaxReconnects(-1),
 		nats.ReconnectBufSize(-1))
-
 	if err != nil {
 		return nil, err
 	}

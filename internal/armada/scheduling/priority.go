@@ -45,7 +45,6 @@ func CalculatePriorityUpdate(resourceScarcity map[string]float64, previousReport
 }
 
 func calculatePriorityUpdate(usage map[string]float64, previousPriority map[string]float64, timeChange time.Duration, halfTime time.Duration) map[string]float64 {
-
 	newPriority := map[string]float64{}
 	timeChangeFactor := math.Pow(0.5, timeChange.Seconds()/halfTime.Seconds())
 

@@ -30,7 +30,8 @@ func ExposeDataMetrics(
 		jobRepository:            jobRepository,
 		usageRepository:          usageRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queueMetrics:             queueMetrics}
+		queueMetrics:             queueMetrics,
+	}
 	prometheus.MustRegister(collector)
 	return collector
 }
@@ -224,7 +225,6 @@ func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 }
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
-
 	queues, e := c.queueRepository.GetAllQueues()
 	if e != nil {
 		log.Errorf("Error while getting queue metrics %s", e)
