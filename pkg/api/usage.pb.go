@@ -27,9 +27,12 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = fmt.Errorf
-var _ = math.Inf
-var _ = time.Kitchen
+
+var (
+	_ = fmt.Errorf
+	_ = math.Inf
+	_ = time.Kitchen
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -49,9 +52,11 @@ func (*QueueReport) ProtoMessage() {}
 func (*QueueReport) Descriptor() ([]byte, []int) {
 	return fileDescriptor_5643ccb387d55d48, []int{0}
 }
+
 func (m *QueueReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *QueueReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_QueueReport.Marshal(b, m, deterministic)
@@ -64,12 +69,15 @@ func (m *QueueReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return b[:n], nil
 	}
 }
+
 func (m *QueueReport) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_QueueReport.Merge(m, src)
 }
+
 func (m *QueueReport) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *QueueReport) XXX_DiscardUnknown() {
 	xxx_messageInfo_QueueReport.DiscardUnknown(m)
 }
@@ -119,9 +127,11 @@ func (*ClusterUsageReport) ProtoMessage() {}
 func (*ClusterUsageReport) Descriptor() ([]byte, []int) {
 	return fileDescriptor_5643ccb387d55d48, []int{1}
 }
+
 func (m *ClusterUsageReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *ClusterUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_ClusterUsageReport.Marshal(b, m, deterministic)
@@ -134,12 +144,15 @@ func (m *ClusterUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
+
 func (m *ClusterUsageReport) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_ClusterUsageReport.Merge(m, src)
 }
+
 func (m *ClusterUsageReport) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *ClusterUsageReport) XXX_DiscardUnknown() {
 	xxx_messageInfo_ClusterUsageReport.DiscardUnknown(m)
 }
@@ -208,9 +221,11 @@ func (*NodeTypeIdentifier) ProtoMessage() {}
 func (*NodeTypeIdentifier) Descriptor() ([]byte, []int) {
 	return fileDescriptor_5643ccb387d55d48, []int{2}
 }
+
 func (m *NodeTypeIdentifier) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *NodeTypeIdentifier) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_NodeTypeIdentifier.Marshal(b, m, deterministic)
@@ -223,12 +238,15 @@ func (m *NodeTypeIdentifier) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
+
 func (m *NodeTypeIdentifier) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_NodeTypeIdentifier.Merge(m, src)
 }
+
 func (m *NodeTypeIdentifier) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *NodeTypeIdentifier) XXX_DiscardUnknown() {
 	xxx_messageInfo_NodeTypeIdentifier.DiscardUnknown(m)
 }
@@ -264,9 +282,11 @@ func (*NodeTypeUsageReport) ProtoMessage() {}
 func (*NodeTypeUsageReport) Descriptor() ([]byte, []int) {
 	return fileDescriptor_5643ccb387d55d48, []int{3}
 }
+
 func (m *NodeTypeUsageReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *NodeTypeUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_NodeTypeUsageReport.Marshal(b, m, deterministic)
@@ -279,12 +299,15 @@ func (m *NodeTypeUsageReport) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return b[:n], nil
 	}
 }
+
 func (m *NodeTypeUsageReport) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_NodeTypeUsageReport.Merge(m, src)
 }
+
 func (m *NodeTypeUsageReport) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *NodeTypeUsageReport) XXX_DiscardUnknown() {
 	xxx_messageInfo_NodeTypeUsageReport.DiscardUnknown(m)
 }
@@ -455,8 +478,7 @@ type UsageServer interface {
 }
 
 // UnimplementedUsageServer can be embedded to have forward compatible implementations.
-type UnimplementedUsageServer struct {
-}
+type UnimplementedUsageServer struct{}
 
 func (*UnimplementedUsageServer) ReportUsage(ctx context.Context, req *ClusterUsageReport) (*types.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportUsage not implemented")
@@ -899,6 +921,7 @@ func encodeVarintUsage(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+
 func (m *QueueReport) Size() (n int) {
 	if m == nil {
 		return 0
@@ -1061,15 +1084,17 @@ func (m *NodeTypeUsageReport) Size() (n int) {
 func sovUsage(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
+
 func sozUsage(x uint64) (n int) {
 	return sovUsage(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
+
 func (this *QueueReport) String() string {
 	if this == nil {
 		return "nil"
 	}
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k, _ := range this.Resources {
+	for k := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -1079,7 +1104,7 @@ func (this *QueueReport) String() string {
 	}
 	mapStringForResources += "}"
 	keysForResourcesUsed := make([]string, 0, len(this.ResourcesUsed))
-	for k, _ := range this.ResourcesUsed {
+	for k := range this.ResourcesUsed {
 		keysForResourcesUsed = append(keysForResourcesUsed, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResourcesUsed)
@@ -1089,7 +1114,7 @@ func (this *QueueReport) String() string {
 	}
 	mapStringForResourcesUsed += "}"
 	keysForCountOfPodsByPhase := make([]string, 0, len(this.CountOfPodsByPhase))
-	for k, _ := range this.CountOfPodsByPhase {
+	for k := range this.CountOfPodsByPhase {
 		keysForCountOfPodsByPhase = append(keysForCountOfPodsByPhase, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForCountOfPodsByPhase)
@@ -1098,7 +1123,8 @@ func (this *QueueReport) String() string {
 		mapStringForCountOfPodsByPhase += fmt.Sprintf("%v: %v,", k, this.CountOfPodsByPhase[k])
 	}
 	mapStringForCountOfPodsByPhase += "}"
-	s := strings.Join([]string{`&QueueReport{`,
+	s := strings.Join([]string{
+		`&QueueReport{`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
 		`Resources:` + mapStringForResources + `,`,
 		`ResourcesUsed:` + mapStringForResourcesUsed + `,`,
@@ -1107,6 +1133,7 @@ func (this *QueueReport) String() string {
 	}, "")
 	return s
 }
+
 func (this *ClusterUsageReport) String() string {
 	if this == nil {
 		return "nil"
@@ -1122,7 +1149,7 @@ func (this *ClusterUsageReport) String() string {
 	}
 	repeatedStringForNodeTypeUsageReports += "}"
 	keysForClusterCapacity := make([]string, 0, len(this.ClusterCapacity))
-	for k, _ := range this.ClusterCapacity {
+	for k := range this.ClusterCapacity {
 		keysForClusterCapacity = append(keysForClusterCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForClusterCapacity)
@@ -1132,7 +1159,7 @@ func (this *ClusterUsageReport) String() string {
 	}
 	mapStringForClusterCapacity += "}"
 	keysForClusterAvailableCapacity := make([]string, 0, len(this.ClusterAvailableCapacity))
-	for k, _ := range this.ClusterAvailableCapacity {
+	for k := range this.ClusterAvailableCapacity {
 		keysForClusterAvailableCapacity = append(keysForClusterAvailableCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForClusterAvailableCapacity)
@@ -1141,7 +1168,8 @@ func (this *ClusterUsageReport) String() string {
 		mapStringForClusterAvailableCapacity += fmt.Sprintf("%v: %v,", k, this.ClusterAvailableCapacity[k])
 	}
 	mapStringForClusterAvailableCapacity += "}"
-	s := strings.Join([]string{`&ClusterUsageReport{`,
+	s := strings.Join([]string{
+		`&ClusterUsageReport{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`ReportTime:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.ReportTime), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
 		`Queues:` + repeatedStringForQueues + `,`,
@@ -1153,6 +1181,7 @@ func (this *ClusterUsageReport) String() string {
 	}, "")
 	return s
 }
+
 func (this *NodeTypeIdentifier) String() string {
 	if this == nil {
 		return "nil"
@@ -1162,13 +1191,15 @@ func (this *NodeTypeIdentifier) String() string {
 		repeatedStringForTaints += fmt.Sprintf("%v", f) + ","
 	}
 	repeatedStringForTaints += "}"
-	s := strings.Join([]string{`&NodeTypeIdentifier{`,
+	s := strings.Join([]string{
+		`&NodeTypeIdentifier{`,
 		`Id:` + fmt.Sprintf("%v", this.Id) + `,`,
 		`Taints:` + repeatedStringForTaints + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *NodeTypeUsageReport) String() string {
 	if this == nil {
 		return "nil"
@@ -1179,7 +1210,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}
 	repeatedStringForQueues += "}"
 	keysForCapacity := make([]string, 0, len(this.Capacity))
-	for k, _ := range this.Capacity {
+	for k := range this.Capacity {
 		keysForCapacity = append(keysForCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForCapacity)
@@ -1189,7 +1220,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}
 	mapStringForCapacity += "}"
 	keysForAvailableCapacity := make([]string, 0, len(this.AvailableCapacity))
-	for k, _ := range this.AvailableCapacity {
+	for k := range this.AvailableCapacity {
 		keysForAvailableCapacity = append(keysForAvailableCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAvailableCapacity)
@@ -1199,7 +1230,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}
 	mapStringForAvailableCapacity += "}"
 	keysForCordonedUsage := make([]string, 0, len(this.CordonedUsage))
-	for k, _ := range this.CordonedUsage {
+	for k := range this.CordonedUsage {
 		keysForCordonedUsage = append(keysForCordonedUsage, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForCordonedUsage)
@@ -1208,7 +1239,8 @@ func (this *NodeTypeUsageReport) String() string {
 		mapStringForCordonedUsage += fmt.Sprintf("%v: %v,", k, this.CordonedUsage[k])
 	}
 	mapStringForCordonedUsage += "}"
-	s := strings.Join([]string{`&NodeTypeUsageReport{`,
+	s := strings.Join([]string{
+		`&NodeTypeUsageReport{`,
 		`NodeType:` + strings.Replace(this.NodeType.String(), "NodeTypeIdentifier", "NodeTypeIdentifier", 1) + `,`,
 		`Capacity:` + mapStringForCapacity + `,`,
 		`AvailableCapacity:` + mapStringForAvailableCapacity + `,`,
@@ -1220,6 +1252,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}, "")
 	return s
 }
+
 func valueToStringUsage(v interface{}) string {
 	rv := reflect.ValueOf(v)
 	if rv.IsNil() {
@@ -1228,6 +1261,7 @@ func valueToStringUsage(v interface{}) string {
 	pv := reflect.Indirect(rv).Interface()
 	return fmt.Sprintf("*%v", pv)
 }
+
 func (m *QueueReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1681,6 +1715,7 @@ func (m *QueueReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2154,6 +2189,7 @@ func (m *ClusterUsageReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *NodeTypeIdentifier) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2270,6 +2306,7 @@ func (m *NodeTypeIdentifier) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *NodeTypeUsageReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2815,6 +2852,7 @@ func (m *NodeTypeUsageReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func skipUsage(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0

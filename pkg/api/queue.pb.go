@@ -29,9 +29,12 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-var _ = fmt.Errorf
-var _ = math.Inf
-var _ = time.Kitchen
+
+var (
+	_ = fmt.Errorf
+	_ = math.Inf
+	_ = time.Kitchen
+)
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -70,9 +73,11 @@ func (*Job) ProtoMessage() {}
 func (*Job) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{0}
 }
+
 func (m *Job) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_Job.Marshal(b, m, deterministic)
@@ -85,12 +90,15 @@ func (m *Job) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
+
 func (m *Job) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_Job.Merge(m, src)
 }
+
 func (m *Job) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *Job) XXX_DiscardUnknown() {
 	xxx_messageInfo_Job.DiscardUnknown(m)
 }
@@ -239,9 +247,11 @@ func (*LeaseRequest) ProtoMessage() {}
 func (*LeaseRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{1}
 }
+
 func (m *LeaseRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *LeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_LeaseRequest.Marshal(b, m, deterministic)
@@ -254,12 +264,15 @@ func (m *LeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return b[:n], nil
 	}
 }
+
 func (m *LeaseRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_LeaseRequest.Merge(m, src)
 }
+
 func (m *LeaseRequest) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *LeaseRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_LeaseRequest.DiscardUnknown(m)
 }
@@ -331,9 +344,11 @@ func (*StreamingLeaseRequest) ProtoMessage() {}
 func (*StreamingLeaseRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{2}
 }
+
 func (m *StreamingLeaseRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *StreamingLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_StreamingLeaseRequest.Marshal(b, m, deterministic)
@@ -346,12 +361,15 @@ func (m *StreamingLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byt
 		return b[:n], nil
 	}
 }
+
 func (m *StreamingLeaseRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_StreamingLeaseRequest.Merge(m, src)
 }
+
 func (m *StreamingLeaseRequest) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *StreamingLeaseRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_StreamingLeaseRequest.DiscardUnknown(m)
 }
@@ -432,9 +450,11 @@ func (*NodeInfo) ProtoMessage() {}
 func (*NodeInfo) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{3}
 }
+
 func (m *NodeInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *NodeInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_NodeInfo.Marshal(b, m, deterministic)
@@ -447,12 +467,15 @@ func (m *NodeInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
+
 func (m *NodeInfo) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_NodeInfo.Merge(m, src)
 }
+
 func (m *NodeInfo) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *NodeInfo) XXX_DiscardUnknown() {
 	xxx_messageInfo_NodeInfo.DiscardUnknown(m)
 }
@@ -519,9 +542,11 @@ func (*NodeType) ProtoMessage() {}
 func (*NodeType) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{4}
 }
+
 func (m *NodeType) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *NodeType) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_NodeType.Marshal(b, m, deterministic)
@@ -534,12 +559,15 @@ func (m *NodeType) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
+
 func (m *NodeType) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_NodeType.Merge(m, src)
 }
+
 func (m *NodeType) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *NodeType) XXX_DiscardUnknown() {
 	xxx_messageInfo_NodeType.DiscardUnknown(m)
 }
@@ -581,9 +609,11 @@ func (*ClusterSchedulingInfoReport) ProtoMessage() {}
 func (*ClusterSchedulingInfoReport) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{5}
 }
+
 func (m *ClusterSchedulingInfoReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *ClusterSchedulingInfoReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_ClusterSchedulingInfoReport.Marshal(b, m, deterministic)
@@ -596,12 +626,15 @@ func (m *ClusterSchedulingInfoReport) XXX_Marshal(b []byte, deterministic bool) 
 		return b[:n], nil
 	}
 }
+
 func (m *ClusterSchedulingInfoReport) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_ClusterSchedulingInfoReport.Merge(m, src)
 }
+
 func (m *ClusterSchedulingInfoReport) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *ClusterSchedulingInfoReport) XXX_DiscardUnknown() {
 	xxx_messageInfo_ClusterSchedulingInfoReport.DiscardUnknown(m)
 }
@@ -653,9 +686,11 @@ func (*QueueLeasedReport) ProtoMessage() {}
 func (*QueueLeasedReport) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{6}
 }
+
 func (m *QueueLeasedReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *QueueLeasedReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_QueueLeasedReport.Marshal(b, m, deterministic)
@@ -668,12 +703,15 @@ func (m *QueueLeasedReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return b[:n], nil
 	}
 }
+
 func (m *QueueLeasedReport) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_QueueLeasedReport.Merge(m, src)
 }
+
 func (m *QueueLeasedReport) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *QueueLeasedReport) XXX_DiscardUnknown() {
 	xxx_messageInfo_QueueLeasedReport.DiscardUnknown(m)
 }
@@ -705,9 +743,11 @@ func (*ClusterLeasedReport) ProtoMessage() {}
 func (*ClusterLeasedReport) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{7}
 }
+
 func (m *ClusterLeasedReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *ClusterLeasedReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_ClusterLeasedReport.Marshal(b, m, deterministic)
@@ -720,12 +760,15 @@ func (m *ClusterLeasedReport) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return b[:n], nil
 	}
 }
+
 func (m *ClusterLeasedReport) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_ClusterLeasedReport.Merge(m, src)
 }
+
 func (m *ClusterLeasedReport) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *ClusterLeasedReport) XXX_DiscardUnknown() {
 	xxx_messageInfo_ClusterLeasedReport.DiscardUnknown(m)
 }
@@ -762,9 +805,11 @@ func (*ComputeResource) ProtoMessage() {}
 func (*ComputeResource) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{8}
 }
+
 func (m *ComputeResource) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *ComputeResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_ComputeResource.Marshal(b, m, deterministic)
@@ -777,12 +822,15 @@ func (m *ComputeResource) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return b[:n], nil
 	}
 }
+
 func (m *ComputeResource) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_ComputeResource.Merge(m, src)
 }
+
 func (m *ComputeResource) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *ComputeResource) XXX_DiscardUnknown() {
 	xxx_messageInfo_ComputeResource.DiscardUnknown(m)
 }
@@ -805,9 +853,11 @@ func (*NodeLabeling) ProtoMessage() {}
 func (*NodeLabeling) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{9}
 }
+
 func (m *NodeLabeling) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *NodeLabeling) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_NodeLabeling.Marshal(b, m, deterministic)
@@ -820,12 +870,15 @@ func (m *NodeLabeling) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return b[:n], nil
 	}
 }
+
 func (m *NodeLabeling) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_NodeLabeling.Merge(m, src)
 }
+
 func (m *NodeLabeling) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *NodeLabeling) XXX_DiscardUnknown() {
 	xxx_messageInfo_NodeLabeling.DiscardUnknown(m)
 }
@@ -848,9 +901,11 @@ func (*JobLease) ProtoMessage() {}
 func (*JobLease) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{10}
 }
+
 func (m *JobLease) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *JobLease) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_JobLease.Marshal(b, m, deterministic)
@@ -863,12 +918,15 @@ func (m *JobLease) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
+
 func (m *JobLease) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_JobLease.Merge(m, src)
 }
+
 func (m *JobLease) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *JobLease) XXX_DiscardUnknown() {
 	xxx_messageInfo_JobLease.DiscardUnknown(m)
 }
@@ -896,9 +954,11 @@ func (*StreamingJobLease) ProtoMessage() {}
 func (*StreamingJobLease) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{11}
 }
+
 func (m *StreamingJobLease) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *StreamingJobLease) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_StreamingJobLease.Marshal(b, m, deterministic)
@@ -911,12 +971,15 @@ func (m *StreamingJobLease) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return b[:n], nil
 	}
 }
+
 func (m *StreamingJobLease) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_StreamingJobLease.Merge(m, src)
 }
+
 func (m *StreamingJobLease) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *StreamingJobLease) XXX_DiscardUnknown() {
 	xxx_messageInfo_StreamingJobLease.DiscardUnknown(m)
 }
@@ -953,9 +1016,11 @@ func (*IdList) ProtoMessage() {}
 func (*IdList) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{12}
 }
+
 func (m *IdList) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *IdList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_IdList.Marshal(b, m, deterministic)
@@ -968,12 +1033,15 @@ func (m *IdList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
+
 func (m *IdList) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_IdList.Merge(m, src)
 }
+
 func (m *IdList) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *IdList) XXX_DiscardUnknown() {
 	xxx_messageInfo_IdList.DiscardUnknown(m)
 }
@@ -997,9 +1065,11 @@ func (*RenewLeaseRequest) ProtoMessage() {}
 func (*RenewLeaseRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{13}
 }
+
 func (m *RenewLeaseRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *RenewLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_RenewLeaseRequest.Marshal(b, m, deterministic)
@@ -1012,12 +1082,15 @@ func (m *RenewLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return b[:n], nil
 	}
 }
+
 func (m *RenewLeaseRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_RenewLeaseRequest.Merge(m, src)
 }
+
 func (m *RenewLeaseRequest) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *RenewLeaseRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_RenewLeaseRequest.DiscardUnknown(m)
 }
@@ -1051,9 +1124,11 @@ func (*ReturnLeaseRequest) ProtoMessage() {}
 func (*ReturnLeaseRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{14}
 }
+
 func (m *ReturnLeaseRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *ReturnLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_ReturnLeaseRequest.Marshal(b, m, deterministic)
@@ -1066,12 +1141,15 @@ func (m *ReturnLeaseRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
+
 func (m *ReturnLeaseRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_ReturnLeaseRequest.Merge(m, src)
 }
+
 func (m *ReturnLeaseRequest) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *ReturnLeaseRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_ReturnLeaseRequest.DiscardUnknown(m)
 }
@@ -1123,9 +1201,11 @@ func (*StringKeyValuePair) ProtoMessage() {}
 func (*StringKeyValuePair) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{15}
 }
+
 func (m *StringKeyValuePair) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *StringKeyValuePair) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_StringKeyValuePair.Marshal(b, m, deterministic)
@@ -1138,12 +1218,15 @@ func (m *StringKeyValuePair) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
+
 func (m *StringKeyValuePair) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_StringKeyValuePair.Merge(m, src)
 }
+
 func (m *StringKeyValuePair) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *StringKeyValuePair) XXX_DiscardUnknown() {
 	xxx_messageInfo_StringKeyValuePair.DiscardUnknown(m)
 }
@@ -1173,9 +1256,11 @@ func (*OrderedStringMap) ProtoMessage() {}
 func (*OrderedStringMap) Descriptor() ([]byte, []int) {
 	return fileDescriptor_d92c0c680df9617a, []int{16}
 }
+
 func (m *OrderedStringMap) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
+
 func (m *OrderedStringMap) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_OrderedStringMap.Marshal(b, m, deterministic)
@@ -1188,12 +1273,15 @@ func (m *OrderedStringMap) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return b[:n], nil
 	}
 }
+
 func (m *OrderedStringMap) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_OrderedStringMap.Merge(m, src)
 }
+
 func (m *OrderedStringMap) XXX_Size() int {
 	return m.Size()
 }
+
 func (m *OrderedStringMap) XXX_DiscardUnknown() {
 	xxx_messageInfo_OrderedStringMap.DiscardUnknown(m)
 }
@@ -1465,21 +1553,24 @@ type AggregatedQueueServer interface {
 }
 
 // UnimplementedAggregatedQueueServer can be embedded to have forward compatible implementations.
-type UnimplementedAggregatedQueueServer struct {
-}
+type UnimplementedAggregatedQueueServer struct{}
 
 func (*UnimplementedAggregatedQueueServer) LeaseJobs(ctx context.Context, req *LeaseRequest) (*JobLease, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LeaseJobs not implemented")
 }
+
 func (*UnimplementedAggregatedQueueServer) StreamingLeaseJobs(srv AggregatedQueue_StreamingLeaseJobsServer) error {
 	return status.Errorf(codes.Unimplemented, "method StreamingLeaseJobs not implemented")
 }
+
 func (*UnimplementedAggregatedQueueServer) RenewLease(ctx context.Context, req *RenewLeaseRequest) (*IdList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RenewLease not implemented")
 }
+
 func (*UnimplementedAggregatedQueueServer) ReturnLease(ctx context.Context, req *ReturnLeaseRequest) (*types.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReturnLease not implemented")
 }
+
 func (*UnimplementedAggregatedQueueServer) ReportDone(ctx context.Context, req *IdList) (*IdList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportDone not implemented")
 }
@@ -2894,6 +2985,7 @@ func encodeVarintQueue(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+
 func (m *Job) Size() (n int) {
 	if m == nil {
 		return 0
@@ -3427,9 +3519,11 @@ func (m *OrderedStringMap) Size() (n int) {
 func sovQueue(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
+
 func sozQueue(x uint64) (n int) {
 	return sovQueue(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
+
 func (this *Job) String() string {
 	if this == nil {
 		return "nil"
@@ -3460,7 +3554,7 @@ func (this *Job) String() string {
 	}
 	repeatedStringForK8SService += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k, _ := range this.Labels {
+	for k := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3470,7 +3564,7 @@ func (this *Job) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAnnotations := make([]string, 0, len(this.Annotations))
-	for k, _ := range this.Annotations {
+	for k := range this.Annotations {
 		keysForAnnotations = append(keysForAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAnnotations)
@@ -3480,7 +3574,7 @@ func (this *Job) String() string {
 	}
 	mapStringForAnnotations += "}"
 	keysForRequiredNodeLabels := make([]string, 0, len(this.RequiredNodeLabels))
-	for k, _ := range this.RequiredNodeLabels {
+	for k := range this.RequiredNodeLabels {
 		keysForRequiredNodeLabels = append(keysForRequiredNodeLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForRequiredNodeLabels)
@@ -3489,7 +3583,8 @@ func (this *Job) String() string {
 		mapStringForRequiredNodeLabels += fmt.Sprintf("%v: %v,", k, this.RequiredNodeLabels[k])
 	}
 	mapStringForRequiredNodeLabels += "}"
-	s := strings.Join([]string{`&Job{`,
+	s := strings.Join([]string{
+		`&Job{`,
 		`Id:` + fmt.Sprintf("%v", this.Id) + `,`,
 		`JobSetId:` + fmt.Sprintf("%v", this.JobSetId) + `,`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
@@ -3512,6 +3607,7 @@ func (this *Job) String() string {
 	}, "")
 	return s
 }
+
 func (this *LeaseRequest) String() string {
 	if this == nil {
 		return "nil"
@@ -3522,7 +3618,7 @@ func (this *LeaseRequest) String() string {
 	}
 	repeatedStringForNodes += "}"
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k, _ := range this.Resources {
+	for k := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -3532,7 +3628,7 @@ func (this *LeaseRequest) String() string {
 	}
 	mapStringForResources += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
-	for k, _ := range this.MinimumJobSize {
+	for k := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMinimumJobSize)
@@ -3541,7 +3637,8 @@ func (this *LeaseRequest) String() string {
 		mapStringForMinimumJobSize += fmt.Sprintf("%v: %v,", k, this.MinimumJobSize[k])
 	}
 	mapStringForMinimumJobSize += "}"
-	s := strings.Join([]string{`&LeaseRequest{`,
+	s := strings.Join([]string{
+		`&LeaseRequest{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`Resources:` + mapStringForResources + `,`,
 		`ClusterLeasedReport:` + strings.Replace(strings.Replace(this.ClusterLeasedReport.String(), "ClusterLeasedReport", "ClusterLeasedReport", 1), `&`, ``, 1) + `,`,
@@ -3552,6 +3649,7 @@ func (this *LeaseRequest) String() string {
 	}, "")
 	return s
 }
+
 func (this *StreamingLeaseRequest) String() string {
 	if this == nil {
 		return "nil"
@@ -3562,7 +3660,7 @@ func (this *StreamingLeaseRequest) String() string {
 	}
 	repeatedStringForNodes += "}"
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k, _ := range this.Resources {
+	for k := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -3572,7 +3670,7 @@ func (this *StreamingLeaseRequest) String() string {
 	}
 	mapStringForResources += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
-	for k, _ := range this.MinimumJobSize {
+	for k := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMinimumJobSize)
@@ -3581,7 +3679,8 @@ func (this *StreamingLeaseRequest) String() string {
 		mapStringForMinimumJobSize += fmt.Sprintf("%v: %v,", k, this.MinimumJobSize[k])
 	}
 	mapStringForMinimumJobSize += "}"
-	s := strings.Join([]string{`&StreamingLeaseRequest{`,
+	s := strings.Join([]string{
+		`&StreamingLeaseRequest{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`Pool:` + fmt.Sprintf("%v", this.Pool) + `,`,
 		`Resources:` + mapStringForResources + `,`,
@@ -3593,6 +3692,7 @@ func (this *StreamingLeaseRequest) String() string {
 	}, "")
 	return s
 }
+
 func (this *NodeInfo) String() string {
 	if this == nil {
 		return "nil"
@@ -3603,7 +3703,7 @@ func (this *NodeInfo) String() string {
 	}
 	repeatedStringForTaints += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k, _ := range this.Labels {
+	for k := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3613,7 +3713,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAllocatableResources := make([]string, 0, len(this.AllocatableResources))
-	for k, _ := range this.AllocatableResources {
+	for k := range this.AllocatableResources {
 		keysForAllocatableResources = append(keysForAllocatableResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAllocatableResources)
@@ -3623,7 +3723,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForAllocatableResources += "}"
 	keysForAvailableResources := make([]string, 0, len(this.AvailableResources))
-	for k, _ := range this.AvailableResources {
+	for k := range this.AvailableResources {
 		keysForAvailableResources = append(keysForAvailableResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAvailableResources)
@@ -3633,7 +3733,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForAvailableResources += "}"
 	keysForTotalResources := make([]string, 0, len(this.TotalResources))
-	for k, _ := range this.TotalResources {
+	for k := range this.TotalResources {
 		keysForTotalResources = append(keysForTotalResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForTotalResources)
@@ -3643,7 +3743,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForTotalResources += "}"
 	keysForAllocatedResources := make([]int32, 0, len(this.AllocatedResources))
-	for k, _ := range this.AllocatedResources {
+	for k := range this.AllocatedResources {
 		keysForAllocatedResources = append(keysForAllocatedResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Int32s(keysForAllocatedResources)
@@ -3652,7 +3752,8 @@ func (this *NodeInfo) String() string {
 		mapStringForAllocatedResources += fmt.Sprintf("%v: %v,", k, this.AllocatedResources[k])
 	}
 	mapStringForAllocatedResources += "}"
-	s := strings.Join([]string{`&NodeInfo{`,
+	s := strings.Join([]string{
+		`&NodeInfo{`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
 		`Taints:` + repeatedStringForTaints + `,`,
 		`Labels:` + mapStringForLabels + `,`,
@@ -3664,6 +3765,7 @@ func (this *NodeInfo) String() string {
 	}, "")
 	return s
 }
+
 func (this *NodeType) String() string {
 	if this == nil {
 		return "nil"
@@ -3674,7 +3776,7 @@ func (this *NodeType) String() string {
 	}
 	repeatedStringForTaints += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k, _ := range this.Labels {
+	for k := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3684,7 +3786,7 @@ func (this *NodeType) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAllocatableResources := make([]string, 0, len(this.AllocatableResources))
-	for k, _ := range this.AllocatableResources {
+	for k := range this.AllocatableResources {
 		keysForAllocatableResources = append(keysForAllocatableResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAllocatableResources)
@@ -3693,7 +3795,8 @@ func (this *NodeType) String() string {
 		mapStringForAllocatableResources += fmt.Sprintf("%v: %v,", k, this.AllocatableResources[k])
 	}
 	mapStringForAllocatableResources += "}"
-	s := strings.Join([]string{`&NodeType{`,
+	s := strings.Join([]string{
+		`&NodeType{`,
 		`Taints:` + repeatedStringForTaints + `,`,
 		`Labels:` + mapStringForLabels + `,`,
 		`AllocatableResources:` + mapStringForAllocatableResources + `,`,
@@ -3701,6 +3804,7 @@ func (this *NodeType) String() string {
 	}, "")
 	return s
 }
+
 func (this *ClusterSchedulingInfoReport) String() string {
 	if this == nil {
 		return "nil"
@@ -3711,7 +3815,7 @@ func (this *ClusterSchedulingInfoReport) String() string {
 	}
 	repeatedStringForNodeTypes += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
-	for k, _ := range this.MinimumJobSize {
+	for k := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMinimumJobSize)
@@ -3720,7 +3824,8 @@ func (this *ClusterSchedulingInfoReport) String() string {
 		mapStringForMinimumJobSize += fmt.Sprintf("%v: %v,", k, this.MinimumJobSize[k])
 	}
 	mapStringForMinimumJobSize += "}"
-	s := strings.Join([]string{`&ClusterSchedulingInfoReport{`,
+	s := strings.Join([]string{
+		`&ClusterSchedulingInfoReport{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`ReportTime:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.ReportTime), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
 		`NodeTypes:` + repeatedStringForNodeTypes + `,`,
@@ -3730,12 +3835,13 @@ func (this *ClusterSchedulingInfoReport) String() string {
 	}, "")
 	return s
 }
+
 func (this *QueueLeasedReport) String() string {
 	if this == nil {
 		return "nil"
 	}
 	keysForResourcesLeased := make([]string, 0, len(this.ResourcesLeased))
-	for k, _ := range this.ResourcesLeased {
+	for k := range this.ResourcesLeased {
 		keysForResourcesLeased = append(keysForResourcesLeased, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResourcesLeased)
@@ -3744,13 +3850,15 @@ func (this *QueueLeasedReport) String() string {
 		mapStringForResourcesLeased += fmt.Sprintf("%v: %v,", k, this.ResourcesLeased[k])
 	}
 	mapStringForResourcesLeased += "}"
-	s := strings.Join([]string{`&QueueLeasedReport{`,
+	s := strings.Join([]string{
+		`&QueueLeasedReport{`,
 		`Name:` + fmt.Sprintf("%v", this.Name) + `,`,
 		`ResourcesLeased:` + mapStringForResourcesLeased + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *ClusterLeasedReport) String() string {
 	if this == nil {
 		return "nil"
@@ -3760,7 +3868,8 @@ func (this *ClusterLeasedReport) String() string {
 		repeatedStringForQueues += strings.Replace(f.String(), "QueueLeasedReport", "QueueLeasedReport", 1) + ","
 	}
 	repeatedStringForQueues += "}"
-	s := strings.Join([]string{`&ClusterLeasedReport{`,
+	s := strings.Join([]string{
+		`&ClusterLeasedReport{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`ReportTime:` + strings.Replace(strings.Replace(fmt.Sprintf("%v", this.ReportTime), "Timestamp", "types.Timestamp", 1), `&`, ``, 1) + `,`,
 		`Queues:` + repeatedStringForQueues + `,`,
@@ -3768,12 +3877,13 @@ func (this *ClusterLeasedReport) String() string {
 	}, "")
 	return s
 }
+
 func (this *ComputeResource) String() string {
 	if this == nil {
 		return "nil"
 	}
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k, _ := range this.Resources {
+	for k := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -3782,18 +3892,20 @@ func (this *ComputeResource) String() string {
 		mapStringForResources += fmt.Sprintf("%v: %v,", k, this.Resources[k])
 	}
 	mapStringForResources += "}"
-	s := strings.Join([]string{`&ComputeResource{`,
+	s := strings.Join([]string{
+		`&ComputeResource{`,
 		`Resources:` + mapStringForResources + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *NodeLabeling) String() string {
 	if this == nil {
 		return "nil"
 	}
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k, _ := range this.Labels {
+	for k := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3802,12 +3914,14 @@ func (this *NodeLabeling) String() string {
 		mapStringForLabels += fmt.Sprintf("%v: %v,", k, this.Labels[k])
 	}
 	mapStringForLabels += "}"
-	s := strings.Join([]string{`&NodeLabeling{`,
+	s := strings.Join([]string{
+		`&NodeLabeling{`,
 		`Labels:` + mapStringForLabels + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *JobLease) String() string {
 	if this == nil {
 		return "nil"
@@ -3817,17 +3931,20 @@ func (this *JobLease) String() string {
 		repeatedStringForJob += strings.Replace(f.String(), "Job", "Job", 1) + ","
 	}
 	repeatedStringForJob += "}"
-	s := strings.Join([]string{`&JobLease{`,
+	s := strings.Join([]string{
+		`&JobLease{`,
 		`Job:` + repeatedStringForJob + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *StreamingJobLease) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&StreamingJobLease{`,
+	s := strings.Join([]string{
+		`&StreamingJobLease{`,
 		`Job:` + strings.Replace(this.Job.String(), "Job", "Job", 1) + `,`,
 		`NumJobs:` + fmt.Sprintf("%v", this.NumJobs) + `,`,
 		`NumAcked:` + fmt.Sprintf("%v", this.NumAcked) + `,`,
@@ -3835,32 +3952,38 @@ func (this *StreamingJobLease) String() string {
 	}, "")
 	return s
 }
+
 func (this *IdList) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&IdList{`,
+	s := strings.Join([]string{
+		`&IdList{`,
 		`Ids:` + fmt.Sprintf("%v", this.Ids) + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *RenewLeaseRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&RenewLeaseRequest{`,
+	s := strings.Join([]string{
+		`&RenewLeaseRequest{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`Ids:` + fmt.Sprintf("%v", this.Ids) + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *ReturnLeaseRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&ReturnLeaseRequest{`,
+	s := strings.Join([]string{
+		`&ReturnLeaseRequest{`,
 		`ClusterId:` + fmt.Sprintf("%v", this.ClusterId) + `,`,
 		`JobId:` + fmt.Sprintf("%v", this.JobId) + `,`,
 		`AvoidNodeLabels:` + strings.Replace(this.AvoidNodeLabels.String(), "OrderedStringMap", "OrderedStringMap", 1) + `,`,
@@ -3870,17 +3993,20 @@ func (this *ReturnLeaseRequest) String() string {
 	}, "")
 	return s
 }
+
 func (this *StringKeyValuePair) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{`&StringKeyValuePair{`,
+	s := strings.Join([]string{
+		`&StringKeyValuePair{`,
 		`Key:` + fmt.Sprintf("%v", this.Key) + `,`,
 		`Value:` + fmt.Sprintf("%v", this.Value) + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func (this *OrderedStringMap) String() string {
 	if this == nil {
 		return "nil"
@@ -3890,12 +4016,14 @@ func (this *OrderedStringMap) String() string {
 		repeatedStringForEntries += strings.Replace(f.String(), "StringKeyValuePair", "StringKeyValuePair", 1) + ","
 	}
 	repeatedStringForEntries += "}"
-	s := strings.Join([]string{`&OrderedStringMap{`,
+	s := strings.Join([]string{
+		`&OrderedStringMap{`,
 		`Entries:` + repeatedStringForEntries + `,`,
 		`}`,
 	}, "")
 	return s
 }
+
 func valueToStringQueue(v interface{}) string {
 	rv := reflect.ValueOf(v)
 	if rv.IsNil() {
@@ -3904,6 +4032,7 @@ func valueToStringQueue(v interface{}) string {
 	pv := reflect.Indirect(rv).Interface()
 	return fmt.Sprintf("*%v", pv)
 }
+
 func (m *Job) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4809,6 +4938,7 @@ func (m *Job) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *LeaseRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -5248,6 +5378,7 @@ func (m *LeaseRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *StreamingLeaseRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -5719,6 +5850,7 @@ func (m *StreamingLeaseRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -6464,6 +6596,7 @@ func (m *NodeInfo) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *NodeType) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -6804,6 +6937,7 @@ func (m *NodeType) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *ClusterSchedulingInfoReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7114,6 +7248,7 @@ func (m *ClusterSchedulingInfoReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *QueueLeasedReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7325,6 +7460,7 @@ func (m *QueueLeasedReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *ClusterLeasedReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7474,6 +7610,7 @@ func (m *ClusterLeasedReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *ComputeResource) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7653,6 +7790,7 @@ func (m *ComputeResource) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *NodeLabeling) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7830,6 +7968,7 @@ func (m *NodeLabeling) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *JobLease) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -7914,6 +8053,7 @@ func (m *JobLease) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *StreamingJobLease) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8038,6 +8178,7 @@ func (m *StreamingJobLease) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *IdList) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8120,6 +8261,7 @@ func (m *IdList) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *RenewLeaseRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8234,6 +8376,7 @@ func (m *RenewLeaseRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *ReturnLeaseRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8448,6 +8591,7 @@ func (m *ReturnLeaseRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *StringKeyValuePair) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8562,6 +8706,7 @@ func (m *StringKeyValuePair) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func (m *OrderedStringMap) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -8646,6 +8791,7 @@ func (m *OrderedStringMap) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+
 func skipQueue(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0

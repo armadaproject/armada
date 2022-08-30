@@ -27,12 +27,15 @@ import (
 
 // Suppress "imported and not used" errors
 var _ codes.Code
-var _ io.Reader
-var _ status.Status
-var _ = runtime.String
-var _ = utilities.NewDoubleArray
-var _ = descriptor.ForMessage
-var _ = metadata.Join
+
+var (
+	_ io.Reader
+	_ status.Status
+	_ = runtime.String
+	_ = utilities.NewDoubleArray
+	_ = descriptor.ForMessage
+	_ = metadata.Join
+)
 
 func request_Lookout_Overview_0(ctx context.Context, marshaler runtime.Marshaler, client LookoutClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq types.Empty
@@ -40,7 +43,6 @@ func request_Lookout_Overview_0(ctx context.Context, marshaler runtime.Marshaler
 
 	msg, err := client.Overview(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
-
 }
 
 func local_request_Lookout_Overview_0(ctx context.Context, marshaler runtime.Marshaler, server LookoutServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -49,7 +51,6 @@ func local_request_Lookout_Overview_0(ctx context.Context, marshaler runtime.Mar
 
 	msg, err := server.Overview(ctx, &protoReq)
 	return msg, metadata, err
-
 }
 
 func request_Lookout_GetJobSets_0(ctx context.Context, marshaler runtime.Marshaler, client LookoutClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -66,7 +67,6 @@ func request_Lookout_GetJobSets_0(ctx context.Context, marshaler runtime.Marshal
 
 	msg, err := client.GetJobSets(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
-
 }
 
 func local_request_Lookout_GetJobSets_0(ctx context.Context, marshaler runtime.Marshaler, server LookoutServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -83,7 +83,6 @@ func local_request_Lookout_GetJobSets_0(ctx context.Context, marshaler runtime.M
 
 	msg, err := server.GetJobSets(ctx, &protoReq)
 	return msg, metadata, err
-
 }
 
 func request_Lookout_GetJobs_0(ctx context.Context, marshaler runtime.Marshaler, client LookoutClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -100,7 +99,6 @@ func request_Lookout_GetJobs_0(ctx context.Context, marshaler runtime.Marshaler,
 
 	msg, err := client.GetJobs(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
-
 }
 
 func local_request_Lookout_GetJobs_0(ctx context.Context, marshaler runtime.Marshaler, server LookoutServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -117,7 +115,6 @@ func local_request_Lookout_GetJobs_0(ctx context.Context, marshaler runtime.Mars
 
 	msg, err := server.GetJobs(ctx, &protoReq)
 	return msg, metadata, err
-
 }
 
 // RegisterLookoutHandlerServer registers the http handlers for service Lookout to "mux".
@@ -125,7 +122,6 @@ func local_request_Lookout_GetJobs_0(ctx context.Context, marshaler runtime.Mars
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
 // Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterLookoutHandlerFromEndpoint instead.
 func RegisterLookoutHandlerServer(ctx context.Context, mux *runtime.ServeMux, server LookoutServer) error {
-
 	mux.Handle("GET", pattern_Lookout_Overview_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -146,7 +142,6 @@ func RegisterLookoutHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 		}
 
 		forward_Lookout_Overview_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
 	})
 
 	mux.Handle("POST", pattern_Lookout_GetJobSets_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -169,7 +164,6 @@ func RegisterLookoutHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 		}
 
 		forward_Lookout_GetJobSets_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
 	})
 
 	mux.Handle("POST", pattern_Lookout_GetJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -192,7 +186,6 @@ func RegisterLookoutHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 		}
 
 		forward_Lookout_GetJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
 	})
 
 	return nil
@@ -235,7 +228,6 @@ func RegisterLookoutHandler(ctx context.Context, mux *runtime.ServeMux, conn *gr
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
 // "LookoutClient" to call the correct interceptors.
 func RegisterLookoutHandlerClient(ctx context.Context, mux *runtime.ServeMux, client LookoutClient) error {
-
 	mux.Handle("GET", pattern_Lookout_Overview_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -253,7 +245,6 @@ func RegisterLookoutHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 		}
 
 		forward_Lookout_Overview_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
 	})
 
 	mux.Handle("POST", pattern_Lookout_GetJobSets_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -273,7 +264,6 @@ func RegisterLookoutHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 		}
 
 		forward_Lookout_GetJobSets_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
 	})
 
 	mux.Handle("POST", pattern_Lookout_GetJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -293,7 +283,6 @@ func RegisterLookoutHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 		}
 
 		forward_Lookout_GetJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
-
 	})
 
 	return nil
