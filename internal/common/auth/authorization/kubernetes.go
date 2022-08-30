@@ -40,7 +40,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	
+
 	token, ca, err := parseAuth(auth)
 	if err != nil {
 		return nil, missingCredentials
