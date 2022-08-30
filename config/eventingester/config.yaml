@@ -1,14 +1,9 @@
-postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
-  connection:
-    host: localhost
-    port: 5432
-    user: postgres
-    password: psw
-    dbname: postgres
-    sslmode: disable
+redis:
+  addrs:
+    - "localhost:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
 
 pulsar:
   URL: "pulsar://localhost:6650"

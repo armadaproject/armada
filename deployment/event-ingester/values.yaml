@@ -1,5 +1,5 @@
 image:
-  repository: gresearchdev/armada-eventingester-ingester
+  repository: gresearchdev/event-ingester-ingester
   tag: LATEST
 resources:
   limits:
