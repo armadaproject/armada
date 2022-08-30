@@ -113,12 +113,12 @@ func reviewToken(clusterUrl string, token string, ca string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	reviewRequest.Header.Add("Authorization", "Bearer"+token)
+	reviewRequest.Header.Add("Authorization", "Bearer "+token)
 	reviewRequest.Header.Add("Content-Type", "application/json; charset=utf-8")
 
 	reqDump, _ := httputil.DumpRequest(reviewRequest, true)
 	log.Infof("Request to send to token review: %s", string(reqDump))
-	
+
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM([]byte(ca))
 
