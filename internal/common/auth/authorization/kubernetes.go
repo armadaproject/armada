@@ -14,7 +14,6 @@ import (
 	"os"
 	"strings"
 
-	grpcAuth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -37,14 +36,13 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
-	val := metautils.ExtractIncoming(ctx).Get("authorization")
-	log.Infof("Header is: %s", val)
-	auth, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
-	if err != nil {
-		return nil, err
+	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
+
+	if authHeader[0] != "KubernetesAuth" {
+		return nil, missingCredentials
 	}
 
-	token, ca, err := parseAuth(auth)
+	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
 		return nil, missingCredentials
 	}
