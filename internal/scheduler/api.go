@@ -397,33 +397,6 @@ func (srv *ExecutorApi) ReportUsage(ctx context.Context, req *api.ClusterUsageRe
 	return &types.Empty{}, nil
 }
 
-// func (srv *ExecutorApi) ReportMultiple(ctx context.Context, apiEvents *api.EventList) (*types.Empty, error) {
-// 	// Because (queue, userId, jobSetId) may differ between events,
-// 	// several sequences may be necessary.
-// 	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents.Events)
-// 	if err != nil {
-// 		return &types.Empty{}, err
-// 	}
-// 	if len(sequences) == 0 {
-// 		return &types.Empty{}, nil
-// 	}
-// 	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
-// }
-
-// func (srv *ExecutorApi) Report(ctx context.Context, apiEvent *api.EventMessage) (*types.Empty, error) {
-// 	// Because (queue, userId, jobSetId) may differ between events,
-// 	// several sequences may be necessary.
-// 	sequences, err := eventutil.EventSequencesFromApiEvents([]*api.EventMessage{apiEvent})
-// 	if err != nil {
-// 		return &types.Empty{}, err
-// 	}
-// 	if len(sequences) == 0 {
-// 		return &types.Empty{}, nil
-// 	}
-
-// 	return &types.Empty{}, srv.publishToPulsar(ctx, sequences)
-// }
-
 // PublishToPulsar sends pulsar messages async
 func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
 	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.Producer, 4194304) // 4 MB
