@@ -1,4 +1,4 @@
-package eventscheduler
+package scheduler
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/eventscheduler/sql"
 	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler/sql"
 )
 
 // Used for tests.

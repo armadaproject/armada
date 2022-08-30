@@ -35,10 +35,10 @@ import (
 	"github.com/G-Research/armada/internal/eventapi"
 	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/serving"
-	"github.com/G-Research/armada/internal/eventscheduler"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -194,7 +194,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var submitServerToRegister api.SubmitServer
 	submitServerToRegister = submitServer
 
-	var pulsarExecutorApiServer *eventscheduler.ExecutorApi
+	var pulsarExecutorApiServer *scheduler.ExecutorApi
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var pool *pgxpool.Pool
@@ -365,13 +365,13 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		// 	return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
 		// }
 		// defer producer.Close()
-		// schedulerProcessor := eventscheduler.NewSchedulerProcessor(consumer, producer)
+		// schedulerProcessor := scheduler.NewSchedulerProcessor(consumer, producer)
 		// services = append(services, func() error {
 		// 	return schedulerProcessor.Run(ctx)
 		// })
 
 		// Scheduler jobs ingester.
-		schedulerIngester := &eventscheduler.Ingester{
+		schedulerIngester := &scheduler.Ingester{
 			PulsarClient: pulsarClient,
 			ConsumerOptions: pulsar.ConsumerOptions{
 				Topic:            config.Pulsar.JobsetEventsTopic,
@@ -397,9 +397,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		scheduler := eventscheduler.NewScheduler(schedulerProducer, pool)
+		sched := scheduler.NewScheduler(schedulerProducer, pool)
 		services = append(services, func() error {
-			return scheduler.Run(ctx)
+			return sched.Run(ctx)
 		})
 
 		apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
@@ -411,7 +411,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		pulsarExecutorApiServer = &eventscheduler.ExecutorApi{
+		pulsarExecutorApiServer = &scheduler.ExecutorApi{
 			Producer:       apiProducer,
 			Db:             pool,
 			MaxJobsPerCall: 100,
@@ -428,7 +428,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		// 	return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
 		// }
 		// defer producer.Close()
-		// schedulerIngester := eventscheduler.NewSchedulerIngester(consumer, producer, schedulerProcessor)
+		// schedulerIngester := scheduler.NewSchedulerIngester(consumer, producer, schedulerProcessor)
 		// services = append(services, func() error {
 		// 	return schedulerIngester.Run(ctx)
 		// })

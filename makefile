@@ -534,11 +534,11 @@ proto: setup-proto
 	# fix all imports ordering
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/eventscheduler/schedulerobjects/
+	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/scheduler/schedulerobjects/
 
 sql:
-	$(GO_TEST_CMD) sqlc generate -f internal/eventscheduler/sql/sql.yaml
-	$(GO_TEST_CMD) templify -e -p=sql internal/eventscheduler/sql/schema.sql
+	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
+	$(GO_TEST_CMD) templify -e -p=sql internal/scheduler/sql/schema.sql
 
 # Target for compiling the dotnet Armada REST client
 dotnet: dotnet-setup setup-proto
@@ -579,7 +579,7 @@ generate:
 resetsql:
 	docker rm -f postgres
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
-	$(GO_TEST_CMD) sqlc generate -f internal/eventscheduler/sql/sql.yaml
-	$(GO_TEST_CMD) templify -e -p=sql internal/eventscheduler/sql/schema.sql
+	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
+	$(GO_TEST_CMD) templify -e -p=sql internal/scheduler/sql/schema.sql
 	sleep 1
 	bash scripts/postgres.sh

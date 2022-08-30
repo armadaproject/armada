@@ -1,4 +1,4 @@
-package eventscheduler
+package scheduler
 
 import (
 	"context"
@@ -19,9 +19,9 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil/eventid"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/eventscheduler/schedulerobjects"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 

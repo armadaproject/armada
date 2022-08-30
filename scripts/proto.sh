@@ -24,7 +24,7 @@ protoc \
 --proto_path=. \
 --proto_path=/proto \
 --gogofaster_out=$TYPES:./ \
-internal/eventscheduler/schedulerobjects/*.proto
+internal/scheduler/schedulerobjects/*.proto
 
 protoc \
 --proto_path=. \

@@ -1,4 +1,4 @@
-package eventscheduler
+package scheduler
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/eventscheduler/sql"
+	"github.com/G-Research/armada/internal/scheduler/sql"
 )
 
 func RunsSchema() string {

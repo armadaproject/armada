@@ -1,4 +1,4 @@
-package eventscheduler
+package scheduler
 
 // Log compacter.
 type Compacter interface {

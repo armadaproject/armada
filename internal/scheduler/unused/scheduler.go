@@ -1,4 +1,4 @@
-package eventscheduler
+package scheduler
 
 import (
 	"container/heap"

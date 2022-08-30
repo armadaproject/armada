@@ -1,4 +1,4 @@
-# Compile with "sqlc generate -f internal/eventscheduler/sql/sql.yaml" from the project root directory.
+# Compile with "sqlc generate -f internal/scheduler/sql/sql.yaml" from the project root directory.
 version: 2
 sql:
   - schema: "schema.sql"
@@ -7,7 +7,7 @@ sql:
     gen:
       go:
         out: ".."
-        package: "eventscheduler"
+        package: "scheduler"
         sql_package: "pgx/v4"
         emit_prepared_queries: true
         emit_db_tags: true
