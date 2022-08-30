@@ -13,7 +13,7 @@ const (
 )
 
 type EventStore interface {
-	ReportEvents(message model.BatchUpdate) error
+	ReportEvents(update []*model.Event) error
 }
 
 type RedisEventStore struct {

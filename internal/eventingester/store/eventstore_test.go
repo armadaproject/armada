@@ -14,7 +14,6 @@ import (
 
 func TestReportEvents(t *testing.T) {
 	withRedisEventStore(func(r *RedisEventStore) {
-
 		event1 := &model.Event{
 			Queue:  "testQueue",
 			Jobset: "testJobset",

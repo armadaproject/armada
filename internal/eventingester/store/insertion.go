@@ -16,7 +16,7 @@ import (
 
 // InsertEvents takes a channel of armada events and insets them into the event db
 // the events are republished to an output channel for further processing (e.g. Ackking)
-func InsertEvents(ctx context.Context, db *RedisEventStore, msgs chan *model.BatchUpdate, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
 	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
@@ -28,7 +28,7 @@ func InsertEvents(ctx context.Context, db *RedisEventStore, msgs chan *model.Bat
 	return out
 }
 
-func insert(db *RedisEventStore, rows []*model.Event) {
+func insert(db EventStore, rows []*model.Event) {
 	start := time.Now()
 
 	err := WithRetry(func() error {
