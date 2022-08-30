@@ -219,7 +219,8 @@ func (c *QueueCache) updateQueueMetrics(queueName string, resourcesByPool map[st
 }
 
 func (c *QueueCache) updateRunningMetrics(queueName string, resourcesByPool map[string]*metrics.ResourceMetricsRecorder,
-	runningJobDurationsByPool map[string]*metrics.FloatMetricsRecorder) {
+	runningJobDurationsByPool map[string]*metrics.FloatMetricsRecorder,
+) {
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 

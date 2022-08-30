@@ -300,7 +300,6 @@ func addTestJob(t *testing.T, r repository.JobRepository, queue string) *api.Job
 }
 
 func addTestJobWithRequirements(t *testing.T, r repository.JobRepository, queue string, clientId string, requirements v1.ResourceRequirements) *api.Job {
-
 	jobs := []*api.Job{
 		{
 			Id:       util.NewULID(),
