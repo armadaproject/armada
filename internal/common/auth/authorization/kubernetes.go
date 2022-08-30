@@ -37,6 +37,10 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
 	auth, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
+	if err != nil {
+		return nil, err
+	}
+	
 	token, ca, err := parseAuth(auth)
 	if err != nil {
 		return nil, missingCredentials
@@ -115,6 +119,7 @@ func reviewToken(clusterUrl string, token string, ca string) (string, error) {
 	}
 
 	defer resp.Body.Close()
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
