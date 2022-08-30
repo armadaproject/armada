@@ -51,6 +51,8 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Check Cache
 
 	log.Info("Auth parsed")
+	log.Infof("Token: %s", token)
+	log.Infof("CA: %s", ca)
 	// Get URL from token KID
 	url, err := authService.getClusterURL(token)
 	if err != nil {
