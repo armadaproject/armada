@@ -86,12 +86,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 
 func reviewToken(clusterUrl string, token string) (string, error) {
 	url := clusterUrl + tokenReviewEndpoint
-	data := fmt.Sprintf(`
-{
-  "kind": "TokenReview",
-  "apiVersion": "authentication.k8s.io/v1"
-  "spec": {"token": "%s"}
-}`, token)
+	data := fmt.Sprintf(`{"kind": "TokenReview","apiVersion": "authentication.k8s.io/v1","spec": {"token": "%s"}}`, token)
 
 	log.Infof("Calling %s for token review with data %s", url, data)
 	reviewRequest, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(data)))
