@@ -38,6 +38,7 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+  jobsCancelled: number
   latestSubmissionTime: string
 
   runningStats?: DurationStats
@@ -443,6 +444,7 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    jobsCancelled: jobSet.jobsCancelled ?? 0,
     latestSubmissionTime: dateToString(jobSet.submitted ?? new Date()),
     runningStats: durationStatsToViewModel(jobSet.runningStats),
     queuedStats: durationStatsToViewModel(jobSet.queuedStats),

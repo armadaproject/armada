@@ -126,7 +126,7 @@ export default function JobSetTable(props: JobSetTableProps) {
           label="Running"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Running")}
-        />
+        /> 
         <Column
           dataKey="jobsSucceeded"
           width={0.07 * props.width}
@@ -140,6 +140,13 @@ export default function JobSetTable(props: JobSetTableProps) {
           label="Failed"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
+        />
+         <Column
+          dataKey="jobsCancelled"
+          width={0.07 * props.width}
+          label="Cancelled"
+          className="job-set-table-number-cell"
+          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Cancelled")}
         />
       </VirtualizedTable>
     </div>
