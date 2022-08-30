@@ -93,7 +93,7 @@ func reviewToken(clusterUrl string, token string) (string, error) {
   "spec": {"token": "%s"}
 }`, token)
 
-	log.Infof("Calling %s for token review", url)
+	log.Infof("Calling %s for token review with data %s", url, data)
 	reviewRequest, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(data)))
 	if err != nil {
 		return "", err
