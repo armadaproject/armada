@@ -179,8 +179,8 @@ func parseAuth(auth string) (string, string, error) {
 	}
 
 	var uMbody struct {
-		token string `json:"token"`
-		ca    string `json:"ca"`
+		Token string `json:"token"`
+		Ca    string `json:"ca"`
 	}
 
 	if err := json.Unmarshal(jsonData, &uMbody); err != nil {
@@ -188,10 +188,10 @@ func parseAuth(auth string) (string, string, error) {
 		return "", "", err
 	}
 
-	ca, err := base64.RawURLEncoding.DecodeString(uMbody.ca)
+	ca, err := base64.RawURLEncoding.DecodeString(uMbody.Ca)
 	if err != nil {
 		return "", "", err
 	}
 
-	return uMbody.token, string(ca), nil
+	return uMbody.Token, string(ca), nil
 }
