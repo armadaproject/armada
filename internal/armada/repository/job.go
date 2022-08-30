@@ -19,16 +19,15 @@ import (
 )
 
 const (
-	jobObjectPrefix         = "Job:"          // {jobId}            - job protobuf object
-	jobStartTimePrefix      = "Job:StartTime" // {jobId}            - map clusterId -> startTime
-	jobQueuePrefix          = "Job:Queue:"    // {queue}            - sorted set of jobIds by priority
-	jobLeasedPrefix         = "Job:Leased:"   // {queue}            - sorted set of jobIds by lease renewal time
-	jobSetPrefix            = "Job:Set:"      // {jobSetId}         - set of jobIds
-	jobClusterMapKey        = "Job:ClusterId" //                    - map jobId -> cluster
-	jobRetriesPrefix        = "Job:Retries:"  // {jobId}            - number of retry attempts
-	jobClientIdPrefix       = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
-	keySeparator            = ":"
-	queueResourcesBatchSize = 20000 // Number of jobs queried from Redis at a time in IterateQueueJobs.
+	jobObjectPrefix    = "Job:"          // {jobId}            - job protobuf object
+	jobStartTimePrefix = "Job:StartTime" // {jobId}            - map clusterId -> startTime
+	jobQueuePrefix     = "Job:Queue:"    // {queue}            - sorted set of jobIds by priority
+	jobLeasedPrefix    = "Job:Leased:"   // {queue}            - sorted set of jobIds by lease renewal time
+	jobSetPrefix       = "Job:Set:"      // {jobSetId}         - set of jobIds
+	jobClusterMapKey   = "Job:ClusterId" //                    - map jobId -> cluster
+	jobRetriesPrefix   = "Job:Retries:"  // {jobId}            - number of retry attempts
+	jobClientIdPrefix  = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
+	keySeparator       = ":"
 )
 
 type ErrJobNotFound struct {
