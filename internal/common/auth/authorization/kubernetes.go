@@ -38,9 +38,12 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Retrieve token from context.
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
+	log.Infof("Auth header \"%s\", \"%s\"", authHeader[0], authHeader[1])
 	if authHeader[0] != "KubernetesAuth" {
 		return nil, missingCredentials
 	}
+
+	log.Info("Auth extracted")
 
 	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
@@ -48,18 +51,21 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	}
 	// Check Cache
 
+	log.Info("Auth parsed")
 	// Get URL from token KID
 	url, err := authService.getClusterURL(token)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Info("Token reviewing")
 	// Make request to token review endpoint
 	name, err := reviewToken(url, token, ca)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Info("Making principle")
 	// Return very basic principal
 	return NewStaticPrincipal(name, []string{}), nil
 }
