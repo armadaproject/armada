@@ -66,6 +66,7 @@ services:
       - "/app/config/lookout/stan.yaml"
     depends_on:
       - armada-server
+      - postgres
   executor:
     container_name: executor
     image: armada-fakeexecutor
