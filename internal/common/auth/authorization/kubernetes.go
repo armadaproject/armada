@@ -76,6 +76,8 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		return "", err
 	}
 
+	log.Infof("Decoded header: %s", decoded)
+
 	var unmarshalled struct {
 		Kid string `json:"kid"`
 	}
@@ -84,6 +86,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		return "", err
 	}
 
+	log.Infof("Unmarshalling complete: %v", unmarshalled)
 	if unmarshalled.Kid == "" {
 		return "", fmt.Errorf("kubernetes serviceaccount token KID must not be empty")
 	}
