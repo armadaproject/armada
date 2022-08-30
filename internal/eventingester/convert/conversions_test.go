@@ -56,7 +56,7 @@ func TestSingle(t *testing.T) {
 	msg := NewMsg(baseTime, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor}
+	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
@@ -75,7 +75,7 @@ func TestMultiple(t *testing.T) {
 	msg := NewMsg(baseTime, cancelled, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor}
+	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
@@ -95,7 +95,7 @@ func TestMultipleMessages(t *testing.T) {
 	msg2 := NewMsg(baseTime, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor}
+	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg1, msg2})
 	expectedSequence1 := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled},

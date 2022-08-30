@@ -64,7 +64,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	pulsarMsgs := pulsarutils.Receive(ctx, consumer, 0, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
 
 	// Batch up messages
-	batchedMsgs := batch.Batch(pulsarMsgs, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
+	batchedMsgs := batch.Batch(pulsarMsgs, config.BatchMessages, config.BatchDuration, 5, clock.RealClock{})
 
 	// Turn the messages into event rows
 	compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)
@@ -73,7 +73,8 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		panic(err)
 	}
 	converter := &convert.MessageRowConverter{
-		Compressor: compressor,
+		Compressor:          compressor,
+		MaxMessageBatchSize: config.BatchSize,
 	}
 	events := convert.Convert(ctx, batchedMsgs, 5, converter)
 

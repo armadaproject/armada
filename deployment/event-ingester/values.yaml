@@ -21,3 +21,5 @@ serviceAccount: null
 applicationConfig:
   pulsar:
     authenticationEnabled: false
+  batchSize: 1048576  #1MB
+  batchMessages: 10000

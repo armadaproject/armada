@@ -2,7 +2,6 @@ package convert
 
 import (
 	"context"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -16,7 +15,8 @@ import (
 
 // MessageRowConverter raw converts pulsar messages into events that we can store in Redis
 type MessageRowConverter struct {
-	Compressor compress.Compressor
+	Compressor          compress.Compressor
+	MaxMessageBatchSize int
 }
 
 // Convert takes a  channel of pulsar message batches and outputs a channel of batched events that we store in Redis
@@ -36,8 +36,8 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 	messageIds := make([]*pulsarutils.ConsumerMessageId, len(batch))
 	events := make([]*model.Event, 0, len(batch))
 
+	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
 	for i, msg := range batch {
-
 		pulsarMsg := msg.Message
 
 		// Record the messageId- we need to record all message Ids, even if the event they contain is invalid
@@ -55,16 +55,19 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", pulsarMsg.ID())
 			continue
 		}
-
-		// Fill in the created time if it's missing
-		// TODO: we can remove this once created is being populated everywhere
-		for _, event := range es.Events {
-			if event.Created == nil {
-				t := msg.Message.PublishTime().In(time.UTC)
-				event.Created = &t
-			}
+		sequences = append(sequences, es)
+	}
+	sequences = eventutil.CompactEventSequences(sequences)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, rc.MaxMessageBatchSize)
+	if err != nil {
+		log.WithError(err).Errorf("Failed to compact sequences")
+		return &model.BatchUpdate{
+			MessageIds: messageIds,
+			Events:     events,
 		}
+	}
 
+	for i, es := range sequences {
 		// Remove the jobset Name and the queue from the proto as this will be stored as the key
 		queue := es.Queue
 		jobset := es.JobSetName
