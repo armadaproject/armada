@@ -596,8 +596,12 @@ build-dev-lookout: node-setup
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	mkdir -p ./.build/lookout/config
 	#cp -a ./docs/dev/config/lookout/stan.yaml ./.build/lookout/config/
+	mv ./config/lookout/config.yaml ./config/lookout/config.yaml.orig
 	cp -a ./docs/dev/config/lookout/stan.yaml ./config/lookout/
+	cp -a ./docs/dev/config/lookout/config.yaml ./config/lookout/
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
+	mv ./config/lookout/config.yaml.orig ./config/lookout/config.yaml
+	rm ./config/lookout/stan.yaml
 
 build-dev-binoculars:
 	mkdir -p .build/binoculars/config
