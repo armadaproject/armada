@@ -70,7 +70,9 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 }
 
 func (authService *KubernetesNativeAuthService) getClusterURL(token string) (string, error) {
+	log.Infof("Token: %s", token)
 	header := strings.Split(token, ".")[0]
+	log.Infof("Header: %s", header)
 	decoded, err := base64.RawURLEncoding.DecodeString(header)
 	if err != nil {
 		return "", err
