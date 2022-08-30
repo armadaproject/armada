@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	"io"
 	"net/http"
 	"os"
@@ -36,6 +37,8 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
+	val := metautils.ExtractIncoming(ctx).Get("authorization")
+	log.Infof("Header is: %s", val)
 	auth, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
 	if err != nil {
 		return nil, err
