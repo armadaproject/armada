@@ -5,6 +5,7 @@
 -- TODO: Backup solution inserting one by one.
 -- TODO: Look into go generics.
 -- TODO: Consider consistently mapping queues and job sets to unique integers. Maybe also node selectors, tolerations, and taints.
+-- TODO: Is the serial updated correctly for updates?
 
 -- TODO: Turns out postgres ANY compares one by one with each element given to it.
 -- The solution seems to be to either use a VALUES clause + join or COPY + join.
@@ -151,6 +152,17 @@ CREATE TABLE nodeinfo (
 -- The combination node name and executor must be unique.
 CREATE UNIQUE INDEX node_name_executor ON nodeinfo (node_name, executor);
 
+-- Used for leader election.
+-- Each replica regularly updates its last_modified entry.
+-- If the last_modified entry of the current leader is older than some threshold,
+-- another replica tries to become leader by updating the is_leader field in a transaction.
+CREATE TABLE leaderelection (
+    id UUID PRIMARY KEY,
+    is_leader boolean NOT NULL,
+    serial bigserial NOT NULL,
+    last_modified TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Automatically increment serial and set last_modified on insert.
 -- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.
 -- All new/updated rows can be queried by querying for all rows with serial larger than that of the most recent query.
@@ -195,6 +207,11 @@ EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_nodeinfo
 BEFORE INSERT ON nodeinfo
+FOR EACH ROW
+EXECUTE FUNCTION trg_increment_serial_set_last_modified();
+
+CREATE TRIGGER next_serial_on_insert_leaderelection
+BEFORE INSERT ON leaderelection
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 

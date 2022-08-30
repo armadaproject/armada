@@ -405,6 +405,25 @@ func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]
 	return items, nil
 }
 
+const selectLeader = `-- name: SelectLeader :one
+SELECT id, is_leader, serial, last_modified FROM leaderelection WHERE is_leader = true ORDER BY last_modified DESC LIMIT 1
+`
+
+// Leader election
+// Return the row associated with the current leader.
+// If due to a bug several rows are marked as leader, return the most recently modified one.
+func (q *Queries) SelectLeader(ctx context.Context) (Leaderelection, error) {
+	row := q.db.QueryRow(ctx, selectLeader)
+	var i Leaderelection
+	err := row.Scan(
+		&i.ID,
+		&i.IsLeader,
+		&i.Serial,
+		&i.LastModified,
+	)
+	return i, err
+}
+
 const selectNewActiveJobs = `-- name: SelectNewActiveJobs :many
 SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AND cancelled = false ORDER BY serial
 `
@@ -711,6 +730,22 @@ func (q *Queries) SelectQueueJobSetFromIds(ctx context.Context, jobIds []uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const selectReplicaById = `-- name: SelectReplicaById :one
+SELECT id, is_leader, serial, last_modified FROM leaderelection WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) SelectReplicaById(ctx context.Context, id uuid.UUID) (Leaderelection, error) {
+	row := q.db.QueryRow(ctx, selectReplicaById, id)
+	var i Leaderelection
+	err := row.Scan(
+		&i.ID,
+		&i.IsLeader,
+		&i.Serial,
+		&i.LastModified,
+	)
+	return i, err
 }
 
 const selectRunsFromExecutorAndJobs = `-- name: SelectRunsFromExecutorAndJobs :many

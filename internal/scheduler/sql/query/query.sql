@@ -128,6 +128,15 @@ UPDATE runs SET succeeded = true WHERE job_id = $1;
 -- name: MarkJobRunsSucceededById :exec
 UPDATE runs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
 
+-- Leader election
+-- Return the row associated with the current leader.
+-- If due to a bug several rows are marked as leader, return the most recently modified one.
+-- name: SelectLeader :one
+SELECT * FROM leaderelection WHERE is_leader = true ORDER BY last_modified DESC LIMIT 1;
+
+-- name: SelectReplicaById :one
+SELECT * FROM leaderelection WHERE id = $1 LIMIT 1;
+
 -- -- name: UpsertRecord :exec
 -- INSERT INTO records (id, value, payload) VALUES ($1, $2, $3)
 -- ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, payload = EXCLUDED.payload;

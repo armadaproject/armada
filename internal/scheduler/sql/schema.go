@@ -16,6 +16,7 @@ func SchemaTemplate() string {
 		"-- TODO: Backup solution inserting one by one.\n" +
 		"-- TODO: Look into go generics.\n" +
 		"-- TODO: Consider consistently mapping queues and job sets to unique integers. Maybe also node selectors, tolerations, and taints.\n" +
+		"-- TODO: Is the serial updated correctly for updates?\n" +
 		"\n" +
 		"-- TODO: Turns out postgres ANY compares one by one with each element given to it.\n" +
 		"-- The solution seems to be to either use a VALUES clause + join or COPY + join.\n" +
@@ -162,6 +163,17 @@ func SchemaTemplate() string {
 		"-- The combination node name and executor must be unique.\n" +
 		"CREATE UNIQUE INDEX node_name_executor ON nodeinfo (node_name, executor);\n" +
 		"\n" +
+		"-- Used for leader election.\n" +
+		"-- Each replica regularly updates its last_modified entry.\n" +
+		"-- If the last_modified entry of the current leader is older than some threshold,\n" +
+		"-- another replica tries to become leader by updating the is_leader field in a transaction.\n" +
+		"CREATE TABLE leaderelection (\n" +
+		"    id UUID PRIMARY KEY,\n" +
+		"    is_leader boolean NOT NULL,\n" +
+		"    serial bigserial NOT NULL,\n" +
+		"    last_modified TIMESTAMPTZ NOT NULL DEFAULT NOW()\n" +
+		");\n" +
+		"\n" +
 		"-- Automatically increment serial and set last_modified on insert.\n" +
 		"-- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.\n" +
 		"-- All new/updated rows can be queried by querying for all rows with serial larger than that of the most recent query.\n" +
@@ -206,6 +218,11 @@ func SchemaTemplate() string {
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_nodeinfo\n" +
 		"BEFORE INSERT ON nodeinfo\n" +
+		"FOR EACH ROW\n" +
+		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
+		"\n" +
+		"CREATE TRIGGER next_serial_on_insert_leaderelection\n" +
+		"BEFORE INSERT ON leaderelection\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +

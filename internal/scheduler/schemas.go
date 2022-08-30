@@ -37,6 +37,10 @@ func JobRunAssignmentSchema() string {
 	return schemaByTable("job_run_assignments")
 }
 
+func LeaderelectionSchema() string {
+	return schemaByTable("leaderelection")
+}
+
 func schemaByTable(table string) string {
 	s := sql.SchemaTemplate()
 	schema, err := schemaFromString(s, table)

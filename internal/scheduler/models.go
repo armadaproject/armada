@@ -51,6 +51,13 @@ type JobRunError struct {
 	LastModified time.Time `db:"last_modified"`
 }
 
+type Leaderelection struct {
+	ID           uuid.UUID `db:"id"`
+	IsLeader     bool      `db:"is_leader"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
+}
+
 type Nodeinfo struct {
 	ExecutorNodeName string    `db:"executor_node_name"`
 	NodeName         string    `db:"node_name"`
