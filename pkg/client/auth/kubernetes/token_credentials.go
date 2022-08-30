@@ -2,6 +2,9 @@ package kubernetes
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
+	"os"
 
 	"golang.org/x/oauth2"
 )
@@ -15,8 +18,17 @@ func (c *NativeTokenCredentials) GetRequestMetadata(context.Context, ...string) 
 	if err != nil {
 		return nil, err
 	}
+
+	ca, err := getClusterCA()
+	if err != nil {
+		return nil, err
+	}
+
+	body := fmt.Sprintf(`{"token":"%s", "ca":"%s"}`, jwt, ca)
+	encoded := make([]byte, base64.RawURLEncoding.EncodedLen(len(body)))
+	base64.RawURLEncoding.Encode(encoded, []byte(body))
 	return map[string]string{
-		"authorization": "KubernetesAuth " + jwt,
+		"authorization": "KubernetesAuth " + string(encoded),
 	}, nil
 }
 
@@ -30,4 +42,13 @@ func (c *NativeTokenCredentials) getJWT(source oauth2.TokenSource) (string, erro
 		return "", e
 	}
 	return t.AccessToken, nil
+}
+
+func getClusterCA() (string, error) {
+	fromFile, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+	if err != nil {
+		return "", err
+	}
+
+	return string(fromFile), nil
 }

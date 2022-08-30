@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -35,7 +36,8 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
-	token, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
+	auth, err := grpcAuth.AuthFromMD(ctx, "kubernetesAuth")
+	token, ca, err := parseAuth(auth)
 	if err != nil {
 		return nil, missingCredentials
 	}
@@ -48,7 +50,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	}
 
 	// Make request to token review endpoint
-	name, err := reviewToken(url, token)
+	name, err := reviewToken(url, token, ca)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +86,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 	return string(url), nil
 }
 
-func reviewToken(clusterUrl string, token string) (string, error) {
+func reviewToken(clusterUrl string, token string, ca string) (string, error) {
 	url := clusterUrl + tokenReviewEndpoint
 	data := fmt.Sprintf(`{"kind": "TokenReview","apiVersion": "authentication.k8s.io/v1","spec": {"token": "%s"}}`, token)
 
@@ -96,8 +98,13 @@ func reviewToken(clusterUrl string, token string) (string, error) {
 	reviewRequest.Header.Add("Authorization", "Bearer"+token)
 	reviewRequest.Header.Add("Content-Type", "application/json; charset=utf-8")
 
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM([]byte(ca))
+
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{
+			RootCAs: caCertPool,
+		},
 	}
 
 	client := &http.Client{Transport: tr}
@@ -144,4 +151,22 @@ type reviewStatus struct {
 
 type reviewBody struct {
 	Status reviewStatus `json:"status"`
+}
+
+func parseAuth(auth string) (string, string, error) {
+	jsonData, err := base64.RawURLEncoding.DecodeString(auth)
+	if err != nil {
+		return "", "", err
+	}
+
+	var uMbody struct {
+		token string `json:"token"`
+		ca    string `json:"ca"`
+	}
+
+	if err := json.Unmarshal(jsonData, &uMbody); err != nil {
+		return "", "", err
+	}
+
+	return uMbody.token, uMbody.ca, nil
 }
