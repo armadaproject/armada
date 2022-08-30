@@ -17,7 +17,12 @@ import (
 
 // SendSequenceUpdates takes a channel of events that have been processed and publishes the corresponding sequence numbers onto pulsar
 // It outputs the pulsar message ids of the originating events so that the messages can be accked
-func SendSequenceUpdates(ctx context.Context, producer pulsar.Producer, msgs chan []*model.PulsarEventRow, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+func SendSequenceUpdates(
+	ctx context.Context,
+	producer pulsar.Producer,
+	msgs chan []*model.PulsarEventRow,
+	bufferSize int,
+) chan []*pulsarutils.ConsumerMessageId {
 	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {

@@ -658,7 +658,12 @@ func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api
 // would not be covered by the optimistic lock.
 //
 // This process is attempted up to maxRetries times and each attempt is separated by retryDelay.
-func (repo *RedisJobRepository) updateJobBatchWithRetry(ids []string, mutator func([]*api.Job), maxRetries int, retryDelay time.Duration) ([]UpdateJobResult, error) {
+func (repo *RedisJobRepository) updateJobBatchWithRetry(
+	ids []string,
+	mutator func([]*api.Job),
+	maxRetries int,
+	retryDelay time.Duration,
+) ([]UpdateJobResult, error) {
 	// Redis supports transactions via optimistic locking using the WATCH/READ/SET pattern
 	// First, we mark all keys that the operation depends on
 	// Hence, keysToWatch must contain all keys read from inside txf (see below)

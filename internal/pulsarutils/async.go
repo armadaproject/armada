@@ -38,7 +38,14 @@ var log = logrus.NewEntry(logrus.StandardLogger())
 // bufferSize: sets the size of the buffer in the returned channel
 // receiveTimeout: sets how long the pulsar consumer will wait for a message before retrying
 // backoffTime: sets how long the consumer will wait before retrying if the pulsar consumer indicates an error receiving from pulsar.
-func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, bufferSize int, receiveTimeout time.Duration, backoffTime time.Duration) chan *ConsumerMessage {
+func Receive(
+	ctx context.Context,
+	consumer pulsar.Consumer,
+	consumerId int,
+	bufferSize int,
+	receiveTimeout time.Duration,
+	backoffTime time.Duration,
+) chan *ConsumerMessage {
 	out := make(chan *ConsumerMessage, bufferSize)
 	go func() {
 		// Periodically log the number of processed messages.

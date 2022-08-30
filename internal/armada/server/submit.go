@@ -497,7 +497,12 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 }
 
 // cancels all jobs part of a particular job set and queue
-func (server *SubmitServer) cancelJobsByQueueAndSet(ctx context.Context, queue string, jobSetId string, filter *repository.JobSetFilter) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobsByQueueAndSet(
+	ctx context.Context,
+	queue string,
+	jobSetId string,
+	filter *repository.JobSetFilter,
+) (*api.CancellationResult, error) {
 	ids, err := server.jobRepository.GetJobSetJobIds(queue, jobSetId, filter)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsBySetAndQueue] error getting job IDs: %s", err)
@@ -730,7 +735,11 @@ func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName stri
 	if errors.As(e, &expected) {
 
 		if !server.queueManagementConfig.AutoCreateQueues {
-			return nil, status.Errorf(codes.Aborted, "Queue %s not found; refusing to make it automatically (server setting autoCreateQueues is false)", queueName)
+			return nil, status.Errorf(
+				codes.Aborted,
+				"Queue %s not found; refusing to make it automatically (server setting autoCreateQueues is false)",
+				queueName,
+			)
 		}
 		if !server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
 			return nil, status.Errorf(codes.PermissionDenied, "Queue %s not found; won't create because user lacks SubmitAnyJobs permission", queueName)

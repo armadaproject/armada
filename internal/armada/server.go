@@ -149,11 +149,19 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		streamEventStore = processor.NewEventStore(eventStream)
 		eventStore = streamEventStore
 
-		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
+		eventRepoBatcher := eventstream.NewTimedEventBatcher(
+			config.Events.ProcessorBatchSize,
+			config.Events.ProcessorMaxTimeBetweenBatches,
+			config.Events.ProcessorTimeout,
+		)
 		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
-		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
+		jobStatusBatcher := eventstream.NewTimedEventBatcher(
+			config.Events.ProcessorBatchSize,
+			config.Events.ProcessorMaxTimeBetweenBatches,
+			config.Events.ProcessorTimeout,
+		)
 		jobStatusProcessor := processor.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
@@ -360,13 +368,31 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			panic(err)
 		}
 
-		subscriptionManager := serving.NewSubscriptionManager(sequenceManager, eventDb, 10, 1*time.Second, 2*time.Second, config.EventApi.QueryConcurrency, 10000, clock.RealClock{})
+		subscriptionManager := serving.NewSubscriptionManager(
+			sequenceManager,
+			eventDb,
+			10,
+			1*time.Second,
+			2*time.Second,
+			config.EventApi.QueryConcurrency,
+			10000,
+			clock.RealClock{},
+		)
 		eventApi = serving.NewEventApi(jobsetMapper, subscriptionManager, sequenceManager)
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
-	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
+	aggregatedQueueServer := server.NewAggregatedQueueServer(
+		permissions,
+		config.Scheduling,
+		jobRepository,
+		queueCache,
+		queueRepository,
+		usageRepository,
+		eventStore,
+		schedulingInfoRepository,
+	)
 	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository, eventApi)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 

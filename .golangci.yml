@@ -17,7 +17,7 @@ linters:
 
 linters-settings:
   lll:
-    line-length: 261
+    line-length: 160
   misspell:
     locale: UK
     ignore-words:

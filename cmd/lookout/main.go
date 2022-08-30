@@ -31,7 +31,11 @@ const (
 )
 
 func init() {
-	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
+	pflag.StringSlice(
+		CustomConfigLocation,
+		[]string{},
+		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
+	)
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Bool(PruneDatabase, false, "Removes old jobs from the database instead of running server")
 	pflag.Parse()
