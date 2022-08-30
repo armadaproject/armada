@@ -8,8 +8,9 @@ import (
 
 	"github.com/G-Research/armada/internal/eventingester/model"
 
-	"github.com/G-Research/armada/internal/eventingester/configuration"
 	"github.com/go-redis/redis"
+
+	"github.com/G-Research/armada/internal/eventingester/configuration"
 )
 
 func TestReportEvents(t *testing.T) {
