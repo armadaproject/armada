@@ -38,7 +38,6 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Retrieve token from context.
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
-	log.Infof("Auth header \"%s\", \"%s\"", authHeader[0], authHeader[1])
 	if len(authHeader) < 2 || authHeader[0] != "KubernetesAuth" {
 		return nil, missingCredentials
 	}
@@ -178,6 +177,7 @@ func parseAuth(auth string) (string, string, error) {
 	}
 
 	if err := json.Unmarshal(jsonData, &uMbody); err != nil {
+		log.Infof("Failed to unmarshall %v", err)
 		return "", "", err
 	}
 
