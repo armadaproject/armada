@@ -409,7 +409,11 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 			} else {
 				// Merge events in sequence into the last sequence for this jobSet if (queue, jobSetName, userId, groups) are equal.
 				lastSequence := jobSetSequences[len(jobSetSequences)-1]
-				if lastSequence != nil && sequence.Queue == lastSequence.Queue && sequence.UserId == lastSequence.UserId && groupsEqual(sequence.Groups, lastSequence.Groups) {
+				if lastSequence != nil &&
+					sequence.Queue == lastSequence.Queue &&
+					sequence.UserId == lastSequence.UserId &&
+					groupsEqual(sequence.Groups, lastSequence.Groups) {
+
 					lastSequence.Events = append(lastSequence.Events, sequence.Events...)
 				} else {
 					numSequences++

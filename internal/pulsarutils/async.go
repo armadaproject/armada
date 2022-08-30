@@ -34,7 +34,8 @@ var log = logrus.NewEntry(logrus.StandardLogger())
 
 // Receive returns a channel containing messages received from pulsar.  This channel will remain open until the
 // supplied context is closed.
-// consumerId: Internal Id of the consumer.  We use this so that when messages from different consumers are multiplexed, we know which messages originated form which consumers
+// consumerId: Internal Id of the consumer.  We use this so that when messages from different consumers are
+//   multiplexed, we know which messages originated form which consumers
 // bufferSize: sets the size of the buffer in the returned channel
 // receiveTimeout: sets how long the pulsar consumer will wait for a message before retrying
 // backoffTime: sets how long the consumer will wait before retrying if the pulsar consumer indicates an error receiving from pulsar.

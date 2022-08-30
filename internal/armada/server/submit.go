@@ -617,7 +617,9 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	} else if request.Queue != "" && request.JobSetId != "" {
 		ids, err := server.jobRepository.GetActiveJobIds(request.Queue, request.JobSetId)
 		if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error getting job IDs for queue %s and job set %s: %s", request.Queue, request.JobSetId, err)
+			return nil, status.Errorf(codes.Unavailable,
+				"[ReprioritizeJobs] error getting job IDs for queue %s and job set %s: %s",
+				request.Queue, request.JobSetId, err)
 		}
 
 		existingJobs, err := server.jobRepository.GetExistingJobsByIds(ids)
