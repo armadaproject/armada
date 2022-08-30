@@ -24,11 +24,12 @@ func (c *NativeTokenCredentials) GetRequestMetadata(context.Context, ...string) 
 		return nil, err
 	}
 
-	body := fmt.Sprintf(`{"token":"%s", "ca":"%s"}`, jwt, ca)
-	encoded := make([]byte, base64.RawURLEncoding.EncodedLen(len(body)))
-	base64.RawURLEncoding.Encode(encoded, []byte(body))
+	encodedCa := base64.RawURLEncoding.EncodeToString([]byte(ca))
+	body := fmt.Sprintf(`{"token":"%s", "ca":"%s"}`, jwt, encodedCa)
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(body))
+
 	return map[string]string{
-		"authorization": "KubernetesAuth " + string(encoded),
+		"authorization": "KubernetesAuth " + encoded,
 	}, nil
 }
 

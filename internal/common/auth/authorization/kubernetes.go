@@ -181,5 +181,10 @@ func parseAuth(auth string) (string, string, error) {
 		return "", "", err
 	}
 
-	return uMbody.token, uMbody.ca, nil
+	ca, err := base64.RawURLEncoding.DecodeString(uMbody.ca)
+	if err != nil {
+		return "", "", err
+	}
+
+	return uMbody.token, string(ca), nil
 }
