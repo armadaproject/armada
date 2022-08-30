@@ -341,35 +341,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			})
 		}
 
-		// Experimental scheduler based on Pulsar messages.
-		// Runs alongside the default scheduler- only handles jobs that explicitly handles this scheduler.
-		//
-		// // Processor
-		// consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		// 	Topic:            config.Pulsar.JobsetEventsTopic,
-		// 	SubscriptionName: "pulsar-scheduler-processor",
-		// 	Type:             pulsar.Exclusive,
-		// })
-		// if err != nil {
-		// 	return errors.WithStack(err)
-		// }
-		// defer consumer.Close()
-		// producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-		// 	Name:             "pulsar-scheduler-processor",
-		// 	CompressionType:  compressionType,
-		// 	CompressionLevel: compressionLevel,
-		// 	BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-		// 	Topic:            config.Pulsar.JobsetEventsTopic,
-		// })
-		// if err != nil {
-		// 	return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
-		// }
-		// defer producer.Close()
-		// schedulerProcessor := scheduler.NewSchedulerProcessor(consumer, producer)
-		// services = append(services, func() error {
-		// 	return schedulerProcessor.Run(ctx)
-		// })
-
 		// Scheduler jobs ingester.
 		schedulerIngester := &scheduler.Ingester{
 			PulsarClient: pulsarClient,
