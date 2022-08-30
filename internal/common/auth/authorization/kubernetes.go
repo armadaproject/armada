@@ -11,6 +11,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	"io"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"strings"
 
@@ -115,6 +116,9 @@ func reviewToken(clusterUrl string, token string, ca string) (string, error) {
 	reviewRequest.Header.Add("Authorization", "Bearer"+token)
 	reviewRequest.Header.Add("Content-Type", "application/json; charset=utf-8")
 
+	reqDump, _ := httputil.DumpRequest(reviewRequest, true)
+	log.Infof("Request to send to token review: %s", string(reqDump))
+	
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM([]byte(ca))
 
