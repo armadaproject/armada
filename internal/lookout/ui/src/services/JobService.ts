@@ -355,7 +355,6 @@ export default class JobService {
   }
 
   private queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
-    console.log(queueInfo)
     let oldestQueuedJob: Job | undefined
     let oldestQueuedDuration = "-"
     if (queueInfo.oldestQueuedJob) {
