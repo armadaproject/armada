@@ -7,6 +7,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -39,7 +40,7 @@ type JobRepository interface {
 
 type SQLJobRepository struct {
 	goquDb *goqu.Database
-	clock  Clock
+	clock  util.Clock
 }
 
 var (
@@ -140,6 +141,6 @@ var defaultQueryStates = []JobState{
 	JobCancelled,
 }
 
-func NewSQLJobRepository(db *goqu.Database, clock Clock) *SQLJobRepository {
+func NewSQLJobRepository(db *goqu.Database, clock util.Clock) *SQLJobRepository {
 	return &SQLJobRepository{goquDb: db, clock: clock}
 }
