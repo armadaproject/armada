@@ -48,7 +48,7 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	goquDb.Logger(&LogRusLogger{})
 
 	jobStore := repository.NewSQLJobStore(goquDb, config.UIConfig.UserAnnotationPrefix)
-	jobRepository := repository.NewSQLJobRepository(goquDb, &repository.DefaultClock{})
+	jobRepository := repository.NewSQLJobRepository(goquDb, &util.DefaultClock{})
 
 	healthChecks.Add(repository.NewSqlHealth(db))
 

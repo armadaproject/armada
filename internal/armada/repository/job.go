@@ -19,16 +19,15 @@ import (
 )
 
 const (
-	jobObjectPrefix         = "Job:"          // {jobId}            - job protobuf object
-	jobStartTimePrefix      = "Job:StartTime" // {jobId}            - map clusterId -> startTime
-	jobQueuePrefix          = "Job:Queue:"    // {queue}            - sorted set of jobIds by priority
-	jobLeasedPrefix         = "Job:Leased:"   // {queue}            - sorted set of jobIds by lease renewal time
-	jobSetPrefix            = "Job:Set:"      // {jobSetId}         - set of jobIds
-	jobClusterMapKey        = "Job:ClusterId" //                    - map jobId -> cluster
-	jobRetriesPrefix        = "Job:Retries:"  // {jobId}            - number of retry attempts
-	jobClientIdPrefix       = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
-	keySeparator            = ":"
-	queueResourcesBatchSize = 20000 // Number of jobs queried from Redis at a time in IterateQueueJobs.
+	jobObjectPrefix    = "Job:"          // {jobId}            - job protobuf object
+	jobStartTimePrefix = "Job:StartTime" // {jobId}            - map clusterId -> startTime
+	jobQueuePrefix     = "Job:Queue:"    // {queue}            - sorted set of jobIds by priority
+	jobLeasedPrefix    = "Job:Leased:"   // {queue}            - sorted set of jobIds by lease renewal time
+	jobSetPrefix       = "Job:Set:"      // {jobSetId}         - set of jobIds
+	jobClusterMapKey   = "Job:ClusterId" //                    - map jobId -> cluster
+	jobRetriesPrefix   = "Job:Retries:"  // {jobId}            - number of retry attempts
+	jobClientIdPrefix  = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
+	keySeparator       = ":"
 )
 
 type ErrJobNotFound struct {
@@ -62,7 +61,6 @@ type JobRepository interface {
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
 	FilterActiveQueues(queues []*api.Queue) ([]*api.Queue, error)
 	GetQueueSizes(queues []*api.Queue) (sizes []int64, e error)
-	IterateQueueJobs(queueName string, action func(*api.Job)) error
 	GetQueueJobIds(queueName string) ([]string, error)
 	RenewLease(clusterId string, jobIds []string) (renewed []string, e error)
 	ExpireLeases(queue string, deadline time.Time) (expired []*api.Job, e error)
@@ -460,35 +458,6 @@ func (repo *RedisJobRepository) GetQueueSizes(queues []*api.Queue) (sizes []int6
 		sizes = append(sizes, cmd.Val())
 	}
 	return sizes, nil
-}
-
-// IterateQueueJobs calls action for each job in queue with name queueName.
-//
-// TODO action should return an error, which could be propagated back to the caller of this method.
-func (repo *RedisJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
-	queuedIds, err := repo.GetQueueJobIds(queueName)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	for len(queuedIds) > 0 {
-		take := queueResourcesBatchSize
-		if len(queuedIds) < queueResourcesBatchSize {
-			take = len(queuedIds)
-		}
-
-		queuedJobs, err := repo.GetExistingJobsByIds(queuedIds[0:take])
-		queuedIds = queuedIds[take:]
-		if err != nil {
-			return err
-		}
-
-		for _, job := range queuedJobs {
-			action(job)
-		}
-	}
-
-	return nil
 }
 
 func (repo *RedisJobRepository) GetLeasedJobIds(queue string) ([]string, error) {

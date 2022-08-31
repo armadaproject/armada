@@ -382,7 +382,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
+	queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
 		permissions,
 		config.Scheduling,
