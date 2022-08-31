@@ -54,6 +54,8 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		return nil, missingCredentials
 	}
 
+	log.Info("Auth parsed")
+
 	// Get token time
 	expirationTime, err := parseTime(token)
 	if err != nil {
@@ -201,7 +203,7 @@ func parseTime(token string) (*time.Time, error) {
 	}
 
 	if err := json.Unmarshal([]byte(splitToken[1]), &uMbody); err != nil {
-		log.Infof("Failed to unmarshall %v", err)
+		log.Infof("Failed to unmarshall to get time information: %v", err)
 		return nil, err
 	}
 
