@@ -126,7 +126,7 @@ def quick_create_queue(client, queue):
 def workflow():
     """
     Starts a workflow, which includes:
-        - Creating a queue a job
+        - Creating a queue and job
         - Cancelling a job with its job-id and jobset-id
         - Cancelling a job-set with a filter
     """
