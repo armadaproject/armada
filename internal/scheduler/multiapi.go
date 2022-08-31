@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"io"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
@@ -24,6 +25,8 @@ type MultiQueueServer struct {
 func WithChildStreams(ctx context.Context, parent api.AggregatedQueue_StreamingLeaseJobsServer, numChildStreams int, action func(context.Context, []*LeaseJobsChildStream) error) error {
 	// ctx is cancelled on error receiving from the parent stream,
 	// or if action returns an error.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 
 	// Setup child streams.
@@ -31,35 +34,37 @@ func WithChildStreams(ctx context.Context, parent api.AggregatedQueue_StreamingL
 	// Outgoing messages are sent on the parent stream.
 	childStreams := make([]*LeaseJobsChildStream, numChildStreams)
 	for i := 0; i < numChildStreams; i++ {
-		C := make(chan *api.StreamingLeaseRequest)
-		defer close(C)
 		childStreams[i] = &LeaseJobsChildStream{
 			AggregatedQueue_StreamingLeaseJobsServer: parent,
 			ctx:                                      ctx,
-			C:                                        C,
+			C:                                        make(chan *api.StreamingLeaseRequest),
 		}
 	}
 
 	// Forward incoming messages to all children
-	// until Recv() returns an error.
+	// until Recv() returns an error or ctx is cancelled.
 	g.Go(func() error {
+		for _, childStream := range childStreams {
+			C := childStream.C
+			defer close(C)
+		}
 		for {
 			m, err := parent.Recv()
 			if err != nil {
 				return err
 			}
 			for _, child := range childStreams {
-				child.C <- m
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case child.C <- m:
+				}
 			}
 		}
 	})
 
 	// Run the provided action.
-	g.Go(func() error {
-		return action(ctx, childStreams)
-	})
-
-	return g.Wait()
+	return action(ctx, childStreams)
 }
 
 type LeaseJobsChildStream struct {
@@ -74,11 +79,20 @@ type LeaseJobsChildStream struct {
 
 func (s *LeaseJobsChildStream) Recv() (*api.StreamingLeaseRequest, error) {
 	select {
+	// Must check C before Done() to ensure that messages in the channel
+	// are received even after the parent stream has been closed.
+	case msg, ok := <-s.C:
+		if !ok {
+			return nil, io.EOF
+		}
+		return msg, nil
 	case <-s.ctx.Done():
 		return nil, s.ctx.Err()
-	case msg := <-s.C:
-		return msg, nil
 	}
+}
+
+func (s *LeaseJobsChildStream) Context() context.Context {
+	return s.ctx
 }
 
 func (s *LeaseJobsChildStream) RecvMsg(m interface{}) error {
