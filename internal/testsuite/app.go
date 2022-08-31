@@ -66,11 +66,6 @@ func New() *App {
 	}
 }
 
-// validateParams validates a.Params. Currently, it doesn't check anything.
-func (a *App) validateParams() error {
-	return nil
-}
-
 // Version prints build information (e.g., current git commit) to the app output.
 func (a *App) Version() error {
 	w := tabwriter.NewWriter(a.Out, 1, 1, 1, ' ', 0)

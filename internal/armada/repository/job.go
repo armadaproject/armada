@@ -611,11 +611,6 @@ func (repo *RedisJobRepository) updateJobs(ids []string, mutator func([]*api.Job
 	return result
 }
 
-// updateJobBatch calls updateJobBatchWithRetry with the number of retries set to 1.
-func (repo *RedisJobRepository) updateJobBatch(ids []string, mutator func([]*api.Job)) ([]UpdateJobResult, error) {
-	return repo.updateJobBatchWithRetry(ids, mutator, 1, time.Millisecond)
-}
-
 // updateJobBatch reads jobs from Redis, applies mutator separately for each job, and writes the
 // updated jobs back to Redis. This process is performed in an optimistic lock, such that the
 // updated jobs are written back to Redis only if none of the jobs were changed in Redis between
