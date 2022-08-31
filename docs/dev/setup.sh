@@ -10,18 +10,14 @@ if [ $? -eq 0 ] ; then
   COMPOSE_CMD='docker compose'
 fi
 
-if [ $OSTYPE == "Linux" ]; then
-  CMD="$COMPOSE_CMD --profile linux -f $COMPOSE_FILE"
-else
-  CMD="$COMPOSE_CMD -f $COMPOSE_FILE"
-fi
+CMD="$COMPOSE_CMD -f $COMPOSE_FILE"
 
 # First argument is service-name (e.g. 'postgres'), second argument is 'up' or 'down'
 run_service() {
   if [ $2 == "up" ]; then
-    $CMD up -d $1
+    $COMPOSE_CMD -f $COMPOSE_FILE up -d $1
   else
-    $CMD stop $1
+    $COMPOSE_CMD -f $COMPOSE_FILE stop $1
   fi
 }
 
