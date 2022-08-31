@@ -147,7 +147,10 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 
 // GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
 // and then consumes events until ctx is cancelled.
-func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiConnectionDetails) func(context.Context, chan *api.EventMessage, map[string]bool) error {
+func GetCancelAllJobs(
+	testSpec *api.TestSpec,
+	apiConnectionDetails *client.ApiConnectionDetails,
+) func(context.Context, chan *api.EventMessage, map[string]bool) error {
 	return func(ctx context.Context, ch chan *api.EventMessage, jobIds map[string]bool) error {
 		return client.WithSubmitClient(apiConnectionDetails, func(sc api.SubmitClient) error {
 			for jobId := range jobIds {

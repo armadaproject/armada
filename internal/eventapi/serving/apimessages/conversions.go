@@ -143,7 +143,13 @@ func FromInternalCancelled(userId string, queueName string, jobSetName string, t
 	}, nil
 }
 
-func FromInternalReprioritiseJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritiseJob) ([]*api.EventMessage, error) {
+func FromInternalReprioritiseJob(
+	userId string,
+	queueName string,
+	jobSetName string,
+	time time.Time,
+	e *armadaevents.ReprioritiseJob,
+) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		return nil, err
@@ -164,7 +170,13 @@ func FromInternalReprioritiseJob(userId string, queueName string, jobSetName str
 	}, nil
 }
 
-func FromInternalReprioritisedJob(userId string, queueName string, jobSetName string, time time.Time, e *armadaevents.ReprioritisedJob) ([]*api.EventMessage, error) {
+func FromInternalReprioritisedJob(
+	userId string,
+	queueName string,
+	jobSetName string,
+	time time.Time,
+	e *armadaevents.ReprioritisedJob,
+) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		return nil, err

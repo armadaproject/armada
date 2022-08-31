@@ -102,7 +102,11 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 	return complete, stop, aggregatedCurrentState
 }
 
-func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string, submissionComplete *sync.WaitGroup) {
+func (apiLoadTester ArmadaLoadTester) runSubmission(
+	ctx context.Context,
+	submission *domain.SubmissionDescription,
+	i int,
+) (jobIds chan string, jobSetId string, submissionComplete *sync.WaitGroup) {
 	queue := createQueueName(submission, i)
 	startTime := time.Now()
 
@@ -181,7 +185,10 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submiss
 	return jobIds, jobSetId, submissionComplete
 }
 
-func filterReadyJobs(startTime time.Time, jobs []*domain.JobSubmissionDescription) (ready []*domain.JobSubmissionDescription, notReady []*domain.JobSubmissionDescription) {
+func filterReadyJobs(
+	startTime time.Time,
+	jobs []*domain.JobSubmissionDescription,
+) (ready []*domain.JobSubmissionDescription, notReady []*domain.JobSubmissionDescription) {
 	now := time.Now()
 	ready = []*domain.JobSubmissionDescription{}
 	notReady = []*domain.JobSubmissionDescription{}
@@ -211,7 +218,12 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	return queue
 }
 
-func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Context, queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) []string {
+func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
+	ctx context.Context,
+	queue, jobSetId string,
+	jobIds chan string,
+	eventChannel chan api.Event,
+) []string {
 	var submittedIds []string = nil
 	go func() {
 		ids := []string{}

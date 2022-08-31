@@ -42,7 +42,16 @@ type eventDbRO interface {
 }
 
 // NewSubscriptionManager returns a DefaultSubscriptionManager that can fetch events from postgres and manage subscription requests for new data
-func NewSubscriptionManager(sequenceManager SequenceManager, db eventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *DefaultSubscriptionManager {
+func NewSubscriptionManager(
+	sequenceManager SequenceManager,
+	db eventDbRO,
+	maxBatchSize int,
+	maxTimeout time.Duration,
+	pollPeriod time.Duration,
+	queryConcurrency int,
+	maxFetchSize int,
+	clock clock.Clock,
+) *DefaultSubscriptionManager {
 	sm := DefaultSubscriptionManager{
 		offsets:           sequenceManager,
 		pollPeriod:        pollPeriod,

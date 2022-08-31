@@ -42,7 +42,11 @@ func (ls *MockLeaseService) ReturnLease(pod *v1.Pod, reason string) error {
 	return nil
 }
 
-func (ls *MockLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
+func (ls *MockLeaseService) RequestJobLeases(
+	availableResource *common.ComputeResources,
+	nodes []api.NodeInfo,
+	leasedResourceByQueue map[string]common.ComputeResources,
+) ([]*api.Job, error) {
 	ls.RequestJobLeasesCalls++
 	return make([]*api.Job, 0), nil
 }

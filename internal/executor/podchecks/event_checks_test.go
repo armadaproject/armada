@@ -98,10 +98,21 @@ func Test_getAction_WhenTwoRules_AndFirstRuleRegexDoesNotMatch_AppliesSecondRule
 }
 
 func Test_getAction_WhenOneEvent_NegativeRegex_Works(t *testing.T) {
-	ec, err := newEventChecks([]config.EventCheck{{Action: config.ActionRetry, Regexp: "nodes are available", Type: "Warning", Inverse: true, GracePeriod: time.Minute}})
+	ec, err := newEventChecks(
+		[]config.EventCheck{{Action: config.ActionRetry, Regexp: "nodes are available", Type: "Warning", Inverse: true, GracePeriod: time.Minute}},
+	)
 	assert.Nil(t, err)
 
-	action, message := ec.getAction("my-pod", []*v1.Event{{Message: "0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 Insufficient cpu.", Type: "Warning"}}, time.Minute*2)
+	action, message := ec.getAction(
+		"my-pod",
+		[]*v1.Event{
+			{
+				Message: "0/3 nodes are available: 1 node(s) had taint {node-role.kubernetes.io/master: }, that the pod didn't tolerate, 2 Insufficient cpu.",
+				Type:    "Warning",
+			},
+		},
+		time.Minute*2,
+	)
 	assert.Equal(t, ActionWait, action)
 	assert.Empty(t, message)
 

@@ -26,7 +26,12 @@ type DefaultSequenceManager struct {
 
 // NewUpdatingSequenceManager returns a SequenceManager that is initialised from the eventDb and then receives
 // updates from pulsar
-func NewUpdatingSequenceManager(ctx context.Context, eventDb *eventdb.EventDb, pulsarClient pulsar.Client, updateTopic string) (*DefaultSequenceManager, error) {
+func NewUpdatingSequenceManager(
+	ctx context.Context,
+	eventDb *eventdb.EventDb,
+	pulsarClient pulsar.Client,
+	updateTopic string,
+) (*DefaultSequenceManager, error) {
 	// Snapshot the time before we fetch from the db.  This allows us to later subscribe to pulsar messages from before
 	// our db fetch time
 	startTime := time.Now()

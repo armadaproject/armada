@@ -53,7 +53,13 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"memory": 0.2, "cpu": 0.3}}
+		originalQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 1.1,
+			UserOwners:     []string{"user-a", "user-b"},
+			GroupOwners:    []string{"group-a", "group-b"},
+			ResourceLimits: map[string]float64{"memory": 0.2, "cpu": 0.3},
+		}
 
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
@@ -74,12 +80,27 @@ func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T)
 func TestSubmitServer_CreateQueue_WhenQueueAlreadyExists_QueueIsNotChanged_AndReturnsAlreadyExists(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3}}
+		originalQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 1.1,
+			UserOwners:     []string{"user-a", "user-b"},
+			GroupOwners:    []string{"group-a", "group-b"},
+			ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3},
+		}
 
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"cpu": 0.4}})
+		_, err = s.CreateQueue(
+			context.Background(),
+			&api.Queue{
+				Name:           queueName,
+				PriorityFactor: 2,
+				UserOwners:     []string{"user-c"},
+				GroupOwners:    []string{"group-c"},
+				ResourceLimits: map[string]float64{"cpu": 0.4},
+			},
+		)
 		assert.Equal(t, codes.AlreadyExists, status.Code(err))
 
 		roundTrippedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
@@ -111,11 +132,23 @@ func TestSubmitServer_UpdateQueue_WhenQueueExists_ReplacesQueue(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
 
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3}}
+		originalQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 1.1,
+			UserOwners:     []string{"user-a", "user-b"},
+			GroupOwners:    []string{"group-a", "group-b"},
+			ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3},
+		}
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		updatedQueue := &api.Queue{Name: queueName, PriorityFactor: 2.2, UserOwners: []string{"user-a", "user-c"}, GroupOwners: []string{"group-c", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.3, "memory": 0.3}}
+		updatedQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 2.2,
+			UserOwners:     []string{"user-a", "user-c"},
+			GroupOwners:    []string{"group-c", "group-b"},
+			ResourceLimits: map[string]float64{"cpu": 0.3, "memory": 0.3},
+		}
 		_, err = s.UpdateQueue(context.Background(), updatedQueue)
 		assert.NoError(t, err)
 
