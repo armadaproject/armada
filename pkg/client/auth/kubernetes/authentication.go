@@ -28,6 +28,9 @@ func AuthenticateKubernetesNative(config NativeAuthDetails) (*NativeTokenCredent
 				return nil, err
 			}
 			clientSet, err := kubernetes.NewForConfig(kubeConfig)
+			if err != nil {
+				return nil, err
+			}
 			tr := authv1.TokenRequest{
 				Spec: authv1.TokenRequestSpec{
 					ExpirationSeconds: &config.Expiry,
