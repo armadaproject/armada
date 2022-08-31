@@ -13,7 +13,7 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// MessageRowConverter raw converts pulsar messages into events that we can store in Redis
+// MessageRowConverter converts raw pulsar messages into events that we can store in Redis
 type MessageRowConverter struct {
 	Compressor          compress.Compressor
 	MaxMessageBatchSize int
