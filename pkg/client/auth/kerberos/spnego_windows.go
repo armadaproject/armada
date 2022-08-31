@@ -20,7 +20,6 @@ func NewSPNEGOCredentials(serverUrl string, config ClientConfig) (credentials.Pe
 }
 
 func (s *spnego) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-
 	// TODO: keep clientContext for multiple requests
 
 	cred, err := negotiate.AcquireCurrentUserCredentials()

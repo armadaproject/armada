@@ -338,5 +338,9 @@ func podWithRequiredNodeAffinity(reqs []v1.NodeSelectorRequirement) *v1.PodSpec 
 	requiredTerms := []v1.NodeSelectorTerm{
 		{MatchExpressions: reqs},
 	}
-	return &v1.PodSpec{Affinity: &v1.Affinity{NodeAffinity: &v1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: requiredTerms}}}}
+	return &v1.PodSpec{
+		Affinity: &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: requiredTerms}},
+		},
+	}
 }

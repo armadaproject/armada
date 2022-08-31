@@ -81,7 +81,13 @@ func TestIsWithinSoftHealthLimit(t *testing.T) {
 
 func TestIsWithinSoftHealthLimit_WithMinAvailable(t *testing.T) {
 	// Current usage is 10%, under 30% limit
-	healthChecker := makeEtcHealthMonitorWithInstances(0.3, 0.5, makeValidEtcdInstanceMonitor(10, 100), makeInvalidEtcdInstanceMonitor(), makeInvalidEtcdInstanceMonitor())
+	healthChecker := makeEtcHealthMonitorWithInstances(
+		0.3,
+		0.5,
+		makeValidEtcdInstanceMonitor(10, 100),
+		makeInvalidEtcdInstanceMonitor(),
+		makeInvalidEtcdInstanceMonitor(),
+	)
 
 	healthChecker.etcdConfiguration.MinimumAvailable = 0
 	assert.True(t, healthChecker.IsWithinSoftHealthLimit())
