@@ -480,14 +480,16 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
+
+	// If the new Pulsar-driven scheduler is provided, run that.
+	// Otherwise run the legacy scheduler.
+	// TODO: Run both on different ports.
 	if pulsarExecutorApiServer != nil {
-		pulsarExecutorApiServer.EventServer = eventServer // Embed the Redis-backed event server.
 		api.RegisterAggregatedQueueServer(grpcServer, pulsarExecutorApiServer)
-		api.RegisterEventServer(grpcServer, pulsarExecutorApiServer)
 	} else {
 		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
-		api.RegisterEventServer(grpcServer, eventServer)
 	}
+	api.RegisterEventServer(grpcServer, eventServer)
 
 	grpc_prometheus.Register(grpcServer)
 
