@@ -34,7 +34,6 @@ type JobEventReporter struct {
 	eventQueuedMutex sync.Mutex
 
 	clusterContext clusterContext.ClusterContext
-	stop           chan bool
 }
 
 func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClient api.EventClient) (*JobEventReporter, chan bool) {
