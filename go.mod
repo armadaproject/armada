@@ -83,6 +83,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+require github.com/patrickmn/go-cache v2.1.0+incompatible
+
 require (
 	github.com/99designs/keyring v1.1.6 // indirect
 	github.com/AthenZ/athenz v1.10.39 // indirect

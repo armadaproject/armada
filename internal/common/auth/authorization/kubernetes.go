@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+	"github.com/patrickmn/go-cache"
 	log "github.com/sirupsen/logrus"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,12 +23,20 @@ import (
 // TODO: Should include a cache
 type KubernetesNativeAuthService struct {
 	KidMappingFileLocation string
+	TokenCache             *cache.Cache
 }
 
 func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) KubernetesNativeAuthService {
+	cache := cache.New(5*time.Minute, 5*time.Minute)
 	return KubernetesNativeAuthService{
 		KidMappingFileLocation: config.KidMappingFileLocation,
+		TokenCache:             cache,
 	}
+}
+
+type CacheData struct {
+	Name  string `json:"name"`
+	Valid bool   `json:"valid"`
 }
 
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
@@ -43,7 +53,24 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	if err != nil {
 		return nil, missingCredentials
 	}
+
+	// Get token time
+	expirationTime, err := parseTime(token)
+	if err != nil {
+		return nil, err
+	}
+
+	if time.Now().After(*expirationTime) {
+		return nil, fmt.Errorf("invalid token, expired")
+	}
+
 	// Check Cache
+	data, found := authService.TokenCache.Get(token)
+	if found {
+		if cacheInfo, ok := data.(CacheData); ok && cacheInfo.Valid {
+			return NewStaticPrincipal(cacheInfo.Name, []string{}), nil
+		}
+	}
 
 	log.Info("Auth parsed")
 	log.Infof("Token: %s", token)
@@ -61,6 +88,14 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		return nil, err
 	}
 
+	// Add to cache
+	authService.TokenCache.Set(
+		token,
+		CacheData{
+			Name:  name,
+			Valid: true,
+		},
+		expirationTime.Sub(time.Now()))
 	log.Info("Making principle")
 	// Return very basic principal
 	return NewStaticPrincipal(name, []string{}), nil
@@ -153,4 +188,23 @@ func parseAuth(auth string) (string, string, error) {
 	}
 
 	return uMbody.Token, string(ca), nil
+}
+
+func parseTime(token string) (*time.Time, error) {
+	splitToken := strings.Split(token, ".")
+	if len(splitToken) != 3 {
+		return nil, fmt.Errorf("provided JWT token was not of the correct form, should have 3 parts")
+	}
+
+	var uMbody struct {
+		Expiry int64 `json:"exp"`
+	}
+
+	if err := json.Unmarshal([]byte(splitToken[1]), &uMbody); err != nil {
+		log.Infof("Failed to unmarshall %v", err)
+		return nil, err
+	}
+
+	time := time.Unix(uMbody.Expiry, 0)
+	return &time, nil
 }
