@@ -17,7 +17,6 @@ auth:
     execute_jobs: ["everyone"]
 pulsar:
   enabled: false
-  URL: "pulsar://pulsar:6650"
 redis:
   addrs:
     - "redis:6379"
