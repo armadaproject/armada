@@ -9,7 +9,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/model"
 
 	log "github.com/sirupsen/logrus"
@@ -29,9 +28,7 @@ type internalSubscription struct {
 
 type DefaultSubscriptionManager struct {
 	offsets           SequenceManager
-	db                *eventdb.EventDb
 	pollPeriod        time.Duration
-	maxFetchSize      int
 	batchedChannel    chan *model.EventRequest // A channel where queries are batched together which increases overall throughput at the cost of latency
 	catchupChannel    chan *model.EventRequest // A channel for queries to be made in a low latency manner at the cost of overall throughput
 	subscriptionIndex int64
