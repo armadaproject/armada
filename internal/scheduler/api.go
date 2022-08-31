@@ -76,7 +76,7 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	}
 	if len(sqlJobs) != len(runs) {
 		err := errors.Errorf("expected %d jobs, but only got %d", len(runs), len(sqlJobs))
-		logging.WithStacktrace(log, err).Error("jobs missing from postgres")
+		logging.WithStacktrace(log, err).Warn("jobs missing from postgres")
 	}
 
 	// Unmarshal the submit job messages.
