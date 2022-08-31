@@ -198,11 +198,16 @@ func parseTime(token string) (*time.Time, error) {
 		return nil, fmt.Errorf("provided JWT token was not of the correct form, should have 3 parts")
 	}
 
+	decoded, err := base64.RawURLEncoding.DecodeString(splitToken[1])
+	if err != nil {
+		return nil, err
+	}
+
 	var uMbody struct {
 		Expiry int64 `json:"exp"`
 	}
 
-	if err := json.Unmarshal([]byte(splitToken[1]), &uMbody); err != nil {
+	if err := json.Unmarshal(decoded, &uMbody); err != nil {
 		log.Infof("Failed to unmarshall to get time information: %v", err)
 		return nil, err
 	}
