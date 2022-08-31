@@ -18,10 +18,6 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
-const (
-	tokenReviewEndpoint = "/apis/authentication.k8s.io/v1/tokenreviews"
-)
-
 // TODO: Should include a cache
 type KubernetesNativeAuthService struct {
 	KidMappingFileLocation string
@@ -132,28 +128,6 @@ func reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte
 	}
 
 	return result.Status.User.Username, nil
-}
-
-func parseReviewResponse(body []byte) (*reviewStatus, error) {
-	var uMbody reviewBody
-	if err := json.Unmarshal(body, &uMbody); err != nil {
-		return nil, err
-	}
-
-	return &uMbody.Status, nil
-}
-
-type reviewUser struct {
-	Username string `json:"username"`
-}
-
-type reviewStatus struct {
-	Authenticated bool       `json:"authenticated"`
-	User          reviewUser `json:"user"`
-}
-
-type reviewBody struct {
-	Status reviewStatus `json:"status"`
 }
 
 func parseAuth(auth string) (string, string, error) {
