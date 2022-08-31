@@ -295,7 +295,7 @@ func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPo
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	repo := repository.NewRedisEventRepository(client, eventRetention)
+	repo := repository.NewLegacyRedisEventRepository(client, eventRetention)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	server := NewEventServer(&FakePermissionChecker{}, repo, repo, queueRepo)
 

@@ -30,6 +30,8 @@ type ArmadaConfig struct {
 	EventsNats          NatsConfig
 	EventsJetstream     JetstreamConfig
 	EventsRedis         redis.UniversalOptions
+	EventsApiRedis      redis.UniversalOptions
+	DefaultEventsStore  string // Options here are "legacy" or "new"
 
 	Scheduling        SchedulingConfig
 	QueueManagement   QueueManagementConfig

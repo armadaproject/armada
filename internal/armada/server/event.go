@@ -17,10 +17,11 @@ import (
 )
 
 type EventServer struct {
-	permissions     authorization.PermissionChecker
-	eventRepository repository.EventRepository
-	queueRepository repository.QueueRepository
-	eventStore      repository.EventStore
+	permissions           authorization.PermissionChecker
+	eventRepository       repository.EventRepository
+	legacyEventRepository repository.EventRepository
+	queueRepository       repository.QueueRepository
+	eventStore            repository.EventStore
 }
 
 func NewEventServer(
@@ -66,6 +67,8 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
+	// Determine which repository to use.
+
 	return s.serveEventsFromRepository(request, stream)
 }
 
@@ -76,7 +79,8 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 		FromMessageId:  req.FromId,
 		Queue:          req.Queue,
 		ErrorIfMissing: true,
-		ForceRedis:     req.ForceRedis,
+		ForceLegacy:    req.ForceLegacy,
+		ForceNew:       req.ForceNew,
 	}
 	return s.GetJobSetEvents(request, stream)
 }
