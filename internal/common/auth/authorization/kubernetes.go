@@ -1,21 +1,19 @@
 package authorization
 
 import (
-	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
-	"io"
-	"net/http"
-	"net/http/httputil"
 	"os"
 	"strings"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	log "github.com/sirupsen/logrus"
+	authv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
@@ -62,7 +60,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 
 	log.Info("Token reviewing")
 	// Make request to token review endpoint
-	name, err := reviewToken(url, token, ca)
+	name, err := reviewToken(ctx, url, token, []byte(ca))
 	if err != nil {
 		return nil, err
 	}
@@ -104,53 +102,36 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 	return string(url), nil
 }
 
-func reviewToken(clusterUrl string, token string, ca string) (string, error) {
-	url := clusterUrl + tokenReviewEndpoint
-	data := fmt.Sprintf(`{"kind": "TokenReview","apiVersion": "authentication.k8s.io/v1","spec": {"token": "%s"}}`, token)
-
-	log.Infof("Calling %s for token review with data %s", url, data)
-	reviewRequest, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(data)))
+func reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
+	config := &rest.Config{
+		Host:            clusterUrl,
+		BearerToken:     token,
+		TLSClientConfig: rest.TLSClientConfig{CAData: ca},
+	}
+	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return "", err
 	}
-	reviewRequest.Header.Add("Authorization", "Bearer "+token)
-	reviewRequest.Header.Add("Content-Type", "application/json; charset=utf-8")
 
-	reqDump, _ := httputil.DumpRequest(reviewRequest, true)
-	log.Infof("Request to send to token review: %s", string(reqDump))
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM([]byte(ca))
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			RootCAs: caCertPool,
+	tr := authv1.TokenReview{
+		Spec: authv1.TokenReviewSpec{
+			Token: token,
 		},
 	}
 
-	client := &http.Client{Transport: tr}
-
-	resp, err := client.Do(reviewRequest)
+	result, err := clientSet.AuthenticationV1().TokenReviews().Create(ctx, &tr, metav1.CreateOptions{})
 	if err != nil {
 		return "", err
 	}
 
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
-
-	status, err := parseReviewResponse(body)
-	if err != nil {
-		return "", err
-	}
-	if !status.Authenticated {
+	if !result.Status.Authenticated {
 		return "", fmt.Errorf("provided token was rejected by TokenReview")
 	}
 
-	return status.User.Username, nil
+	return result.Status.User.Username, nil
 }
 
 func parseReviewResponse(body []byte) (*reviewStatus, error) {
