@@ -10,7 +10,7 @@ linters:
   enable:
     - lll
     - gofumpt
-    - deadcode
+    - unused
     - goimports
     - ineffassign
     - misspell
