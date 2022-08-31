@@ -17,7 +17,6 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/reporter"
 	util2 "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -27,7 +26,6 @@ type Submitter interface {
 }
 
 type SubmitService struct {
-	eventReporter            reporter.EventReporter
 	clusterContext           context.ClusterContext
 	podDefaults              *configuration.PodDefaults
 	submissionThreadCount    int
