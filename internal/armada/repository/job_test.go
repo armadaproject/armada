@@ -844,7 +844,15 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	}, []v1.Toleration{})
 }
 
-func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements, tolerations []v1.Toleration) *api.Job {
+func addTestJobInner(
+	t *testing.T,
+	r *RedisJobRepository,
+	queue string,
+	clientId string,
+	priority float64,
+	requirements v1.ResourceRequirements,
+	tolerations []v1.Toleration,
+) *api.Job {
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
 		Id:       util.NewULID(),

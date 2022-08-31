@@ -219,7 +219,9 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	for _, nodeGroup := range nodeGroupAllocationInfos {
 		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType.Id)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType, nodeGroup.NodeType.Id)
+			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
+				prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType,
+				nodeGroup.NodeType.Id)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {

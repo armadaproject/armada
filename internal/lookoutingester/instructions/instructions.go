@@ -28,7 +28,13 @@ import (
 
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, userAnnotationPrefix string, compressor compress.Compressor) chan *model.InstructionSet {
+func Convert(
+	ctx context.Context,
+	msgs chan *pulsarutils.ConsumerMessage,
+	bufferSize int,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
@@ -118,7 +124,17 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnot
 	return updateInstructions
 }
 
-func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, userAnnotationPrefix string, compressor compress.Compressor, update *model.InstructionSet) error {
+func handleSubmitJob(
+	logger *logrus.Entry,
+	queue string,
+	owner string,
+	jobSet string,
+	ts time.Time,
+	event *armadaevents.SubmitJob,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+	update *model.InstructionSet,
+) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
