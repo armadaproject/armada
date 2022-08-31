@@ -74,56 +74,6 @@ type Ingester struct {
 	Logger *logrus.Entry
 }
 
-// Batch of changes to be written to postgres.
-type Batch struct {
-	// Time at which this batch was created.
-	CreatedAt time.Time
-	// Ids of messages processed to create this batch.
-	// Note that a batch may contain several message ids but not changes to be written to postgres.
-	// Since only a subset of messages result in changes to postgres.
-	MessageIds []pulsar.MessageID
-	// New jobs to be inserted.
-	// Should always be inserted first.
-	Jobs []Job
-	// New job runs to be inserted.
-	// Should be inserted after jobs.
-	Runs []Run
-	// Reprioritisations.
-	// When writing to postgres, the priority that was last written to Pulsar for each job wins out.
-	// For ReprioritiseJobSet, the priority
-	Reprioritisations []*ReprioritisationBatch
-	// Set of job sets to be canceled.
-	// The map is used as a set, i.e., the value of the bool doesn't matter.
-	JobSetsCancelled map[string]bool
-	// Set of jobs to be canceled.
-	// The map is used as a set, i.e., the value of the bool doesn't matter.
-	JobsCancelled map[uuid.UUID]bool
-	// Set of jobs that have succeeded.
-	JobsSucceeded map[uuid.UUID]bool
-	// Any job error messages received.
-	JobErrors []JobError
-	// Map from run id to a struct describing the set of physical resources assigned to that run.
-	JobRunAssignments map[uuid.UUID]*JobRunAssignment
-	// Ids of job runs that have started running.
-	JobRunsRunning map[uuid.UUID]bool
-	// Ids of job runs that have succeeded.
-	JobRunsSucceeded map[uuid.UUID]bool
-	// Any job run error messages received.
-	JobRunErrors []JobRunError
-}
-
-func NewBatch() *Batch {
-	return &Batch{
-		CreatedAt:         time.Now(),
-		JobSetsCancelled:  make(map[string]bool),
-		JobsCancelled:     make(map[uuid.UUID]bool),
-		JobsSucceeded:     make(map[uuid.UUID]bool),
-		JobRunAssignments: make(map[uuid.UUID]*JobRunAssignment),
-		JobRunsRunning:    make(map[uuid.UUID]bool),
-		JobRunsSucceeded:  make(map[uuid.UUID]bool),
-	}
-}
-
 // Batch of reprioritisations.
 // PrioritiesByJobSet should always be applied before PrioritiesByJob.
 // ReprioritisationBatch
@@ -184,9 +134,28 @@ func (srv *Ingester) Run(ctx context.Context) error {
 		g, ctx := errgroup.WithContext(ctx)
 		ctx = ctxlogrus.ToContext(ctx, log)
 
-		// Receive Pulsar messages asynchronously.
+		// Receive Pulsar messages.
 		pulsarToChannel := pulsarutils.NewPulsarToChannel(srv.consumer)
 		g.Go(func() error { return pulsarToChannel.Run(ctx) })
+
+		// Unmarshal into event sequences.
+		sequenceFromMessage := eventutil.NewSequenceFromMessage(pulsarToChannel.C)
+		g.Go(func() error { return sequenceFromMessage.Run(ctx) })
+
+		// Drop submit job messages not intended for this scheduler.
+		submitJobFilter := eventutil.NewEventFilter(sequenceFromMessage.Out, func(event *armadaevents.EventSequence_Event) bool {
+			// Discard if a SubmitJob event that doesn't target this scheduler.
+			if e := event.GetSubmitJob(); e != nil && e.Scheduler != "pulsar" {
+				return false
+			}
+			return true
+		})
+		g.Go(func() error { return submitJobFilter.Run(ctx) })
+
+		// Compact sequences to produce fewer sequences with more events,
+		// where doing so does not change inter-job set ordering.
+		sequenceCompacter := eventutil.NewSequenceCompacter(submitJobFilter.Out)
+		g.Go(func() error { return sequenceCompacter.Run(ctx) })
 
 		// Batch messages for writing into postgres.
 		// Batches are forwarded on batchChannel.

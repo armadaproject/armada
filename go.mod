@@ -26,7 +26,7 @@ require (
 	github.com/go-swagger/go-swagger v0.29.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-cmp v0.5.7
+	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.3.0
 	github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
@@ -66,10 +66,10 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/weaveworks/promrus v1.2.0
 	github.com/wlbr/templify v0.0.0-20210816202250-7b8044ca19e9
-	golang.org/x/net v0.0.0-20220225172249-27dd8689420f
+	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/tools v0.1.8
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/tools v0.1.12
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -85,7 +85,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/severinson/pulsar-client-go v0.0.0-20220816161355-5a376e4f1454
+require (
+	github.com/severinson/pulsar-client-go v0.0.0-20220816161355-5a376e4f1454
+	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
+)
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
@@ -204,12 +207,11 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
-	golang.org/x/mod v0.5.1 // indirect
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

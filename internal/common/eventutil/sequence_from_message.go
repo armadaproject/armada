@@ -149,3 +149,45 @@ func (srv *SequenceCompacter) compactAndSend(ctx context.Context) error {
 
 	return nil
 }
+
+// EventFilter calls filter once for each event,
+// and events for which filter returns false are discarded.
+type EventFilter struct {
+	In  chan *EventSequenceWithMessageIds
+	Out chan *EventSequenceWithMessageIds
+	// Filter function. Discard on returning false.
+	filter func(*armadaevents.EventSequence_Event) bool
+}
+
+func NewEventFilter(in chan *EventSequenceWithMessageIds, filter func(*armadaevents.EventSequence_Event) bool) *EventFilter {
+	return &EventFilter{
+		In:     in,
+		Out:    make(chan *EventSequenceWithMessageIds),
+		filter: filter,
+	}
+}
+
+func (srv *EventFilter) Run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case sequenceWithIds := <-srv.In:
+			if sequenceWithIds == nil {
+				break
+			}
+			events := make([]*armadaevents.EventSequence_Event, 0, len(sequenceWithIds.Sequence.Events))
+			for _, event := range sequenceWithIds.Sequence.Events {
+				if srv.filter(event) {
+					events = append(events, event)
+				}
+			}
+			sequenceWithIds.Sequence.Events = events
+
+			select {
+			case <-ctx.Done():
+			case srv.Out <- sequenceWithIds:
+			}
+		}
+	}
+}
