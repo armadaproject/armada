@@ -26,15 +26,12 @@ import (
 
 // Suppress "imported and not used" errors
 var _ codes.Code
-
-var (
-	_ io.Reader
-	_ status.Status
-	_ = runtime.String
-	_ = utilities.NewDoubleArray
-	_ = descriptor.ForMessage
-	_ = metadata.Join
-)
+var _ io.Reader
+var _ status.Status
+var _ = runtime.String
+var _ = utilities.NewDoubleArray
+var _ = descriptor.ForMessage
+var _ = metadata.Join
 
 func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Marshaler, client EventClient, req *http.Request, pathParams map[string]string) (Event_GetJobSetEventsClient, runtime.ServerMetadata, error) {
 	var protoReq JobSetRequest
@@ -87,6 +84,7 @@ func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Mars
 	}
 	metadata.HeaderMD = header
 	return stream, metadata, nil
+
 }
 
 // RegisterEventHandlerServer registers the http handlers for service Event to "mux".
@@ -94,6 +92,7 @@ func request_Event_GetJobSetEvents_0(ctx context.Context, marshaler runtime.Mars
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
 // Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterEventHandlerFromEndpoint instead.
 func RegisterEventHandlerServer(ctx context.Context, mux *runtime.ServeMux, server EventServer) error {
+
 	mux.Handle("POST", pattern_Event_GetJobSetEvents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		err := status.Error(codes.Unimplemented, "streaming calls are not yet supported in the in-process transport")
 		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
@@ -141,6 +140,7 @@ func RegisterEventHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
 // "EventClient" to call the correct interceptors.
 func RegisterEventHandlerClient(ctx context.Context, mux *runtime.ServeMux, client EventClient) error {
+
 	mux.Handle("POST", pattern_Event_GetJobSetEvents_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -158,11 +158,16 @@ func RegisterEventHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 		}
 
 		forward_Event_GetJobSetEvents_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
+
 	})
 
 	return nil
 }
 
-var pattern_Event_GetJobSetEvents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "job-set", "queue", "id"}, "", runtime.AssumeColonVerbOpt(true)))
+var (
+	pattern_Event_GetJobSetEvents_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 1, 0, 4, 1, 5, 3}, []string{"v1", "job-set", "queue", "id"}, "", runtime.AssumeColonVerbOpt(true)))
+)
 
-var forward_Event_GetJobSetEvents_0 = runtime.ForwardResponseStream
+var (
+	forward_Event_GetJobSetEvents_0 = runtime.ForwardResponseStream
+)

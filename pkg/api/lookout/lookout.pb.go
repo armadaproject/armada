@@ -28,12 +28,9 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-
-var (
-	_ = fmt.Errorf
-	_ = math.Inf
-	_ = time.Kitchen
-)
+var _ = fmt.Errorf
+var _ = math.Inf
+var _ = time.Kitchen
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -50,11 +47,9 @@ func (*SystemOverview) ProtoMessage() {}
 func (*SystemOverview) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{0}
 }
-
 func (m *SystemOverview) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *SystemOverview) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_SystemOverview.Marshal(b, m, deterministic)
@@ -67,15 +62,12 @@ func (m *SystemOverview) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return b[:n], nil
 	}
 }
-
 func (m *SystemOverview) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_SystemOverview.Merge(m, src)
 }
-
 func (m *SystemOverview) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *SystemOverview) XXX_DiscardUnknown() {
 	xxx_messageInfo_SystemOverview.DiscardUnknown(m)
 }
@@ -102,11 +94,9 @@ func (*JobInfo) ProtoMessage() {}
 func (*JobInfo) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{1}
 }
-
 func (m *JobInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *JobInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_JobInfo.Marshal(b, m, deterministic)
@@ -119,15 +109,12 @@ func (m *JobInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-
 func (m *JobInfo) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_JobInfo.Merge(m, src)
 }
-
 func (m *JobInfo) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *JobInfo) XXX_DiscardUnknown() {
 	xxx_messageInfo_JobInfo.DiscardUnknown(m)
 }
@@ -188,11 +175,9 @@ func (*RunInfo) ProtoMessage() {}
 func (*RunInfo) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{2}
 }
-
 func (m *RunInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *RunInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_RunInfo.Marshal(b, m, deterministic)
@@ -205,15 +190,12 @@ func (m *RunInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-
 func (m *RunInfo) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_RunInfo.Merge(m, src)
 }
-
 func (m *RunInfo) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *RunInfo) XXX_DiscardUnknown() {
 	xxx_messageInfo_RunInfo.DiscardUnknown(m)
 }
@@ -313,11 +295,9 @@ func (*QueueInfo) ProtoMessage() {}
 func (*QueueInfo) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{3}
 }
-
 func (m *QueueInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *QueueInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_QueueInfo.Marshal(b, m, deterministic)
@@ -330,15 +310,12 @@ func (m *QueueInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-
 func (m *QueueInfo) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_QueueInfo.Merge(m, src)
 }
-
 func (m *QueueInfo) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *QueueInfo) XXX_DiscardUnknown() {
 	xxx_messageInfo_QueueInfo.DiscardUnknown(m)
 }
@@ -419,11 +396,9 @@ func (*JobSetInfo) ProtoMessage() {}
 func (*JobSetInfo) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{4}
 }
-
 func (m *JobSetInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *JobSetInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_JobSetInfo.Marshal(b, m, deterministic)
@@ -436,15 +411,12 @@ func (m *JobSetInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-
 func (m *JobSetInfo) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_JobSetInfo.Merge(m, src)
 }
-
 func (m *JobSetInfo) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *JobSetInfo) XXX_DiscardUnknown() {
 	xxx_messageInfo_JobSetInfo.DiscardUnknown(m)
 }
@@ -535,11 +507,9 @@ func (*DurationStats) ProtoMessage() {}
 func (*DurationStats) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{5}
 }
-
 func (m *DurationStats) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *DurationStats) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_DurationStats.Marshal(b, m, deterministic)
@@ -552,15 +522,12 @@ func (m *DurationStats) XXX_Marshal(b []byte, deterministic bool) ([]byte, error
 		return b[:n], nil
 	}
 }
-
 func (m *DurationStats) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_DurationStats.Merge(m, src)
 }
-
 func (m *DurationStats) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *DurationStats) XXX_DiscardUnknown() {
 	xxx_messageInfo_DurationStats.DiscardUnknown(m)
 }
@@ -620,11 +587,9 @@ func (*GetJobSetsRequest) ProtoMessage() {}
 func (*GetJobSetsRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{6}
 }
-
 func (m *GetJobSetsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *GetJobSetsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_GetJobSetsRequest.Marshal(b, m, deterministic)
@@ -637,15 +602,12 @@ func (m *GetJobSetsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return b[:n], nil
 	}
 }
-
 func (m *GetJobSetsRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_GetJobSetsRequest.Merge(m, src)
 }
-
 func (m *GetJobSetsRequest) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *GetJobSetsRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_GetJobSetsRequest.DiscardUnknown(m)
 }
@@ -682,11 +644,9 @@ func (*GetJobSetsResponse) ProtoMessage() {}
 func (*GetJobSetsResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{7}
 }
-
 func (m *GetJobSetsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *GetJobSetsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_GetJobSetsResponse.Marshal(b, m, deterministic)
@@ -699,15 +659,12 @@ func (m *GetJobSetsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
-
 func (m *GetJobSetsResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_GetJobSetsResponse.Merge(m, src)
 }
-
 func (m *GetJobSetsResponse) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *GetJobSetsResponse) XXX_DiscardUnknown() {
 	xxx_messageInfo_GetJobSetsResponse.DiscardUnknown(m)
 }
@@ -738,11 +695,9 @@ func (*GetJobsRequest) ProtoMessage() {}
 func (*GetJobsRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{8}
 }
-
 func (m *GetJobsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *GetJobsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_GetJobsRequest.Marshal(b, m, deterministic)
@@ -755,15 +710,12 @@ func (m *GetJobsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return b[:n], nil
 	}
 }
-
 func (m *GetJobsRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_GetJobsRequest.Merge(m, src)
 }
-
 func (m *GetJobsRequest) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *GetJobsRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_GetJobsRequest.DiscardUnknown(m)
 }
@@ -842,11 +794,9 @@ func (*GetJobsResponse) ProtoMessage() {}
 func (*GetJobsResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_6ee7620a6fb9cfb1, []int{9}
 }
-
 func (m *GetJobsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *GetJobsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_GetJobsResponse.Marshal(b, m, deterministic)
@@ -859,15 +809,12 @@ func (m *GetJobsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, err
 		return b[:n], nil
 	}
 }
-
 func (m *GetJobsResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_GetJobsResponse.Merge(m, src)
 }
-
 func (m *GetJobsResponse) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *GetJobsResponse) XXX_DiscardUnknown() {
 	xxx_messageInfo_GetJobsResponse.DiscardUnknown(m)
 }
@@ -1041,16 +988,15 @@ type LookoutServer interface {
 }
 
 // UnimplementedLookoutServer can be embedded to have forward compatible implementations.
-type UnimplementedLookoutServer struct{}
+type UnimplementedLookoutServer struct {
+}
 
 func (*UnimplementedLookoutServer) Overview(ctx context.Context, req *types.Empty) (*SystemOverview, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Overview not implemented")
 }
-
 func (*UnimplementedLookoutServer) GetJobSets(ctx context.Context, req *GetJobSetsRequest) (*GetJobSetsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJobSets not implemented")
 }
-
 func (*UnimplementedLookoutServer) GetJobs(ctx context.Context, req *GetJobsRequest) (*GetJobsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJobs not implemented")
 }
@@ -1877,7 +1823,6 @@ func encodeVarintLookout(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-
 func (m *SystemOverview) Size() (n int) {
 	if m == nil {
 		return 0
@@ -2191,11 +2136,9 @@ func (m *GetJobsResponse) Size() (n int) {
 func sovLookout(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
-
 func sozLookout(x uint64) (n int) {
 	return sovLookout(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-
 func (this *SystemOverview) String() string {
 	if this == nil {
 		return "nil"
@@ -2205,14 +2148,12 @@ func (this *SystemOverview) String() string {
 		repeatedStringForQueues += strings.Replace(f.String(), "QueueInfo", "QueueInfo", 1) + ","
 	}
 	repeatedStringForQueues += "}"
-	s := strings.Join([]string{
-		`&SystemOverview{`,
+	s := strings.Join([]string{`&SystemOverview{`,
 		`Queues:` + repeatedStringForQueues + `,`,
 		`}`,
 	}, "")
 	return s
 }
-
 func (this *JobInfo) String() string {
 	if this == nil {
 		return "nil"
@@ -2222,8 +2163,7 @@ func (this *JobInfo) String() string {
 		repeatedStringForRuns += strings.Replace(f.String(), "RunInfo", "RunInfo", 1) + ","
 	}
 	repeatedStringForRuns += "}"
-	s := strings.Join([]string{
-		`&JobInfo{`,
+	s := strings.Join([]string{`&JobInfo{`,
 		`Job:` + strings.Replace(fmt.Sprintf("%v", this.Job), "Job", "api.Job", 1) + `,`,
 		`Runs:` + repeatedStringForRuns + `,`,
 		`Cancelled:` + strings.Replace(fmt.Sprintf("%v", this.Cancelled), "Timestamp", "types.Timestamp", 1) + `,`,
@@ -2233,13 +2173,11 @@ func (this *JobInfo) String() string {
 	}, "")
 	return s
 }
-
 func (this *RunInfo) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{
-		`&RunInfo{`,
+	s := strings.Join([]string{`&RunInfo{`,
 		`K8SId:` + fmt.Sprintf("%v", this.K8SId) + `,`,
 		`Cluster:` + fmt.Sprintf("%v", this.Cluster) + `,`,
 		`Node:` + fmt.Sprintf("%v", this.Node) + `,`,
@@ -2255,13 +2193,11 @@ func (this *RunInfo) String() string {
 	}, "")
 	return s
 }
-
 func (this *QueueInfo) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{
-		`&QueueInfo{`,
+	s := strings.Join([]string{`&QueueInfo{`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
 		`JobsQueued:` + fmt.Sprintf("%v", this.JobsQueued) + `,`,
 		`JobsPending:` + fmt.Sprintf("%v", this.JobsPending) + `,`,
@@ -2274,13 +2210,11 @@ func (this *QueueInfo) String() string {
 	}, "")
 	return s
 }
-
 func (this *JobSetInfo) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{
-		`&JobSetInfo{`,
+	s := strings.Join([]string{`&JobSetInfo{`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
 		`JobSet:` + fmt.Sprintf("%v", this.JobSet) + `,`,
 		`JobsQueued:` + fmt.Sprintf("%v", this.JobsQueued) + `,`,
@@ -2295,13 +2229,11 @@ func (this *JobSetInfo) String() string {
 	}, "")
 	return s
 }
-
 func (this *DurationStats) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{
-		`&DurationStats{`,
+	s := strings.Join([]string{`&DurationStats{`,
 		`Shortest:` + strings.Replace(fmt.Sprintf("%v", this.Shortest), "Duration", "types.Duration", 1) + `,`,
 		`Longest:` + strings.Replace(fmt.Sprintf("%v", this.Longest), "Duration", "types.Duration", 1) + `,`,
 		`Average:` + strings.Replace(fmt.Sprintf("%v", this.Average), "Duration", "types.Duration", 1) + `,`,
@@ -2312,13 +2244,11 @@ func (this *DurationStats) String() string {
 	}, "")
 	return s
 }
-
 func (this *GetJobSetsRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
-	s := strings.Join([]string{
-		`&GetJobSetsRequest{`,
+	s := strings.Join([]string{`&GetJobSetsRequest{`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
 		`NewestFirst:` + fmt.Sprintf("%v", this.NewestFirst) + `,`,
 		`ActiveOnly:` + fmt.Sprintf("%v", this.ActiveOnly) + `,`,
@@ -2326,7 +2256,6 @@ func (this *GetJobSetsRequest) String() string {
 	}, "")
 	return s
 }
-
 func (this *GetJobSetsResponse) String() string {
 	if this == nil {
 		return "nil"
@@ -2336,20 +2265,18 @@ func (this *GetJobSetsResponse) String() string {
 		repeatedStringForJobSetInfos += strings.Replace(f.String(), "JobSetInfo", "JobSetInfo", 1) + ","
 	}
 	repeatedStringForJobSetInfos += "}"
-	s := strings.Join([]string{
-		`&GetJobSetsResponse{`,
+	s := strings.Join([]string{`&GetJobSetsResponse{`,
 		`JobSetInfos:` + repeatedStringForJobSetInfos + `,`,
 		`}`,
 	}, "")
 	return s
 }
-
 func (this *GetJobsRequest) String() string {
 	if this == nil {
 		return "nil"
 	}
 	keysForUserAnnotations := make([]string, 0, len(this.UserAnnotations))
-	for k := range this.UserAnnotations {
+	for k, _ := range this.UserAnnotations {
 		keysForUserAnnotations = append(keysForUserAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForUserAnnotations)
@@ -2358,8 +2285,7 @@ func (this *GetJobsRequest) String() string {
 		mapStringForUserAnnotations += fmt.Sprintf("%v: %v,", k, this.UserAnnotations[k])
 	}
 	mapStringForUserAnnotations += "}"
-	s := strings.Join([]string{
-		`&GetJobsRequest{`,
+	s := strings.Join([]string{`&GetJobsRequest{`,
 		`Queue:` + fmt.Sprintf("%v", this.Queue) + `,`,
 		`NewestFirst:` + fmt.Sprintf("%v", this.NewestFirst) + `,`,
 		`JobStates:` + fmt.Sprintf("%v", this.JobStates) + `,`,
@@ -2373,7 +2299,6 @@ func (this *GetJobsRequest) String() string {
 	}, "")
 	return s
 }
-
 func (this *GetJobsResponse) String() string {
 	if this == nil {
 		return "nil"
@@ -2383,14 +2308,12 @@ func (this *GetJobsResponse) String() string {
 		repeatedStringForJobInfos += strings.Replace(f.String(), "JobInfo", "JobInfo", 1) + ","
 	}
 	repeatedStringForJobInfos += "}"
-	s := strings.Join([]string{
-		`&GetJobsResponse{`,
+	s := strings.Join([]string{`&GetJobsResponse{`,
 		`JobInfos:` + repeatedStringForJobInfos + `,`,
 		`}`,
 	}, "")
 	return s
 }
-
 func valueToStringLookout(v interface{}) string {
 	rv := reflect.ValueOf(v)
 	if rv.IsNil() {
@@ -2399,7 +2322,6 @@ func valueToStringLookout(v interface{}) string {
 	pv := reflect.Indirect(rv).Interface()
 	return fmt.Sprintf("*%v", pv)
 }
-
 func (m *SystemOverview) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2484,7 +2406,6 @@ func (m *SystemOverview) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *JobInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2705,7 +2626,6 @@ func (m *JobInfo) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *RunInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3083,7 +3003,6 @@ func (m *RunInfo) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *QueueInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3367,7 +3286,6 @@ func (m *QueueInfo) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *JobSetInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3685,7 +3603,6 @@ func (m *JobSetInfo) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *DurationStats) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3952,7 +3869,6 @@ func (m *DurationStats) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *GetJobSetsRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4075,7 +3991,6 @@ func (m *GetJobSetsRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *GetJobSetsResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4160,7 +4075,6 @@ func (m *GetJobSetsResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *GetJobsRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4556,7 +4470,6 @@ func (m *GetJobsRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *GetJobsResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4641,7 +4554,6 @@ func (m *GetJobsResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func skipLookout(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0

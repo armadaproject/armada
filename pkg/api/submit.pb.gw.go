@@ -26,15 +26,12 @@ import (
 
 // Suppress "imported and not used" errors
 var _ codes.Code
-
-var (
-	_ io.Reader
-	_ status.Status
-	_ = runtime.String
-	_ = utilities.NewDoubleArray
-	_ = descriptor.ForMessage
-	_ = metadata.Join
-)
+var _ io.Reader
+var _ status.Status
+var _ = runtime.String
+var _ = utilities.NewDoubleArray
+var _ = descriptor.ForMessage
+var _ = metadata.Join
 
 func request_Submit_SubmitJobs_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq JobSubmitRequest
@@ -50,6 +47,7 @@ func request_Submit_SubmitJobs_0(ctx context.Context, marshaler runtime.Marshale
 
 	msg, err := client.SubmitJobs(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_SubmitJobs_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -66,6 +64,7 @@ func local_request_Submit_SubmitJobs_0(ctx context.Context, marshaler runtime.Ma
 
 	msg, err := server.SubmitJobs(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_CancelJobs_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -82,6 +81,7 @@ func request_Submit_CancelJobs_0(ctx context.Context, marshaler runtime.Marshale
 
 	msg, err := client.CancelJobs(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_CancelJobs_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -98,6 +98,7 @@ func local_request_Submit_CancelJobs_0(ctx context.Context, marshaler runtime.Ma
 
 	msg, err := server.CancelJobs(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_CancelJobSet_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -114,6 +115,7 @@ func request_Submit_CancelJobSet_0(ctx context.Context, marshaler runtime.Marsha
 
 	msg, err := client.CancelJobSet(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_CancelJobSet_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -130,6 +132,7 @@ func local_request_Submit_CancelJobSet_0(ctx context.Context, marshaler runtime.
 
 	msg, err := server.CancelJobSet(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_ReprioritizeJobs_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -146,6 +149,7 @@ func request_Submit_ReprioritizeJobs_0(ctx context.Context, marshaler runtime.Ma
 
 	msg, err := client.ReprioritizeJobs(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_ReprioritizeJobs_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -162,6 +166,7 @@ func local_request_Submit_ReprioritizeJobs_0(ctx context.Context, marshaler runt
 
 	msg, err := server.ReprioritizeJobs(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_CreateQueue_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -178,6 +183,7 @@ func request_Submit_CreateQueue_0(ctx context.Context, marshaler runtime.Marshal
 
 	msg, err := client.CreateQueue(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_CreateQueue_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -194,6 +200,7 @@ func local_request_Submit_CreateQueue_0(ctx context.Context, marshaler runtime.M
 
 	msg, err := server.CreateQueue(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_CreateQueues_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -210,6 +217,7 @@ func request_Submit_CreateQueues_0(ctx context.Context, marshaler runtime.Marsha
 
 	msg, err := client.CreateQueues(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_CreateQueues_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -226,6 +234,7 @@ func local_request_Submit_CreateQueues_0(ctx context.Context, marshaler runtime.
 
 	msg, err := server.CreateQueues(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_UpdateQueue_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -260,6 +269,7 @@ func request_Submit_UpdateQueue_0(ctx context.Context, marshaler runtime.Marshal
 
 	msg, err := client.UpdateQueue(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_UpdateQueue_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -294,6 +304,7 @@ func local_request_Submit_UpdateQueue_0(ctx context.Context, marshaler runtime.M
 
 	msg, err := server.UpdateQueue(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_UpdateQueues_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -310,6 +321,7 @@ func request_Submit_UpdateQueues_0(ctx context.Context, marshaler runtime.Marsha
 
 	msg, err := client.UpdateQueues(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_UpdateQueues_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -326,6 +338,7 @@ func local_request_Submit_UpdateQueues_0(ctx context.Context, marshaler runtime.
 
 	msg, err := server.UpdateQueues(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_DeleteQueue_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -352,6 +365,7 @@ func request_Submit_DeleteQueue_0(ctx context.Context, marshaler runtime.Marshal
 
 	msg, err := client.DeleteQueue(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_DeleteQueue_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -378,6 +392,7 @@ func local_request_Submit_DeleteQueue_0(ctx context.Context, marshaler runtime.M
 
 	msg, err := server.DeleteQueue(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_GetQueue_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -404,6 +419,7 @@ func request_Submit_GetQueue_0(ctx context.Context, marshaler runtime.Marshaler,
 
 	msg, err := client.GetQueue(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_GetQueue_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -430,6 +446,7 @@ func local_request_Submit_GetQueue_0(ctx context.Context, marshaler runtime.Mars
 
 	msg, err := server.GetQueue(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 func request_Submit_GetQueueInfo_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -456,6 +473,7 @@ func request_Submit_GetQueueInfo_0(ctx context.Context, marshaler runtime.Marsha
 
 	msg, err := client.GetQueueInfo(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
+
 }
 
 func local_request_Submit_GetQueueInfo_0(ctx context.Context, marshaler runtime.Marshaler, server SubmitServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -482,6 +500,7 @@ func local_request_Submit_GetQueueInfo_0(ctx context.Context, marshaler runtime.
 
 	msg, err := server.GetQueueInfo(ctx, &protoReq)
 	return msg, metadata, err
+
 }
 
 // RegisterSubmitHandlerServer registers the http handlers for service Submit to "mux".
@@ -489,6 +508,7 @@ func local_request_Submit_GetQueueInfo_0(ctx context.Context, marshaler runtime.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
 // Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterSubmitHandlerFromEndpoint instead.
 func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, server SubmitServer) error {
+
 	mux.Handle("POST", pattern_Submit_SubmitJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -509,6 +529,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_SubmitJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CancelJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -531,6 +552,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_CancelJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CancelJobSet_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -553,6 +575,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_CancelJobSet_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_ReprioritizeJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -575,6 +598,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_ReprioritizeJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CreateQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -597,6 +621,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_CreateQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CreateQueues_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -619,6 +644,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_CreateQueues_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("PUT", pattern_Submit_UpdateQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -641,6 +667,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_UpdateQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("PUT", pattern_Submit_UpdateQueues_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -663,6 +690,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_UpdateQueues_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("DELETE", pattern_Submit_DeleteQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -685,6 +713,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_DeleteQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("GET", pattern_Submit_GetQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -707,6 +736,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_GetQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("GET", pattern_Submit_GetQueueInfo_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -729,6 +759,7 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 		}
 
 		forward_Submit_GetQueueInfo_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	return nil
@@ -771,6 +802,7 @@ func RegisterSubmitHandler(ctx context.Context, mux *runtime.ServeMux, conn *grp
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
 // "SubmitClient" to call the correct interceptors.
 func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, client SubmitClient) error {
+
 	mux.Handle("POST", pattern_Submit_SubmitJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -788,6 +820,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_SubmitJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CancelJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -807,6 +840,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_CancelJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CancelJobSet_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -826,6 +860,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_CancelJobSet_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_ReprioritizeJobs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -845,6 +880,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_ReprioritizeJobs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CreateQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -864,6 +900,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_CreateQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("POST", pattern_Submit_CreateQueues_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -883,6 +920,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_CreateQueues_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("PUT", pattern_Submit_UpdateQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -902,6 +940,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_UpdateQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("PUT", pattern_Submit_UpdateQueues_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -921,6 +960,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_UpdateQueues_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("DELETE", pattern_Submit_DeleteQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -940,6 +980,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_DeleteQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("GET", pattern_Submit_GetQueue_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -959,6 +1000,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_GetQueue_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	mux.Handle("GET", pattern_Submit_GetQueueInfo_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -978,6 +1020,7 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 		}
 
 		forward_Submit_GetQueueInfo_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
 	})
 
 	return nil

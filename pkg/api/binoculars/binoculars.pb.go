@@ -20,11 +20,8 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
-
-var (
-	_ = fmt.Errorf
-	_ = math.Inf
-)
+var _ = fmt.Errorf
+var _ = math.Inf
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -47,11 +44,9 @@ func (*LogRequest) ProtoMessage()    {}
 func (*LogRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_3f2fc8093f6f091f, []int{0}
 }
-
 func (m *LogRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *LogRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_LogRequest.Marshal(b, m, deterministic)
@@ -64,15 +59,12 @@ func (m *LogRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-
 func (m *LogRequest) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_LogRequest.Merge(m, src)
 }
-
 func (m *LogRequest) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *LogRequest) XXX_DiscardUnknown() {
 	xxx_messageInfo_LogRequest.DiscardUnknown(m)
 }
@@ -125,11 +117,9 @@ func (*LogResponse) ProtoMessage()    {}
 func (*LogResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_3f2fc8093f6f091f, []int{1}
 }
-
 func (m *LogResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *LogResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_LogResponse.Marshal(b, m, deterministic)
@@ -142,15 +132,12 @@ func (m *LogResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) 
 		return b[:n], nil
 	}
 }
-
 func (m *LogResponse) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_LogResponse.Merge(m, src)
 }
-
 func (m *LogResponse) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *LogResponse) XXX_DiscardUnknown() {
 	xxx_messageInfo_LogResponse.DiscardUnknown(m)
 }
@@ -176,11 +163,9 @@ func (*LogLine) ProtoMessage()    {}
 func (*LogLine) Descriptor() ([]byte, []int) {
 	return fileDescriptor_3f2fc8093f6f091f, []int{2}
 }
-
 func (m *LogLine) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-
 func (m *LogLine) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
 		return xxx_messageInfo_LogLine.Marshal(b, m, deterministic)
@@ -193,15 +178,12 @@ func (m *LogLine) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-
 func (m *LogLine) XXX_Merge(src proto.Message) {
 	xxx_messageInfo_LogLine.Merge(m, src)
 }
-
 func (m *LogLine) XXX_Size() int {
 	return m.Size()
 }
-
 func (m *LogLine) XXX_DiscardUnknown() {
 	xxx_messageInfo_LogLine.DiscardUnknown(m)
 }
@@ -301,7 +283,8 @@ type BinocularsServer interface {
 }
 
 // UnimplementedBinocularsServer can be embedded to have forward compatible implementations.
-type UnimplementedBinocularsServer struct{}
+type UnimplementedBinocularsServer struct {
+}
 
 func (*UnimplementedBinocularsServer) Logs(ctx context.Context, req *LogRequest) (*LogResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Logs not implemented")
@@ -488,7 +471,6 @@ func encodeVarintBinoculars(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-
 func (m *LogRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -552,11 +534,9 @@ func (m *LogLine) Size() (n int) {
 func sovBinoculars(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
-
 func sozBinoculars(x uint64) (n int) {
 	return sovBinoculars(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-
 func (m *LogRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -758,7 +738,6 @@ func (m *LogRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *LogResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -843,7 +822,6 @@ func (m *LogResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func (m *LogLine) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -958,7 +936,6 @@ func (m *LogLine) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-
 func skipBinoculars(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
