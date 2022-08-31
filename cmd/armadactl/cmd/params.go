@@ -8,9 +8,8 @@ import (
 	cq "github.com/G-Research/armada/pkg/client/queue"
 )
 
-// initParams initializes the command parameters, flags, and a configuration file.
+// initParams initialises the command parameters, flags, and a configuration file.
 func initParams(cmd *cobra.Command, params *armadactl.Params) error {
-
 	// Stuff above this is from the example
 	client.LoadCommandlineArgs()
 	params.ApiConnectionDetails = client.ExtractCommandlineArmadaApiConnectionDetails()

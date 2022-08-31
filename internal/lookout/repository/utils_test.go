@@ -81,14 +81,6 @@ type JobSimulator struct {
 	job      *api.Job
 }
 
-type DummyClock struct {
-	t time.Time
-}
-
-func (c *DummyClock) Now() time.Time {
-	return c.t
-}
-
 func NewJobSimulator(t *testing.T, jobStore JobRecorder) *JobSimulator {
 	return &JobSimulator{
 		t:        t,

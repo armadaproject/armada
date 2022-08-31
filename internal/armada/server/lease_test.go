@@ -11,6 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
@@ -130,7 +131,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 		})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(fakeEventStore.events))
-		//Reset received events for each lease call
+		// Reset received events for each lease call
 		fakeEventStore.events = []*api.EventMessage{}
 	}
 
@@ -161,7 +162,7 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 			MaxRetries: maxRetries,
 		},
 		mockJobRepository,
-		cache.NewQueueCache(fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository),
+		cache.NewQueueCache(&util.DefaultClock{}, fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository),
 		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,
@@ -300,10 +301,6 @@ func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 
 func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	return []*api.Job{}, nil
-}
-
-func (repo *mockJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
-	return nil
 }
 
 func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {

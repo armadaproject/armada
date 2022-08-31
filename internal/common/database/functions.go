@@ -16,14 +16,13 @@ func UniqueTableName(table string) string {
 }
 
 func BatchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
-	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error) error {
-
+	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
+) error {
 	return db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		// Create a temporary table to hold the staging data
 		err := createTmp(tx)
 		if err != nil {

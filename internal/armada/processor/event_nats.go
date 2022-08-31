@@ -68,7 +68,6 @@ func NewEventRedisProcessor(
 
 func (p *RedisEventProcessor) Start() {
 	err := p.stream.Subscribe(p.queue, p.handleMessage)
-
 	if err != nil {
 		panic(err)
 	}

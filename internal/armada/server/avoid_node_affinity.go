@@ -10,7 +10,6 @@ import (
 )
 
 func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, validateJobsCanBeScheduled func(jobs []*api.Job) error) bool {
-
 	changed := false
 	for _, label := range avoidNodeLabels.Entries {
 
@@ -30,7 +29,7 @@ func addAvoidNodeAffinity(job *api.Job, avoidNodeLabels *api.OrderedStringMap, v
 }
 
 func addAvoidNodeAffinityInner(job *api.Job, labelName string, labelValue string) *api.Job {
-	var result = proto.Clone(job).(*api.Job)
+	result := proto.Clone(job).(*api.Job)
 
 	addAvoidNodeAffinityToPod(result.PodSpec, labelName, labelValue)
 	for _, pod := range result.PodSpecs {
@@ -77,7 +76,8 @@ func addAvoidNodeAffinityToNodeSelectorTerms(terms []v1.NodeSelectorTerm, labelN
 func addAvoidNodeAffinityToNodeSelectorTerm(term *v1.NodeSelectorTerm, labelName string, labelValue string) {
 	mexp := findMatchExpression(term.MatchExpressions, labelName, v1.NodeSelectorOpNotIn)
 	if mexp == nil {
-		term.MatchExpressions = append(term.MatchExpressions, v1.NodeSelectorRequirement{Key: labelName,
+		term.MatchExpressions = append(term.MatchExpressions, v1.NodeSelectorRequirement{
+			Key:      labelName,
 			Operator: v1.NodeSelectorOpNotIn,
 			Values:   []string{},
 		})

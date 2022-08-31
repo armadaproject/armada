@@ -82,7 +82,6 @@ func TestQueue(t *testing.T) {
 		GroupOwners:    groups,
 		ResourceLimits: resourceLimits,
 	})
-
 	if err != nil {
 		t.Fatalf("failed to instantiate queue: %s", err)
 	}
@@ -235,7 +234,6 @@ jobs:
 		UserOwners:     owners,
 		GroupOwners:    groups,
 	})
-
 	if err != nil {
 		t.Fatalf("failed to instantiate queue: %s", err)
 	}

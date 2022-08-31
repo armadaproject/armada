@@ -61,7 +61,6 @@ func TestReceive(t *testing.T) {
 		{EmptyPulsarMessage(2, msgTime), 1},
 		{EmptyPulsarMessage(3, msgTime), 1},
 	}, receivedMsgs)
-
 }
 
 func TestAcks(t *testing.T) {
@@ -72,9 +71,11 @@ func TestAcks(t *testing.T) {
 	wg.Add(1)
 	go Ack(ctx.Background(), consumers, input, &wg)
 	input <- []*ConsumerMessageId{
-		{NewMessageId(1), 0, 0}, {NewMessageId(2), 0, 0}}
+		{NewMessageId(1), 0, 0}, {NewMessageId(2), 0, 0},
+	}
 	input <- []*ConsumerMessageId{
-		{NewMessageId(3), 0, 0}, {NewMessageId(4), 0, 0}}
+		{NewMessageId(3), 0, 0}, {NewMessageId(4), 0, 0},
+	}
 	close(input)
 	expected := []pulsar.MessageID{
 		NewMessageId(1),

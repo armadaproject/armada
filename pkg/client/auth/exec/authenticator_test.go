@@ -16,7 +16,6 @@ func testScript() string {
 }
 
 func TestAuthenticatorHappyPath(t *testing.T) {
-
 	cd := CommandDetails{
 		Cmd: testScript(),
 		Env: []EnvVar{
@@ -36,7 +35,6 @@ func TestAuthenticatorHappyPath(t *testing.T) {
 }
 
 func TestAuthenticatorCmdFails(t *testing.T) {
-
 	cd := CommandDetails{
 		Cmd: testScript(),
 		Env: []EnvVar{
@@ -56,7 +54,6 @@ func TestAuthenticatorCmdFails(t *testing.T) {
 }
 
 func TestAuthenticatorMissingCmd(t *testing.T) {
-
 	cd := CommandDetails{
 		Cmd: "not_a_valid_command.sh",
 		Env: []EnvVar{
@@ -76,7 +73,6 @@ func TestAuthenticatorMissingCmd(t *testing.T) {
 }
 
 func TestAuthenticatorNoToken(t *testing.T) {
-
 	cd := CommandDetails{
 		Cmd: testScript(),
 		Env: []EnvVar{

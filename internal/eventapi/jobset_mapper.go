@@ -3,7 +3,6 @@ package eventapi
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -40,7 +39,6 @@ func (j *StaticJobsetMapper) Get(ctx context.Context, queue string, jobset strin
 type PostgresJobsetMapper struct {
 	jobsetIds *lru.Cache
 	eventDb   *eventdb.EventDb
-	mutex     sync.Mutex
 }
 
 func NewJobsetMapper(eventDb *eventdb.EventDb, cachesize int, initialiseSince time.Duration) (*PostgresJobsetMapper, error) {

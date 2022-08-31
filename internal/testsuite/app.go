@@ -42,7 +42,7 @@ type App struct {
 	// but can be overridden in tests to make assertions on the applications's output.
 	Out io.Writer
 	// Source of randomness. Tests can use a mocked random source in order to provide
-	// deterministic testing behavior.
+	// deterministic testing behaviour.
 	Random io.Reader
 	// Benchmark reports from test files
 	reports []*eventbenchmark.TestCaseBenchmarkReport
@@ -66,11 +66,6 @@ func New() *App {
 	}
 }
 
-// validateParams validates a.Params. Currently, it doesn't check anything.
-func (a *App) validateParams() error {
-	return nil
-}
-
 // Version prints build information (e.g., current git commit) to the app output.
 func (a *App) Version() error {
 	w := tabwriter.NewWriter(a.Out, 1, 1, 1, ' ', 0)
@@ -83,7 +78,6 @@ func (a *App) Version() error {
 }
 
 func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcase, error) {
-
 	// Load test spec.
 	testSpec, err := TestSpecFromFilePath(filePath)
 	if err != nil {
@@ -138,7 +132,7 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 		return nil, err
 	}
 
-	// Randomize jobSetName for each test to ensure we're only getting events for this run.
+	// Randomise jobSetName for each test to ensure we're only getting events for this run.
 	fileName := filepath.Base(filePath)
 	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	testSpec.JobSetId = fileName + "-" + shortuuid.New()

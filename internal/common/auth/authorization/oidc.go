@@ -39,7 +39,6 @@ func NewOpenIdAuthService(verifier *oidc.IDTokenVerifier, groupsClaim string) *O
 }
 
 func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
-
 	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
 	if err != nil {
 		return nil, missingCredentials
@@ -88,7 +87,6 @@ func (authService *OpenIdAuthService) extractScopes(token *oidc.IDToken) []strin
 }
 
 func (authService *OpenIdAuthService) extractClaims(rawClaims map[string]*json.RawMessage) []string {
-
 	claims := []string{}
 	for key := range rawClaims {
 		claims = append(claims, key)

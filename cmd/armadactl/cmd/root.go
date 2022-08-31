@@ -23,7 +23,8 @@ basicAuth:
 username: user1
 password: password123
 
-The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.`}
+The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.`,
+	}
 
 	client.AddArmadaApiConnectionCommandlineArgs(cmd)
 

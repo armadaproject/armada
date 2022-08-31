@@ -24,7 +24,6 @@ type PKCEDetails struct {
 }
 
 func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
-
 	ctx := context.Background()
 	result := make(chan *oauth2.Token)
 	errorResult := make(chan error)
@@ -56,7 +55,6 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 	})
 
 	http.HandleFunc("/auth/callback", func(w http.ResponseWriter, r *http.Request) {
-
 		_, err := fmt.Fprint(w, "<h1>Please close this window.</h1>")
 		if err != nil {
 			errorResult <- err

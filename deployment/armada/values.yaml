@@ -22,7 +22,7 @@ ingress:
 prometheus:
   enabled: false
   labels: {}
-  scrapeInterval: 10s
+  scrapeInterval: 15s
 customServiceAccount: null
 serviceAccount: null
 

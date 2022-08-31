@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -16,7 +14,8 @@ import (
 const MetricPrefix = "armada_"
 
 type QueueMetricProvider interface {
-	GetQueueMetrics(queueName string) *QueueMetrics
+	GetQueuedJobMetrics(queueName string) *QueueMetrics
+	GetRunningJobMetrics(queueName string) *QueueMetrics
 }
 
 func ExposeDataMetrics(
@@ -31,7 +30,8 @@ func ExposeDataMetrics(
 		jobRepository:            jobRepository,
 		usageRepository:          usageRepository,
 		schedulingInfoRepository: schedulingInfoRepository,
-		queueMetrics:             queueMetrics}
+		queueMetrics:             queueMetrics,
+	}
 	prometheus.MustRegister(collector)
 	return collector
 }
@@ -225,7 +225,6 @@ func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
 }
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
-
 	queues, e := c.queueRepository.GetAllQueues()
 	if e != nil {
 		log.Errorf("Error while getting queue metrics %s", e)
@@ -240,22 +239,12 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		return
 	}
 
-	clusterSchedulingInfo, e := c.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if e != nil {
-		log.Errorf("Error while getting cluster reports %s", e)
-		recordInvalidMetrics(metrics, e)
-		return
-	}
-
 	usageReports, e := c.usageRepository.GetClusterUsageReports()
 	if e != nil {
 		log.Errorf("Error while getting queue usage metrics %s", e)
 		recordInvalidMetrics(metrics, e)
 		return
 	}
-
-	activeClusterInfo := scheduling.FilterActiveClusterSchedulingInfoReports(clusterSchedulingInfo)
-	runDurationsByPool, runResourceByPool := c.calculateRunningJobStats(queue.QueuesToAPI(queues), activeClusterInfo)
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	clusterPriorities, e := c.usageRepository.GetClusterPriorities(scheduling.GetClusterReportIds(activeClusterReports))
@@ -279,8 +268,9 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	for i, q := range queues {
 		metrics <- prometheus.MustNewConstMetric(queueSizeDesc, prometheus.GaugeValue, float64(queueSizes[i]), q.Name)
-		queueMetrics := c.queueMetrics.GetQueueMetrics(q.Name)
-		for pool, queueDurations := range queueMetrics.Durations {
+		queuedJobMetrics := c.queueMetrics.GetQueuedJobMetrics(q.Name)
+		runningJobMetrics := c.queueMetrics.GetRunningJobMetrics(q.Name)
+		for pool, queueDurations := range queuedJobMetrics.Durations {
 			if queueDurations.GetCount() > 0 {
 				metrics <- prometheus.MustNewConstHistogram(queueDurationDesc, queueDurations.GetCount(),
 					queueDurations.GetSum(), queueDurations.GetBuckets(), pool, q.Name)
@@ -290,7 +280,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 			}
 		}
 
-		for pool, runningJobDurations := range runDurationsByPool[q.Name] {
+		for pool, runningJobDurations := range runningJobMetrics.Durations {
 			if runningJobDurations.GetCount() > 0 {
 				metrics <- prometheus.MustNewConstHistogram(jobRunDurationDesc, runningJobDurations.GetCount(),
 					runningJobDurations.GetSum(), runningJobDurations.GetBuckets(), pool, q.Name)
@@ -300,7 +290,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 			}
 		}
 
-		for pool, poolResources := range queueMetrics.Resources {
+		for pool, poolResources := range queuedJobMetrics.Resources {
 			for resourceType, amount := range poolResources {
 				if amount.GetCount() > 0 {
 					metrics <- prometheus.MustNewConstMetric(queueResourcesDesc, prometheus.GaugeValue, amount.GetSum(), pool, q.Name, resourceType)
@@ -312,7 +302,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 			}
 		}
 
-		for pool, poolRunningResources := range runResourceByPool[q.Name] {
+		for pool, poolRunningResources := range runningJobMetrics.Resources {
 			for resourceType, amount := range poolRunningResources {
 				if amount.GetCount() > 0 {
 					metrics <- prometheus.MustNewConstMetric(minQueueAllocatedDesc, prometheus.GaugeValue, amount.GetMin(), pool, q.Name, resourceType)
@@ -464,84 +454,6 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 			}
 		}
 	}
-}
-
-func (c *QueueInfoCollector) calculateRunningJobStats(
-	queues []*api.Queue, activeClusterInfos map[string]*api.ClusterSchedulingInfoReport) (
-	map[string]map[string]*FloatMetrics, map[string]map[string]ResourceMetrics) {
-
-	runDurationMetrics := make(map[string]map[string]*FloatMetrics)
-	runResourceMetrics := make(map[string]map[string]ResourceMetrics)
-
-	clusterIdToPool := map[string]string{}
-	for _, clusterInfo := range activeClusterInfos {
-		clusterIdToPool[clusterInfo.ClusterId] = clusterInfo.Pool
-	}
-
-	for _, queue := range queues {
-		durationMetricsRecorderByPool := make(map[string]*FloatMetricsRecorder)
-		resourceMetricsRecorderByPool := make(map[string]*ResourceMetricsRecorder)
-		leasedJobsIds, e := c.jobRepository.GetLeasedJobIds(queue.Name)
-		if e != nil {
-			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
-			continue
-		}
-
-		leasedJobs, e := c.jobRepository.GetExistingJobsByIds(leasedJobsIds)
-		if e != nil {
-			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
-			continue
-		}
-
-		runInfo, e := c.jobRepository.GetJobRunInfos(leasedJobsIds)
-		if e != nil {
-			log.Errorf("Error getting queue(%s) run duration metrics %s", queue.Name, e)
-			continue
-		}
-
-		now := time.Now()
-		for _, job := range leasedJobs {
-			runInfo, present := runInfo[job.Id]
-			if !present {
-				continue
-			}
-			pool, present := clusterIdToPool[runInfo.CurrentClusterId]
-			if !present {
-				continue
-			}
-			jobResources := common.TotalJobResourceRequest(job)
-			runTime := now.Sub(runInfo.StartTime)
-
-			r, exists := durationMetricsRecorderByPool[pool]
-			if !exists {
-				r = NewDefaultJobDurationMetricsRecorder()
-				durationMetricsRecorderByPool[pool] = r
-			}
-			r.Record(runTime.Seconds())
-
-			resource, exists := resourceMetricsRecorderByPool[pool]
-			if !exists {
-				resource = NewResourceMetricsRecorder()
-				resourceMetricsRecorderByPool[pool] = resource
-			}
-			resource.Record(jobResources.AsFloat())
-		}
-
-		if len(durationMetricsRecorderByPool) > 0 {
-			runDurationMetrics[queue.Name] = make(map[string]*FloatMetrics, len(durationMetricsRecorderByPool))
-			for pool, durations := range durationMetricsRecorderByPool {
-				runDurationMetrics[queue.Name][pool] = durations.GetMetrics()
-			}
-		}
-
-		if len(resourceMetricsRecorderByPool) > 0 {
-			runResourceMetrics[queue.Name] = make(map[string]ResourceMetrics, len(resourceMetricsRecorderByPool))
-			for pool, durations := range resourceMetricsRecorderByPool {
-				runResourceMetrics[queue.Name][pool] = durations.GetMetrics()
-			}
-		}
-	}
-	return runDurationMetrics, runResourceMetrics
 }
 
 func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {
