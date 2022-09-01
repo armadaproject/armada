@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
@@ -132,6 +133,7 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 			if err != nil {
 				return nil, err
 			}
+			log.Infof("Principal created: %v", principal)
 			// record user name for request logging
 			grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
 			return WithPrincipal(ctx, principal), nil
