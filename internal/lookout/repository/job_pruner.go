@@ -28,7 +28,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 	// This would be much better done as a proper statement with parameters, but postgres doesn't support
 	// parameters if there are multiple statements.
 	queryText := fmt.Sprintf(`
-				CREATE TEMP TABLE rows_to_delete AS (SELECT job_id FROM job WHERE submitted < '%v');
+				CREATE TEMP TABLE rows_to_delete AS (SELECT job_id FROM job WHERE submitted < '%v' OR submitted IS NULL);
 				CREATE TEMP TABLE batch (job_id varchar(32));
 				
 				DO

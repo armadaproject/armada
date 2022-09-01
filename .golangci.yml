@@ -10,14 +10,14 @@ linters:
   enable:
     - lll
     - gofumpt
-    - deadcode
+    - unused
     - goimports
     - ineffassign
     - misspell
 
 linters-settings:
   lll:
-    line-length: 261
+    line-length: 160
   misspell:
     locale: UK
     ignore-words:

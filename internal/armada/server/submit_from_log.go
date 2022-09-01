@@ -314,7 +314,14 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 // It returns a boolean indicating if the events were processed and any error that occurred during processing.
 // Specifically, events are not processed if writing to the database results in a network-related error.
 // For any other error, the jobs are marked as failed and the events are considered to have been processed.
-func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups []string, queueName string, jobSetName string, es []*armadaevents.SubmitJob) (bool, error) {
+func (srv *SubmitFromLog) SubmitJobs(
+	ctx context.Context,
+	userId string,
+	groups []string,
+	queueName string,
+	jobSetName string,
+	es []*armadaevents.SubmitJob,
+) (bool, error) {
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
@@ -526,7 +533,13 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 // Returns a multierror containing all errors that occurred.
 // Since repeating this operation is safe (setting the priority is idempotent),
 // the bool indicating if events were processed is set to false if any job set failed.
-func (srv *SubmitFromLog) ReprioritizeJobSets(ctx context.Context, userId string, queueName string, jobSetName string, es []*armadaevents.ReprioritiseJobSet) (bool, error) {
+func (srv *SubmitFromLog) ReprioritizeJobSets(
+	ctx context.Context,
+	userId string,
+	queueName string,
+	jobSetName string,
+	es []*armadaevents.ReprioritiseJobSet,
+) (bool, error) {
 	okResult := true
 	var result *multierror.Error
 	for _, e := range es {
@@ -537,7 +550,13 @@ func (srv *SubmitFromLog) ReprioritizeJobSets(ctx context.Context, userId string
 	return okResult, result.ErrorOrNil()
 }
 
-func (srv *SubmitFromLog) ReprioritizeJobSet(ctx context.Context, userId string, queueName string, jobSetName string, e *armadaevents.ReprioritiseJobSet) (bool, error) {
+func (srv *SubmitFromLog) ReprioritizeJobSet(
+	ctx context.Context,
+	userId string,
+	queueName string,
+	jobSetName string,
+	e *armadaevents.ReprioritiseJobSet,
+) (bool, error) {
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err

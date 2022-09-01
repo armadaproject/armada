@@ -142,7 +142,12 @@ func connectionDetails() *client.ApiConnectionDetails {
 	return connectionDetails
 }
 
-func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) (map[domain.JobStatus]bool, []api.Event) {
+func submitJobsAndWatch(
+	t *testing.T,
+	submitClient api.SubmitClient,
+	eventsClient api.EventClient,
+	jobRequest *api.JobSubmitRequest,
+) (map[domain.JobStatus]bool, []api.Event) {
 	_, err := client.SubmitJobs(submitClient, jobRequest)
 	assert.NoError(t, err)
 	statusEvents := make(map[domain.JobStatus]bool)

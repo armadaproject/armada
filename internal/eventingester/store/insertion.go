@@ -10,17 +10,20 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/eventingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 // InsertEvents takes a channel of armada events and insets them into the event db
 // the events are republished to an output channel for further processing (e.g. Ackking)
-func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int,
+	maxSize int, maxRows int,
+) chan []*pulsarutils.ConsumerMessageId {
 	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
-			insert(db, msg.Events)
+			insert(db, msg.Events, maxSize, maxRows)
 			out <- msg.MessageIds
 		}
 		close(out)
@@ -28,13 +31,41 @@ func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpda
 	return out
 }
 
-func insert(db EventStore, rows []*model.Event) {
-	start := time.Now()
+func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
+	if len(rows) == 0 {
+		return
+	}
 
+	// Inset such that we never send more than maxRows rows or 4MB of data to redis at a time
+	currentSize := 0
+	currentRows := 0
+	batch := make([]*model.Event, 0, maxRows)
+
+	for i, event := range rows {
+		newSize := currentSize + len(event.Event)
+		newRows := currentRows + 1
+		if newSize > maxSize || newRows > maxRows {
+			doInsert(db, batch)
+			batch = make([]*model.Event, 0, maxRows)
+			currentSize = 0
+			currentRows = 0
+		}
+		batch = append(batch, event)
+		currentSize += len(event.Event)
+		currentRows++
+
+		// If this is the las element we need to flush
+		if i == len(rows)-1 {
+			doInsert(db, batch)
+		}
+	}
+}
+
+func doInsert(db EventStore, rows []*model.Event) {
+	start := time.Now()
 	err := WithRetry(func() error {
 		return db.ReportEvents(rows)
 	})
-
 	if err != nil {
 		log.WithError(err).Warnf("Error inserting rows")
 	} else {
@@ -58,7 +89,7 @@ func WithRetry(executeDb func() error) error {
 		}
 
 		if armadaerrors.IsNetworkError(err) || IsRetryableRedisError(err) {
-			backOff = min(2*backOff, maxBackoff)
+			backOff = util.Min(2*backOff, maxBackoff)
 			numRetries++
 			log.WithError(err).Warnf("Retryable error encountered inserting to Redis, will wait for %d seconds before retrying", backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
@@ -73,13 +104,6 @@ func WithRetry(executeDb func() error) error {
 		Message:   fmt.Sprintf("Gave up inserting into Redis after %d retries", maxRetries),
 		LastError: err,
 	}))
-}
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // IsRetryableRedisError is largely taken from https://github.com/go-redis/redis/blob/master/error.go#L28

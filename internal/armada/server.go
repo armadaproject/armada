@@ -151,11 +151,19 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		streamEventStore = processor.NewEventStore(eventStream)
 		eventStore = streamEventStore
 
-		eventRepoBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
+		eventRepoBatcher := eventstream.NewTimedEventBatcher(
+			config.Events.ProcessorBatchSize,
+			config.Events.ProcessorMaxTimeBetweenBatches,
+			config.Events.ProcessorTimeout,
+		)
 		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, legacyEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
-		jobStatusBatcher := eventstream.NewTimedEventBatcher(config.Events.ProcessorBatchSize, config.Events.ProcessorMaxTimeBetweenBatches, config.Events.ProcessorTimeout)
+		jobStatusBatcher := eventstream.NewTimedEventBatcher(
+			config.Events.ProcessorBatchSize,
+			config.Events.ProcessorMaxTimeBetweenBatches,
+			config.Events.ProcessorTimeout,
+		)
 		jobStatusProcessor := processor.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
 		jobStatusProcessor.Start()
 
@@ -337,8 +345,17 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-	queueCache := cache.NewQueueCache(queueRepository, jobRepository, schedulingInfoRepository)
-	aggregatedQueueServer := server.NewAggregatedQueueServer(permissions, config.Scheduling, jobRepository, queueCache, queueRepository, usageRepository, eventStore, schedulingInfoRepository)
+	queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
+	aggregatedQueueServer := server.NewAggregatedQueueServer(
+		permissions,
+		config.Scheduling,
+		jobRepository,
+		queueCache,
+		queueRepository,
+		usageRepository,
+		eventStore,
+		schedulingInfoRepository,
+	)
 	eventServer := server.NewEventServer(permissions, legacyEventRepository, eventStore, queueRepository)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 

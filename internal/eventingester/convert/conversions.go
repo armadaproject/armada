@@ -13,13 +13,13 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// MessageRowConverter raw converts pulsar messages into events that we can store in Redis
+// MessageRowConverter converts raw pulsar messages into events that we can store in Redis
 type MessageRowConverter struct {
 	Compressor          compress.Compressor
 	MaxMessageBatchSize int
 }
 
-// Convert takes a  channel of pulsar message batches and outputs a channel of batched events that we store in Redis
+// Convert takes a channel of pulsar message batches and outputs a channel of batched events that we store in Redis
 func Convert(ctx context.Context, msgs chan []*pulsarutils.ConsumerMessage, bufferSize int, converter *MessageRowConverter) chan *model.BatchUpdate {
 	out := make(chan *model.BatchUpdate, bufferSize)
 	go func() {
@@ -58,7 +58,7 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 		sequences = append(sequences, es)
 	}
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, rc.MaxMessageBatchSize)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, rc.MaxMessageBatchSize, false)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to compact sequences")
 		return &model.BatchUpdate{

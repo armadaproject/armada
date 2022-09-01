@@ -17,7 +17,11 @@ import (
 const CustomConfigLocation string = "config"
 
 func init() {
-	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
+	pflag.StringSlice(
+		CustomConfigLocation,
+		[]string{},
+		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
+	)
 	pflag.Parse()
 }
 
