@@ -72,7 +72,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		log.Infof("Extracted token from cache: %v", data)
 		if cacheInfo, ok := data.(CacheData); ok && cacheInfo.Valid {
 			log.Info("Token successfully used")
-			return NewStaticPrincipal(cacheInfo.Name, []string{name}), nil
+			return NewStaticPrincipal(cacheInfo.Name, []string{cacheInfo.Name}), nil
 		}
 		log.Infof("Token use failed")
 	}
