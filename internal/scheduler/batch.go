@@ -158,6 +158,8 @@ func mergeInMap[M ~map[K]V, K comparable, V any](a M, b SqlOperation) bool {
 
 // Returns true if a can be placed before b.
 func (a InsertJobs) CanBeAppliedBefore(b SqlOperation) bool {
+	// We don't check for job and run ops here,
+	// since job and run ops can never appear before the corresponding InsertJobs.
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, job := range a {
@@ -171,6 +173,8 @@ func (a InsertJobs) CanBeAppliedBefore(b SqlOperation) bool {
 
 // Returns true if a can be placed before b.
 func (a InsertRuns) CanBeAppliedBefore(b SqlOperation) bool {
+	// We don't check for run ops here,
+	// since run ops can never appear before the corresponding InsertRuns.
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, run := range a {
