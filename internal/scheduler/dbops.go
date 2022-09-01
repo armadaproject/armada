@@ -11,7 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 )
 
-// SqlOperation captures a generic batch sql operations.
+// DbOperation captures a generic batch database operation.
 //
 // There are 5 types of operations:
 // - Insert jobs (i.e., add new jobs to the db).
@@ -27,20 +27,20 @@ import (
 // - Job set operations: if not affecting a job defined in prior op.
 // - Job operations: if not affecting a job defined in a prior op.
 // - Job run operations: if not affecting a run defined in a prior op.
-type SqlOperation interface {
+type DbOperation interface {
 	// a.Merge(b) merges b into a.
 	// Returns true if merging was successful.
 	// If not successful, neither op is mutated.
-	Merge(SqlOperation) bool
+	Merge(DbOperation) bool
 	// a.CanBeAppliedBefore(b) returns true if a can be placed before b
 	// without changing the end result of the overall set of operations.
-	CanBeAppliedBefore(SqlOperation) bool
+	CanBeAppliedBefore(DbOperation) bool
 }
 
-// AppendSqlOperation appends a sql operation,
+// AppendDbOperation appends a sql operation,
 // possibly merging it with a previous operation if that can be done in such a way
 // that the end result of applying the entire sequence of operations is unchanged.
-func AppendSqlOperation(ops []SqlOperation, op SqlOperation) []SqlOperation {
+func AppendDbOperation(ops []DbOperation, op DbOperation) []DbOperation {
 	ops = append(ops, op)
 	for i := len(ops) - 1; i > 0; i-- {
 		if ops[i-1] == nil || ops[i] == nil {
@@ -99,53 +99,53 @@ type JobRunOperation interface {
 	AffectsJobRun(uuid.UUID) bool
 }
 
-func (a InsertJobs) Merge(b SqlOperation) bool {
+func (a InsertJobs) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertRuns) Merge(b SqlOperation) bool {
+func (a InsertRuns) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertRunAssignments) Merge(b SqlOperation) bool {
+func (a InsertRunAssignments) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a UpdateJobSetPriorities) Merge(b SqlOperation) bool {
+func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobSetsCancelled) Merge(b SqlOperation) bool {
+func (a MarkJobSetsCancelled) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobsCancelled) Merge(b SqlOperation) bool {
+func (a MarkJobsCancelled) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobsSucceeded) Merge(b SqlOperation) bool {
+func (a MarkJobsSucceeded) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobsFailed) Merge(b SqlOperation) bool {
+func (a MarkJobsFailed) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a UpdateJobPriorities) Merge(b SqlOperation) bool {
+func (a UpdateJobPriorities) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkRunsSucceeded) Merge(b SqlOperation) bool {
+func (a MarkRunsSucceeded) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkRunsFailed) Merge(b SqlOperation) bool {
+func (a MarkRunsFailed) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkRunsRunning) Merge(b SqlOperation) bool {
+func (a MarkRunsRunning) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertJobErrors) Merge(b SqlOperation) bool {
+func (a InsertJobErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertJobRunErrors) Merge(b SqlOperation) bool {
+func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
 // mergeInMap merges a sql op b into a, provided that b is of the same type as a.
 // For example, if a is of type MarkJobsCancelled, b is only merged if also of type MarkJobsCancelled.
 // Returns true if the operations were merged and false otherwise.
-func mergeInMap[M ~map[K]V, K comparable, V any](a M, b SqlOperation) bool {
+func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	// Using a type switch here, since using a type assertion
 	// (which should also work in theory) crashes the go1.19 compiler.
 	switch op := b.(type) {
@@ -157,7 +157,7 @@ func mergeInMap[M ~map[K]V, K comparable, V any](a M, b SqlOperation) bool {
 }
 
 // Returns true if a can be placed before b.
-func (a InsertJobs) CanBeAppliedBefore(b SqlOperation) bool {
+func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	// We don't check for job and run ops here,
 	// since job and run ops can never appear before the corresponding InsertJobs.
 	switch op := b.(type) {
@@ -172,7 +172,7 @@ func (a InsertJobs) CanBeAppliedBefore(b SqlOperation) bool {
 }
 
 // Returns true if a can be placed before b.
-func (a InsertRuns) CanBeAppliedBefore(b SqlOperation) bool {
+func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	// We don't check for run ops here,
 	// since run ops can never appear before the corresponding InsertRuns.
 	switch op := b.(type) {
@@ -192,47 +192,47 @@ func (a InsertRuns) CanBeAppliedBefore(b SqlOperation) bool {
 	return true
 }
 
-func (a InsertRunAssignments) CanBeAppliedBefore(b SqlOperation) bool {
+func (a InsertRunAssignments) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
-func (a UpdateJobSetPriorities) CanBeAppliedBefore(b SqlOperation) bool {
+func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJobInSet(a, b)
 }
-func (a MarkJobSetsCancelled) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkJobSetsCancelled) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
 }
-func (a MarkJobsCancelled) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b) && !definesRunForJob(a, b)
 }
-func (a MarkJobsSucceeded) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
-func (a MarkJobsFailed) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkJobsFailed) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
-func (a UpdateJobPriorities) CanBeAppliedBefore(b SqlOperation) bool {
+func (a UpdateJobPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
-func (a MarkRunsSucceeded) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkRunsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
-func (a MarkRunsFailed) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkRunsFailed) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
-func (a MarkRunsRunning) CanBeAppliedBefore(b SqlOperation) bool {
+func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
-func (a InsertJobErrors) CanBeAppliedBefore(b SqlOperation) bool {
+func (a InsertJobErrors) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
-func (a InsertJobRunErrors) CanBeAppliedBefore(b SqlOperation) bool {
+func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation
 // that inserts at least one job in any of the job sets that make
 // up the keys of a.
-func definesJobInSet[M ~map[string]V, V any](a M, b SqlOperation) bool {
+func definesJobInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
 			if _, ok := a[job.JobSet]; ok {
@@ -244,7 +244,7 @@ func definesJobInSet[M ~map[string]V, V any](a M, b SqlOperation) bool {
 }
 
 // Like definesJobInSet, but checks if b defines a run.
-func definesRunInSet[M ~map[string]V, V any](a M, b SqlOperation) bool {
+func definesRunInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
 			if _, ok := a[run.JobSet]; ok {
@@ -257,7 +257,7 @@ func definesRunInSet[M ~map[string]V, V any](a M, b SqlOperation) bool {
 
 // definesJob returns true if b is an InsertJobs operation
 // that inserts at least one job with id equal to any of the keys of a.
-func definesJob[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
+func definesJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
 			if _, ok := a[job.JobID]; ok {
@@ -270,7 +270,7 @@ func definesJob[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
 
 // definesRun returns true if b is an InsertRuns operation
 // that inserts at least one run with id equal to any of the keys of a.
-func definesRun[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
+func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
 			if _, ok := a[run.RunID]; ok {
@@ -283,7 +283,7 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
 
 // definesRunForJob returns true if b is an InsertRuns operation
 // that inserts at least one run with job id equal to any of the keys of a.
-func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
+func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
 			if _, ok := a[run.JobID]; ok {
@@ -298,7 +298,7 @@ func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
 // In doing so, it may change the order of operations.
 // However, the resulting operations is guaranteed to produce the same end state
 // as the original operations.
-func CompactOps(ops []SqlOperation) []SqlOperation {
+func CompactOps(ops []DbOperation) []DbOperation {
 	ops = discardNilOps(ops)
 	for len(ops) > 1 {
 		n := len(ops)
@@ -324,7 +324,7 @@ func CompactOps(ops []SqlOperation) []SqlOperation {
 // In doing so, it may change the order of operations.
 // However, the resulting operations is guaranteed to produce the same end state
 // as the original operations.
-func CompactOpsOld(ops []SqlOperation) []SqlOperation {
+func CompactOpsOld(ops []DbOperation) []DbOperation {
 	ops = discardNilOps(ops)
 	for len(ops) > 0 {
 		n := len(ops)
@@ -346,8 +346,8 @@ func CompactOpsOld(ops []SqlOperation) []SqlOperation {
 	return ops
 }
 
-func discardNilOps(ops []SqlOperation) []SqlOperation {
-	rv := make([]SqlOperation, 0, len(ops))
+func discardNilOps(ops []DbOperation) []DbOperation {
+	rv := make([]DbOperation, 0, len(ops))
 	for _, op := range ops {
 		if op != nil {
 			rv = append(rv, op)
