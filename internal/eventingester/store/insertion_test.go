@@ -14,8 +14,10 @@ type MockEventStore struct {
 	StoredEvents [][]*model.Event
 }
 
-const maxSize = 1024
-const maxEvents = 500
+const (
+	maxSize   = 1024
+	maxEvents = 500
+)
 
 // If Errors contains errors then MockEventStore will pop the first error and return it
 // If errors is empty then the vents are recorded

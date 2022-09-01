@@ -31,7 +31,6 @@ func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpda
 }
 
 func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
-
 	if len(rows) == 0 {
 		return
 	}
@@ -59,7 +58,6 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 			doInsert(db, batch)
 		}
 	}
-
 }
 
 func doInsert(db EventStore, rows []*model.Event) {
