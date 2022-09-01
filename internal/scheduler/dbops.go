@@ -75,8 +75,8 @@ type UpdateJobPriorities map[uuid.UUID]int32
 type MarkRunsSucceeded map[uuid.UUID]bool
 type MarkRunsFailed map[uuid.UUID]bool
 type MarkRunsRunning map[uuid.UUID]bool
-type InsertJobErrors map[uuid.UUID]JobError
-type InsertJobRunErrors map[uuid.UUID]JobRunError
+type InsertJobErrors map[string]JobError
+type InsertJobRunErrors map[string]JobRunError
 
 type JobSetOperation interface {
 	AffectsJobSet(string) bool
@@ -228,10 +228,12 @@ func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
 func (a InsertJobErrors) CanBeAppliedBefore(b DbOperation) bool {
-	return !definesJob(a, b)
+	// We allow inserting errors before a job has been marked as failed.
+	return true
 }
 func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
-	return !definesRun(a, b)
+	// We allow inserting errors before a run has been marked as failed.
+	return true
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation

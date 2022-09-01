@@ -83,7 +83,7 @@ CREATE TABLE job_run_assignments (
 );
 
 CREATE TABLE job_errors (
-    -- To ensure inserts are idempotent, we to asociate with each error a unique id
+    -- To ensure inserts are idempotent, we need to asociate with each error a unique id
     -- that can be computed deterministically by the ingester.
     -- TODO: We could use a hash to improve efficiency.
     id text PRIMARY KEY,
@@ -104,7 +104,7 @@ CREATE INDEX job_errors_id ON job_errors (job_id);
 CREATE INDEX job_errors_id_terminal ON job_errors (job_id, terminal);
 
 CREATE TABLE job_run_errors (
-    -- To ensure inserts are idempotent, we to asociate with each error a unique id
+    -- To ensure inserts are idempotent, we need to asociate with each error a unique id
     -- that can be computed deterministically by the ingester.
     id text PRIMARY KEY,
     run_id UUID NOT NULL,
