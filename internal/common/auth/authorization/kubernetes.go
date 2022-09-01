@@ -69,9 +69,12 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Check Cache
 	data, found := authService.TokenCache.Get(token)
 	if found {
+		log.Infof("Extracted token from cache: %v", data)
 		if cacheInfo, ok := data.(CacheData); ok && cacheInfo.Valid {
+			log.Info("Token successfully used")
 			return NewStaticPrincipal(cacheInfo.Name, []string{}), nil
 		}
+		log.Infof("Token use failed")
 	}
 
 	log.Info("Auth parsed")
@@ -99,7 +102,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		},
 		expirationTime.Sub(time.Now()))
 	log.Info("Making principle")
-	// Return very basic principal
+	// Return very basic Principal
 	return NewStaticPrincipal(name, []string{}), nil
 }
 
