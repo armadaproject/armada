@@ -9,7 +9,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/internal/eventapi/model"
 
 	log "github.com/sirupsen/logrus"
@@ -29,9 +28,7 @@ type internalSubscription struct {
 
 type DefaultSubscriptionManager struct {
 	offsets           SequenceManager
-	db                *eventdb.EventDb
 	pollPeriod        time.Duration
-	maxFetchSize      int
 	batchedChannel    chan *model.EventRequest // A channel where queries are batched together which increases overall throughput at the cost of latency
 	catchupChannel    chan *model.EventRequest // A channel for queries to be made in a low latency manner at the cost of overall throughput
 	subscriptionIndex int64
@@ -45,7 +42,16 @@ type eventDbRO interface {
 }
 
 // NewSubscriptionManager returns a DefaultSubscriptionManager that can fetch events from postgres and manage subscription requests for new data
-func NewSubscriptionManager(sequenceManager SequenceManager, db eventDbRO, maxBatchSize int, maxTimeout time.Duration, pollPeriod time.Duration, queryConcurrency int, maxFetchSize int, clock clock.Clock) *DefaultSubscriptionManager {
+func NewSubscriptionManager(
+	sequenceManager SequenceManager,
+	db eventDbRO,
+	maxBatchSize int,
+	maxTimeout time.Duration,
+	pollPeriod time.Duration,
+	queryConcurrency int,
+	maxFetchSize int,
+	clock clock.Clock,
+) *DefaultSubscriptionManager {
 	sm := DefaultSubscriptionManager{
 		offsets:           sequenceManager,
 		pollPeriod:        pollPeriod,

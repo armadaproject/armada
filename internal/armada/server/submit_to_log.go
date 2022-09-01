@@ -524,7 +524,12 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 // User information used for authorization is extracted from the provided context.
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
-func (srv *PulsarSubmitServer) Authorize(ctx context.Context, queueName string, anyPerm permission.Permission, perm queue.PermissionVerb) (userId string, groups []string, err error) {
+func (srv *PulsarSubmitServer) Authorize(
+	ctx context.Context,
+	queueName string,
+	anyPerm permission.Permission,
+	perm queue.PermissionVerb,
+) (userId string, groups []string, err error) {
 	principal := authorization.GetPrincipal(ctx)
 	userId = principal.GetName()
 	groups = principal.GetGroupNames()

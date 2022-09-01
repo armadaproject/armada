@@ -66,11 +66,6 @@ func New() *App {
 	}
 }
 
-// validateParams validates a.Params. Currently, it doesn't check anything.
-func (a *App) validateParams() error {
-	return nil
-}
-
 // Version prints build information (e.g., current git commit) to the app output.
 func (a *App) Version() error {
 	w := tabwriter.NewWriter(a.Out, 1, 1, 1, ' ', 0)
@@ -152,7 +147,10 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 
 // GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
 // and then consumes events until ctx is cancelled.
-func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiConnectionDetails) func(context.Context, chan *api.EventMessage, map[string]bool) error {
+func GetCancelAllJobs(
+	testSpec *api.TestSpec,
+	apiConnectionDetails *client.ApiConnectionDetails,
+) func(context.Context, chan *api.EventMessage, map[string]bool) error {
 	return func(ctx context.Context, ch chan *api.EventMessage, jobIds map[string]bool) error {
 		return client.WithSubmitClient(apiConnectionDetails, func(sc api.SubmitClient) error {
 			for jobId := range jobIds {

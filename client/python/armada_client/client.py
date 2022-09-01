@@ -21,6 +21,7 @@ from armada_client.armada import (
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions
+from armada_client.typings import JobState
 
 
 class ArmadaClient:
@@ -126,6 +127,32 @@ class ArmadaClient:
             queue=queue, job_id=job_id, job_set_id=job_set_id
         )
         response = self.submit_stub.CancelJobs(request)
+        return response
+
+    def cancel_jobset(
+        self,
+        queue: str,
+        job_set_id: str,
+        filter_states: List[JobState],
+    ) -> empty_pb2.Empty:
+        """Cancel jobs in a given queue.
+
+        Uses the CancelJobSet RPC to cancel jobs.
+        A filter is used to only cancel jobs in certain states.
+
+        :param queue: The name of the queue
+        :param job_set_id: An array of JobSubmitRequestItems.
+        :param filter_states: A list of states to filter by.
+        :return: An empty response.
+        """
+
+        job_filter = submit_pb2.JobSetFilter(
+            states=[state.value for state in filter_states]
+        )
+        request = submit_pb2.JobSetCancelRequest(
+            queue=queue, job_set_id=job_set_id, filter=job_filter
+        )
+        response = self.submit_stub.CancelJobSet(request)
         return response
 
     def reprioritize_jobs(

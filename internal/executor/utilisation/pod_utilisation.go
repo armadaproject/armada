@@ -31,7 +31,10 @@ type KubeletPodUtilisationService struct {
 	dataAccessMutex    sync.Mutex
 }
 
-func NewMetricsServerQueueUtilisationService(clusterContext cluster_context.ClusterContext, nodeInfoService node.NodeInfoService) *KubeletPodUtilisationService {
+func NewMetricsServerQueueUtilisationService(
+	clusterContext cluster_context.ClusterContext,
+	nodeInfoService node.NodeInfoService,
+) *KubeletPodUtilisationService {
 	return &KubeletPodUtilisationService{
 		clusterContext:     clusterContext,
 		nodeInfoService:    nodeInfoService,

@@ -18,7 +18,10 @@ type ResourceCleanupService struct {
 	kubernetesConfiguration configuration.KubernetesConfiguration
 }
 
-func NewResourceCleanupService(clusterContext clusterContext.ClusterContext, kubernetesConfiguration configuration.KubernetesConfiguration) *ResourceCleanupService {
+func NewResourceCleanupService(
+	clusterContext clusterContext.ClusterContext,
+	kubernetesConfiguration configuration.KubernetesConfiguration,
+) *ResourceCleanupService {
 	service := &ResourceCleanupService{
 		clusterContext:          clusterContext,
 		kubernetesConfiguration: kubernetesConfiguration,
