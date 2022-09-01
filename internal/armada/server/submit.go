@@ -783,6 +783,10 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 }
 
 func compressStringArray(input []string, compressor compress.Compressor) ([]byte, error) {
+	if len(input) <= 0 {
+		return []byte{}, nil
+	}
+
 	buf := &bytes.Buffer{}
 	err := gob.NewEncoder(buf).Encode(input)
 	if err != nil {
@@ -792,7 +796,7 @@ func compressStringArray(input []string, compressor compress.Compressor) ([]byte
 
 	c := compressor.(compress.Compressor)
 	returnVal, err := c.Compress(bs)
-	log.Info("Compressed %d groups from %d to %d bytes", len(input), cap(bs), cap(returnVal))
+	log.Infof("Compressed %d groups from %d to %d bytes", len(input), cap(bs), cap(returnVal))
 	return returnVal, err
 }
 

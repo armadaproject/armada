@@ -1714,8 +1714,9 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 					},
 				},
 			},
-			Owner:                    "test",
-			QueueOwnershipUserGroups: []string{},
+			Owner:                              "test",
+			QueueOwnershipUserGroups:           nil,
+			CompressedQueueOwnershipUserGroups: []byte{},
 		},
 	}
 
