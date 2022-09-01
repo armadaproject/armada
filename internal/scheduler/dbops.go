@@ -58,6 +58,7 @@ func AppendDbOperation(ops []DbOperation, op DbOperation) []DbOperation {
 	return discardNilOps(ops) // TODO: Can be made more efficient.
 }
 
+// Db operations (implements DbOperation).
 type InsertJobs map[uuid.UUID]Job
 type InsertRuns map[uuid.UUID]Run
 type InsertRunAssignments map[uuid.UUID]JobRunAssignment
