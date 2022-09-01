@@ -6,12 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/util"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/eventingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
