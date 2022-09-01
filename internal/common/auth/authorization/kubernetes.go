@@ -89,6 +89,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	log.Info("Token reviewing")
 	// Make request to token review endpoint
 	name, err := reviewToken(ctx, url, token, []byte(ca))
+	log.Infof("Name of principal: %s", name)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +104,9 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		expirationTime.Sub(time.Now()))
 	log.Info("Making principle")
 	// Return very basic Principal
-	return NewStaticPrincipalWithScopesAndClaims(name, []string{name}, []string{name}, []string{name}), nil
+	groups := make([]string, 0, 1)
+	groups = append(groups, "name")
+	return NewStaticPrincipal(name, groups), nil
 }
 
 func (authService *KubernetesNativeAuthService) getClusterURL(token string) (string, error) {
