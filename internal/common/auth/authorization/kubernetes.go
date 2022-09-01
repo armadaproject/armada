@@ -72,7 +72,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		log.Infof("Extracted token from cache: %v", data)
 		if cacheInfo, ok := data.(CacheData); ok && cacheInfo.Valid {
 			log.Info("Token successfully used")
-			return NewStaticPrincipal(cacheInfo.Name, []string{}), nil
+			return NewStaticPrincipal(cacheInfo.Name, []string{name}), nil
 		}
 		log.Infof("Token use failed")
 	}
@@ -104,9 +104,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		expirationTime.Sub(time.Now()))
 	log.Info("Making principle")
 	// Return very basic Principal
-	groups := make([]string, 0, 1)
-	groups = append(groups, "name")
-	return NewStaticPrincipal(name, groups), nil
+	return NewStaticPrincipal(name, []string{name}), nil
 }
 
 func (authService *KubernetesNativeAuthService) getClusterURL(token string) (string, error) {
