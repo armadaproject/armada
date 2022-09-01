@@ -60,7 +60,7 @@ eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration
 metrics:
-  refreshInterval: 10s
+  refreshInterval: 30s
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"

@@ -111,7 +111,9 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 					stripPodSpecsInEvent(event)
 				}
 				// TODO: This results in panics when there are tolerations in the podspec.
-				fmt.Printf("> EventSequence w. %d events (%d jobs active, for %s)\n%s\n", len(sequence.Events), numJobs, time.Since(risingEdge), proto.MarshalTextString(sequence))
+				fmt.Printf("> EventSequence w. %d events (%d jobs active, for %s)\n%s\n",
+					len(sequence.Events), numJobs, time.Since(risingEdge),
+					proto.MarshalTextString(sequence))
 			}
 		}
 		return nil
