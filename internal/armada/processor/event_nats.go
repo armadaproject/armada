@@ -90,6 +90,7 @@ func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
 		// For submitted events we null out the podspec(s)
 		if event.GetSubmitted() != nil {
 			event.GetSubmitted().Job.QueueOwnershipUserGroups = nil
+			event.GetSubmitted().Job.CompressedQueueOwnershipUserGroups = nil
 			event.GetSubmitted().Job.PodSpecs = nil
 			event.GetSubmitted().Job.PodSpec = nil
 		}

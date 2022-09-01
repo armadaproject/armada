@@ -9,11 +9,13 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
@@ -329,6 +331,34 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err
+	}
+
+	var log *logrus.Entry
+	if srv.Logger != nil {
+		log = srv.Logger.WithField("service", "SubmitFromLog")
+	} else {
+		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
+	}
+
+	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return true, err
+	}
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
+
+	for _, job := range jobs {
+		compressedOwnershipGroups, err := compressStringArray(job.QueueOwnershipUserGroups, compressor.(compress.Compressor))
+		if err != nil {
+			return true, err
+		}
+		job.QueueOwnershipUserGroups = nil
+		job.CompressedQueueOwnershipUserGroups = compressedOwnershipGroups
+
 	}
 
 	// Submit the jobs by writing them to the database.

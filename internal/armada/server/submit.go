@@ -1,13 +1,18 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/gogo/protobuf/types"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -37,6 +42,7 @@ type SubmitServer struct {
 	cancelJobsBatchSize      int
 	queueManagementConfig    *configuration.QueueManagementConfig
 	schedulingConfig         *configuration.SchedulingConfig
+	compressorPool           *pool.ObjectPool
 }
 
 func NewSubmitServer(
@@ -49,6 +55,23 @@ func NewSubmitServer(
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
+	// This is basically the default config but with a max of 100 rather than 8 and a min of 10 rather than 0.
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	compressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibCompressor(512)
+		}), &poolConfig)
+
 	return &SubmitServer{
 		permissions:              permissions,
 		jobRepository:            jobRepository,
@@ -58,6 +81,7 @@ func NewSubmitServer(
 		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
 		schedulingConfig:         schedulingConfig,
+		compressorPool:           compressorPool,
 	}
 }
 
@@ -758,9 +782,39 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
 }
 
+func compressStringArray(input []string, compressor compress.Compressor) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	err := gob.NewEncoder(buf).Encode(input)
+	if err != nil {
+		return nil, err
+	}
+	bs := buf.Bytes()
+
+	c := compressor.(compress.Compressor)
+	returnVal, err := c.Compress(bs)
+	log.Info("Compressed %d groups from %d to %d bytes", len(input), cap(bs), cap(returnVal))
+	return returnVal, err
+}
+
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
 	getTime func() time.Time, getUlid func() string,
 ) ([]*api.Job, error) {
+	compressor, err := server.compressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(server.compressorPool, context.Background(), compressor)
+
+	compressedOwnershipGroups, err := compressStringArray(ownershipGroups, compressor.(compress.Compressor))
+	if err != nil {
+		return nil, err
+	}
+
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
@@ -829,11 +883,12 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 
 			Priority: item.Priority,
 
-			PodSpec:                  item.PodSpec,
-			PodSpecs:                 item.PodSpecs,
-			Created:                  getTime(), // Replaced with now for mocking unit test
-			Owner:                    owner,
-			QueueOwnershipUserGroups: ownershipGroups,
+			PodSpec:                            item.PodSpec,
+			PodSpecs:                           item.PodSpecs,
+			Created:                            getTime(), // Replaced with now for mocking unit test
+			Owner:                              owner,
+			QueueOwnershipUserGroups:           nil,
+			CompressedQueueOwnershipUserGroups: compressedOwnershipGroups,
 		}
 		jobs = append(jobs, j)
 	}
