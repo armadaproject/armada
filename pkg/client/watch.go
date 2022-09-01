@@ -23,11 +23,26 @@ func GetJobSetState(client api.EventClient, queue, jobSetId string, context cont
 	return latestState
 }
 
-func WatchJobSet(client api.EventClient, queue, jobSetId string, waitForNew bool, errorOnNotExists bool, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
+func WatchJobSet(
+	client api.EventClient,
+	queue, jobSetId string,
+	waitForNew bool,
+	errorOnNotExists bool,
+	context context.Context,
+	onUpdate func(*domain.WatchContext, api.Event) bool,
+) *domain.WatchContext {
 	return WatchJobSetWithJobIdsFilter(client, queue, jobSetId, waitForNew, errorOnNotExists, []string{}, context, onUpdate)
 }
 
-func WatchJobSetWithJobIdsFilter(client api.EventClient, queue, jobSetId string, waitForNew bool, errorOnNotExists bool, jobIds []string, context context.Context, onUpdate func(*domain.WatchContext, api.Event) bool) *domain.WatchContext {
+func WatchJobSetWithJobIdsFilter(
+	client api.EventClient,
+	queue, jobSetId string,
+	waitForNew bool,
+	errorOnNotExists bool,
+	jobIds []string,
+	context context.Context,
+	onUpdate func(*domain.WatchContext, api.Event) bool,
+) *domain.WatchContext {
 	state := domain.NewWatchContext()
 
 	jobIdsSet := util.StringListToSet(jobIds)

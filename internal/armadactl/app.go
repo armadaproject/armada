@@ -64,8 +64,3 @@ func New() *App {
 	app.Params.QueueAPI = &QueueAPI{}
 	return app
 }
-
-// validateParams validates a.Params. Currently, it doesn't check anything.
-func (a *App) validateParams() error {
-	return nil
-}

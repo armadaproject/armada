@@ -187,15 +187,46 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	assert.Equal(t, map[JobStatus]int{}, watchContext.stateSummary)
 
 	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1", Created: now})
-	assert.Equal(t, &JobInfo{Status: Succeeded, PodStatus: []PodStatus{Succeeded}, LastUpdate: now, PodLastUpdated: []time.Time{now}, MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
+	assert.Equal(
+		t,
+		&JobInfo{
+			Status:           Succeeded,
+			PodStatus:        []PodStatus{Succeeded},
+			LastUpdate:       now,
+			PodLastUpdated:   []time.Time{now},
+			MaxUsedResources: common.ComputeResources{},
+		},
+		watchContext.GetJobInfo("1"),
+	)
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
 	watchContext.ProcessEvent(&api.JobQueuedEvent{JobId: "1", Created: now.Add(-1 * time.Second)})
-	assert.Equal(t, &JobInfo{Status: Succeeded, PodStatus: []PodStatus{Succeeded}, LastUpdate: now, PodLastUpdated: []time.Time{now}, MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
+	assert.Equal(
+		t,
+		&JobInfo{
+			Status:           Succeeded,
+			PodStatus:        []PodStatus{Succeeded},
+			LastUpdate:       now,
+			PodLastUpdated:   []time.Time{now},
+			MaxUsedResources: common.ComputeResources{},
+		},
+		watchContext.GetJobInfo("1"),
+	)
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 
 	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job, Created: now.Add(-2 * time.Second)})
-	assert.Equal(t, &JobInfo{Status: Succeeded, PodStatus: []PodStatus{Succeeded}, LastUpdate: now, PodLastUpdated: []time.Time{now}, Job: &job, MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
+	assert.Equal(
+		t,
+		&JobInfo{
+			Status:           Succeeded,
+			PodStatus:        []PodStatus{Succeeded},
+			LastUpdate:       now,
+			PodLastUpdated:   []time.Time{now},
+			Job:              &job,
+			MaxUsedResources: common.ComputeResources{},
+		},
+		watchContext.GetJobInfo("1"),
+	)
 	assert.Equal(t, map[JobStatus]int{Succeeded: 1}, watchContext.stateSummary)
 }
 

@@ -407,14 +407,6 @@ func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) 
 	return NewNullString(string(updatedJobJson)), nil
 }
 
-func (r *SQLJobStore) getUpdatedJobJson(event *api.JobUpdatedEvent) (sql.NullString, error) {
-	updatedJobJson, err := json.Marshal(event.Job)
-	if err != nil {
-		return sql.NullString{}, nil
-	}
-	return NewNullString(string(updatedJobJson)), nil
-}
-
 func upsertJobRun(tx *goqu.TxDatabase, record goqu.Record) error {
 	return upsert(tx, jobRunTable, []string{"run_id"}, []goqu.Record{record})
 }
