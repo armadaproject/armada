@@ -6,19 +6,16 @@ import (
 	"os/signal"
 	"sync"
 
-	"github.com/G-Research/armada/internal/eventingester/convert"
-
-	"github.com/G-Research/armada/internal/eventingester/batch"
-
-	"github.com/go-redis/redis"
-
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/go-redis/redis"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/eventingester/batch"
 	"github.com/G-Research/armada/internal/eventingester/configuration"
+	"github.com/G-Research/armada/internal/eventingester/convert"
 	"github.com/G-Research/armada/internal/eventingester/store"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
