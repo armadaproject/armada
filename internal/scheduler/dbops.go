@@ -52,6 +52,16 @@ func AppendDbOperation(ops []DbOperation, op DbOperation) []DbOperation {
 	return discardNilOps(ops) // TODO: Can be made more efficient.
 }
 
+func discardNilOps(ops []DbOperation) []DbOperation {
+	rv := make([]DbOperation, 0, len(ops))
+	for _, op := range ops {
+		if op != nil {
+			rv = append(rv, op)
+		}
+	}
+	return rv
+}
+
 // Db operations (implements DbOperation).
 type InsertJobs map[uuid.UUID]Job
 type InsertRuns map[uuid.UUID]Run
@@ -287,66 +297,4 @@ func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 		}
 	}
 	return false
-}
-
-// CompactOps merges sql operations to produce a (hopefully) smaller number of operations.
-// In doing so, it may change the order of operations.
-// However, the resulting operations is guaranteed to produce the same end state
-// as the original operations.
-func CompactOps(ops []DbOperation) []DbOperation {
-	ops = discardNilOps(ops)
-	for len(ops) > 1 {
-		n := len(ops)
-		for i := len(ops) - 1; i > 0; i-- {
-			for j := i - 1; j >= 0; j-- {
-				if ops[j-1].Merge(ops[j]) { // Returns true if merge was successful.
-					ops[j] = nil
-					break
-				} else if ops[j-1].CanBeAppliedBefore(ops[j]) {
-					ops[j-1], ops[j] = ops[j], ops[j-1]
-				}
-			}
-		}
-		ops = discardNilOps(ops)
-		if len(ops) == n { // Return if we made no progress.
-			return ops
-		}
-	}
-	return ops
-}
-
-// CompactOps merges sql operations to produce a (hopefully) smaller number of operations.
-// In doing so, it may change the order of operations.
-// However, the resulting operations is guaranteed to produce the same end state
-// as the original operations.
-func CompactOpsOld(ops []DbOperation) []DbOperation {
-	ops = discardNilOps(ops)
-	for len(ops) > 0 {
-		n := len(ops)
-		for i := range ops {
-			for j := i - 1; j > 0; j-- {
-				if ops[j-1].Merge(ops[j]) { // Returns true if merge was successful.
-					ops[j] = nil
-					break
-				} else if ops[j-1].CanBeAppliedBefore(ops[j]) {
-					ops[j-1], ops[j] = ops[j], ops[j-1]
-				}
-			}
-		}
-		ops = discardNilOps(ops)
-		if len(ops) == n { // Return if we made no progress.
-			return ops
-		}
-	}
-	return ops
-}
-
-func discardNilOps(ops []DbOperation) []DbOperation {
-	rv := make([]DbOperation, 0, len(ops))
-	for _, op := range ops {
-		if op != nil {
-			rv = append(rv, op)
-		}
-	}
-	return rv
 }
