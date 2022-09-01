@@ -11,32 +11,51 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 )
 
-// Jobs: if prior op doesn't affect this job set.
-// Runs: if prior op doesn't define the job.
-// Reprioritisations: if prior op doesn't define the job.
-// Job set cancelled: if not affecting job defined in prior op.
-// Job cancelled: if not affecting the job defined in the prior op.
-// Job succeeded: if not affecting the job defined in the prior op.
-// Job errors: always (but I need a separate job failed op)
-// Run assignments: always.
-// Run running: if not affecting run defined in prior op.
-// Run succeeded: if not affecting run defined in prior op.
-// Run errors: always (but I need a separate run failed op).
-
-// There are categories of operations:
-// InsertJobs
-// InsertRuns
-// Job set operations
-// Job operations
-// Job run operations
-
+// SqlOperation captures a generic batch sql operations.
+//
+// There are 5 types of operations:
+// - Insert jobs (i.e., add new jobs to the db).
+// - Insert runs (i.e., add new runs to the db).
+// - Job set operations (i.e., modify all jobs and runs in the db part of a given job set).
+// - Job operations (i.e., modify particular jobs).
+// - Job run operations (i.e., modify particular runs).
+//
+// To improve performance, several ops can be merged into a single op if of the same type.
+// To increase the number of ops that can be merged, ops can sometimes be reordered:
+// - Insert jobs: if prior op doesn't affect the job set.
+// - Insert runs: if prior op doesn't affect the job set or defines the job.
+// - Job set operations: if not affecting a job defined in prior op.
+// - Job operations: if not affecting a job defined in a prior op.
+// - Job run operations: if not affecting a run defined in a prior op.
 type SqlOperation interface {
-	// Attempts to combine two operations into a single operation.
+	// a.Merge(b) merges b into a.
 	// Returns true if merging was successful.
-	// If not successful, neither operation is mutated.
-	MergeIn(SqlOperation) bool
-	// Returns true if the operation provided as an argument can be placed before.
-	CanSwap(SqlOperation) bool
+	// If not successful, neither op is mutated.
+	Merge(SqlOperation) bool
+	// a.CanBeAppliedBefore(b) returns true if a can be placed before b
+	// without changing the end result of the overall set of operations.
+	CanBeAppliedBefore(SqlOperation) bool
+}
+
+// AppendSqlOperation appends a sql operation,
+// possibly merging it with a previous operation if that can be done in such a way
+// that the end result of applying the entire sequence of operations is unchanged.
+func AppendSqlOperation(ops []SqlOperation, op SqlOperation) []SqlOperation {
+	ops = append(ops, op)
+	for i := len(ops) - 1; i > 0; i-- {
+		if ops[i-1] == nil || ops[i] == nil {
+			continue
+		}
+		if ops[i-1].Merge(ops[i]) {
+			ops[i] = nil
+			break
+		} else if ops[i].CanBeAppliedBefore(ops[i-1]) {
+			ops[i-1], ops[i] = ops[i], ops[i-1]
+		} else {
+			break
+		}
+	}
+	return discardNilOps(ops) // TODO: Can be made more efficient.
 }
 
 type InsertJobs map[uuid.UUID]Job
@@ -80,61 +99,46 @@ type JobRunOperation interface {
 	AffectsJobRun(uuid.UUID) bool
 }
 
-// type InsertFoo map[int]int
-
-// func (a InsertFoo) MergeIn(b SqlOperation) bool {
-// 	return mergeInMap(a, b)
-// 	// if op, ok := b.(InsertFoo); ok {
-// 	// 	maps.Copy(a, op)
-// 	// 	return true
-// 	// }
-// 	// return false
-// }
-
-// func (a InsertFoo) CanSwap(b SqlOperation) bool {
-// 	return false
-// }
-
-func (a InsertJobs) MergeIn(b SqlOperation) bool {
+func (a InsertJobs) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertRuns) MergeIn(b SqlOperation) bool {
+func (a InsertRuns) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertRunAssignments) MergeIn(b SqlOperation) bool {
+func (a InsertRunAssignments) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a UpdateJobSetPriorities) MergeIn(b SqlOperation) bool {
+func (a UpdateJobSetPriorities) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobSetsCancelled) MergeIn(b SqlOperation) bool {
+func (a MarkJobSetsCancelled) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobsCancelled) MergeIn(b SqlOperation) bool {
+func (a MarkJobsCancelled) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobsSucceeded) MergeIn(b SqlOperation) bool {
+func (a MarkJobsSucceeded) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkJobsFailed) MergeIn(b SqlOperation) bool {
+func (a MarkJobsFailed) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a UpdateJobPriorities) MergeIn(b SqlOperation) bool {
+func (a UpdateJobPriorities) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkRunsSucceeded) MergeIn(b SqlOperation) bool {
+func (a MarkRunsSucceeded) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkRunsFailed) MergeIn(b SqlOperation) bool {
+func (a MarkRunsFailed) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a MarkRunsRunning) MergeIn(b SqlOperation) bool {
+func (a MarkRunsRunning) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertJobErrors) MergeIn(b SqlOperation) bool {
+func (a InsertJobErrors) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
-func (a InsertJobRunErrors) MergeIn(b SqlOperation) bool {
+func (a InsertJobRunErrors) Merge(b SqlOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -153,7 +157,7 @@ func mergeInMap[M ~map[K]V, K comparable, V any](a M, b SqlOperation) bool {
 }
 
 // Returns true if a can be placed before b.
-func (a InsertJobs) CanSwap(b SqlOperation) bool {
+func (a InsertJobs) CanBeAppliedBefore(b SqlOperation) bool {
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, job := range a {
@@ -166,7 +170,7 @@ func (a InsertJobs) CanSwap(b SqlOperation) bool {
 }
 
 // Returns true if a can be placed before b.
-func (a InsertRuns) CanSwap(b SqlOperation) bool {
+func (a InsertRuns) CanBeAppliedBefore(b SqlOperation) bool {
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, run := range a {
@@ -184,40 +188,40 @@ func (a InsertRuns) CanSwap(b SqlOperation) bool {
 	return true
 }
 
-func (a InsertRunAssignments) CanSwap(b SqlOperation) bool {
-	return true
+func (a InsertRunAssignments) CanBeAppliedBefore(b SqlOperation) bool {
+	return !definesRun(a, b)
 }
-func (a UpdateJobSetPriorities) CanSwap(b SqlOperation) bool {
+func (a UpdateJobSetPriorities) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJobInSet(a, b)
 }
-func (a MarkJobSetsCancelled) CanSwap(b SqlOperation) bool {
+func (a MarkJobSetsCancelled) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
 }
-func (a MarkJobsCancelled) CanSwap(b SqlOperation) bool {
+func (a MarkJobsCancelled) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJob(a, b) && !definesRunForJob(a, b)
 }
-func (a MarkJobsSucceeded) CanSwap(b SqlOperation) bool {
+func (a MarkJobsSucceeded) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJob(a, b)
 }
-func (a MarkJobsFailed) CanSwap(b SqlOperation) bool {
+func (a MarkJobsFailed) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJob(a, b)
 }
-func (a UpdateJobPriorities) CanSwap(b SqlOperation) bool {
+func (a UpdateJobPriorities) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJob(a, b)
 }
-func (a MarkRunsSucceeded) CanSwap(b SqlOperation) bool {
+func (a MarkRunsSucceeded) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesRun(a, b)
 }
-func (a MarkRunsFailed) CanSwap(b SqlOperation) bool {
+func (a MarkRunsFailed) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesRun(a, b)
 }
-func (a MarkRunsRunning) CanSwap(b SqlOperation) bool {
+func (a MarkRunsRunning) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesRun(a, b)
 }
-func (a InsertJobErrors) CanSwap(b SqlOperation) bool {
+func (a InsertJobErrors) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesJob(a, b)
 }
-func (a InsertJobRunErrors) CanSwap(b SqlOperation) bool {
+func (a InsertJobRunErrors) CanBeAppliedBefore(b SqlOperation) bool {
 	return !definesRun(a, b)
 }
 
@@ -286,27 +290,6 @@ func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b SqlOperation) bool {
 	return false
 }
 
-// AppendSqlOperation appends a sql operation,
-// possibly merging it with a previous operation if that can be done in such a way
-// that the end result of applying the entire sequence of operations is unchanged.
-func AppendSqlOperation(ops []SqlOperation, op SqlOperation) []SqlOperation {
-	ops = append(ops, op)
-	for i := len(ops) - 1; i > 0; i-- {
-		if ops[i-1] == nil || ops[i] == nil {
-			continue
-		}
-		if ops[i-1].MergeIn(ops[i]) { // Returns true if merge was successful.
-			ops[i] = nil
-			break
-		} else if ops[i].CanSwap(ops[i-1]) { // Returns true if ops[i] can be placed before ops[i-1].
-			ops[i-1], ops[i] = ops[i], ops[i-1]
-		} else {
-			break
-		}
-	}
-	return discardNilOps(ops) // TODO: Can be made more efficient.
-}
-
 // CompactOps merges sql operations to produce a (hopefully) smaller number of operations.
 // In doing so, it may change the order of operations.
 // However, the resulting operations is guaranteed to produce the same end state
@@ -317,10 +300,10 @@ func CompactOps(ops []SqlOperation) []SqlOperation {
 		n := len(ops)
 		for i := len(ops) - 1; i > 0; i-- {
 			for j := i - 1; j >= 0; j-- {
-				if ops[j-1].MergeIn(ops[j]) { // Returns true if merge was successful.
+				if ops[j-1].Merge(ops[j]) { // Returns true if merge was successful.
 					ops[j] = nil
 					break
-				} else if ops[j-1].CanSwap(ops[j]) {
+				} else if ops[j-1].CanBeAppliedBefore(ops[j]) {
 					ops[j-1], ops[j] = ops[j], ops[j-1]
 				}
 			}
@@ -343,10 +326,10 @@ func CompactOpsOld(ops []SqlOperation) []SqlOperation {
 		n := len(ops)
 		for i := range ops {
 			for j := i - 1; j > 0; j-- {
-				if ops[j-1].MergeIn(ops[j]) { // Returns true if merge was successful.
+				if ops[j-1].Merge(ops[j]) { // Returns true if merge was successful.
 					ops[j] = nil
 					break
-				} else if ops[j-1].CanSwap(ops[j]) {
+				} else if ops[j-1].CanBeAppliedBefore(ops[j]) {
 					ops[j-1], ops[j] = ops[j], ops[j-1]
 				}
 			}
