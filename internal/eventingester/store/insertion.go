@@ -44,7 +44,7 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 	for i, event := range rows {
 		newSize := currentSize + len(event.Event)
 		newRows := currentRows + 1
-		if newSize < maxSize || newRows < maxRows {
+		if newSize > maxSize || newRows > maxRows {
 			doInsert(db, batch)
 			batch = make([]*model.Event, 0, maxRows)
 			currentSize = 0
@@ -55,7 +55,7 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 		currentRows++
 
 		// If this is the las element we need to flush
-		if i == len(rows) {
+		if i == len(rows)-1 {
 			doInsert(db, batch)
 		}
 	}
