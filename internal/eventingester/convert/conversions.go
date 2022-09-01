@@ -13,13 +13,13 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// MessageRowConverter raw converts pulsar messages into events that we can store in Redis
+// MessageRowConverter converts raw pulsar messages into events that we can store in Redis
 type MessageRowConverter struct {
 	Compressor          compress.Compressor
 	MaxMessageBatchSize int
 }
 
-// Convert takes a  channel of pulsar message batches and outputs a channel of batched events that we store in Redis
+// Convert takes a channel of pulsar message batches and outputs a channel of batched events that we store in Redis
 func Convert(ctx context.Context, msgs chan []*pulsarutils.ConsumerMessage, bufferSize int, converter *MessageRowConverter) chan *model.BatchUpdate {
 	out := make(chan *model.BatchUpdate, bufferSize)
 	go func() {
