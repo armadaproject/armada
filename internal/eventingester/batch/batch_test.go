@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultMaxItems   = 2
+	defaultMaxItems   = 3
 	defaultMaxTimeOut = 1 * time.Second
 	defaultBufferSize = 3
 )
@@ -20,6 +20,7 @@ const (
 var (
 	update1 = &pulsarutils.ConsumerMessage{ConsumerId: 1}
 	update2 = &pulsarutils.ConsumerMessage{ConsumerId: 2}
+	update3 = &pulsarutils.ConsumerMessage{ConsumerId: 3}
 )
 
 func TestBatchByMaxItems(t *testing.T) {
@@ -27,10 +28,11 @@ func TestBatchByMaxItems(t *testing.T) {
 	testClock := clock.NewFakeClock(time.Now())
 	outputChan := Batch(inputChan, defaultMaxItems, defaultMaxTimeOut, defaultBufferSize, testClock)
 
-	// Post 2 instruction sets on the input channel without advancing the clock
+	// Post 3 instruction sets on the input channel without advancing the clock
 	// And we should get a single update on the output channel
 	inputChan <- update1
 	inputChan <- update2
+	inputChan <- update3
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -47,7 +49,7 @@ func TestBatchByMaxItems(t *testing.T) {
 
 	wg.Wait()
 	expected := []*pulsarutils.ConsumerMessage{
-		update1, update2,
+		update1, update2, update3,
 	}
 	assert.Equal(t, expected, received)
 }

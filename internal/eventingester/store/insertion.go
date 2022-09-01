@@ -18,11 +18,11 @@ import (
 
 // InsertEvents takes a channel of armada events and insets them into the event db
 // the events are republished to an output channel for further processing (e.g. Ackking)
-func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
+func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int, maxSize int, maxRows int) chan []*pulsarutils.ConsumerMessageId {
 	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
-			insert(db, msg.Events)
+			insert(db, msg.Events, maxSize, maxRows)
 			out <- msg.MessageIds
 		}
 		close(out)
@@ -30,13 +30,43 @@ func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpda
 	return out
 }
 
-func insert(db EventStore, rows []*model.Event) {
-	start := time.Now()
+func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 
+	if len(rows) == 0 {
+		return
+	}
+
+	// Inset such that we never send more than maxRows rows or 4MB of data to redis at a time
+	currentSize := 0
+	currentRows := 0
+	batch := make([]*model.Event, 0, maxRows)
+
+	for i, event := range rows {
+		newSize := currentSize + len(event.Event)
+		newRows := currentRows + 1
+		if newSize < maxSize || newRows < maxRows {
+			doInsert(db, batch)
+			batch = make([]*model.Event, 0, maxRows)
+			currentSize = 0
+			currentRows = 0
+		}
+		batch = append(batch, event)
+		currentSize += len(event.Event)
+		currentRows++
+
+		// If this is the las element we need to flush
+		if i == len(rows) {
+			doInsert(db, batch)
+		}
+	}
+
+}
+
+func doInsert(db EventStore, rows []*model.Event) {
+	start := time.Now()
 	err := WithRetry(func() error {
 		return db.ReportEvents(rows)
 	})
-
 	if err != nil {
 		log.WithError(err).Warnf("Error inserting rows")
 	} else {

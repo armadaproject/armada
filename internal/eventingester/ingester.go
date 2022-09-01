@@ -76,7 +76,9 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	events := convert.Convert(ctx, batchedMsgs, 5, converter)
 
 	// Insert into database
-	inserted := store.InsertEvents(ctx, eventDb, events, 5)
+	maxSize := 4 * 1024 * 1024
+	maxRows := 500
+	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}

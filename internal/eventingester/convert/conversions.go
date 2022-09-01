@@ -58,7 +58,7 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 		sequences = append(sequences, es)
 	}
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, rc.MaxMessageBatchSize)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, rc.MaxMessageBatchSize, false)
 	if err != nil {
 		log.WithError(err).Errorf("Failed to compact sequences")
 		return &model.BatchUpdate{
