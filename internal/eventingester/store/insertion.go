@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/util"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -58,7 +60,7 @@ func WithRetry(executeDb func() error) error {
 		}
 
 		if armadaerrors.IsNetworkError(err) || IsRetryableRedisError(err) {
-			backOff = min(2*backOff, maxBackoff)
+			backOff = util.Min(2*backOff, maxBackoff)
 			numRetries++
 			log.WithError(err).Warnf("Retryable error encountered inserting to Redis, will wait for %d seconds before retrying", backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
@@ -73,13 +75,6 @@ func WithRetry(executeDb func() error) error {
 		Message:   fmt.Sprintf("Gave up inserting into Redis after %d retries", maxRetries),
 		LastError: err,
 	}))
-}
-
-func min(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // IsRetryableRedisError is largely taken from https://github.com/go-redis/redis/blob/master/error.go#L28
