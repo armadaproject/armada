@@ -103,7 +103,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		expirationTime.Sub(time.Now()))
 	log.Info("Making principle")
 	// Return very basic Principal
-	return NewStaticPrincipal(name, []string{}), nil
+	return NewStaticPrincipal(name, []string{name}), nil
 }
 
 func (authService *KubernetesNativeAuthService) getClusterURL(token string) (string, error) {
