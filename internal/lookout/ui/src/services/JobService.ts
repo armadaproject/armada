@@ -202,7 +202,7 @@ export default class JobService {
         return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
       }
     } catch (e) {
-      console.error(await e.json())
+      console.error(await e)
     }
     return []
   }
