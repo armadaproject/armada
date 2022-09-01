@@ -12,7 +12,8 @@ import (
 // received or maxTimeout has elapsed since the last batch was created (whichever occurs first).
 // This function has a lot in common with lookoutingester.batch.  Hopefully when generics become available we can
 // factor out most of the common code
-func Batch(values <-chan *pulsarutils.ConsumerMessage, maxItems int, maxTimeout time.Duration, bufferSize int, clock clock.Clock) chan []*pulsarutils.ConsumerMessage {
+func Batch(values <-chan *pulsarutils.ConsumerMessage, maxItems int,
+	maxTimeout time.Duration, bufferSize int, clock clock.Clock) chan []*pulsarutils.ConsumerMessage {
 	out := make(chan []*pulsarutils.ConsumerMessage, bufferSize)
 
 	go func() {
