@@ -251,14 +251,6 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	return result
 }
 
-func toComputeResourceFloat(in map[string]api.ComputeResource) map[string]common.ComputeResourcesFloat {
-	out := make(map[string]common.ComputeResourcesFloat)
-	for k, v := range in {
-		out[k] = common.ComputeResources(v.Resources).AsFloat()
-	}
-	return out
-}
-
 func dominates(a map[string]resource.Quantity, b map[string]resource.Quantity) bool {
 	return (common.ComputeResources(a)).Dominates(common.ComputeResources(b))
 }

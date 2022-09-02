@@ -91,7 +91,6 @@ func sliceResource(
 	queuePriorities map[*api.Queue]QueuePriorityInfo,
 	quantityToSlice common.ComputeResourcesFloat,
 ) map[*api.Queue]common.ComputeResourcesFloat {
-
 	inversePriorities := make(map[*api.Queue]float64)
 	inverseSum := 0.0
 

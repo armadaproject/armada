@@ -220,7 +220,6 @@ func (c *leaseContext) assignJobs(ctx context.Context, limit LeasePayloadLimit) 
 }
 
 func (c *leaseContext) distributeRemainder(ctx context.Context, limit LeasePayloadLimit) ([]*api.Job, error) {
-
 	var jobs []*api.Job
 	if limit.AtLimit() {
 		return jobs, nil
