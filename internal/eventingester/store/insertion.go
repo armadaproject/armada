@@ -36,7 +36,7 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 		return
 	}
 
-	// Inset such that we never send more than maxRows rows or 4MB of data to redis at a time
+	// Inset such that we never send more than maxRows rows or maxSize of data to redis at a time
 	currentSize := 0
 	currentRows := 0
 	batch := make([]*model.Event, 0, maxRows)
@@ -54,7 +54,7 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 		currentSize += len(event.Event)
 		currentRows++
 
-		// If this is the las element we need to flush
+		// If this is the last element we need to flush
 		if i == len(rows)-1 {
 			doInsert(db, batch)
 		}
