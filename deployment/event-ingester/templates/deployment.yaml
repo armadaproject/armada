@@ -1,29 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "eventapi_ingester.name" . }}
+  name: {{ include "event_ingester.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "eventapi_ingester.labels.all" . | nindent 4 }}
+    {{- include "event_ingester.labels.all" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      {{- include "eventapi_ingester.labels.identity" . | nindent 6 }}
+      {{- include "event_ingester.labels.identity" . | nindent 6 }}
   {{- if .Values.strategy }}
   strategy:
     {{- toYaml .Values.strategy | nindent 4 }}
   {{- end }}
   template:
     metadata:
-      name: {{ include "eventapi_ingester.name" . }}
+      name: {{ include "event_ingester.name" . }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
       labels:
-        {{- include "eventapi_ingester.labels.all" . | nindent 8 }}
+        {{- include "event_ingester.labels.all" . | nindent 8 }}
     spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
-      serviceAccountName: {{ .Values.customServiceAccount | default (include "eventapi_ingester.name" .) }}
+      serviceAccountName: {{ .Values.customServiceAccount | default (include "event_ingester.name" .) }}
       securityContext:
         runAsUser: 1000
         runAsGroup: 2000
@@ -43,7 +43,7 @@ spec:
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
-              subPath: {{ include "eventapi_ingester.config.filename" . }}
+              subPath: {{ include "event_ingester.config.filename" . }}
               readOnly: true
             {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
             - name: pulsar-token
@@ -70,12 +70,12 @@ spec:
                     - key: app
                       operator: In
                       values:
-                        - {{ include "eventapi_ingester.name" . }}
+                        - {{ include "event_ingester.name" . }}
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config
           secret:
-            secretName: {{ include "eventapi_ingester.config.name" . }}
+            secretName: {{ include "event_ingester.config.name" . }}
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:
