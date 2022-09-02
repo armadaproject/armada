@@ -3,7 +3,6 @@ package compress
 import (
 	"bytes"
 	"compress/zlib"
-	"encoding/gob"
 	"io"
 
 	"github.com/pkg/errors"
@@ -62,21 +61,4 @@ func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
 	}
 	decompressed := d.outputBuffer.Bytes()
 	return decompressed, nil
-}
-
-func DecompressStringArray(input []byte, decompressor Decompressor) ([]string, error) {
-	if len(input) <= 0 {
-		return []string{}, nil
-	}
-
-	decompressedValue, err := decompressor.Decompress(input)
-	if err != nil {
-		return nil, err
-	}
-
-	var data []string
-	buf := bytes.NewBuffer(decompressedValue)
-	dec := gob.NewDecoder(buf)
-	err = dec.Decode(&data)
-	return data, err
 }
