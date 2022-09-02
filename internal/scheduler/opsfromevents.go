@@ -4,23 +4,29 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// func DbOpsFromEventSequence(sequence *armadaevents.EventSequence) ([]DbOperation, error) {
-// 	if sequence == nil {
-// 		return nil, nil
-// 	}
-// 	ops := make([]DbOperation, 0, len(sequence.Events))
-// 	for _, event := range sequence.GetEvents() {
-// 		ops
-// 	}
-// 	return ops, nil
-// }
+func DbOpsFromEventSequence(sequence *armadaevents.EventSequence) ([]DbOperation, error) {
+	if sequence == nil {
+		return make([]DbOperation, 0), nil
+	}
+	ops := make([]DbOperation, 0, len(sequence.Events))
+	for i := range sequence.Events {
+		op, err := DbOpFromEventInSequence(sequence, i)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, op)
+	}
+	return ops, nil
+}
 
+// DbOpFromEventInSequence returns a DbOperation produced from the i-th event in sequence,
+// or nil if the i-th event doesn't correspond to any DbOperation.
 func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOperation, error) {
 	if sequence == nil {
 		return nil, errors.New("received nil sequence")
@@ -166,154 +172,4 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 	default:
 		return nil, nil
 	}
-}
-
-func DbOpsFromEventSequence(sequence *armadaevents.EventSequence) ([]DbOperation, error) {
-	if sequence == nil {
-		return make([]DbOperation, 0), nil
-	}
-	ops := make([]DbOperation, 0, len(sequence.Events))
-	for _, event := range sequence.GetEvents() {
-		switch e := event.Event.(type) {
-		case *armadaevents.EventSequence_Event_SubmitJob:
-
-			// Store the job submit message so that it can be sent to an executor.
-			submitJobBytes, err := proto.Marshal(e.SubmitJob)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-
-			// Produce a minimal representation of the job for the scheduler.
-			// To avoid the scheduler needing to load the entire job spec.
-			schedulingInfo, err := schedulingInfoFromSubmitJob(e.SubmitJob)
-			if err != nil {
-				return nil, err
-			}
-			schedulingInfoBytes, err := proto.Marshal(schedulingInfo)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-
-			jobId := armadaevents.UuidFromProtoUuid(e.SubmitJob.JobId)
-			ops = append(ops, InsertJobs{jobId: &Job{
-				JobID:          jobId,
-				JobSet:         sequence.GetJobSetName(),
-				UserID:         sequence.GetUserId(),
-				Groups:         sequence.GetGroups(),
-				Queue:          sequence.GetQueue(),
-				Priority:       int64(e.SubmitJob.Priority),
-				SubmitMessage:  submitJobBytes,
-				SchedulingInfo: schedulingInfoBytes,
-			}})
-		case *armadaevents.EventSequence_Event_JobRunLeased:
-			runId := armadaevents.UuidFromProtoUuid(e.JobRunLeased.GetRunId())
-			ops = append(ops, InsertRuns{runId: &Run{
-				RunID:    runId,
-				JobID:    armadaevents.UuidFromProtoUuid(e.JobRunLeased.GetJobId()),
-				JobSet:   sequence.GetJobSetName(),
-				Executor: e.JobRunLeased.GetExecutorId(),
-			}})
-		case *armadaevents.EventSequence_Event_ReprioritiseJob:
-			jobId := armadaevents.UuidFromProtoUuid(e.ReprioritiseJob.GetJobId())
-			ops = append(ops, UpdateJobPriorities{
-				jobId: int64(e.ReprioritiseJob.Priority),
-			})
-		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
-			ops = append(ops, UpdateJobSetPriorities{
-				sequence.GetJobSetName(): int64(e.ReprioritiseJobSet.Priority),
-			})
-		case *armadaevents.EventSequence_Event_CancelJobSet:
-			ops = append(ops, MarkJobSetsCancelled{
-				sequence.GetJobSetName(): true,
-			})
-		case *armadaevents.EventSequence_Event_CancelJob:
-			jobId := armadaevents.UuidFromProtoUuid(e.CancelJob.GetJobId())
-			ops = append(ops, MarkJobsCancelled{
-				jobId: true,
-			})
-		case *armadaevents.EventSequence_Event_JobSucceeded:
-			jobId := armadaevents.UuidFromProtoUuid(e.CancelJob.GetJobId())
-			ops = append(ops, MarkJobsSucceeded{
-				jobId: true,
-			})
-		case *armadaevents.EventSequence_Event_JobErrors:
-			jobId := e.JobErrors.GetJobId()
-			jobIdBytes, err := proto.Marshal(jobId)
-			if err != nil {
-				logging.WithStacktrace(log, err).Error("failed to marshal jobId")
-				break
-			}
-			for _, jobError := range e.JobErrors.GetErrors() {
-				bytes, err := proto.Marshal(jobError)
-				if err != nil {
-					err = errors.WithStack(err)
-					logging.WithStacktrace(log, err).Error("failed to marshal JobError")
-					continue
-				}
-
-				// To ensure inserts are idempotent, each row must have a unique deterministic.
-				// We use the hash of (job id, error message),
-				// which isn't entirely correct since it deduplicates identical error message.
-				hash := sha256.Sum256(append(bytes, jobIdBytes...))
-				key := binary.BigEndian.Uint32(hash[:])
-				ops = append(ops, InsertJobErrors{key: &JobError{
-					ID:       int32(key),
-					JobID:    armadaevents.UuidFromProtoUuid(e.JobErrors.GetJobId()),
-					Error:    bytes,
-					Terminal: jobError.GetTerminal(),
-				}})
-			}
-		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			runId := armadaevents.UuidFromProtoUuid(e.JobRunAssigned.GetRunId())
-			bytes, err := proto.Marshal(e.JobRunAssigned)
-			if err != nil {
-				err = errors.WithStack(err)
-				logging.WithStacktrace(log, err).Error("failed to marshal JobRunAssigned")
-			}
-			ops = append(ops, InsertRunAssignments{runId: &JobRunAssignment{
-				RunID:      runId,
-				Assignment: bytes,
-			}})
-		case *armadaevents.EventSequence_Event_JobRunRunning:
-			runId := armadaevents.UuidFromProtoUuid(e.JobRunRunning.GetRunId())
-			ops = append(ops, MarkRunsRunning{runId: true})
-		case *armadaevents.EventSequence_Event_JobRunSucceeded:
-			runId := armadaevents.UuidFromProtoUuid(e.JobRunSucceeded.GetRunId())
-			ops = append(ops, MarkRunsSucceeded{runId: true})
-		case *armadaevents.EventSequence_Event_JobRunErrors:
-			jobId := e.JobRunErrors.GetJobId()
-			runId := e.JobRunErrors.GetRunId()
-			jobIdBytes, err := proto.Marshal(jobId)
-			if err != nil {
-				logging.WithStacktrace(log, err).Error("failed to marshal jobId")
-				break
-			}
-			runIdBytes, err := proto.Marshal(runId)
-			if err != nil {
-				logging.WithStacktrace(log, err).Error("failed to marshal runId")
-				break
-			}
-			for _, runError := range e.JobRunErrors.GetErrors() {
-				bytes, err := proto.Marshal(runError)
-				if err != nil {
-					err = errors.WithStack(err)
-					logging.WithStacktrace(log, err).Error("failed to marshal RunError")
-					continue
-				}
-
-				// To ensure inserts are idempotent, each row must have a unique deterministic.
-				// We use the hash of (job id, error message),
-				// which isn't entirely correct since it deduplicates identical error message.
-				hash := sha256.Sum256(append(bytes, append(jobIdBytes, runIdBytes...)...))
-				key := binary.BigEndian.Uint32(hash[:])
-				ops = append(ops, InsertJobRunErrors{key: &JobRunError{
-					ID:       int32(key),
-					RunID:    armadaevents.UuidFromProtoUuid(e.JobRunErrors.GetRunId()),
-					Error:    bytes,
-					Terminal: runError.GetTerminal(),
-				}})
-			}
-		}
-	}
-	return ops, nil
 }
