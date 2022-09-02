@@ -1171,6 +1171,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("clientId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClientId { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("compressedQueueOwnershipUserGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public byte[] CompressedQueueOwnershipUserGroups { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.DateTimeOffset? Created { get; set; }
     
