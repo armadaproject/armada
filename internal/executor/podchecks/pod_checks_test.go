@@ -30,7 +30,7 @@ func Test_GetAction(t *testing.T) {
 
 	for _, test := range tests {
 		podChecks := podChecksWithMocks(test.eventAction, test.containerStateAction)
-		result, _ := podChecks.GetAction(&v1.Pod{}, []*v1.Event{}, time.Minute)
+		result, _ := podChecks.GetAction(basicPod(), []*v1.Event{{Message: "MockEvent", Type: "None"}}, time.Minute)
 		assert.Equal(t, test.expectedResult, result)
 	}
 }
@@ -40,6 +40,13 @@ func podChecksWithMocks(eventResult Action, containerStateResult Action) *PodChe
 		eventChecks:          &mockEventChecks{result: eventResult, message: mockMessage(eventResult)},
 		containerStateChecks: &mockContainerStateChecks{result: containerStateResult, message: mockMessage(containerStateResult)},
 	}
+}
+
+func Test_GetActionBadNode(t *testing.T) {
+	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil}
+	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, time.Minute)
+	assert.Equal(t, result, ActionRetry)
+	assert.Equal(t, message, "Pod Statues and Pod Events are both empty. Retrying")
 }
 
 func mockMessage(result Action) string {
@@ -72,3 +79,4 @@ func (ec *mockEventChecks) getAction(podName string, podEvents []*v1.Event, time
 func (csc *mockContainerStateChecks) getAction(pod *v1.Pod, timeInState time.Duration) (Action, string) {
 	return csc.result, csc.message
 }
+
