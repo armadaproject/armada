@@ -79,4 +79,3 @@ func (ec *mockEventChecks) getAction(podName string, podEvents []*v1.Event, time
 func (csc *mockContainerStateChecks) getAction(pod *v1.Pod, timeInState time.Duration) (Action, string) {
 	return csc.result, csc.message
 }
-
