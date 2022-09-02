@@ -2,7 +2,7 @@ package authorization
 
 import (
 	"context"
-	
+
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
 	"google.golang.org/grpc/codes"
