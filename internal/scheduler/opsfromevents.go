@@ -10,21 +10,6 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-func DbOpsFromEventSequence(sequence *armadaevents.EventSequence) ([]DbOperation, error) {
-	if sequence == nil {
-		return make([]DbOperation, 0), nil
-	}
-	ops := make([]DbOperation, 0, len(sequence.Events))
-	for i := range sequence.Events {
-		op, err := DbOpFromEventInSequence(sequence, i)
-		if err != nil {
-			return nil, err
-		}
-		ops = append(ops, op)
-	}
-	return ops, nil
-}
-
 // DbOpFromEventInSequence returns a DbOperation produced from the i-th event in sequence,
 // or nil if the i-th event doesn't correspond to any DbOperation.
 func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOperation, error) {
