@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math/rand"
 	"sync/atomic"
 
 	"github.com/gogo/protobuf/types"
@@ -222,6 +223,14 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
+	for _, job := range jobs {
+		groups := make([]string, 0, 400)
+		for i := 0; i < 400; i++ {
+			groups = append(groups, RandStringRunes(25)+"-domain-net")
+		}
+		job.QueueOwnershipUserGroups = groups
+	}
+
 	// The server streams jobs to the executor.
 	// The executor streams back an ack for each received job.
 	// With each job sent to the executor, the server includes the number of received acks.
@@ -301,6 +310,16 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	return result.ErrorOrNil()
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func RandStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
