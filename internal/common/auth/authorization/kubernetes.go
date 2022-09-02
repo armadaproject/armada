@@ -20,10 +20,10 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
-// TODO: Should include a cache
 type KubernetesNativeAuthService struct {
 	KidMappingFileLocation string
 	TokenCache             *cache.Cache
+	InvalidTokenExpiry     int64
 }
 
 func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) KubernetesNativeAuthService {
@@ -31,6 +31,7 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 	return KubernetesNativeAuthService{
 		KidMappingFileLocation: config.KidMappingFileLocation,
 		TokenCache:             cache,
+		InvalidTokenExpiry:     config.InvalidTokenExpiry,
 	}
 }
 
@@ -47,14 +48,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		return nil, missingCredentials
 	}
 
-	log.Info("Auth extracted")
-
 	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
 		return nil, missingCredentials
 	}
-
-	log.Info("Auth parsed")
 
 	// Get token time
 	expirationTime, err := parseTime(token)
@@ -69,27 +66,23 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Check Cache
 	data, found := authService.TokenCache.Get(token)
 	if found {
-		log.Infof("Extracted token from cache: %v", data)
-		if cacheInfo, ok := data.(CacheData); ok && cacheInfo.Valid {
-			log.Info("Token successfully used")
-			return NewStaticPrincipal(cacheInfo.Name, []string{cacheInfo.Name}), nil
+		if cacheInfo, ok := data.(CacheData); ok {
+			if cacheInfo.Valid {
+				return NewStaticPrincipal(cacheInfo.Name, []string{cacheInfo.Name}), nil
+			} else {
+				return nil, fmt.Errorf("token invalid")
+			}
 		}
-		log.Infof("Token use failed")
 	}
 
-	log.Info("Auth parsed")
-	log.Infof("Token: %s", token)
-	log.Infof("CA: %s", ca)
 	// Get URL from token KID
 	url, err := authService.getClusterURL(token)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Info("Token reviewing")
 	// Make request to token review endpoint
-	name, err := reviewToken(ctx, url, token, []byte(ca))
-	log.Infof("Name of principal: %s", name)
+	name, err := authService.reviewToken(ctx, url, token, []byte(ca))
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +95,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 			Valid: true,
 		},
 		expirationTime.Sub(time.Now()))
-	log.Info("Making principle")
+
 	// Return very basic Principal
 	return NewStaticPrincipal(name, []string{name}), nil
 }
@@ -116,8 +109,6 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		return "", err
 	}
 
-	log.Infof("Decoded header: %s", decoded)
-
 	var unmarshalled struct {
 		Kid string `json:"kid"`
 	}
@@ -126,7 +117,6 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		return "", err
 	}
 
-	log.Infof("Unmarshalling complete: %v", unmarshalled)
 	if unmarshalled.Kid == "" {
 		return "", fmt.Errorf("kubernetes serviceaccount token KID must not be empty")
 	}
@@ -139,7 +129,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 	return string(url), nil
 }
 
-func reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
+func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
 	config := &rest.Config{
 		Host:            clusterUrl,
 		BearerToken:     token,
@@ -161,10 +151,8 @@ func reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte
 		return "", err
 	}
 
-	if err != nil {
-		return "", err
-	}
 	if !result.Status.Authenticated {
+		authService.TokenCache.Set(token, CacheData{Valid: false}, time.Duration(authService.InvalidTokenExpiry))
 		return "", fmt.Errorf("provided token was rejected by TokenReview")
 	}
 
@@ -173,7 +161,6 @@ func reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte
 
 func parseAuth(auth string) (string, string, error) {
 	jsonData, err := base64.RawURLEncoding.DecodeString(auth)
-	log.Printf("Decoded JSON data: %s", jsonData)
 	if err != nil {
 		return "", "", err
 	}
@@ -184,7 +171,6 @@ func parseAuth(auth string) (string, string, error) {
 	}
 
 	if err := json.Unmarshal(jsonData, &uMbody); err != nil {
-		log.Infof("Failed to unmarshall %v", err)
 		return "", "", err
 	}
 
@@ -212,7 +198,6 @@ func parseTime(token string) (*time.Time, error) {
 	}
 
 	if err := json.Unmarshal(decoded, &uMbody); err != nil {
-		log.Infof("Failed to unmarshall to get time information: %v", err)
 		return nil, err
 	}
 

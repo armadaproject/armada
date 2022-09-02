@@ -57,4 +57,5 @@ type LDAPConfig struct {
 
 type KubernetesAuthConfig struct {
 	KidMappingFileLocation string
+	InvalidTokenExpiry     int64
 }
