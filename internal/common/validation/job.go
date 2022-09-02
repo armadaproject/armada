@@ -2,8 +2,10 @@ package validation
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 
 	"github.com/G-Research/armada/pkg/api"
 )

@@ -1,11 +1,12 @@
 package common
 
 import (
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"math"
 	"math/big"
 	"sort"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/pkg/api"
 )
