@@ -15,7 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
-// InsertEvents takes a channel of armada events and insets them into the event db
+// InsertEvents takes a channel of armada events and inserts them into the event db
 // the events are republished to an output channel for further processing (e.g. Ackking)
 func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int,
 	maxSize int, maxRows int,
