@@ -1,34 +1,56 @@
 #!/bin/sh
 
-stream_backend="$1"
-
-if [ -z "$stream_backend" ] || (echo "stan jetstream" | grep -v -q "$stream_backend"); then
-  stream_backend="stan"
-fi
-echo "Using $stream_backend"
-
+OSTYPE=$(uname -s)
 COMPOSE_CMD='docker-compose'
+CLUSTER_NAME="demo-a"
+COMPOSE_FILE="./docs/dev/armada-compose.yaml"
 
-DCLIENT_VERSION=$(docker version -f '{{.Client.Version}}')
-if echo $DCLIENT_VERSION | grep -q '^2' ; then
+docker compose > /dev/null 2>&1
+if [ $? -eq 0 ] ; then
   COMPOSE_CMD='docker compose'
 fi
 
-kind create cluster --name demo-a --config ./docs/dev/kind.yaml
+CMD="$COMPOSE_CMD -f $COMPOSE_FILE"
 
-OSTYPE=$(uname -s)
-if [ $OSTYPE == "Linux" ]; then
-  $COMPOSE_CMD --profile linux -f ./docs/dev/docker-compose.yaml up -d
+# First argument is service-name (e.g. 'postgres'), second argument is 'up' or 'down'
+run_service() {
+  if [ $2 == "up" ]; then
+    $COMPOSE_CMD -f $COMPOSE_FILE up -d $1
+  else
+    $COMPOSE_CMD -f $COMPOSE_FILE stop $1
+  fi
+}
+
+echo -n "Looking for running Kind cluster $CLUSTER_NAME ..."
+running_clusters=$(kind get clusters)
+if [ "$running_clusters" != "$CLUSTER_NAME" ] ; then
+  echo "not found.  Creating Kind cluster $CLUSTER_NAME"
+  kind create cluster --name $CLUSTER_NAME --config ./docs/dev/kind.yaml
 else
-  $COMPOSE_CMD -f ./docs/dev/docker-compose.yaml up -d
+  echo "found it."
 fi
 
-sleep 10
+sleep 3
 
+echo "Starting Postgres and running database migration"
+run_service postgres up
+sleep 3
 go run ./cmd/lookout/main.go --migrateDatabase
+run_service postgres down
 
-echo "go run ./cmd/armada/main.go --config ./docs/dev/config/armada/base.yaml --config ./docs/dev/config/armada/$stream_backend.yaml"
-echo "go run ./cmd/lookout/main.go --config ./docs/dev/config/lookout/$stream_backend.yaml"
-echo 'ARMADA_APPLICATION_CLUSTERID=demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go'
-echo "go run ./cmd/binoculars/main.go --config ./docs/dev/config/binoculars/base.yaml"
-echo "go run ./cmd/jobservice/main.go run"
+echo -n Creating a .env file in Armada project root...
+my_uid=$(id -u)
+my_gid=$(id -g)
+
+rm -f .env
+echo "APP_UID=$my_uid" >> .env
+echo "APP_GID=$my_gid" >> .env
+echo " done"
+
+
+echo "To start the Armada services, please run (press <ctrl>-C to stop)"
+echo "    $CMD up"
+echo
+echo "If the Lookout UI Service starts successfully, you should be able to"
+echo "access the Lookout UI at http://hostname-of-this-system:8089"
+echo

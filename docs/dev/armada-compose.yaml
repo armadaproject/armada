@@ -1,0 +1,94 @@
+version: "3.8"
+services:
+  # Infrastructure services needed for Armada
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - "6379:6379"
+  postgres:
+    container_name: postgres
+    image: postgres
+    environment:
+      - "POSTGRES_PASSWORD=psw"
+    ports:
+      - "5432:5432"
+  jetstream:
+    container_name: jetstream
+    image: nats:2.6.1-alpine
+    ports:
+      - "4222:4222"
+      - "6222:6222"
+      - "8222:8222"
+    volumes:
+      - ./config/jetstream:/app
+    command:
+      - "-c"
+      - "/app/jetstream.conf"
+  stan:
+    container_name: stan
+    image: nats-streaming
+    command: "-p 4223 -m 8223"
+    ports:
+      - "4223:4223"
+      - "8223:8223"
+
+# The Armada server and affiliated services
+  armada-server:
+    container_name: armada
+    image: armada
+    ports:
+      - "50051:50051"
+    command:
+      - "--config"
+      - "/app/config/armada/base.yaml"
+      - "--config"
+      - "/app/config/armada/stan.yaml"
+    depends_on:
+      - redis
+      - postgres
+      - jetstream
+      - stan
+  lookout:
+    container_name: lookout
+    image: armada-lookout
+    ports:
+      - "9009:9009"
+      - "8089:8089"
+    command:
+      - "--config"
+      - "/app/config/lookout/stan.yaml"
+    depends_on:
+      - armada-server
+      - postgres
+  executor:
+    container_name: executor
+    image: armada-fakeexecutor
+    ports:
+      - "9001:9001"
+    environment:
+      - "ARMADA_APPLICATION_CLUSTERID=demo-a"
+      - "ARMADA_METRIC_PORT=9001"
+    depends_on:
+      - armada-server
+  binoculars:
+    container_name: binoculars
+    image: armada-binoculars
+    command:
+      - "--config"
+      - "/app/config/binoculars/base.yaml"
+    depends_on:
+      - armada-server
+  job-service:
+    container_name: job-service
+    image: armada-jobservice
+    environment:
+    # You must set APP_UID=nnnn and APP_GID=nnnn (on separate lines, where 'nnnn' is the
+    # value of `id -u` and `id -g`, respectively) in a .env file at the root of the
+    # Armada repo, to use this.
+      - APP_UID
+      - APP_GID
+    volumes:
+      - ${PWD}:/run
+    command:
+      - "run"

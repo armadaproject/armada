@@ -1,6 +1,6 @@
 jetstream:
   servers:
-    - "nats://localhost:4222"
+    - "nats://jetstream:4222"
   streamName: "EVENTS"
   subject: "EVENTS"
   replicas: 1
