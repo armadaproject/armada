@@ -1,9 +1,7 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"io"
 	"math"
@@ -244,20 +242,7 @@ func (jobLeaseService *JobLeaseService) decompressOwnershipGroups(compressedOwne
 		}
 	}(jobLeaseService.decompressorPool, context.Background(), decompressor)
 
-	return decompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
-}
-
-func decompressStringArray(input []byte, decompressor compress.Decompressor) ([]string, error) {
-	if len(input) <= 0 {
-		return []string{}, nil
-	}
-
-	decompressedValue, err := decompressor.Decompress(input)
-	var data []string
-	buf := bytes.NewBuffer(decompressedValue)
-	dec := gob.NewDecoder(buf)
-	err = dec.Decode(&data)
-	return data, err
+	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
 func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string) {

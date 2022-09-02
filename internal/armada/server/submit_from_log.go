@@ -350,7 +350,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 		}
 	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
 
-	compressedOwnershipGroups, err := compressStringArray(groups, compressor.(compress.Compressor))
+	compressedOwnershipGroups, err := compress.CompressStringArray(groups, compressor.(compress.Compressor))
 	if err != nil {
 		return true, err
 	}

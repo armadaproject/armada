@@ -3,6 +3,7 @@ package compress
 import (
 	"bytes"
 	"compress/zlib"
+	"encoding/gob"
 
 	"github.com/pkg/errors"
 )
@@ -70,4 +71,19 @@ func (c *ZlibCompressor) Compress(b []byte) ([]byte, error) {
 	compressed := make([]byte, len(c.buffer.Bytes()))
 	copy(compressed, c.buffer.Bytes())
 	return compressed, nil
+}
+
+func CompressStringArray(input []string, compressor Compressor) ([]byte, error) {
+	if len(input) <= 0 {
+		return []byte{}, nil
+	}
+
+	buf := &bytes.Buffer{}
+	err := gob.NewEncoder(buf).Encode(input)
+	if err != nil {
+		return nil, err
+	}
+	bs := buf.Bytes()
+
+	return compressor.Compress(bs)
 }

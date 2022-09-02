@@ -1,9 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -781,21 +779,6 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
 }
 
-func compressStringArray(input []string, compressor compress.Compressor) ([]byte, error) {
-	if len(input) <= 0 {
-		return []byte{}, nil
-	}
-
-	buf := &bytes.Buffer{}
-	err := gob.NewEncoder(buf).Encode(input)
-	if err != nil {
-		return nil, err
-	}
-	bs := buf.Bytes()
-
-	return compressor.Compress(bs)
-}
-
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
 	getTime func() time.Time, getUlid func() string,
 ) ([]*api.Job, error) {
@@ -809,7 +792,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			log.WithError(err).Errorf("Error returning compressor to pool")
 		}
 	}(server.compressorPool, context.Background(), compressor)
-	compressedOwnershipGroups, err := compressStringArray(ownershipGroups, compressor.(compress.Compressor))
+	compressedOwnershipGroups, err := compress.CompressStringArray(ownershipGroups, compressor.(compress.Compressor))
 	if err != nil {
 		return nil, err
 	}
