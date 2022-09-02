@@ -1,25 +1,27 @@
-package ingestion
+package batch
 
 import (
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
+	"github.com/G-Research/armada/internal/pulsarutils"
 
-	"github.com/G-Research/armada/internal/eventapi/model"
+	"k8s.io/apimachinery/pkg/util/clock"
 )
 
 // Batch batches up events from a channel.  Batches are created whenever maxItems InstructionSets have been
 // received or maxTimeout has elapsed since the last batch was created (whichever occurs first).
 // This function has a lot in common with lookoutingester.batch.  Hopefully when generics become available we can
 // factor out most of the common code
-func Batch(values <-chan *model.PulsarEventRow, maxItems int, maxTimeout time.Duration, bufferSize int, clock clock.Clock) chan []*model.PulsarEventRow {
-	out := make(chan []*model.PulsarEventRow, bufferSize)
+func Batch(values <-chan *pulsarutils.ConsumerMessage, maxItems int,
+	maxTimeout time.Duration, bufferSize int, clock clock.Clock,
+) chan []*pulsarutils.ConsumerMessage {
+	out := make(chan []*pulsarutils.ConsumerMessage, bufferSize)
 
 	go func() {
 		defer close(out)
 
 		for keepGoing := true; keepGoing; {
-			var batch []*model.PulsarEventRow
+			var batch []*pulsarutils.ConsumerMessage
 			expire := clock.After(maxTimeout)
 			for {
 				select {

@@ -1,5 +1,5 @@
 image:
-  repository: gresearchdev/armada-eventapi-ingester
+  repository: gresearchdev/event-ingester-ingester
   tag: LATEST
 resources:
   limits:
@@ -21,3 +21,5 @@ serviceAccount: null
 applicationConfig:
   pulsar:
     authenticationEnabled: false
+  batchSize: 1048576  #1MB
+  batchMessages: 10000
