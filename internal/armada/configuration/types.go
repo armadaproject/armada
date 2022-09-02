@@ -82,6 +82,7 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
+	Preemption                                PreemptionConfig
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
@@ -98,6 +99,12 @@ type SchedulingConfig struct {
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
+}
+
+type PreemptionConfig struct {
+	Enabled              bool
+	PriorityClasses      map[string]int32
+	DefaultPriorityClass string
 }
 
 type DatabaseRetentionPolicy struct {
