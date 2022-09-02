@@ -94,10 +94,9 @@ func SchemaTemplate() string {
 		");\n" +
 		"\n" +
 		"CREATE TABLE job_errors (\n" +
-		"    -- To ensure inserts are idempotent, we to asociate with each error a unique id\n" +
+		"    -- To ensure inserts are idempotent, we need to asociate with each error a unique id\n" +
 		"    -- that can be computed deterministically by the ingester.\n" +
-		"    -- TODO: We could use a hash to improve efficiency.\n" +
-		"    id text PRIMARY KEY,\n" +
+		"    id integer PRIMARY KEY,\n" +
 		"    job_id UUID NOT NULL,\n" +
 		"    -- Byte array containing a JobErrors proto message.\n" +
 		"    error bytea NOT NULL,\n" +
@@ -115,9 +114,9 @@ func SchemaTemplate() string {
 		"CREATE INDEX job_errors_id_terminal ON job_errors (job_id, terminal);\n" +
 		"\n" +
 		"CREATE TABLE job_run_errors (\n" +
-		"    -- To ensure inserts are idempotent, we to asociate with each error a unique id\n" +
+		"    -- To ensure inserts are idempotent, we need to asociate with each error a unique id\n" +
 		"    -- that can be computed deterministically by the ingester.\n" +
-		"    id text PRIMARY KEY,\n" +
+		"    id integer PRIMARY KEY,\n" +
 		"    run_id UUID NOT NULL,\n" +
 		"    -- Byte array containing a JobRunErrors proto message.    \n" +
 		"    error bytea NOT NULL,\n" +

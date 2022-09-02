@@ -85,8 +85,7 @@ CREATE TABLE job_run_assignments (
 CREATE TABLE job_errors (
     -- To ensure inserts are idempotent, we need to asociate with each error a unique id
     -- that can be computed deterministically by the ingester.
-    -- TODO: We could use a hash to improve efficiency.
-    id text PRIMARY KEY,
+    id integer PRIMARY KEY,
     job_id UUID NOT NULL,
     -- Byte array containing a JobErrors proto message.
     error bytea NOT NULL,
@@ -106,7 +105,7 @@ CREATE INDEX job_errors_id_terminal ON job_errors (job_id, terminal);
 CREATE TABLE job_run_errors (
     -- To ensure inserts are idempotent, we need to asociate with each error a unique id
     -- that can be computed deterministically by the ingester.
-    id text PRIMARY KEY,
+    id integer PRIMARY KEY,
     run_id UUID NOT NULL,
     -- Byte array containing a JobRunErrors proto message.    
     error bytea NOT NULL,

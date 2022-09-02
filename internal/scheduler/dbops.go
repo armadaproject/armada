@@ -81,8 +81,8 @@ type UpdateJobPriorities map[uuid.UUID]int64
 type MarkRunsSucceeded map[uuid.UUID]bool
 type MarkRunsFailed map[uuid.UUID]bool
 type MarkRunsRunning map[uuid.UUID]bool
-type InsertJobErrors map[string]*JobError
-type InsertJobRunErrors map[string]*JobRunError
+type InsertJobErrors map[uint32]*JobError
+type InsertJobRunErrors map[uint32]*JobRunError
 
 type JobSetOperation interface {
 	AffectsJobSet(string) bool

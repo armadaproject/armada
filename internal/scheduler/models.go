@@ -27,7 +27,7 @@ type Job struct {
 }
 
 type JobError struct {
-	ID           string    `db:"id"`
+	ID           int32     `db:"id"`
 	JobID        uuid.UUID `db:"job_id"`
 	Error        []byte    `db:"error"`
 	Terminal     bool      `db:"terminal"`
@@ -43,7 +43,7 @@ type JobRunAssignment struct {
 }
 
 type JobRunError struct {
-	ID           string    `db:"id"`
+	ID           int32     `db:"id"`
 	RunID        uuid.UUID `db:"run_id"`
 	Error        []byte    `db:"error"`
 	Terminal     bool      `db:"terminal"`
