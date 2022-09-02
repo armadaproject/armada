@@ -97,7 +97,7 @@ func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, last
 				return nil, err
 			}
 			if msgId.IsAfter(from) {
-				messages = append(messages, &api.EventStreamMessage{Id: msgId.ToString(), Message: msg})
+				messages = append(messages, &api.EventStreamMessage{Id: msgId.String(), Message: msg})
 			}
 		}
 	}
@@ -118,7 +118,7 @@ func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (stri
 		if err != nil {
 			return "", err
 		}
-		return msgId.ToString(), nil
+		return msgId.String(), nil
 	}
 	return "0", nil
 }

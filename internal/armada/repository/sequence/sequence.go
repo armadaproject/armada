@@ -26,14 +26,14 @@ func Max() *ExternalSeqNo {
 	return &ExternalSeqNo{math.MaxInt64, math.MaxInt64, math.MaxInt, true}
 }
 
-// Parse parses an external sequence number which should be of the form "Time:Seq.SubSeq:last".
-// The empty string will be interpreted as "-1:-1" which is the initial sequence number
+// Parse parses an external sequence number which should be of the form "Time-SubSeq-last".
+// The empty string will be interpreted as "0:0" which is the initial sequence number
 // An error will be returned if the sequence number cannot be parsed
 func Parse(str string) (*ExternalSeqNo, error) {
 	if str == "" {
 		return &ExternalSeqNo{0, 0, 0, true}, nil
 	}
-	toks := strings.Split(str, "-")
+	toks := strings.Split(str, ":")
 	if len(toks) != 4 {
 		return nil, fmt.Errorf("%s is not a valid sequence number", str)
 	}
@@ -88,21 +88,25 @@ func IsValid(str string) bool {
 	return err == nil
 }
 
-func (e *ExternalSeqNo) ToString() string {
-	return fmt.Sprintf("%d-%d-%d-%d", e.Time, e.Seq, e.SubSeq, boolToInt(e.Last))
+func (e *ExternalSeqNo) String() string {
+	return fmt.Sprintf("%d:%d:%d:%d", e.Time, e.Seq, e.SubSeq, boolToInt(e.Last))
 }
 
 func (e *ExternalSeqNo) PrevRedisId() string {
 	var seq *ExternalSeqNo
-	if !e.Last && e.Time != 0 {
+	if e.Last {
+		seq = e
+	} else if e.SubSeq > 0 {
+		seq = &ExternalSeqNo{e.Time, e.Seq - 1, 0, true}
+	} else if e.Time > 0 {
 		seq = &ExternalSeqNo{e.Time - 1, math.MaxInt64, 0, true}
 	} else {
-		seq = e
+		seq = &ExternalSeqNo{0, 0, 0, true}
 	}
-	return seq.ToRedisString()
+	return seq.RedisString()
 }
 
-func (e *ExternalSeqNo) ToRedisString() string {
+func (e *ExternalSeqNo) RedisString() string {
 	return fmt.Sprintf("%d-%d", e.Time, e.Seq)
 }
 
