@@ -293,13 +293,16 @@ func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPo
 	t.Helper()
 
 	// using real redis instance as miniredis does not support streams
+	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	repo := repository.NewLegacyRedisEventRepository(client, eventRetention)
+	legacyEventRepo := repository.NewLegacyRedisEventRepository(legacyClient, eventRetention)
+	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	server := NewEventServer(&FakePermissionChecker{}, repo, repo, queueRepo)
+	server := NewEventServer(&FakePermissionChecker{}, eventRepo, legacyEventRepo, legacyEventRepo, queueRepo, true)
 
 	client.FlushDB()
+	legacyClient.FlushDB()
 
 	// Create test queue
 	err := queueRepo.CreateQueue(queue.Queue{
@@ -312,6 +315,7 @@ func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPo
 	action(server)
 
 	client.FlushDB()
+	legacyClient.FlushDB()
 }
 
 type eventStreamMock struct {
