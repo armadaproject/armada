@@ -49,8 +49,10 @@ func Parse(str string) (*ExternalSeqNo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s is not a valid sequence number", str)
 	}
-
 	last, err := strconv.ParseBool(toks[3])
+	if err != nil {
+		return nil, fmt.Errorf("%s is not a valid sequence number", str)
+	}
 	return &ExternalSeqNo{
 		Time:   time,
 		Seq:    seq,

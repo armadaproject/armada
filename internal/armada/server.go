@@ -356,7 +356,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
-	eventServer := server.NewEventServer(permissions, eventRepository, legacyEventRepository, eventStore, queueRepository)
+	eventServer := server.NewEventServer(permissions, eventRepository, legacyEventRepository, eventStore, queueRepository, config.DefaultToLegacyEvents)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	// Allows for registering functions to be run periodically in the background.

@@ -80,7 +80,6 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 }
 
 func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repository.EventRepository {
-
 	// User has explicitly said they want to use the new event store
 	if request.ForceNew {
 		return s.eventRepository
@@ -102,7 +101,6 @@ func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repos
 	}
 
 	return s.eventRepository
-
 }
 
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
@@ -119,7 +117,8 @@ func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer)
 }
 
 func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, eventRepository repository.EventRepository,
-	stream api.Event_GetJobSetEventsServer) error {
+	stream api.Event_GetJobSetEventsServer,
+) error {
 	if request.ErrorIfMissing {
 		exists, err := eventRepository.CheckStreamExists(request.Queue, request.Id)
 		if err != nil {

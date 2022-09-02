@@ -14,21 +14,29 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-const runIdString = "123e4567-e89b-12d3-a456-426614174000"
+const (
+	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+)
 
-var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-var runIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+var (
+	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
+	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+	baseTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+)
 
-const jobSetName = "testJobset"
-const testQueue = "test-queue"
-const executorId = "testCluster"
-const nodeName = "testNode"
-const podName = "test-pod"
+const (
+	jobSetName = "testJobset"
+	testQueue  = "test-queue"
+	executorId = "testCluster"
+	nodeName   = "testNode"
+	podName    = "test-pod"
+)
 
-const namespace = "test-ns"
-const podNumber = 6
+const (
+	namespace = "test-ns"
+	podNumber = 6
+)
 
 // Assigned
 var assigned = &armadaevents.EventSequence_Event{
@@ -92,6 +100,7 @@ var expectedPending = api.EventMessage{
 		},
 	},
 }
+
 var expectedRunning = api.EventMessage{
 	Events: &api.EventMessage_Running{
 		Running: &api.JobRunningEvent{
@@ -110,7 +119,6 @@ var expectedRunning = api.EventMessage{
 }
 
 func TestRead(t *testing.T) {
-
 	withRedisEventRepository(func(r *RedisEventRepository) {
 		err := storeEvents(r, assigned, running)
 		assert.NoError(t, err)
@@ -136,7 +144,6 @@ func TestRead(t *testing.T) {
 
 func TestGetLastId(t *testing.T) {
 	withRedisEventRepository(func(r *RedisEventRepository) {
-
 		// Event doesn't exist- should be "0"
 		retrievedLastId, err := r.GetLastMessageId(testQueue, jobSetName)
 		assert.NoError(t, err)
@@ -183,17 +190,14 @@ func withRedisEventRepository(action func(r *RedisEventRepository)) {
 }
 
 func assertExpected(t *testing.T, actual []*api.EventStreamMessage, expected ...*api.EventMessage) {
-
 	assert.Equal(t, len(actual), len(expected))
 
 	for i, streamMessage := range expected {
 		assert.Equal(t, expected[i].Events, streamMessage.Events)
 	}
-
 }
 
 func storeEvents(r *RedisEventRepository, events ...*armadaevents.EventSequence_Event) error {
-
 	// create an eventSequence
 	es := &armadaevents.EventSequence{Events: events}
 

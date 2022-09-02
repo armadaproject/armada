@@ -474,19 +474,18 @@ func FromInternalStandaloneIngressInfo(queueName string, time time.Time, e *arma
 		return nil, err
 	}
 
-	apiEvent :=
-		&api.JobIngressInfoEvent{
-			JobId:            jobId,
-			Queue:            queueName,
-			Created:          time,
-			ClusterId:        e.GetObjectMeta().GetExecutorId(),
-			KubernetesId:     e.GetObjectMeta().GetKubernetesId(),
-			PodNamespace:     e.GetObjectMeta().GetNamespace(),
-			NodeName:         e.GetNodeName(),
-			PodNumber:        e.GetPodNumber(),
-			PodName:          e.GetPodName(),
-			IngressAddresses: e.GetIngressAddresses(),
-		}
+	apiEvent := &api.JobIngressInfoEvent{
+		JobId:            jobId,
+		Queue:            queueName,
+		Created:          time,
+		ClusterId:        e.GetObjectMeta().GetExecutorId(),
+		KubernetesId:     e.GetObjectMeta().GetKubernetesId(),
+		PodNamespace:     e.GetObjectMeta().GetNamespace(),
+		NodeName:         e.GetNodeName(),
+		PodNumber:        e.GetPodNumber(),
+		PodName:          e.GetPodName(),
+		IngressAddresses: e.GetIngressAddresses(),
+	}
 
 	return []*api.EventMessage{
 		{
@@ -495,5 +494,4 @@ func FromInternalStandaloneIngressInfo(queueName string, time time.Time, e *arma
 			},
 		},
 	}, nil
-
 }

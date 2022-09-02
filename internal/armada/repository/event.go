@@ -18,8 +18,10 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-const eventStreamPrefix = "Events:"
-const dataKey = "message"
+const (
+	eventStreamPrefix = "Events:"
+	dataKey           = "message"
+)
 
 type EventRepository interface {
 	CheckStreamExists(queue string, jobSetId string) (bool, error)
