@@ -55,7 +55,6 @@ func NewSubmitServer(
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
-	// This is basically the default config but with a max of 100 rather than 8 and a min of 10 rather than 0.
 	poolConfig := pool.ObjectPoolConfig{
 		MaxTotal:                 100,
 		MaxIdle:                  50,
@@ -794,10 +793,7 @@ func compressStringArray(input []string, compressor compress.Compressor) ([]byte
 	}
 	bs := buf.Bytes()
 
-	c := compressor.(compress.Compressor)
-	returnVal, err := c.Compress(bs)
-	log.Infof("Compressed %d groups from %d to %d bytes", len(input), cap(bs), cap(returnVal))
-	return returnVal, err
+	return compressor.Compress(bs)
 }
 
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,

@@ -39,12 +39,7 @@ type SubmitFromLog struct {
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *SubmitFromLog) Run(ctx context.Context) error {
 	// Get the configured logger, or the standard logger if none is provided.
-	var log *logrus.Entry
-	if srv.Logger != nil {
-		log = srv.Logger.WithField("service", "SubmitFromLog")
-	} else {
-		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
-	}
+	log := srv.getLogger()
 	log.Info("service started")
 
 	// Recover from panics by restarting the service.
@@ -312,6 +307,16 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
+func (srv *SubmitFromLog) getLogger() *logrus.Entry {
+	var log *logrus.Entry
+	if srv.Logger != nil {
+		log = srv.Logger.WithField("service", "SubmitFromLog")
+	} else {
+		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
+	}
+	return log
+}
+
 // SubmitJobs processes several job submit events in bulk.
 // It returns a boolean indicating if the events were processed and any error that occurred during processing.
 // Specifically, events are not processed if writing to the database results in a network-related error.
@@ -333,16 +338,10 @@ func (srv *SubmitFromLog) SubmitJobs(
 		return true, err
 	}
 
-	var log *logrus.Entry
-	if srv.Logger != nil {
-		log = srv.Logger.WithField("service", "SubmitFromLog")
-	} else {
-		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
-	}
-
+	log := srv.getLogger()
 	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(context.Background())
 	if err != nil {
-		return true, err
+		return false, err
 	}
 	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
@@ -351,14 +350,13 @@ func (srv *SubmitFromLog) SubmitJobs(
 		}
 	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
 
+	compressedOwnershipGroups, err := compressStringArray(groups, compressor.(compress.Compressor))
+	if err != nil {
+		return true, err
+	}
 	for _, job := range jobs {
-		compressedOwnershipGroups, err := compressStringArray(job.QueueOwnershipUserGroups, compressor.(compress.Compressor))
-		if err != nil {
-			return true, err
-		}
 		job.QueueOwnershipUserGroups = nil
 		job.CompressedQueueOwnershipUserGroups = compressedOwnershipGroups
-
 	}
 
 	// Submit the jobs by writing them to the database.
