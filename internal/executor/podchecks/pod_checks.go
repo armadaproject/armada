@@ -38,7 +38,7 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 	messages := []string{}
 	if pc.isNodeBad(pod, podEvents) {
-		return ActionRetry, "Pod Statues and Pod Events are both empty. Retrying"
+		return ActionRetry, "Pod status and pod events are both empty. Retrying"
 	}
 	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents, timeInState)
 	if eventAction != ActionWait {

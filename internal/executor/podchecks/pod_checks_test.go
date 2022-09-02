@@ -46,7 +46,7 @@ func Test_GetActionBadNode(t *testing.T) {
 	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil}
 	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, time.Minute)
 	assert.Equal(t, result, ActionRetry)
-	assert.Equal(t, message, "Pod Statues and Pod Events are both empty. Retrying")
+	assert.Equal(t, message, "Pod status and pod events are both empty. Retrying")
 }
 
 func mockMessage(result Action) string {
