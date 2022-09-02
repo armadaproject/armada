@@ -329,8 +329,6 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
 ) (bool, error) {
-	//TODO REMOVE HACK
-	groups = []string{}
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.

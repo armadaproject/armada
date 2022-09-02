@@ -1,14 +1,18 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/hashicorp/go-multierror"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -37,6 +41,7 @@ type JobLeaseService struct {
 	clusterContext         context2.ClusterContext
 	queueClient            api.AggregatedQueueClient
 	minimumJobSize         common.ComputeResources
+	decompressorPool       *pool.ObjectPool
 	avoidNodeLabelsOnRetry []string
 }
 
@@ -46,10 +51,26 @@ func NewJobLeaseService(
 	minimumJobSize common.ComputeResources,
 	avoidNodeLabelsOnRetry []string,
 ) *JobLeaseService {
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibDecompressor()
+		}), &poolConfig)
 	return &JobLeaseService{
 		clusterContext:         clusterContext,
 		queueClient:            queueClient,
 		minimumJobSize:         minimumJobSize,
+		decompressorPool:       decompressorPool,
 		avoidNodeLabelsOnRetry: avoidNodeLabelsOnRetry,
 	}
 }
@@ -73,6 +94,38 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 		Queues:     leasedQueueReports,
 	}
 
+	leaseRequest := &api.StreamingLeaseRequest{
+		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
+		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
+		Resources:           *availableResource,
+		ClusterLeasedReport: clusterLeasedReport,
+		Nodes:               nodes,
+		MinimumJobSize:      jobLeaseService.minimumJobSize,
+	}
+
+	leasedJobs, err := jobLeaseService.requestJobLeases(leaseRequest)
+	if err != nil {
+		return leasedJobs, err
+	}
+
+	preparedLeasedJobs := make([]*api.Job, 0, len(leasedJobs))
+	jobsToReturn := make([]*api.Job, 0, 10)
+	for _, j := range leasedJobs {
+		groups, err := jobLeaseService.decompressOwnershipGroups(j.CompressedQueueOwnershipUserGroups)
+		if err != nil {
+			log.Errorf("Failed to decompress ownership groups for job %s", j.Id)
+			jobsToReturn = append(jobsToReturn, j)
+			continue
+		}
+		j.QueueOwnershipUserGroups = groups
+		preparedLeasedJobs = append(preparedLeasedJobs, j)
+	}
+
+	jobLeaseService.returnLeases(jobsToReturn, "Failed to decompress ownership groups")
+	return preparedLeasedJobs, nil
+}
+
+func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	// Setup a bidirectional gRPC stream.
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
@@ -86,14 +139,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 	// The first message sent over the stream includes all information necessary
 	// for the server to choose jobs to lease.
 	// Subsequent messages only include ids of received jobs.
-	err = stream.Send(&api.StreamingLeaseRequest{
-		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
-		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
-		Resources:           *availableResource,
-		ClusterLeasedReport: clusterLeasedReport,
-		Nodes:               nodes,
-		MinimumJobSize:      jobLeaseService.minimumJobSize,
-	})
+	err = stream.Send(leaseRequest)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -181,17 +227,46 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 
 	// Expire jobs the server never confirmed the ack of.
 	jobsToReturn := jobs[numServerAcks:]
-	var result *multierror.Error
-	for _, job := range jobsToReturn {
-		err := jobLeaseService.ReturnLeaseById(job.Id, "", nil, "Communication error during leasing")
-		result = multierror.Append(result, err)
-	}
-	err = result.ErrorOrNil()
+	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing")
+	return receivedJobs, nil
+}
+
+func (jobLeaseService *JobLeaseService) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
+	decompressor, err := jobLeaseService.decompressorPool.BorrowObject(context.Background())
 	if err != nil {
-		log.WithError(err).Error("error returning leases to server")
+		log.WithError(err).Errorf("Error borrowing decompressor")
 	}
 
-	return receivedJobs, nil
+	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := decompressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning decompressorPool to pool")
+		}
+	}(jobLeaseService.decompressorPool, context.Background(), decompressor)
+
+	return decompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
+}
+
+func decompressStringArray(input []byte, decompressor compress.Decompressor) ([]string, error) {
+	if len(input) <= 0 {
+		return []string{}, nil
+	}
+
+	decompressedValue, err := decompressor.Decompress(input)
+	var data []string
+	buf := bytes.NewBuffer(decompressedValue)
+	dec := gob.NewDecoder(buf)
+	err = dec.Decode(&data)
+	return data, err
+}
+
+func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string) {
+	for _, j := range jobs {
+		err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason)
+		if err != nil {
+			log.Errorf("Failed to return lease for job %s because %s", j.Id, err)
+		}
+	}
 }
 
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string) error {

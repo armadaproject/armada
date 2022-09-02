@@ -809,8 +809,6 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			log.WithError(err).Errorf("Error returning compressor to pool")
 		}
 	}(server.compressorPool, context.Background(), compressor)
-	//TODO REMOVE HACK
-	ownershipGroups = []string{}
 	compressedOwnershipGroups, err := compressStringArray(ownershipGroups, compressor.(compress.Compressor))
 	if err != nil {
 		return nil, err
