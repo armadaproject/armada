@@ -70,6 +70,10 @@ func DecompressStringArray(input []byte, decompressor Decompressor) ([]string, e
 	}
 
 	decompressedValue, err := decompressor.Decompress(input)
+	if err != nil {
+		return nil, err
+	}
+
 	var data []string
 	buf := bytes.NewBuffer(decompressedValue)
 	dec := gob.NewDecoder(buf)
