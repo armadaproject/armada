@@ -23,6 +23,7 @@ func AuthenticateKubernetesNative(config NativeAuthDetails) (*NativeTokenCredent
 	tokenSource := oidc.FunctionTokenSource{
 		GetToken: func() (*oauth2.Token, error) {
 			log.Infof("Getting new temporary token from TokenReview")
+			// TODO: Possibly remove kubeConfig and clientSet from inside this function?
 			kubeConfig, err := rest.InClusterConfig()
 			if err != nil {
 				return nil, err
