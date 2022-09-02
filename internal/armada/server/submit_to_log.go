@@ -102,7 +102,10 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 				// The job shouldn't be submitted twice. Move on to the next job.
 				continue
 			} else {
-				log.Warnf("ClientId %s was supplied for job %s but no original jobId could be found", apiJob.ClientId, apiJob.GetId())
+				log.Warnf(
+					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
+					apiJob.ClientId,
+					apiJob.GetId())
 			}
 		}
 
