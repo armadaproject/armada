@@ -1,19 +1,24 @@
 #!/bin/sh
 
-# Ensure armada, armada-executor, and armada-lookout are not running
+CLUSTER_NAME="demo-a"
+COMPOSE_FILE="./docs/dev/armada-compose.yaml"
 
-kind delete cluster --name demo-a
+# Ensure armada, armada-executor, and armada-lookout are not running
 
 COMPOSE_CMD='docker-compose'
 
-DCLIENT_VERSION=$(docker version -f '{{.Client.Version}}')
-if echo $DCLIENT_VERSION | grep -q '^2' ; then
+docker compose > /dev/null 2>&1
+if [ $? -eq 0 ] ; then
   COMPOSE_CMD='docker compose'
 fi
 
-OSTYPE=$(uname -s)
-if [ $OSTYPE == "Linux" ]; then
-  $COMPOSE_CMD -f ./docs/dev/docker-compose.yaml --profile linux down
+$COMPOSE_CMD -f $COMPOSE_FILE down
+
+echo -n "Looking for running Kind cluster $CLUSTER_NAME ..."
+running_clusters=$(kind get clusters)
+if [ "$running_clusters" != "$CLUSTER_NAME" ] ; then
+  echo "not found - exiting now."
 else
-  $COMPOSE_CMD -f ./docs/dev/docker-compose.yaml down
+  echo "found it - deleting it."
+  kind delete cluster --name $CLUSTER_NAME
 fi
