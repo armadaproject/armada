@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/compress"
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -17,6 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/compress"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"

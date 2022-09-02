@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/gogo/protobuf/types"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -25,6 +24,7 @@ import (
 	servervalidation "github.com/G-Research/armada/internal/armada/validation"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
