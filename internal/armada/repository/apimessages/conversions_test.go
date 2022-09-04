@@ -45,7 +45,6 @@ const (
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 
 func TestConvertSubmitted(t *testing.T) {
-
 	// Submit
 	submit := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
@@ -74,7 +73,7 @@ func TestConvertSubmitted(t *testing.T) {
 		},
 	}
 
-	var expected = []*api.EventMessage{
+	expected := []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Submitted{
 				Submitted: &api.JobSubmittedEvent{
@@ -234,7 +233,6 @@ func TestConvertReprioritised(t *testing.T) {
 }
 
 func TestDuplicateJob(t *testing.T) {
-
 	oldJobString := "02f3j0g1md4qx7z5qb148qnh4r"
 	oldJobProto, _ := armadaevents.ProtoUuidFromUlidString(oldJobString)
 
@@ -666,7 +664,6 @@ func TestConvertJobAssigned(t *testing.T) {
 }
 
 func TestConvertResourceUtilisation(t *testing.T) {
-
 	utilisation := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_ResourceUtilisation{
@@ -732,7 +729,6 @@ func TestConvertResourceUtilisation(t *testing.T) {
 }
 
 func TestConvertIngressInfo(t *testing.T) {
-
 	utilisation := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{

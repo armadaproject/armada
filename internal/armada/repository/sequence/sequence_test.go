@@ -7,7 +7,6 @@ import (
 )
 
 func TestParse(t *testing.T) {
-
 	validIds := map[string]*ExternalSeqNo{
 		"1:2:3:0": {
 			Time:   1,
@@ -102,11 +101,9 @@ func TestToString(t *testing.T) {
 	for k, v := range ids {
 		assert.Equal(t, k, v.String())
 	}
-
 }
 
 func TestFromRedisId(t *testing.T) {
-
 	expected := &ExternalSeqNo{
 		Time:   1,
 		Seq:    2,
@@ -126,12 +123,11 @@ func TestFromRedisId(t *testing.T) {
 	assert.Equal(t, expected, id)
 
 	// invalid
-	id, err = FromRedisId("foo", 3, true)
+	_, err = FromRedisId("foo", 3, true)
 	assert.Error(t, err)
 }
 
 func TestPrevRedisId(t *testing.T) {
-
 	id := &ExternalSeqNo{
 		Time:   1,
 		Seq:    2,
@@ -158,7 +154,6 @@ func TestPrevRedisId(t *testing.T) {
 }
 
 func TestIsAfter(t *testing.T) {
-
 	ids := []*ExternalSeqNo{
 		{
 			Time:   0,
@@ -188,5 +183,4 @@ func TestIsAfter(t *testing.T) {
 		assert.False(t, a.IsAfter(b))
 		assert.True(t, b.IsAfter(a))
 	}
-
 }
