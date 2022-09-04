@@ -310,7 +310,7 @@ build-docker-jobservice:
 	cp -a ./config/jobservice ./.build/jobservice/config
 	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
-build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
+build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-docker-event-ingester
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
