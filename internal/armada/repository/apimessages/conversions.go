@@ -44,9 +44,9 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
 			convertedEvents, err = FromInternalJobRunAssigned(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunAssigned)
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
-			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, *event.Created, esEvent.ResourceUtilisation)
+			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, *event.Created, esEvent.StandaloneIngressInfo)
+			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			// These events have no api analog right now, so we ignore
@@ -297,6 +297,8 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 						Terminated: &api.JobTerminatedEvent{
 							JobId:        jobId,
 							JobSetId:     jobSetName,
+							PodNamespace: objectMeta.GetNamespace(),
+							PodName:      objectMeta.GetName(),
 							Queue:        queueName,
 							Created:      time,
 							ClusterId:    objectMeta.GetExecutorId(),
@@ -315,45 +317,6 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 	return events, nil
 }
 
-func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podError *armadaevents.Error_PodError) *api.JobFailedEvent {
-	event := &api.JobFailedEvent{
-		JobId:        jobId,
-		JobSetId:     jobSetName,
-		Queue:        queueName,
-		Created:      time,
-		ClusterId:    podError.PodError.GetObjectMeta().GetExecutorId(),
-		PodNamespace: podError.PodError.GetObjectMeta().GetNamespace(),
-		KubernetesId: podError.PodError.GetObjectMeta().GetKubernetesId(),
-		PodNumber:    podError.PodError.GetPodNumber(),
-		NodeName:     podError.PodError.GetNodeName(),
-		Reason:       podError.PodError.GetMessage(),
-	}
-	containerStatuses := make([]*api.ContainerStatus, 0)
-	for _, containerErr := range podError.PodError.ContainerErrors {
-		containerStatus := &api.ContainerStatus{
-			Name:     containerErr.GetObjectMeta().GetName(),
-			ExitCode: containerErr.GetExitCode(),
-			Message:  containerErr.Message,
-			Reason:   containerErr.Reason,
-		}
-		switch containerErr.KubernetesReason.(type) {
-		case *armadaevents.ContainerError_DeadlineExceeded_:
-			containerStatus.Cause = api.Cause_DeadlineExceeded
-		case *armadaevents.ContainerError_Error:
-			containerStatus.Cause = api.Cause_Error
-		case *armadaevents.ContainerError_Evicted_:
-			containerStatus.Cause = api.Cause_Evicted
-		case *armadaevents.ContainerError_OutOfMemory_:
-			containerStatus.Cause = api.Cause_OOM
-		default:
-			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)
-		}
-		containerStatuses = append(containerStatuses, containerStatus)
-	}
-	event.ContainerStatuses = containerStatuses
-	return event
-}
-
 func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, e *armadaevents.JobErrors) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
@@ -362,16 +325,29 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
-		switch reason := msgErr.Reason.(type) {
-		case *armadaevents.Error_PodError:
-			event := &api.EventMessage{
-				Events: &api.EventMessage_Failed{
-					Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
-				},
+		if msgErr.Terminal {
+			switch reason := msgErr.Reason.(type) {
+			case *armadaevents.Error_PodError:
+				event := &api.EventMessage{
+					Events: &api.EventMessage_Failed{
+						Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
+					},
+				}
+				events = append(events, event)
+			default:
+				log.Warnf("Unknown job error %T", reason)
+				event := &api.EventMessage{
+					Events: &api.EventMessage_Failed{
+						Failed: &api.JobFailedEvent{
+							JobId:    jobId,
+							JobSetId: jobSetName,
+							Queue:    queueName,
+							Created:  time,
+						},
+					},
+				}
+				events = append(events, event)
 			}
-			events = append(events, event)
-		default:
-			log.Warnf("Unknown job error %T", reason)
 		}
 	}
 	return events, nil
@@ -439,7 +415,7 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 	}, nil
 }
 
-func FromInternalResourceUtilisation(queueName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
+func FromInternalResourceUtilisation(queueName string, jobSetName string, time time.Time, e *armadaevents.ResourceUtilisation) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		return nil, err
@@ -447,6 +423,7 @@ func FromInternalResourceUtilisation(queueName string, time time.Time, e *armada
 
 	apiEvent := &api.JobUtilisationEvent{
 		JobId:                 jobId,
+		JobSetId:              jobSetName,
 		Queue:                 queueName,
 		Created:               time,
 		ClusterId:             e.GetResourceInfo().GetObjectMeta().GetExecutorId(),
@@ -468,7 +445,7 @@ func FromInternalResourceUtilisation(queueName string, time time.Time, e *armada
 	}, nil
 }
 
-func FromInternalStandaloneIngressInfo(queueName string, time time.Time, e *armadaevents.StandaloneIngressInfo) ([]*api.EventMessage, error) {
+func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time time.Time, e *armadaevents.StandaloneIngressInfo) ([]*api.EventMessage, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		return nil, err
@@ -476,14 +453,15 @@ func FromInternalStandaloneIngressInfo(queueName string, time time.Time, e *arma
 
 	apiEvent := &api.JobIngressInfoEvent{
 		JobId:            jobId,
+		JobSetId:         jobSetName,
 		Queue:            queueName,
 		Created:          time,
 		ClusterId:        e.GetObjectMeta().GetExecutorId(),
 		KubernetesId:     e.GetObjectMeta().GetKubernetesId(),
-		PodNamespace:     e.GetObjectMeta().GetNamespace(),
 		NodeName:         e.GetNodeName(),
 		PodNumber:        e.GetPodNumber(),
 		PodName:          e.GetPodName(),
+		PodNamespace:     e.GetObjectMeta().GetNamespace(),
 		IngressAddresses: e.GetIngressAddresses(),
 	}
 
@@ -494,4 +472,44 @@ func FromInternalStandaloneIngressInfo(queueName string, time time.Time, e *arma
 			},
 		},
 	}, nil
+}
+
+func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podError *armadaevents.Error_PodError) *api.JobFailedEvent {
+	event := &api.JobFailedEvent{
+		JobId:        jobId,
+		JobSetId:     jobSetName,
+		Queue:        queueName,
+		Created:      time,
+		ClusterId:    podError.PodError.GetObjectMeta().GetExecutorId(),
+		PodNamespace: podError.PodError.GetObjectMeta().GetNamespace(),
+		KubernetesId: podError.PodError.GetObjectMeta().GetKubernetesId(),
+		PodNumber:    podError.PodError.GetPodNumber(),
+		NodeName:     podError.PodError.GetNodeName(),
+		Reason:       podError.PodError.GetMessage(),
+		PodName:      podError.PodError.GetObjectMeta().GetName(),
+	}
+	containerStatuses := make([]*api.ContainerStatus, 0)
+	for _, containerErr := range podError.PodError.ContainerErrors {
+		containerStatus := &api.ContainerStatus{
+			Name:     containerErr.GetObjectMeta().GetName(),
+			ExitCode: containerErr.GetExitCode(),
+			Message:  containerErr.Message,
+			Reason:   containerErr.Reason,
+		}
+		switch containerErr.KubernetesReason.(type) {
+		case *armadaevents.ContainerError_DeadlineExceeded_:
+			containerStatus.Cause = api.Cause_DeadlineExceeded
+		case *armadaevents.ContainerError_Error:
+			containerStatus.Cause = api.Cause_Error
+		case *armadaevents.ContainerError_Evicted_:
+			containerStatus.Cause = api.Cause_Evicted
+		case *armadaevents.ContainerError_OutOfMemory_:
+			containerStatus.Cause = api.Cause_OOM
+		default:
+			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)
+		}
+		containerStatuses = append(containerStatuses, containerStatus)
+	}
+	event.ContainerStatuses = containerStatuses
+	return event
 }
