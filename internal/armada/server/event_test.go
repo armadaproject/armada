@@ -5,6 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/gogo/protobuf/proto"
+
+	"github.com/G-Research/armada/pkg/armadaevents"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -48,6 +55,47 @@ func TestEventServer_ReportUsage(t *testing.T) {
 		assert.Nil(t, e)
 		assert.Equal(t, 13, len(stream.sendMessages),
 			"Just new messages should be added when reading from last one.")
+	})
+}
+
+func TestEventServer_ForceNew(t *testing.T) {
+	withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+		jobSetId := "set1"
+		queue := ""
+		jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
+		runIdString := "123e4567-e89b-12d3-a456-426614174000"
+		baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+		jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
+		runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+
+		stream := &eventStreamMock{}
+
+		assigned := &armadaevents.EventSequence_Event{
+			Created: &baseTime,
+			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &armadaevents.JobRunAssigned{
+					RunId: runIdProto,
+					JobId: jobIdProto,
+				},
+			},
+		}
+
+		reportPulsarEvent(&armadaevents.EventSequence{
+			Queue:      queue,
+			JobSetName: jobSetId,
+			Events:     []*armadaevents.EventSequence_Event{assigned},
+		})
+
+		e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
+		assert.NoError(t, e)
+		assert.Equal(t, 1, len(stream.sendMessages))
+		expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
+			JobId:    jobIdString,
+			JobSetId: jobSetId,
+			Queue:    queue,
+			Created:  baseTime,
+		}}
+		assert.Equal(t, expected, stream.sendMessages[len(stream.sendMessages)-1].Message.Events)
 	})
 }
 
@@ -289,12 +337,37 @@ func reportEvent(t *testing.T, s *EventServer, event api.Event) {
 	assert.Nil(t, e)
 }
 
+func reportPulsarEvent(es *armadaevents.EventSequence) error {
+	bytes, err := proto.Marshal(es)
+	if err != nil {
+		return err
+	}
+	compressor, err := compress.NewZlibCompressor(0)
+	if err != nil {
+		return err
+	}
+	compressed, err := compressor.Compress(bytes)
+	if err != nil {
+		return err
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+
+	client.XAdd(&redis.XAddArgs{
+		Stream: "Events:" + es.Queue + ":" + es.JobSetName,
+		Values: map[string]interface{}{
+			"message": compressed,
+		},
+	})
+	return nil
+}
+
 func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPolicy, action func(s *EventServer)) {
 	t.Helper()
 
 	// using real redis instance as miniredis does not support streams
 	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
 	legacyEventRepo := repository.NewLegacyRedisEventRepository(legacyClient, eventRetention)
 	eventRepo := repository.NewEventRepository(client)
