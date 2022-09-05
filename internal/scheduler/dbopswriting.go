@@ -3,10 +3,56 @@ package scheduler
 import (
 	"context"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 )
+
+// Service that writes DbOperations into postgres.
+type DbOpsWriter struct {
+	In chan *DbOperationsWithMessageIds
+	// Connection to the postgres database.
+	Db *pgxpool.Pool
+	// Pulsar consumer used to ack messages.
+	Consumer pulsar.Consumer
+	// Optional logger.
+	// If not provided, the default logrus logger is used.
+	Logger *logrus.Entry
+}
+
+func (srv *DbOpsWriter) Run(ctx context.Context) error {
+	// Get the configured logger, or the standard logger if none is provided.
+	var log *logrus.Entry
+	if srv.Logger != nil {
+		log = srv.Logger.WithField("service", "DbOpsWriter")
+	} else {
+		log = logrus.StandardLogger().WithField("service", "DbOpsWriter")
+	}
+	log.Info("service started")
+	defer log.Info("service stopped")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case opsWithIds := <-srv.In:
+			if opsWithIds == nil || len(opsWithIds.Ops) == 0 {
+				continue
+			}
+			for _, op := range opsWithIds.Ops {
+				// TODO: Add timeout?
+				err := WriteDbOp(ctx, srv.Db, op)
+				if err != nil {
+					return err // TODO: Retry on transient errors. Fall back to sequential insert?
+				}
+			}
+			for _, messageId := range opsWithIds.MessageIds {
+				srv.Consumer.AckID(messageId)
+			}
+		}
+	}
+}
 
 // TODO: The caller of this function should keep retrying on transient failures.
 func WriteDbOp(ctx context.Context, db *pgxpool.Pool, op DbOperation) error {
