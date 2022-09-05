@@ -6,7 +6,9 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -157,4 +159,87 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 	default:
 		return nil, nil
 	}
+}
+
+// schedulingInfoFromSubmitJob returns a minimal representation of a job
+// containing only the info needed by the scheduler.
+func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
+
+	// Component common to all jobs.
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		Lifetime:        submitJob.Lifetime,
+		AtMostOnce:      submitJob.AtMostOnce,
+		Preemptible:     submitJob.Preemptible,
+		ConcurrencySafe: submitJob.ConcurrencySafe,
+	}
+
+	// Scheduling requirements specific to the objects that make up this job.
+	switch object := submitJob.MainObject.Object.(type) {
+	case *armadaevents.KubernetesMainObject_PodSpec:
+		podSpec := object.PodSpec.PodSpec
+		resourceRequirements := aggregatePodResourceRequirements(podSpec)
+		tolerations := make([]*v1.Toleration, len(podSpec.Tolerations))
+		for i, toleration := range podSpec.Tolerations {
+			toleration := toleration
+			tolerations[i] = &toleration
+		}
+		var priority int32
+		if podSpec.Priority != nil {
+			priority = *podSpec.Priority
+		}
+		preemptionPolicy := "PreemptLowerPriority"
+		if podSpec.PreemptionPolicy != nil {
+			preemptionPolicy = string(*podSpec.PreemptionPolicy)
+		}
+		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
+			PodRequirements: &schedulerobjects.PodRequirements{
+				NodeSelector:         podSpec.NodeSelector,
+				Affinity:             podSpec.Affinity,
+				Tolerations:          tolerations,
+				Priority:             priority,
+				PreemptionPolicy:     preemptionPolicy,
+				ResourceRequirements: &resourceRequirements,
+			},
+		}
+		schedulingInfo.ObjectRequirements = append(
+			schedulingInfo.ObjectRequirements,
+			&schedulerobjects.ObjectRequirements{Requirements: requirements},
+		)
+	default:
+		return nil, errors.Errorf("unsupported object type %T", object)
+	}
+	return schedulingInfo, nil
+}
+
+// aggregatePodResourceRequirements returns a ResourceRequirements
+// capturing the total resource requirements of all containers that make up a pod.
+func aggregatePodResourceRequirements(podSpec *v1.PodSpec) v1.ResourceRequirements {
+	containerRequirements := make([]v1.ResourceRequirements, len(podSpec.Containers))
+	for i, container := range podSpec.Containers {
+		containerRequirements[i] = container.Resources
+	}
+	return aggregateResourceRequirements(containerRequirements...)
+}
+
+// aggregateResourceRequirements returns a ResourceRequirements
+// the limits and requests of which is the sum of the limits and requests
+// over all requirements given as arguments.
+func aggregateResourceRequirements(requirements ...v1.ResourceRequirements) v1.ResourceRequirements {
+	rv := v1.ResourceRequirements{
+		Limits:   make(v1.ResourceList),
+		Requests: make(v1.ResourceList),
+	}
+	for _, v := range requirements {
+		for resource, quantity := range v.Limits {
+			q := rv.Limits[resource]
+			q.Add(quantity)
+			rv.Limits[resource] = q
+		}
+		for resource, quantity := range v.Requests {
+			q := rv.Requests[resource]
+			q.Add(quantity)
+			rv.Requests[resource] = q
+		}
+	}
+	return rv
 }
