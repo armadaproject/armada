@@ -336,7 +336,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 
 func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) error {
 	for _, j := range jobs {
-		//No need to decompress, if compressed groups not set
+		// No need to decompress, if compressed groups not set
 		if len(j.CompressedQueueOwnershipUserGroups) == 0 {
 			continue
 		}
