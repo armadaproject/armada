@@ -92,6 +92,8 @@ commands:
           helm package deployment/lookout-migration/ -d charts/armada/
           helm package deployment/binoculars/ -d charts/armada/
           helm package deployment/jobservice/ -d charts/armada/
+          helm package deployment/lookout-ingester/ -d charts/armada/
+          helm package deployment/event-ingester/ -d charts/armada/
           helm repo index charts/
 
     - run:
@@ -202,6 +204,9 @@ jobs:
 
             docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
             docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
+            
+            docker tag armada-event-ingester gresearchdev/armada-event-ingester-dev:${TAG}
+            docker push gresearchdev/armada-event-ingester-dev:${TAG}
 
             docker tag armada-binoculars gresearchdev/armada-binoculars-dev:${TAG}
             docker push gresearchdev/armada-binoculars-dev:${TAG}
@@ -301,6 +306,14 @@ jobs:
             docker pull gresearchdev/armada-jobservice-dev:${TAG}
             docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice:${RELEASE_TAG}
             docker push gresearchdev/armada-jobservice:${RELEASE_TAG}
+            
+            docker pull gresearchdev/armada-lookout-ingester:${TAG}
+            docker tag gresearchdev/armada-lookout-ingester:${TAG} gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
+            docker push gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
+            
+            docker pull gresearchdev/armada-event-ingester:${TAG}
+            docker tag gresearchdev/armada-event-ingester:${TAG} gresearchdev/armada-event-ingester:${RELEASE_TAG}
+            docker push gresearchdev/armada-event-ingester:${RELEASE_TAG}
 
   release-charts:
     machine:
