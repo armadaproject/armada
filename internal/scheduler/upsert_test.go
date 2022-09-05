@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/pulsarutils"

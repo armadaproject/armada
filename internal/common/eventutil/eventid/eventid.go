@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/severinson/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 // EventId uniquely identifies an event submitted to Pulsar.

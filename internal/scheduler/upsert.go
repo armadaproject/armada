@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
-	"github.com/severinson/pulsar-client-go/pulsar"
 
 	"github.com/G-Research/armada/internal/pulsarutils"
 )

@@ -3,7 +3,7 @@ package pulsarutils
 import (
 	"time"
 
-	"github.com/severinson/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 type MockMessageId struct {

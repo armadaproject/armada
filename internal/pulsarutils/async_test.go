@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/severinson/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )

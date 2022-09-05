@@ -15,11 +15,11 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
 	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

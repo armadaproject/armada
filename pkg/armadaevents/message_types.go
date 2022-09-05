@@ -1,6 +1,6 @@
 package armadaevents
 
-import "github.com/severinson/pulsar-client-go/pulsar"
+import "github.com/apache/pulsar-client-go/pulsar"
 
 // PULSAR_MESSAGE_TYPE_PROPERTY is the key of a property included with Pulsar messages.
 // It's value indicates if the message is a control message or a utilisation message.

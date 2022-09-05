@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/eventutil"

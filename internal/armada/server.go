@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -13,7 +14,6 @@ import (
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 

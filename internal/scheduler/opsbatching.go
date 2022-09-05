@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/severinson/pulsar-client-go/pulsar"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"

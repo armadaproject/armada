@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"

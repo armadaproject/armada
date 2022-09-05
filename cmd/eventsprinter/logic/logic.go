@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/pkg/armadaevents"

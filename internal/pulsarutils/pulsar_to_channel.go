@@ -3,7 +3,7 @@ package pulsarutils
 import (
 	"context"
 
-	"github.com/severinson/pulsar-client-go/pulsar"
+	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 // PulsarToChannel is a service for receiving messages from Pulsar and forwarding those on C.

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
-	"github.com/severinson/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
