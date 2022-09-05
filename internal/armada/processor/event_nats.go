@@ -87,7 +87,8 @@ func (p *RedisEventProcessor) handleBatch(batch []*eventstream.Message) error {
 	events := make([]*api.EventMessage, 0, len(batch))
 	for _, msg := range batch {
 		event := msg.EventMessage
-		// For submitted events we null out the podspec(s)
+		// For submitted events we null out the podspec(s) and ownership group fields
+		// These are typically quite large, so it is expensive to store these in redis
 		if event.GetSubmitted() != nil {
 			event.GetSubmitted().Job.QueueOwnershipUserGroups = nil
 			event.GetSubmitted().Job.CompressedQueueOwnershipUserGroups = nil

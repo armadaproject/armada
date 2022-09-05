@@ -342,7 +342,7 @@ func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) er
 		}
 		groups, err := q.decompressOwnershipGroups(j.CompressedQueueOwnershipUserGroups)
 		if err != nil {
-			return fmt.Errorf("failed to decompress ownership groups for job %s", j.Id)
+			return fmt.Errorf("failed to decompress ownership groups for job %s because %s", j.Id, err)
 		}
 		j.QueueOwnershipUserGroups = groups
 		j.CompressedQueueOwnershipUserGroups = nil
