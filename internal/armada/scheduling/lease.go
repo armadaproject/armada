@@ -2,6 +2,7 @@ package scheduling
 
 import (
 	"context"
+	v1 "k8s.io/api/core/v1"
 	"math"
 	"math/rand"
 	"time"
@@ -311,6 +312,9 @@ func (c *leaseContext) leaseJobs(
 			remainder.Sub(requirement)
 
 			if isJobSchedulable(c, job, remainder, candidatesLimit) {
+				if hasPriorityClass(job.PodSpec) {
+					validateOrDefaultPriorityClass(job.PodSpec, c.schedulingConfig.Preemption)
+				}
 				newlyConsumed, ok, err := matchAnyNodeTypeAllocation(
 					job,
 					c.nodeResources,
@@ -367,6 +371,20 @@ func isJobSchedulable(c *leaseContext, job *api.Job, remainder common.ComputeRes
 	isPreemptiveJob := isJobLargeEnough && hasPriorityClass(job.PodSpec)
 
 	return isRegularlySchedulable || isPreemptiveJob
+}
+
+// validateOrDefaultPriorityClass checks is the pod spec's priority class configured as supported in Server config
+// if not, default to DefaultPriorityClass if it is specified
+// otherwise default to no Priority Class
+func validateOrDefaultPriorityClass(podSpec *v1.PodSpec, preemptionConfig configuration.PreemptionConfig) {
+	_, ok := preemptionConfig.PriorityClasses[podSpec.PriorityClassName]
+	if !ok {
+		if preemptionConfig.DefaultPriorityClass != "" {
+			podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
+		} else {
+			podSpec.PriorityClassName = ""
+		}
+	}
 }
 
 func (c *leaseContext) decreaseNodeResources(leased []*api.Job, nodeTypeUsage map[*api.Job]nodeTypeUsedResources) {
