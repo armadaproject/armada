@@ -72,7 +72,9 @@ func (srv *DbOperationsBatcher) Run(ctx context.Context) error {
 				} else if ops == nil {
 					continue // No op corresponding to this event
 				}
-				batch.Ops = AppendDbOperation(batch.Ops, ops...)
+				for _, op := range ops {
+					batch.Ops = AppendDbOperation(batch.Ops, op)
+				}
 				batch.MessageIds = append(batch.MessageIds, sequenceWithIds.MessageIds...)
 			}
 			if len(batch.MessageIds) > srv.MaxMessages {
