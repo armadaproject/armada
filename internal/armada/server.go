@@ -93,10 +93,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 	}()
 
-	eventDb := createRedisClient(&config.EventsRedis)
+	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
 		if err := legacyEventDb.Close(); err != nil {
-			log.WithError(err).Error("failed to close events Redis client")
+			log.WithError(err).Error("failed to close events api Redis client")
 		}
 	}()
 
