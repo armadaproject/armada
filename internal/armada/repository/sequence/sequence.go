@@ -83,7 +83,7 @@ func (e *ExternalSeqNo) String() string {
 }
 
 // PrevRedisId returns the redis id that we would have to query *from* in order to guarantee that we would
-// receive subsequent messages.  Not that this is somewhat complex as if this message is not the last message
+// receive subsequent messages.  Note that this is somewhat complex as if this message is not the last message
 // In the event sequence we need to make sure we refetch the redis message referenced in this seqNo.
 // If the message is the last sequence number then the redis id is the current message
 // Else if the redis SubSeq is greater than zero we need to decrement the SubSeq by one
