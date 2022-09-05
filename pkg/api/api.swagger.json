@@ -1191,7 +1191,10 @@
         "errorIfMissing": {
           "type": "boolean"
         },
-        "forceRedis": {
+        "forceLegacy": {
+          "type": "boolean"
+        },
+        "forceNew": {
           "type": "boolean"
         },
         "fromMessageId": {

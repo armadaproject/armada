@@ -1202,7 +1202,10 @@ func SwaggerJsonTemplate() string {
 		"        \"errorIfMissing\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
-		"        \"forceRedis\": {\n" +
+		"        \"forceLegacy\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"forceNew\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
 		"        \"fromMessageId\": {\n" +
