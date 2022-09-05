@@ -1,4 +1,4 @@
-import queryString, { ParseOptions, StringifyOptions } from "query-string"
+import queryString, { ParseOptions, StringifiableRecord, StringifyOptions } from "query-string"
 import { RouteComponentProps } from "react-router-dom"
 
 import { ColumnSpec, JobsContainerState } from "../containers/JobsContainer"
@@ -9,71 +9,53 @@ const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   parseBooleans: true,
 }
 
-type JobsQueryParams = {
-  queue?: string
-  job_set?: string
-  job_states?: string[] | string
-  newest_first?: boolean
-  job_id?: string
-  owner?: string
+export function makeQueryString(
+  defaultColumns: ColumnSpec<string | boolean | string[]>[],
+  annotationColumns: ColumnSpec<string>[],
+): string {
+  const record: StringifiableRecord = {}
+
+  for (const defaultCol of defaultColumns) {
+    if (defaultCol.filter !== undefined) {
+      if (typeof defaultCol.filter === "string" && defaultCol.filter) {
+        record[defaultCol.urlParamKey] = (defaultCol.filter as string).trim()
+      } else if (typeof defaultCol.filter === "boolean" || defaultCol.filter) {
+        record[defaultCol.urlParamKey] = defaultCol.filter
+      }
+    }
+  }
+
+  for (const annotationCol of annotationColumns) {
+    if (annotationCol.urlParamKey && annotationCol.filter) {
+      record[annotationCol.urlParamKey] = annotationCol.filter.trim()
+    }
+  }
+
+  return queryString.stringify(record, QUERY_STRING_OPTIONS)
 }
 
-export function makeQueryString(columns: ColumnSpec<string | boolean | string[]>[]): string {
+export function updateColumnsFromQueryString(
+  query: string,
+  defaultColumns: ColumnSpec<string | boolean | string[]>[],
+  annotationColumns: ColumnSpec<string>[],
+) {
   const columnMap = new Map<string, ColumnSpec<string | boolean | string[]>>()
-  for (const col of columns) {
-    columnMap.set(col.id, col)
+  for (const col of defaultColumns) {
+    columnMap.set(col.urlParamKey, col)
+  }
+  for (const col of annotationColumns) {
+    columnMap.set(col.urlParamKey, col)
   }
 
-  const queueCol = columnMap.get("queue")
-  const jobSetCol = columnMap.get("jobSet")
-  const jobStateCol = columnMap.get("jobState")
-  const submissionTimeCol = columnMap.get("submissionTime")
-  const jobIdCol = columnMap.get("jobId")
-  const ownerCol = columnMap.get("owner")
-
-  const queryObject: JobsQueryParams = {}
-  if (queueCol && queueCol.filter) {
-    queryObject.queue = (queueCol.filter as string).trim()
-  }
-  if (jobSetCol && jobSetCol.filter) {
-    queryObject.job_set = (jobSetCol.filter as string).trim()
-  }
-  if (jobStateCol && jobStateCol.filter) {
-    queryObject.job_states = jobStateCol.filter as string[]
-  }
-  if (submissionTimeCol) {
-    queryObject.newest_first = submissionTimeCol.filter as boolean
-  }
-  if (jobIdCol && jobIdCol.filter) {
-    queryObject.job_id = (jobIdCol.filter as string).trim()
-  }
-  if (ownerCol && ownerCol.filter) {
-    queryObject.owner = (ownerCol.filter as string).trim()
-  }
-
-  return queryString.stringify(queryObject, QUERY_STRING_OPTIONS)
-}
-
-export function updateColumnsFromQueryString(query: string, columns: ColumnSpec<string | boolean | string[]>[]) {
-  const params = queryString.parse(query, QUERY_STRING_OPTIONS) as JobsQueryParams
-  for (const col of columns) {
-    if (col.id === "queue" && params.queue) {
-      col.filter = params.queue
-    }
-    if (col.id === "jobSet" && params.job_set) {
-      col.filter = params.job_set
-    }
-    if (col.id === "jobState" && params.job_states) {
-      col.filter = parseJobStates(params.job_states)
-    }
-    if (col.id === "submissionTime" && params.newest_first != undefined) {
-      col.filter = params.newest_first
-    }
-    if (col.id === "jobId" && params.job_id) {
-      col.filter = params.job_id
-    }
-    if (col.id === "owner" && params.owner) {
-      col.filter = params.owner
+  const record: StringifiableRecord = queryString.parse(query, QUERY_STRING_OPTIONS)
+  for (const [key, filter] of Object.entries(record)) {
+    const col = columnMap.get(key)
+    if (col) {
+      if (key === "job_states") {
+        col.filter = parseJobStates(filter as string | string[])
+      } else {
+        col.filter = filter as string | boolean | string[]
+      }
     }
   }
 }
@@ -100,11 +82,15 @@ export default class JobsQueryParamsService {
   saveState(state: JobsContainerState) {
     this.routeComponentProps.history.push({
       ...this.routeComponentProps.location,
-      search: makeQueryString(state.defaultColumns),
+      search: makeQueryString(state.defaultColumns, state.annotationColumns),
     })
   }
 
   updateState(state: JobsContainerState) {
-    updateColumnsFromQueryString(this.routeComponentProps.location.search, state.defaultColumns)
+    updateColumnsFromQueryString(
+      this.routeComponentProps.location.search,
+      state.defaultColumns,
+      state.annotationColumns,
+    )
   }
 }

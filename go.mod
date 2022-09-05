@@ -41,7 +41,7 @@ require (
 	github.com/jackc/pgx/v4 v4.16.1
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
-	github.com/jstemmer/go-junit-report v0.9.1
+	github.com/jstemmer/go-junit-report v1.0.0
 	github.com/jstemmer/go-junit-report/v2 v2.0.0-beta1
 	github.com/kyleconroy/sqlc v1.13.0
 	github.com/lib/pq v1.10.6 // indirect
@@ -63,7 +63,7 @@ require (
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.10.1
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.0
 	github.com/weaveworks/promrus v1.2.0
 	github.com/wlbr/templify v0.0.0-20210816202250-7b8044ca19e9
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
@@ -218,7 +218,7 @@ require (
 	gopkg.in/ini.v1 v1.66.3 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	lukechampine.com/uint128 v1.1.1 // indirect

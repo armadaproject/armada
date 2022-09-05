@@ -85,7 +85,14 @@ func ShortSequenceString(sequence *armadaevents.EventSequence) string {
 }
 
 // ApiJobsFromLogSubmitJobs converts a slice of log jobs to API jobs.
-func ApiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, jobSetName string, time time.Time, es []*armadaevents.SubmitJob) ([]*api.Job, error) {
+func ApiJobsFromLogSubmitJobs(
+	userId string,
+	groups []string,
+	queueName string,
+	jobSetName string,
+	time time.Time,
+	es []*armadaevents.SubmitJob,
+) ([]*api.Job, error) {
 	jobs := make([]*api.Job, len(es), len(es))
 	for i, e := range es {
 		job, err := ApiJobFromLogSubmitJob(userId, groups, queueName, jobSetName, time, e)
@@ -403,7 +410,11 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 			} else {
 				// Merge events in sequence into the last sequence for this jobSet if (queue, jobSetName, userId, groups) are equal.
 				lastSequence := jobSetSequences[len(jobSetSequences)-1]
-				if lastSequence != nil && sequence.Queue == lastSequence.Queue && sequence.UserId == lastSequence.UserId && groupsEqual(sequence.Groups, lastSequence.Groups) {
+				if lastSequence != nil &&
+					sequence.Queue == lastSequence.Queue &&
+					sequence.UserId == lastSequence.UserId &&
+					groupsEqual(sequence.Groups, lastSequence.Groups) {
+
 					lastSequence.Events = append(lastSequence.Events, sequence.Events...)
 				} else {
 					numSequences++
@@ -447,10 +458,10 @@ func groupsEqual(g1, g2 []string) bool {
 
 // LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
 // and returns all resulting sequences.
-func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
-		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes)
+		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes, strict)
 		if err != nil {
 			return nil, err
 		}
@@ -461,7 +472,7 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
 // into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
@@ -473,11 +484,16 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int
 	lastSequenceEventSize := 0
 	for _, event := range sequence.Events {
 		eventSize := proto.Size(event)
-		if eventSize+headerSize > sizeInBytes {
+		if eventSize+headerSize > sizeInBytes && strict {
 			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "sequence",
-				Value:   sequence,
-				Message: fmt.Sprintf("sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d", headerSize, eventSize, sizeInBytes),
+				Name:  "sequence",
+				Value: sequence,
+				Message: fmt.Sprintf(
+					"sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d",
+					headerSize,
+					eventSize,
+					sizeInBytes,
+				),
 			})
 		}
 		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {

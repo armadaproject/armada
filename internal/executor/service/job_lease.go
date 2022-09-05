@@ -24,7 +24,11 @@ import (
 
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod, reason string) error
-	RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error)
+	RequestJobLeases(
+		availableResource *common.ComputeResources,
+		nodes []api.NodeInfo,
+		leasedResourceByQueue map[string]common.ComputeResources,
+	) ([]*api.Job, error)
 	RenewJobLeases(jobs []*job.RunningJob) ([]*job.RunningJob, error)
 	ReportDone(jobIds []string) error
 }
@@ -50,7 +54,11 @@ func NewJobLeaseService(
 	}
 }
 
-func (jobLeaseService *JobLeaseService) RequestJobLeases(availableResource *common.ComputeResources, nodes []api.NodeInfo, leasedResourceByQueue map[string]common.ComputeResources) ([]*api.Job, error) {
+func (jobLeaseService *JobLeaseService) RequestJobLeases(
+	availableResource *common.ComputeResources,
+	nodes []api.NodeInfo,
+	leasedResourceByQueue map[string]common.ComputeResources,
+) ([]*api.Job, error) {
 	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
 	for queueName, leasedResource := range leasedResourceByQueue {
 		leasedQueueReport := &api.QueueLeasedReport{
@@ -282,7 +290,11 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 	}
 
 	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf("None of the labels specified in avoidNodeLabelsOnRetry (%s) were found on node %s", strings.Join(avoidNodeLabelsOnRetry, ", "), nodeName)
+		return nil, fmt.Errorf(
+			"None of the labels specified in avoidNodeLabelsOnRetry (%s) were found on node %s",
+			strings.Join(avoidNodeLabelsOnRetry, ", "),
+			nodeName,
+		)
 	}
 	return &result, nil
 }

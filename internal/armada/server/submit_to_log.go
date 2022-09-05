@@ -88,17 +88,25 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// check for previous job submissions with the ClientId for this queue.
 		// If we find a duplicate, insert the previous jobId in the corresponding response
 		// and generate a job duplicate found event.
-		if apiJob.ClientId != "" && originalIds[apiJob.GetId()] != apiJob.GetId() {
-			jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
-				JobId:         responses[i].JobId,
-				Queue:         req.Queue,
-				JobSetId:      req.JobSetId,
-				Created:       time.Now(),
-				OriginalJobId: originalIds[apiJob.GetId()],
-			})
-			responses[i].JobId = originalIds[apiJob.GetId()]
-			// The job shouldn't be submitted twice. Move on to the next job.
-			continue
+		originalId, found := originalIds[apiJob.GetId()]
+		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
+			if found {
+				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
+					JobId:         responses[i].JobId,
+					Queue:         req.Queue,
+					JobSetId:      req.JobSetId,
+					Created:       time.Now(),
+					OriginalJobId: originalIds[apiJob.GetId()],
+				})
+				responses[i].JobId = originalIds[apiJob.GetId()]
+				// The job shouldn't be submitted twice. Move on to the next job.
+				continue
+			} else {
+				log.Warnf(
+					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
+					apiJob.ClientId,
+					apiJob.GetId())
+			}
 		}
 
 		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 0 {
@@ -534,7 +542,12 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 // User information used for authorization is extracted from the provided context.
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
-func (srv *PulsarSubmitServer) Authorize(ctx context.Context, queueName string, anyPerm permission.Permission, perm queue.PermissionVerb) (userId string, groups []string, err error) {
+func (srv *PulsarSubmitServer) Authorize(
+	ctx context.Context,
+	queueName string,
+	anyPerm permission.Permission,
+	perm queue.PermissionVerb,
+) (userId string, groups []string, err error) {
 	principal := authorization.GetPrincipal(ctx)
 	userId = principal.GetName()
 	q, err := srv.QueueRepository.GetQueue(queueName)
@@ -682,7 +695,7 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize), true)
 	if err != nil {
 		return err
 	}

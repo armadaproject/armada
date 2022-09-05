@@ -32,7 +32,13 @@ func ExtractPodFailedReason(pod *v1.Pod) string {
 	for _, containerStatus := range containerStatuses {
 		if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode != 0 {
 			terminatedState := containerStatus.State.Terminated
-			failedMessage += fmt.Sprintf("Container %s failed with exit code %d because %s: %s\n", containerStatus.Name, terminatedState.ExitCode, terminatedState.Reason, terminatedState.Message)
+			failedMessage += fmt.Sprintf(
+				"Container %s failed with exit code %d because %s: %s\n",
+				containerStatus.Name,
+				terminatedState.ExitCode,
+				terminatedState.Reason,
+				terminatedState.Message,
+			)
 		}
 	}
 

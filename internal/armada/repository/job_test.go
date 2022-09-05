@@ -631,25 +631,6 @@ func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 	})
 }
 
-func TestIterateQueueJobs(t *testing.T) {
-	withRepository(func(r *RedisJobRepository) {
-		addedJobs := []*api.Job{}
-		for i := 0; i < 10; i++ {
-			addedJobs = append(addedJobs, addTestJob(t, r, "q1"))
-		}
-
-		iteratedJobs := []*api.Job{}
-		err := r.IterateQueueJobs("q1", func(j *api.Job) {
-			iteratedJobs = append(iteratedJobs, j)
-		})
-
-		assert.Nil(t, err)
-		for i, j := range addedJobs {
-			assert.Equal(t, j.Id, iteratedJobs[i].Id)
-		}
-	})
-}
-
 func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
@@ -863,7 +844,15 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	}, []v1.Toleration{})
 }
 
-func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements, tolerations []v1.Toleration) *api.Job {
+func addTestJobInner(
+	t *testing.T,
+	r *RedisJobRepository,
+	queue string,
+	clientId string,
+	priority float64,
+	requirements v1.ResourceRequirements,
+	tolerations []v1.Toleration,
+) *api.Job {
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
 		Id:       util.NewULID(),

@@ -26,9 +26,19 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+type HasNodeName interface {
+	GetNodeName() string
+}
+
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, userAnnotationPrefix string, compressor compress.Compressor) chan *model.InstructionSet {
+func Convert(
+	ctx context.Context,
+	msgs chan *pulsarutils.ConsumerMessage,
+	bufferSize int,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
@@ -118,7 +128,17 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnot
 	return updateInstructions
 }
 
-func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, userAnnotationPrefix string, compressor compress.Compressor, update *model.InstructionSet) error {
+func handleSubmitJob(
+	logger *logrus.Entry,
+	queue string,
+	owner string,
+	jobSet string,
+	ts time.Time,
+	event *armadaevents.SubmitJob,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+	update *model.InstructionSet,
+) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -409,7 +429,7 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			case *armadaevents.Error_PodError:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.Node = pointer.String(reason.PodError.NodeName)
+				jobRunUpdate.Node = extractNodeName(reason.PodError)
 				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
 						RunId:         jobRunUpdate.RunId,
@@ -420,12 +440,12 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			case *armadaevents.Error_PodTerminated:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.Node = pointer.String(reason.PodTerminated.NodeName)
+				jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
 			case *armadaevents.Error_PodUnschedulable:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
-				jobRunUpdate.Node = pointer.String(reason.PodUnschedulable.NodeName)
+				jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 			case *armadaevents.Error_PodLeaseReturned:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
@@ -476,4 +496,12 @@ func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction
 		Cluster: "UNKNOWN",
 		Created: ts,
 	}
+}
+
+func extractNodeName(x HasNodeName) *string {
+	nodeName := x.GetNodeName()
+	if len(nodeName) > 0 {
+		return pointer.String(nodeName)
+	}
+	return nil
 }

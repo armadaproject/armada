@@ -274,7 +274,9 @@ func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[st
 	if err != nil {
 		return err
 	}
-	_, err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Patch(context.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	_, err = c.kubernetesClient.CoreV1().
+		Pods(pod.Namespace).
+		Patch(context.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}

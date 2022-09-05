@@ -67,7 +67,13 @@ func LeaseJobs(ctx context.Context,
 	resourceAllocatedByQueue := CombineLeasedReportResourceByQueue(activeClusterLeaseJobReports)
 	maxResourceToSchedulePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionToSchedulePerQueue)
 	maxResourcePerQueue := totalCapacity.MulByResource(config.MaximalResourceFractionPerQueue)
-	queueSchedulingInfo := calculateQueueSchedulingLimits(activeQueues, maxResourceToSchedulePerQueue, maxResourcePerQueue, totalCapacity, resourceAllocatedByQueue)
+	queueSchedulingInfo := calculateQueueSchedulingLimits(
+		activeQueues,
+		maxResourceToSchedulePerQueue,
+		maxResourcePerQueue,
+		totalCapacity,
+		resourceAllocatedByQueue,
+	)
 
 	if ok {
 		capacity := util.GetClusterCapacity(currentClusterReport)
@@ -251,7 +257,11 @@ func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job,
 
 // leaseJobs calls into the JobRepository underlying the queue contained in the leaseContext to lease jobs.
 // Returns a slice of jobs that were leased.
-func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResourcesFloat, limit LeasePayloadLimit) ([]*api.Job, common.ComputeResourcesFloat, error) {
+func (c *leaseContext) leaseJobs(
+	queue *api.Queue,
+	slice common.ComputeResourcesFloat,
+	limit LeasePayloadLimit,
+) ([]*api.Job, common.ComputeResourcesFloat, error) {
 	jobs := make([]*api.Job, 0)
 	remainder := slice
 	for slice.IsValid() {
@@ -279,15 +289,13 @@ func (c *leaseContext) leaseJobs(queue *api.Queue, slice common.ComputeResources
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
 			if isLargeEnough(job, c.minimumJobSize) && remainder.IsValid() && candidatesLimit.IsWithinLimit(job) {
-				newlyConsumed, ok, err := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
+				newlyConsumed, ok, _ := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
 				if ok {
 					slice = remainder
 					candidates = append(candidates, job)
 					candidatesLimit.RemoveFromRemainingLimit(job)
 					candidateNodes[job] = newlyConsumed
 					consumedNodeResources.Add(newlyConsumed)
-				} else {
-					log.WithError(err).Error("failed to match node")
 				}
 			}
 			if candidatesLimit.AtLimit() {

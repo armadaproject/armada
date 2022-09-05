@@ -24,7 +24,6 @@ type EventServer struct {
 	eventRepository repository.EventRepository
 	queueRepository repository.QueueRepository
 	eventStore      repository.EventStore
-	eventApi        *serving.EventApi
 }
 
 func NewEventServer(
@@ -32,14 +31,12 @@ func NewEventServer(
 	eventRepository repository.EventRepository,
 	eventStore repository.EventStore,
 	queueRepository repository.QueueRepository,
-	eventApi *serving.EventApi,
 ) *EventServer {
 	return &EventServer{
 		permissions:     permissions,
 		eventRepository: eventRepository,
 		eventStore:      eventStore,
 		queueRepository: queueRepository,
-		eventApi:        eventApi,
 	}
 }
 
@@ -72,11 +69,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
-	if request.ForceRedis || s.eventApi == nil || !model.IsValidExternalSeqNo(request.FromMessageId) {
-		return s.serveEventsFromRepository(request, stream)
-	} else {
-		return s.serveEventsFromEventApi(request, stream)
-	}
+	return s.serveEventsFromRepository(request, stream)
 }
 
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {
@@ -144,13 +137,6 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, stre
 			return nil
 		}
 	}
-}
-
-func (s *EventServer) serveEventsFromEventApi(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	if request.ErrorIfMissing {
-		log.Warnf("Requested to error if stream missing, but evntApi is async and so does not know this information")
-	}
-	return s.eventApi.GetJobSetEvents(request, stream)
 }
 
 func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
