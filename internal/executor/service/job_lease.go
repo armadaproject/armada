@@ -4,19 +4,16 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"strings"
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/compress"
 	commonUtil "github.com/G-Research/armada/internal/common/util"
 	context2 "github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/job"
@@ -39,7 +36,6 @@ type JobLeaseService struct {
 	clusterContext         context2.ClusterContext
 	queueClient            api.AggregatedQueueClient
 	minimumJobSize         common.ComputeResources
-	decompressorPool       *pool.ObjectPool
 	avoidNodeLabelsOnRetry []string
 }
 
@@ -49,26 +45,10 @@ func NewJobLeaseService(
 	minimumJobSize common.ComputeResources,
 	avoidNodeLabelsOnRetry []string,
 ) *JobLeaseService {
-	poolConfig := pool.ObjectPoolConfig{
-		MaxTotal:                 100,
-		MaxIdle:                  50,
-		MinIdle:                  10,
-		BlockWhenExhausted:       true,
-		MinEvictableIdleTime:     30 * time.Minute,
-		SoftMinEvictableIdleTime: math.MaxInt64,
-		TimeBetweenEvictionRuns:  0,
-		NumTestsPerEvictionRun:   10,
-	}
-
-	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
-			return compress.NewZlibDecompressor()
-		}), &poolConfig)
 	return &JobLeaseService{
 		clusterContext:         clusterContext,
 		queueClient:            queueClient,
 		minimumJobSize:         minimumJobSize,
-		decompressorPool:       decompressorPool,
 		avoidNodeLabelsOnRetry: avoidNodeLabelsOnRetry,
 	}
 }
@@ -101,26 +81,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 		MinimumJobSize:      jobLeaseService.minimumJobSize,
 	}
 
-	leasedJobs, err := jobLeaseService.requestJobLeases(leaseRequest)
-	if err != nil {
-		return leasedJobs, err
-	}
-
-	preparedLeasedJobs := make([]*api.Job, 0, len(leasedJobs))
-	jobsToReturn := make([]*api.Job, 0, 10)
-	for _, j := range leasedJobs {
-		groups, err := jobLeaseService.decompressOwnershipGroups(j.CompressedQueueOwnershipUserGroups)
-		if err != nil {
-			log.Errorf("Failed to decompress ownership groups for job %s", j.Id)
-			jobsToReturn = append(jobsToReturn, j)
-			continue
-		}
-		j.QueueOwnershipUserGroups = groups
-		preparedLeasedJobs = append(preparedLeasedJobs, j)
-	}
-
-	jobLeaseService.returnLeases(jobsToReturn, "Failed to decompress ownership groups")
-	return preparedLeasedJobs, nil
+	return jobLeaseService.requestJobLeases(leaseRequest)
 }
 
 func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.StreamingLeaseRequest) ([]*api.Job, error) {
@@ -227,22 +188,6 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	jobsToReturn := jobs[numServerAcks:]
 	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing")
 	return receivedJobs, nil
-}
-
-func (jobLeaseService *JobLeaseService) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
-	decompressor, err := jobLeaseService.decompressorPool.BorrowObject(context.Background())
-	if err != nil {
-		log.WithError(err).Errorf("Error borrowing decompressor")
-	}
-
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
-		err := decompressorPool.ReturnObject(ctx, object)
-		if err != nil {
-			log.WithError(err).Errorf("Error returning decompressorPool to pool")
-		}
-	}(jobLeaseService.decompressorPool, context.Background(), decompressor)
-
-	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
 func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string) {
