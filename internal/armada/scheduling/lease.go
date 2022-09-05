@@ -2,10 +2,11 @@ package scheduling
 
 import (
 	"context"
-	v1 "k8s.io/api/core/v1"
 	"math"
 	"math/rand"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/pkg/errors"
 
