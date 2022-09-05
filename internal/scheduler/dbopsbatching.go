@@ -13,6 +13,8 @@ import (
 
 // DbOperationsBatcher is a service that consumes event sequences
 // and produces optimised sequences of database operations.
+//
+// TODO: Move into dbopsfromevents.go
 type DbOperationsBatcher struct {
 	In  chan *eventutil.EventSequenceWithMessageIds
 	Out chan *DbOperationsWithMessageIds
