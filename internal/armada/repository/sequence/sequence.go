@@ -108,7 +108,7 @@ func (e *ExternalSeqNo) RedisString() string {
 }
 
 // IsAfter returns true if this ExternalSeqNo is after the other.
-// ordering is by time then sequence, then sequence, then subsequence.  isLast is not considered.
+// ordering is by time then sequence,  then subsequence.  isLast is not considered.
 func (e *ExternalSeqNo) IsAfter(other *ExternalSeqNo) bool {
 	if other == nil {
 		return false
