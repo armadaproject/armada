@@ -12,9 +12,9 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// DbOpFromEventInSequence returns a DbOperation produced from the i-th event in sequence,
+// DbOpsFromEventInSequence returns a DbOperation produced from the i-th event in sequence,
 // or nil if the i-th event doesn't correspond to any DbOperation.
-func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOperation, error) {
+func DbOpsFromEventInSequence(sequence *armadaevents.EventSequence, i int) ([]DbOperation, error) {
 	if sequence == nil {
 		return nil, errors.New("received nil sequence")
 	}
@@ -42,7 +42,7 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 		}
 
 		jobId := armadaevents.UuidFromProtoUuid(e.SubmitJob.JobId)
-		return InsertJobs{jobId: &Job{
+		return []DbOperation{InsertJobs{jobId: &Job{
 			JobID:          jobId,
 			JobSet:         sequence.GetJobSetName(),
 			UserID:         sequence.GetUserId(),
@@ -51,45 +51,46 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 			Priority:       int64(e.SubmitJob.Priority),
 			SubmitMessage:  submitJobBytes,
 			SchedulingInfo: schedulingInfoBytes,
-		}}, nil
+		}}}, nil
 	case *armadaevents.EventSequence_Event_JobRunLeased:
 		runId := armadaevents.UuidFromProtoUuid(e.JobRunLeased.GetRunId())
-		return InsertRuns{runId: &Run{
+		return []DbOperation{InsertRuns{runId: &Run{
 			RunID:    runId,
 			JobID:    armadaevents.UuidFromProtoUuid(e.JobRunLeased.GetJobId()),
 			JobSet:   sequence.GetJobSetName(),
 			Executor: e.JobRunLeased.GetExecutorId(),
-		}}, nil
+		}}}, nil
 	case *armadaevents.EventSequence_Event_ReprioritiseJob:
 		jobId := armadaevents.UuidFromProtoUuid(e.ReprioritiseJob.GetJobId())
-		return UpdateJobPriorities{
+		return []DbOperation{UpdateJobPriorities{
 			jobId: int64(e.ReprioritiseJob.Priority),
-		}, nil
+		}}, nil
 	case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
-		return UpdateJobSetPriorities{
+		return []DbOperation{UpdateJobSetPriorities{
 			sequence.GetJobSetName(): int64(e.ReprioritiseJobSet.Priority),
-		}, nil
+		}}, nil
 	case *armadaevents.EventSequence_Event_CancelJobSet:
-		return MarkJobSetsCancelled{
+		return []DbOperation{MarkJobSetsCancelled{
 			sequence.GetJobSetName(): true,
-		}, nil
+		}}, nil
 	case *armadaevents.EventSequence_Event_CancelJob:
 		jobId := armadaevents.UuidFromProtoUuid(e.CancelJob.GetJobId())
-		return MarkJobsCancelled{
+		return []DbOperation{MarkJobsCancelled{
 			jobId: true,
-		}, nil
+		}}, nil
 	case *armadaevents.EventSequence_Event_JobSucceeded:
 		jobId := armadaevents.UuidFromProtoUuid(e.JobSucceeded.GetJobId())
-		return MarkJobsSucceeded{
+		return []DbOperation{MarkJobsSucceeded{
 			jobId: true,
-		}, nil
+		}}, nil
 	case *armadaevents.EventSequence_Event_JobErrors:
 		jobId := e.JobErrors.GetJobId()
 		jobIdBytes, err := proto.Marshal(jobId)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal jobId")
 		}
-		op := make(InsertJobErrors)
+		insertJobErrors := make(InsertJobErrors)
+		markJobsFailed := make(MarkJobsFailed)
 		for _, jobError := range e.JobErrors.GetErrors() {
 			bytes, err := proto.Marshal(jobError)
 			if err != nil {
@@ -101,30 +102,39 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 			// which isn't entirely correct since it deduplicates identical error message.
 			hash := sha256.Sum256(append(bytes, jobIdBytes...))
 			key := binary.BigEndian.Uint32(hash[:])
-			op[key] = &JobError{
+			insertJobErrors[key] = &JobError{
 				ID:       int32(key),
-				JobID:    armadaevents.UuidFromProtoUuid(e.JobErrors.GetJobId()),
+				JobID:    armadaevents.UuidFromProtoUuid(jobId),
 				Error:    bytes,
 				Terminal: jobError.GetTerminal(),
 			}
+
+			// For terminal errors, we also need to mark the job as failed.
+			if jobError.GetTerminal() {
+				markJobsFailed[armadaevents.UuidFromProtoUuid(jobId)] = true
+			}
 		}
-		return op, nil
+		if len(markJobsFailed) > 0 {
+			return []DbOperation{insertJobErrors, markJobsFailed}, nil
+		} else {
+			return []DbOperation{insertJobErrors}, nil
+		}
 	case *armadaevents.EventSequence_Event_JobRunAssigned:
 		runId := armadaevents.UuidFromProtoUuid(e.JobRunAssigned.GetRunId())
 		bytes, err := proto.Marshal(e.JobRunAssigned)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal JobRunAssigned")
 		}
-		return InsertRunAssignments{runId: &JobRunAssignment{
+		return []DbOperation{InsertRunAssignments{runId: &JobRunAssignment{
 			RunID:      runId,
 			Assignment: bytes,
-		}}, nil
+		}}}, nil
 	case *armadaevents.EventSequence_Event_JobRunRunning:
 		runId := armadaevents.UuidFromProtoUuid(e.JobRunRunning.GetRunId())
-		return MarkRunsRunning{runId: true}, nil
+		return []DbOperation{MarkRunsRunning{runId: true}}, nil
 	case *armadaevents.EventSequence_Event_JobRunSucceeded:
 		runId := armadaevents.UuidFromProtoUuid(e.JobRunSucceeded.GetRunId())
-		return MarkRunsSucceeded{runId: true}, nil
+		return []DbOperation{MarkRunsSucceeded{runId: true}}, nil
 	case *armadaevents.EventSequence_Event_JobRunErrors:
 		jobId := e.JobRunErrors.GetJobId()
 		runId := e.JobRunErrors.GetRunId()
@@ -136,7 +146,8 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal runId")
 		}
-		op := make(InsertJobRunErrors)
+		insertJobRunErrors := make(InsertJobRunErrors)
+		markRunsFailed := make(MarkRunsFailed)
 		for _, runError := range e.JobRunErrors.GetErrors() {
 			bytes, err := proto.Marshal(runError)
 			if err != nil {
@@ -148,14 +159,23 @@ func DbOpFromEventInSequence(sequence *armadaevents.EventSequence, i int) (DbOpe
 			// which isn't entirely correct since it deduplicates identical error message.
 			hash := sha256.Sum256(append(bytes, append(jobIdBytes, runIdBytes...)...))
 			key := binary.BigEndian.Uint32(hash[:])
-			op[key] = &JobRunError{
+			insertJobRunErrors[key] = &JobRunError{
 				ID:       int32(key),
-				RunID:    armadaevents.UuidFromProtoUuid(e.JobRunErrors.GetRunId()),
+				RunID:    armadaevents.UuidFromProtoUuid(runId),
 				Error:    bytes,
 				Terminal: runError.GetTerminal(),
 			}
+
+			// For terminal errors, we also need to mark the run as failed.
+			if runError.GetTerminal() {
+				markRunsFailed[armadaevents.UuidFromProtoUuid(runId)] = true
+			}
 		}
-		return op, nil
+		if len(markRunsFailed) > 0 {
+			return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
+		} else {
+			return []DbOperation{insertJobRunErrors}, nil
+		}
 	default:
 		return nil, nil
 	}

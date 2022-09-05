@@ -65,14 +65,14 @@ func (srv *DbOperationsBatcher) Run(ctx context.Context) error {
 			}
 
 			for i := range sequenceWithIds.Sequence.GetEvents() {
-				op, err := DbOpFromEventInSequence(sequenceWithIds.Sequence, i)
+				ops, err := DbOpsFromEventInSequence(sequenceWithIds.Sequence, i)
 				if err != nil {
 					logging.WithStacktrace(log, err).Error("failed to convert event to db op")
 					continue
-				} else if op == nil {
+				} else if ops == nil {
 					continue // No op corresponding to this event
 				}
-				batch.Ops = AppendDbOperation(batch.Ops, op)
+				batch.Ops = AppendDbOperation(batch.Ops, ops...)
 				batch.MessageIds = append(batch.MessageIds, sequenceWithIds.MessageIds...)
 			}
 			if len(batch.MessageIds) > srv.MaxMessages {
