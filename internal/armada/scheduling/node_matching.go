@@ -146,16 +146,17 @@ func matchAnyNodeTypePodAllocation(
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
 		resources := available
-		if isPriorityJob(podSpec) {
+		if hasPriorityClass(podSpec) {
 			preemptible, err := getPreemptibleResources(
 				supportedPriorityClasses,
 				podSpec.PriorityClassName,
 				node.allocatedResources,
-				available,
 			)
 			if err != nil {
 				return nil, false, err
 			}
+			// resources which can be allocated to prioritized jobs are Sum(preemptible resources, allocatable resources)
+			preemptible.Add(available)
 			resources = preemptible
 		}
 		ok, err := podMatchingContext.Matches(&node.nodeType, resources)
@@ -175,10 +176,9 @@ func getPreemptibleResources(
 	supportedPriorityClasses map[string]int32,
 	targetPriorityClass string,
 	allocatedResources map[int32]common.ComputeResourcesFloat,
-	availableResources common.ComputeResourcesFloat,
 ) (common.ComputeResourcesFloat, error) {
-	targetPriority, exists := supportedPriorityClasses[targetPriorityClass]
-	if !exists {
+	targetPriority, ok := supportedPriorityClasses[targetPriorityClass]
+	if !ok {
 		return nil, errors.Errorf("unsupported prirority class: %s", targetPriorityClass)
 	}
 	preemptibleResources := make(common.ComputeResourcesFloat)
@@ -188,9 +188,6 @@ func getPreemptibleResources(
 			preemptibleResources.Add(resources)
 		}
 	}
-	// resources which can be allocated to the current job are calculated as
-	// Max(sum of allocated resources for lower priority jobs, available resources)
-	preemptibleResources.Max(availableResources)
 
 	return preemptibleResources, nil
 }

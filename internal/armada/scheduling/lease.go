@@ -364,7 +364,7 @@ func isJobSchedulable(c *leaseContext, job *api.Job, remainder common.ComputeRes
 	isCandidateWithinLimit := candidatesLimit.IsWithinLimit(job)
 
 	isRegularlySchedulable := isJobLargeEnough && isRemainderValid && isCandidateWithinLimit
-	isPreemptiveJob := isJobLargeEnough && isPriorityJob(job.PodSpec)
+	isPreemptiveJob := isJobLargeEnough && hasPriorityClass(job.PodSpec)
 
 	return isRegularlySchedulable || isPreemptiveJob
 }
