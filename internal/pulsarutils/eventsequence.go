@@ -19,7 +19,7 @@ func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.E
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than maxMessageSizeInBytes.
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, maxMessageSizeInBytes)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, maxMessageSizeInBytes, true)
 	if err != nil {
 		return err
 	}

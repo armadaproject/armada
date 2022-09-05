@@ -10,7 +10,6 @@ import (
 	"github.com/severinson/pulsar-client-go/pulsar"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/eventapi/eventdb"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
