@@ -155,7 +155,7 @@ func matchAnyNodeTypePodAllocation(
 			if err != nil {
 				return nil, false, err
 			}
-			// resources which can be allocated to prioritized jobs are Sum(preemptible resources, allocatable resources)
+			// resources which can be allocated to prioritised jobs are Sum(preemptible resources, allocatable resources)
 			preemptible.Add(available)
 			resources = preemptible
 		}
