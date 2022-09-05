@@ -8,26 +8,15 @@ import (
 )
 
 // ExternalSeqNo is a sequence number that we pass to end users
-// Sequence is the Redis message sequence
-// Index is the index of the event inside the armadaevents.EventSequence
-// Last im
 type ExternalSeqNo struct {
-	Time   int64
-	Seq    int64
-	SubSeq int
-	Last   bool
+	Time   int64 // Redis assigned time
+	Seq    int64 // Redis assigned sequence
+	SubSeq int   // Index of message in our eventSequence
+	Last   bool  // flag to indicate if this is the las message in the subsequence
 }
 
-func Min() *ExternalSeqNo {
-	return &ExternalSeqNo{0, 0, 0, true}
-}
-
-func Max() *ExternalSeqNo {
-	return &ExternalSeqNo{math.MaxInt64, math.MaxInt64, math.MaxInt, true}
-}
-
-// Parse parses an external sequence number which should be of the form "Time-SubSeq-last".
-// The empty string will be interpreted as "0:0" which is the initial sequence number
+// Parse parses an external sequence number which should be of the form "Time:Seq:SubSeq:last".
+// The empty string will be interpreted as "0:0:0" which is the initial sequence number
 // An error will be returned if the sequence number cannot be parsed
 func Parse(str string) (*ExternalSeqNo, error) {
 	if str == "" {
@@ -61,6 +50,7 @@ func Parse(str string) (*ExternalSeqNo, error) {
 	}, nil
 }
 
+// FromRedisId creates an ExternalSeqNo from the redis string, subsequence and last index flag
 func FromRedisId(redisId string, subSeq int, last bool) (*ExternalSeqNo, error) {
 	toks := strings.Split(redisId, "-")
 	if len(toks) != 2 {
@@ -92,6 +82,13 @@ func (e *ExternalSeqNo) String() string {
 	return fmt.Sprintf("%d:%d:%d:%d", e.Time, e.Seq, e.SubSeq, boolToInt(e.Last))
 }
 
+// PrevRedisId returns the redis id that we would have to query *from* in order to guarantee that we would
+// receive subsequent messages.  Not that this is somewhat complex as if this message is not the last message
+// In the event sequence we need to make sure we refetch the redis message referenced in this seqNo.
+// If the message is the last sequence number then the redis id is the current message
+// Else if the redis SubSeq is greater than zero we need to decrement the SubSeq by one
+// Else if Time is greater than zero then we need to decrement the time by one
+// Else we just need to return the initial sequence
 func (e *ExternalSeqNo) PrevRedisId() string {
 	var seq *ExternalSeqNo
 	if e.Last {
@@ -110,6 +107,8 @@ func (e *ExternalSeqNo) RedisString() string {
 	return fmt.Sprintf("%d-%d", e.Time, e.Seq)
 }
 
+// IsAfter returns true if this ExternalSeqNo is after the other.
+// ordering is by time then sequence, then sequence, then subsequence.  isLast is not considered.
 func (e *ExternalSeqNo) IsAfter(other *ExternalSeqNo) bool {
 	if other == nil {
 		return false
@@ -120,14 +119,13 @@ func (e *ExternalSeqNo) IsAfter(other *ExternalSeqNo) bool {
 	if e.Time == other.Time && e.Seq > other.Seq {
 		return true
 	}
-
 	if e.Time == other.Time && e.Seq == other.Seq && e.SubSeq > other.SubSeq {
 		return true
 	}
-
 	return false
 }
 
+// Helper method to turn a bool into a 1 or a zero
 func boolToInt(b bool) int8 {
 	if b {
 		return 1
