@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding/gzip"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
@@ -90,7 +92,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// The executor sends back acks to indicate which jobs were successfully received.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable())
+	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
