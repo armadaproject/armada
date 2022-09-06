@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -22,6 +24,7 @@ import (
 	servervalidation "github.com/G-Research/armada/internal/armada/validation"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/pkg/api"
@@ -37,6 +40,7 @@ type SubmitServer struct {
 	cancelJobsBatchSize      int
 	queueManagementConfig    *configuration.QueueManagementConfig
 	schedulingConfig         *configuration.SchedulingConfig
+	compressorPool           *pool.ObjectPool
 }
 
 func NewSubmitServer(
@@ -49,6 +53,22 @@ func NewSubmitServer(
 	queueManagementConfig *configuration.QueueManagementConfig,
 	schedulingConfig *configuration.SchedulingConfig,
 ) *SubmitServer {
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	compressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibCompressor(512)
+		}), &poolConfig)
+
 	return &SubmitServer{
 		permissions:              permissions,
 		jobRepository:            jobRepository,
@@ -58,6 +78,7 @@ func NewSubmitServer(
 		cancelJobsBatchSize:      cancelJobsBatchSize,
 		queueManagementConfig:    queueManagementConfig,
 		schedulingConfig:         schedulingConfig,
+		compressorPool:           compressorPool,
 	}
 }
 
@@ -139,7 +160,7 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue)
 }
 
 func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
-	failedQueues := []*api.QueueCreateResponse{}
+	var failedQueues []*api.QueueCreateResponse
 
 	// Create a queue for each element of the request body and return the failures.
 	for _, queue := range request.Queues {
@@ -183,7 +204,7 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue)
 }
 
 func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
-	failedQueues := []*api.QueueUpdateResponse{}
+	var failedQueues []*api.QueueUpdateResponse
 
 	// Create a queue for each element of the request body and return the failures.
 	for _, queue := range request.Queues {
@@ -230,43 +251,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	principal := authorization.GetPrincipal(ctx)
 
 	for _, r := range req.JobRequestItems {
-
-		if r.PodSpec == nil && len(r.PodSpecs) == 0 {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PodSpec",
-				Value:   r.PodSpec,
-				Message: "Job does not contain at least one PodSpec",
-			})
-		}
-
-		// We only support jobs with a single PodSpec, and it must be set to r.PodSpec.
-		if r.PodSpec == nil && len(r.PodSpecs) == 1 {
-			r.PodSpec = r.PodSpecs[0]
-			r.PodSpecs = nil
-		}
-
-		// I'm not convinced that the code to create services/ingresses when multiple pods are submitted is correct.
-		// In particular, I think job.populateServicesIngresses is wrong.
-		// Hence, we return an error until we can make sure that the code is correct.
-		// The next error is redundant with this one, but we leave both since we may wish to remove this one.
-		// - Albin
-		if len(r.PodSpecs) > 0 {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PodSpecs",
-				Value:   r.PodSpecs,
-				Message: "Jobs with multiple pods are not supported",
-			})
-		}
-
-		// I'm not convinced the code is correct when combining r.PodSpec and r.PodSpecs.
-		// We should do more testing to make sure it's safe before we allow it.
-		// - Albin
-		if len(r.PodSpecs) > 0 && r.PodSpec != nil {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PodSpec",
-				Value:   r.PodSpec,
-				Message: "PodSpec must be nil if PodSpecs is provided (i.e., these are exclusive)",
-			})
+		if err := server.validateJobRequestItem(r); err != nil {
+			return nil, err
 		}
 	}
 
@@ -297,24 +283,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
 
-	principalSubject := queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	}
-
-	// Armada impersonates the principal that submitted the job when interacting with k8s.
-	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
-	// This is an optimisation to avoid passing around groups unnecessarily.
-	groups := []string{}
-	if !q.HasPermission(principalSubject, queue.PermissionVerbSubmit) {
-		for _, groupSubject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
-			if q.HasPermission(groupSubject, queue.PermissionVerbSubmit) {
-				groups = append(groups, groupSubject.Name)
-			}
-		}
-	}
-
-	jobs, e := server.createJobs(req, principal.GetName(), groups)
+	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
 	if e != nil {
 		reqJson, _ := json.Marshal(req)
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
@@ -330,9 +299,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
 		if err != nil {
 			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
-		} else {
-			return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
 		}
+		return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
 	}
 
 	// Create events marking the jobs as submitted
@@ -401,6 +369,22 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	return result, nil
 }
 
+func (server *SubmitServer) validateJobRequestItem(r *api.JobSubmitRequestItem) error {
+	if err := validation.ValidateJobRequestItemPodSpec(r); err != nil {
+		return err
+	}
+
+	if err := validation.ValidateJobRequestItemPriorityClass(
+		r,
+		server.schedulingConfig.Preemption.Enabled,
+		server.schedulingConfig.Preemption.PriorityClasses,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (server *SubmitServer) submittingJobsWouldSurpassLimit(q queue.Queue, jobSubmitRequest *api.JobSubmitRequest) error {
 	limit := server.queueManagementConfig.DefaultQueuedJobsLimit
 	if limit <= 0 {
@@ -414,7 +398,7 @@ func (server *SubmitServer) submittingJobsWouldSurpassLimit(q queue.Queue, jobSu
 
 	queuedAfterSubmission := queued + int64(len(jobSubmitRequest.JobRequestItems))
 	if queuedAfterSubmission > int64(limit) {
-		return fmt.Errorf(
+		return errors.Errorf(
 			"too many queued jobs: currently have %d, would have %d with new submission, limit is %d",
 			queued, queuedAfterSubmission, limit)
 	}
@@ -428,7 +412,7 @@ func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
 		return 0, err
 	}
 	if len(sizes) == 0 {
-		return 0, fmt.Errorf("no value for number of queued jobs returned from job repository")
+		return 0, errors.Errorf("no value for number of queued jobs returned from job repository")
 	}
 	return sizes[0], nil
 }
@@ -511,7 +495,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 	// Split IDs into batches and process one batch at a time
 	// To reduce the number of jobs stored in memory
 	batches := util.Batch(ids, server.cancelJobsBatchSize)
-	cancelledIds := []string{}
+	var cancelledIds []string
 	for _, batch := range batches {
 		jobs, err := server.jobRepository.GetExistingJobsByIds(batch)
 		if err != nil {
@@ -550,15 +534,15 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*a
 
 	err = reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
 	if err != nil {
-		return nil, fmt.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %w", err)
+		return nil, errors.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %v", err)
 	}
 
 	deletionResult, err := server.jobRepository.DeleteJobs(jobs)
 	if err != nil {
-		return nil, fmt.Errorf("[cancelJobs] error deleting jobs: %w", err)
+		return nil, errors.Errorf("[cancelJobs] error deleting jobs: %v", err)
 	}
-	cancelled := []*api.Job{}
-	cancelledIds := []string{}
+	var cancelled []*api.Job
+	var cancelledIds []string
 	for job, err := range deletionResult {
 		if err != nil {
 			log.Errorf("[cancelJobs] error cancelling job with ID %s: %s", job.Id, err)
@@ -570,7 +554,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*a
 
 	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
 	if err != nil {
-		return nil, fmt.Errorf("[cancelJobs] error reporting job cancellation: %w", err)
+		return nil, errors.Errorf("[cancelJobs] error reporting job cancellation: %v", err)
 	}
 
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
@@ -643,7 +627,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 		return nil, status.Errorf(codes.Unavailable, "[ReprioritizeJobs] error reporting job re-prioritisation: %s", err)
 	}
 
-	jobIds := []string{}
+	var jobIds []string
 	for _, job := range jobs {
 		jobIds = append(jobIds, job.Id)
 	}
@@ -671,7 +655,7 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("[reprioritizeJobs] error updating jobs: %s", err)
+		return nil, errors.Errorf("[reprioritizeJobs] error updating jobs: %s", err)
 	}
 
 	results := map[string]string{}
@@ -688,12 +672,12 @@ func (server *SubmitServer) reprioritizeJobs(jobIds []string, newPriority float6
 func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*api.Job, newPriority float64, principalName string) error {
 	err := reportJobsUpdated(server.eventStore, principalName, reprioritizedJobs)
 	if err != nil {
-		return fmt.Errorf("[reportReprioritizedJobEvents] error reporting jobs updated: %w", err)
+		return errors.Errorf("[reportReprioritizedJobEvents] error reporting jobs updated: %v", err)
 	}
 
 	err = reportJobsReprioritized(server.eventStore, principalName, reprioritizedJobs, newPriority)
 	if err != nil {
-		return fmt.Errorf("[reportReprioritizedJobEvents] error reporting jobs reprioritized: %w", err)
+		return errors.Errorf("[reportReprioritizedJobEvents] error reporting jobs reprioritized: %v", err)
 	}
 
 	return nil
@@ -778,29 +762,44 @@ func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner stri
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
 	getTime func() time.Time, getUlid func() string,
 ) ([]*api.Job, error) {
+	compressor, err := server.compressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(server.compressorPool, context.Background(), compressor)
+	compressedOwnershipGroups, err := compress.CompressStringArray(ownershipGroups, compressor.(compress.Compressor))
+	if err != nil {
+		return nil, err
+	}
+
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
-		return nil, fmt.Errorf("[createJobs] job set not specified")
+		return nil, errors.Errorf("[createJobs] job set not specified")
 	}
 
 	if request.Queue == "" {
-		return nil, fmt.Errorf("[createJobs] queue not specified")
+		return nil, errors.Errorf("[createJobs] queue not specified")
 	}
 
 	for i, item := range request.JobRequestItems {
 
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, fmt.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
+			return nil, errors.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
 		}
 
 		podSpecs := item.GetAllPodSpecs()
 		if len(podSpecs) == 0 {
-			return nil, fmt.Errorf("[createJobs] job %d in job set %s contains no podSpec or podSpecs", i, request.JobSetId)
+			return nil, errors.Errorf("[createJobs] job %d in job set %s contains no podSpec or podSpecs", i, request.JobSetId)
 		}
 
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
-			return nil, fmt.Errorf("[createJobs] error validating the %d-th job of job set %s: %w", i, request.JobSetId, err)
+			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
 		}
 
 		namespace := item.Namespace
@@ -815,7 +814,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			server.applyDefaultsToPodSpec(podSpec)
 			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
-				return nil, fmt.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %w", j, i, request.JobSetId, err)
+				return nil, errors.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %v", j, i, request.JobSetId, err)
 			}
 
 			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
@@ -846,11 +845,12 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 
 			Priority: item.Priority,
 
-			PodSpec:                  item.PodSpec,
-			PodSpecs:                 item.PodSpecs,
-			Created:                  getTime(), // Replaced with now for mocking unit test
-			Owner:                    owner,
-			QueueOwnershipUserGroups: ownershipGroups,
+			PodSpec:                            item.PodSpec,
+			PodSpecs:                           item.PodSpecs,
+			Created:                            getTime(), // Replaced with now for mocking unit test
+			Owner:                              owner,
+			QueueOwnershipUserGroups:           nil,
+			CompressedQueueOwnershipUserGroups: compressedOwnershipGroups,
 		}
 		jobs = append(jobs, j)
 	}
@@ -904,9 +904,17 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 			spec.Tolerations = append(spec.Tolerations, defaultToleration)
 		}
 	}
+
+	defaultPriorityClass := server.schedulingConfig.Preemption.DefaultPriorityClass
+	defaultPriorityClassDefined := defaultPriorityClass != ""
+	noPriorityClassAttached := spec.PriorityClassName == ""
+	shouldDefaultPriorityClass := server.schedulingConfig.Preemption.Enabled && defaultPriorityClassDefined && noPriorityClassAttached
+	if shouldDefaultPriorityClass {
+		spec.PriorityClassName = defaultPriorityClass
+	}
 }
 
-// fillContainerRequestAndLimits updates resource's requests/limits of container to match the value of
+// fillContainerRequestsAndLimits updates resource's requests/limits of container to match the value of
 // limits/requests if the resource doesn't have requests/limits setup. If a Container specifies its own
 // memory limit, but does not specify a memory request, assign a memory request that matches the limit.
 // Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically

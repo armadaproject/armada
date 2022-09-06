@@ -86,10 +86,17 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 	}()
 
-	eventsDb := createRedisClient(&config.EventsRedis)
+	legacyEventDb := createRedisClient(&config.EventsRedis)
 	defer func() {
-		if err := eventsDb.Close(); err != nil {
+		if err := legacyEventDb.Close(); err != nil {
 			log.WithError(err).Error("failed to close events Redis client")
+		}
+	}()
+
+	eventDb := createRedisClient(&config.EventsApiRedis)
+	defer func() {
+		if err := legacyEventDb.Close(); err != nil {
+			log.WithError(err).Error("failed to close events api Redis client")
 		}
 	}()
 
@@ -99,7 +106,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
 	healthChecks.Add(repository.NewRedisHealth(db))
 
-	redisEventRepository := repository.NewRedisEventRepository(eventsDb, config.EventRetention)
+	legacyEventRepository := repository.NewLegacyRedisEventRepository(legacyEventDb, config.EventRetention)
+	eventRepository := repository.NewEventRepository(eventDb)
 	var streamEventStore *processor.StreamEventStore
 	var eventStore repository.EventStore
 	var eventStream eventstream.EventStream
@@ -148,7 +156,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			config.Events.ProcessorMaxTimeBetweenBatches,
 			config.Events.ProcessorTimeout,
 		)
-		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, redisEventRepository, eventStream, eventRepoBatcher)
+		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, legacyEventRepository, eventStream, eventRepoBatcher)
 		eventProcessor.Start()
 
 		jobStatusBatcher := eventstream.NewTimedEventBatcher(
@@ -174,7 +182,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			}
 		}()
 	} else {
-		eventStore = redisEventRepository
+		eventStore = legacyEventRepository
 	}
 
 	permissions := authorization.NewPrincipalPermissionChecker(
@@ -348,7 +356,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
-	eventServer := server.NewEventServer(permissions, redisEventRepository, eventStore, queueRepository)
+	eventServer := server.NewEventServer(permissions, eventRepository, legacyEventRepository, eventStore, queueRepository, config.DefaultToLegacyEvents)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	// Allows for registering functions to be run periodically in the background.
