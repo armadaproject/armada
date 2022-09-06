@@ -629,6 +629,10 @@
         "clientId": {
           "type": "string"
         },
+        "compressedQueueOwnershipUserGroups": {
+          "type": "string",
+          "format": "byte"
+        },
         "created": {
           "type": "string",
           "format": "date-time"

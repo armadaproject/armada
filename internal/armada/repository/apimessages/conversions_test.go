@@ -563,6 +563,34 @@ func TestConvertJobError(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestConvertJobSucceeded(t *testing.T) {
+	succeeded := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobSucceeded{
+			JobSucceeded: &armadaevents.JobSucceeded{
+				JobId: jobIdProto,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Succeeded{
+				Succeeded: &api.JobSucceededEvent{
+					JobId:    jobIdString,
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  baseTime,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(succeeded))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
 func TestConvertJobRunning(t *testing.T) {
 	running := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
