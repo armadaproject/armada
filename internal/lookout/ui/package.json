@@ -6,7 +6,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh",
+    "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh",
     "lint": "eslint './src/**/*.{js,ts,tsx}'",
     "fmt": "eslint './src/**/*.{js,ts,tsx}' --fix"
   },

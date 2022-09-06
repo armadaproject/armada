@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid"
 
 import Jobs from "../components/jobs/Jobs"
 import IntervalService from "../services/IntervalService"
-import JobService, { GetJobsRequest, Job } from "../services/JobService"
+import { JobService, GetJobsRequest, Job } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import JobsLocalStorageService from "../services/JobsLocalStorageService"
 import JobsQueryParamsService from "../services/JobsQueryParamsService"

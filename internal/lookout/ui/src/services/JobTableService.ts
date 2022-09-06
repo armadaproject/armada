@@ -1,5 +1,5 @@
 import { updateArray } from "../utils"
-import JobService, { GetJobsRequest, Job } from "./JobService"
+import { GetJobsRequest, Job, JobService } from "./JobService"
 
 type JobLoadState = "Loading" | "Loaded"
 
@@ -39,11 +39,14 @@ export default class JobTableService {
   jobs: JobMetadata[]
   largestLoadedIndex: number
 
+  abortController: AbortController
+
   constructor(jobService: JobService, batchSize: number) {
     this.jobService = jobService
     this.batchSize = batchSize
     this.jobs = [createLoadingJob()]
     this.largestLoadedIndex = 0
+    this.abortController = new AbortController()
   }
 
   getJobs(): Job[] {
@@ -63,7 +66,7 @@ export default class JobTableService {
 
     for (let i = startBatch; i <= endBatch; i++) {
       request.skip = i * this.batchSize
-      const jobsBatch = await this.jobService.getJobs(request)
+      const jobsBatch = await this.requestJobs(request)
       newJobsLoaded.push(...convertToLoaded(jobsBatch))
       if (jobsBatch.length < this.batchSize) {
         canLoadMore = false
@@ -90,6 +93,18 @@ export default class JobTableService {
       this.jobs = [createLoadingJob()]
     }
     this.largestLoadedIndex = 0
+  }
+
+  private requestJobs(request: GetJobsRequest): Promise<Job[]> {
+    // Abort previous request
+    this.abortController.abort()
+    this.abortController = new AbortController()
+    try {
+      return this.jobService.getJobs(request, this.abortController.signal)
+    } catch (e) {
+      console.error(e)
+      throw e
+    }
   }
 
   private markJobsAsLoaded(start: number, stop: number) {
