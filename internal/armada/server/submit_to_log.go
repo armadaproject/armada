@@ -540,6 +540,7 @@ func (srv *PulsarSubmitServer) Authorize(
 ) (userId string, groups []string, err error) {
 	principal := authorization.GetPrincipal(ctx)
 	userId = principal.GetName()
+	groups = principal.GetGroupNames()
 	q, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
 		return
@@ -557,20 +558,6 @@ func (srv *PulsarSubmitServer) Authorize(
 		}
 	}
 
-	// Armada impersonates the principal that submitted the job when interacting with k8s.
-	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
-	// This is an optimisation to avoid passing around groups unnecessarily.
-	principalSubject := queue.PermissionSubject{
-		Name: userId,
-		Kind: queue.PermissionSubjectKindUser,
-	}
-	if !q.HasPermission(principalSubject, perm) {
-		for _, subject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
-			if q.HasPermission(subject, perm) {
-				groups = append(groups, subject.Name)
-			}
-		}
-	}
 	return
 }
 
