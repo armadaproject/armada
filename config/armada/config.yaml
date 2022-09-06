@@ -1,4 +1,3 @@
-
 grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000

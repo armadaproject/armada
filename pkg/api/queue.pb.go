@@ -429,7 +429,7 @@ type NodeInfo struct {
 	TotalResources map[string]resource.Quantity `protobuf:"bytes,6,rep,name=total_resources,json=totalResources,proto3" json:"totalResources,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Each pod is created with a priority class. Each priority class has an integer priority associated with it.
 	// This is a map from priority to the total amount of resources allocated to pods with that priority.
-	// It is used by the scheduler to decide wether more jobs should be sent to an executor.
+	// It is used by the scheduler to decide whether more jobs should be sent to an executor.
 	// In particular, jobs may be sent to an executor even if all resources are allocated
 	// if the sent jobs are of higher priority.
 	AllocatedResources map[int32]ComputeResource `protobuf:"bytes,7,rep,name=allocated_resources,json=allocatedResources,proto3" json:"allocatedResources,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
