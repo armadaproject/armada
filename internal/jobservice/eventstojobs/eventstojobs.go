@@ -39,7 +39,7 @@ func NewEventsToJobService(
 	}
 }
 
-// Subscribes to a JobSet from jobsetid. Will retry until there a successful exit.
+// Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit.
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
 	for {
 		err := eventToJobService.streamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
@@ -86,6 +86,7 @@ func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.
 
 			select {
 			case <-ctx.Done():
+				conn.Close()
 				return ctx.Err()
 			default:
 				eventClient := api.NewEventClient(conn)
