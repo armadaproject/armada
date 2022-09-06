@@ -380,11 +380,7 @@ func isJobSchedulable(c *leaseContext, job *api.Job, remainder common.ComputeRes
 func validateOrDefaultPriorityClass(podSpec *v1.PodSpec, preemptionConfig configuration.PreemptionConfig) {
 	_, ok := preemptionConfig.PriorityClasses[podSpec.PriorityClassName]
 	if !ok {
-		if preemptionConfig.DefaultPriorityClass != "" {
-			podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
-		} else {
-			podSpec.PriorityClassName = ""
-		}
+		podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
 	}
 }
 
