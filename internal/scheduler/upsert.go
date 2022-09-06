@@ -92,7 +92,6 @@ func IdempotentUpsert(ctx context.Context, db *pgxpool.Pool, topicName string, w
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		err := IdempotencyCheck(ctx, tx, topicName, writeMessageIds)
 		if err != nil {
 			return err
@@ -103,6 +102,10 @@ func IdempotentUpsert(ctx context.Context, db *pgxpool.Pool, topicName string, w
 			return err
 		}
 
+		err = UpsertMessageIds(ctx, tx, topicName, writeMessageIds)
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -159,13 +162,18 @@ func IdempotencyCheck(ctx context.Context, tx DBTX, topicName string, writeMessa
 		}
 	}
 
+	return nil
+}
+
+func UpsertMessageIds(ctx context.Context, tx DBTX, topicName string, writeMessageIds map[int32]pulsar.MessageID) error {
 	// Otherwise, we have more recent data than what is already stored in the db that we should write.
 	// Update the message id in postgres to reflect the data to be written.
 	//
 	// TODO: Add a call to insert these in a single call.
-	for partitionIdx, writeMessageId := range writeMessageIds {
-		err = queries.UpsertMessageId(ctx, UpsertMessageIdParams{
-			Topic:        fmt.Sprintf("%s-partition-%d", topicName, partitionIdx),
+	queries := New(tx)
+	for _, writeMessageId := range writeMessageIds {
+		err := queries.UpsertMessageId(ctx, UpsertMessageIdParams{
+			Topic:        topicName,
 			LedgerID:     writeMessageId.LedgerID(),
 			EntryID:      writeMessageId.EntryID(),
 			BatchIdx:     writeMessageId.BatchIdx(),

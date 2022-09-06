@@ -3,8 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -77,7 +75,7 @@ func TestNamesValuesFromRecordPointer(t *testing.T) {
 	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message}, values)
 }
 
-func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string) error) error {
+func withSetup(action func(queries *Queries, db *pgxpool.Pool) error) error {
 	ctx := context.Background()
 
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
@@ -93,7 +91,7 @@ func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string)
 	}
 
 	// Drop all existing tables.
-	for _, table := range []string{"queues", "jobs", "runs", "job_errors", "job_run_errors", "pulsar", "nodeinfo"} {
+	for _, table := range []string{"queues", "jobs", "runs", "job_run_assignments", "job_errors", "job_run_errors", "pulsar", "nodeinfo", "leaderelection"} {
 		_, err = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
 		if err != nil {
 			return err
@@ -106,40 +104,40 @@ func withSetup(action func(queries *Queries, db *pgxpool.Pool, tableName string)
 		return err
 	}
 
-	return action(New(db), db, "runs")
+	return action(New(db), db)
 }
 
 func TestUpsert(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
 
 		// Insert rows, read them back, and compare.
-		expected := makeRuns(10)
-		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema(), interfacesFromRuns(expected))
+		expected := makeRecords(10)
+		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
 
-		actual, err := queries.ListRuns(ctx)
+		actual, err := queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		if !assertRunsEqual(t, expected, actual) {
+		if !assertNodeInfoEqual(t, expected, actual) {
 			return nil
 		}
 
 		// Change one record, upsert, read back, and compare.
 		expected[0].Executor = "foo"
-		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, tableName, RunsSchema(), interfacesFromRuns(expected))
+		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		actual, err = queries.ListRuns(ctx)
+		actual, err = queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		if !assertRunsEqual(t, expected, actual) {
+		if !assertNodeInfoEqual(t, expected, actual) {
 			return nil
 		}
 
@@ -151,30 +149,30 @@ func TestUpsert(t *testing.T) {
 func TestIdempotence(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
 
 		// Insert rows, read them back, and compare.
-		expected := makeRuns(10)
+		expected := makeRecords(10)
 		records := expected
 		writeMessageId := pulsarutils.New(0, 1, 0, 0)
-		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema(), interfacesFromRuns(records))
+		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
 		if !assert.NoError(t, err) {
 			return nil
 		}
 
-		actual, err := queries.ListRuns(ctx)
+		actual, err := queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		if !assertRunsEqual(t, expected, actual) {
+		if !assertNodeInfoEqual(t, expected, actual) {
 			return nil
 		}
 
 		// Insert with a lower id and check that it fails.
 		dbMessageId := writeMessageId
 		writeMessageId = pulsarutils.New(0, 0, 0, 0)
-		records = makeRuns(1)
-		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, tableName, RunsSchema(), interfacesFromRuns(records))
+		records = makeRecords(1)
+		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
 		expectedErr := &ErrStaleWrite{
 			Topic: "topic",
 			StaleWrites: []StaleWrite{
@@ -209,11 +207,11 @@ func TestIdempotence(t *testing.T) {
 			return nil
 		}
 
-		actual, err = queries.ListRuns(ctx)
+		actual, err = queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		if !assertRunsEqual(t, expected, actual) {
+		if !assertNodeInfoEqual(t, expected, actual) {
 			return nil
 		}
 
@@ -225,26 +223,26 @@ func TestIdempotence(t *testing.T) {
 func TestIdempotenceMultiPartition(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
 
 		// Insert rows, read them back, and compare.
 		// Here, we emulate inserting a message based off of several partitions.
-		expected := makeRuns(10)
+		expected := makeRecords(10)
 		records := expected
 		writeMessageIds := map[int32]pulsar.MessageID{
 			0: pulsarutils.New(0, 1, 0, 0),
 			1: pulsarutils.New(0, 2, 1, 0),
 		}
-		err := IdempotentUpsert(ctx, db, "topic", writeMessageIds, tableName, RunsSchema(), interfacesFromRuns(records))
+		err := IdempotentUpsert(ctx, db, "topic", writeMessageIds, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
 		if !assert.NoError(t, err) {
 			return nil
 		}
 
-		actual, err := queries.ListRuns(ctx)
+		actual, err := queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		if !assertRunsEqual(t, expected, actual) {
+		if !assertNodeInfoEqual(t, expected, actual) {
 			return nil
 		}
 
@@ -254,8 +252,8 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 			0: pulsarutils.New(0, 1, 0, 0),
 			1: pulsarutils.New(0, 1, 1, 0),
 		}
-		records = makeRuns(1)
-		err = IdempotentUpsert(ctx, db, "topic", writeMessageIds, tableName, RunsSchema(), interfacesFromRuns(records))
+		records = makeRecords(1)
+		err = IdempotentUpsert(ctx, db, "topic", writeMessageIds, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
 		expectedErr := &ErrStaleWrite{
 			Topic: "topic",
 			StaleWrites: []StaleWrite{ // Stale write on the 1-th partition.
@@ -299,11 +297,11 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 			return nil
 		}
 
-		actual, err = queries.ListRuns(ctx)
+		actual, err = queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		if !assertRunsEqual(t, expected, actual) {
+		if !assertNodeInfoEqual(t, expected, actual) {
 			return nil
 		}
 
@@ -315,30 +313,30 @@ func TestIdempotenceMultiPartition(t *testing.T) {
 func TestConcurrency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
 
 		// Each thread inserts non-overlapping rows, reads them back, and compares.
 		for i := 0; i < 100; i++ {
 			i := i
-			expected := makeRuns(10)
+			expected := makeRecords(10)
 			executor := fmt.Sprintf("executor-%d", i)
-			setRunsExecutor(expected, executor)
-			err := IdempotentUpsert(ctx, db, fmt.Sprintf("topic-%d", i), map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, tableName, RunsSchema(), interfacesFromRuns(expected))
+			setExecutor(expected, executor)
+			err := IdempotentUpsert(ctx, db, fmt.Sprintf("topic-%d", i), map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
 			if !assert.NoError(t, err) {
 				return nil
 			}
 
-			runs, err := queries.ListRuns(ctx)
+			vs, err := queries.SelectNewNodeInfo(ctx, 0)
 			if !assert.NoError(t, err) {
 				return nil
 			}
-			actual := make([]Run, 0)
-			for _, run := range runs {
-				if run.Executor == executor {
-					actual = append(actual, run)
+			actual := make([]Nodeinfo, 0)
+			for _, v := range vs {
+				if v.Executor == executor {
+					actual = append(actual, v)
 				}
 			}
-			if !assertRunsEqual(t, expected, actual) {
+			if !assertNodeInfoEqual(t, expected, actual) {
 				return nil
 			}
 		}
@@ -348,72 +346,98 @@ func TestConcurrency(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// Return nrecords records, each with payloadSize bytes of payload.
-// The returned slice is sorted by ID.
-func makeRecords(nrecords, payloadSize int) []interface{} {
-	records := make([]Record, nrecords)
-	payload := strings.Repeat("0", payloadSize)
-	for i := 0; i < nrecords; i++ {
-		records[i] = Record{
-			Id:      uuid.New(),
-			Value:   i,
-			Message: payload,
-		}
+// // Return nrecords records, each with payloadSize bytes of payload.
+// // The returned slice is sorted by ID.
+// func makeRecords(nrecords, payloadSize int) []interface{} {
+// 	records := make([]Record, nrecords)
+// 	payload := strings.Repeat("0", payloadSize)
+// 	for i := 0; i < nrecords; i++ {
+// 		records[i] = Record{
+// 			Id:      uuid.New(),
+// 			Value:   i,
+// 			Message: payload,
+// 		}
+// 	}
+// 	sort.Slice(records, func(i, j int) bool {
+// 		return records[i].Id.String() < records[j].Id.String()
+// 	})
+// 	rv := make([]interface{}, nrecords)
+// 	for i, v := range records {
+// 		rv[i] = v
+// 	}
+// 	return rv
+// }
+
+// // assertNodeInfoEqual is a utility function for comparing two slices of runs.
+// // First sorts both slices.
+// func assertNodeInfoEqual(t *testing.T, expected, actual []Run) bool {
+// 	sort.Slice(expected, func(i, j int) bool {
+// 		return expected[i].RunID.String() < expected[j].RunID.String()
+// 	})
+// 	sort.Slice(actual, func(i, j int) bool {
+// 		return actual[i].RunID.String() < actual[j].RunID.String()
+// 	})
+// 	return assert.Equal(t, expected, actual)
+// }
+
+func assertNodeInfoEqual(t *testing.T, expected, actual []Nodeinfo) bool {
+	es := make(map[string]*Nodeinfo)
+	as := make(map[string]*Nodeinfo)
+	for _, nodeinfo := range expected {
+		v := &nodeinfo
+		v.Serial = 0
+		v.LastModified = time.Time{}
+		es[v.ExecutorNodeName] = v
 	}
-	sort.Slice(records, func(i, j int) bool {
-		return records[i].Id.String() < records[j].Id.String()
-	})
-	rv := make([]interface{}, nrecords)
-	for i, v := range records {
-		rv[i] = v
+	for _, nodeinfo := range actual {
+		v := &nodeinfo
+		v.Serial = 0
+		v.LastModified = time.Time{}
+		as[v.ExecutorNodeName] = v
 	}
-	return rv
+	return assert.Equal(t, es, as)
 }
 
-// assertRunsEqual is a utility function for comparing two slices of runs.
-// First sorts both slices.
-func assertRunsEqual(t *testing.T, expected, actual []Run) bool {
-	sort.Slice(expected, func(i, j int) bool {
-		return expected[i].RunID.String() < expected[j].RunID.String()
-	})
-	sort.Slice(actual, func(i, j int) bool {
-		return actual[i].RunID.String() < actual[j].RunID.String()
-	})
-	return assert.Equal(t, expected, actual)
-}
-
-// makeRuns is a utility functions that returns n randomly generated runs structs.
-func makeRuns(n int) []Run {
-	runs := make([]Run, n)
+// makeRecords is a utility functions that returns n randomly generated records for insertion.
+func makeRecords(n int) []Nodeinfo {
+	vs := make([]Nodeinfo, n)
 	for i := 0; i < n; i++ {
-		runs[i] = Run{
-			RunID:        uuid.New(),
-			JobID:        uuid.New(),
-			Executor:     uuid.NewString(), // A randomly generated string used for tests.
-			LastModified: time.Date(2022, time.July, 13, 9, 27, 0, 0, time.Local),
+		vs[i] = Nodeinfo{
+			ExecutorNodeName: uuid.NewString(),
+			NodeName:         uuid.NewString(),
+			Executor:         uuid.NewString(),
+			Message:          make([]byte, 0),
 		}
 	}
-	return runs
+	return vs
 }
 
-func setRunsExecutor(runs []Run, executor string) {
+func setExecutor(runs []Nodeinfo, executor string) {
 	for i := range runs {
 		runs[i].Executor = executor
 	}
 }
 
-func interfacesFromRuns(runs []Run) []interface{} {
-	rv := make([]interface{}, len(runs))
-	for i, v := range runs {
+func interfacesFromSlice[T any](vs []T) []interface{} {
+	rv := make([]interface{}, len(vs))
+	for i, v := range vs {
 		rv[i] = v
 	}
 	return rv
 }
 
+// func interfacesFromRuns(runs []Run) []interface{} {
+// 	rv := make([]interface{}, len(runs))
+// 	for i, v := range runs {
+// 		rv[i] = v
+// 	}
+// 	return rv
+// }
+
 func TestAutoIncrement(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
+	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
 
 		// Insert two rows. These should automatically get auto-incrementing serial numbers
 		// 1 and 2, respectively.
@@ -434,7 +458,7 @@ func TestAutoIncrement(t *testing.T) {
 			return nil
 		}
 
-		actual, err := queries.ListNodeInfo(ctx)
+		actual, err := queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -457,7 +481,7 @@ func TestAutoIncrement(t *testing.T) {
 			return nil
 		}
 
-		actual, err = queries.ListNodeInfo(ctx)
+		actual, err = queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -480,61 +504,13 @@ func TestAutoIncrement(t *testing.T) {
 			return nil
 		}
 
-		actual, err = queries.ListNodeInfo(ctx)
+		actual, err = queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
 		}
 		assert.Equal(t, 3, len(actual))
 		assert.Equal(t, int64(4), actual[2].Serial)
 		assert.Equal(t, "baz", actual[2].NodeName)
-
-		return nil
-	})
-	assert.NoError(t, err)
-}
-
-// Plain:
-// upserted 10000 records in 150.714434ms
-
-// Both
-// upserted 10000 records in 314.750961ms
-
-// Only serial
-// upserted 10000 records in 309.336981ms
-
-// Only timestamp
-// upserted 10000 records in 203.027894ms
-
-// Accessing the series directly
-// upserted 10000 records in 210.879139ms
-
-// Getting table name and schema programatically
-// upserted 10000 records in 241.215724ms
-
-func TestFoo(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool, tableName string) error {
-		var records []interface{}
-		for i := 0; i < 10000; i++ {
-			records = append(
-				records,
-				Nodeinfo{
-					NodeName: uuid.NewString(),
-					Message:  make([]byte, 0),
-				},
-			)
-		}
-
-		start := time.Now()
-		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		elapsed := time.Since(start)
-
-		fmt.Printf("upserted %d records in %s (%d records per second)\n", len(records), elapsed, int64(elapsed)/int64(len(records))/1e9)
-		// fmt.Println("upserted in ", time.Since(start), " seconds")
 
 		return nil
 	})
