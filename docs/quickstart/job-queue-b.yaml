@@ -12,11 +12,11 @@ jobs:
             - sh
           args:
             - -c
-            - sleep $(( (RANDOM % 60) + 60 ))
+            - sleep $(( (RANDOM % 60) + 10 ))
           resources:
             limits:
-              memory: 250Mi
-              cpu: 1
+              memory: 128Mi
+              cpu: 0.2
             requests:
-              memory: 250Mi
-              cpu: 1
+              memory: 128Mi
+              cpu: 0.2
