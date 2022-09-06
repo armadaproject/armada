@@ -25,6 +25,13 @@ eventsRedis:
   password: ""
   db: 0
   poolSize: 1000
+eventsApiRedis:
+  addrs:
+    - "localhost:6379"
+  password: ""
+  db: 1
+  poolSize: 1000
+defaultToLegacyEvents: true
 scheduling:
   useProbabilisticSchedulingForAllResources: true
   queueLeaseBatchSize: 200

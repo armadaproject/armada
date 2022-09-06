@@ -23,13 +23,15 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime    time.Duration
-	CancelJobsBatchSize int
-	Redis               redis.UniversalOptions
-	Events              EventsConfig
-	EventsNats          NatsConfig
-	EventsJetstream     JetstreamConfig
-	EventsRedis         redis.UniversalOptions
+	PriorityHalfTime      time.Duration
+	CancelJobsBatchSize   int
+	Redis                 redis.UniversalOptions
+	Events                EventsConfig
+	EventsNats            NatsConfig
+	EventsJetstream       JetstreamConfig
+	EventsRedis           redis.UniversalOptions
+	EventsApiRedis        redis.UniversalOptions
+	DefaultToLegacyEvents bool
 
 	Scheduling        SchedulingConfig
 	QueueManagement   QueueManagementConfig
