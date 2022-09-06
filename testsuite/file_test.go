@@ -2,7 +2,6 @@ package testsuite
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,10 +64,6 @@ func TestFiles(t *testing.T) {
 		t.FailNow()
 	}
 	for _, testFile := range testFiles {
-		if !strings.Contains(testFile, "test_1x1") {
-			fmt.Printf("skipping test %s\n", testFiles)
-			continue
-		}
 		name := filepath.Base(testFile)
 		ext := filepath.Ext(name)
 		if !assert.NotEmpty(t, ext) {
