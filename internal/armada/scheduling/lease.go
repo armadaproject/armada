@@ -316,7 +316,7 @@ func (c *leaseContext) leaseJobs(
 				if hasPriorityClass(job.PodSpec) {
 					validateOrDefaultPriorityClass(job.PodSpec, c.schedulingConfig.Preemption)
 				}
-				newlyConsumed, ok, err := matchAnyNodeTypeAllocation(
+				newlyConsumed, ok, _ := matchAnyNodeTypeAllocation(
 					job,
 					c.nodeResources,
 					consumedNodeResources,
@@ -328,8 +328,6 @@ func (c *leaseContext) leaseJobs(
 					candidatesLimit.RemoveFromRemainingLimit(job)
 					candidateNodes[job] = newlyConsumed
 					consumedNodeResources.Add(newlyConsumed)
-				} else {
-					log.WithError(err).Error("failed to match node")
 				}
 			}
 			if candidatesLimit.AtLimit() {
@@ -378,6 +376,9 @@ func isJobSchedulable(c *leaseContext, job *api.Job, remainder common.ComputeRes
 // if not, default to DefaultPriorityClass if it is specified
 // otherwise default to no Priority Class
 func validateOrDefaultPriorityClass(podSpec *v1.PodSpec, preemptionConfig configuration.PreemptionConfig) {
+	if preemptionConfig.PriorityClasses == nil {
+		podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
+	}
 	_, ok := preemptionConfig.PriorityClasses[podSpec.PriorityClassName]
 	if !ok {
 		podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
