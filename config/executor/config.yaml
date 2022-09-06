@@ -33,6 +33,8 @@ kubernetes:
   failedPodExpiry: 10m
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)
   stuckTerminatingPodExpiry: 1m
+  toleratedTaints:
+    - "armada.io/batch"
   podDefaults:
     ingress:
       hostnameSuffix: "svc"

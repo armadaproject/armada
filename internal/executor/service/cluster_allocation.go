@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -80,25 +82,35 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 }
 
 func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, jobCount int) {
-	cpu := capacityReport.GetResourceQuantity("cpu")
-	memory := capacityReport.GetResourceQuantity("memory")
-	ephemeralStorage := capacityReport.GetResourceQuantity("ephemeral-storage")
+	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", buildResourceLog(capacityReport.AvailableCapacity), jobCount)
+	for _, n := range capacityReport.Nodes {
+		log.Infof("Total node resources are %s", buildResourceLog(n.TotalResources))
+		for pc, allocated := range n.AllocatedResources {
+			log.Infof("Allocated resources in node %s: priority %d: %s", n.Name, pc, buildResourceLog(allocated.Resources))
+		}
+	}
+}
 
-	resources := fmt.Sprintf(
+func buildResourceLog(resources map[string]resource.Quantity) string {
+	cpu := resources["cpu"]
+	memory := resources["memory"]
+	ephemeralStorage := resources["ephemeral-storage"]
+
+	resourcesLog := fmt.Sprintf(
 		"cpu: %dm, memory %s, ephemeral-storage: %s",
 		cpu.MilliValue(), util2.FormatBinarySI(memory.Value()), util2.FormatBinarySI(ephemeralStorage.Value()),
 	)
 
-	nvidiaGpu := capacityReport.GetResourceQuantity("nvidia.com/gpu")
+	nvidiaGpu := resources["nvidia.com/gpu"]
 	if nvidiaGpu.Value() > 0 {
-		resources += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
+		resourcesLog += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
 	}
-	amdGpu := capacityReport.GetResourceQuantity("amd.com/gpu")
+	amdGpu := resources["amd.com/gpu"]
 	if amdGpu.Value() > 0 {
-		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
+		resourcesLog += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
 
-	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, jobCount)
+	return resourcesLog
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation

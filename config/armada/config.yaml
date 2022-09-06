@@ -33,6 +33,13 @@ eventsApiRedis:
   poolSize: 1000
 defaultToLegacyEvents: true
 scheduling:
+  preemption:
+    enabled: true
+    priorityClasses:
+      armada-preemptive-low-priority: 10
+      armada-preemptive-medium-priority: 100
+      armada-preemptive-high-priority: 1000
+    defaultPriorityClass: armada-preemptive-low-priority
   useProbabilisticSchedulingForAllResources: true
   queueLeaseBatchSize: 200
   maximumLeasePayloadSizeBytes: 7340032 # 1024 * 1024 * 7
@@ -69,7 +76,7 @@ eventRetention:
 metrics:
   refreshInterval: 30s
 pulsar:
-  enabled: true
+  enabled: false
   URL: "pulsar://localhost:6650"
   maxAllowedMessageSize: 4194304 # 4MB
   jobsetEventsTopic: "persistent://armada/armada/events"

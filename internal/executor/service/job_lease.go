@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -26,7 +25,7 @@ import (
 type LeaseService interface {
 	ReturnLease(pod *v1.Pod, reason string) error
 	RequestJobLeases(
-		availableResource *common.ComputeResources,
+		availableResource common.ComputeResources,
 		nodes []api.NodeInfo,
 		leasedResourceByQueue map[string]common.ComputeResources,
 	) ([]*api.Job, error)
@@ -56,7 +55,7 @@ func NewJobLeaseService(
 }
 
 func (jobLeaseService *JobLeaseService) RequestJobLeases(
-	availableResource *common.ComputeResources,
+	availableResource common.ComputeResources,
 	nodes []api.NodeInfo,
 	leasedResourceByQueue map[string]common.ComputeResources,
 ) ([]*api.Job, error) {
@@ -77,7 +76,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 	leaseRequest := &api.StreamingLeaseRequest{
 		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
 		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
-		Resources:           *availableResource,
+		Resources:           availableResource,
 		ClusterLeasedReport: clusterLeasedReport,
 		Nodes:               nodes,
 		MinimumJobSize:      jobLeaseService.minimumJobSize,
@@ -106,7 +105,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	}
 
 	// Goroutine receiving jobs from the server.
-	// Also recevies ack confirmations from the server.
+	// Also receives ack confirmations from the server.
 	// Send leases on ch to another goroutine responsible for sending back acks.
 	// Give the channel a small buffer to allow for some asynchronicity.
 	var numServerAcks uint32
@@ -285,7 +284,7 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 
 	node, err := clusterContext.GetNode(nodeName)
 	if err != nil {
-		return nil, fmt.Errorf("Could not get node %s from Kubernetes api: %v", nodeName, err)
+		return nil, errors.Errorf("Could not get node %s from Kubernetes api: %v", nodeName, err)
 	}
 
 	result := api.OrderedStringMap{}
@@ -297,7 +296,7 @@ func getAvoidNodeLabels(pod *v1.Pod, avoidNodeLabelsOnRetry []string, clusterCon
 	}
 
 	if len(result.Entries) == 0 {
-		return nil, fmt.Errorf(
+		return nil, errors.Errorf(
 			"None of the labels specified in avoidNodeLabelsOnRetry (%s) were found on node %s",
 			strings.Join(avoidNodeLabelsOnRetry, ", "),
 			nodeName,

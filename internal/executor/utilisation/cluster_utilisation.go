@@ -103,12 +103,16 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 }
 
 type ClusterAvailableCapacityReport struct {
-	AvailableCapacity *common.ComputeResources
+	AvailableCapacity common.ComputeResources
 	Nodes             []api.NodeInfo
 }
 
-func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) resource.Quantity {
-	return (*r.AvailableCapacity)[resource]
+func (r *ClusterAvailableCapacityReport) GetAvailableResourceQuantity(resource string) resource.Quantity {
+	return r.AvailableCapacity[resource]
+}
+
+func (r *ClusterAvailableCapacityReport) GetTotalResourceQuantity(nodeIndex int, resource string) resource.Quantity {
+	return r.Nodes[nodeIndex].TotalResources[resource]
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
@@ -140,7 +144,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		available.Sub(nodesUsage[n.Name])
 
 		nodePods := podsByNodes[n.Name]
-		allocated := getAllocatedResourcesByPriority(nodePods)
+		allocatedByPriority := getAllocatedResourcesByPriority(nodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
@@ -149,12 +153,12 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
 			TotalResources:       allocatable,
-			AllocatedResources:   allocated,
+			AllocatedResources:   allocatedByPriority,
 		})
 	}
 
 	return &ClusterAvailableCapacityReport{
-		AvailableCapacity: &availableResource,
+		AvailableCapacity: availableResource,
 		Nodes:             nodes,
 	}, nil
 }
