@@ -37,6 +37,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalLogJobRunLeased(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunLeased)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			convertedEvents, err = FromInternalJobRunErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunErrors)
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			convertedEvents, err = FromInternalJobSucceeded(es.Queue, es.JobSetName, *event.Created, esEvent.JobSucceeded)
 		case *armadaevents.EventSequence_Event_JobErrors:
 			convertedEvents, err = FromInternalJobErrors(es.Queue, es.JobSetName, *event.Created, esEvent.JobErrors)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
@@ -49,6 +51,7 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
+		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			// These events have no api analog right now, so we ignore
 			log.Debugf("Ignoring event")
 		default:
@@ -225,6 +228,25 @@ func FromInternalLogJobRunLeased(queueName string, jobSetName string, time time.
 					Queue:     queueName,
 					Created:   time,
 					ClusterId: e.ExecutorId,
+				},
+			},
+		},
+	}, nil
+}
+
+func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Time, e *armadaevents.JobSucceeded) ([]*api.EventMessage, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
+	if err != nil {
+		return nil, err
+	}
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Succeeded{
+				Succeeded: &api.JobSucceededEvent{
+					JobId:    jobId,
+					JobSetId: jobSetName,
+					Queue:    queueName,
+					Created:  time,
 				},
 			},
 		},
