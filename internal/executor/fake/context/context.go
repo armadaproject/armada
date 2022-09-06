@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -21,7 +22,6 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	cluster_context "github.com/G-Research/armada/internal/executor/context"
 )
@@ -157,7 +157,7 @@ func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {
 
 	pod.Status.Phase = v1.PodPending
 	pod.CreationTimestamp = metav1.Now()
-	pod.UID = types.UID("fake-pod--" + util.NewULID()) // ULID is 26 characters, but kubernetes UID can be 36
+	pod.UID = types.UID(uuid.New().String())
 	saved := pod.DeepCopy()
 	c.pods[pod.Name] = saved
 	return saved
