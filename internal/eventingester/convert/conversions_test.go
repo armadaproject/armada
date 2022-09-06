@@ -72,9 +72,8 @@ func TestSingle(t *testing.T) {
 }
 
 func TestSingleWithMissingCreated(t *testing.T) {
-
 	// Succeeded
-	var suceededMissingCreated = &armadaevents.EventSequence_Event{
+	suceededMissingCreated := &armadaevents.EventSequence_Event{
 		// No created time
 		Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 			JobRunSucceeded: &armadaevents.JobRunSucceeded{
