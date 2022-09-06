@@ -101,9 +101,9 @@ func DbOpsFromEventInSequence(sequence *armadaevents.EventSequence, i int) ([]Db
 			// We use the hash of (job id, error message),
 			// which isn't entirely correct since it deduplicates identical error message.
 			hash := sha256.Sum256(append(bytes, jobIdBytes...))
-			key := binary.BigEndian.Uint32(hash[:])
+			key := int32(binary.BigEndian.Uint32(hash[:]))
 			insertJobErrors[key] = &JobError{
-				ID:       int32(key),
+				ID:       key,
 				JobID:    armadaevents.UuidFromProtoUuid(jobId),
 				Error:    bytes,
 				Terminal: jobError.GetTerminal(),
@@ -158,9 +158,9 @@ func DbOpsFromEventInSequence(sequence *armadaevents.EventSequence, i int) ([]Db
 			// We use the hash of (job id, error message),
 			// which isn't entirely correct since it deduplicates identical error message.
 			hash := sha256.Sum256(append(bytes, append(jobIdBytes, runIdBytes...)...))
-			key := binary.BigEndian.Uint32(hash[:])
+			key := int32(binary.BigEndian.Uint32(hash[:]))
 			insertJobRunErrors[key] = &JobRunError{
-				ID:       int32(key),
+				ID:       key,
 				RunID:    armadaevents.UuidFromProtoUuid(runId),
 				Error:    bytes,
 				Terminal: runError.GetTerminal(),

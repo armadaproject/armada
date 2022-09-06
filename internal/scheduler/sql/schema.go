@@ -191,37 +191,37 @@ func SchemaTemplate() string {
 		"$func$;\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_jobs\n" +
-		"BEFORE INSERT ON jobs\n" +
+		"BEFORE INSERT or UPDATE ON jobs\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_runs\n" +
-		"BEFORE INSERT ON runs\n" +
+		"BEFORE INSERT or UPDATE ON runs\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_job_run_assignments\n" +
-		"BEFORE INSERT ON job_run_assignments\n" +
+		"BEFORE INSERT or UPDATE ON job_run_assignments\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_job_errors\n" +
-		"BEFORE INSERT ON job_errors\n" +
+		"BEFORE INSERT or UPDATE ON job_errors\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_job_run_errors\n" +
-		"BEFORE INSERT ON job_run_errors\n" +
+		"BEFORE INSERT or UPDATE ON job_run_errors\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_nodeinfo\n" +
-		"BEFORE INSERT ON nodeinfo\n" +
+		"BEFORE INSERT or UPDATE ON nodeinfo\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +
 		"CREATE TRIGGER next_serial_on_insert_leaderelection\n" +
-		"BEFORE INSERT ON leaderelection\n" +
+		"BEFORE INSERT or UPDATE ON leaderelection\n" +
 		"FOR EACH ROW\n" +
 		"EXECUTE FUNCTION trg_increment_serial_set_last_modified();\n" +
 		"\n" +

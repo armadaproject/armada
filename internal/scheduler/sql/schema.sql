@@ -180,37 +180,37 @@ END
 $func$;
 
 CREATE TRIGGER next_serial_on_insert_jobs
-BEFORE INSERT ON jobs
+BEFORE INSERT or UPDATE ON jobs
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_runs
-BEFORE INSERT ON runs
+BEFORE INSERT or UPDATE ON runs
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_job_run_assignments
-BEFORE INSERT ON job_run_assignments
+BEFORE INSERT or UPDATE ON job_run_assignments
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_job_errors
-BEFORE INSERT ON job_errors
+BEFORE INSERT or UPDATE ON job_errors
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_job_run_errors
-BEFORE INSERT ON job_run_errors
+BEFORE INSERT or UPDATE ON job_run_errors
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_nodeinfo
-BEFORE INSERT ON nodeinfo
+BEFORE INSERT or UPDATE ON nodeinfo
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_leaderelection
-BEFORE INSERT ON leaderelection
+BEFORE INSERT or UPDATE ON leaderelection
 FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 

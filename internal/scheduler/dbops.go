@@ -68,6 +68,13 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
+// type AutoIncrementLastModified interface {
+// 	GetSerial() int64
+// 	SetSerial(int64)
+// 	GetLastModified() time.Time
+// 	SetLastModified(time.Time)
+// }
+
 // Db operations (implements DbOperation).
 type InsertJobs map[uuid.UUID]*Job
 type InsertRuns map[uuid.UUID]*Run
@@ -81,8 +88,8 @@ type UpdateJobPriorities map[uuid.UUID]int64
 type MarkRunsSucceeded map[uuid.UUID]bool
 type MarkRunsFailed map[uuid.UUID]bool
 type MarkRunsRunning map[uuid.UUID]bool
-type InsertJobErrors map[uint32]*JobError
-type InsertJobRunErrors map[uint32]*JobRunError
+type InsertJobErrors map[int32]*JobError
+type InsertJobRunErrors map[int32]*JobRunError
 
 type JobSetOperation interface {
 	AffectsJobSet(string) bool

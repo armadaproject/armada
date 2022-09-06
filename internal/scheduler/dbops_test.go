@@ -233,8 +233,8 @@ type mockDb struct {
 	Jobs           map[uuid.UUID]*Job
 	Runs           map[uuid.UUID]*Run
 	RunAssignments map[uuid.UUID]*JobRunAssignment
-	JobErrors      map[uint32]*JobError
-	JobRunErrors   map[uint32]*JobRunError
+	JobErrors      map[int32]*JobError
+	JobRunErrors   map[int32]*JobRunError
 }
 
 func newMockDb() *mockDb {
@@ -242,8 +242,8 @@ func newMockDb() *mockDb {
 		Jobs:           make(map[uuid.UUID]*Job),
 		Runs:           make(map[uuid.UUID]*Run),
 		RunAssignments: make(map[uuid.UUID]*JobRunAssignment),
-		JobErrors:      make(map[uint32]*JobError),
-		JobRunErrors:   make(map[uint32]*JobRunError),
+		JobErrors:      make(map[int32]*JobError),
+		JobRunErrors:   make(map[int32]*JobRunError),
 	}
 }
 
