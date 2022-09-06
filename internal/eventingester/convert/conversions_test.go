@@ -71,6 +71,33 @@ func TestSingle(t *testing.T) {
 	assert.Equal(t, expectedSequence.Events, es.Events)
 }
 
+func TestSingleWithMissingCreated(t *testing.T) {
+	// Succeeded
+	suceededMissingCreated := &armadaevents.EventSequence_Event{
+		// No created time
+		Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
+			JobRunSucceeded: &armadaevents.JobRunSucceeded{
+				RunId: runIdProto,
+				JobId: jobIdProto,
+			},
+		},
+	}
+
+	msg := NewMsg(baseTime, suceededMissingCreated)
+	compressor, err := compress.NewZlibCompressor(0)
+	assert.NoError(t, err)
+	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
+	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
+	expectedSequence := armadaevents.EventSequence{
+		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
+	}
+	assert.Equal(t, []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}}, batchUpdate.MessageIds)
+	event := batchUpdate.Events[0]
+	es, err := extractEventSeq(event.Event)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSequence.Events, es.Events)
+}
+
 func TestMultiple(t *testing.T) {
 	msg := NewMsg(baseTime, cancelled, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
