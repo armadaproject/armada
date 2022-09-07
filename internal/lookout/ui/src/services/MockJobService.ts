@@ -37,6 +37,7 @@ export class MockJobService implements JobService {
     return Promise.resolve([])
   }
 
+  // eslint-disable-next-line
   getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]> {
     return Promise.resolve([])
   }
@@ -54,6 +55,7 @@ export class MockJobService implements JobService {
     return Promise.resolve(createJobs(getJobsRequest.queue, getJobsRequest.take))
   }
 
+  // eslint-disable-next-line
   cancelJobs(jobs: Job[]): Promise<CancelJobsResponse> {
     return Promise.resolve({
       cancelledJobs: [],
@@ -61,6 +63,7 @@ export class MockJobService implements JobService {
     })
   }
 
+  // eslint-disable-next-line
   cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse> {
     return Promise.resolve({
       cancelledJobSets: [],
@@ -68,6 +71,7 @@ export class MockJobService implements JobService {
     })
   }
 
+  // eslint-disable-next-line
   reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse> {
     return Promise.resolve({
       reprioritizedJobs: [],
@@ -75,6 +79,7 @@ export class MockJobService implements JobService {
     })
   }
 
+  // eslint-disable-next-line
   reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResponse> {
     return Promise.resolve({
       reprioritizedJobSets: [],

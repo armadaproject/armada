@@ -194,19 +194,22 @@ export class LookoutJobService implements JobService {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
     try {
-      const response = await this.lookoutApi.getJobs({
-        body: {
-          queue: getJobsRequest.queue,
-          take: getJobsRequest.take,
-          skip: getJobsRequest.skip,
-          jobSetIds: jobSetsForApi,
-          newestFirst: getJobsRequest.newestFirst,
-          jobStates: jobStatesForApi,
-          jobId: getJobsRequest.jobId,
-          owner: getJobsRequest.owner,
-          userAnnotations: getJobsRequest.annotations,
+      const response = await this.lookoutApi.getJobs(
+        {
+          body: {
+            queue: getJobsRequest.queue,
+            take: getJobsRequest.take,
+            skip: getJobsRequest.skip,
+            jobSetIds: jobSetsForApi,
+            newestFirst: getJobsRequest.newestFirst,
+            jobStates: jobStatesForApi,
+            jobId: getJobsRequest.jobId,
+            owner: getJobsRequest.owner,
+            userAnnotations: getJobsRequest.annotations,
+          },
         },
-      })
+        { signal },
+      )
       if (response.jobInfos) {
         return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
       }
