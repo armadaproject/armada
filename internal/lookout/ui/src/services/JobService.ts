@@ -147,11 +147,17 @@ export const UNKNOWN_CONTAINER = "Unknown Container"
 
 export interface JobService {
   getOverview(): Promise<QueueInfo[]>
+
   getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]>
+
   getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]>
+
   cancelJobs(jobs: Job[]): Promise<CancelJobsResponse>
+
   cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse>
+
   reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse>
+
   reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResponse>
 }
 
@@ -193,29 +199,24 @@ export class LookoutJobService implements JobService {
   async getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
-    try {
-      const response = await this.lookoutApi.getJobs(
-        {
-          body: {
-            queue: getJobsRequest.queue,
-            take: getJobsRequest.take,
-            skip: getJobsRequest.skip,
-            jobSetIds: jobSetsForApi,
-            newestFirst: getJobsRequest.newestFirst,
-            jobStates: jobStatesForApi,
-            jobId: getJobsRequest.jobId,
-            owner: getJobsRequest.owner,
-            userAnnotations: getJobsRequest.annotations,
-          },
+    const response = await this.lookoutApi.getJobs(
+      {
+        body: {
+          queue: getJobsRequest.queue,
+          take: getJobsRequest.take,
+          skip: getJobsRequest.skip,
+          jobSetIds: jobSetsForApi,
+          newestFirst: getJobsRequest.newestFirst,
+          jobStates: jobStatesForApi,
+          jobId: getJobsRequest.jobId,
+          owner: getJobsRequest.owner,
+          userAnnotations: getJobsRequest.annotations,
         },
-        { signal },
-      )
-      if (response.jobInfos) {
-        return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
-      }
-    } catch (e) {
-      console.error(await e.json())
-      throw e
+      },
+      { signal },
+    )
+    if (response.jobInfos) {
+      return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
     }
     return []
   }
