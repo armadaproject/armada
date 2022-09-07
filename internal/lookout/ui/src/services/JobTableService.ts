@@ -39,21 +39,18 @@ export default class JobTableService {
   jobs: JobMetadata[]
   largestLoadedIndex: number
 
-  abortController: AbortController
-
   constructor(jobService: JobService, batchSize: number) {
     this.jobService = jobService
     this.batchSize = batchSize
     this.jobs = [createLoadingJob()]
     this.largestLoadedIndex = 0
-    this.abortController = new AbortController()
   }
 
   getJobs(): Job[] {
     return this.jobs
   }
 
-  async loadJobs(request: GetJobsRequest, start: number, stop: number) {
+  async loadJobs(request: GetJobsRequest, start: number, stop: number, signal: AbortSignal | undefined) {
     const startBatch = Math.floor(start / this.batchSize)
     const endBatch = Math.floor(stop / this.batchSize)
     const loadStartIndex = startBatch * this.batchSize
@@ -66,7 +63,11 @@ export default class JobTableService {
 
     for (let i = startBatch; i <= endBatch; i++) {
       request.skip = i * this.batchSize
-      const jobsBatch = await this.requestJobs(request)
+      const [jobsBatch, interrupted] = await this.requestJobs(request, signal)
+      if (interrupted) {
+        this.jobs = [createLoadingJob()]
+        return
+      }
       newJobsLoaded.push(...convertToLoaded(jobsBatch))
       if (jobsBatch.length < this.batchSize) {
         canLoadMore = false
@@ -95,15 +96,17 @@ export default class JobTableService {
     this.largestLoadedIndex = 0
   }
 
-  private requestJobs(request: GetJobsRequest): Promise<Job[]> {
+  private async requestJobs(request: GetJobsRequest, signal: AbortSignal | undefined): Promise<[Job[], boolean]> {
     // Abort previous request
-    this.abortController.abort()
-    this.abortController = new AbortController()
     try {
-      return this.jobService.getJobs(request, this.abortController.signal)
+      const jobs = await this.jobService.getJobs(request, signal)
+      return [jobs, false]
     } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return Promise.resolve([[], true])
+      }
       console.error(e)
-      throw e
+      return Promise.resolve([[], false])
     }
   }
 

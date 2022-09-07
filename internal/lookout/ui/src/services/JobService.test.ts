@@ -19,9 +19,13 @@ type MockJobServiceConfig = {
     delays: {
       [queue: string]: number
     }
+    errors: {
+      [queue: string]: Error
+    }
   }
 }
 
+// Class for testing different API call behaviors
 export class MockJobService implements JobService {
   config: MockJobServiceConfig
 
@@ -39,7 +43,13 @@ export class MockJobService implements JobService {
 
   async getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal): Promise<Job[]> {
     if (this.config.getJobs.delays.hasOwnProperty(getJobsRequest.queue)) {
-      await sleep(this.config.getJobs.delays[getJobsRequest.queue])
+      const interrupted = await sleep(this.config.getJobs.delays[getJobsRequest.queue], signal)
+      if (interrupted) {
+        throw new DOMException("Aborted", "AbortError")
+      }
+    }
+    if (this.config.getJobs.errors.hasOwnProperty(getJobsRequest.queue)) {
+      throw this.config.getJobs.errors[getJobsRequest.queue]
     }
     return Promise.resolve(createJobs(getJobsRequest.queue, getJobsRequest.take))
   }
@@ -73,8 +83,14 @@ export class MockJobService implements JobService {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(false), ms)
+    signal?.addEventListener("abort", () => {
+      clearTimeout(timeout)
+      resolve(true)
+    })
+  })
 }
 
 function createJobs(queue: string, total: number): Job[] {

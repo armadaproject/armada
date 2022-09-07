@@ -6,8 +6,7 @@ import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
 import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/lookout"
 import reportWebVitals from "./reportWebVitals"
-import { JobService, LookoutJobService } from "./services/JobService"
-import { MockJobService } from "./services/JobService.test"
+import { LookoutJobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { getUIConfig } from "./utils"
 
@@ -16,28 +15,16 @@ import "./index.css"
 ;(async () => {
   const uiConfig = await getUIConfig()
 
-  let jobService: JobService
-  if (false) {
-    jobService = new LookoutJobService(
-      new LookoutApi(new LookoutConfiguration({ basePath: "" })),
-      new SubmitApi(
-        new SubmitConfiguration({
-          basePath: uiConfig.armadaApiBaseUrl,
-          credentials: "include",
-        }),
-      ),
-      uiConfig.userAnnotationPrefix,
-    )
-  } else {
-    jobService = new MockJobService({
-      getJobs: {
-        delays: {
-          test: 5000,
-          testt: 100,
-        },
-      },
-    })
-  }
+  const jobService = new LookoutJobService(
+    new LookoutApi(new LookoutConfiguration({ basePath: "" })),
+    new SubmitApi(
+      new SubmitConfiguration({
+        basePath: uiConfig.armadaApiBaseUrl,
+        credentials: "include",
+      }),
+    ),
+    uiConfig.userAnnotationPrefix,
+  )
 
   const logService = new LogService(
     { credentials: "include" },
