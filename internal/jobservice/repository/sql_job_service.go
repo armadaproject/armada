@@ -1,3 +1,4 @@
+//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -13,6 +14,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+type JobTableUpdater interface {
+	SubscribeJobSet(string, string)
+	IsJobSetSubscribed(string, string) bool
+	UpdateJobServiceDb(*JobTable)
+}
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
 // Locks are used for concurrent access of map

@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 
 	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/G-Research/armada/internal/jobservice/events"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
 )
 
 // Service that subscribes to events and stores JobStatus in the repository.
@@ -19,90 +19,83 @@ type EventsToJobService struct {
 	queue                string
 	jobSetId             string
 	jobId                string
-	jobServiceConfig     *configuration.JobServiceConfiguration
-	jobServiceRepository repository.SQLJobService
+	eventClient          events.JobEventReader
+	jobServiceRepository repository.JobTableUpdater
 }
 
 func NewEventsToJobService(
 	queue string,
 	jobSetId string,
 	jobId string,
+	eventClient events.JobEventReader,
 	jobServiceConfig *configuration.JobServiceConfiguration,
-	jobServiceRepository repository.SQLJobService,
+	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
 	return &EventsToJobService{
 		queue:                queue,
 		jobSetId:             jobSetId,
 		jobId:                jobId,
-		jobServiceConfig:     jobServiceConfig,
+		eventClient:          eventClient,
 		jobServiceRepository: jobServiceRepository,
 	}
 }
 
-// Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit.
-func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context) error {
+// Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit, up to the TTL
+func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context, ttlSecs int64) error {
+	expiresAt := time.Now().Add(time.Duration(ttlSecs) * time.Second)
 	for {
-		err := eventToJobService.streamCommon(&eventToJobService.jobServiceConfig.ApiConnection, context)
+		err := eventToJobService.streamCommon(context, ttlSecs)
 		if err == nil {
 			return nil
-		} else {
-			time.Sleep(time.Second * 5)
+		} else if time.Now().After(expiresAt) {
+			return errors.Errorf("the job event subscription TTL has expired while receiving error: %v", err)
 		}
+		time.Sleep(time.Second * 5)
 	}
 }
 
-func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.ApiConnectionDetails, ctx context.Context) error {
+func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64) error {
 	var fromMessageId string
-	var conn *grpc.ClientConn
-	defer func() {
-		if conn != nil {
-			conn.Close()
-		}
-	}()
 	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
+	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
+
 	g.Go(func() error {
+		defer cancel()
+		
 		// Once we unsubscribed from the job-set, we need to close the GRPC connection.
 		// According to GRPC official docs, you can only end a client stream by either canceling the context or closing the connection
-		// This will log an error to the jobservice log saying that the connection was used.
-		ticker := time.NewTicker(time.Duration(eventToJobService.jobServiceConfig.SubscribeJobSetTime) * time.Second)
-		for range ticker.C {
-			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.queue, eventToJobService.jobSetId) {
-				cancel()
+		// // This will log an error to the jobservice log saying that the connection was used.
+		ticker := time.NewTicker(time.Duration(timeout) * time.Second)
+		for t := range ticker.C {
+			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(
+				eventToJobService.queue,
+				eventToJobService.jobSetId) {
 				return nil
+			}
+			if t.After(expiresAt) {
+				return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
 			}
 		}
 		return nil
 	})
 	g.Go(func() error {
+		defer eventToJobService.eventClient.Close()
+
 		// this loop will run until the context is canceled or an error is encountered
 		for {
-			conn, connErr := client.CreateApiConnection(clientConnect)
-			if connErr != nil {
-				log.Warnf("Connection Issues with EventClient %v", connErr)
-				return connErr
-			}
-
 			select {
 			case <-ctx.Done():
-				conn.Close()
-				return ctx.Err()
+				return nil 
 			default:
-				eventClient := api.NewEventClient(conn)
-				stream, err := eventClient.GetJobSetEvents(ctx, &api.JobSetRequest{
+				msg, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
 					Id:             eventToJobService.jobSetId,
 					Queue:          eventToJobService.queue,
 					Watch:          true,
 					FromMessageId:  fromMessageId,
 					ErrorIfMissing: false,
 				})
-				if err != nil {
-					log.Errorf("Error found from client %v", err)
-					return err
-				}
-
-				msg, err := stream.Recv()
 				if err != nil {
 					log.Error(err)
 					return err
@@ -117,6 +110,5 @@ func (eventToJobService *EventsToJobService) streamCommon(clientConnect *client.
 			}
 		}
 	})
-	g.Wait()
-	return nil
+	return g.Wait()
 }
