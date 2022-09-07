@@ -293,7 +293,7 @@ build-docker-lookout: node-setup
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
-	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
@@ -588,7 +588,7 @@ build-dev-lookout: node-setup
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
 	docker run --rm $(DOCKER_RUN_AS_USER) \
-		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	mkdir -p ./.build/lookout/config
