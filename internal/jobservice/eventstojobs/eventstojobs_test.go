@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/events"
 	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
 	"github.com/G-Research/armada/internal/jobservice/repository"
@@ -75,7 +74,6 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 				"someJobSetId",
 				"someJobId",
 				&mockJobEventReader,
-				&configuration.JobServiceConfiguration{},
 				&mockJobRepo,
 			)
 			result := service.SubscribeToJobSetId(context.Background(), tt.ttlSecs)
