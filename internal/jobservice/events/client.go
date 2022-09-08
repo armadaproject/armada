@@ -13,7 +13,7 @@ import (
 
 type JobEventReader interface {
 	GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error)
-	Close() 
+	Close()
 }
 
 type EventClient struct {
@@ -34,7 +34,7 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 	}
 	eventClient := api.NewEventClient(ec.conn)
 	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
-	if err	!= nil {
+	if err != nil {
 		return nil, err
 	}
 	return stream.Recv()

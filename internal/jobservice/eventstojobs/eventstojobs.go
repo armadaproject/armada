@@ -63,7 +63,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 
 	g.Go(func() error {
 		defer cancel()
-		
+
 		// Once we unsubscribed from the job-set, we need to close the GRPC connection.
 		// According to GRPC official docs, you can only end a client stream by either canceling the context or closing the connection
 		// // This will log an error to the jobservice log saying that the connection was used.
@@ -87,7 +87,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		for {
 			select {
 			case <-ctx.Done():
-				return nil 
+				return nil
 			default:
 				msg, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
 					Id:             eventToJobService.jobSetId,

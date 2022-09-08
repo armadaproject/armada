@@ -2,7 +2,6 @@ package eventstojobs_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -17,11 +16,11 @@ import (
 func Test_SubscribeToJobSetId(t *testing.T) {
 
 	tests := []struct {
-		name              string
-		jobEventMessageFn func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error)
+		name                 string
+		jobEventMessageFn    func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error)
 		isJobSetSubscribedFn func(string, string) bool
-		ttlSecs           int64
-		wantErr           bool
+		ttlSecs              int64
+		wantErr              bool
 	}{
 		{
 			name:    "it exits with error after expiration even if messages are received",
@@ -68,7 +67,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 
 			mockJobRepo := repository.JobTableUpdaterMock{
 				IsJobSetSubscribedFunc: tt.isJobSetSubscribedFn,
-				SubscribeJobSetFunc: func(string, string){},
+				SubscribeJobSetFunc:    func(string, string) {},
 			}
 
 			service := eventstojobs.NewEventsToJobService(
@@ -88,17 +87,4 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 		})
 	}
 
-}
-
-func sqlRepo() *repository.SQLJobService {
-	jobSet := make(map[string]*repository.SubscribeTable)
-	config := &configuration.JobServiceConfiguration{}
-	jobStatusMap := repository.NewJobSetSubscriptions(jobSet)
-	db, err := sql.Open("sqlite", "test.db")
-	if err != nil {
-		panic(err)
-	}
-	repo := repository.NewSQLJobService(jobStatusMap, config, db)
-	repo.CreateTable()
-	return repo
 }
