@@ -652,6 +652,13 @@ func TestAnnotations(t *testing.T) {
 	assert.Equal(t, expected, annotationInstructions)
 }
 
+func TestExtractNodeName(t *testing.T) {
+	podError := armadaevents.PodError{}
+	assert.Nil(t, extractNodeName(&podError))
+	podError.NodeName = nodeName
+	assert.Equal(t, pointer.String(nodeName), extractNodeName(&podError))
+}
+
 func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *pulsarutils.ConsumerMessage {
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,

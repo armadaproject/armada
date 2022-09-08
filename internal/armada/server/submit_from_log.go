@@ -9,11 +9,13 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
@@ -37,12 +39,7 @@ type SubmitFromLog struct {
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *SubmitFromLog) Run(ctx context.Context) error {
 	// Get the configured logger, or the standard logger if none is provided.
-	var log *logrus.Entry
-	if srv.Logger != nil {
-		log = srv.Logger.WithField("service", "SubmitFromLog")
-	} else {
-		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
-	}
+	log := srv.getLogger()
 	log.Info("service started")
 
 	// Recover from panics by restarting the service.
@@ -310,6 +307,16 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
+func (srv *SubmitFromLog) getLogger() *logrus.Entry {
+	var log *logrus.Entry
+	if srv.Logger != nil {
+		log = srv.Logger.WithField("service", "SubmitFromLog")
+	} else {
+		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
+	}
+	return log
+}
+
 // SubmitJobs processes several job submit events in bulk.
 // It returns a boolean indicating if the events were processed and any error that occurred during processing.
 // Specifically, events are not processed if writing to the database results in a network-related error.
@@ -329,6 +336,27 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err
+	}
+
+	log := srv.getLogger()
+	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return false, err
+	}
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
+
+	compressedOwnershipGroups, err := compress.CompressStringArray(groups, compressor.(compress.Compressor))
+	if err != nil {
+		return true, err
+	}
+	for _, job := range jobs {
+		job.QueueOwnershipUserGroups = nil
+		job.CompressedQueueOwnershipUserGroups = compressedOwnershipGroups
 	}
 
 	// Submit the jobs by writing them to the database.

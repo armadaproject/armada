@@ -76,7 +76,6 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -91,7 +90,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(NewLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
+	jobs, e := c.distributeRemainder(ctx, newLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 5, len(jobs))
 }
@@ -133,7 +132,6 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -149,7 +147,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(NewLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
+	jobs, e := c.distributeRemainder(ctx, newLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 2, len(jobs))
 }
@@ -179,7 +177,6 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -191,7 +188,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 		queueCache: map[string][]*api.Job{},
 	}
 
-	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(1, 1024*1024*8, 1024*50))
+	jobs, remaining, err := c.leaseJobs(ctx, queue1, requestSize.AsFloat(), newLeasePayloadLimit(1, 1024*1024*8, 1024*50))
 
 	expectedRemaining := requestSize
 	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
@@ -226,7 +223,6 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -239,7 +235,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 	}
 
 	jobSizeBytes := queuedJobs[0].Size()
-	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(10, jobSizeBytes*2+1, jobSizeBytes))
+	jobs, remaining, err := c.leaseJobs(ctx, queue1, requestSize.AsFloat(), newLeasePayloadLimit(10, jobSizeBytes*2+1, jobSizeBytes))
 
 	expectedRemaining := requestSize
 	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
