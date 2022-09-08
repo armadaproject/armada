@@ -5,11 +5,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/G-Research/armada/internal/jobservice/events"
 	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_SubscribeToJobSetId(t *testing.T) {

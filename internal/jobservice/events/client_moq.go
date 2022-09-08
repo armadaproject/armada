@@ -5,8 +5,9 @@ package events
 
 import (
 	"context"
-	"github.com/G-Research/armada/pkg/api"
 	"sync"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 // Ensure, that JobEventReaderMock does implement JobEventReader.

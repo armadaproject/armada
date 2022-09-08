@@ -4,9 +4,10 @@ package events
 import (
 	"context"
 
+	"google.golang.org/grpc"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	"google.golang.org/grpc"
 
 	log "github.com/sirupsen/logrus"
 )
