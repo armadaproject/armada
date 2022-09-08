@@ -640,6 +640,10 @@ func SwaggerJsonTemplate() string {
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"compressedQueueOwnershipUserGroups\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"byte\"\n" +
+		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
@@ -1198,7 +1202,10 @@ func SwaggerJsonTemplate() string {
 		"        \"errorIfMissing\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
-		"        \"forceRedis\": {\n" +
+		"        \"forceLegacy\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"forceNew\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
 		"        \"fromMessageId\": {\n" +
