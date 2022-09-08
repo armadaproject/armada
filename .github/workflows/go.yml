@@ -62,3 +62,41 @@ jobs:
         with:
           name: junit.xml
           path: test_reports/junit.xml
+
+      - name: Assemble container tag
+        id: container_tag
+        uses: pr-mpt/actions-commit-hash@v1
+        with:
+          commit: "${{ github.sha }}"
+          prefix: "${{ github.ref_name }}"
+
+      - name: Upload dev images to dockerhub
+        run: |
+            # Note(JayF): All the offical docker actions for uploading these
+            # containers also assume you need to rebuild them. That makes them
+            # ill-suited for our workflow.
+            TAG=$(echo -n "${{ steps.container_tag.outputs.long }}" | sed 's|/|-|g')
+
+            # TODO(JayF): how to get these secrets in here safely?
+            echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+      
+            IMAGES_TO_UPLOAD=(
+              "armada:armada-server"
+              "armada-executor:armada-executor"
+              "armadactl:armada-armadactl"
+              "testsuite:armada-testsuite"
+              "armada-load-tester:armada-load-tester"
+              "armada-fakeexecutor:armada-fakeexecutor"
+              "armada-lookout:armada-lookout"
+              "armada-lookout-ingester:armada-lookout-ingestor"
+              "armada-event-ingester:armada-event-ingestor"
+              "armada-binoculars:armada-binoculars"
+              "armada-jobservice:armada-jobservice"
+            )
+          
+            for image_info in "${IMAGES_TO_UPLOAD[@]}"; do
+              LOCAL=${image_info%%:*}
+              REMOTE=${image_info#*:}
+              docker tag ${LOCAL} gresearchdev/${REMOTE}-dev:${TAG}
+              docker push gresearchdev/${REMOTE}-dev:${TAG}
+            done
