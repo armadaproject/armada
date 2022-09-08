@@ -5,7 +5,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/jobservice"
-	"github.com/G-Research/armada/pkg/client"
 )
 
 // RootCmd is the root Cobra command that gets called from the main func.
@@ -15,7 +14,6 @@ func RootCmd() *cobra.Command {
 		Use:   "jobservice",
 		Short: "jobservice is used for polling functionality",
 	}
-	client.AddArmadaApiConnectionCommandlineArgs(cmd)
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
