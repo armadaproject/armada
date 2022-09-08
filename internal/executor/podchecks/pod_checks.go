@@ -16,8 +16,8 @@ type PodChecker interface {
 }
 
 type PodChecks struct {
-	eventChecks          eventChecker
-	containerStateChecks containerStateChecker
+	eventChecks               eventChecker
+	containerStateChecks      containerStateChecker
 	timeWithoutEventsOrStatus time.Duration
 }
 
