@@ -38,7 +38,6 @@ func rawPod(spec *json.RawMessage) *rawKubernetesType {
 func ValidateSubmitFile(filePath string) (bool, error) {
 	submitFile := &rawJobSubmitFile{}
 	err := util.BindJsonOrYaml(filePath, submitFile)
-
 	if err != nil {
 		return false, err
 	}

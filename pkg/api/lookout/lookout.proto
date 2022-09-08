@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package lookout;
+option csharp_namespace = "ArmadaProject.Io.Lookout";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";

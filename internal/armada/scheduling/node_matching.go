@@ -26,7 +26,7 @@ func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAlloc
 }
 
 func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
-	result := []*api.NodeType{}
+	var result []*api.NodeType
 	for _, n := range allocations {
 		result = append(result, &n.nodeType)
 	}
@@ -46,7 +46,7 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 		}
 	}
 	if len(errs) == 0 {
-		errs = append(errs, fmt.Errorf("no matching node types available"))
+		errs = append(errs, errors.Errorf("no matching node types available"))
 	}
 	// Return a merged error report.
 	// The idea is that users don't care how nodes are split between clusters.
@@ -66,9 +66,8 @@ func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedu
 		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
 			if err != nil {
 				return false, err
-			} else {
-				return false, errors.Errorf("%d-th pod can't be scheduled", i)
 			}
+			return false, errors.Errorf("%d-th pod can't be scheduled", i)
 		}
 	}
 	return true, nil
@@ -92,26 +91,30 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
-		if ok, err := podMatchingContext.Matches(nodeType, nodeResources); ok {
+		ok, err := podMatchingContext.Matches(nodeType, nodeResources)
+		switch {
+		case ok:
 			return true, nil
-		} else if err != nil {
+		case err != nil:
 			result = result.Add(err.Error(), 1)
-		} else {
+		default:
 			result = result.Add("unknown reason", 1)
 		}
 	}
 	return false, result
 }
 
-func matchAnyNodeTypeAllocation(job *api.Job,
+func matchAnyNodeTypeAllocation(
+	job *api.Job,
 	nodeAllocations []*nodeTypeAllocation,
-	alreadyConsumed nodeTypeUsedResources) (nodeTypeUsedResources, bool, error) {
-
+	alreadyConsumed nodeTypeUsedResources,
+	supportedPriorityClasses map[string]int32,
+) (nodeTypeUsedResources, bool, error) {
 	newlyConsumed := nodeTypeUsedResources{}
 
 	for _, podSpec := range job.GetAllPodSpecs() {
 
-		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, supportedPriorityClasses)
 
 		if !ok {
 			return nodeTypeUsedResources{}, false, err
@@ -127,10 +130,11 @@ func matchAnyNodeTypePodAllocation(
 	podSpec *v1.PodSpec,
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
-	newlyConsumed nodeTypeUsedResources) (*nodeTypeAllocation, bool, error) {
-
+	newlyConsumed nodeTypeUsedResources,
+	supportedPriorityClasses map[string]int32,
+) (*nodeTypeAllocation, bool, error) {
 	if len(nodeAllocations) == 0 {
-		return nil, false, fmt.Errorf("no nodes available")
+		return nil, false, errors.Errorf("no nodes available")
 	}
 
 	podMatchingContext := NewPodMatchingContext(podSpec)
@@ -141,25 +145,66 @@ func matchAnyNodeTypePodAllocation(
 		available.Sub(newlyConsumed[node])
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
-		if ok, err := podMatchingContext.Matches(&node.nodeType, available); ok {
+		resources := available
+		if hasPriorityClass(podSpec) {
+			preemptible, err := getPreemptibleResources(
+				supportedPriorityClasses,
+				podSpec.PriorityClassName,
+				node.allocatedResources,
+			)
+			if err != nil {
+				return nil, false, err
+			}
+			// resources which can be allocated to prioritised jobs are Sum(preemptible resources, allocatable resources)
+			preemptible.Add(available)
+			resources = preemptible
+		}
+		ok, err := podMatchingContext.Matches(&node.nodeType, resources)
+		switch {
+		case ok:
 			return node, true, nil
-		} else if err != nil {
+		case err != nil:
 			result = result.Add(err.Error(), 1)
-		} else {
+		default:
 			result = result.Add("unknown reason", 1)
 		}
 	}
 	return nil, false, result
 }
 
+func getPreemptibleResources(
+	supportedPriorityClasses map[string]int32,
+	targetPriorityClass string,
+	allocatedResources map[int32]common.ComputeResourcesFloat,
+) (common.ComputeResourcesFloat, error) {
+	targetPriority, ok := supportedPriorityClasses[targetPriorityClass]
+	if !ok {
+		return nil, errors.Errorf("unsupported prirority class: %s", targetPriorityClass)
+	}
+	preemptibleResources := make(common.ComputeResourcesFloat)
+
+	for priority, resources := range allocatedResources {
+		if priority < targetPriority {
+			preemptibleResources.Add(resources)
+		}
+	}
+
+	return preemptibleResources, nil
+}
+
 func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	nodeTypesIndex := map[string]*nodeTypeAllocation{}
 
-	for _, n := range nodes {
-		description := createNodeDescription(&n)
+	for i, n := range nodes {
+		description := createNodeDescription(&nodes[i])
 		typeDescription, exists := nodeTypesIndex[description]
 
 		nodeAvailableResources := common.ComputeResources(n.AvailableResources).AsFloat()
+		nodeTotalResources := common.ComputeResources(n.TotalResources).AsFloat()
+		nodeAllocatedResources := make(map[int32]common.ComputeResourcesFloat)
+		for k, v := range n.AllocatedResources {
+			nodeAllocatedResources[k] = common.ComputeResources(v.Resources).AsFloat()
+		}
 
 		if !exists {
 			typeDescription = &nodeTypeAllocation{
@@ -169,14 +214,26 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 					AllocatableResources: n.AllocatableResources,
 				},
 				availableResources: nodeAvailableResources,
+				totalResources:     nodeTotalResources,
+				allocatedResources: nodeAllocatedResources,
 			}
-			nodeTypesIndex[description] = typeDescription
 		} else {
+			typeDescription.totalResources.Add(nodeTotalResources)
 			typeDescription.availableResources.Add(nodeAvailableResources)
+
+			for priority, resources := range nodeAllocatedResources {
+				totalAllocatedResources, exists := typeDescription.allocatedResources[priority]
+				if exists {
+					totalAllocatedResources.Add(resources)
+				} else {
+					typeDescription.allocatedResources[priority] = resources
+				}
+			}
 		}
+		nodeTypesIndex[description] = typeDescription
 	}
 
-	result := []*nodeTypeAllocation{}
+	var result []*nodeTypeAllocation
 	for _, n := range nodeTypesIndex {
 		result = append(result, n)
 	}
@@ -184,7 +241,8 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	sort.Slice(result, func(i, j int) bool {
 		// assign more tainted nodes first, then smaller nodes first
 		return len(result[i].nodeType.Taints) > len(result[j].nodeType.Taints) ||
-			len(result[i].nodeType.Taints) == len(result[j].nodeType.Taints) && dominates(result[j].nodeType.AllocatableResources, result[i].nodeType.AllocatableResources)
+			len(result[i].nodeType.Taints) == len(result[j].nodeType.Taints) &&
+				dominates(result[j].nodeType.AllocatableResources, result[i].nodeType.AllocatableResources)
 	})
 
 	return result
@@ -195,7 +253,7 @@ func dominates(a map[string]resource.Quantity, b map[string]resource.Quantity) b
 }
 
 func createNodeDescription(n *api.NodeInfo) string {
-	data := []string{}
+	data := make([]string, 0, len(n.Labels)+len(n.Taints)+len(n.AllocatableResources))
 	for k, v := range n.Labels {
 		data = append(data, "l"+k+"="+v)
 	}

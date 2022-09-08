@@ -31,7 +31,7 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
 }
 
-// LoadCommandlineArgsFromConfigFile loads armadactl config
+// LoadCommandlineArgs loads armadactl config
 // armadactl-defaults.yaml - From exePath, where exePath is the path to the armadactl executable
 // armada config file - From cfgFile, set by the --config CLI flag, or defaulting to $HOME/.armadactl if not set
 // These configs are then merged
@@ -44,7 +44,6 @@ func LoadCommandlineArgs() error {
 // armada config file - From cfgFile or defaulting to $HOME/.armadactl
 // These configs are then merged
 func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
-
 	// read config at exePath/armadactl-defaults.yaml, where exePath is the path to the armadactl
 	// executable (if it exists)
 	exePath, err := os.Executable()
@@ -216,7 +215,6 @@ func (config *armadaClientConfig) YamlString() (string, error) {
 // LoadClientConfig reads in config from the file at configPath, or, if configPath is the empty
 // string, from $HOME/.armada/config, and from environment variables, using viper.
 func LoadClientConfig(configPath string) (*armadaClientConfig, error) {
-
 	// if no file is provided (i.e., if configPath is the empty string), default to $HOME/.armada/config
 	if len(configPath) == 0 {
 		homeDir, err := os.UserHomeDir()

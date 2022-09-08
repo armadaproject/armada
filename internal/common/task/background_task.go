@@ -60,7 +60,7 @@ func (m *BackgroundTaskManager) StopAll(timeout time.Duration) bool {
 }
 
 func (m *BackgroundTaskManager) startBackgroundTask(task *task) {
-	var taskDurationHistogram = promauto.NewHistogram(
+	taskDurationHistogram := promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    m.metricsPrefix + task.metricName + "_latency_seconds",
 			Help:    "Background loop " + task.metricName + " latency in seconds",

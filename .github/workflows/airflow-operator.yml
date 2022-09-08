@@ -1,0 +1,55 @@
+name: Python Airflow Operator
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python-client.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
+      - 'makefile'
+      - '.github/workflows/python-tests/*'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python-client.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'third_party/airflow/**'
+      - 'build/airflow-operator/**'
+      - 'pkg/api/jobservice/*.proto'
+      - '.github/workflows/airflow-operator.yml'
+      - 'docs/python_airflow_operator.md'
+      - 'scripts/build-airflow-operator.sh'
+      - 'makefile'
+      - '.github/workflows/python-tests/*'
+
+jobs:
+  airflow-tox:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./.github/workflows/go-setup
+      - run: make airflow-operator
+      - uses: ./.github/workflows/python-tests
+        with:
+          python-version: '3.8.10'
+          path: third_party/airflow

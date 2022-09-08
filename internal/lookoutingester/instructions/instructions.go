@@ -3,6 +3,8 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -16,6 +18,7 @@ import (
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -23,13 +26,23 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+type HasNodeName interface {
+	GetNodeName() string
+}
+
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, compressor compress.Compressor) chan *model.InstructionSet {
+func Convert(
+	ctx context.Context,
+	msgs chan *pulsarutils.ConsumerMessage,
+	bufferSize int,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
-			instructions := ConvertMsg(ctx, msg, compressor)
+			instructions := ConvertMsg(ctx, msg, userAnnotationPrefix, compressor)
 			out <- instructions
 		}
 		close(out)
@@ -42,8 +55,7 @@ func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, buffer
 // resulting InstructionSet will contain all events that could be parsed, along with the mesageId of the original message.
 // In the case that no events can be parsed (e.g. the message is not valid protobuf), an empty InstructionSet containing
 // only the messageId will be returned.
-func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compressor compress.Compressor) *model.InstructionSet {
-
+func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnotationPrefix string, compressor compress.Compressor) *model.InstructionSet {
 	pulsarMsg := msg.Message
 
 	// Put the requestId into a message-specific context and logger,
@@ -80,7 +92,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 	for idx, event := range sequence.Events {
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			err = handleSubmitJob(messageLogger, queue, owner, jobset, ts, event.GetSubmitJob(), compressor, updateInstructions)
+			err = handleSubmitJob(messageLogger, queue, owner, jobset, ts, event.GetSubmitJob(), userAnnotationPrefix, compressor, updateInstructions)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = handleReprioritiseJob(ts, event.GetReprioritisedJob(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelledJob:
@@ -103,9 +115,11 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
-			messageLogger.Debugf("Ignoring event")
+		case *armadaevents.EventSequence_Event_ResourceUtilisation:
+		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
+			messageLogger.Debugf("Ignoring event type %T", event)
 		default:
-			messageLogger.Warnf("Ignoring event")
+			messageLogger.Warnf("Ignoring unknown event type %T", event)
 		}
 		if err != nil {
 			messageLogger.Warnf("Could not convert event at index %d. %+v", idx, err)
@@ -114,7 +128,17 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 	return updateInstructions
 }
 
-func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, compressor compress.Compressor, update *model.InstructionSet) error {
+func handleSubmitJob(
+	logger *logrus.Entry,
+	queue string,
+	owner string,
+	jobSet string,
+	ts time.Time,
+	event *armadaevents.SubmitJob,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+	update *model.InstructionSet,
+) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -154,30 +178,49 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 		JobSet:    jobSet,
 		Priority:  event.Priority,
 		Submitted: ts,
-		JobJson:   jobJson,
+		JobJson:   util.RemoveNullsFromJson(jobJson),
 		JobProto:  jobProto,
 		State:     repository.JobQueuedOrdinal,
 		Updated:   ts,
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	for k, v := range event.ObjectMeta.Annotations {
+	annotationInstructions := extractAnnotations(jobId, event.GetObjectMeta().GetAnnotations(), userAnnotationPrefix)
+	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
+
+	return err
+}
+
+func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
+	// This intermediate variable exists because we want our output to be deterministic
+	// Iteration over a map in go is non-deterministic so we read everything into annotations
+	// and then sort it.
+	annotations := make([]*model.CreateUserAnnotationInstruction, 0, len(jobAnnotations))
+
+	for k, v := range jobAnnotations {
 		if k != "" {
-			update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, &model.CreateUserAnnotationInstruction{
+			// The annotation will have a key with a prefix.  We want to strip the prefix before storing in the db
+			if strings.HasPrefix(k, userAnnotationPrefix) && len(k) > len(userAnnotationPrefix) {
+				k = k[len(userAnnotationPrefix):]
+			}
+			annotations = append(annotations, &model.CreateUserAnnotationInstruction{
 				JobId: jobId,
 				Key:   k,
 				Value: v,
 			})
 		} else {
-			logger.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
+			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
 		}
 	}
 
-	return err
+	// sort to make output deterministic
+	sort.Slice(annotations, func(i, j int) bool {
+		return annotations[i].Key < annotations[j].Key
+	})
+	return annotations
 }
 
 func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -193,7 +236,6 @@ func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, u
 }
 
 func handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
 	if err != nil {
 		return err
@@ -209,7 +251,6 @@ func handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDe
 }
 
 func handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -226,7 +267,6 @@ func handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *mod
 }
 
 func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
@@ -247,7 +287,7 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 		return err
 	}
 
-	var isTerminal = false
+	isTerminal := false
 
 	for _, e := range event.GetErrors() {
 		if e.Terminal {
@@ -267,14 +307,12 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 }
 
 func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		return err
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.GetRunId())
-
 	if err != nil {
 		return err
 	}
@@ -335,7 +373,6 @@ func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, upda
 }
 
 func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
-
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
 		return errors.WithStack(err)
@@ -368,23 +405,31 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			// Certain legacy events mean we don't have a valid run id
 			// In this case we have to invent a fake run
 			// TODO: remove this when the legacy messages go away!
-			if runId == eventutil.LEGACY_RUN_ID {
+			isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
+			if isLegacyEvent {
 				jobRun := createFakeJobRun(jobId, ts)
 				runId = jobRun.RunId
+				objectMeta := extractMetaFromError(e)
+				if objectMeta != nil && objectMeta.ExecutorId != "" {
+					jobRun.Cluster = objectMeta.ExecutorId
+				}
 				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
 			}
 
 			jobRunUpdate := &model.UpdateJobRunInstruction{
 				RunId:     runId,
-				Started:   &ts,
 				Succeeded: pointer.Bool(false),
 				Finished:  &ts,
+			}
+			if isLegacyEvent {
+				jobRunUpdate.Started = &ts
 			}
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
-				truncatedMsg := truncate(reason.PodError.GetMessage(), 2048)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				jobRunUpdate.Node = extractNodeName(reason.PodError)
 				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
 						RunId:         jobRunUpdate.RunId,
@@ -393,23 +438,42 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 					})
 				}
 			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := truncate(reason.PodTerminated.GetMessage(), 2048)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
 			case *armadaevents.Error_PodUnschedulable:
-				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 			case *armadaevents.Error_PodLeaseReturned:
-				jobRunUpdate.Error = pointer.String("Lease Returned")
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 			default:
+				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
 			break
 		}
+	}
+	return nil
+}
+
+func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
+	switch err := e.Reason.(type) {
+	case *armadaevents.Error_PodError:
+		return err.PodError.ObjectMeta
+	case *armadaevents.Error_PodTerminated:
+		return err.PodTerminated.ObjectMeta
+	case *armadaevents.Error_PodUnschedulable:
+		return err.PodUnschedulable.ObjectMeta
+	case *armadaevents.Error_PodLeaseReturned:
+		return err.PodLeaseReturned.ObjectMeta
 	}
 	return nil
 }
@@ -424,13 +488,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) (string, int) {
 	return "UNKNOWN", -1
 }
 
-func truncate(s string, max int) string {
-	if max > len(s) {
-		return s
-	}
-	return s[:max]
-}
-
 func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
 	runId := uuid.New().String()
 	return &model.CreateJobRunInstruction{
@@ -439,4 +496,12 @@ func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction
 		Cluster: "UNKNOWN",
 		Created: ts,
 	}
+}
+
+func extractNodeName(x HasNodeName) *string {
+	nodeName := x.GetNodeName()
+	if len(nodeName) > 0 {
+		return pointer.String(nodeName)
+	}
+	return nil
 }

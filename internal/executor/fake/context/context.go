@@ -1,6 +1,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -20,9 +22,8 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
+	cluster_context "github.com/G-Research/armada/internal/executor/context"
 )
 
 type NodeSpec struct {
@@ -38,8 +39,9 @@ var DefaultNodeSpec = []*NodeSpec{
 		Name:  "worker",
 		Count: 500,
 		Allocatable: map[v1.ResourceName]resource.Quantity{
-			"cpu":    resource.MustParse("8"),
-			"memory": resource.MustParse("128Gi"),
+			"cpu":               resource.MustParse("8"),
+			"memory":            resource.MustParse("128Gi"),
+			"ephemeral-storage": resource.MustParse("256Gi"),
 		},
 	},
 }
@@ -54,7 +56,7 @@ type FakeClusterContext struct {
 	nodeAvailableResource map[string]common.ComputeResources
 }
 
-func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) context.ClusterContext {
+func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
 	c := &FakeClusterContext{
 		clusterId:             appConfig.ClusterId,
 		pool:                  appConfig.Pool,
@@ -68,7 +70,7 @@ func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nod
 	return c
 }
 
-func (FakeClusterContext) Stop() {
+func (*FakeClusterContext) Stop() {
 }
 
 func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
@@ -155,7 +157,7 @@ func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {
 
 	pod.Status.Phase = v1.PodPending
 	pod.CreationTimestamp = metav1.Now()
-	pod.UID = types.UID("fake-pod--" + util.NewULID()) // ULID is 26 characters, but kubernetes UID can be 36
+	pod.UID = types.UID(uuid.New().String())
 	saved := pod.DeepCopy()
 	c.pods[pod.Name] = saved
 	return saved
@@ -263,11 +265,11 @@ func (c *FakeClusterContext) GetClusterId() string {
 	return c.clusterId
 }
 
-func (c FakeClusterContext) GetClusterPool() string {
+func (c *FakeClusterContext) GetClusterPool() string {
 	return c.pool
 }
 
-func (c FakeClusterContext) GetNodeStatsSummary(node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 
@@ -285,7 +287,8 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 				},
 				Status: v1.NodeStatus{
 					Allocatable: s.Allocatable,
-				}}
+				},
+			}
 			c.nodes = append(c.nodes, node)
 			c.nodeAvailableResource[node.Name] = common.FromResourceList(s.Allocatable)
 		}

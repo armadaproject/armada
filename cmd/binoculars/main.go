@@ -24,7 +24,11 @@ import (
 const CustomConfigLocation string = "config"
 
 func init() {
-	pflag.StringSlice(CustomConfigLocation, []string{}, "Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
+	pflag.StringSlice(
+		CustomConfigLocation,
+		[]string{},
+		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
+	)
 	pflag.Parse()
 }
 
@@ -74,8 +78,8 @@ func serveHttp(
 	grpcPort uint16,
 	corsAllowedOrigins []string,
 	spec string,
-	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error) (shutdown func()) {
-
+	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
+) (shutdown func()) {
 	shutdownGateway := gateway.CreateGatewayHandler(grpcPort, mux, "/", corsAllowedOrigins, spec, handlers...)
 	cancel := common.ServeHttp(port, mux)
 

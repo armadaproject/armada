@@ -73,27 +73,44 @@ func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) 
 }
 
 func Test_AggregateNodeTypesAllocations(t *testing.T) {
-
 	nodes := []api.NodeInfo{
 		{
 			Name:                 "n1",
 			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			AllocatedResources: map[int32]api.ComputeResource{
+				0: {
+					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1.2"), "memory": resource.MustParse("2.5Gi")},
+				},
+			},
 		},
 		{
 			Name:                 "n2",
 			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
+			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
+			AllocatedResources: map[int32]api.ComputeResource{
+				0: {
+					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("0.8"), "memory": resource.MustParse("3.5Gi")},
+				},
+			},
 		},
 		{
 			Name:                 "n3-special",
 			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			AllocatedResources: map[int32]api.ComputeResource{
+				0: {
+					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+				},
+			},
 		},
 	}
 
 	aggregated := AggregateNodeTypeAllocations(nodes)
-	assert.Equal(t, []*nodeTypeAllocation{
+	expected := []*nodeTypeAllocation{
 		{
 			nodeType: api.NodeType{
 				Taints:               nil,
@@ -101,6 +118,10 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
+			totalResources:     common.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]common.ComputeResourcesFloat{
+				0: {"cpu": 2, "memory": 6 * 1024 * 1024 * 1024},
+			},
 		},
 		{
 			nodeType: api.NodeType{
@@ -109,28 +130,47 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			totalResources:     common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]common.ComputeResourcesFloat{
+				0: {"cpu": 1, "memory": 3 * 1024 * 1024 * 1024},
+			},
 		},
-	}, aggregated)
+	}
+	for i := range aggregated {
+		assert.Equal(t, expected[i], aggregated[i])
+	}
 }
-func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T) {
 
+func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T) {
 	nodes := []api.NodeInfo{
 		{
 			Name:                 "n1",
+			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
 			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
-			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
+			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			AllocatedResources: map[int32]api.ComputeResource{
+				0: {
+					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("2.5Gi")},
+				},
+			},
 		},
 		{
 			Name:                 "n2",
+			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
 			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
-			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
+			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			AllocatedResources: map[int32]api.ComputeResource{
+				0: {
+					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3.5Gi")},
+				},
+			},
 		},
 	}
 
 	aggregated := AggregateNodeTypeAllocations(nodes)
-	assert.Equal(t, []*nodeTypeAllocation{
+	expected := []*nodeTypeAllocation{
 		{
 			nodeType: api.NodeType{
 				Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
@@ -138,6 +178,10 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			totalResources:     common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]common.ComputeResourcesFloat{
+				0: {"cpu": 1, "memory": 3.5 * 1024 * 1024 * 1024},
+			},
 		},
 		{
 			nodeType: api.NodeType{
@@ -146,6 +190,13 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			},
 			availableResources: common.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
+			totalResources:     common.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]common.ComputeResourcesFloat{
+				0: {"cpu": 1, "memory": 2.5 * 1024 * 1024 * 1024},
+			},
 		},
-	}, aggregated)
+	}
+	for i := range aggregated {
+		assert.Equal(t, expected[i], aggregated[i])
+	}
 }

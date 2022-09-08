@@ -1,0 +1,24 @@
+numBatches: 2
+batchSize: 3
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      containers:
+        - name: cuda-container
+          image: nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda10.2
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: 200Mi
+              cpu: 100m
+            requests:
+              nvidia.com/gpu: 1
+              memory: 200Mi
+              cpu: 100m
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:

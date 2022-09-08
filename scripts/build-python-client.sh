@@ -6,10 +6,9 @@ mkdir -p proto/armada
 cp pkg/api/event.proto pkg/api/queue.proto pkg/api/submit.proto pkg/api/usage.proto proto/armada
 sed -i 's/\([^\/]\)pkg\/api/\1armada/g' proto/armada/*.proto
 
-
 # generate python stubs
-cd proto 
-python3 -m grpc_tools.protoc -I. --python_out=../client/python/armada_client --grpc_python_out=../client/python/armada_client \
+cd proto
+python3 -m grpc_tools.protoc -I. --plugin=protoc-gen-mypy=$(which protoc-gen-mypy) --python_out=../client/python/armada_client --grpc_python_out=../client/python/armada_client --mypy_out=../client/python/armada_client \
     google/api/annotations.proto \
     google/api/http.proto \
     armada/event.proto armada/queue.proto armada/submit.proto armada/usage.proto \
@@ -33,6 +32,8 @@ sed -i 's/from google.api/from armada_client.google.api/g' client/python/armada_
 
 find client/python/armada_client/ -name '*.py' | xargs sed -i 's/from k8s.io/from armada_client.k8s.io/g'
 
-cd client/python/armada_client
-poetry install
-poetry build
+# Generate better docs for the client
+export PYTHONPATH=${PWD}/client/python
+python3 ${PWD}/client/python/armada_client/gen/event_typings.py
+
+find client/python/armada_client/k8s/io -name '*.pyi' | xargs sed -i 's/import k8s.io/import armada_client.k8s.io/g'

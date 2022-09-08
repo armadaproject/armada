@@ -94,19 +94,6 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 	}
 }
 
-func CreateJobLeaseReturnedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
-	return &api.JobLeaseReturnedEvent{
-		JobId:        pod.Labels[domain.JobId],
-		JobSetId:     pod.Annotations[domain.JobSetId],
-		Queue:        pod.Labels[domain.Queue],
-		Created:      time.Now(),
-		ClusterId:    clusterId,
-		Reason:       reason,
-		KubernetesId: string(pod.ObjectMeta.UID),
-		PodNumber:    getPodNumber(pod),
-	}
-}
-
 func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices []*v1.Service, associatedIngresses []*networking.Ingress) (api.Event, error) {
 	if pod.Spec.NodeName == "" || pod.Status.HostIP == "" {
 		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
@@ -155,7 +142,8 @@ func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string) ap
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, containerStatuses []*api.ContainerStatus,
-	exitCodes map[string]int32, clusterId string) api.Event {
+	exitCodes map[string]int32, clusterId string,
+) api.Event {
 	return &api.JobFailedEvent{
 		JobId:             pod.Labels[domain.JobId],
 		JobSetId:          pod.Annotations[domain.JobSetId],

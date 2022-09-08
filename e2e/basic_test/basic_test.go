@@ -142,7 +142,12 @@ func connectionDetails() *client.ApiConnectionDetails {
 	return connectionDetails
 }
 
-func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) (map[domain.JobStatus]bool, []api.Event) {
+func submitJobsAndWatch(
+	t *testing.T,
+	submitClient api.SubmitClient,
+	eventsClient api.EventClient,
+	jobRequest *api.JobSubmitRequest,
+) (map[domain.JobStatus]bool, []api.Event) {
 	_, err := client.SubmitJobs(submitClient, jobRequest)
 	assert.NoError(t, err)
 	statusEvents := make(map[domain.JobStatus]bool)
@@ -205,15 +210,16 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 			{
 				Namespace: namespace,
 				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{{
-						Name:  "container1",
-						Image: "alpine:3.10",
-						Args:  []string{"sleep", "5s"},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					Containers: []v1.Container{
+						{
+							Name:  "container1",
+							Image: "alpine:3.10",
+							Args:  []string{"sleep", "5s"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+							},
 						},
-					},
 					},
 				},
 				Priority: 1,

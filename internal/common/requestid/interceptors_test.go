@@ -11,7 +11,6 @@ import (
 )
 
 func TestAddGet(t *testing.T) {
-
 	ctx := context.Background()
 	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
 

@@ -2,7 +2,7 @@ package job
 
 import (
 	"fmt"
-	"strings"
+	"regexp"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -17,33 +17,32 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/executor/context"
 	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/reporter"
 	util2 "github.com/G-Research/armada/internal/executor/util"
 	"github.com/G-Research/armada/pkg/api"
 )
-
-const admissionWebhookValidationFailureMessage string = "admission webhook"
 
 type Submitter interface {
 	SubmitJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails
 }
 
 type SubmitService struct {
-	eventReporter         reporter.EventReporter
-	clusterContext        context.ClusterContext
-	podDefaults           *configuration.PodDefaults
-	submissionThreadCount int
+	clusterContext           context.ClusterContext
+	podDefaults              *configuration.PodDefaults
+	submissionThreadCount    int
+	fatalPodSubmissionErrors []string
 }
 
 func NewSubmitter(
 	clusterContext context.ClusterContext,
 	podDefaults *configuration.PodDefaults,
-	submissionThreadCount int) *SubmitService {
-
+	submissionThreadCount int,
+	fatalPodSubmissionErrors []string,
+) *SubmitService {
 	return &SubmitService{
-		clusterContext:        clusterContext,
-		podDefaults:           podDefaults,
-		submissionThreadCount: submissionThreadCount,
+		clusterContext:           clusterContext,
+		podDefaults:              podDefaults,
+		submissionThreadCount:    submissionThreadCount,
+		fatalPodSubmissionErrors: fatalPodSubmissionErrors,
 	}
 }
 
@@ -92,23 +91,11 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 			if err != nil {
 				log.Errorf("Failed to submit job %s because %s", job.Id, err)
 
-				// Depending on what went wrong, we may either fail the job
-				// or return the lease to the scheduler to try again.
-				var recoverable bool
-				var e *armadaerrors.ErrCreateResource
-				if status, ok := err.(k8s_errors.APIStatus); ok {
-					recoverable = !isNotRecoverable(status.Status())
-				} else if errors.As(err, &e) {
-					recoverable = true
-				} else {
-					recoverable = false
-				}
-
 				errDetails := &FailedSubmissionDetails{
 					Job:         job,
 					Pod:         pod,
 					Error:       err,
-					Recoverable: recoverable,
+					Recoverable: allocationService.isRecoverable(err),
 				}
 
 				failedJobsChannel <- errDetails
@@ -125,7 +112,6 @@ func (allocationService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToS
 // This function may fail partly, i.e., it may successfully create a subset of the requested objects before failing.
 // In case of failure, any already created objects are not cleaned up.
 func (allocationService *SubmitService) submitPod(job *api.Job, i int) (*v1.Pod, error) {
-
 	pod := util2.CreatePod(job, allocationService.podDefaults, i)
 	// Ensure the K8SService and K8SIngress fields are populated
 	allocationService.populateServicesIngresses(job, pod)
@@ -192,13 +178,16 @@ func (allocationService *SubmitService) populateServicesIngresses(job *api.Job, 
 			)
 
 			// We need to use indexing here since Spec.Rules isn't pointers.
-			for i, _ := range ingress.Spec.Rules {
+			for i := range ingress.Spec.Rules {
 				ingress.Spec.Rules[i].Host += allocationService.podDefaults.Ingress.HostnameSuffix
 			}
 
 			// We need to use indexing here since Spec.TLS isn't pointers.
-			for i, _ := range ingress.Spec.TLS {
+			for i := range ingress.Spec.TLS {
 				ingress.Spec.TLS[i].SecretName += allocationService.podDefaults.Ingress.CertNameSuffix
+				for j := range ingress.Spec.TLS[i].Hosts {
+					ingress.Spec.TLS[i].Hosts[j] += allocationService.podDefaults.Ingress.HostnameSuffix
+				}
 			}
 		}
 	}
@@ -218,15 +207,26 @@ func exposesPorts(job *api.Job, podSpec *v1.PodSpec) bool {
 	return len(util2.GetServicePorts(servicesIngressConfig, podSpec)) > 0
 }
 
-func isNotRecoverable(status metav1.Status) bool {
-	if status.Reason == metav1.StatusReasonInvalid ||
-		status.Reason == metav1.StatusReasonForbidden {
+func (allocationService *SubmitService) isRecoverable(err error) bool {
+	if apiStatus, ok := err.(k8s_errors.APIStatus); ok {
+		status := apiStatus.Status()
+		if status.Reason == metav1.StatusReasonInvalid ||
+			status.Reason == metav1.StatusReasonForbidden {
+			return false
+		}
+
+		for _, errorMessage := range allocationService.fatalPodSubmissionErrors {
+			ok, err := regexp.MatchString(errorMessage, err.Error())
+			if err == nil && ok {
+				return false
+			}
+		}
+
 		return true
 	}
 
-	//This message shows it was rejected by an admission webhook.
-	// By default admission webhooks blocking results in a 500 so we can't use the status code as we could confuse it with Kubernetes outage
-	if strings.Contains(status.Message, admissionWebhookValidationFailureMessage) {
+	var e *armadaerrors.ErrCreateResource
+	if errors.As(err, &e) {
 		return true
 	}
 

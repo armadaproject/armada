@@ -373,7 +373,6 @@ func testContainer(name string) v1.Container {
 }
 
 func TestCompactSequences_Basic(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -431,7 +430,6 @@ func TestCompactSequences_Basic(t *testing.T) {
 }
 
 func TestCompactSequences_JobSetOrder(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -535,7 +533,6 @@ func TestCompactSequences_JobSetOrder(t *testing.T) {
 }
 
 func TestCompactSequences_Groups(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -644,14 +641,18 @@ func TestLimitSequenceByteSize(t *testing.T) {
 		})
 	}
 
-	actual, err := LimitSequenceByteSize(sequence, 1000)
+	actual, err := LimitSequenceByteSize(sequence, 1000, true)
 	if !assert.NoError(t, err) {
 		return
 	}
 	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
 
-	_, err = LimitSequenceByteSize(sequence, 1)
+	_, err = LimitSequenceByteSize(sequence, 1, true)
 	assert.Error(t, err)
+
+	_, err = LimitSequenceByteSize(sequence, 1, false)
+	assert.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
 
 	expected := make([]*armadaevents.EventSequence, numEvents)
 	for i := 0; i < numEvents; i++ {
@@ -671,7 +672,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 			},
 		}
 	}
-	actual, err = LimitSequenceByteSize(sequence, 60)
+	actual, err = LimitSequenceByteSize(sequence, 60, true)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -706,7 +707,7 @@ func TestLimitSequencesByteSize(t *testing.T) {
 		sequences = append(sequences, sequence)
 	}
 
-	actual, err := LimitSequencesByteSize(sequences, 60)
+	actual, err := LimitSequencesByteSize(sequences, 60, true)
 	if !assert.NoError(t, err) {
 		return
 	}

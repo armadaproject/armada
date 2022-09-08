@@ -35,7 +35,6 @@ func NewEventJobStatusProcessor(
 
 func (p *EventJobStatusProcessor) Start() {
 	err := p.stream.Subscribe(p.queue, p.handleMessage)
-
 	if err != nil {
 		panic(err)
 	}

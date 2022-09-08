@@ -1,3 +1,5 @@
+# See https://developers.google.com/protocol-buffers/docs/reference/go-generated
+# for details on this syntax for mapping proto files to Go import path types
 export TYPES=Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types,\
@@ -29,6 +31,12 @@ protoc \
 --proto_path=/proto \
 --gogofaster_out=$TYPES,plugins=grpc:./ \
 pkg/api/binoculars/*.proto
+
+protoc \
+--proto_path=. \
+--proto_path=/proto \
+--gogofaster_out=$TYPES,plugins=grpc:./ \
+pkg/api/jobservice/*.proto
 
 # gogo proto generates correct json name inside protobuf tag but wrong json tag, for example:
 #   `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
@@ -64,4 +72,4 @@ protoc \
 --proto_path=/proto \
 --grpc-gateway_out=logtostderr=true,$TYPES:. \
 --swagger_out=logtostderr=true,$TYPES,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/binoculars/api:. \
-pkg/api/binoculars/binoculars.proto \
+pkg/api/binoculars/binoculars.proto

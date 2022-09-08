@@ -16,8 +16,7 @@ type Decompressor interface {
 }
 
 // NoOpDecompressor is a DeCompressor that does nothing.  Useful for tests.
-type NoOpDecompressor struct {
-}
+type NoOpDecompressor struct{}
 
 func (c *NoOpDecompressor) DeCompress(b []byte) ([]byte, error) {
 	return b, nil

@@ -18,7 +18,8 @@ type QueueSchedulingInfo struct {
 func NewQueueSchedulingInfo(
 	remainingSchedulingLimit common.ComputeResourcesFloat,
 	schedulingShare common.ComputeResourcesFloat,
-	adjustedShare common.ComputeResourcesFloat) *QueueSchedulingInfo {
+	adjustedShare common.ComputeResourcesFloat,
+) *QueueSchedulingInfo {
 	return &QueueSchedulingInfo{
 		remainingSchedulingLimit: remainingSchedulingLimit.DeepCopy(),
 		schedulingShare:          schedulingShare.DeepCopy(),
@@ -49,7 +50,12 @@ func (info *QueueSchedulingInfo) UpdateLimits(resourceUsed common.ComputeResourc
 	info.adjustedShare.LimitToZero()
 }
 
-func SliceResourceWithLimits(resourceScarcity map[string]float64, queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]*QueueSchedulingInfo {
+func SliceResourceWithLimits(
+	resourceScarcity map[string]float64,
+	queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo,
+	queuePriorities map[*api.Queue]QueuePriorityInfo,
+	quantityToSlice common.ComputeResourcesFloat,
+) map[*api.Queue]*QueueSchedulingInfo {
 	queuesWithCapacity := filterQueuesWithNoCapacity(queueSchedulingInfo, queuePriorities)
 	naiveSlicedResource := sliceResource(resourceScarcity, queuesWithCapacity, quantityToSlice)
 
@@ -64,7 +70,10 @@ func SliceResourceWithLimits(resourceScarcity map[string]float64, queueSchedulin
 	return result
 }
 
-func filterQueuesWithNoCapacity(queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo, queuePriorities map[*api.Queue]QueuePriorityInfo) map[*api.Queue]QueuePriorityInfo {
+func filterQueuesWithNoCapacity(
+	queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo,
+	queuePriorities map[*api.Queue]QueuePriorityInfo,
+) map[*api.Queue]QueuePriorityInfo {
 	queuesWithCapacity := map[*api.Queue]QueuePriorityInfo{}
 	for queue, info := range queueSchedulingInfo {
 		for _, resource := range info.remainingSchedulingLimit {
@@ -77,8 +86,11 @@ func filterQueuesWithNoCapacity(queueSchedulingInfo map[*api.Queue]*QueueSchedul
 	return queuesWithCapacity
 }
 
-func sliceResource(resourceScarcity map[string]float64, queuePriorities map[*api.Queue]QueuePriorityInfo, quantityToSlice common.ComputeResourcesFloat) map[*api.Queue]common.ComputeResourcesFloat {
-
+func sliceResource(
+	resourceScarcity map[string]float64,
+	queuePriorities map[*api.Queue]QueuePriorityInfo,
+	quantityToSlice common.ComputeResourcesFloat,
+) map[*api.Queue]common.ComputeResourcesFloat {
 	inversePriorities := make(map[*api.Queue]float64)
 	inverseSum := 0.0
 

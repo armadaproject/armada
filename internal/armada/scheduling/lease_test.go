@@ -30,7 +30,6 @@ func Test_minimumJobSize(t *testing.T) {
 }
 
 func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
-
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
 	queue2 := &api.Queue{Name: "queue2", PriorityFactor: 1}
 
@@ -39,10 +38,12 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	priorities := map[*api.Queue]QueuePriorityInfo{
 		queue1: {
 			Priority:     1000,
-			CurrentUsage: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("80Gi")}},
+			CurrentUsage: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("80Gi")},
+		},
 		queue2: {
 			Priority:     0.5,
-			CurrentUsage: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}},
+			CurrentUsage: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
+		},
 	}
 	requestSize := common.ComputeResources{"cpu": resource.MustParse("10"), "memory": resource.MustParse("1Gi")}
 
@@ -75,7 +76,6 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -90,13 +90,12 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(NewLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
+	jobs, e := c.distributeRemainder(ctx, newLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 5, len(jobs))
 }
 
 func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
-
 	queue1 := &api.Queue{Name: "queue1", PriorityFactor: 1}
 
 	scarcity := map[string]float64{"cpu": 1, "gpu": 1}
@@ -104,7 +103,8 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	priorities := map[*api.Queue]QueuePriorityInfo{
 		queue1: {
 			Priority:     1000,
-			CurrentUsage: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("80Gi")}},
+			CurrentUsage: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("80Gi")},
+		},
 	}
 	requestSize := common.ComputeResources{"cpu": resource.MustParse("10"), "memory": resource.MustParse("1Gi")}
 	resourceLimit := common.ComputeResources{"cpu": resource.MustParse("2.5"), "memory": resource.MustParse("2.5Gi")}.AsFloat()
@@ -132,7 +132,6 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -148,7 +147,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		queueCache:          map[string][]*api.Job{},
 	}
 
-	jobs, e := c.distributeRemainder(NewLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
+	jobs, e := c.distributeRemainder(ctx, newLeasePayloadLimit(1000, 1024*1024*8, 1024*50))
 	assert.Nil(t, e)
 	assert.Equal(t, 2, len(jobs))
 }
@@ -162,7 +161,8 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 		{PodSpec: classicPodSpec},
 		{PodSpec: classicPodSpec},
 		{PodSpec: classicPodSpec},
-		{PodSpec: classicPodSpec}}
+		{PodSpec: classicPodSpec},
+	}
 
 	repository := &fakeJobQueue{
 		jobsByQueue: map[string][]*api.Job{
@@ -177,7 +177,6 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -189,7 +188,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 		queueCache: map[string][]*api.Job{},
 	}
 
-	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(1, 1024*1024*8, 1024*50))
+	jobs, remaining, err := c.leaseJobs(ctx, queue1, requestSize.AsFloat(), newLeasePayloadLimit(1, 1024*1024*8, 1024*50))
 
 	expectedRemaining := requestSize
 	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
@@ -208,7 +207,8 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 		{PodSpec: classicPodSpec},
 		{PodSpec: classicPodSpec},
 		{PodSpec: classicPodSpec},
-		{PodSpec: classicPodSpec}}
+		{PodSpec: classicPodSpec},
+	}
 
 	repository := &fakeJobQueue{
 		jobsByQueue: map[string][]*api.Job{
@@ -223,7 +223,6 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
-		ctx: ctx,
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
@@ -236,7 +235,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 	}
 
 	jobSizeBytes := queuedJobs[0].Size()
-	jobs, remaining, err := c.leaseJobs(queue1, requestSize.AsFloat(), NewLeasePayloadLimit(10, jobSizeBytes*2+1, jobSizeBytes))
+	jobs, remaining, err := c.leaseJobs(ctx, queue1, requestSize.AsFloat(), newLeasePayloadLimit(10, jobSizeBytes*2+1, jobSizeBytes))
 
 	expectedRemaining := requestSize
 	expectedRemaining.Sub(common.TotalPodResourceRequest(classicPodSpec))
@@ -311,7 +310,9 @@ var classicPodSpec = &v1.PodSpec{
 		Resources: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
 			Limits:   v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Mi")},
-		}}}}
+		},
+	}},
+}
 
 type fakeJobQueue struct {
 	jobsByQueue map[string][]*api.Job
