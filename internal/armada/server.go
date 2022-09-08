@@ -40,6 +40,14 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	log.Info("Armada server starting")
 	defer log.Info("Armada server shutting down")
 
+	if config.Scheduling.Preemption.Enabled {
+		log.Info("Armada Job preemption is enabled")
+		log.Infof("Supported priority classes are: %v", config.Scheduling.Preemption.PriorityClasses)
+		log.Infof("Default Priority Class is: %s", config.Scheduling.Preemption.DefaultPriorityClass)
+	} else {
+		log.Info("Armada Job preemption is disabled")
+	}
+
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
 	startupCompleteCheck := health.NewStartupCompleteChecker()
 	healthChecks.Add(startupCompleteCheck)
