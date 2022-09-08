@@ -85,7 +85,14 @@ func ShortSequenceString(sequence *armadaevents.EventSequence) string {
 }
 
 // ApiJobsFromLogSubmitJobs converts a slice of log jobs to API jobs.
-func ApiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, jobSetName string, time time.Time, es []*armadaevents.SubmitJob) ([]*api.Job, error) {
+func ApiJobsFromLogSubmitJobs(
+	userId string,
+	groups []string,
+	queueName string,
+	jobSetName string,
+	time time.Time,
+	es []*armadaevents.SubmitJob,
+) ([]*api.Job, error) {
 	jobs := make([]*api.Job, len(es), len(es))
 	for i, e := range es {
 		job, err := ApiJobFromLogSubmitJob(userId, groups, queueName, jobSetName, time, e)
@@ -99,7 +106,6 @@ func ApiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, 
 
 // ApiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
 func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-
 	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 	if err != nil {
 		err = errors.WithStack(err)
@@ -226,7 +232,6 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 // To extract services and ingresses, PopulateK8sServicesIngresses must be called on the job first
 // to convert API-specific job objects to proper K8s objects.
 func LogSubmitObjectsFromApiJob(job *api.Job) (*armadaevents.KubernetesMainObject, []*armadaevents.KubernetesObject, error) {
-
 	// Objects part of the job in addition to the main object.
 	objects := make([]*armadaevents.KubernetesObject, 0, len(job.Services)+len(job.Ingress)+len(job.PodSpecs))
 
@@ -304,7 +309,6 @@ func PopulateK8sServicesIngresses(job *api.Job, ingressConfig *configuration.Ing
 
 // K8sServicesIngressesFromApiJob converts job.Services and job.Ingress to k8s services and ingresses.
 func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.IngressConfiguration) ([]*v1.Service, []*networking.Ingress, error) {
-
 	// GenerateIngresses (below) looks into the pod to set names for the services/ingresses.
 	// Hence, we use the same code as is later used by the executor to create the pod to be submitted.
 	// Note that we only create the pod here to pass it to GenerateIngresses.
@@ -362,7 +366,6 @@ func K8sObjectMetaFromLogObjectMeta(meta *armadaevents.ObjectMeta) *metav1.Objec
 }
 
 func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.EventSequence, error) {
-
 	// Each sequence may only contain events for a specific combination of (queue, jobSet, userId).
 	// Because each API event may contain different (queue, jobSet, userId), we map each event to separate sequences.
 	sequences := make([]*armadaevents.EventSequence, 0, len(msgs))
@@ -387,7 +390,6 @@ func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.Even
 // if sequence 1 and 3 share the same (queue, jobSetName, userId, groups)
 // and if the sequence [D, E] is for a different job set.
 func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaevents.EventSequence {
-
 	// We may change ordering between job sets but not within job sets.
 	// To ensure the order of the resulting compacted sequences is deterministic,
 	// store a slice of all unique jobSetNames in the order they occur in sequences.
@@ -400,7 +402,6 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 		}
 		// Consider sequences within the same jobSet for compaction.
 		if jobSetSequences, ok := sequencesFromJobSetName[sequence.JobSetName]; ok {
-
 			// This first if should never trigger.
 			if len(jobSetSequences) == 0 {
 				numSequences++
@@ -408,7 +409,11 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 			} else {
 				// Merge events in sequence into the last sequence for this jobSet if (queue, jobSetName, userId, groups) are equal.
 				lastSequence := jobSetSequences[len(jobSetSequences)-1]
-				if lastSequence != nil && sequence.Queue == lastSequence.Queue && sequence.UserId == lastSequence.UserId && groupsEqual(sequence.Groups, lastSequence.Groups) {
+				if lastSequence != nil &&
+					sequence.Queue == lastSequence.Queue &&
+					sequence.UserId == lastSequence.UserId &&
+					groupsEqual(sequence.Groups, lastSequence.Groups) {
+
 					lastSequence.Events = append(lastSequence.Events, sequence.Events...)
 				} else {
 					numSequences++
@@ -452,10 +457,10 @@ func groupsEqual(g1, g2 []string) bool {
 
 // LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
 // and returns all resulting sequences.
-func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
-		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes)
+		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes, strict)
 		if err != nil {
 			return nil, err
 		}
@@ -466,8 +471,7 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
 // into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int) ([]*armadaevents.EventSequence, error) {
-
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
@@ -479,11 +483,16 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int
 	lastSequenceEventSize := 0
 	for _, event := range sequence.Events {
 		eventSize := proto.Size(event)
-		if eventSize+headerSize > sizeInBytes {
+		if eventSize+headerSize > sizeInBytes && strict {
 			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "sequence",
-				Value:   sequence,
-				Message: fmt.Sprintf("sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d", headerSize, eventSize, sizeInBytes),
+				Name:  "sequence",
+				Value: sequence,
+				Message: fmt.Sprintf(
+					"sequence header is of size %d and sequence contains an event of size %d bytes, but the sequence size limit is %d",
+					headerSize,
+					eventSize,
+					sizeInBytes,
+				),
 			})
 		}
 		if len(sequences) == 0 || lastSequenceEventSize+eventSize+headerSize > sizeInBytes {

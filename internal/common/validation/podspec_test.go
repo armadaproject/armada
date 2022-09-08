@@ -24,7 +24,6 @@ func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
-
 	cpu := resource.MustParse("1")
 	cpu2 := resource.MustParse("2")
 	memory := resource.MustParse("512Mi")
@@ -200,7 +199,7 @@ func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
 	assert.Error(t, ValidatePodSpec(spec, schedulingConfig))
 }
 
-func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeedes(t *testing.T) {
+func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeeds(t *testing.T) {
 	spec := minimalValidPodSpec()
 
 	schedulingConfig := &configuration.SchedulingConfig{

@@ -20,6 +20,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/auth/authorization"
 	authConfiguration "github.com/G-Research/armada/internal/common/auth/configuration"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/health"
@@ -48,7 +49,6 @@ func TestSubmitJob_EmptyPodSpec(t *testing.T) {
 
 func TestSubmitJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		_, err := client.CreateQueue(ctx, &api.Queue{
 			Name:           "test",
 			PriorityFactor: 1,
@@ -78,7 +78,6 @@ func TestSubmitJob(t *testing.T) {
 
 func TestAutomQueueCreation(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		cpu, _ := resource.ParseQuantity("1")
 		memory, _ := resource.ParseQuantity("512Mi")
 
@@ -101,7 +100,6 @@ func TestAutomQueueCreation(t *testing.T) {
 
 func TestCancelJob(t *testing.T) {
 	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
-
 		_, err := client.CreateQueue(ctx, &api.Queue{
 			Name:           "test",
 			PriorityFactor: 1,
@@ -140,6 +138,48 @@ func TestCancelJob(t *testing.T) {
 	})
 }
 
+func TestCancelJobSet(t *testing.T) {
+	withRunningServer(func(client api.SubmitClient, leaseClient api.AggregatedQueueClient, ctx context.Context) {
+		_, err := client.CreateQueue(ctx, &api.Queue{
+			Name:           "test",
+			PriorityFactor: 1,
+		})
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+
+		cpu, _ := resource.ParseQuantity("1")
+		memory, _ := resource.ParseQuantity("512Mi")
+
+		SubmitJob(client, ctx, cpu, memory, t)
+		SubmitJob(client, ctx, cpu, memory, t)
+
+		leasedResponse, err := leaseJobs(leaseClient, ctx, common.ComputeResources{"cpu": cpu, "memory": memory})
+		if ok := assert.NoError(t, err); !ok {
+			t.FailNow()
+		}
+		assert.Equal(t, 1, len(leasedResponse.Job))
+
+		queuedCount, leasedCount := getQueueStateSummary(ctx, t, client, "test")
+		assert.Equal(t, queuedCount, 1)
+		assert.Equal(t, leasedCount, 1)
+
+		_, err = client.CancelJobSet(ctx,
+			&api.JobSetCancelRequest{
+				JobSetId: "set",
+				Queue:    "test",
+				Filter: &api.JobSetFilter{
+					States: []api.JobState{api.JobState_QUEUED},
+				},
+			})
+		assert.NoError(t, err)
+
+		queuedCount, leasedCount = getQueueStateSummary(ctx, t, client, "test")
+		assert.Equal(t, queuedCount, 0)
+		assert.Equal(t, leasedCount, 1)
+	})
+}
+
 func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
 	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
@@ -149,20 +189,34 @@ func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, avail
 	})
 }
 
+func getQueueStateSummary(ctx context.Context, t *testing.T, client api.SubmitClient, queue string) (queuedCount int, leasedCount int) {
+	queueInfo, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: queue})
+	assert.NoError(t, err)
+	queuedCount = 0
+	leasedCount = 0
+
+	for _, jobSetInfo := range queueInfo.ActiveJobSets {
+		queuedCount += int(jobSetInfo.QueuedJobs)
+		leasedCount += int(jobSetInfo.LeasedJobs)
+	}
+	return queuedCount, leasedCount
+}
+
 func SubmitJob(client api.SubmitClient, ctx context.Context, cpu resource.Quantity, memory resource.Quantity, t *testing.T) string {
 	request := &api.JobSubmitRequest{
 		JobRequestItems: []*api.JobSubmitRequestItem{
 			{
 				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{{
-						Name:  "Container1",
-						Image: "index.docker.io/library/ubuntu:latest",
-						Args:  []string{"sleep", "10s"},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					Containers: []v1.Container{
+						{
+							Name:  "Container1",
+							Image: "index.docker.io/library/ubuntu:latest",
+							Args:  []string{"sleep", "10s"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+							},
 						},
-					},
 					},
 				},
 				Priority: 0,
@@ -205,14 +259,14 @@ func withRunningServer(action func(client api.SubmitClient, leaseClient api.Aggr
 				Auth: authConfiguration.AuthConfig{
 					AnonymousAuth: true,
 					PermissionGroupMapping: map[permission.Permission][]string{
-						permissions.ExecuteJobs:    {"everyone"},
-						permissions.SubmitJobs:     {"everyone"},
-						permissions.SubmitAnyJobs:  {"everyone"},
-						permissions.CreateQueue:    {"everyone"},
-						permissions.CancelJobs:     {"everyone"},
-						permissions.CancelAnyJobs:  {"everyone"},
-						permissions.WatchEvents:    {"everyone"},
-						permissions.WatchAllEvents: {"everyone"},
+						permissions.ExecuteJobs:    {authorization.EveryoneGroup},
+						permissions.SubmitJobs:     {authorization.EveryoneGroup},
+						permissions.SubmitAnyJobs:  {authorization.EveryoneGroup},
+						permissions.CreateQueue:    {authorization.EveryoneGroup},
+						permissions.CancelJobs:     {authorization.EveryoneGroup},
+						permissions.CancelAnyJobs:  {authorization.EveryoneGroup},
+						permissions.WatchEvents:    {authorization.EveryoneGroup},
+						permissions.WatchAllEvents: {authorization.EveryoneGroup},
 					},
 				},
 				GrpcPort: uint16(port),
@@ -277,7 +331,7 @@ func setupServer(conn *grpc.ClientConn) {
 	if err != nil {
 		panic(err)
 	}
-	//Make initial lease request to populate cluster node info
+	// Make initial lease request to populate cluster node info
 	leaseClient := api.NewAggregatedQueueClient(conn)
 	_, err = leaseJobs(leaseClient, ctx, common.ComputeResources{})
 	if err != nil {

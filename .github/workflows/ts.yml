@@ -1,5 +1,16 @@
+name: Lookout
+
 on:
   push:
+    branches-ignore:
+      - master
+    paths:
+      - 'internal/lookout/ui/**'
+      - 'build/lookout/**'
+      - '.github/workflows/ts.yml'
+  pull_request:
+    branches-ignore:
+      - gh-pages
     paths:
       - 'internal/lookout/ui/**'
       - 'build/lookout/**'
@@ -11,16 +22,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
 
       - name: Check TypeScript formatting
         run: |
           npm ci && npm run fmt || exit 1
           exit $(git status -s -uno | wc -l)
         working-directory: ./internal/lookout/ui
-  ts-unit:
+  ts-unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
 
       - name: Run Unit Tests
         run: |

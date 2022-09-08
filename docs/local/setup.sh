@@ -1,5 +1,7 @@
 #!/bin/sh
 
+KIND_IMG="kindest/node:v1.21.10"
+
 printf "\n*******************************************************\n"
 printf "Running script which will deploy a local Armada cluster"
 printf "\n*******************************************************\n"
@@ -24,24 +26,29 @@ helm repo update
 printf "\n*******************************************************\n"
 printf "Deploying Armada server ..."
 printf "\n*******************************************************\n"
-kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml --image "kindest/node:v1.21.10"
+kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind-config-server.yaml --image $KIND_IMG
 
 # Set cluster as current context
 kind export kubeconfig --name=quickstart-armada-server
 
 # Install Redis
+printf "\nStarting Redis ...\n"
 helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
 
 # Install nats-streaming
+printf "\nStarting NATS ...\n"
 helm install nats nats/stan --wait
 
 # Install Apache Pulsar
-helm install pulsar apache/pulsar --wait
+printf "\nStarting Pulsar ...\n"
+helm install pulsar apache/pulsar -f docs/quickstart/pulsar-dev-settings.yaml
 
 # Install Prometheus
+printf "\nStarting Prometheus ...\n"
 helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
+printf "\nStarting Armada server ...\n"
 helm install armada-server gresearch/armada -f ./docs/quickstart/server-values.yaml
 
 # Get server IP for executors
@@ -54,7 +61,7 @@ SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.sta
 printf "\n*******************************************************\n"
 printf "Deploying first Armada executor cluster ..."
 printf "\n*******************************************************\n"
-kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml --image "kindest/node:v1.21.10"
+kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
 kind export kubeconfig --name=quickstart-armada-executor-0
@@ -76,7 +83,7 @@ EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpat
 printf "\n*******************************************************\n"
 printf "Deploying second Armada executor cluster ..."
 printf "\n*******************************************************\n"
-kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml --image "kindest/node:v1.21.10"
+kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
 kind export kubeconfig --name=quickstart-armada-executor-1
@@ -135,3 +142,30 @@ printf "\n\t* type %bkubectl port-forward svc/kube-prometheus-stack-grafana 8081
 printf "\n\t* open %bhttp://localhost:8081%b in your browser" "$bs" "$be"
 printf "\n\t* use %badmin:prom-operator%b as default admin credentials for login" "$bs" "$be"
 printf "\n\t* open the %bArmada - Overview%b dashboard\n" "$bs" "$be"
+
+echo "Downloading armadactl for your platform"
+
+# Determine Platform
+SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
+if [ $SYSTEM == "windows" ]; then
+  ARCHIVE_TYPE=zip
+  UNARCHIVE="zcat > armadactl.exe"
+else
+  ARCHIVE_TYPE=tar.gz
+  UNARCHIVE="tar xzf -"
+fi
+
+# Find the latest Armada version
+LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/G-Research/armada/releases/latest)
+ARMADA_VERSION=${LATEST_GH_URL##*/}
+ARMADACTL_URL="https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
+
+# Download and untar/unzip armadactl
+if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
+	echo "armadactl downloaded successfully"
+else
+	echo "Something is amiss!"
+	echo "Please visit:"
+	echo "  - https://github.com/G-Research/armada/releases/latest"
+	echo "to find the latest armadactl binary for your platform"
+fi

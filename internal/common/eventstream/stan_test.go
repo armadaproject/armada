@@ -15,15 +15,15 @@ import (
 )
 
 type MockStanClient struct {
-	behavior string
+	behaviour string
 }
 
 func (c *MockStanClient) PublishAsync(subject string, data []byte, ah stan.AckHandler) (string, error) {
-	if c.behavior == "fail" {
+	if c.behaviour == "fail" {
 		ah(subject, errors.New("something bad happened"))
 		return subject, nil
 	}
-	if c.behavior == "callback_timeout" {
+	if c.behaviour == "callback_timeout" {
 		// Never invoke the callback
 		return subject, nil
 	}
@@ -40,7 +40,7 @@ func (c *MockStanClient) Close() error {
 }
 
 func TestPublishWithNoError(t *testing.T) {
-	stanClient := &MockStanClient{behavior: "success"}
+	stanClient := &MockStanClient{behaviour: "success"}
 	stream := NewStanEventStream("EVENTS", stanClient)
 
 	nBatches := 1000
@@ -69,7 +69,7 @@ func TestPublishWithNoError(t *testing.T) {
 }
 
 func TestPublishWithErrors(t *testing.T) {
-	stanClient := &MockStanClient{behavior: "fail"}
+	stanClient := &MockStanClient{behaviour: "fail"}
 	stream := NewStanEventStream("EVENTS", stanClient)
 
 	nBatches := 1000
@@ -98,7 +98,7 @@ func TestPublishWithErrors(t *testing.T) {
 }
 
 func TestPublishWithAckTimeout(t *testing.T) {
-	stanClient := &MockStanClient{behavior: "callback_timeout"}
+	stanClient := &MockStanClient{behaviour: "callback_timeout"}
 	stream := NewStanEventStream("EVENTS", stanClient)
 
 	nEvents := 1000

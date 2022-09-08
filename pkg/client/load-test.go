@@ -7,7 +7,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -103,7 +102,11 @@ func watchJobInfoChannel(eventChannel chan api.Event) (*sync.WaitGroup, chan boo
 	return complete, stop, aggregatedCurrentState
 }
 
-func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submission *domain.SubmissionDescription, i int) (jobIds chan string, jobSetId string, submissionComplete *sync.WaitGroup) {
+func (apiLoadTester ArmadaLoadTester) runSubmission(
+	ctx context.Context,
+	submission *domain.SubmissionDescription,
+	i int,
+) (jobIds chan string, jobSetId string, submissionComplete *sync.WaitGroup) {
 	queue := createQueueName(submission, i)
 	startTime := time.Now()
 
@@ -124,17 +127,15 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submiss
 	submissionComplete = &sync.WaitGroup{}
 	submissionComplete.Add(1)
 
-	go WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
+	go WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 		defer submissionComplete.Done()
-
-		client := api.NewSubmitClient(connection)
 
 		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
 		if status.Code(e) == codes.AlreadyExists {
 			log.Infof("Queue %s already exists so no need to create it.\n", queue)
 		} else if e != nil {
 			log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
-			return
+			return nil
 		} else {
 			log.Infof("Queue %s created.\n", queue)
 		}
@@ -179,11 +180,15 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(ctx context.Context, submiss
 			}
 		}
 		close(jobIds)
+		return nil
 	})
 	return jobIds, jobSetId, submissionComplete
 }
 
-func filterReadyJobs(startTime time.Time, jobs []*domain.JobSubmissionDescription) (ready []*domain.JobSubmissionDescription, notReady []*domain.JobSubmissionDescription) {
+func filterReadyJobs(
+	startTime time.Time,
+	jobs []*domain.JobSubmissionDescription,
+) (ready []*domain.JobSubmissionDescription, notReady []*domain.JobSubmissionDescription) {
 	now := time.Now()
 	ready = []*domain.JobSubmissionDescription{}
 	notReady = []*domain.JobSubmissionDescription{}
@@ -213,7 +218,12 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	return queue
 }
 
-func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Context, queue, jobSetId string, jobIds chan string, eventChannel chan api.Event) []string {
+func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
+	ctx context.Context,
+	queue, jobSetId string,
+	jobIds chan string,
+	eventChannel chan api.Event,
+) []string {
 	var submittedIds []string = nil
 	go func() {
 		ids := []string{}
@@ -222,10 +232,8 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Con
 		}
 		submittedIds = ids
 	}()
-	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
-		eventsClient := api.NewEventClient(connection)
-
-		WatchJobSet(eventsClient, queue, jobSetId, true, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
+	WithEventClient(apiLoadTester.apiConnectionDetails, func(client api.EventClient) error {
+		WatchJobSet(client, queue, jobSetId, true, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
 			if submittedIds == nil {
@@ -239,6 +247,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(ctx context.Con
 
 			return state.AreJobsFinished(submittedIds)
 		})
+		return nil
 	})
 	return submittedIds
 }
@@ -261,15 +270,14 @@ func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []
 }
 
 func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId string) {
-	WithConnection(apiLoadTester.apiConnectionDetails, func(connection *grpc.ClientConn) {
-		client := api.NewSubmitClient(connection)
-
+	WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 		timeout, _ := common.ContextWithDefaultTimeout()
 		cancelRequest := &api.JobCancelRequest{
 			JobSetId: jobSetId,
 			Queue:    queue,
 		}
-		_, _ = client.CancelJobs(timeout, cancelRequest)
+		_, err := client.CancelJobs(timeout, cancelRequest)
+		return err
 	})
 }
 

@@ -15,7 +15,7 @@ The below sections will cover how to install the component into Kubernetes.
 * Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
 * gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/kubernetes/ingress-nginx)
 * Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
-* Optionally install NATS streaming server (helm chart: https://github.com/nats-io/k8s/tree/master/helm/charts/stan, additional docs: https://docs.nats.io/nats-on-kubernetes/minimal-setup)
+* Optionally install NATS streaming server (helm chart: https://github.com/nats-io/k8s/tree/master/helm/charts/stan, additional docs: https://docs.nats.io/running-a-nats-service/nats-kubernetes)
 
 Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
 ```bash
@@ -57,7 +57,7 @@ basicAuth:
     "user1": "password1"
 ```
 
-For all configuration options you can specify in your values file, see [server Helm docs](./helm/server.md).
+For all configuration options you can specify in your values file, see [server Helm docs](https://armadaproject.io/helm#server-helm-chat).
 
 Fill in the appropriate values in the above template and save it as `server-values.yaml`
 
@@ -118,7 +118,7 @@ tolerations: []
 <br/>
 
 
-For other node configurations and all other executor options you can specify in your values file, see [executor Helm docs](./helm/executor.md).
+For other node configurations and all other executor options you can specify in your values file, see [executor Helm docs](https://armadaproject.io/helm#Executor-helm-chart).
 
 Fill in the appropriate values in the above template and save it as `executor-values.yaml`.
 

@@ -18,19 +18,4 @@ scheduling:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
-eventapi:
-  enabled : false
-  queryConcurrency: 100
-  jobsetCacheSize:  10000
-  updateTopic:      sequence-updates
-  postgres:
-    maxOpenConns: 100
-    maxIdleConns: 25
-    connMaxLifetime: 30m
-    connection:
-      host: localhost
-      port: 5432
-      user: postgres
-      password: psw
-      dbname: postgres
-      sslmode: disable
+defaultToLegacyEvents: true

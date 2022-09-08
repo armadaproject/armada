@@ -259,6 +259,10 @@ func (repo *mockJobRepository) GetActiveJobIds(queue string, jobSetId string) ([
 	return []string{}, nil
 }
 
+func (repo *mockJobRepository) GetJobSetJobIds(queue string, jobSetId string, filter *repository.JobSetFilter) ([]string, error) {
+	return []string{}, nil
+}
+
 func (repo *mockJobRepository) GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error) {
 	return []*api.JobSetInfo{}, nil
 }
@@ -277,10 +281,6 @@ func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 
 func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	return []*api.Job{}, nil
-}
-
-func (repo *mockJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
-	return nil
 }
 
 func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {

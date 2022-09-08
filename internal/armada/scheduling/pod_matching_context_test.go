@@ -149,7 +149,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenFindsMatch_ReturnsMatch(t *testing.T
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
 
-	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, nil)
 	assert.Equal(t, nodeAllocations[0], resultNode)
 	assert.True(t, resultFlag)
 	assert.NoError(t, err)
@@ -169,7 +169,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenAllAvailableCpuConsumed_ReturnsFalse
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
 
-	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, nil)
 	assert.Nil(t, resultNode)
 	assert.False(t, resultFlag)
 	assert.Error(t, err)
@@ -181,11 +181,12 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorMatchesNoNodes_ReturnsFa
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, nil)
 	assert.Nil(t, resultNode)
 	assert.False(t, resultFlag)
 	assert.Error(t, err)
 }
+
 func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_ReturnsSecondNode(t *testing.T) {
 	podSpec := &v1.PodSpec{NodeSelector: map[string]string{"a": "b"}}
 
@@ -196,7 +197,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_Return
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, nil)
 	assert.Equal(t, nodeAllocations[1], resultNode)
 	assert.True(t, resultFlag)
 	assert.NoError(t, err)
@@ -211,11 +212,12 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutAllNodes_ReturnsFalse(t
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, nil)
 	assert.Nil(t, resultNode)
 	assert.False(t, resultFlag)
 	assert.Error(t, err)
 }
+
 func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecondNode(t *testing.T) {
 	podSpec := &v1.PodSpec{Tolerations: []v1.Toleration{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}}
 
@@ -226,7 +228,7 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecond
 	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
 
-	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
+	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, nil)
 	assert.Equal(t, nodeAllocations[1], resultNode)
 	assert.True(t, resultFlag)
 	assert.NoError(t, err)
@@ -336,5 +338,9 @@ func podWithRequiredNodeAffinity(reqs []v1.NodeSelectorRequirement) *v1.PodSpec 
 	requiredTerms := []v1.NodeSelectorTerm{
 		{MatchExpressions: reqs},
 	}
-	return &v1.PodSpec{Affinity: &v1.Affinity{NodeAffinity: &v1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: requiredTerms}}}}
+	return &v1.PodSpec{
+		Affinity: &v1.Affinity{
+			NodeAffinity: &v1.NodeAffinity{RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{NodeSelectorTerms: requiredTerms}},
+		},
+	}
 }

@@ -82,7 +82,6 @@ func TestQueue(t *testing.T) {
 		GroupOwners:    groups,
 		ResourceLimits: resourceLimits,
 	})
-
 	if err != nil {
 		t.Fatalf("failed to instantiate queue: %s", err)
 	}
@@ -235,7 +234,6 @@ jobs:
 		UserOwners:     owners,
 		GroupOwners:    groups,
 	})
-
 	if err != nil {
 		t.Fatalf("failed to instantiate queue: %s", err)
 	}
@@ -255,7 +253,7 @@ jobs:
 
 	out := buf.String()
 	buf.Reset()
-	for _, s := range []string{"Submitted job with ID", "to job set with ID set1\n"} {
+	for _, s := range []string{"Submitted job with id", "to job set set1\n"} {
 		if !strings.Contains(out, s) {
 			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
 		}

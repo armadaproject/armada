@@ -1,0 +1,57 @@
+name: Python Client
+
+on:
+  push:
+    branches-ignore:
+      - master
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python-client.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'makefile'
+      - '.github/workflows/python-tests/*'
+
+  pull_request:
+    branches-ignore:
+      - gh-pages
+    paths:
+      - 'client/python/**'
+      - 'build/python-client/**'
+      - 'pkg/api/*.proto'
+      - '.github/workflows/python-client.yml'
+      - 'docs/python_armada_client.md'
+      - 'scripts/build-python-client.sh'
+      - 'makefile'
+      - '.github/workflows/python-tests/*'
+
+jobs:
+  python-client-tox:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./.github/workflows/go-setup
+      - uses: ./.github/workflows/python-tests
+        with:
+          python-version: '3.8.10'
+          path: 'client/python'
+  python-client-integration-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8.10'
+      - run: make build-ci
+      - run: make tests-e2e-setup
+      - run: make tests-e2e-python
+      - run: make tests-e2e-teardown

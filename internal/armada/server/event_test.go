@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -16,7 +18,9 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
@@ -51,9 +55,49 @@ func TestEventServer_ReportUsage(t *testing.T) {
 	})
 }
 
+func TestEventServer_ForceNew(t *testing.T) {
+	withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
+		jobSetId := "set1"
+		queue := ""
+		jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
+		runIdString := "123e4567-e89b-12d3-a456-426614174000"
+		baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+		jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
+		runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+
+		stream := &eventStreamMock{}
+
+		assigned := &armadaevents.EventSequence_Event{
+			Created: &baseTime,
+			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+				JobRunAssigned: &armadaevents.JobRunAssigned{
+					RunId: runIdProto,
+					JobId: jobIdProto,
+				},
+			},
+		}
+
+		reportPulsarEvent(&armadaevents.EventSequence{
+			Queue:      queue,
+			JobSetName: jobSetId,
+			Events:     []*armadaevents.EventSequence_Event{assigned},
+		})
+
+		e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
+		assert.NoError(t, e)
+		assert.Equal(t, 1, len(stream.sendMessages))
+		expected := &api.EventMessage_Pending{Pending: &api.JobPendingEvent{
+			JobId:    jobIdString,
+			JobSetId: jobSetId,
+			Queue:    queue,
+			Created:  baseTime,
+		}}
+		assert.Equal(t, expected, stream.sendMessages[len(stream.sendMessages)-1].Message.Events)
+	})
+}
+
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 	withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, func(s *EventServer) {
-
 		stream := &eventStreamMock{}
 		e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
 		assert.Nil(t, e)
@@ -68,7 +112,7 @@ func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
 		err := s.GetJobSetEvents(&api.JobSetRequest{
 			Id:             "job-set-1",
 			Watch:          false,
-			Queue:          "non-existant-queue",
+			Queue:          "non-existent-queue",
 			ErrorIfMissing: false,
 		}, stream)
 		e, ok := status.FromError(err)
@@ -290,17 +334,45 @@ func reportEvent(t *testing.T, s *EventServer, event api.Event) {
 	assert.Nil(t, e)
 }
 
+func reportPulsarEvent(es *armadaevents.EventSequence) error {
+	bytes, err := proto.Marshal(es)
+	if err != nil {
+		return err
+	}
+	compressor, err := compress.NewZlibCompressor(0)
+	if err != nil {
+		return err
+	}
+	compressed, err := compressor.Compress(bytes)
+	if err != nil {
+		return err
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
+
+	client.XAdd(&redis.XAddArgs{
+		Stream: "Events:" + es.Queue + ":" + es.JobSetName,
+		Values: map[string]interface{}{
+			"message": compressed,
+		},
+	})
+	return nil
+}
+
 func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPolicy, action func(s *EventServer)) {
 	t.Helper()
 
 	// using real redis instance as miniredis does not support streams
-	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
-	repo := repository.NewRedisEventRepository(client, eventRetention)
+	legacyEventRepo := repository.NewLegacyRedisEventRepository(legacyClient, eventRetention)
+	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	server := NewEventServer(&FakePermissionChecker{}, repo, repo, queueRepo, nil)
+	server := NewEventServer(&FakePermissionChecker{}, eventRepo, legacyEventRepo, legacyEventRepo, queueRepo, true)
 
 	client.FlushDB()
+	legacyClient.FlushDB()
 
 	// Create test queue
 	err := queueRepo.CreateQueue(queue.Queue{
@@ -313,6 +385,7 @@ func withEventServer(t *testing.T, eventRetention configuration.EventRetentionPo
 	action(server)
 
 	client.FlushDB()
+	legacyClient.FlushDB()
 }
 
 type eventStreamMock struct {

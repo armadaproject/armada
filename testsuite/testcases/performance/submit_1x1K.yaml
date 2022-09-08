@@ -1,0 +1,28 @@
+numBatches: 1
+batchSize: 1000
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: echo
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.16
+          args:
+            - echo
+            - "Hello world!"
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 100m
+---
+timeout: "900s"
+expectedEvents:
+  - submitted:
+  - succeeded:

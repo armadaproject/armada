@@ -24,8 +24,10 @@ const (
 	nodeTypeLabel     = "nodeType"
 )
 
-const UnassignedNodeType = "unassigned"
-const UnknownNodeType = "unknown"
+const (
+	UnassignedNodeType = "unassigned"
+	UnknownNodeType    = "unknown"
+)
 
 var podCountDesc = prometheus.NewDesc(
 	metrics.ArmadaExecutorMetricsPrefix+"job_pod",
@@ -76,7 +78,8 @@ func ExposeClusterContextMetrics(
 	context context.ClusterContext,
 	utilisationService utilisation.UtilisationService,
 	queueUtilisationService utilisation.PodUtilisationService,
-	nodeInfoService node.NodeInfoService) *ClusterContextMetrics {
+	nodeInfoService node.NodeInfoService,
+) *ClusterContextMetrics {
 	m := &ClusterContextMetrics{
 		context:                 context,
 		utilisationService:      utilisationService,
@@ -216,7 +219,9 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 	for _, nodeGroup := range nodeGroupAllocationInfos {
 		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType.Id)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType, nodeGroup.NodeType.Id)
+			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
+				prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType,
+				nodeGroup.NodeType.Id)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {

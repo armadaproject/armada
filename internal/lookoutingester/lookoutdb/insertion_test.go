@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/lookout/repository"
+
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -15,31 +17,31 @@ import (
 
 	"github.com/G-Research/armada/internal/lookout/testutil"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-const runIdString = "123e4567-e89b-12d3-a456-426614174000"
+const (
+	jobIdString    = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString    = "123e4567-e89b-12d3-a456-426614174000"
+	jobSetName     = "testJobset"
+	executorId     = "testCluster"
+	nodeName       = "testNode"
+	queue          = "test-queue"
+	userId         = "testUser"
+	priority       = 3
+	updatePriority = 4
+	updateState    = 5
+	podNumber      = 6
+	jobJson        = `{"foo": "bar"}`
+	jobProto       = "hello world"
+	containerName  = "testContainer"
+)
 
-var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-
-const jobSetName = "testJobset"
-const executorId = "testCluster"
-const nodeName = "testNode"
-const queue = "test-queue"
-const userId = "testUser"
-const priority = 3
-const updatePriority = 4
-const updateState = 5
-const podNumber = 6
-const jobJson = `{"foo": "bar"}`
-const jobProto = "hello world"
-const containerName = "testContainer"
-
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-var updateTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
-var startTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
-var finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+var (
+	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
+	startTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
+	finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+)
 
 // An invalid job id that exceeds th varchar count
 var invalidId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -131,7 +133,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			ContainerName: containerName,
 			ExitCode:      3,
 		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{pulsarutils.NewMessageId(3), 0, 1}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{MessageId: pulsarutils.NewMessageId(3), Index: 0, ConsumerId: 1}},
 	}
 }
 
@@ -291,9 +293,53 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUpdateJobsWithCancelled(t *testing.T) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		initial := []*model.CreateJobInstruction{{
+			JobId:     jobIdString,
+			Queue:     queue,
+			Owner:     userId,
+			JobSet:    jobSetName,
+			Priority:  priority,
+			Submitted: baseTime,
+			JobJson:   []byte(jobJson),
+			JobProto:  []byte(jobProto),
+			State:     0,
+			Updated:   baseTime,
+		}}
+
+		update1 := []*model.UpdateJobInstruction{{
+			JobId:   jobIdString,
+			State:   pointer.Int32(repository.JobCancelledOrdinal),
+			Updated: baseTime,
+		}}
+
+		update2 := []*model.UpdateJobInstruction{{
+			JobId:   jobIdString,
+			State:   pointer.Int32(repository.JobRunningOrdinal),
+			Updated: baseTime,
+		}}
+
+		// Insert
+		CreateJobs(ctx.Background(), db, initial)
+
+		// Cancel the job
+		UpdateJobs(ctx.Background(), db, update1)
+
+		// Update the job- this should be discarded
+		UpdateJobs(ctx.Background(), db, update2)
+
+		// Assert the state is still cancelled
+		job := getJob(t, db, jobIdString)
+		assert.Equal(t, repository.JobCancelledOrdinal, int(job.State))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestCreateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Simple create
 		CreateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		job := getJob(t, db, jobIdString)
@@ -320,7 +366,6 @@ func TestCreateJobsScalar(t *testing.T) {
 
 func TestCreateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job so we can satisfy PK
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -353,7 +398,6 @@ func TestCreateJobRunsBatch(t *testing.T) {
 
 func TestCreateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job so we can satisfy PK
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -384,7 +428,6 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 func TestUpdateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job and run
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -423,7 +466,6 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 
 func TestUpdateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job and run
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -461,7 +503,6 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -506,7 +547,6 @@ func TestEmptyUpdate(t *testing.T) {
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
 		// Need to make sure we have a job
 		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -555,7 +595,6 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestConflateJobUpdates(T *testing.T) {
-
 	// Empty
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{})
 	assert.Equal(T, []*model.UpdateJobInstruction{}, updates)
@@ -581,8 +620,20 @@ func TestConflateJobUpdates(T *testing.T) {
 	assert.Equal(T, expected, updates)
 }
 
-func TestConflateJobRunUpdates(T *testing.T) {
+func TestConflateJobUpdatesWithCancelled(T *testing.T) {
+	// Updates after the cancelled shouldn't be processed
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(repository.JobRunningOrdinal)},
+	})
 
+	expected := []*model.UpdateJobInstruction{
+		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+	}
+	assert.Equal(T, expected, updates)
+}
+
+func TestConflateJobRunUpdates(T *testing.T) {
 	// Empty
 	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{})
 	assert.Equal(T, []*model.UpdateJobRunInstruction{}, updates)
@@ -615,7 +666,20 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		ctx.Background(),
 		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled FROM job WHERE job_id = $1`,
 		jobId)
-	err := r.Scan(&job.JobId, &job.Queue, &job.Owner, &job.JobSet, &job.Priority, &job.Submitted, &job.State, &job.Duplicate, &job.Updated, &job.JobJson, &job.JobProto, &job.Cancelled)
+	err := r.Scan(
+		&job.JobId,
+		&job.Queue,
+		&job.Owner,
+		&job.JobSet,
+		&job.Priority,
+		&job.Submitted,
+		&job.State,
+		&job.Duplicate,
+		&job.Updated,
+		&job.JobJson,
+		&job.JobProto,
+		&job.Cancelled,
+	)
 	assert.Nil(t, err)
 	return job
 }
@@ -626,7 +690,19 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		ctx.Background(),
 		`SELECT run_id, job_id, cluster, node, created, started, finished, succeeded, error, pod_number, unable_to_schedule FROM job_run WHERE run_id = $1`,
 		runId)
-	err := r.Scan(&run.RunId, &run.JobId, &run.Cluster, &run.Node, &run.Created, &run.Started, &run.Finished, &run.Succeeded, &run.Error, &run.PodNumber, &run.UnableToSchedule)
+	err := r.Scan(
+		&run.RunId,
+		&run.JobId,
+		&run.Cluster,
+		&run.Node,
+		&run.Created,
+		&run.Started,
+		&run.Finished,
+		&run.Succeeded,
+		&run.Error,
+		&run.PodNumber,
+		&run.UnableToSchedule,
+	)
 	assert.Nil(t, err)
 	return run
 }

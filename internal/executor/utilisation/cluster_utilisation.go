@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -34,8 +36,8 @@ func NewClusterUtilisationService(
 	queueUtilisationService PodUtilisationService,
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
-	trackedNodeLabels []string) *ClusterUtilisationService {
-
+	trackedNodeLabels []string,
+) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
 		queueUtilisationService: queueUtilisationService,
@@ -105,6 +107,10 @@ type ClusterAvailableCapacityReport struct {
 	Nodes             []api.NodeInfo
 }
 
+func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) resource.Quantity {
+	return (*r.AvailableCapacity)[resource]
+}
+
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
@@ -126,11 +132,15 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource.Sub(totalPodResource)
 
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
-	nodes := []api.NodeInfo{}
+	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
+	nodes := make([]api.NodeInfo, 0, len(processingNodes))
 	for _, n := range processingNodes {
 		allocatable := common.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
+
+		nodePods := podsByNodes[n.Name]
+		allocated := getAllocatedResourcesByPriority(nodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
@@ -138,6 +148,8 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			Taints:               n.Spec.Taints,
 			AllocatableResources: allocatable,
 			AvailableResources:   available,
+			TotalResources:       allocatable,
+			AllocatedResources:   allocated,
 		})
 	}
 
@@ -160,6 +172,43 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeRes
 		allocations[nodeName].Add(resourceRequest)
 	}
 	return allocations
+}
+
+func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
+	podsByNodes := make(map[string][]*v1.Pod)
+
+	for _, p := range pods {
+		podsByNodes[p.Spec.NodeName] = append(podsByNodes[p.Spec.NodeName], p)
+	}
+
+	return podsByNodes
+}
+
+func getAllocatedResourcesByPriority(pods []*v1.Pod) map[int32]api.ComputeResource {
+	resourceUsageByPriority := make(map[int32]api.ComputeResource)
+
+	podsByPriority := groupPodsByPriority(pods)
+
+	for priority, podsForPriority := range podsByPriority {
+		resources := api.ComputeResource{Resources: common.CalculateTotalResourceRequest(podsForPriority)}
+		resourceUsageByPriority[priority] = resources
+	}
+
+	return resourceUsageByPriority
+}
+
+func groupPodsByPriority(pods []*v1.Pod) map[int32][]*v1.Pod {
+	priorityMap := make(map[int32][]*v1.Pod)
+
+	for _, p := range pods {
+		var priority int32 = 0
+		if p.Spec.Priority != nil {
+			priority = *(p.Spec.Priority)
+		}
+		priorityMap[priority] = append(priorityMap[priority], p)
+	}
+
+	return priorityMap
 }
 
 // GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.
@@ -278,30 +327,17 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	runningPods := FilterPodsWithPhase(pods, v1.PodRunning)
-
-	allocationByQueue := GetAllocationByQueue(runningPods)
-	usageByQueue := clusterUtilisationService.getUsageByQueue(runningPods)
-
-	queueReports := make([]*api.QueueReport, 0, len(allocationByQueue))
-
-	for queueName, queueUsage := range allocationByQueue {
-		queueUtilisation, present := usageByQueue[queueName]
-		var resourceUsed common.ComputeResources
-		if !present {
-			resourceUsed = *new(common.ComputeResources)
-		} else {
-			resourceUsed = queueUtilisation
-		}
-		podsInQueue := FilterPods(pods, func(pod *v1.Pod) bool {
-			queue, present := pod.Labels[domain.Queue]
-			return present && queueName == queue
-		})
-		phaseSummary := CountPodsByPhase(podsInQueue)
+	podsByQueue := GroupByQueue(pods)
+	queueReports := make([]*api.QueueReport, 0, len(podsByQueue))
+	for queueName, queuePods := range podsByQueue {
+		runningPods := FilterPodsWithPhase(queuePods, v1.PodRunning)
+		resourceAllocated := common.CalculateTotalResourceRequest(runningPods)
+		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
+		phaseSummary := CountPodsByPhase(queuePods)
 
 		queueReport := api.QueueReport{
 			Name:               queueName,
-			Resources:          queueUsage,
+			Resources:          resourceAllocated,
 			ResourcesUsed:      resourceUsed,
 			CountOfPodsByPhase: phaseSummary,
 		}
@@ -310,26 +346,15 @@ func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueue
 	return queueReports
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getUsageByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
-	utilisationByQueue := make(map[string]common.ComputeResources)
+func (clusterUtilisationService *ClusterUtilisationService) getTotalPodUtilisation(pods []*v1.Pod) common.ComputeResources {
+	totalUtilisation := common.ComputeResources{}
 
 	for _, pod := range pods {
-		queue, present := pod.Labels[domain.Queue]
-		if !present {
-			log.Errorf("Pod %s found not belonging to a queue, not reporting its usage", pod.Name)
-			continue
-		}
-
 		podUsage := clusterUtilisationService.queueUtilisationService.GetPodUtilisation(pod)
-
-		if _, ok := utilisationByQueue[queue]; ok {
-			utilisationByQueue[queue].Add(podUsage.CurrentUsage)
-		} else {
-			utilisationByQueue[queue] = podUsage.CurrentUsage
-		}
+		totalUtilisation.Add(podUsage.CurrentUsage)
 	}
 
-	return utilisationByQueue
+	return totalUtilisation
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(labels map[string]string) map[string]string {

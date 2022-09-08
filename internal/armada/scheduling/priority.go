@@ -16,7 +16,11 @@ type QueuePriorityInfo struct {
 	CurrentUsage common.ComputeResources
 }
 
-func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64, activeClusterReports map[string]*api.ClusterUsageReport, queues []*api.Queue) map[*api.Queue]QueuePriorityInfo {
+func CalculateQueuesPriorityInfo(
+	clusterPriorities map[string]map[string]float64,
+	activeClusterReports map[string]*api.ClusterUsageReport,
+	queues []*api.Queue,
+) map[*api.Queue]QueuePriorityInfo {
 	queuePriority := aggregatePriority(clusterPriorities)
 	queueUsage := aggregateQueueUsage(activeClusterReports)
 	resultPriorityMap := map[*api.Queue]QueuePriorityInfo{}
@@ -34,7 +38,13 @@ func CalculateQueuesPriorityInfo(clusterPriorities map[string]map[string]float64
 	return resultPriorityMap
 }
 
-func CalculatePriorityUpdate(resourceScarcity map[string]float64, previousReport *api.ClusterUsageReport, report *api.ClusterUsageReport, previousPriority map[string]float64, halfTime time.Duration) map[string]float64 {
+func CalculatePriorityUpdate(
+	resourceScarcity map[string]float64,
+	previousReport *api.ClusterUsageReport,
+	report *api.ClusterUsageReport,
+	previousPriority map[string]float64,
+	halfTime time.Duration,
+) map[string]float64 {
 	timeChange := time.Minute
 	if previousReport != nil {
 		timeChange = report.ReportTime.Sub(previousReport.ReportTime)
@@ -44,8 +54,12 @@ func CalculatePriorityUpdate(resourceScarcity map[string]float64, previousReport
 	return newPriority
 }
 
-func calculatePriorityUpdate(usage map[string]float64, previousPriority map[string]float64, timeChange time.Duration, halfTime time.Duration) map[string]float64 {
-
+func calculatePriorityUpdate(
+	usage map[string]float64,
+	previousPriority map[string]float64,
+	timeChange time.Duration,
+	halfTime time.Duration,
+) map[string]float64 {
 	newPriority := map[string]float64{}
 	timeChangeFactor := math.Pow(0.5, timeChange.Seconds()/halfTime.Seconds())
 

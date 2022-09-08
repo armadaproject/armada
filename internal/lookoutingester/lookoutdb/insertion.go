@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/google/uuid"
@@ -44,7 +45,6 @@ func ProcessUpdates(ctx context.Context, db *pgxpool.Pool, msgs chan *model.Inst
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
 func Update(ctx context.Context, db *pgxpool.Pool, instructions *model.InstructionSet) {
-
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
 	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
@@ -100,6 +100,7 @@ func UpdateJobs(ctx context.Context, db *pgxpool.Pool, instructions []*model.Upd
 	if len(instructions) == 0 {
 		return
 	}
+	instructions = filterEventsForCancelledJobs(ctx, db, instructions)
 	err := UpdateJobsBatch(ctx, db, instructions)
 	if err != nil {
 		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -152,8 +153,7 @@ func CreateJobRunContainers(ctx context.Context, db *pgxpool.Pool, instructions 
 }
 
 func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobInstruction) error {
-	return withDatabaseRetry(func() error {
-
+	return withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -212,12 +212,11 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 
 // CreateJobsScalar will insert jobs one by one into the database
 func CreateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobInstruction) {
-	sqlStatement :=
-		`INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated)
+	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := withDatabaseRetryInsert(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated)
 			return err
 		})
@@ -228,7 +227,7 @@ func CreateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
 }
 
 func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobInstruction) error {
-	return withDatabaseRetry(func() error {
+	return withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -283,8 +282,7 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 }
 
 func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobInstruction) {
-	sqlStatement :=
-		`UPDATE job
+	sqlStatement := `UPDATE job
 				SET
 				  priority = coalesce($1, priority),
                   state = coalesce($2, state),
@@ -293,7 +291,7 @@ func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
                   duplicate = coalesce($5, duplicate)
 				WHERE job_id = $6`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := withDatabaseRetryInsert(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
 			return err
 		})
@@ -304,7 +302,7 @@ func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
 }
 
 func CreateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobRunInstruction) error {
-	return withDatabaseRetry(func() error {
+	return withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -348,12 +346,11 @@ func CreateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 }
 
 func CreateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobRunInstruction) {
-	sqlStatement :=
-		`INSERT INTO job_run (run_id, job_id, created, cluster)
+	sqlStatement := `INSERT INTO job_run (run_id, job_id, created, cluster)
 		 VALUES ($1, $2, $3, $4)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := withDatabaseRetryInsert(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.RunId, i.JobId, i.Created, i.Cluster)
 			return err
 		})
@@ -364,8 +361,7 @@ func CreateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 }
 
 func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobRunInstruction) error {
-	return withDatabaseRetry(func() error {
-
+	return withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -427,8 +423,7 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 }
 
 func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobRunInstruction) {
-	sqlStatement :=
-		`UPDATE job_run
+	sqlStatement := `UPDATE job_run
 				SET
 				  node = coalesce($1, node),
 				  started = coalesce($2, started),
@@ -439,7 +434,7 @@ func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 				  unable_to_schedule = coalesce($7, unable_to_schedule)
 				WHERE run_id = $8`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := withDatabaseRetryInsert(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
 			return err
 		})
@@ -450,7 +445,7 @@ func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 }
 
 func CreateUserAnnotationsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateUserAnnotationInstruction) error {
-	return withDatabaseRetry(func() error {
+	return withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("user_annotation_lookup")
 
 		createTmp := func(tx pgx.Tx) error {
@@ -492,12 +487,11 @@ func CreateUserAnnotationsBatch(ctx context.Context, db *pgxpool.Pool, instructi
 }
 
 func CreateUserAnnotationsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateUserAnnotationInstruction) {
-	sqlStatement :=
-		`INSERT INTO user_annotation_lookup (job_id, key, value)
+	sqlStatement := `INSERT INTO user_annotation_lookup (job_id, key, value)
 		 VALUES ($1, $2, $3) 
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := withDatabaseRetryInsert(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Key, i.Value)
 			return err
 		})
@@ -509,7 +503,7 @@ func CreateUserAnnotationsScalar(ctx context.Context, db *pgxpool.Pool, instruct
 }
 
 func CreateJobRunContainersBatch(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobRunContainerInstruction) error {
-	return withDatabaseRetry(func() error {
+	return withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run_container")
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -549,12 +543,11 @@ func CreateJobRunContainersBatch(ctx context.Context, db *pgxpool.Pool, instruct
 }
 
 func CreateJobRunContainersScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobRunContainerInstruction) {
-	sqlStatement :=
-		`INSERT INTO job_run_container (run_id, container_name, exit_code)
+	sqlStatement := `INSERT INTO job_run_container (run_id, container_name, exit_code)
 		 VALUES ($1, $2, $3)
 	     ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetry(func() error {
+		err := withDatabaseRetryInsert(func() error {
 			_, err := db.Exec(ctx, sqlStatement, i.RunId, i.ContainerName, i.ExitCode)
 			return err
 		})
@@ -570,14 +563,13 @@ func uniqueTableName(table string) string {
 }
 
 func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
-	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error) error {
-
+	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
+) error {
 	return db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		// Create a temporary table to hold the staging data
 		err := createTmp(tx)
 		if err != nil {
@@ -598,10 +590,23 @@ func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) e
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {
+	deref := func(p *int32) int32 {
+		if p == nil {
+			return -1
+		} else {
+			return *p
+		}
+	}
+
 	updatesById := make(map[string]*model.UpdateJobInstruction)
 	for _, update := range updates {
 		existing, ok := updatesById[update.JobId]
-		if ok {
+
+		// Unfortunately once a job has been cancelled we still get state updates for it e.g. we can get an event to
+		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
+		if !ok {
+			updatesById[update.JobId] = update
+		} else if deref(existing.State) != int32(repository.JobCancelledOrdinal) {
 			if update.State != nil {
 				existing.State = update.State
 			}
@@ -615,8 +620,6 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 				existing.Duplicate = update.Duplicate
 			}
 			existing.Updated = update.Updated
-		} else {
-			updatesById[update.JobId] = update
 		}
 	}
 
@@ -668,19 +671,72 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 	return conflated
 }
 
+// filterEventsForCancelledJobs queries the database for any jobs that are in the cancelled state and removes them from the list of
+// instructions.  This is necessary because Armada will generate event stauses even for jobs that have been cancelled
+// The proper solution here is to make it so once a job is cancelled, no more events are generated for it, but until
+// that day we have to manually filter them out here.
+// NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
+// in the cancelling state.  If, however, the database returns a non-retryable error it will give up and simply not
+// filter out any events as the job state is undetermined.
+func filterEventsForCancelledJobs(ctx context.Context, db *pgxpool.Pool, instructions []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {
+	jobIds := make([]string, len(instructions))
+	for i, instruction := range instructions {
+		jobIds[i] = instruction.JobId
+	}
+
+	rowsRaw, err := withDatabaseRetryQuery(func() (interface{}, error) {
+		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", repository.JobCancelledOrdinal, jobIds)
+	})
+	if err != nil {
+		log.WithError(err).Warnf("Cannot retrieve job state from the database- Cancelled jobs may not be filtered out")
+		return instructions
+	}
+	rows := rowsRaw.(pgx.Rows)
+
+	cancelledJobs := make(map[string]bool)
+	for rows.Next() {
+		jobId := ""
+		err := rows.Scan(&jobId)
+		if err != nil {
+			log.WithError(err).Warnf("Cannot retrieve jobId from row. Cancelled job will not be filtered out")
+		} else {
+			cancelledJobs[jobId] = true
+		}
+	}
+
+	if len(cancelledJobs) > 0 {
+		filtered := make([]*model.UpdateJobInstruction, 0, len(instructions))
+		for _, instruction := range instructions {
+			if !cancelledJobs[instruction.JobId] {
+				filtered = append(filtered, instruction)
+			}
+		}
+		return filtered
+	} else {
+		return instructions
+	}
+}
+
+func withDatabaseRetryInsert(executeDb func() error) error {
+	_, err := withDatabaseRetryQuery(func() (interface{}, error) {
+		return nil, executeDb()
+	})
+	return err
+}
+
 // Executes a database function, retrying until it either succeeds or encounters a non-retryable error
-func withDatabaseRetry(executeDb func() error) error {
+func withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
 	// TODO: arguably this should come from config
-	var backOff = 1
+	backOff := 1
 	const maxBackoff = 60
 	const maxRetries = 10
-	var numRetries = 0
+	numRetries := 0
 	var err error = nil
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err = executeDb()
+		res, err := executeDb()
 
 		if err == nil {
-			return nil
+			return res, nil
 		}
 
 		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
@@ -690,7 +746,7 @@ func withDatabaseRetry(executeDb func() error) error {
 			time.Sleep(time.Duration(backOff) * time.Second)
 		} else {
 			// Non retryable error
-			return err
+			return nil, err
 		}
 	}
 

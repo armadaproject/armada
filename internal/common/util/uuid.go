@@ -9,8 +9,10 @@ import (
 	"github.com/oklog/ulid"
 )
 
-var entropy = ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)
-var m sync.Mutex
+var (
+	entropy = ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)
+	m       sync.Mutex
+)
 
 // NewULID returns a new ULID for the current time generated from a global RNG.
 // The ULID is returned as a string converted to lower-case to ensure it is a valid DNS subdomain name; see

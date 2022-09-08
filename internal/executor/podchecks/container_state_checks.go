@@ -49,7 +49,14 @@ func newContainerStateChecks(configs []config.ContainerStatusCheck) (*containerS
 
 		check := containerStatusCheck{reasonRegexp: re, inverse: cfg.Inverse, action: action, gracePeriod: cfg.GracePeriod, state: cfg.State}
 		containerStateChecks.checks = append(containerStateChecks.checks, check)
-		log.Infof("   Created container state check %s %s\"%s\" %s %s", check.state, inverseString(check.inverse), check.reasonRegexp, check.gracePeriod, check.action)
+		log.Infof(
+			"   Created container state check %s %s\"%s\" %s %s",
+			check.state,
+			inverseString(check.inverse),
+			check.reasonRegexp,
+			check.gracePeriod,
+			check.action,
+		)
 	}
 	return containerStateChecks, nil
 }
@@ -78,9 +85,27 @@ func (csc *containerStateChecks) getContainerAction(pod *v1.Pod, containerStatus
 
 			if check.inverse != check.reasonRegexp.MatchString(reason) && state == check.state {
 				if timeInState >= check.gracePeriod {
-					log.Warnf("Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s), required action is %s",
-						containerStatus.Name, pod.Name, pod.Namespace, state, reason, message, check.gracePeriod, inverseString(check.inverse), check.reasonRegexp, check.action)
-					return check.action, fmt.Sprintf("Container %s has been in state %s for reason %s (%s) for more than timeout %v", containerStatus.Name, state, reason, message, check.gracePeriod)
+					log.Warnf(
+						"Container %s in Pod %s in namespace %s has been in state %s with reason %s (%s) for more than %v (matched regexp was %s%s), required action is %s",
+						containerStatus.Name,
+						pod.Name,
+						pod.Namespace,
+						state,
+						reason,
+						message,
+						check.gracePeriod,
+						inverseString(check.inverse),
+						check.reasonRegexp,
+						check.action,
+					)
+					return check.action, fmt.Sprintf(
+						"Container %s has been in state %s for reason %s (%s) for more than timeout %v",
+						containerStatus.Name,
+						state,
+						reason,
+						message,
+						check.gracePeriod,
+					)
 				} else {
 					return ActionWait, ""
 				}

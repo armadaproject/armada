@@ -17,7 +17,6 @@ import (
 )
 
 func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
-
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -31,7 +30,7 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		os.Exit(-1)
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(auth.ConfigureAuth(config.Auth))
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, auth.ConfigureAuth(config.Auth))
 
 	logService := logs.NewKubernetesLogService(kubernetesClientProvider)
 	binocularsServer := server.NewBinocularsServer(logService)

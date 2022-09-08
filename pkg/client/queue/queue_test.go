@@ -87,5 +87,4 @@ func TestQueueHasPermissionFalse(t *testing.T) {
 			}
 		})
 	}
-
 }

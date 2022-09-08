@@ -1,0 +1,43 @@
+name: "Python tox tests and linting"
+description: "Sets up go environment and runs python tests in tox"
+
+inputs:
+  path:
+    description: "Path to python package root relative to repo root"
+    required: true
+    type: string
+  python-version:
+    description: "Version of python to setup and run tests against"
+    required: true
+    type: string
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: ${{ inputs.python-version }}
+    # Tox to run tests; build to build the wheel after tests pass
+    - run: pip install tox build twine
+      shell: bash
+    # Generate the proto files for python, required for later steps
+    - run: make python
+      shell: bash
+    - name: Run tox format environment
+      run: tox -e format
+      shell: bash
+      working-directory: ${{ inputs.path }}
+    - name: Verify docs updated if needed
+      run: tox -e docs-check
+      shell: bash
+      working-directory: ${{ inputs.path }}
+    - name: Run tox python 3.8 unit tests
+      run: tox -e py38
+      shell: bash
+      working-directory: ${{ inputs.path }}
+    - name: Build and verify wheel
+      run: |
+        python -m build --wheel
+        twine check dist/*
+      shell: bash
+      working-directory: ${{ inputs.path }}
