@@ -8,6 +8,8 @@ import (
 type nodeTypeAllocation struct {
 	nodeType           api.NodeType
 	availableResources common.ComputeResourcesFloat
+	totalResources     common.ComputeResourcesFloat
+	allocatedResources map[int32]common.ComputeResourcesFloat
 }
 
 type nodeTypeUsedResources map[*nodeTypeAllocation]common.ComputeResourcesFloat

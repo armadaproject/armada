@@ -82,7 +82,13 @@ func TestCreate(t *testing.T) {
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
 							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
-								t.Fatalf("invalid resource limit: [%s]%f expected: [%s]%f", resourceName, test.ResourceLimits[string(resourceName)], resourceName, resourceLimit)
+								t.Fatalf(
+									"invalid resource limit: [%s]%f expected: [%s]%f",
+									resourceName,
+									test.ResourceLimits[string(resourceName)],
+									resourceName,
+									resourceLimit,
+								)
 							}
 						}
 					}
@@ -207,7 +213,13 @@ func TestUpdate(t *testing.T) {
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
 							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
-								t.Fatalf("invalid resource limit: [%s]%f expected: [%s]%f", resourceName, test.ResourceLimits[string(resourceName)], resourceName, resourceLimit)
+								t.Fatalf(
+									"invalid resource limit: [%s]%f expected: [%s]%f",
+									resourceName,
+									test.ResourceLimits[string(resourceName)],
+									resourceName,
+									resourceLimit,
+								)
 							}
 						}
 					}

@@ -234,14 +234,14 @@ build-load-tester:
 build-lookout-ingester:
 	$(GO_CMD) $(gobuild) -o ./bin/lookoutingester cmd/lookoutingester/main.go
 
-build-eventapi-ingester:
-	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventapingester/main.go
+build-event-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/eventingester cmd/eventingester/main.go
 
 build-jobservice:
 	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
 
 
-build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-eventapi-ingester
+build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -282,11 +282,11 @@ build-docker-lookout-ingester:
 	cp -a ./config/lookoutingester ./.build/lookoutingester/config
 	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
 
-build-docker-eventapi-ingester:
+build-docker-event-ingester:
 	mkdir -p .build/eventingester
 	$(GO_CMD) $(gobuildlinux) -o ./.build/eventingester/eventingester cmd/eventingester/main.go
 	cp -a ./config/eventingester ./.build/eventingester/config
-	docker build $(dockerFlags) -t armada-eventapi-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
+	docker build $(dockerFlags) -t armada-event-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
 
 build-docker-lookout: node-setup
 	$(NODE_CMD) npm ci
@@ -310,7 +310,7 @@ build-docker-jobservice:
 	cp -a ./config/jobservice ./.build/jobservice/config
 	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
-build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars
+build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-docker-event-ingester
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars
@@ -565,6 +565,52 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
-	$(GO_CMD) go run github.com/rakyll/statik \
-    		-dest=internal/eventapi/eventdb/schema/ -src=internal/eventapi/eventdb/schema/ -include=\*.sql -ns=eventapi/sql -Z -f -m && \
-    		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/eventapi/eventdb/schema/statik
+
+armada-dev: build-dev-server build-dev-fakeexecutor build-dev-lookout build-dev-binoculars build-dev-jobservice
+
+build-dev-server:
+	mkdir -p .build/server/config
+	$(GO_CMD) $(gobuildlinux) -o ./.build/server/server cmd/armada/main.go
+	cp -a ./config/armada/config.yaml ./.build/server/config/
+	cp -a ./docs/dev/config/armada/base.yaml ./.build/server/config/
+	cp -a ./docs/dev/config/armada/stan.yaml ./.build/server/config/
+	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
+
+build-dev-fakeexecutor:
+	mkdir -p .build/fakeexecutor/config
+	$(GO_CMD) $(gobuildlinux) -o ./.build/fakeexecutor/fakeexecutor cmd/fakeexecutor/main.go
+	cp -a ./docs/dev/config/executor/* ./.build/fakeexecutor/config/
+	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
+
+build-dev-lookout: node-setup
+	$(NODE_CMD) npm ci
+	# The following line is equivalent to running "npm run openapi".
+	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
+	# "npm run openapi" would result in running a docker container in docker.
+	docker run --rm $(DOCKER_RUN_AS_USER) \
+		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	$(NODE_CMD) npm run build
+	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
+	mkdir -p ./.build/lookout/config
+	#cp -a ./docs/dev/config/lookout/stan.yaml ./.build/lookout/config/
+	mv ./config/lookout/config.yaml ./config/lookout/config.yaml.orig
+	cp -a ./docs/dev/config/lookout/stan.yaml ./config/lookout/
+	cp -a ./docs/dev/config/lookout/config.yaml ./config/lookout/
+	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
+	mv ./config/lookout/config.yaml.orig ./config/lookout/config.yaml
+	rm ./config/lookout/stan.yaml
+
+build-dev-binoculars:
+	mkdir -p .build/binoculars/config
+	$(GO_CMD) $(gobuildlinux) -o ./.build/binoculars/binoculars cmd/binoculars/main.go
+	cp -a ./config/binoculars/config.yaml ./.build/binoculars/config/
+	cp -a ./docs/dev/config/binoculars/base.yaml ./.build/binoculars/config/
+	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
+
+build-dev-jobservice:
+	mkdir -p .build/jobservice
+	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
+	cp -a ./docs/dev/config/jobservice ./.build/jobservice/config
+	docker build --build-arg APP_UID=$(shell id -u) --build-arg APP_GID=$(shell id -g) \
+		$(dockerFlags) -t armada-jobservice -f ./docs/dev/build/jobservice/Dockerfile ./.build/jobservice
+

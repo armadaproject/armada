@@ -160,6 +160,10 @@ func SwaggerJsonTemplate() string {
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"compressedQueueOwnershipUserGroups\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"byte\"\n" +
+		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +

@@ -62,7 +62,14 @@ func validateContainerResource(
 	for rc, containerRsc := range resourceSpec {
 		serverRsc, nonEmpty := minJobResources[rc]
 		if nonEmpty && containerRsc.Value() < serverRsc.Value() {
-			return fmt.Errorf("[validateContainerResource] container %q %s %s (%s) below server minimum (%s)", containerName, rc, requestType, &containerRsc, &serverRsc)
+			return fmt.Errorf(
+				"[validateContainerResource] container %q %s %s (%s) below server minimum (%s)",
+				containerName,
+				rc,
+				requestType,
+				&containerRsc,
+				&serverRsc,
+			)
 		}
 	}
 	return nil

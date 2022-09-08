@@ -507,7 +507,8 @@ func TestService(t *testing.T) {
 		// Get the ip of the nginx pod via the k8s api.
 		podIndex := 0
 		endpointName := fmt.Sprintf("armada-%s-%d-headless", res.GetJobResponseItems()[0].JobId, podIndex)
-		out, err := exec.Command("kubectl", "get", "endpoints", endpointName, "--namespace", userNamespace, "-o", "jsonpath='{.subsets[0].addresses[0].ip}'").Output()
+		out, err := exec.Command("kubectl", "get", "endpoints", endpointName, "--namespace", userNamespace, "-o", "jsonpath='{.subsets[0].addresses[0].ip}'").
+			Output()
 		if !assert.NoError(t, err) {
 			t.FailNow()
 		}
@@ -962,7 +963,14 @@ func countObjectTypes(objects []*armadaevents.KubernetesObject) map[string]int {
 
 // receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
 // The events contained in the remaining messages are collected in a single sequence, which is returned.
-func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue string, jobSetName string, maxEvents int, timeout time.Duration) (sequences []*armadaevents.EventSequence, err error) {
+func receiveJobSetSequences(
+	ctx context.Context,
+	consumer pulsar.Consumer,
+	queue string,
+	jobSetName string,
+	maxEvents int,
+	timeout time.Duration,
+) (sequences []*armadaevents.EventSequence, err error) {
 	sequences = make([]*armadaevents.EventSequence, 0)
 	numEvents := 0
 	for numEvents < maxEvents {

@@ -666,7 +666,20 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		ctx.Background(),
 		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled FROM job WHERE job_id = $1`,
 		jobId)
-	err := r.Scan(&job.JobId, &job.Queue, &job.Owner, &job.JobSet, &job.Priority, &job.Submitted, &job.State, &job.Duplicate, &job.Updated, &job.JobJson, &job.JobProto, &job.Cancelled)
+	err := r.Scan(
+		&job.JobId,
+		&job.Queue,
+		&job.Owner,
+		&job.JobSet,
+		&job.Priority,
+		&job.Submitted,
+		&job.State,
+		&job.Duplicate,
+		&job.Updated,
+		&job.JobJson,
+		&job.JobProto,
+		&job.Cancelled,
+	)
 	assert.Nil(t, err)
 	return job
 }
@@ -677,7 +690,19 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		ctx.Background(),
 		`SELECT run_id, job_id, cluster, node, created, started, finished, succeeded, error, pod_number, unable_to_schedule FROM job_run WHERE run_id = $1`,
 		runId)
-	err := r.Scan(&run.RunId, &run.JobId, &run.Cluster, &run.Node, &run.Created, &run.Started, &run.Finished, &run.Succeeded, &run.Error, &run.PodNumber, &run.UnableToSchedule)
+	err := r.Scan(
+		&run.RunId,
+		&run.JobId,
+		&run.Cluster,
+		&run.Node,
+		&run.Created,
+		&run.Started,
+		&run.Finished,
+		&run.Succeeded,
+		&run.Error,
+		&run.PodNumber,
+		&run.UnableToSchedule,
+	)
 	assert.Nil(t, err)
 	return run
 }
