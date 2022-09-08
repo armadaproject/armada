@@ -43,7 +43,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	if config.Scheduling.Preemption.Enabled {
 		log.Info("Armada Job preemption is enabled")
 		log.Infof("Supported priority classes are: %v", config.Scheduling.Preemption.PriorityClasses)
-		log.Infof("Default Priority Class is: %s", config.Scheduling.Preemption.DefaultPriorityClass)
+		log.Infof("Default priority class is: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	} else {
 		log.Info("Armada Job preemption is disabled")
 	}
