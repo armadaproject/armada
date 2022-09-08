@@ -551,16 +551,6 @@ download:
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
 
-code-reports:
-	mkdir -p code_reports
-	$(GO_TEST_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_TEST_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
-
-code-checks: code-reports
-	sync # make sure everything has been synced to disc
-	if [ $(shell cat code_reports/ineffassign.txt | wc -l) -ne "0" ]; then exit 1; fi
-	if [ $(shell cat code_reports/goimports.txt | wc -l) -ne "0" ]; then exit 1; fi
-
 generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
