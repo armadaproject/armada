@@ -13,7 +13,6 @@ import (
 )
 
 func Test_SubscribeToJobSetId(t *testing.T) {
-
 	tests := []struct {
 		name                 string
 		jobEventMessageFn    func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error)
@@ -58,7 +57,6 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			mockJobEventReader := events.JobEventReaderMock{
 				GetJobEventMessageFunc: tt.jobEventMessageFn,
 				CloseFunc:              func() {},
@@ -84,5 +82,4 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			}
 		})
 	}
-
 }
