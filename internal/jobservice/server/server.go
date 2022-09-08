@@ -16,10 +16,10 @@ import (
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
-	jobRepository    repository.SQLJobService
+	jobRepository    *repository.SQLJobService
 }
 
-func NewJobService(config *configuration.JobServiceConfiguration, sqlService repository.SQLJobService) *JobServiceServer {
+func NewJobService(config *configuration.JobServiceConfiguration, sqlService *repository.SQLJobService) *JobServiceServer {
 	return &JobServiceServer{jobServiceConfig: config, jobRepository: sqlService}
 }
 

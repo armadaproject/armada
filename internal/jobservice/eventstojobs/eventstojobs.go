@@ -8,7 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/events"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 	"github.com/G-Research/armada/pkg/api"
@@ -28,7 +27,6 @@ func NewEventsToJobService(
 	jobSetId string,
 	jobId string,
 	eventClient events.JobEventReader,
-	jobServiceConfig *configuration.JobServiceConfiguration,
 	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
 	return &EventsToJobService{
@@ -45,6 +43,8 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 	expiresAt := time.Now().Add(time.Duration(ttlSecs) * time.Second)
 	for {
 		err := eventToJobService.streamCommon(context, ttlSecs)
+		// returns with no error only when job becomes unsubscribed
+		// otherwise, retry up to the ttl
 		if err == nil {
 			return nil
 		} else if time.Now().After(expiresAt) {
@@ -68,20 +68,31 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		// According to GRPC official docs, you can only end a client stream by either canceling the context or closing the connection
 		// // This will log an error to the jobservice log saying that the connection was used.
 		ticker := time.NewTicker(time.Duration(timeout) * time.Second)
-		for t := range ticker.C {
-			if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(
-				eventToJobService.queue,
-				eventToJobService.jobSetId) {
+		for {
+			select {
+			case <-ctx.Done():
 				return nil
-			}
-			if t.After(expiresAt) {
-				return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
+			case t := <-ticker.C:
+				if !eventToJobService.jobServiceRepository.IsJobSetSubscribed(
+					eventToJobService.queue,
+					eventToJobService.jobSetId) {
+					return nil
+				}
+				if t.After(expiresAt) {
+					return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
+				}
 			}
 		}
-		return nil
 	})
 	g.Go(func() error {
-		defer eventToJobService.eventClient.Close()
+		var err error
+		defer func() {
+			eventToJobService.eventClient.Close()
+			// cancel the ticker go routine if an error originated here
+			if err != nil {
+				cancel()
+			}
+		}()
 
 		// this loop will run until the context is canceled or an error is encountered
 		for {
