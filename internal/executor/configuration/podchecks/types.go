@@ -28,6 +28,9 @@ const (
 type Checks struct {
 	Events            []EventCheck
 	ContainerStatuses []ContainerStatusCheck
+	// If both events and status are not found from pod
+	// for this amount of time, we assume we can retry the pod.
+	TimeWithoutEventsOrStatus time.Duration
 }
 
 type EventCheck struct {

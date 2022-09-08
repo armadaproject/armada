@@ -18,6 +18,9 @@ type PodChecker interface {
 type PodChecks struct {
 	eventChecks          eventChecker
 	containerStateChecks containerStateChecker
+	// If both events and status are not found from pod
+	// for this amount of time, we assume we can retry the pod.
+	timeWithoutEventsOrStatus time.Duration
 }
 
 func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
@@ -32,13 +35,17 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 		return nil, err
 	}
 
-	return &PodChecks{eventChecks: ec, containerStateChecks: csc}, nil
+	return &PodChecks{eventChecks: ec, containerStateChecks: csc, timeWithoutEventsOrStatus: cfg.TimeWithoutEventsOrStatus}, nil
 }
 
 func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 	messages := []string{}
-	if pc.isNodeBad(pod, podEvents) {
+
+	isNodeBad := pc.isNodeBad(pod, podEvents)
+	if timeInState > pc.timeWithoutEventsOrStatus && isNodeBad {
 		return ActionRetry, "Pod status and pod events are both empty. Retrying"
+	} else if isNodeBad {
+		return ActionWait, "Pod status and pod events are both empty but we are under timelimit. Waiting"
 	}
 	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents, timeInState)
 	if eventAction != ActionWait {
