@@ -339,6 +339,13 @@ tests:
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
+.ONESHELL:
+lint:
+	$(GO_TEST_CMD) golangci-lint run --fix
+
+.ONESHELL:
+code-checks: lint
+
 # Rebuild and restart the server.
 .ONESHELL:
 rebuild-server: build-docker-server
