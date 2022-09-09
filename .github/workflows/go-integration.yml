@@ -15,6 +15,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # WARN(JayF): If we begin attempting to support >1 golang version,
+        # we'll have to ensure that we don't use the same artifact name for
+        # both versions in the matrix -- this will lead to them overwriting
+        # each other.
         go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v3
@@ -26,7 +30,30 @@ jobs:
           INTEGRATION_ENABLED: true
       - run: make junit-report
       - name: Upload junit report
-        uses: actions/upload-artifact@v2.2.4
+        uses: actions/upload-artifact@v3
         with:
           name: junit.xml
           path: test_reports/junit.xml
+          if-no-files-found: error
+
+      - name: Save docker images to artifact
+        run: |
+          mkdir -p docker-images
+          docker save armada | gzip > docker-images/armada-server.tar.gz
+          docker save armada-executor | gzip > docker-images/armada-executor.tar.gz
+          docker save armadactl | gzip > docker-images/armada-armadactl.tar.gz
+          docker save testsuite | gzip > docker-images/armada-testsuite.tar.gz
+          docker save armada-lookout | gzip > docker-images/armada-lookout.tar.gz
+          docker save armada-lookout-ingester | gzip > docker-images/armada-lookout-ingester.tar.gz
+          docker save armada-event-ingester | gzip > docker-images/armada-event-ingester.tar.gz
+          docker save armada-binoculars | gzip > docker-images/armada-binoculars.tar.gz
+          docker save armada-jobservice | gzip > docker-images/armada-jobservice.tar.gz
+          
+          tar -czf docker-images.tar.gz docker-images/*
+
+      - name: Upload docker image tarball to artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-images
+          path: docker-images.tar.gz
+          if-no-files-found: error
