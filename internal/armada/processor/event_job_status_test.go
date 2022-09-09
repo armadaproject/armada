@@ -283,10 +283,6 @@ func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) IterateQueueJobs(queueName string, action func(*api.Job)) error {
-	return nil
-}
-
 func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
 	return []string{}, nil
 }

@@ -14,7 +14,16 @@ func GetKubectlCommand(cluster string, namespace string, jobId string, podNumber
 	if t == "" {
 		t = "kubectl --context {{cluster}} -n {{namespace}} {{cmd}} {{pod}}"
 	}
-	r := strings.NewReplacer("{{cluster}}", cluster, "{{namespace}}", namespace, "{{cmd}}", cmd, "{{pod}}", fmt.Sprintf("%s%s-%d", common.PodNamePrefix, jobId, podNumber))
+	r := strings.NewReplacer(
+		"{{cluster}}",
+		cluster,
+		"{{namespace}}",
+		namespace,
+		"{{cmd}}",
+		cmd,
+		"{{pod}}",
+		fmt.Sprintf("%s%s-%d", common.PodNamePrefix, jobId, podNumber),
+	)
 	command := r.Replace(t)
 
 	return command

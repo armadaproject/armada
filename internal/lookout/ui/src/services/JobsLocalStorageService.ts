@@ -9,36 +9,44 @@ export type JobsLocalStorageState = {
   annotationColumns?: ColumnSpec<string>[]
 }
 
-function convertToLocalStorageState(loadedData: Record<string, unknown>): JobsLocalStorageState {
+function isColumnArray(data: unknown): boolean {
+  return data !== undefined && Array.isArray(data) && data.every((col: any) => isColumnSpec(col))
+}
+
+function loadedDataIsValid(loadedData: Record<string, unknown>): boolean {
+  return (
+    loadedData.autoRefresh !== undefined &&
+    typeof loadedData.autoRefresh == "boolean" &&
+    isColumnArray(loadedData.defaultColumns) &&
+    isColumnArray(loadedData.annotationColumns)
+  )
+}
+
+export function convertToLocalStorageState(loadedData: Record<string, unknown>): [JobsLocalStorageState, boolean] {
   const state: JobsLocalStorageState = {}
 
-  if (loadedData.autoRefresh != undefined && typeof loadedData.autoRefresh == "boolean") {
-    state.autoRefresh = loadedData.autoRefresh
-  }
-  if (
-    loadedData.defaultColumns != undefined &&
-    Array.isArray(loadedData.defaultColumns) &&
-    loadedData.defaultColumns.every((col: any) => isColumnSpec(col))
-  ) {
-    state.defaultColumns = loadedData.defaultColumns
-  }
-  if (
-    loadedData.annotationColumns != undefined &&
-    Array.isArray(loadedData.annotationColumns) &&
-    loadedData.annotationColumns.every((col: any) => isColumnSpec(col))
-  ) {
-    state.annotationColumns = loadedData.annotationColumns
+  if (!loadedDataIsValid(loadedData)) {
+    return [state, false]
   }
 
-  return state
+  state.autoRefresh = loadedData.autoRefresh as boolean
+  state.defaultColumns = loadedData.defaultColumns as ColumnSpec<string | boolean | string[]>[]
+  state.annotationColumns = loadedData.annotationColumns as ColumnSpec<string>[]
+
+  return [state, true]
+}
+
+function resetFilter<T>(col: ColumnSpec<T>): ColumnSpec<T> {
+  col.filter = col.defaultFilter
+  return col
 }
 
 export default class JobsLocalStorageService {
   saveState(state: JobsContainerState) {
     const localStorageState = {
       autoRefresh: state.autoRefresh,
-      defaultColumns: state.defaultColumns,
-      annotationColumns: state.annotationColumns,
+      defaultColumns: state.defaultColumns.map((c) => ({ ...c })).map((c) => resetFilter(c)),
+      annotationColumns: state.annotationColumns.map((c) => ({ ...c })).map((c) => resetFilter(c)),
     }
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(localStorageState))
   }
@@ -51,11 +59,19 @@ export default class JobsLocalStorageService {
 
     const loadedData = tryParseJson(stateJson)
     if (loadedData == undefined) {
+      // Bad JSON - clear it from local storage
+      localStorage.removeItem(LOCAL_STORAGE_KEY)
       return
     }
 
-    const loadedState = convertToLocalStorageState(loadedData)
-    if (loadedState.autoRefresh != undefined) state.autoRefresh = loadedState.autoRefresh
+    const [loadedState, ok] = convertToLocalStorageState(loadedData)
+    if (!ok) {
+      // Couldn't convert local storage data to columns - clear it
+      localStorage.removeItem(LOCAL_STORAGE_KEY)
+      return
+    }
+
+    if (loadedState.autoRefresh !== undefined) state.autoRefresh = loadedState.autoRefresh
     if (loadedState.defaultColumns) state.defaultColumns = loadedState.defaultColumns
     if (loadedState.annotationColumns) state.annotationColumns = loadedState.annotationColumns
   }

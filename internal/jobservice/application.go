@@ -35,7 +35,11 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, []authorization.AuthService{&authorization.AnonymousAuthService{}})
+	grpcServer := grpcCommon.CreateGrpcServer(
+		config.Grpc.KeepaliveParams,
+		config.Grpc.KeepaliveEnforcementPolicy,
+		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
+	)
 
 	subscribedJobSets := make(map[string]*repository.SubscribeTable)
 	jobStatusMap := repository.NewJobSetSubscriptions(subscribedJobSets)

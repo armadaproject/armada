@@ -1,25 +1,19 @@
-postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
-  connection:
-    host: localhost
-    port: 5432
-    user: postgres
-    password: psw
-    dbname: postgres
-    sslmode: disable
+redis:
+  addrs:
+    - "localhost:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
 
 pulsar:
-  enabled: true
   URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "jobset-events"
 
 paralellism: 1
 subscriptionName: "events-ingester"
-batchSize: 10000
+batchSize: 1048576  #1MB
+batchMessages: 10000
 batchDuration: 500ms
 pulsarReceiveTimeout: 5s
 pulsarBackoffTime: 1s
 minMessageCompressionSize: 1024
-updateTopic: "sequence-updates"

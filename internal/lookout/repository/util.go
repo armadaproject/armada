@@ -11,14 +11,6 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-type Clock interface {
-	Now() time.Time
-}
-
-type DefaultClock struct{}
-
-func (c *DefaultClock) Now() time.Time { return time.Now() }
-
 func ToUTC(t time.Time) time.Time {
 	location, _ := time.LoadLocation("UTC")
 	return t.In(location)

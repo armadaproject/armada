@@ -1171,6 +1171,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("clientId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClientId { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("compressedQueueOwnershipUserGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public byte[] CompressedQueueOwnershipUserGroups { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.DateTimeOffset? Created { get; set; }
     
@@ -1678,8 +1681,11 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("errorIfMissing", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ErrorIfMissing { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("forceRedis", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ForceRedis { get; set; }
+        [Newtonsoft.Json.JsonProperty("forceLegacy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ForceLegacy { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("forceNew", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ForceNew { get; set; }
     
         [Newtonsoft.Json.JsonProperty("fromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FromMessageId { get; set; }
