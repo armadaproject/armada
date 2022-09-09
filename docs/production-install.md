@@ -12,12 +12,14 @@ The below sections will cover how to install the component into Kubernetes.
 
 #### Recommended prerequisites
 
-* Cert manager installed (https://hub.helm.sh/charts/jetstack/cert-manager)
-* gRPC compatible ingress controller installed for gRPC ingress (such as https://github.com/kubernetes/ingress-nginx)
-* Redis installed (https://github.com/helm/charts/tree/master/stable/redis-ha)
-* Optionally install NATS streaming server (helm chart: https://github.com/nats-io/k8s/tree/master/helm/charts/stan, additional docs: https://docs.nats.io/running-a-nats-service/nats-kubernetes)
 
-Set `ARMADA_VERSION` environment variable and clone this repository repository with the same version tag as you are installing. For example to install version `v1.2.3`:
+* Cert manager installed [https://cert-manager.io/docs/installation/helm/#installing-with-helm](https://cert-manager.io/docs/installation/helm/#installing-with-helm)
+* gRPC compatible ingress controller installed for gRPC ingress such as [https://github.com/kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx)
+* Redis installed [https://github.com/helm/charts/tree/master/stable/redis-ha](https://github.com/helm/charts/tree/master/stable/redis-ha)
+* Optionally install NATS streaming server helm chart:[https://github.com/nats-io/k8s/tree/main/helm/charts/stan](https://github.com/nats-io/k8s/tree/main/helm/charts/stan), additional docs: [https://docs.nats.io/running-a-nats-service/nats-kubernetes](https://docs.nats.io/running-a-nats-service/nats-kubernetes)
+
+
+Set `ARMADA_VERSION` environment variable and clone [this repository](https://github.com/G-Research/armada.git) with the same version tag as you are installing. For example to install version `v1.2.3`:
 ```bash
 export ARMADA_VERSION=v1.2.3
 git clone https://github.com/G-Research/armada.git --branch $ARMADA_VERSION
