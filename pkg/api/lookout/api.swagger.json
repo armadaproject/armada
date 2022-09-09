@@ -406,6 +406,10 @@
         "jobSet": {
           "type": "string"
         },
+        "jobsCancelled": {
+          "type": "integer",
+          "format": "int64"
+        },
         "jobsFailed": {
           "type": "integer",
           "format": "int64"

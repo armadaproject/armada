@@ -417,6 +417,10 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSet\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"jobsCancelled\": {\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
 		"        \"jobsFailed\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
