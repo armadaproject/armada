@@ -8,10 +8,11 @@ import (
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding/gzip"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common"
@@ -73,12 +74,25 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 		Queues:     leasedQueueReports,
 	}
 
+	leaseRequest := &api.StreamingLeaseRequest{
+		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
+		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
+		Resources:           *availableResource,
+		ClusterLeasedReport: clusterLeasedReport,
+		Nodes:               nodes,
+		MinimumJobSize:      jobLeaseService.minimumJobSize,
+	}
+
+	return jobLeaseService.requestJobLeases(leaseRequest)
+}
+
+func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	// Setup a bidirectional gRPC stream.
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable())
+	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -86,14 +100,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 	// The first message sent over the stream includes all information necessary
 	// for the server to choose jobs to lease.
 	// Subsequent messages only include ids of received jobs.
-	err = stream.Send(&api.StreamingLeaseRequest{
-		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
-		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
-		Resources:           *availableResource,
-		ClusterLeasedReport: clusterLeasedReport,
-		Nodes:               nodes,
-		MinimumJobSize:      jobLeaseService.minimumJobSize,
-	})
+	err = stream.Send(leaseRequest)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -181,17 +188,17 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 
 	// Expire jobs the server never confirmed the ack of.
 	jobsToReturn := jobs[numServerAcks:]
-	var result *multierror.Error
-	for _, job := range jobsToReturn {
-		err := jobLeaseService.ReturnLeaseById(job.Id, "", nil, "Communication error during leasing")
-		result = multierror.Append(result, err)
-	}
-	err = result.ErrorOrNil()
-	if err != nil {
-		log.WithError(err).Error("error returning leases to server")
-	}
-
+	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing")
 	return receivedJobs, nil
+}
+
+func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string) {
+	for _, j := range jobs {
+		err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason)
+		if err != nil {
+			log.Errorf("Failed to return lease for job %s because %s", j.Id, err)
+		}
+	}
 }
 
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string) error {

@@ -88,17 +88,25 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// check for previous job submissions with the ClientId for this queue.
 		// If we find a duplicate, insert the previous jobId in the corresponding response
 		// and generate a job duplicate found event.
-		if apiJob.ClientId != "" && originalIds[apiJob.GetId()] != apiJob.GetId() {
-			jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
-				JobId:         responses[i].JobId,
-				Queue:         req.Queue,
-				JobSetId:      req.JobSetId,
-				Created:       time.Now(),
-				OriginalJobId: originalIds[apiJob.GetId()],
-			})
-			responses[i].JobId = originalIds[apiJob.GetId()]
-			// The job shouldn't be submitted twice. Move on to the next job.
-			continue
+		originalId, found := originalIds[apiJob.GetId()]
+		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
+			if found {
+				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
+					JobId:         responses[i].JobId,
+					Queue:         req.Queue,
+					JobSetId:      req.JobSetId,
+					Created:       time.Now(),
+					OriginalJobId: originalIds[apiJob.GetId()],
+				})
+				responses[i].JobId = originalIds[apiJob.GetId()]
+				// The job shouldn't be submitted twice. Move on to the next job.
+				continue
+			} else {
+				log.Warnf(
+					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
+					apiJob.ClientId,
+					apiJob.GetId())
+			}
 		}
 
 		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 0 {
@@ -532,6 +540,7 @@ func (srv *PulsarSubmitServer) Authorize(
 ) (userId string, groups []string, err error) {
 	principal := authorization.GetPrincipal(ctx)
 	userId = principal.GetName()
+	groups = principal.GetGroupNames()
 	q, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
 		return
@@ -549,20 +558,6 @@ func (srv *PulsarSubmitServer) Authorize(
 		}
 	}
 
-	// Armada impersonates the principal that submitted the job when interacting with k8s.
-	// If the principal doesn't itself have sufficient perms, we check if it's part of any groups that do, and add those.
-	// This is an optimisation to avoid passing around groups unnecessarily.
-	principalSubject := queue.PermissionSubject{
-		Name: userId,
-		Kind: queue.PermissionSubjectKindUser,
-	}
-	if !q.HasPermission(principalSubject, perm) {
-		for _, subject := range queue.NewPermissionSubjectsFromOwners(nil, principal.GetGroupNames()) {
-			if q.HasPermission(subject, perm) {
-				groups = append(groups, subject.Name)
-			}
-		}
-	}
 	return
 }
 
@@ -680,7 +675,7 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize), true)
 	if err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ type ComputeResources map[string]resource.Quantity
 
 func FromResourceList(list v1.ResourceList) ComputeResources {
 	resources := make(ComputeResources)
+
 	for k, v := range list {
 		resources[string(k)] = v.DeepCopy()
 	}

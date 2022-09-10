@@ -2,10 +2,13 @@ package scheduling
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"math/rand"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -28,7 +31,6 @@ type leaseContext struct {
 	queue            JobQueue
 	onJobsLeased     func([]*api.Job)
 
-	ctx       context.Context
 	clusterId string
 
 	queueSchedulingInfo map[*api.Queue]*QueueSchedulingInfo
@@ -52,6 +54,39 @@ func LeaseJobs(ctx context.Context,
 	clusterPriorities map[string]map[string]float64,
 	activeQueues []*api.Queue,
 ) ([]*api.Job, error) {
+	lc := newLeaseContext(
+		config,
+		jobQueue,
+		onJobLease,
+		request,
+		nodeResources,
+		activeClusterReports,
+		activeClusterLeaseJobReports,
+		clusterPriorities,
+		activeQueues,
+	)
+
+	schedulingLimit := newLeasePayloadLimit(config.MaximumJobsToSchedule, config.MaximumLeasePayloadSizeBytes, int(config.MaxPodSpecSizeBytes))
+
+	jobs, err := lc.scheduleJobs(ctx, schedulingLimit)
+	if err != nil {
+		return nil, errors.Errorf("[LeaseJobs] error scheduling jobs: %s", err)
+	}
+
+	return jobs, nil
+}
+
+func newLeaseContext(
+	config *configuration.SchedulingConfig,
+	jobQueue JobQueue,
+	onJobLease func([]*api.Job),
+	request *api.LeaseRequest,
+	nodeResources []*nodeTypeAllocation,
+	activeClusterReports map[string]*api.ClusterUsageReport,
+	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
+	clusterPriorities map[string]map[string]float64,
+	activeQueues []*api.Queue,
+) *leaseContext {
 	resourcesToSchedule := common.ComputeResources(request.Resources).AsFloat()
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 
@@ -83,11 +118,10 @@ func LeaseJobs(ctx context.Context,
 	}
 	activeQueueSchedulingInfo := SliceResourceWithLimits(scarcity, queueSchedulingInfo, activeQueuePriority, resourcesToSchedule)
 
-	lc := &leaseContext{
+	return &leaseContext{
 		schedulingConfig: config,
 		queue:            jobQueue,
 
-		ctx:       ctx,
 		clusterId: request.ClusterId,
 
 		resourceScarcity:    scarcity,
@@ -100,15 +134,6 @@ func LeaseJobs(ctx context.Context,
 
 		onJobsLeased: onJobLease,
 	}
-
-	schedulingLimit := NewLeasePayloadLimit(config.MaximumJobsToSchedule, config.MaximumLeasePayloadSizeBytes, int(config.MaxPodSpecSizeBytes))
-
-	jobs, err := lc.scheduleJobs(schedulingLimit)
-	if err != nil {
-		return nil, fmt.Errorf("[LeaseJobs] error scheduling jobs: %s", err)
-	}
-
-	return jobs, nil
 }
 
 func calculateQueueSchedulingLimits(
@@ -139,13 +164,13 @@ func calculateQueueSchedulingLimits(
 }
 
 // TODO Remove logging code here. Instead, log at the gRPC handlers/interceptors with more info.
-func (c *leaseContext) scheduleJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
-	jobs := []*api.Job{}
+func (c *leaseContext) scheduleJobs(ctx context.Context, limit LeasePayloadLimit) ([]*api.Job, error) {
+	var jobs []*api.Job
 
 	if !c.schedulingConfig.UseProbabilisticSchedulingForAllResources {
-		assignedJobs, err := c.assignJobs(limit)
+		assignedJobs, err := c.assignJobs(ctx, limit)
 		if err != nil {
-			err = fmt.Errorf("[leaseContext.scheduleJobs] error leasing jobs to cluster %s: %s", c.clusterId, err)
+			err = errors.Errorf("[leaseContext.scheduleJobs] error leasing jobs to cluster %s: %s", c.clusterId, err)
 			log.Error(err)
 			return nil, err
 		}
@@ -153,9 +178,9 @@ func (c *leaseContext) scheduleJobs(limit LeasePayloadLimit) ([]*api.Job, error)
 		limit.RemoveFromRemainingLimit(jobs...)
 	}
 
-	additionalJobs, err := c.distributeRemainder(limit)
+	additionalJobs, err := c.distributeRemainder(ctx, limit)
 	if err != nil {
-		err = fmt.Errorf("[leaseContext.scheduleJobs] error leasing additional jobs to cluster %s: %s", c.clusterId, err)
+		err = errors.Errorf("[leaseContext.scheduleJobs] error leasing additional jobs to cluster %s: %s", c.clusterId, err)
 		log.Error(err)
 		return nil, err
 	}
@@ -170,16 +195,16 @@ func (c *leaseContext) scheduleJobs(limit LeasePayloadLimit) ([]*api.Job, error)
 	return jobs, nil
 }
 
-func (c *leaseContext) assignJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
+func (c *leaseContext) assignJobs(ctx context.Context, limit LeasePayloadLimit) ([]*api.Job, error) {
 	jobs := make([]*api.Job, 0)
 	// TODO: parallelize
 	for queue, info := range c.queueSchedulingInfo {
 		// TODO: partition limit by priority instead
-		partitionLimit := NewLeasePayloadLimit(
+		partitionLimit := newLeasePayloadLimit(
 			limit.remainingJobCount/len(c.queueSchedulingInfo),
 			limit.remainingPayloadSizeLimitBytes/len(c.queueSchedulingInfo),
 			limit.maxExpectedJobSizeBytes)
-		leased, remainder, e := c.leaseJobs(queue, info.adjustedShare, partitionLimit)
+		leased, remainder, e := c.leaseJobs(ctx, queue, info.adjustedShare, partitionLimit)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -189,15 +214,15 @@ func (c *leaseContext) assignJobs(limit LeasePayloadLimit) ([]*api.Job, error) {
 		c.queueSchedulingInfo[queue].UpdateLimits(scheduled)
 		jobs = append(jobs, leased...)
 
-		if util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
+		if util.CloseToDeadline(ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
 	return jobs, nil
 }
 
-func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job, error) {
-	jobs := []*api.Job{}
+func (c *leaseContext) distributeRemainder(ctx context.Context, limit LeasePayloadLimit) ([]*api.Job, error) {
+	var jobs []*api.Job
 	if limit.AtLimit() {
 		return jobs, nil
 	}
@@ -212,14 +237,15 @@ func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job,
 	minimumResource := c.schedulingConfig.MinimumResourceToSchedule.DeepCopy()
 	minimumResource.Max(minimumJobSize)
 
-	for !remainder.IsLessThan(minimumResource) && len(shares) > 0 && emptySteps < queueCount {
+	hasEnoughResources := !remainder.IsLessThan(minimumResource)
+	for hasEnoughResources && len(shares) > 0 && emptySteps < queueCount {
 		queue := pickQueueRandomly(shares)
 		emptySteps++
 
 		amountToSchedule := remainder.DeepCopy()
 		amountToSchedule = amountToSchedule.LimitWith(c.queueSchedulingInfo[queue].remainingSchedulingLimit)
-		leaseLimit := NewLeasePayloadLimit(1, limit.remainingPayloadSizeLimitBytes, limit.maxExpectedJobSizeBytes)
-		leased, remaining, e := c.leaseJobs(queue, amountToSchedule, leaseLimit)
+		leaseLimit := newLeasePayloadLimit(1, limit.remainingPayloadSizeLimitBytes, limit.maxExpectedJobSizeBytes)
+		leased, remaining, e := c.leaseJobs(ctx, queue, amountToSchedule, leaseLimit)
 		if e != nil {
 			log.Error(e)
 			continue
@@ -243,7 +269,7 @@ func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job,
 		}
 
 		limit.RemoveFromRemainingLimit(leased...)
-		if limit.AtLimit() || util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
+		if limit.AtLimit() || util.CloseToDeadline(ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -254,6 +280,7 @@ func (c *leaseContext) distributeRemainder(limit LeasePayloadLimit) ([]*api.Job,
 // leaseJobs calls into the JobRepository underlying the queue contained in the leaseContext to lease jobs.
 // Returns a slice of jobs that were leased.
 func (c *leaseContext) leaseJobs(
+	ctx context.Context,
 	queue *api.Queue,
 	slice common.ComputeResourcesFloat,
 	limit LeasePayloadLimit,
@@ -276,7 +303,7 @@ func (c *leaseContext) leaseJobs(
 		}
 
 		candidates := make([]*api.Job, 0)
-		candidatesLimit := NewLeasePayloadLimit(limit.remainingJobCount, limit.remainingPayloadSizeLimitBytes, limit.maxExpectedJobSizeBytes)
+		candidatesLimit := newLeasePayloadLimit(limit.remainingJobCount, limit.remainingPayloadSizeLimitBytes, limit.maxExpectedJobSizeBytes)
 		candidateNodes := map[*api.Job]nodeTypeUsedResources{}
 		consumedNodeResources := nodeTypeUsedResources{}
 
@@ -284,8 +311,17 @@ func (c *leaseContext) leaseJobs(
 			requirement := common.TotalJobResourceRequest(job).AsFloat()
 			remainder = slice.DeepCopy()
 			remainder.Sub(requirement)
-			if isLargeEnough(job, c.minimumJobSize) && remainder.IsValid() && candidatesLimit.IsWithinLimit(job) {
-				newlyConsumed, ok, _ := matchAnyNodeTypeAllocation(job, c.nodeResources, consumedNodeResources)
+
+			if isJobSchedulable(c, job, remainder, candidatesLimit) {
+				if hasPriorityClass(job.PodSpec) {
+					validateOrDefaultPriorityClass(job.PodSpec, c.schedulingConfig.Preemption)
+				}
+				newlyConsumed, ok, _ := matchAnyNodeTypeAllocation(
+					job,
+					c.nodeResources,
+					consumedNodeResources,
+					c.schedulingConfig.Preemption.PriorityClasses,
+				)
 				if ok {
 					slice = remainder
 					candidates = append(candidates, job)
@@ -315,7 +351,7 @@ func (c *leaseContext) leaseJobs(
 		if len(candidates) < int(c.schedulingConfig.QueueLeaseBatchSize) {
 			break
 		}
-		if util.CloseToDeadline(c.ctx, leaseDeadlineTolerance) {
+		if util.CloseToDeadline(ctx, leaseDeadlineTolerance) {
 			break
 		}
 	}
@@ -323,6 +359,30 @@ func (c *leaseContext) leaseJobs(
 	go c.onJobsLeased(jobs)
 
 	return jobs, slice, nil
+}
+
+func isJobSchedulable(c *leaseContext, job *api.Job, remainder common.ComputeResourcesFloat, candidatesLimit LeasePayloadLimit) bool {
+	isJobLargeEnough := isLargeEnough(job, c.minimumJobSize)
+	isRemainderValid := remainder.IsValid()
+	isCandidateWithinLimit := candidatesLimit.IsWithinLimit(job)
+
+	isRegularlySchedulable := isJobLargeEnough && isRemainderValid && isCandidateWithinLimit
+	isPreemptiveJob := isJobLargeEnough && hasPriorityClass(job.PodSpec)
+
+	return isRegularlySchedulable || isPreemptiveJob
+}
+
+// validateOrDefaultPriorityClass checks is the pod spec's priority class configured as supported in Server config
+// if not, default to DefaultPriorityClass if it is specified
+// otherwise default to no Priority Class
+func validateOrDefaultPriorityClass(podSpec *v1.PodSpec, preemptionConfig configuration.PreemptionConfig) {
+	if preemptionConfig.PriorityClasses == nil {
+		podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
+	}
+	_, ok := preemptionConfig.PriorityClasses[podSpec.PriorityClassName]
+	if !ok {
+		podSpec.PriorityClassName = preemptionConfig.DefaultPriorityClass
+	}
 }
 
 func (c *leaseContext) decreaseNodeResources(leased []*api.Job, nodeTypeUsage map[*api.Job]nodeTypeUsedResources) {
