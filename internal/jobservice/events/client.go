@@ -42,17 +42,11 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 		return nil, err
 	}
 	eventClient := api.NewEventClient(ec.conn)
-	log.Debug("looking for job set events")
-	ctx, _ = context.WithTimeout(ctx, time.Duration(5)*time.Second)
 	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
 	if err != nil {
-		ec.conn = nil
 		return nil, err
 	}
-	log.Debug("start stream receive")
-	s, err := stream.Recv()
-	log.Debug("finish stream receive")
-	return s, err
+	return stream.Recv()
 }
 
 // Close will close the api connection if established
