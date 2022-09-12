@@ -108,18 +108,20 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					ErrorIfMissing: false,
 				})
 				if err != nil {
-					log.Error(err)
-					return err
+					log.WithError(err).Error("could not obtain job set event message, retrying")
+					time.Sleep(5 * time.Second)
+					continue
 				}
-				fromMessageId = msg.GetId()
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
 					jobTable := repository.NewJobTable(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobTable)
 				}
+				// advance the message id for next loop
+				fromMessageId = msg.GetId()
 			}
 		}
 	})
-	return g.Wait()
+        return g.Wait()
 }
