@@ -42,12 +42,14 @@ type ClusterContext interface {
 	ClusterIdentity
 
 	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs)
+	AddClusterEventsEventHandler(handler cache.ResourceEventHandlerFuncs)
 	GetBatchPods() ([]*v1.Pod, error)
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
 	GetNode(nodeName string) (*v1.Node, error)
 	GetNodeStatsSummary(context.Context, *v1.Node) (*v1alpha1.Summary, error)
+	GetEvents() []*v1.Event
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
@@ -156,6 +158,10 @@ func (c *KubernetesClusterContext) AddPodEventHandler(handler cache.ResourceEven
 	c.podInformer.Informer().AddEventHandler(handler)
 }
 
+func (c *KubernetesClusterContext) AddClusterEventsEventHandler(handler cache.ResourceEventHandlerFuncs) {
+	c.eventInformer.Informer().AddEventHandler(handler)
+}
+
 func (c *KubernetesClusterContext) Stop() {
 	close(c.stopper)
 }
@@ -186,12 +192,24 @@ func (c *KubernetesClusterContext) GetAllPods() ([]*v1.Pod, error) {
 	return allPods, nil
 }
 
+func (c *KubernetesClusterContext) GetEvents() []*v1.Event {
+	events := c.eventInformer.Informer().GetIndexer().List()
+	var eventsTyped []*v1.Event
+	for _, untyped := range events {
+		typed, ok := untyped.(*v1.Event)
+		if ok {
+			eventsTyped = append(eventsTyped, typed)
+		}
+	}
+	return eventsTyped
+}
+
 func (c *KubernetesClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
 	events, err := c.eventInformer.Informer().GetIndexer().ByIndex(podByUIDIndex, string(pod.UID))
 	if err != nil {
 		return nil, err
 	}
-	eventsTyped := []*v1.Event{}
+	var eventsTyped []*v1.Event
 	for _, untyped := range events {
 		typed, ok := untyped.(*v1.Event)
 		if ok {

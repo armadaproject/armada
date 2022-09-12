@@ -20,6 +20,7 @@ const (
 	UnableToSchedule  IssueType = iota
 	StuckTerminating  IssueType = iota
 	ExternallyDeleted IssueType = iota
+	Preempted         IssueType = iota
 )
 
 type RunningJob struct {
@@ -276,6 +277,13 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 	if jobId != "" {
 		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if isUnexpectedDeletion {
+			// Preempted cluster event occurs after the pod gets killed (preempted)
+			// Wait for 3 seconds so the Preempted event gets recorded
+			time.Sleep(3 * time.Second)
+			if preemptionEvent := c.checkForPreemption(pod, jobId); preemptionEvent {
+				return
+			}
+
 			c.registerIssue(jobId, &PodIssue{
 				OriginatingPod: pod,
 				Pods:           []*v1.Pod{pod},
@@ -286,4 +294,23 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 			})
 		}
 	}
+}
+
+func (c *ClusterJobContext) checkForPreemption(pod *v1.Pod, jobId string) bool {
+	events := c.clusterContext.GetEvents()
+	for _, e := range events {
+		isCurrentDeletedPod := e.InvolvedObject.Name == pod.Name
+		if util.IsPreemptedEvent(e) && isCurrentDeletedPod {
+			c.registerIssue(jobId, &PodIssue{
+				OriginatingPod: pod,
+				Pods:           []*v1.Pod{pod},
+				Message:        e.Reason,
+				Retryable:      false,
+				Reported:       false,
+				Type:           Preempted,
+			})
+			return true
+		}
+	}
+	return false
 }
