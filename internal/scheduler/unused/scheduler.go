@@ -9,22 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// The ingester sort of works.
-// The API sort of also works.
-// There's more stuff that needs to go into the ingester. Like inserting everything.
-// The scheduler needs to be written. It should load data in a loop and create leases.
-// Let's start by writing the scheduler data loading logic. Make it keep track of what's in the system and print it.
-// Once I can see it can keep the state updated I can write the scheduling logic itself.
-
-// TODO: Concerns:
-// - Make sure we can run the scheduler with high availability (i.e., with failover).
-//   Look at the library for writing k8s controllers, which supports leader election. Also how the k8s scheduler does failover.
-// - Consider log catchup when the log is slow or after a long outage (hours or days).
-//   In particular, catchup time and making sure there's no feedback loop that forever spams the log.
-// - Make sure we can run Postgres with high availability and that deletion isn't a problem.
-// - Cinder reliability and failure domains for Pulsar. Tell cloud eng. that we're betting everything on them.
-// - Sync. up with Chris on an adapter that converts new events into current events.
-
 // Scheduler contains the current state of the Armada scheduler.
 //
 // Armada uses a two-stage scheduling approach, consisting of an Armada-level meta-scheduler and a set of per-cluster
