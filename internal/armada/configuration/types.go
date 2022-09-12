@@ -105,8 +105,6 @@ type SchedulingConfig struct {
 // This scheduler will eventually replace the current scheduler.
 type NewSchedulerConfig struct {
 	Enabled bool
-	// Port on which to run the API for the new scheduler.
-	GrpcPort uint16
 }
 
 type DatabaseRetentionPolicy struct {
