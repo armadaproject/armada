@@ -58,7 +58,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		return nil, err
 	}
 
-	if time.Now().After(*expirationTime) {
+	if time.Now().After(expirationTime) {
 		return nil, fmt.Errorf("invalid token, expired")
 	}
 
@@ -114,8 +114,8 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		return "", err
 	}
 
-	if unmarshalled.Kid == "" {
-		return "", fmt.Errorf("kubernetes serviceaccount token KID must not be empty")
+	if err = validateKid(unmarshalled.Kid); err != nil {
+		return "", err
 	}
 
 	url, err := os.ReadFile(authService.KidMappingFileLocation + unmarshalled.Kid)
@@ -179,15 +179,16 @@ func parseAuth(auth string) (string, string, error) {
 	return uMbody.Token, string(ca), nil
 }
 
-func parseTime(token string) (*time.Time, error) {
+func parseTime(token string) (time.Time, error) {
 	splitToken := strings.Split(token, ".")
 	if len(splitToken) != 3 {
-		return nil, fmt.Errorf("provided JWT token was not of the correct form, should have 3 parts")
+		return time.Time{}, fmt.Errorf("provided JWT token was not of the correct form, should have 3 parts")
 	}
 
 	decoded, err := base64.RawURLEncoding.DecodeString(splitToken[1])
+
 	if err != nil {
-		return nil, err
+		return time.Time{}, err
 	}
 
 	var uMbody struct {
@@ -195,9 +196,21 @@ func parseTime(token string) (*time.Time, error) {
 	}
 
 	if err := json.Unmarshal(decoded, &uMbody); err != nil {
-		return nil, err
+		return time.Time{}, err
 	}
 
 	time := time.Unix(uMbody.Expiry, 0)
-	return &time, nil
+	return time, nil
+}
+
+func validateKid(kid string) error {
+	if kid == "" {
+		return fmt.Errorf("kubernetes serviceaccount token KID must not be empty")
+	}
+
+	if strings.Contains(kid, "../") {
+		return fmt.Errorf("kid appears to contain ../, this appears to be an attack")
+	}
+
+	return nil
 }
