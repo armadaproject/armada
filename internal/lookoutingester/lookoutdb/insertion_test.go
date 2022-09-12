@@ -70,6 +70,7 @@ type JobRunRow struct {
 	Started          *time.Time
 	Finished         *time.Time
 	Succeeded        *bool
+	Cancelled		 *bool
 	Error            *string
 	PodNumber        int
 	UnableToSchedule *bool

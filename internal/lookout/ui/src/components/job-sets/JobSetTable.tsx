@@ -141,7 +141,7 @@ export default function JobSetTable(props: JobSetTableProps) {
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
         />
-         <Column
+        <Column
           dataKey="jobsCancelled"
           width={0.07 * props.width}
           label="Cancelled"
