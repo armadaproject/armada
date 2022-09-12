@@ -123,5 +123,5 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			}
 		}
 	})
-        return g.Wait()
+	return g.Wait()
 }

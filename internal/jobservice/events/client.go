@@ -8,9 +8,10 @@ import (
 
 	"google.golang.org/grpc"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
-	log "github.com/sirupsen/logrus"
 )
 
 // JobEventReader is the interface for retrieving job set event messages
