@@ -29,10 +29,6 @@ func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventH
 	c.handlers = append(c.handlers, &handler)
 }
 
-func (c *SyncFakeClusterContext) AddClusterEventsEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
-}
-
 func (c *SyncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
 	pods := make([]*v1.Pod, 0, len(c.Pods))
 	for _, p := range c.Pods {
@@ -55,10 +51,6 @@ func (c *SyncFakeClusterContext) GetNodes() ([]*v1.Node, error) {
 
 func (c *SyncFakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 	return nil, errors.New("GetNode Not implemented")
-}
-
-func (c *SyncFakeClusterContext) GetEvents() []*v1.Event {
-	return []*v1.Event{}
 }
 
 func (c *SyncFakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {

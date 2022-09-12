@@ -2,6 +2,7 @@ package job
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/pkg/api"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ type PodIssue struct {
 	Retryable      bool
 	Reported       bool
 	Type           IssueType
+	Cause          api.Cause
 }
 
 type jobRecord struct {
@@ -271,46 +273,58 @@ func createStuckPodMessage(retryable bool, originalMessage string) string {
 }
 
 func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
-	c.activeJobIdsMutex.Lock()
-	defer c.activeJobIdsMutex.Unlock()
-	jobId := util.ExtractJobId(pod)
-	if jobId != "" {
-		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
-		if isUnexpectedDeletion {
-			// Preempted cluster event occurs after the pod gets killed (preempted)
-			// Wait for 3 seconds so the Preempted event gets recorded
-			time.Sleep(3 * time.Second)
-			if preemptionEvent := c.checkForPreemptionEvent(pod); preemptionEvent != nil {
+	go func() {
+		c.activeJobIdsMutex.Lock()
+		defer c.activeJobIdsMutex.Unlock()
+		jobId := util.ExtractJobId(pod)
+		if jobId != "" {
+			isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
+			if isUnexpectedDeletion {
+				defaultMessage := "Pod of the active job was deleted"
+				// Preempted cluster event occurs after the pod gets killed (preempted)
+				// Wait for 3 seconds so the Preempted event gets recorded
+				time.Sleep(3 * time.Second)
+				preemptionEvent, err := c.checkForPreemptionEvent(pod)
+				if err != nil {
+					log.Errorf("error checking for preemption events for pod %s/%s: %v", pod.Namespace, pod.Name, err)
+					defaultMessage = fmt.Sprintf("%s: %v", defaultMessage, err)
+				}
+				if preemptionEvent != nil {
+					c.registerIssue(jobId, &PodIssue{
+						OriginatingPod: pod,
+						Pods:           []*v1.Pod{pod},
+						Message:        preemptionEvent.Message,
+						Retryable:      false,
+						Reported:       false,
+						Cause:          api.Cause_Preempted,
+						Type:           Preempted,
+					})
+					return
+				}
+
 				c.registerIssue(jobId, &PodIssue{
 					OriginatingPod: pod,
 					Pods:           []*v1.Pod{pod},
-					Message:        preemptionEvent.Reason,
+					Message:        fmt.Sprintf("%s.", defaultMessage),
 					Retryable:      false,
 					Reported:       false,
-					Type:           Preempted,
+					Type:           ExternallyDeleted,
 				})
-				return
 			}
-
-			c.registerIssue(jobId, &PodIssue{
-				OriginatingPod: pod,
-				Pods:           []*v1.Pod{pod},
-				Message:        "Pod of the active job was deleted.",
-				Retryable:      false,
-				Reported:       false,
-				Type:           ExternallyDeleted,
-			})
 		}
-	}
+	}()
 }
 
-func (c *ClusterJobContext) checkForPreemptionEvent(pod *v1.Pod) *v1.Event {
-	events := c.clusterContext.GetEvents()
+func (c *ClusterJobContext) checkForPreemptionEvent(pod *v1.Pod) (*v1.Event, error) {
+	events, err := c.clusterContext.GetPodEvents(pod)
+	if err != nil {
+		return nil, err
+	}
 	for _, e := range events {
 		isCurrentDeletedPod := e.InvolvedObject.Name == pod.Name
 		if util.IsPreemptedEvent(e) && isCurrentDeletedPod {
-			return e
+			return e, nil
 		}
 	}
-	return nil
+	return nil, nil
 }

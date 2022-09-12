@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -119,7 +120,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 		if details.Recoverable {
 			allocationService.returnLease(details.Pod, fmt.Sprintf("Failed to submit pod because %s", message))
 		} else {
-			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId())
+			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
 			err := allocationService.eventReporter.Report(failEvent)
 
 			if err == nil {

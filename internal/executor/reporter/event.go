@@ -137,8 +137,8 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	}, nil
 }
 
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
-	return CreateJobFailedEvent(pod, reason, api.Cause_Error, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
+func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause api.Cause) api.Event {
+	return CreateJobFailedEvent(pod, reason, cause, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, containerStatuses []*api.ContainerStatus,

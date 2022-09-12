@@ -77,10 +77,6 @@ func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandl
 	c.handlers = append(c.handlers, &handler)
 }
 
-func (c *FakeClusterContext) AddClusterEventsEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
-}
-
 func (c *FakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
@@ -106,10 +102,6 @@ func (c *FakeClusterContext) GetNodes() ([]*v1.Node, error) {
 
 func (c *FakeClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 	return c.nodes[0], nil
-}
-
-func (c *FakeClusterContext) GetEvents() []*v1.Event {
-	return []*v1.Event{}
 }
 
 func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
