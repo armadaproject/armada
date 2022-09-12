@@ -280,7 +280,15 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 			// Preempted cluster event occurs after the pod gets killed (preempted)
 			// Wait for 3 seconds so the Preempted event gets recorded
 			time.Sleep(3 * time.Second)
-			if preemptionEvent := c.checkForPreemption(pod, jobId); preemptionEvent {
+			if preemptionEvent := c.checkForPreemptionEvent(pod); preemptionEvent != nil {
+				c.registerIssue(jobId, &PodIssue{
+					OriginatingPod: pod,
+					Pods:           []*v1.Pod{pod},
+					Message:        preemptionEvent.Reason,
+					Retryable:      false,
+					Reported:       false,
+					Type:           Preempted,
+				})
 				return
 			}
 
@@ -296,21 +304,13 @@ func (c *ClusterJobContext) handleDeletedPod(pod *v1.Pod) {
 	}
 }
 
-func (c *ClusterJobContext) checkForPreemption(pod *v1.Pod, jobId string) bool {
+func (c *ClusterJobContext) checkForPreemptionEvent(pod *v1.Pod) *v1.Event {
 	events := c.clusterContext.GetEvents()
 	for _, e := range events {
 		isCurrentDeletedPod := e.InvolvedObject.Name == pod.Name
 		if util.IsPreemptedEvent(e) && isCurrentDeletedPod {
-			c.registerIssue(jobId, &PodIssue{
-				OriginatingPod: pod,
-				Pods:           []*v1.Pod{pod},
-				Message:        e.Reason,
-				Retryable:      false,
-				Reported:       false,
-				Type:           Preempted,
-			})
-			return true
+			return e
 		}
 	}
-	return false
+	return nil
 }
