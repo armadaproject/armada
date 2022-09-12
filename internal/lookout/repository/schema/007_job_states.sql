@@ -15,6 +15,7 @@ SELECT
     COUNT(*) FILTER (WHERE run_state = 3) AS running,
     COUNT(*) FILTER (WHERE run_state = 4) AS succeeded,
     COUNT(*) FILTER (WHERE run_state = 5) AS failed
+    -- COUNT(*) FILTER (WHERE run_state = 6) AS cancelled
 FROM (
     -- Collect run states for each pod in each job (i.e. the state of each pod)
     SELECT DISTINCT ON (joined_runs.job_id, joined_runs.pod_number)
