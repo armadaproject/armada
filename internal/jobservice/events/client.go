@@ -4,11 +4,8 @@ package events
 import (
 	"context"
 	"sync"
-	"time"
 
 	"google.golang.org/grpc"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
