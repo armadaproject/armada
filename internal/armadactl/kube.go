@@ -15,7 +15,7 @@ func (a *App) Kube(jobId string, queueName string, jobSetId string, podNumber in
 	verb := strings.Join(args, " ")
 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
 		state := client.GetJobSetState(c, queueName, jobSetId, context.Background(), true)
-		jobInfo := state.Get(jobId)
+		jobInfo := state.GetJobInfo(jobId)
 
 		if jobInfo == nil {
 			fmt.Fprintf(a.Out, "Could not find job %s.\n", jobId)
