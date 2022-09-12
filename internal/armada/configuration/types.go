@@ -32,6 +32,7 @@ type ArmadaConfig struct {
 	EventsRedis         redis.UniversalOptions
 
 	Scheduling        SchedulingConfig
+	NewScheduler      NewSchedulerConfig
 	QueueManagement   QueueManagementConfig
 	DatabaseRetention DatabaseRetentionPolicy
 	EventRetention    EventRetentionPolicy
@@ -98,6 +99,14 @@ type SchedulingConfig struct {
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
+}
+
+// NewSchedulerConfig stores config for the new Pulsar-based scheduler.
+// This scheduler will eventually replace the current scheduler.
+type NewSchedulerConfig struct {
+	Enabled bool
+	// Port on which to run the API for the new scheduler.
+	GrpcPort uint16
 }
 
 type DatabaseRetentionPolicy struct {

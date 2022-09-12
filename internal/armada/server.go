@@ -198,8 +198,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var submitServerToRegister api.SubmitServer
 	submitServerToRegister = submitServer
 
-	var pulsarExecutorApiServer *scheduler.ExecutorApi
-
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var pool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
@@ -212,30 +210,34 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
 	// Store a list of all Pulsar components to use during cleanup later.
+	var pulsarClient pulsar.Client
+	var pulsarCompressionType pulsar.CompressionType
+	var pulsarCompressionLevel pulsar.CompressionLevel
 	if config.Pulsar.Enabled {
 		serverId := uuid.New()
 
 		// API endpoints that generate Pulsar messages.
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
-		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+		var err error
+		pulsarClient, err = pulsarutils.NewPulsarClient(&config.Pulsar)
 		if err != nil {
 			return err
 		}
 		defer pulsarClient.Close()
 
-		compressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+		pulsarCompressionType, err = pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
 		if err != nil {
 			return err
 		}
-		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+		pulsarCompressionLevel, err = pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
 		if err != nil {
 			return err
 		}
 		serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 			Name:             serverPulsarProducerName,
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
@@ -315,8 +317,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
 			Name:             p2pPulsarProducer,
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
@@ -344,6 +346,16 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 				return eventsPrinter.Run(ctx)
 			})
 		}
+	} else {
+		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
+	}
+
+	// New Pulsar-based scheduler.
+	var newSchedulerApiServer *scheduler.ExecutorApi
+	if config.NewScheduler.Enabled {
+		if !config.Pulsar.Enabled {
+			return errors.New("new scheduler enabled, but Pulsar is disabled")
+		}
 
 		// Scheduler jobs ingester.
 		schedulerIngester := &scheduler.Ingester{
@@ -354,18 +366,18 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 				Type:             pulsar.KeyShared,
 			},
 			MaxWriteInterval: 10 * time.Second,
-			MaxWriteRecords:  10000,
+			MaxDbOps:         10000,
 			Db:               pool,
 		}
 		services = append(services, func() error {
 			return schedulerIngester.Run(ctx)
 		})
 
-		// New event-based scheduler.
+		// The scheduler itself.
 		// TODO: I think we can safely re-use the same producer for all components.
 		schedulerProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
@@ -377,68 +389,21 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return sched.Run(ctx)
 		})
 
+		// API of the new scheduler.
 		apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		pulsarExecutorApiServer = &scheduler.ExecutorApi{
+		newSchedulerApiServer = &scheduler.ExecutorApi{
 			Producer:       apiProducer,
 			Db:             pool,
 			MaxJobsPerCall: 100,
 		}
-
-		// // This producer does not need a name; having multiple producers is safe.
-		// producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-		// 	CompressionType:  compressionType,
-		// 	CompressionLevel: compressionLevel,
-		// 	BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-		// 	Topic:            config.Pulsar.JobsetEventsTopic,
-		// })
-		// if err != nil {
-		// 	return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
-		// }
-		// defer producer.Close()
-		// schedulerIngester := scheduler.NewSchedulerIngester(consumer, producer, schedulerProcessor)
-		// services = append(services, func() error {
-		// 	return schedulerIngester.Run(ctx)
-		// })
-
-		// // Create a separate gRPC server for this scheduler.
-		// // Since it needs to listen on another port.
-		// authServices := auth.ConfigureAuth(config.Auth)
-		// schedulerGrpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
-		// api.RegisterAggregatedQueueServer(schedulerGrpcServer, schedulerIngester)
-		// api.RegisterUsageServer(schedulerGrpcServer, schedulerIngester)
-		// api.RegisterEventServer(schedulerGrpcServer, schedulerIngester)
-
-		// // Shut down grpcServer if the context is cancelled.
-		// // Give the server 5 seconds to shut down gracefully.
-		// services = append(services, func() error {
-		// 	<-ctx.Done()
-		// 	go func() {
-		// 		time.Sleep(5 * time.Second)
-		// 		schedulerGrpcServer.Stop()
-		// 	}()
-		// 	schedulerGrpcServer.GracefulStop()
-		// 	return nil
-		// })
-
-		// // Cancel the errgroup if grpcServer.Serve returns an error.
-		// log.Infof("Experimental gRPC server listening on %d", 50052)
-		// lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 50052))
-		// if err != nil {
-		// 	return errors.WithStack(err)
-		// }
-		// services = append(services, func() error {
-		// 	return schedulerGrpcServer.Serve(lis)
-		// })
-	} else {
-		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
@@ -466,17 +431,15 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
+	api.RegisterEventServer(grpcServer, eventServer)
 
 	// If the new Pulsar-driven scheduler is provided, run that.
 	// Otherwise run the legacy scheduler.
-	// TODO: Run both on different ports.
-	if pulsarExecutorApiServer != nil {
-		api.RegisterAggregatedQueueServer(grpcServer, pulsarExecutorApiServer)
+	if newSchedulerApiServer != nil {
+		api.RegisterAggregatedQueueServer(grpcServer, newSchedulerApiServer)
 	} else {
 		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	}
-	api.RegisterEventServer(grpcServer, eventServer)
-
 	grpc_prometheus.Register(grpcServer)
 
 	// Cancel the errgroup if grpcServer.Serve returns an error.
