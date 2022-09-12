@@ -52,8 +52,6 @@ CREATE TABLE runs (
     job_set TEXT NOT NULL,
     -- Executor this job run is assigned to.
     executor text NOT NULL,
-    -- TODO: We probably want this to be proto.
-    -- assignment json,
     -- True if this run has been sent to the executor already.
     -- Used to control which runs are sent to the executor when it requests jobs.
     sent_to_executor boolean NOT NULL DEFAULT false,
