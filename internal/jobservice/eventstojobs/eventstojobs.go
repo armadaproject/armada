@@ -40,18 +40,7 @@ func NewEventsToJobService(
 
 // Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit, up to the TTL
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context, ttlSecs int64) error {
-	expiresAt := time.Now().Add(time.Duration(ttlSecs) * time.Second)
-	for {
-		err := eventToJobService.streamCommon(context, ttlSecs)
-		// returns with no error only when job becomes unsubscribed
-		// otherwise, retry up to the ttl
-		if err == nil {
-			return nil
-		} else if time.Now().After(expiresAt) {
-			return errors.Errorf("the job event subscription TTL has expired while receiving error: %v", err)
-		}
-		time.Sleep(time.Second * 5)
-	}
+	return eventToJobService.streamCommon(context, ttlSecs)
 }
 
 func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64) error {
