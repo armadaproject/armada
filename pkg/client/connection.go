@@ -100,7 +100,7 @@ func CreateApiConnectionWithCallOptions(
 func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredentials, error) {
 	if config.BasicAuth.Username != "" {
 		return &config.BasicAuth, nil
-	} else if config.KubernetesNativeAuth.ServiceAccount != "" {
+	} else if config.KubernetesNativeAuth.Enabled {
 		return kubernetes.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
 	} else if config.OpenIdAuth.ProviderUrl != "" {
 		return oidc.AuthenticatePkce(config.OpenIdAuth)

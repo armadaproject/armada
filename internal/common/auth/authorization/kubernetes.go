@@ -11,7 +11,6 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	"github.com/patrickmn/go-cache"
-	log "github.com/sirupsen/logrus"
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -101,9 +100,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 }
 
 func (authService *KubernetesNativeAuthService) getClusterURL(token string) (string, error) {
-	log.Infof("Token: %s", token)
 	header := strings.Split(token, ".")[0]
-	log.Infof("Header: %s", header)
 	decoded, err := base64.RawURLEncoding.DecodeString(header)
 	if err != nil {
 		return "", err

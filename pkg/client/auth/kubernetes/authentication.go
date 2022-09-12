@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"context"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
@@ -14,12 +15,14 @@ import (
 )
 
 type NativeAuthDetails struct {
-	Expiry         int64
-	Namespace      string
-	ServiceAccount string
+	Expiry  int64
+	Enabled bool
 }
 
 func AuthenticateKubernetesNative(config NativeAuthDetails) (*NativeTokenCredentials, error) {
+	serviceAccount := os.Getenv("SERVICE_ACCOUNT")
+	namespace := os.Getenv("POD_NAMESPACE")
+
 	tokenSource := oidc.FunctionTokenSource{
 		GetToken: func() (*oauth2.Token, error) {
 			log.Infof("Getting new temporary token from TokenReview")
@@ -38,8 +41,8 @@ func AuthenticateKubernetesNative(config NativeAuthDetails) (*NativeTokenCredent
 				},
 			}
 
-			result, err := clientSet.CoreV1().ServiceAccounts(config.Namespace).
-				CreateToken(context.Background(), config.ServiceAccount, &tr, metav1.CreateOptions{})
+			result, err := clientSet.CoreV1().ServiceAccounts(namespace).
+				CreateToken(context.Background(), serviceAccount, &tr, metav1.CreateOptions{})
 			if err != nil {
 				return nil, err
 			}
