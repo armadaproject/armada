@@ -2,9 +2,10 @@ package job
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/pkg/api"
 	"sync"
 	"time"
+
+	"github.com/G-Research/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
