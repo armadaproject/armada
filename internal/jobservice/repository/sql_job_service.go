@@ -18,7 +18,7 @@ import (
 type JobTableUpdater interface {
 	SubscribeJobSet(string, string)
 	IsJobSetSubscribed(string, string) bool
-	UpdateJobServiceDb(*JobTable)
+	UpdateJobServiceDb(*JobStatus)
 }
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
@@ -106,7 +106,7 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 }
 
 // Update database with JobTable.
-func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
+func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
 	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		panic(err)

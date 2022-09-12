@@ -40,7 +40,7 @@ type JobTableUpdaterMock struct {
 	SubscribeJobSetFunc func(s1 string, s2 string)
 
 	// UpdateJobServiceDbFunc mocks the UpdateJobServiceDb method.
-	UpdateJobServiceDbFunc func(jobTable *JobTable)
+	UpdateJobServiceDbFunc func(jobTable *JobStatus)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -61,7 +61,7 @@ type JobTableUpdaterMock struct {
 		// UpdateJobServiceDb holds details about calls to the UpdateJobServiceDb method.
 		UpdateJobServiceDb []struct {
 			// JobTable is the jobTable argument value.
-			JobTable *JobTable
+			JobTable *JobStatus
 		}
 	}
 	lockIsJobSetSubscribed sync.RWMutex
@@ -140,12 +140,12 @@ func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
 }
 
 // UpdateJobServiceDb calls UpdateJobServiceDbFunc.
-func (mock *JobTableUpdaterMock) UpdateJobServiceDb(jobTable *JobTable) {
+func (mock *JobTableUpdaterMock) UpdateJobServiceDb(jobTable *JobStatus) {
 	if mock.UpdateJobServiceDbFunc == nil {
 		panic("JobTableUpdaterMock.UpdateJobServiceDbFunc: method is nil but JobTableUpdater.UpdateJobServiceDb was just called")
 	}
 	callInfo := struct {
-		JobTable *JobTable
+		JobTable *JobStatus
 	}{
 		JobTable: jobTable,
 	}
@@ -159,10 +159,10 @@ func (mock *JobTableUpdaterMock) UpdateJobServiceDb(jobTable *JobTable) {
 // Check the length with:
 //     len(mockedJobTableUpdater.UpdateJobServiceDbCalls())
 func (mock *JobTableUpdaterMock) UpdateJobServiceDbCalls() []struct {
-	JobTable *JobTable
+	JobTable *JobStatus
 } {
 	var calls []struct {
-		JobTable *JobTable
+		JobTable *JobStatus
 	}
 	mock.lockUpdateJobServiceDb.RLock()
 	calls = mock.calls.UpdateJobServiceDb
