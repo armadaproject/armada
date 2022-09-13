@@ -1,12 +1,13 @@
 package authorization
 
 import (
-	"github.com/G-Research/armada/internal/common/auth/configuration"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/stretchr/testify/assert"
 )
 
 // A token
