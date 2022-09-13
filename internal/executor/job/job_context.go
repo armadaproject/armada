@@ -218,7 +218,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 	for _, pod := range runningJob.ActivePods {
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(c.stuckTerminatingPodExpiry).Before(time.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
-			// its safer to produce failed event than retrying as the job might have run already
+			// it is safer to produce failed event than retrying as the job might have run already
 			issue := &PodIssue{
 				OriginatingPod: pod.DeepCopy(),
 				Pods:           runningJob.ActivePods,
