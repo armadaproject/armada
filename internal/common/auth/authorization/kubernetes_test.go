@@ -37,6 +37,9 @@ func TestGetClusterURL(t *testing.T) {
 	}
 	path := filepath.Join(tempdir, testKid)
 	kidfile, err := os.Create(path)
+	if err != nil {
+		t.Errorf("TestGetClusterURL returned error: %s", err)
+	}
 	defer os.Remove(path)
 	defer kidfile.Close()
 	kidfile.Write([]byte(testUrl))

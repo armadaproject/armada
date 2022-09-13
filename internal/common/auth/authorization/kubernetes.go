@@ -190,7 +190,6 @@ func parseTime(token string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-
 	var uMbody struct {
 		Expiry int64 `json:"exp"`
 	}
