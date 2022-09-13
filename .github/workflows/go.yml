@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
-
+      
       - name: make tests
         run: make tests
 
@@ -62,3 +62,7 @@ jobs:
         with:
           name: junit.xml
           path: test_reports/junit.xml
+      - name: Display lint results
+        run: golangci-lint run
+        if: always()
+        shell: bash
