@@ -16,9 +16,9 @@ type PodChecker interface {
 }
 
 type PodChecks struct {
-	eventChecks               eventChecker
-	containerStateChecks      containerStateChecker
-	timeWithoutEventsOrStatus time.Duration
+	eventChecks          eventChecker
+	containerStateChecks containerStateChecker
+	deadlineForUpdates   time.Duration
 }
 
 func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
@@ -33,14 +33,14 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 		return nil, err
 	}
 
-	return &PodChecks{eventChecks: ec, containerStateChecks: csc, timeWithoutEventsOrStatus: cfg.TimeWithoutEventsOrStatus}, nil
+	return &PodChecks{eventChecks: ec, containerStateChecks: csc, deadlineForUpdates: cfg.DeadlineForUpdates}, nil
 }
 
 func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 	messages := []string{}
 
-	isNodeBad := pc.isNodeBad(pod, podEvents)
-	if timeInState > pc.timeWithoutEventsOrStatus && isNodeBad {
+	isNodeBad := pc.hasNoEventsOrStatus(pod, podEvents)
+	if timeInState > pc.deadlineForUpdates && isNodeBad {
 		return ActionRetry, "Pod status and pod events are both empty. Retrying"
 	} else if isNodeBad {
 		return ActionWait, "Pod status and pod events are both empty but we are under timelimit. Waiting"
@@ -63,7 +63,7 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 
 // If a node is bad, we can have no pod status and no pod events.
 // We should retry the pod rather than wait
-func (pc *PodChecks) isNodeBad(pod *v1.Pod, podEvents []*v1.Event) bool {
+func (pc *PodChecks) hasNoEventsOrStatus(pod *v1.Pod, podEvents []*v1.Event) bool {
 	containerStatus := util.GetPodContainerStatuses(pod)
 	return len(containerStatus) == 0 && len(podEvents) == 0
 }

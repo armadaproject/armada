@@ -26,9 +26,9 @@ const (
 )
 
 type Checks struct {
-	Events                    []EventCheck
-	ContainerStatuses         []ContainerStatusCheck
-	TimeWithoutEventsOrStatus time.Duration
+	Events             []EventCheck
+	ContainerStatuses  []ContainerStatusCheck
+	DeadlineForUpdates time.Duration
 }
 
 type EventCheck struct {

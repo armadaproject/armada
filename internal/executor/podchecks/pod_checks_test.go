@@ -43,14 +43,14 @@ func podChecksWithMocks(eventResult Action, containerStateResult Action) *PodChe
 }
 
 func Test_GetActionBadNode(t *testing.T) {
-	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, timeWithoutEventsOrStatus: time.Minute}
+	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, deadlineForUpdates: time.Minute}
 	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, 10*time.Minute)
 	assert.Equal(t, result, ActionRetry)
 	assert.Equal(t, message, "Pod status and pod events are both empty. Retrying")
 }
 
 func Test_GetActionBadNodeButUnderTimeLimit(t *testing.T) {
-	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, timeWithoutEventsOrStatus: time.Minute}
+	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, deadlineForUpdates: time.Minute}
 	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, 10*time.Second)
 	assert.Equal(t, result, ActionWait)
 	assert.Equal(t, message, "Pod status and pod events are both empty but we are under timelimit. Waiting")
