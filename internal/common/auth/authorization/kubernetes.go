@@ -186,7 +186,6 @@ func parseTime(token string) (time.Time, error) {
 	}
 
 	decoded, err := base64.RawURLEncoding.DecodeString(splitToken[1])
-
 	if err != nil {
 		return time.Time{}, err
 	}
