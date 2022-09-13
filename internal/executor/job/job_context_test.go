@@ -20,7 +20,9 @@ func TestHandleDeletion_AddsPodIssue_OnUnexpectedDeletionOfArmadaJobs(t *testing
 	jobContext := NewClusterJobContext(fake.NewSyncFakeClusterContext(), makeMinimalPodChecker(), time.Minute*3, 1)
 
 	armadaPod := makeArmadaPod(v1.PodRunning)
-	jobContext.handleDeletedPod(armadaPod)
+	wg := jobContext.handleDeletedPodAsync(armadaPod)
+
+	wg.Wait()
 
 	activeJobs, err := jobContext.GetJobs()
 	assert.NoError(t, err)
@@ -36,7 +38,7 @@ func TestHandleDeletion_DoesNothing_OnDeletionOfNonArmadaJobs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, activeJobs, 0)
 
-	jobContext.handleDeletedPod(&v1.Pod{})
+	jobContext.handleDeletedPodAsync(&v1.Pod{})
 
 	activeJobs, err = jobContext.GetJobs()
 	assert.NoError(t, err)
@@ -50,7 +52,7 @@ func TestHandleDeletion_DoesNothing_OnExpectedDeletionOfArmadaJobs(t *testing.T)
 	assert.NoError(t, err)
 	assert.Len(t, activeJobs, 0)
 
-	jobContext.handleDeletedPod(makeArmadaPodReadyForDeletion(v1.PodSucceeded))
+	jobContext.handleDeletedPodAsync(makeArmadaPodReadyForDeletion(v1.PodSucceeded))
 
 	activeJobs, err = jobContext.GetJobs()
 	assert.NoError(t, err)
