@@ -65,6 +65,9 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 			}
 		}
 
+		// cut out groups:
+		es.Groups = nil
+
 		sequences = append(sequences, es)
 	}
 	sequences = eventutil.CompactEventSequences(sequences)
