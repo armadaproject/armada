@@ -8,10 +8,6 @@ runs:
       with:
         go-version: ${{ matrix.go }}
         cache: true
-    - name: Display lint results
-      run: golangci-lint run
-      if: always()
-      shell: bash
     - name: Setup dependencies
       shell: bash
       run: make download
