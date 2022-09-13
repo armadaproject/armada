@@ -1,6 +1,7 @@
 package authorization
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,6 +47,7 @@ func TestGetClusterURL(t *testing.T) {
 		t.Errorf("TestGetClusterURL returned error: %s", err)
 	}
 	path := filepath.Join(tempdir, testKid)
+	fmt.Printf("File: %s\n", path)
 	kidfile, err := os.Create(path)
 	if err != nil {
 		t.Errorf("TestGetClusterURL returned error: %s", err)
