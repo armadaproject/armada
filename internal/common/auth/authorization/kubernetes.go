@@ -118,7 +118,6 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 		return "", err
 	}
 
-	fmt.Printf("KID: %s\n", unmarshalled.Kid)
 	url, err := os.ReadFile(authService.KidMappingFileLocation + unmarshalled.Kid)
 	if err != nil {
 		return "", err
