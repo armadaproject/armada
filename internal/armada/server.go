@@ -365,7 +365,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 				SubscriptionName: "pulsar-scheduler-ingester",
 				Type:             pulsar.KeyShared,
 			},
-			MaxWriteInterval: 10 * time.Second,
+			MaxWriteInterval: time.Second,
 			MaxDbOps:         10000,
 			Db:               pool,
 		}
