@@ -354,17 +354,6 @@ func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.I
 		return nil, errors.WithStack(err)
 	}
 
-	// runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, SelectRunsFromExecutorAndJobsParams{
-	// 	Executor: req.GetClusterId(),
-	// 	JobIds:   []uuid.UUID{jobId},
-	// })
-	// if err != nil {
-	// 	return nil, errors.WithStack(err)
-	// }
-	// if len(runs) != 1 {
-	// 	return nil, errors.Errorf("expected 1 run, but got %v", runs)
-	// }
-
 	sequences := make([]*armadaevents.EventSequence, 0)
 	for _, row := range rows {
 		sequence := &armadaevents.EventSequence{
