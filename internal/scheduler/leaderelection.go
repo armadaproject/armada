@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/jackc/pgconn"
@@ -14,6 +13,8 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/common/logging"
 )
 
 // LeaderElection is used by the scheduler to ensure only one instance
