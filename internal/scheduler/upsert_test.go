@@ -346,40 +346,6 @@ func TestConcurrency(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// // Return nrecords records, each with payloadSize bytes of payload.
-// // The returned slice is sorted by ID.
-// func makeRecords(nrecords, payloadSize int) []interface{} {
-// 	records := make([]Record, nrecords)
-// 	payload := strings.Repeat("0", payloadSize)
-// 	for i := 0; i < nrecords; i++ {
-// 		records[i] = Record{
-// 			Id:      uuid.New(),
-// 			Value:   i,
-// 			Message: payload,
-// 		}
-// 	}
-// 	sort.Slice(records, func(i, j int) bool {
-// 		return records[i].Id.String() < records[j].Id.String()
-// 	})
-// 	rv := make([]interface{}, nrecords)
-// 	for i, v := range records {
-// 		rv[i] = v
-// 	}
-// 	return rv
-// }
-
-// // assertNodeInfoEqual is a utility function for comparing two slices of runs.
-// // First sorts both slices.
-// func assertNodeInfoEqual(t *testing.T, expected, actual []Run) bool {
-// 	sort.Slice(expected, func(i, j int) bool {
-// 		return expected[i].RunID.String() < expected[j].RunID.String()
-// 	})
-// 	sort.Slice(actual, func(i, j int) bool {
-// 		return actual[i].RunID.String() < actual[j].RunID.String()
-// 	})
-// 	return assert.Equal(t, expected, actual)
-// }
-
 func assertNodeInfoEqual(t *testing.T, expected, actual []Nodeinfo) bool {
 	es := make(map[string]*Nodeinfo)
 	as := make(map[string]*Nodeinfo)
@@ -445,12 +411,16 @@ func TestAutoIncrement(t *testing.T) {
 		records = append(
 			records,
 			Nodeinfo{
-				NodeName: "foo",
-				Message:  make([]byte, 0),
+				ExecutorNodeName: "Efoo",
+				NodeName:         "foo",
+				Executor:         "E",
+				Message:          make([]byte, 0),
 			},
 			Nodeinfo{
-				NodeName: "bar",
-				Message:  []byte{1},
+				ExecutorNodeName: "Ebar",
+				NodeName:         "bar",
+				Executor:         "E",
+				Message:          []byte{1},
 			},
 		)
 		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
@@ -472,8 +442,10 @@ func TestAutoIncrement(t *testing.T) {
 		// Should automatically set the serial of the row to 3.
 		records = make([]interface{}, 0)
 		records = append(records, Nodeinfo{
-			NodeName: "bar",
-			Message:  []byte{2},
+			ExecutorNodeName: "Ebar",
+			NodeName:         "bar",
+			Executor:         "E",
+			Message:          []byte{1},
 		})
 
 		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
@@ -487,7 +459,7 @@ func TestAutoIncrement(t *testing.T) {
 		}
 		assert.Equal(t, 2, len(actual))
 		assert.Equal(t, int64(1), actual[0].Serial)
-		assert.Equal(t, int64(3), actual[1].Serial)
+		assert.Equal(t, int64(4), actual[1].Serial)
 		assert.Equal(t, "foo", actual[0].NodeName)
 		assert.Equal(t, "bar", actual[1].NodeName)
 
@@ -495,8 +467,10 @@ func TestAutoIncrement(t *testing.T) {
 		// Should automatically set the serial of the row to 3.
 		records = make([]interface{}, 0)
 		records = append(records, Nodeinfo{
-			NodeName: "baz",
-			Message:  []byte{2},
+			ExecutorNodeName: "Ebaz",
+			NodeName:         "baz",
+			Executor:         "E",
+			Message:          []byte{2},
 		})
 
 		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
@@ -509,7 +483,7 @@ func TestAutoIncrement(t *testing.T) {
 			return nil
 		}
 		assert.Equal(t, 3, len(actual))
-		assert.Equal(t, int64(4), actual[2].Serial)
+		assert.Equal(t, int64(5), actual[2].Serial)
 		assert.Equal(t, "baz", actual[2].NodeName)
 
 		return nil
