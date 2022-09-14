@@ -629,6 +629,10 @@
         "clientId": {
           "type": "string"
         },
+        "compressedQueueOwnershipUserGroups": {
+          "type": "string",
+          "format": "byte"
+        },
         "created": {
           "type": "string",
           "format": "date-time"
@@ -647,7 +651,6 @@
           "type": "string"
         },
         "k8sIngress": {
-          "description": "repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\ngithub.com.G-Research.armada.internal.events.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1Ingress"
@@ -1191,7 +1194,10 @@
         "errorIfMissing": {
           "type": "boolean"
         },
-        "forceRedis": {
+        "forceLegacy": {
+          "type": "boolean"
+        },
+        "forceNew": {
           "type": "boolean"
         },
         "fromMessageId": {

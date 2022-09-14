@@ -55,6 +55,19 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", pulsarMsg.ID())
 			continue
 		}
+
+		// Fill in time if it is not set
+		// TODO - once created is set everywhere we can remove this
+		for _, event := range es.Events {
+			if event.GetCreated() == nil {
+				publishTime := pulsarMsg.PublishTime()
+				event.Created = &publishTime
+			}
+		}
+
+		// cut out groups:
+		es.Groups = nil
+
 		sequences = append(sequences, es)
 	}
 	sequences = eventutil.CompactEventSequences(sequences)
