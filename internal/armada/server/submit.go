@@ -250,8 +250,14 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
-	for _, r := range req.JobRequestItems {
-		if err := server.validateJobRequestItem(r); err != nil {
+	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
+	if e != nil {
+		reqJson, _ := json.Marshal(req)
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
+	}
+
+	for _, j := range jobs {
+		if err := validation.ValidateApiJob(j, server.schedulingConfig.Preemption); err != nil {
 			return nil, err
 		}
 	}
@@ -281,12 +287,6 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		}
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
-	}
-
-	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
-	if e != nil {
-		reqJson, _ := json.Marshal(req)
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 	}
 
 	// Check if the job would fit on any executor,
@@ -367,22 +367,6 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	}
 
 	return result, nil
-}
-
-func (server *SubmitServer) validateJobRequestItem(r *api.JobSubmitRequestItem) error {
-	if err := validation.ValidateJobRequestItemPodSpec(r); err != nil {
-		return err
-	}
-
-	if err := validation.ValidateJobRequestItemPriorityClass(
-		r,
-		server.schedulingConfig.Preemption.Enabled,
-		server.schedulingConfig.Preemption.PriorityClasses,
-	); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (server *SubmitServer) submittingJobsWouldSurpassLimit(q queue.Queue, jobSubmitRequest *api.JobSubmitRequest) error {
