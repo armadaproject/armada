@@ -23,6 +23,7 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
+	commonvalidation "github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/pkg/api"
@@ -109,43 +110,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			}
 		}
 
-		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 0 {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PodSpec",
-				Value:   apiJob.PodSpec,
-				Message: "Job does not contain at least one PodSpec",
-			})
-		}
-
-		// We only support jobs with a single PodSpec, and it must be set to r.PodSpec.
-		if apiJob.PodSpec == nil && len(apiJob.PodSpecs) == 1 {
-			apiJob.PodSpec = apiJob.PodSpecs[0]
-			apiJob.PodSpecs = nil
-		}
-
-		// I'm not convinced that the code to create services/ingresses when multiple pods are submitted is correct.
-		// In particular, we do not create a full set of services/ingresses for each pod.
-		// Hence, we return an error until we can make sure that the code is correct.
-		// The next error is redundant with this one, but we leave both since we may wish to remove this one.
-		// - Albin
-		if len(apiJob.PodSpecs) > 0 {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PodSpecs",
-				Value:   apiJob.PodSpecs,
-				Message: "Jobs with multiple pods are not supported",
-			})
-		}
-
-		// Although the code for submitting to Pulsar (below) supports setting both r.PodSpec and r.PodSpecs,
-		// the executor code does not (e.g., executorutil.CreatePod). We may be able to merge them,
-		// but we should do more testing to make sure it's safe before we allow it.
-		// - Albin
-		if len(apiJob.PodSpecs) > 0 && apiJob.PodSpec != nil {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "PodSpec",
-				Value:   apiJob.PodSpec,
-				Message: "PodSpec must be nil if PodSpecs is provided (i.e., these are exclusive)",
-			})
+		if err := commonvalidation.ValidateApiJob(apiJob, srv.SubmitServer.schedulingConfig.Preemption); err != nil {
+			return nil, err
 		}
 
 		// Users submit API-specific service and ingress objects.
