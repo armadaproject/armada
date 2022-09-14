@@ -12,11 +12,58 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const leaderElectionTimeout time.Duration = 100 * time.Millisecond
+const leaderElectionTimeout time.Duration = time.Second
 const leaderElectionInterval time.Duration = 10 * time.Millisecond
 
 func TestLeaderElection(t *testing.T) {
-	numInstances := 3
+	numInstances := 10
+	for i := 0; i < 10; i++ {
+		err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
+
+			// Create several instances that all try to become leader.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			g, ctx := errgroup.WithContext(ctx)
+			cancels := make([]context.CancelFunc, numInstances)
+			ch := make(chan int, numInstances)
+			for i := 0; i < numInstances; i++ {
+				ctxi, c := context.WithCancel(ctx)
+				cancels[i] = c
+				i := i
+				g.Go(func() error {
+					return tryBecomeLeaderService(ctxi, db, i, ch)
+				})
+			}
+
+			// Wait for one instance to take leadership.
+			_, ok := <-ch
+			if !ok {
+				return errors.New("unexpected channel close")
+			}
+
+			// Wait to ensure no other instance also claims leadership.
+			timer := time.NewTimer(10 * leaderElectionInterval)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-ch:
+				return errors.New("unexpected leader change")
+			case <-timer.C:
+			}
+
+			cancel()
+			err := g.Wait()
+			if err != nil && !errors.Is(err, context.Canceled) {
+				return err
+			}
+			return nil
+		})
+		assert.NoError(t, err)
+	}
+}
+
+func TestLeaderElectionTimeout(t *testing.T) {
+	numInstances := 2
 	err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
 
 		// Create several instances that all try to become leader.
@@ -34,7 +81,6 @@ func TestLeaderElection(t *testing.T) {
 			})
 		}
 
-		// Test that only one instance claims leadership at a time.
 		// Then cancel the leader to test that another instance claims leadership.
 		for j := 0; j < numInstances; j++ {
 			select {
