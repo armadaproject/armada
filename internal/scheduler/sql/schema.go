@@ -63,8 +63,6 @@ func SchemaTemplate() string {
 		"    job_set TEXT NOT NULL,\n" +
 		"    -- Executor this job run is assigned to.\n" +
 		"    executor text NOT NULL,\n" +
-		"    -- TODO: We probably want this to be proto.\n" +
-		"    -- assignment json,\n" +
 		"    -- True if this run has been sent to the executor already.\n" +
 		"    -- Used to control which runs are sent to the executor when it requests jobs.\n" +
 		"    sent_to_executor boolean NOT NULL DEFAULT false,\n" +
