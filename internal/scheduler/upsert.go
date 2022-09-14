@@ -6,52 +6,12 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
-
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
-// ErrStaleWrite is returned by UpsertRecords if the db already contains
-// data more recent than what we're trying to write.
-//
-// Contains a StaleWrite struct for each partition for which the write is stale.
-// Since a write may be based of data from several partition of a topic.
-type ErrStaleWrite struct {
-	Topic       string
-	StaleWrites []StaleWrite
-}
-
-// StaleWrite contains the message id associated with the write and
-// the message id already stored in the database for a particular (partition of a) topic.
-type StaleWrite struct {
-	// Message id of the most recent message attempted to write.
-	WriteMessageId pulsar.MessageID
-	// Message id stored in the database.
-	DbMessageId pulsar.MessageID
-}
-
-func (err *ErrStaleWrite) Error() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("stale write for topic '%s'", err.Topic))
-	if len(err.StaleWrites) > 0 {
-		sb.WriteString(": ")
-	}
-	for i, staleWrite := range err.StaleWrites {
-		sb.WriteString(fmt.Sprintf(
-			"%d-th partition write %s is less recent than %s",
-			staleWrite.DbMessageId.PartitionIdx(), staleWrite.WriteMessageId, staleWrite.DbMessageId),
-		)
-		if i != len(err.StaleWrites)-1 {
-			sb.WriteString(", ")
-		}
-	}
-	return sb.String()
-}
-
-// IdempotentUpsert is an optimised SQL call for bulk upserts.
+// Upsert is an optimised SQL call for bulk upserts.
 //
 // For efficiency, this function:
 // 1. Creates an empty temporary SQL table.
@@ -75,42 +35,6 @@ func (err *ErrStaleWrite) Error() string {
 //
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
-//
-// This function relies on Pulsar message ids for idempotent writes;
-// if a Pulsar message id stored in postgres is more recent than one provided to this function,
-// the transaction is rolled back and a ErrStaleWrite error is returned.
-//
-// This function assumes all records are derived from a single (possibly partitioned) Pulsar topic
-// with name topicName. writeMessageIds maps partition indices to the id of the most recently
-// received Pulsar message for that partition.
-func IdempotentUpsert(ctx context.Context, db *pgxpool.Pool, topicName string, writeMessageIds map[int32]pulsar.MessageID, tableName string, schema string, records []interface{}) error {
-	if len(records) == 0 {
-		return nil
-	}
-	return db.BeginTxFunc(ctx, pgx.TxOptions{
-		IsoLevel:       pgx.ReadCommitted,
-		AccessMode:     pgx.ReadWrite,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		err := IdempotencyCheck(ctx, tx, topicName, writeMessageIds)
-		if err != nil {
-			return err
-		}
-
-		err = CopyProtocolUpsert(ctx, tx, tableName, schema, records)
-		if err != nil {
-			return err
-		}
-
-		err = UpsertMessageIds(ctx, tx, topicName, writeMessageIds)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-// Upsert is like [IdempotentUpsert], except the it does no idempotency check.
 func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema string, records []interface{}) error {
 	if len(records) == 0 {
 		return nil
@@ -124,74 +48,12 @@ func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema stri
 	})
 }
 
-func IdempotencyCheck(ctx context.Context, tx DBTX, topicName string, writeMessageIds map[int32]pulsar.MessageID) error {
-
-	// Load the message ids stored in postgres.
-	queries := New(tx)
-	sqlWriteMessageIds, err := queries.GetTopicMessageIds(ctx, topicName)
-	if err != pgx.ErrNoRows && err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Check if the data stored in postgres is more recent than what we're trying to write.
-	staleWrites := make([]StaleWrite, 0)
-	for _, sqlWriteMessageId := range sqlWriteMessageIds {
-
-		// Convert from the SQL-specific representation of message ids to one that can be used for comparison.
-		dbMessageId := pulsarMessageIdFromPulsarRecord(sqlWriteMessageId)
-
-		// If the id loaded from the database is more recent than the one provided, abort the transaction.
-		// Since the data we're trying to write is stale.
-		if writeMessageId, ok := writeMessageIds[dbMessageId.PartitionIdx()]; ok {
-			isGreater, err := dbMessageId.Greater(writeMessageId)
-			if err != nil {
-				return err
-			}
-			if isGreater {
-				staleWrites = append(staleWrites, StaleWrite{
-					WriteMessageId: writeMessageId,
-					DbMessageId:    dbMessageId,
-				})
-			}
-		}
-	}
-	if len(staleWrites) > 0 {
-		return &ErrStaleWrite{
-			Topic:       topicName,
-			StaleWrites: staleWrites,
-		}
-	}
-
-	return nil
-}
-
-func UpsertMessageIds(ctx context.Context, tx DBTX, topicName string, writeMessageIds map[int32]pulsar.MessageID) error {
-	// Otherwise, we have more recent data than what is already stored in the db that we should write.
-	// Update the message id in postgres to reflect the data to be written.
-	//
-	// TODO: Add a call to insert these in a single call.
-	queries := New(tx)
-	for _, writeMessageId := range writeMessageIds {
-		err := queries.UpsertMessageId(ctx, UpsertMessageIdParams{
-			Topic:        topicName,
-			LedgerID:     writeMessageId.LedgerID(),
-			EntryID:      writeMessageId.EntryID(),
-			BatchIdx:     writeMessageId.BatchIdx(),
-			PartitionIdx: writeMessageId.PartitionIdx(),
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	return nil
-}
-
 func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
 
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.
 	// The table is created with the provided schema.
-	tempTableName := "insert" // TODO: Is this name unique per transaction?
+	tempTableName := "insert"
 	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s %s ON COMMIT DROP;", tempTableName, schema))
 	if err != nil {
 		return errors.WithStack(err)
@@ -240,15 +102,6 @@ func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema
 	}
 
 	return nil
-}
-
-func pulsarMessageIdFromPulsarRecord(pulsarRecord Pulsar) *pulsarutils.PulsarMessageId {
-	return pulsarutils.New(
-		pulsarRecord.LedgerID,
-		pulsarRecord.EntryID,
-		pulsarRecord.PartitionIdx,
-		pulsarRecord.BatchIdx,
-	)
 }
 
 // NamesFromRecord returns a slice composed of the field names in a struct marked with "db" tags.

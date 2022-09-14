@@ -6,12 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler/sql"
 )
 
@@ -114,7 +112,7 @@ func TestUpsert(t *testing.T) {
 
 		// Insert rows, read them back, and compare.
 		expected := makeRecords(10)
-		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
+		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -129,174 +127,10 @@ func TestUpsert(t *testing.T) {
 
 		// Change one record, upsert, read back, and compare.
 		expected[0].Executor = "foo"
-		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: pulsarutils.New(0, 1, 0, 0)}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
+		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
-		actual, err = queries.SelectNewNodeInfo(ctx, 0)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		if !assertNodeInfoEqual(t, expected, actual) {
-			return nil
-		}
-
-		return nil
-	})
-	assert.NoError(t, err)
-}
-
-func TestIdempotence(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
-
-		// Insert rows, read them back, and compare.
-		expected := makeRecords(10)
-		records := expected
-		writeMessageId := pulsarutils.New(0, 1, 0, 0)
-		err := IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
-		if !assert.NoError(t, err) {
-			return nil
-		}
-
-		actual, err := queries.SelectNewNodeInfo(ctx, 0)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		if !assertNodeInfoEqual(t, expected, actual) {
-			return nil
-		}
-
-		// Insert with a lower id and check that it fails.
-		dbMessageId := writeMessageId
-		writeMessageId = pulsarutils.New(0, 0, 0, 0)
-		records = makeRecords(1)
-		err = IdempotentUpsert(ctx, db, "topic", map[int32]pulsar.MessageID{0: writeMessageId}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
-		expectedErr := &ErrStaleWrite{
-			Topic: "topic",
-			StaleWrites: []StaleWrite{
-				{
-					DbMessageId:    dbMessageId,
-					WriteMessageId: writeMessageId,
-				},
-			},
-		}
-		var e *ErrStaleWrite
-		if assert.ErrorAs(t, err, &e) {
-			if !assert.Equal(t, expectedErr, e) {
-				return nil
-			}
-
-			ok, err := dbMessageId.Equal(e.StaleWrites[0].DbMessageId)
-			if !assert.NoError(t, err) {
-				return nil
-			}
-			if !assert.True(t, ok) {
-				return nil
-			}
-
-			ok, err = writeMessageId.Equal(e.StaleWrites[0].WriteMessageId)
-			if !assert.NoError(t, err) {
-				return nil
-			}
-			if !assert.True(t, ok) {
-				return nil
-			}
-		} else {
-			return nil
-		}
-
-		actual, err = queries.SelectNewNodeInfo(ctx, 0)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		if !assertNodeInfoEqual(t, expected, actual) {
-			return nil
-		}
-
-		return nil
-	})
-	assert.NoError(t, err)
-}
-
-func TestIdempotenceMultiPartition(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
-
-		// Insert rows, read them back, and compare.
-		// Here, we emulate inserting a message based off of several partitions.
-		expected := makeRecords(10)
-		records := expected
-		writeMessageIds := map[int32]pulsar.MessageID{
-			0: pulsarutils.New(0, 1, 0, 0),
-			1: pulsarutils.New(0, 2, 1, 0),
-		}
-		err := IdempotentUpsert(ctx, db, "topic", writeMessageIds, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
-		if !assert.NoError(t, err) {
-			return nil
-		}
-
-		actual, err := queries.SelectNewNodeInfo(ctx, 0)
-		if !assert.NoError(t, err) {
-			return nil
-		}
-		if !assertNodeInfoEqual(t, expected, actual) {
-			return nil
-		}
-
-		// Insert with a lower id for one of the partitions and check that it fails.
-		dbMessageIds := writeMessageIds
-		writeMessageIds = map[int32]pulsar.MessageID{
-			0: pulsarutils.New(0, 1, 0, 0),
-			1: pulsarutils.New(0, 1, 1, 0),
-		}
-		records = makeRecords(1)
-		err = IdempotentUpsert(ctx, db, "topic", writeMessageIds, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(records))
-		expectedErr := &ErrStaleWrite{
-			Topic: "topic",
-			StaleWrites: []StaleWrite{ // Stale write on the 1-th partition.
-				{
-					DbMessageId:    dbMessageIds[1],
-					WriteMessageId: writeMessageIds[1],
-				},
-			},
-		}
-		var e *ErrStaleWrite
-		if assert.ErrorAs(t, err, &e) {
-			if !assert.Equal(t, expectedErr, e) {
-				return nil
-			}
-
-			dbMessageId, ok := dbMessageIds[1].(*pulsarutils.PulsarMessageId)
-			if !assert.True(t, ok) {
-				return nil
-			}
-			writeMessageId, ok := writeMessageIds[1].(*pulsarutils.PulsarMessageId)
-			if !assert.True(t, ok) {
-				return nil
-			}
-
-			ok, err := dbMessageId.Equal(e.StaleWrites[0].DbMessageId)
-			if !assert.NoError(t, err) {
-				return nil
-			}
-			if !assert.True(t, ok) {
-				return nil
-			}
-
-			ok, err = writeMessageId.Equal(e.StaleWrites[0].WriteMessageId)
-			if !assert.NoError(t, err) {
-				return nil
-			}
-			if !assert.True(t, ok) {
-				return nil
-			}
-		} else {
-			return nil
-		}
-
 		actual, err = queries.SelectNewNodeInfo(ctx, 0)
 		if !assert.NoError(t, err) {
 			return nil
@@ -321,7 +155,7 @@ func TestConcurrency(t *testing.T) {
 			expected := makeRecords(10)
 			executor := fmt.Sprintf("executor-%d", i)
 			setExecutor(expected, executor)
-			err := IdempotentUpsert(ctx, db, fmt.Sprintf("topic-%d", i), map[int32]pulsar.MessageID{0: pulsarutils.New(0, 0, 0, 0)}, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
+			err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
 			if !assert.NoError(t, err) {
 				return nil
 			}
@@ -392,21 +226,12 @@ func interfacesFromSlice[T any](vs []T) []interface{} {
 	return rv
 }
 
-// func interfacesFromRuns(runs []Run) []interface{} {
-// 	rv := make([]interface{}, len(runs))
-// 	for i, v := range runs {
-// 		rv[i] = v
-// 	}
-// 	return rv
-// }
-
 func TestAutoIncrement(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
 
-		// Insert two rows. These should automatically get auto-incrementing serial numbers
-		// 1 and 2, respectively.
+		// Insert two rows. These should automatically get auto-incrementing serial numbers.
 		var records []interface{}
 		records = append(
 			records,
