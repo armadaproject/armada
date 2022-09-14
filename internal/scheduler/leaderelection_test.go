@@ -16,11 +16,11 @@ const leaderElectionTimeout time.Duration = 100 * time.Millisecond
 const leaderElectionInterval time.Duration = 10 * time.Millisecond
 
 func TestLeaderElection(t *testing.T) {
-	numInstances := 5
+	numInstances := 3
 	err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
 
 		// Create several instances that all try to become leader.
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		g, ctx := errgroup.WithContext(ctx)
 		cancels := make([]context.CancelFunc, numInstances)
