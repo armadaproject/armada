@@ -17,9 +17,8 @@ type mockConsumer struct {
 	ackedIds []pulsar.MessageID
 }
 
-func (c *mockConsumer) AckID(message pulsar.MessageID) error {
+func (c *mockConsumer) AckID(message pulsar.MessageID) {
 	c.ackedIds = append(c.ackedIds, message)
-	return nil
 }
 
 func (c *mockConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
