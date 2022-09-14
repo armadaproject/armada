@@ -184,12 +184,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	// to avoid having users wait for a job that may never be scheduled.
 	//
 	// We only perform this check for jobs submitted to the legacy scheduler.
-	legacySchedulerJobs := make([]*api.Job, 0, len(apiJobs))
-	for _, apiJob := range apiJobs {
-		if apiJob.Scheduler == "" {
-			legacySchedulerJobs = append(legacySchedulerJobs, apiJob)
-		}
-	}
+	legacySchedulerJobs := selectApiJobsForLegacyScheduler(apiJobs)
 	if len(legacySchedulerJobs) > 0 {
 		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
 		if err != nil {
@@ -224,6 +219,28 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
+}
+
+// selectApiJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
+func selectApiJobsForLegacyScheduler(jobs []*api.Job) []*api.Job {
+	rv := make([]*api.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Scheduler == "" {
+			rv = append(rv, job)
+		}
+	}
+	return rv
+}
+
+// selectJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
+func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevents.SubmitJob {
+	rv := make([]*armadaevents.SubmitJob, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Scheduler == "" {
+			rv = append(rv, job)
+		}
+	}
+	return rv
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
