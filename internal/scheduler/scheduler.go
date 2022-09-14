@@ -18,8 +18,8 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// While not the leader, try to become the leader.
-// For now, let's just have it continually populate it's internal state.
+// Scheduler implements a trivial scheduling algorithm.
+// It's here just to test that the scheduling subsystem as a whole is working.
 type Scheduler struct {
 	Producer pulsar.Producer
 	Db       *pgxpool.Pool
