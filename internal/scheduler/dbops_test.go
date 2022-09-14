@@ -215,14 +215,14 @@ func TestInsertJobCancel(t *testing.T) {
 
 	// Produce a set of optimised ops.
 	// Note that this mutates the previously defined ops.
-	var optimizedOps []DbOperation
+	var optimisedOps []DbOperation
 	for _, op := range ops {
-		optimizedOps = AppendDbOperation(optimizedOps, op)
+		optimisedOps = AppendDbOperation(optimisedOps, op)
 	}
 
 	// Apply the optimised ops to a fresh db and check that the end result is the same.
 	actualDb := newMockDb()
-	err = actualDb.applySeveral(optimizedOps)
+	err = actualDb.applySeveral(optimisedOps)
 	if !assert.NoError(t, err) {
 		return
 	}

@@ -51,7 +51,7 @@ func (err *ErrStaleWrite) Error() string {
 	return sb.String()
 }
 
-// IdempotentUpsert is an optimized SQL call for bulk upserts.
+// IdempotentUpsert is an optimised SQL call for bulk upserts.
 //
 // For efficiency, this function:
 // 1. Creates an empty temporary SQL table.
