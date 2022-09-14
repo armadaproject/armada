@@ -356,6 +356,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		if !config.Pulsar.Enabled {
 			return errors.New("new scheduler enabled, but Pulsar is disabled")
 		}
+		if pool == nil {
+			return errors.New("new scheduler enabled, but postgres is disabled")
+		}
 
 		// Scheduler jobs ingester.
 		schedulerIngester := &scheduler.Ingester{
