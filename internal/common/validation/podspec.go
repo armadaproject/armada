@@ -1,8 +1,9 @@
 package validation
 
 import (
-	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
