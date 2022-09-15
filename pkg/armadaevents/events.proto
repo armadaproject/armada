@@ -238,6 +238,10 @@ message CancelledJob {
 
 message JobSucceeded {
     Uuid job_id = 1;
+    // Runtime information, e.g., which node the job is running on, its IP address etc,
+    // for each resource created for the job run.
+    // TODO: remove this once we have fixed the external api
+    repeated KubernetesResourceInfo resourceInfos = 2;
 }
 
 // Indicates that a job has been leased to a cluster by the Armada scheduler.
@@ -310,6 +314,10 @@ message StandaloneIngressInfo {
 message JobRunSucceeded {
     Uuid run_id = 1;
     Uuid job_id = 2;
+    // Runtime information, e.g., which node the job is running on, its IP address etc,
+    // for each resource created for the job run.
+    // TODO: remove this once we have fixed the external api
+    repeated KubernetesResourceInfo resourceInfos = 3;
 }
 
 // Message containing a set of errors associated with a particular job.
