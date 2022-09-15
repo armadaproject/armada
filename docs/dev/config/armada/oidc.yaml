@@ -1,6 +1,0 @@
-auth:
-  anonymousAuth: false
-  openIdAuth:
-    providerUrl: "https://armada.auth.us-east-1.amazoncognito.com"
-    groupsClaim: "groups"
-    clientId: "armada"
