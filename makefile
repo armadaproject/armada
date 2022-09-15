@@ -355,7 +355,7 @@ code-checks: lint
 rebuild-server: build-docker-server
 	docker rm -f server || true
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml --config /e2e/setup/server/armada-config.yaml
 
 # Rebuild and restart the executor.
 .ONESHELL:
@@ -377,7 +377,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 .ONESHELL:
-setup-cluster: python
+setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
 	# We need an ingress controller to enable cluster ingress
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
@@ -487,7 +487,7 @@ setup-proto: download
 	mkdir -p proto/k8s.io/api/core/v1
 	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
 
-# Copy third party annotations from grpc-ecosystem
+	# Copy third party annotations from grpc-ecosystem
 	$(GO_CMD) bash -c " \
 	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
 	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
@@ -507,7 +507,7 @@ setup-proto: download
 
 python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
-	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+	docker run --rm -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
 airflow-operator:
 	rm -rf proto-airflow
@@ -543,6 +543,11 @@ proto: setup-proto
 	# fix all imports ordering
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
+	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/scheduler/schedulerobjects/
+
+sql:
+	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
+	$(GO_TEST_CMD) templify -e -p=sql internal/scheduler/sql/schema.sql
 
 # Target for compiling the dotnet Armada REST client
 dotnet: dotnet-setup setup-proto

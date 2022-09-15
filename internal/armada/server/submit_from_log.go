@@ -329,11 +329,15 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
 ) (bool, error) {
+	// Filter out jobs not indented for this scheduler.
+	// This is the default scheduler, which is indicated by the empty string.
+	schedulerJobs := selectJobsForLegacyScheduler(es)
+
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
-	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
+	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), schedulerJobs)
 	if err != nil {
 		return true, err
 	}

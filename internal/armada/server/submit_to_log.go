@@ -9,7 +9,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -26,6 +25,7 @@ import (
 	commonvalidation "github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
+	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -147,17 +147,22 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	// Check if the job can be scheduled on any executor,
-	// to avoid having users wait for a job that may never be scheduled
-	allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
-	if err != nil {
-		err = errors.WithMessage(err, "error getting scheduling info")
-		return nil, err
-	}
-	if ok, err := validateJobsCanBeScheduled(apiJobs, allClusterSchedulingInfo); !ok {
+	// to avoid having users wait for a job that may never be scheduled.
+	//
+	// We only perform this check for jobs submitted to the legacy scheduler.
+	legacySchedulerJobs := selectApiJobsForLegacyScheduler(apiJobs)
+	if len(legacySchedulerJobs) > 0 {
+		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
 		if err != nil {
-			return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
-		} else {
-			return nil, errors.Errorf("can't schedule job for user %s", userId)
+			err = errors.WithMessage(err, "error getting scheduling info")
+			return nil, err
+		}
+		if ok, err := validateJobsCanBeScheduled(legacySchedulerJobs, allClusterSchedulingInfo); !ok {
+			if err != nil {
+				return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
+			} else {
+				return nil, errors.Errorf("can't schedule job for user %s", userId)
+			}
 		}
 	}
 
@@ -180,6 +185,28 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
+}
+
+// selectApiJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
+func selectApiJobsForLegacyScheduler(jobs []*api.Job) []*api.Job {
+	rv := make([]*api.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Scheduler == "" {
+			rv = append(rv, job)
+		}
+	}
+	return rv
+}
+
+// selectJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
+func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevents.SubmitJob {
+	rv := make([]*armadaevents.SubmitJob, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Scheduler == "" {
+			rv = append(rv, job)
+		}
+	}
+	return rv
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
@@ -634,10 +661,6 @@ func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api
 
 // PublishToPulsar sends pulsar messages async
 func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -645,45 +668,7 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	if err != nil {
 		return err
 	}
-
-	// Send each sequence async. Collect any errors via ch.
-	ch := make(chan error, len(sequences))
-	defer close(ch)
-	for _, sequence := range sequences {
-		payload, err := proto.Marshal(sequence)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		srv.Producer.SendAsync(
-			ctx,
-			&pulsar.ProducerMessage{
-				Payload: payload,
-				Properties: map[string]string{
-					requestid.MetadataKey:                     requestId,
-					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				},
-				Key: sequence.JobSetName,
-			},
-			// Callback on send.
-			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
-				ch <- err
-			},
-		)
-	}
-
-	// Flush queued messages and wait until persisted.
-	err = srv.Producer.Flush()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Collect any errors experienced by the async send and return.
-	var result *multierror.Error
-	for range sequences {
-		result = multierror.Append(result, <-ch)
-	}
-	return result.ErrorOrNil()
+	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences)
 }
 
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
