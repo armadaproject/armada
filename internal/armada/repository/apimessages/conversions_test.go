@@ -569,6 +569,22 @@ func TestConvertJobSucceeded(t *testing.T) {
 		Event: &armadaevents.EventSequence_Event_JobSucceeded{
 			JobSucceeded: &armadaevents.JobSucceeded{
 				JobId: jobIdProto,
+				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+					{
+						ObjectMeta: &armadaevents.ObjectMeta{
+							ExecutorId:   executorId,
+							Namespace:    namespace,
+							Name:         podName,
+							KubernetesId: runIdString,
+						},
+						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+							PodInfo: &armadaevents.PodInfo{
+								NodeName:  nodeName,
+								PodNumber: podNumber,
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -577,10 +593,16 @@ func TestConvertJobSucceeded(t *testing.T) {
 		{
 			Events: &api.EventMessage_Succeeded{
 				Succeeded: &api.JobSucceededEvent{
-					JobId:    jobIdString,
-					JobSetId: jobSetName,
-					Queue:    queue,
-					Created:  baseTime,
+					JobId:        jobIdString,
+					JobSetId:     jobSetName,
+					Queue:        queue,
+					Created:      baseTime,
+					ClusterId:    executorId,
+					KubernetesId: runIdString,
+					NodeName:     nodeName,
+					PodNumber:    podNumber,
+					PodName:      podName,
+					PodNamespace: namespace,
 				},
 			},
 		},

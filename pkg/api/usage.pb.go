@@ -38,10 +38,14 @@ var _ = time.Kitchen
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 type QueueReport struct {
-	Name               string                       `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Resources          map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	ResourcesUsed      map[string]resource.Quantity `protobuf:"bytes,3,rep,name=resources_used,json=resourcesUsed,proto3" json:"resourcesUsed,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	CountOfPodsByPhase map[string]uint32            `protobuf:"bytes,4,rep,name=count_of_pods_by_phase,json=countOfPodsByPhase,proto3" json:"countOfPodsByPhase,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
+	// Queue name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Total resources requested by pods from this queue that are currently running.
+	Resources map[string]resource.Quantity `protobuf:"bytes,2,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Total resources currently being used by all pods from this queue.
+	ResourcesUsed map[string]resource.Quantity `protobuf:"bytes,3,rep,name=resources_used,json=resourcesUsed,proto3" json:"resourcesUsed,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// For this queue, number of pods by phase (e.g., running).
+	CountOfPodsByPhase map[string]uint32 `protobuf:"bytes,4,rep,name=count_of_pods_by_phase,json=countOfPodsByPhase,proto3" json:"countOfPodsByPhase,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 }
 
 func (m *QueueReport) Reset()      { *m = QueueReport{} }
