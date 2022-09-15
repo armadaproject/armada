@@ -260,7 +260,7 @@ Setting up OIDC can be an art.  We found that [Okta Developer Program](https://d
 
 1) Create a Okta Developer Account
     - I used my github account.
-2) Create a new App in the Octa UI.
+2) Create a new App in the Okta UI.
     - Select OIDC - OpenID Connect.
     - Select Web Application.
 3) In grant type, make sure to select Client Credentials.  We tested this one out because it requires little interaction from the browser.  
