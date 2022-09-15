@@ -200,7 +200,8 @@ func (srv *PulsarFromPulsar) ResponseEventsFromSequence(ctx context.Context, seq
 			es = append(es, &armadaevents.EventSequence_Event{
 				Event: &armadaevents.EventSequence_Event_JobSucceeded{
 					JobSucceeded: &armadaevents.JobSucceeded{
-						JobId: e.JobRunSucceeded.JobId,
+						JobId:         e.JobRunSucceeded.JobId,
+						ResourceInfos: e.JobRunSucceeded.ResourceInfos,
 					},
 				},
 			})
