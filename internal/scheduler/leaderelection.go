@@ -67,6 +67,10 @@ func (srv *LeaderElection) BecomeLeader(ctx context.Context) error {
 				// Another instance took leadership concurrently with this one,
 				// so the tx of this instance aborted.
 				break
+			} else if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable {
+				// Another instance was already holding the table lock,
+				// so we need to wait for it to release it.
+				break
 			} else if err != nil {
 				logging.WithStacktrace(log, err).Error("error while trying to become leader")
 			} else if isLeader {
@@ -107,6 +111,16 @@ func (srv *LeaderElection) tryBecomeLeader(ctx context.Context) (bool, error) {
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
+
+		// Lock the table for writing.
+		// Since txs are aborted on lost update under RepeatableRead,
+		// all txs may be aborted when many instances concurrently try to become leader.
+		// This lock ensures only 1 instance tries to update the leader row at a time.
+		_, err := tx.Exec(ctx, "LOCK TABLE leaderelection IN EXCLUSIVE MODE NOWAIT;")
+		if err != nil {
+			return errors.Wrap(err, "failed to acquire leaderelection lock")
+		}
+
 		// Read the timestamp of the leader.
 		leader, err := queries.SelectLeader(ctx)
 		if errors.Is(err, pgx.ErrNoRows) {
