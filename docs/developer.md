@@ -288,7 +288,7 @@ For client credentials, you can use the following config for the executor and ot
 
 ```
   openIdClientCredentialsAuth:
-      providerUrl: "https://OCTA_DEV_USERNAME.okta.com/oauth2/default"
+      providerUrl: "https://OKTA_DEV_USERNAME.okta.com/oauth2/default"
     clientId: "CLIENT_ID_FROM_UI"
     clientSecret: "CLIENT_SECRET"
     scopes: []
