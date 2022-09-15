@@ -239,15 +239,28 @@ func FromInternalJobSucceeded(queueName string, jobSetName string, time time.Tim
 	if err != nil {
 		return nil, err
 	}
+
+	apiEvent := &api.JobSucceededEvent{
+		JobId:    jobId,
+		JobSetId: jobSetName,
+		Queue:    queueName,
+		Created:  time,
+	}
+
+	if len(e.ResourceInfos) > 0 {
+		ri := e.ResourceInfos[0]
+		apiEvent.ClusterId = ri.GetObjectMeta().GetExecutorId()
+		apiEvent.PodNamespace = ri.GetObjectMeta().GetNamespace()
+		apiEvent.PodName = ri.GetObjectMeta().GetName()
+		apiEvent.KubernetesId = ri.GetObjectMeta().GetKubernetesId()
+		apiEvent.NodeName = ri.GetPodInfo().GetNodeName()
+		apiEvent.PodNumber = ri.GetPodInfo().GetPodNumber()
+	}
+
 	return []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Succeeded{
-				Succeeded: &api.JobSucceededEvent{
-					JobId:    jobId,
-					JobSetId: jobSetName,
-					Queue:    queueName,
-					Created:  time,
-				},
+				Succeeded: apiEvent,
 			},
 		},
 	}, nil

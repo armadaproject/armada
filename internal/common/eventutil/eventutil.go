@@ -689,7 +689,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
-								Namespace:    m.Running.NodeName,
+								Namespace:    m.Running.PodNamespace,
 								Name:         m.Running.PodName,
 								KubernetesId: m.Running.KubernetesId,
 								// TODO: These should be included.
@@ -865,6 +865,24 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runId,
 					JobId: jobId,
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								Namespace:    m.Succeeded.PodNamespace,
+								Name:         m.Succeeded.PodName,
+								KubernetesId: m.Succeeded.KubernetesId,
+								// TODO: These should be included.
+								Annotations: nil,
+								Labels:      nil,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									NodeName:  m.Succeeded.NodeName,
+									PodNumber: m.Succeeded.PodNumber,
+								},
+							},
+						},
+					},
 				},
 			},
 		})
