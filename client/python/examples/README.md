@@ -275,3 +275,7 @@ class BasicAuthTest:
         )
         self.client = ArmadaClient(channel)
 ```
+
+# Using OIDC Client Credentials
+
+[OAuth](./oidc.py)) 

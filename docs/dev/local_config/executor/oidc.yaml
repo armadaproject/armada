@@ -1,7 +1,0 @@
-apiConnection:
-  armadaUrl: "localhost:50051"
-  openIdClientCredentialsAuth:
-    providerUrl: "https://dev-09463850.okta.com/oauth2/default"
-    clientId: "0oa6hoficoXJEmCgS5d7"
-    clientSecret: "nVSEbl01swPNnKt3a5NYsD9Kb7-KD34AGNy-zFdF"
-    scopes: []

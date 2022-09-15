@@ -1,9 +1,0 @@
- auth:
-    anonymousAuth: false
-    openIdAuth:
-      providerUrl: "https://dev-09463850.okta.com/oauth2/default"
-      groupsClaim: "groups"
-      clientId: "0oa6hoficoXJEmCgS5d7"
-      scopes: []
-
-

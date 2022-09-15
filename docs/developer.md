@@ -253,3 +253,41 @@ cobra add commandName
 ```
 
 You should see a new file appear under `./cmd/armadactl/cmd` with the name you specified in the command.
+
+### Setting up OIDC for developers.
+
+Setting up OIDC can be an art.  We found that [Okta Developer Program](https://developer.okta.com/signup/) provides a nice quick-and-dirty way to test OAuth flow.
+
+1) Create a OCTA Developer Account
+    - I used my github account.
+2) Create a new App in the Octa UI.
+    - Select OIDC - OpenID Connect.
+    - Select Web Application.
+3) In grant type, make sure to select Client Credentials.  We tested this one out because it requires little interaction from the browser.  
+4) Select 'Allow Everyone to Access'
+5) Deselect Federation Broker Mode.
+6) Click okay and generate a client secret.
+
+
+Setting up OIDC for Armada requires two separate configs (one for Armada server and one for the clients)
+
+You can add this to your armada server config.
+```
+ auth:
+    anonymousAuth: false
+    openIdAuth:
+      providerUrl: "https://OCTA_DEV_USERNAME.okta.com/oauth2/default"
+      groupsClaim: "groups"
+      clientId: "CLIENT_ID_FROM_UI"
+      scopes: []
+```
+
+For client credentials, you can use the following config for the executor and other clients.
+
+```
+  openIdClientCredentialsAuth:
+      providerUrl: "https://OCTA_DEV_USERNAME.okta.com/oauth2/default"
+    clientId: "CLIENT_ID_FROM_UI"
+    clientSecret: "CLIENT_SECRET"
+    scopes: []
+```
