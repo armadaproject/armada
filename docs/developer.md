@@ -196,6 +196,16 @@ To generate source code from proto files:
 make proto
 ```
 
+Additionally, the `moq` tool has been used to generate test mocks in `internal/jobservice/events` and `internal/jobservice/repository` 
+(and possibly other places). If you need to update the moqs, do the following:
+
+```
+go install github.com/matryer/moq@latest
+cd internal/jobservice/events (or wherever)
+go generate
+```
+
+
 ### Usage metrics
 
 Some functionality the executor has is to report how much cpu/memory jobs are actually using.
