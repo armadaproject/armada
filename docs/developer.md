@@ -267,6 +267,8 @@ Setting up OIDC can be an art.  We found that [Okta Developer Program](https://d
 4) Select 'Allow Everyone to Access'
 5) Deselect Federation Broker Mode.
 6) Click okay and generate a client secret.
+7) Navigate in the Okta settings to the API settings for your default authenticator.
+8) Select Audience to be your client id.
 
 
 Setting up OIDC for Armada requires two separate configs (one for Armada server and one for the clients)
