@@ -258,7 +258,7 @@ You should see a new file appear under `./cmd/armadactl/cmd` with the name you s
 
 Setting up OIDC can be an art.  We found that [Okta Developer Program](https://developer.okta.com/signup/) provides a nice quick-and-dirty way to test OAuth flow.
 
-1) Create a OCTA Developer Account
+1) Create a Okta Developer Account
     - I used my github account.
 2) Create a new App in the Octa UI.
     - Select OIDC - OpenID Connect.
