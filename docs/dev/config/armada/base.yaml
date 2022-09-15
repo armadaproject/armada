@@ -2,7 +2,7 @@ corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
 auth:
   basicAuth:
     enableAuthentication: false
-  anonymousAuth: true  
+  anonymousAuth: true
   permissionGroupMapping:
     submit_jobs: ["everyone"]
     submit_any_jobs: ["everyone"]

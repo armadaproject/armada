@@ -20,7 +20,7 @@ apiConnection:
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
-  port: 9002
+  port: 9001
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
