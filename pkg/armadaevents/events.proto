@@ -153,6 +153,9 @@ message SubmitJob {
     // (typically on different clusters).
     // If false, a new job run may only be created once Armada is certain that all existing runs have finished.
     bool concurrencySafe = 10;
+    // Indicates which scheduler should manage this job.
+    // If empty, the default scheduler is used.
+    string scheduler = 11;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.

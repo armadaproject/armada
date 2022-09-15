@@ -829,6 +829,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 
 			Priority: item.Priority,
 
+			Scheduler:                          item.Scheduler,
 			PodSpec:                            item.PodSpec,
 			PodSpecs:                           item.PodSpecs,
 			Created:                            getTime(), // Replaced with now for mocking unit test
