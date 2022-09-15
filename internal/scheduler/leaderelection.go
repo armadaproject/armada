@@ -97,8 +97,7 @@ func (srv *LeaderElection) tryBecomeLeader(ctx context.Context) (bool, error) {
 	}
 
 	// Read back the timestamp postgres generated.
-	queries := New(srv.Db)
-	standby, err := queries.SelectReplicaById(ctx, srv.Id)
+	standby, err := New(srv.Db).SelectReplicaById(ctx, srv.Id)
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
@@ -116,13 +115,13 @@ func (srv *LeaderElection) tryBecomeLeader(ctx context.Context) (bool, error) {
 		// Since txs are aborted on lost update under RepeatableRead,
 		// all txs may be aborted when many instances concurrently try to become leader.
 		// This lock ensures only 1 instance tries to update the leader row at a time.
-		_, err := tx.Exec(ctx, "LOCK TABLE leaderelection IN EXCLUSIVE MODE NOWAIT;")
+		_, err := tx.Exec(ctx, "LOCK TABLE leaderelection IN EXCLUSIVE MODE;")
 		if err != nil {
 			return errors.Wrap(err, "failed to acquire leaderelection lock")
 		}
 
 		// Read the timestamp of the leader.
-		leader, err := queries.SelectLeader(ctx)
+		leader, err := New(tx).SelectLeader(ctx)
 		if errors.Is(err, pgx.ErrNoRows) {
 			// If there's no leader, try to take leadership.
 			err := srv.takeLeadership(ctx, tx, leader.ID)
