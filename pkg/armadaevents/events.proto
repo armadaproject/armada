@@ -310,6 +310,9 @@ message StandaloneIngressInfo {
 message JobRunSucceeded {
     Uuid run_id = 1;
     Uuid job_id = 2;
+    // Runtime information, e.g., which node the job is running on, its IP address etc,
+    // for each resource created for the job run.
+    repeated KubernetesResourceInfo resourceInfos = 3;
 }
 
 // Message containing a set of errors associated with a particular job.
