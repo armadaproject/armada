@@ -188,7 +188,7 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 	// New runs for active jobs.
 	i := 0
 	jobIds := make([]uuid.UUID, len(srv.ActiveJobs))
-	for jobId, _ := range srv.ActiveJobs {
+	for jobId := range srv.ActiveJobs {
 		jobIds[i] = jobId
 		i++
 	}

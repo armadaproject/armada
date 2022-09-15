@@ -49,7 +49,6 @@ func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema stri
 }
 
 func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
-
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.
 	// The table is created with the provided schema.

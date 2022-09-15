@@ -70,19 +70,22 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 
 // Db operations (implements DbOperation).
 type InsertJobs map[uuid.UUID]*Job
-type InsertRuns map[uuid.UUID]*Run
-type InsertRunAssignments map[uuid.UUID]*JobRunAssignment
-type UpdateJobSetPriorities map[string]int64
-type MarkJobSetsCancelled map[string]bool
-type MarkJobsCancelled map[uuid.UUID]bool
-type MarkJobsSucceeded map[uuid.UUID]bool
-type MarkJobsFailed map[uuid.UUID]bool
-type UpdateJobPriorities map[uuid.UUID]int64
-type MarkRunsSucceeded map[uuid.UUID]bool
-type MarkRunsFailed map[uuid.UUID]bool
-type MarkRunsRunning map[uuid.UUID]bool
-type InsertJobErrors map[int32]*JobError
-type InsertJobRunErrors map[int32]*JobRunError
+
+type (
+	InsertRuns             map[uuid.UUID]*Run
+	InsertRunAssignments   map[uuid.UUID]*JobRunAssignment
+	UpdateJobSetPriorities map[string]int64
+	MarkJobSetsCancelled   map[string]bool
+	MarkJobsCancelled      map[uuid.UUID]bool
+	MarkJobsSucceeded      map[uuid.UUID]bool
+	MarkJobsFailed         map[uuid.UUID]bool
+	UpdateJobPriorities    map[uuid.UUID]int64
+	MarkRunsSucceeded      map[uuid.UUID]bool
+	MarkRunsFailed         map[uuid.UUID]bool
+	MarkRunsRunning        map[uuid.UUID]bool
+	InsertJobErrors        map[int32]*JobError
+	InsertJobRunErrors     map[int32]*JobRunError
+)
 
 type JobSetOperation interface {
 	AffectsJobSet(string) bool
@@ -92,6 +95,7 @@ func (a UpdateJobSetPriorities) AffectsJobSet(jobSet string) bool {
 	_, ok := a[jobSet]
 	return ok
 }
+
 func (a MarkJobSetsCancelled) AffectsJobSet(jobSet string) bool {
 	_, ok := a[jobSet]
 	return ok
@@ -100,42 +104,55 @@ func (a MarkJobSetsCancelled) AffectsJobSet(jobSet string) bool {
 func (a InsertJobs) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a InsertRuns) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a InsertRunAssignments) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkJobSetsCancelled) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkJobsCancelled) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkJobsSucceeded) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkJobsFailed) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a UpdateJobPriorities) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkRunsSucceeded) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkRunsFailed) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a MarkRunsRunning) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a InsertJobErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
+
 func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
@@ -167,6 +184,7 @@ func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	}
 	return true
 }
+
 func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	// We don't check for run ops here,
 	// since run ops can never appear before the corresponding InsertRuns.
@@ -186,45 +204,57 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	}
 	return true
 }
+
 func (a InsertRunAssignments) CanBeAppliedBefore(b DbOperation) bool {
 	// Inserting assignments before a run is defined is ok.
 	// We only require that assignments are written to the db before the run is marked as running.
 	return true
 }
+
 func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobPriorities := b.(UpdateJobPriorities)
 	return !isUpdateJobPriorities && !definesJobInSet(a, b)
 }
+
 func (a MarkJobSetsCancelled) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
 }
+
 func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b) && !definesRunForJob(a, b)
 }
+
 func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
+
 func (a MarkJobsFailed) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
+
 func (a UpdateJobPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobSetPriorities := b.(UpdateJobSetPriorities)
 	return !isUpdateJobSetPriorities && !definesJob(a, b)
 }
+
 func (a MarkRunsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
+
 func (a MarkRunsFailed) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
+
 func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
+
 func (a InsertJobErrors) CanBeAppliedBefore(b DbOperation) bool {
 	// Inserting errors before a job has been marked as failed is ok.
 	// We only require that errors are written to the db before the job is marked as failed.
 	return true
 }
+
 func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
 	// Inserting errors before a run has been marked as failed is ok.
 	// We only require that errors are written to the db before the run is marked as failed.

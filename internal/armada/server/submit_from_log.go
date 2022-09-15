@@ -329,7 +329,6 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
 ) (bool, error) {
-
 	// Filter out jobs not indented for this scheduler.
 	// This is the default scheduler, which is indicated by the empty string.
 	schedulerJobs := selectJobsForLegacyScheduler(es)

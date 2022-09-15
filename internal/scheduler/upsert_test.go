@@ -109,7 +109,6 @@ func TestUpsert(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
-
 		// Insert rows, read them back, and compare.
 		expected := makeRecords(10)
 		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
@@ -148,7 +147,6 @@ func TestConcurrency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
-
 		// Each thread inserts non-overlapping rows, reads them back, and compares.
 		for i := 0; i < 100; i++ {
 			i := i
@@ -230,7 +228,6 @@ func TestAutoIncrement(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
-
 		// Insert two rows. These should automatically get auto-incrementing serial numbers.
 		var records []interface{}
 		records = append(

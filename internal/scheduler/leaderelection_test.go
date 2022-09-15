@@ -12,14 +12,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const leaderElectionTimeout time.Duration = time.Second
-const leaderElectionInterval time.Duration = 10 * time.Millisecond
+const (
+	leaderElectionTimeout  time.Duration = time.Second
+	leaderElectionInterval time.Duration = 10 * time.Millisecond
+)
 
 func TestLeaderElection(t *testing.T) {
 	numInstances := 10
 	for i := 0; i < 10; i++ {
 		err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
-
 			// Create several instances that all try to become leader.
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
@@ -65,7 +66,6 @@ func TestLeaderElection(t *testing.T) {
 func TestLeaderElectionTimeout(t *testing.T) {
 	numInstances := 2
 	err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
-
 		// Create several instances that all try to become leader.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()

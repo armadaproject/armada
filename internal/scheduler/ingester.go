@@ -43,7 +43,6 @@ type Ingester struct {
 
 // Run the ingester until experiencing an unrecoverable error.
 func (srv *Ingester) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {

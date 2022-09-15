@@ -184,7 +184,6 @@ func DbOpsFromEventInSequence(sequence *armadaevents.EventSequence, i int) ([]Db
 // schedulingInfoFromSubmitJob returns a minimal representation of a job
 // containing only the info needed by the scheduler.
 func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
-
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,

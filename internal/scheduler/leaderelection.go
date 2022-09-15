@@ -110,7 +110,6 @@ func (srv *LeaderElection) tryBecomeLeader(ctx context.Context) (bool, error) {
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		// Lock the table for writing.
 		// Since txs are aborted on lost update under RepeatableRead,
 		// all txs may be aborted when many instances concurrently try to become leader.

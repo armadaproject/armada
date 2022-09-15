@@ -134,7 +134,6 @@ func TestDbOperationOptimisation(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Compute expected end state.
 			expected := newMockDb()
 			err := expected.applySeveral(tc.Ops)
@@ -169,7 +168,6 @@ func TestDbOperationOptimisation(t *testing.T) {
 }
 
 func TestInsertJobCancel(t *testing.T) {
-
 	// Submit jobs to two different job sets.
 	var ops []DbOperation
 	expectedCancelledIds := make(map[uuid.UUID]bool)
