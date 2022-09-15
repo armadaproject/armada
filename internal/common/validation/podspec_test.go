@@ -254,3 +254,30 @@ func minimalValidPodSpec() *v1.PodSpec {
 		},
 	}
 }
+
+func Test_ValidatePodSpecPriorityClass(t *testing.T) {
+	validPriorityClass := &v1.PodSpec{PriorityClassName: "some-priority-class"}
+	allowedPriorityClasses := map[string]int32{"some-priority-class": 10}
+	assert.NoError(
+		t,
+		ValidatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),
+		"validation should pass when specified priority class is configured to be allowed and preemption is enabled",
+	)
+
+	err := ValidatePodSpecPriorityClass(validPriorityClass, false, allowedPriorityClasses)
+	assert.Error(
+		t,
+		err,
+		"validation should fail if priority class is specified and disabled",
+	)
+	validateInvalidArgumentErrorMessage(t, err, "Preemption is disabled in Server config")
+
+	invalidPriorityClass := &v1.PodSpec{PriorityClassName: "some-other-priority-class"}
+	err = ValidatePodSpecPriorityClass(invalidPriorityClass, true, allowedPriorityClasses)
+	assert.Error(
+		t,
+		err,
+		"validation should fail if specified priority class is not configured to be allowed",
+	)
+	validateInvalidArgumentErrorMessage(t, err, "Specified Priority Class is not supported in Server config")
+}
