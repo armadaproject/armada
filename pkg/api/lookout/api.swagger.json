@@ -353,6 +353,9 @@
         "queue": {
           "type": "string"
         },
+        "reason": {
+          "type": "string"
+        },
         "skip": {
           "type": "integer",
           "format": "int64"
@@ -394,6 +397,9 @@
           "type": "string"
         },
         "jobState": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "runs": {

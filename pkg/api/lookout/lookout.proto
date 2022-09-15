@@ -23,6 +23,7 @@ message JobInfo {
     google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     string job_state = 4;
     string job_json = 5;
+    string reason = 6;
 }
 
 message RunInfo {
@@ -90,6 +91,7 @@ message GetJobSetsResponse {
 
 message GetJobsRequest {
     string queue = 1;
+    string reason = 10;
     bool newest_first = 2;
     repeated string job_states = 3;
     repeated string job_set_ids = 4;

@@ -60,6 +60,7 @@ var (
 	job_cancelled  = goqu.I("job.cancelled")
 	job_job        = goqu.I("job.job")
 	job_state      = goqu.I("job.state")
+	job_reason     = goqu.I("job.reason")
 	job_duplicate  = goqu.I("job.duplicate")
 	job_jobUpdated = goqu.I("job.job_updated")
 
@@ -100,6 +101,7 @@ type JobRow struct {
 	Finished  sql.NullTime    `db:"finished"`
 	Succeeded sql.NullBool    `db:"succeeded"`
 	Error     sql.NullString  `db:"error"`
+	Reason    sql.NullString  `db:"reason"`
 }
 
 var AllJobStates = []JobState{

@@ -109,6 +109,16 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           width: 0.5,
         },
         {
+          id: "reason",
+          name: "Reason",
+          accessor: "reason",
+          urlParamKey: "reason",
+          isDisabled: false,
+          filter: "",
+          defaultFilter: "",
+          width: 0.5,
+        },
+        {
           id: "queue",
           name: "Queue",
           accessor: "queue",
@@ -339,6 +349,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         case "queue":
         case "jobId":
         case "owner":
+        case "reason":
         case "jobSet": {
           col.filter = ""
           break
@@ -521,6 +532,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         }
         case "jobState": {
           request.jobStates = col.filter as string[]
+          break
+        }
+        case "reason": {
+          request.reason = (col.filter as string).trim()
           break
         }
       }

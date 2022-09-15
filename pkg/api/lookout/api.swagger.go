@@ -364,6 +364,9 @@ func SwaggerJsonTemplate() string {
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"skip\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
@@ -405,6 +408,9 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"jobState\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"runs\": {\n" +

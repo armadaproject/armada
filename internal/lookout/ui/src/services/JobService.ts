@@ -80,6 +80,7 @@ export type Job = {
   submissionTime: string
   cancelledTime?: string
   jobState: string
+  reason: string
   runs: Run[]
   jobYaml: string
   annotations: { [key: string]: string }
@@ -394,6 +395,7 @@ export default class JobService {
     const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
     const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
+    const reason = jobInfo.reason ?? "-"
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
     const runs = getRuns(jobInfo)
@@ -410,6 +412,7 @@ export default class JobService {
       submissionTime: submissionTime,
       cancelledTime: cancelledTime,
       jobState: jobState,
+      reason: reason,
       runs: runs,
       jobYaml: jobYaml,
       annotations: annotations,
