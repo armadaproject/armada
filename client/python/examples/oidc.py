@@ -8,12 +8,13 @@ import grpc
 This is an example of how you can use OIDC and GRPC with a ClientCredential flow.
 """
 
+
 class GrpcAuth(grpc.AuthMetadataPlugin):
     def __init__(self, key):
         self._key = key
 
     def __call__(self, context, callback):
-        callback((('authorization', self._key),), None)
+        callback((("authorization", self._key),), None)
 
 
 def get_jwt():
@@ -23,11 +24,10 @@ def get_jwt():
     params = {
         "client_id": client_id,
         "client_secret": client_secret,
-        "grant_type": "client_credentials"
+        "grant_type": "client_credentials",
     }
 
-    response = requests.post(
-        f'{oidc_provider}', data=params)
+    response = requests.post(f"{oidc_provider}", data=params)
 
     if response.status_code != 200:
         raise ValueError("Error accessing the API token via OAuth")
@@ -39,10 +39,8 @@ def get_grpc_channel(jwt):
         "localhost:50051",
         grpc.composite_channel_credentials(
             grpc.local_channel_credentials(),
-            grpc.metadata_call_credentials(
-                GrpcAuth('Bearer '+jwt)
-            ),
-        )
+            grpc.metadata_call_credentials(GrpcAuth("Bearer " + jwt)),
+        ),
     )
 
     return channel
@@ -51,4 +49,4 @@ def get_grpc_channel(jwt):
 armada_client = ArmadaClient(channel=get_grpc_channel(get_jwt()))
 
 queue = armada_client.create_queue_request(name="test-1", priority_factor=1.0)
-armada_client.get_queue(name='test-1')
+armada_client.get_queue(name="test-1")

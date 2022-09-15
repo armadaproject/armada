@@ -293,3 +293,5 @@ For client credentials, you can use the following config for the executor and ot
     clientSecret: "CLIENT_SECRET"
     scopes: []
 ```
+
+If you want to interact with Armada, you will have to use one of our client APIs.  The armadactl is not setup to work with OIDC at this time.
