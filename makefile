@@ -340,8 +340,12 @@ tests:
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-lint:
+lint-fix:
 	$(GO_TEST_CMD) golangci-lint run --fix
+
+.ONESHELL:
+lint:
+	$(GO_TEST_CMD) golangci-lint run
 
 .ONESHELL:
 code-checks: lint
