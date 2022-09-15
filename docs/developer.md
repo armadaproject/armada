@@ -278,7 +278,7 @@ You can add this to your armada server config.
  auth:
     anonymousAuth: false
     openIdAuth:
-      providerUrl: "https://OCTA_DEV_USERNAME.okta.com/oauth2/default"
+      providerUrl: "https://OKTA_DEV_USERNAME.okta.com/oauth2/default"
       groupsClaim: "groups"
       clientId: "CLIENT_ID_FROM_UI"
       scopes: []
