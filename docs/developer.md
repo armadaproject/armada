@@ -256,14 +256,14 @@ You should see a new file appear under `./cmd/armadactl/cmd` with the name you s
 
 ### Setting up OIDC for developers.
 
-Setting up OIDC can be an art.  We found that [Okta Developer Program](https://developer.okta.com/signup/) provides a nice quick-and-dirty way to test OAuth flow.
+Setting up OIDC can be an art.  The [Okta Developer Program](https://developer.okta.com/signup/) provides a nice to test OAuth flow.
 
 1) Create a OCTA Developer Account
-    - I used my github account.
+    - A github account is the easiest to setup.
 2) Create a new App in the Octa UI.
     - Select OIDC - OpenID Connect.
     - Select Web Application.
-3) In grant type, make sure to select Client Credentials.  We tested this one out because it requires little interaction from the browser.  
+3) In grant type, make sure to select Client Credentials.  This has the advantage of requiring little interaction. 
 4) Select 'Allow Everyone to Access'
 5) Deselect Federation Broker Mode.
 6) Click okay and generate a client secret.
