@@ -446,7 +446,13 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 			createdJob := jobSet[returnedId]
 
 			assert.NotNil(t, createdJob)
-			assert.Equal(t, requestItem.PodSpec, createdJob.PodSpec)
+			if requestItem.PodSpec != nil {
+				assert.Equal(t, requestItem.PodSpec, createdJob.PodSpec)
+			} else if len(requestItem.PodSpecs) == 1 {
+				assert.Equal(t, requestItem.PodSpecs[0], createdJob.PodSpec)
+			} else {
+				assert.Equal(t, requestItem.PodSpecs, createdJob.PodSpecs)
+			}
 		}
 	})
 }
