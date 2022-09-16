@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"os"
 	"strings"
 	"time"
@@ -50,6 +51,7 @@ type KubernetesNativeAuthService struct {
 	TokenCache             *cache.Cache
 	InvalidTokenExpiry     int64
 	TokenReviewer          TokenReviewer
+	Clock                  clock.Clock
 }
 
 func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) KubernetesNativeAuthService {
@@ -59,6 +61,7 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 		TokenCache:             cache,
 		InvalidTokenExpiry:     config.InvalidTokenExpiry,
 		TokenReviewer:          &KubernetesTokenReviewer{},
+		Clock:                  clock.RealClock{},
 	}
 }
 
@@ -86,7 +89,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 		return nil, err
 	}
 
-	if time.Now().After(expirationTime) {
+	if authService.Clock.Now().After(expirationTime) {
 		return nil, fmt.Errorf("invalid token, expired")
 	}
 
