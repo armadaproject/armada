@@ -66,6 +66,7 @@ require (
 	github.com/stretchr/testify v1.8.0
 	github.com/weaveworks/promrus v1.2.0
 	github.com/wlbr/templify v0.0.0-20210816202250-7b8044ca19e9
+	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
@@ -85,7 +86,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
+require github.com/patrickmn/go-cache v2.1.0+incompatible
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
