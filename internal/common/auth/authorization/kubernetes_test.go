@@ -30,12 +30,19 @@ const (
 		"8r6_DcmizemfYs2uYuwHovcgqsOqJR3OoMhZd3jo1Irl4XEoeEjqb1qioMl7zpXBcr7kohBUxYbJyWa_FehKsysbB80mw_SG8F" +
 		"P3o-ZHo7wL8oE1X0WNoSnOz14ke7MR2ZK3v8E4YfbYVLxilk3E3bnVR3QtyVgo7vn-Y_AHKeZdjHD-sXE6Fb8jO48vvj54JwDW" +
 		"-w7qDRYYLgalRU3DXfsil072h_PYMFwtE57NGRjRGyOR2HIZuCVADjt_bF8E87i1TG3ELMCtSE5Jr78lmJ2zhyBFrA_FhljJoKTZJg"
-	testTokenIss = 1663065061
-	testCA       = ""
-	testTokenExp = 1663068661
-	testKid      = "DpZxdnPG6mhjMd63KSEIsG01g-_45bU6iqXxckhmqsc"
-	testUrl      = "https://kubernetes.config.test:420"
-	testName     = "admin-user"
+	testTokenIss   = 1663065061
+	testCA         = ""
+	testTokenExp   = 1663068661
+	testKid        = "DpZxdnPG6mhjMd63KSEIsG01g-_45bU6iqXxckhmqsc"
+	testUrl        = "https://kubernetes.config.test:420"
+	testName       = "admin-user"
+	testTokenNoExp = "eyJhbGciOiJSUzI1NiIsImtpZCI6IkRwWnhkblBHNm1oak1kNjNLU0VJc0cwMWctXzQ1YlU2aXFYeGNraG1xc" +
+		"2MifQ.ewogICJhdWQiOiBbCiAgICAiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiCiAgXSwK" +
+		"ICAiaWF0IjogMTY2MzA2NTA2MSwKICAiaXNzIjogImh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2" +
+		"FsIiwKICAia3ViZXJuZXRlcy5pbyI6IHsKICAgICJuYW1lc3BhY2UiOiAiZGVmYXVsdCIsCiAgICAic2VydmljZWFjY291bnQi" +
+		"OiB7CiAgICAgICJuYW1lIjogImFkbWluLXVzZXIiLAogICAgICAidWlkIjogIjEwZWFkMjk4LWExNTYtNGQzZC05NTEwLWMzM2" +
+		"Y0YjQ2NTkyZCIKICAgIH0KICB9LAogICJuYmYiOiAxNjYzMDY1MDYxLAogICJzdWIiOiAic3lzdGVtOnNlcnZpY2VhY2NvdW50" +
+		"OmRlZmF1bHQ6YWRtaW4tdXNlciIKfQ==."
 )
 
 func TestValidateKid(t *testing.T) {
@@ -47,7 +54,13 @@ func TestValidateKid(t *testing.T) {
 func TestParseTime(t *testing.T) {
 	myTime, err := parseTime(testToken)
 	assert.NoError(t, err)
-	assert.Equal(t, time.Unix(1663068661, 0), myTime)
+	assert.Equal(t, time.Unix(testTokenExp, 0), myTime)
+}
+
+func TestParseTime_FailsWhenNoExpiry(t *testing.T) {
+	myTime, err := parseTime(testTokenNoExp)
+	assert.Error(t, err)
+	assert.Equal(t, time.Time{}, myTime)
 }
 
 func TestGetClusterURL(t *testing.T) {
