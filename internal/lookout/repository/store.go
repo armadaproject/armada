@@ -319,7 +319,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 				"reason": reason,
 			}).
 			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-				"state": determineJobState(tx),
+				"state":  determineJobState(tx),
 				"reason": reason,
 			}))
 
