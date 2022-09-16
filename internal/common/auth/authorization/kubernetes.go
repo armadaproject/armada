@@ -213,6 +213,10 @@ func parseTime(token string) (time.Time, error) {
 		return time.Time{}, err
 	}
 
+	if uMbody.Expiry == 0 {
+		return time.Time{}, fmt.Errorf("token expiry time not set")
+	}
+
 	time := time.Unix(uMbody.Expiry, 0)
 	return time, nil
 }

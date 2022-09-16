@@ -36,13 +36,13 @@ const (
 	testKid        = "DpZxdnPG6mhjMd63KSEIsG01g-_45bU6iqXxckhmqsc"
 	testUrl        = "https://kubernetes.config.test:420"
 	testName       = "admin-user"
-	testTokenNoExp = "eyJhbGciOiJSUzI1NiIsImtpZCI6IkRwWnhkblBHNm1oak1kNjNLU0VJc0cwMWctXzQ1YlU2aXFYeGNraG1xc" +
-		"2MifQ.ewogICJhdWQiOiBbCiAgICAiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiCiAgXSwK" +
-		"ICAiaWF0IjogMTY2MzA2NTA2MSwKICAiaXNzIjogImh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2" +
-		"FsIiwKICAia3ViZXJuZXRlcy5pbyI6IHsKICAgICJuYW1lc3BhY2UiOiAiZGVmYXVsdCIsCiAgICAic2VydmljZWFjY291bnQi" +
-		"OiB7CiAgICAgICJuYW1lIjogImFkbWluLXVzZXIiLAogICAgICAidWlkIjogIjEwZWFkMjk4LWExNTYtNGQzZC05NTEwLWMzM2" +
-		"Y0YjQ2NTkyZCIKICAgIH0KICB9LAogICJuYmYiOiAxNjYzMDY1MDYxLAogICJzdWIiOiAic3lzdGVtOnNlcnZpY2VhY2NvdW50" +
-		"OmRlZmF1bHQ6YWRtaW4tdXNlciIKfQ==."
+	testTokenNoExp = "eyJhbGciOiJSUzI1NiIsImtpZCI6IkRwWnhkblBHNm1oak1kNjNLU0VJc0cwMWctXzQ1YlU2aXFYeGNraG1xc2MifQ" +
+		".ewogICJhdWQiOiBbCiAgICAiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjLmNsdXN0ZXIubG9jYWwiCiAgXSwKICAia" +
+		"WF0IjogMTY2MzA2NTA2MSwKICAiaXNzIjogImh0dHBzOi8va3ViZXJuZXRlcy5kZWZhdWx0LnN2Yy5jbHVzdGVyLmxvY2FsIiw" +
+		"KICAia3ViZXJuZXRlcy5pbyI6IHsKICAgICJuYW1lc3BhY2UiOiAiZGVmYXVsdCIsCiAgICAic2VydmljZWFjY291bnQiOiB7C" +
+		"iAgICAgICJuYW1lIjogImFkbWluLXVzZXIiLAogICAgICAidWlkIjogIjEwZWFkMjk4LWExNTYtNGQzZC05NTEwLWMzM2Y0YjQ" +
+		"2NTkyZCIKICAgIH0KICB9LAogICJuYmYiOiAxNjYzMDY1MDYxLAogICJzdWIiOiAic3lzdGVtOnNlcnZpY2VhY2NvdW50OmRlZ" +
+		"mF1bHQ6YWRtaW4tdXNlciIKfQ."
 )
 
 func TestValidateKid(t *testing.T) {
