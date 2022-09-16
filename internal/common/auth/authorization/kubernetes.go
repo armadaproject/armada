@@ -19,10 +19,37 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
+type TokenReviewer interface {
+	ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error)
+}
+
+type KubernetesTokenReviewer struct{}
+
+func (reviewer *KubernetesTokenReviewer) ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
+	config := &rest.Config{
+		Host:            clusterUrl,
+		BearerToken:     token,
+		TLSClientConfig: rest.TLSClientConfig{CAData: ca},
+	}
+	clientSet, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return &authv1.TokenReview{}, err
+	}
+
+	tr := authv1.TokenReview{
+		Spec: authv1.TokenReviewSpec{
+			Token: token,
+		},
+	}
+
+	return clientSet.AuthenticationV1().TokenReviews().Create(ctx, &tr, metav1.CreateOptions{})
+}
+
 type KubernetesNativeAuthService struct {
 	KidMappingFileLocation string
 	TokenCache             *cache.Cache
 	InvalidTokenExpiry     int64
+	TokenReviewer          TokenReviewer
 }
 
 func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) KubernetesNativeAuthService {
@@ -31,6 +58,7 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 		KidMappingFileLocation: config.KidMappingFileLocation,
 		TokenCache:             cache,
 		InvalidTokenExpiry:     config.InvalidTokenExpiry,
+		TokenReviewer:          &KubernetesTokenReviewer{},
 	}
 }
 
@@ -127,23 +155,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 }
 
 func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
-	config := &rest.Config{
-		Host:            clusterUrl,
-		BearerToken:     token,
-		TLSClientConfig: rest.TLSClientConfig{CAData: ca},
-	}
-	clientSet, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return "", err
-	}
-
-	tr := authv1.TokenReview{
-		Spec: authv1.TokenReviewSpec{
-			Token: token,
-		},
-	}
-
-	result, err := clientSet.AuthenticationV1().TokenReviews().Create(ctx, &tr, metav1.CreateOptions{})
+	result, err := authService.TokenReviewer.ReviewToken(ctx, clusterUrl, token, ca)
 	if err != nil {
 		return "", err
 	}
