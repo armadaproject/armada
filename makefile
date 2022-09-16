@@ -377,7 +377,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 .ONESHELL:
-setup-cluster:
+setup-cluster: python
 	kind create cluster --config e2e/setup/kind.yaml
 	# We need an ingress controller to enable cluster ingress
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
@@ -507,7 +507,7 @@ setup-proto: download
 
 python: setup-proto
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
-	docker run --rm -u $(shell id -u):$(shell id -g) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
+	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
 airflow-operator:
 	rm -rf proto-airflow
