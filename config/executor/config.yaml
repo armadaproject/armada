@@ -41,6 +41,7 @@ kubernetes:
   fatalPodSubmissionErrors:
     - "admission webhook"
   pendingPodChecks:
+    timeWithoutEventsOrStatus: 10m
     events:
       - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning

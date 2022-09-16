@@ -528,7 +528,7 @@ func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
 		return nil, err
 	}
 	if len(jobs) < 1 {
-		return nil, fmt.Errorf("job with jobId %q not found", jobId)
+		return nil, errors.Errorf("job with jobId %q not found", jobId)
 	}
 	return jobs[0], err
 }

@@ -23,6 +23,12 @@ pkg/armadaevents/*.proto
 protoc \
 --proto_path=. \
 --proto_path=/proto \
+--gogofaster_out=$TYPES:./ \
+internal/scheduler/schedulerobjects/*.proto
+
+protoc \
+--proto_path=. \
+--proto_path=/proto \
 --gogofaster_out=$TYPES,plugins=grpc:./ \
 pkg/api/lookout/*.proto
 
