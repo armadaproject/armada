@@ -303,6 +303,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		return err
 	}
 
+	reason := event.GetCause().String()
 	return tx.Wrap(func() error {
 		if err := upsertJobRun(tx, jobRunRecord); err != nil {
 			return err
@@ -315,9 +316,11 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 				"queue":  event.Queue,
 				"jobset": event.JobSetId,
 				"state":  JobStateToIntMap[JobFailed],
+				"reason": reason,
 			}).
 			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
 				"state": determineJobState(tx),
+				"reason": reason,
 			}))
 
 		if _, err := jobDs.Prepared(true).Executor().Exec(); err != nil {
