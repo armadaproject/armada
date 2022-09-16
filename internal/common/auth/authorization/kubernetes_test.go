@@ -110,7 +110,7 @@ func createTestAuthService(kidMapping string, authenticated bool, username strin
 func createKubernetesAuthPayload(token string, ca string) string {
 	encodedCa := base64.RawURLEncoding.EncodeToString([]byte(ca))
 	body := fmt.Sprintf(`{"token":"%s", "ca":"%s"}`, token, encodedCa)
-	return base64.RawURLEncoding.EncodeToString([]byte(body))
+	return "KubernetesAuth " + base64.RawURLEncoding.EncodeToString([]byte(body))
 }
 
 func TestAuthenticate(t *testing.T) {
