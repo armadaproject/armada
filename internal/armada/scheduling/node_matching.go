@@ -192,6 +192,7 @@ func getPreemptibleResources(
 	return preemptibleResources, nil
 }
 
+// AggregateNodeTypeAllocations computes the total available resources for each node type.
 func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	nodeTypesIndex := map[string]*nodeTypeAllocation{}
 
@@ -252,6 +253,7 @@ func dominates(a map[string]resource.Quantity, b map[string]resource.Quantity) b
 	return (common.ComputeResources(a)).Dominates(common.ComputeResources(b))
 }
 
+// createNodeDescription maps the labels, taints, and allocatable resources of a node to a unique string.
 func createNodeDescription(n *api.NodeInfo) string {
 	data := make([]string, 0, len(n.Labels)+len(n.Taints)+len(n.AllocatableResources))
 	for k, v := range n.Labels {
