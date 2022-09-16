@@ -62,6 +62,7 @@ export interface GetJobsRequest {
   jobStates: string[]
   jobId: string
   owner: string
+  reason: string
   annotations: { [key: string]: string }
 }
 
@@ -196,6 +197,7 @@ export default class JobService {
           jobId: getJobsRequest.jobId,
           owner: getJobsRequest.owner,
           userAnnotations: getJobsRequest.annotations,
+          reason: getJobsRequest.reason,
         },
       })
       if (response.jobInfos) {
