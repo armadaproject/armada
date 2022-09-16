@@ -1,11 +1,18 @@
 package authorization
 
 import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
+	authv1 "k8s.io/api/authentication/v1"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -22,8 +29,12 @@ const (
 		"8r6_DcmizemfYs2uYuwHovcgqsOqJR3OoMhZd3jo1Irl4XEoeEjqb1qioMl7zpXBcr7kohBUxYbJyWa_FehKsysbB80mw_SG8F" +
 		"P3o-ZHo7wL8oE1X0WNoSnOz14ke7MR2ZK3v8E4YfbYVLxilk3E3bnVR3QtyVgo7vn-Y_AHKeZdjHD-sXE6Fb8jO48vvj54JwDW" +
 		"-w7qDRYYLgalRU3DXfsil072h_PYMFwtE57NGRjRGyOR2HIZuCVADjt_bF8E87i1TG3ELMCtSE5Jr78lmJ2zhyBFrA_FhljJoKTZJg"
-	testKid = "DpZxdnPG6mhjMd63KSEIsG01g-_45bU6iqXxckhmqsc"
-	testUrl = "https://kubernetes.config.test:420"
+	testTokenIss = 1663065061
+	testCA       = ""
+	testTokenExp = 1663068661
+	testKid      = "DpZxdnPG6mhjMd63KSEIsG01g-_45bU6iqXxckhmqsc"
+	testUrl      = "https://kubernetes.config.test:420"
+	testName     = "admin-user"
 )
 
 func TestValidateKid(t *testing.T) {
@@ -64,4 +75,72 @@ func TestGetClusterURL(t *testing.T) {
 	}
 
 	assert.Equal(t, testUrl, url)
+}
+
+type MockTokenReviewer struct {
+	Authenticated bool
+	Username      string
+}
+
+func (reviewer *MockTokenReviewer) ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
+	return &authv1.TokenReview{
+		Status: authv1.TokenReviewStatus{
+			Authenticated: reviewer.Authenticated,
+			User: authv1.UserInfo{
+				Username: reviewer.Username,
+			},
+		},
+	}, nil
+}
+
+func createTestAuthService(kidMapping string, authenticated bool, username string, currentTime int64) KubernetesNativeAuthService {
+	cache := cache.New(5*time.Minute, 5*time.Minute)
+	return KubernetesNativeAuthService{
+		KidMappingFileLocation: kidMapping,
+		TokenCache:             cache,
+		InvalidTokenExpiry:     6000,
+		TokenReviewer: &MockTokenReviewer{
+			Authenticated: authenticated,
+			Username:      username,
+		},
+		Clock: clock.NewFakeClock(time.Unix(currentTime, 0)),
+	}
+}
+
+func createKubernetesAuthPayload(token string, ca string) string {
+	encodedCa := base64.RawURLEncoding.EncodeToString([]byte(ca))
+	body := fmt.Sprintf(`{"token":"%s", "ca":"%s"}`, token, encodedCa)
+	return base64.RawURLEncoding.EncodeToString([]byte(body))
+}
+
+func TestAuthenticate(t *testing.T) {
+	// Setup KID mapping directory
+	tempdir, err := os.MkdirTemp("", "kid-mapping")
+	defer os.Remove(tempdir)
+	if err != nil {
+		t.Errorf("TestGetClusterURL returned error: %s", err)
+	}
+	path := filepath.Join(tempdir, testKid)
+	kidfile, err := os.Create(path)
+	if err != nil {
+		t.Errorf("TestGetClusterURL returned error: %s", err)
+	}
+	defer os.Remove(path)
+	defer kidfile.Close()
+	kidfile.Write([]byte(testUrl))
+
+	// Create authentication context
+	payload := createKubernetesAuthPayload(testToken, testCA)
+	ctx := context.Background()
+	metadata := metautils.ExtractIncoming(ctx)
+	metadata.Set("authorization", payload)
+	ctx = metadata.ToIncoming(ctx)
+
+	// Authenticate
+	authService := createTestAuthService(tempdir+"/", true, testName, testTokenIss)
+	principal, err := authService.Authenticate(ctx)
+
+	expected := NewStaticPrincipal(testName, []string{testName})
+	assert.NoError(t, err)
+	assert.Equal(t, expected, principal)
 }
