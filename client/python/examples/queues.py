@@ -9,47 +9,72 @@ from armada_client.client import ArmadaClient
 from armada_client.permissions import Permissions, Subject
 
 
-def creating_full_queues_example(client, queue):
+def create_queue_request(client, queue):
     """
-    Creates a queue.
-
-    Will skip if the queue already exists.
+    Creates a queue request.
     """
 
-    subject = Subject(type="Group", name="group1")
+    subject = Subject(kind="Group", name="group1")
     permissions = Permissions(subjects=[subject], verbs=["cancel", "reprioritize"])
 
     resource_limits = {"cpu": 1.0, "memory": 1.0}
 
-    client.create_queue(
+    queue_req = client.create_queue_request(
         name=queue,
         priority_factor=3.0,
         user_owners=["user1"],
         group_owners=["group1"],
         resource_limits=resource_limits,
-        permissions=permissions,
+        permissions=[permissions],
     )
+
+    return queue_req
+
+
+def creating_full_queue_example(client, queue):
+    """
+    Creates a queue.
+
+    Will update the queue if it already exists.
+    """
+
+    queue_req = create_queue_request(client, queue)
 
     # Make sure we handle the queue already existing
     try:
-        client.create_queue(name=queue, priority_factor=1)
+        client.create_queue(queue_req)
 
     # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
             print(f"Queue {queue} already exists")
-            client.update_queue(name=queue, priority_factor=1)
+            client.update_queue(queue_req)
         else:
             raise e
+
+
+def creating_multiple_queues_example(client, queue):
+    """
+    Creates two queues.
+
+    Will update the queues if they already exist.
+    """
+
+    queue_req1 = create_queue_request(client, queue)
+    queue_req2 = create_queue_request(client, queue + "2")
+
+    resp = client.create_queues([queue_req1, queue_req2])
+    if resp.failed_queues:
+        for queue_resp in resp.failed_queues:
+            print(f"Failed to create {queue_resp.queue.name}: {queue_resp.error}")
 
 
 def workflow():
     """
     Starts a workflow, which includes:
         - Creating a queue
-        - Creating a jobset
-        - Creating a job
+        - Creating a queue with a batch of queues
     """
 
     # The queue and job_set_id that will be used for all jobs
@@ -67,7 +92,8 @@ def workflow():
 
     client = ArmadaClient(channel)
 
-    creating_full_queues_example(client, queue)
+    creating_full_queue_example(client, queue)
+    creating_multiple_queues_example(client, queue)
 
 
 if __name__ == "__main__":

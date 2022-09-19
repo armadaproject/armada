@@ -15,8 +15,7 @@ type Compressor interface {
 }
 
 // NoOpCompressor is a Compressor that does nothing.  Useful for tests.
-type NoOpCompressor struct {
-}
+type NoOpCompressor struct{}
 
 func (c *NoOpCompressor) Compress(b []byte) ([]byte, error) {
 	return b, nil
@@ -32,7 +31,6 @@ type ZlibCompressor struct {
 }
 
 func NewZlibCompressor(minCompressSize int) (*ZlibCompressor, error) {
-
 	var b bytes.Buffer
 	compressedWriter, err := zlib.NewWriterLevel(&b, zlib.BestSpeed)
 	if err != nil {
@@ -52,8 +50,7 @@ func NewZlibCompressor(minCompressSize int) (*ZlibCompressor, error) {
 }
 
 func (c *ZlibCompressor) Compress(b []byte) ([]byte, error) {
-
-	var writer = c.unCompressedWriter
+	writer := c.unCompressedWriter
 	if len(b) > c.minCompressSize {
 		writer = c.compressedWriter
 	}

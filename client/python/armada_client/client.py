@@ -21,6 +21,7 @@ from armada_client.armada import (
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.permissions import Permissions
+from armada_client.typings import JobState
 
 
 class ArmadaClient:
@@ -128,6 +129,32 @@ class ArmadaClient:
         response = self.submit_stub.CancelJobs(request)
         return response
 
+    def cancel_jobset(
+        self,
+        queue: str,
+        job_set_id: str,
+        filter_states: List[JobState],
+    ) -> empty_pb2.Empty:
+        """Cancel jobs in a given queue.
+
+        Uses the CancelJobSet RPC to cancel jobs.
+        A filter is used to only cancel jobs in certain states.
+
+        :param queue: The name of the queue
+        :param job_set_id: An array of JobSubmitRequestItems.
+        :param filter_states: A list of states to filter by.
+        :return: An empty response.
+        """
+
+        job_filter = submit_pb2.JobSetFilter(
+            states=[state.value for state in filter_states]
+        )
+        request = submit_pb2.JobSetCancelRequest(
+            queue=queue, job_set_id=job_set_id, filter=job_filter
+        )
+        response = self.submit_stub.CancelJobSet(request)
+        return response
+
     def reprioritize_jobs(
         self,
         new_priority: float,
@@ -155,74 +182,51 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    def create_queue(
-        self,
-        name: str,
-        priority_factor: Optional[float],
-        user_owners: Optional[List[str]] = None,
-        group_owners: Optional[List[str]] = None,
-        resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[List[Permissions]] = None,
-    ) -> empty_pb2.Empty:
-        """Create the queue by name.
-
+    def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
+        """
         Uses the CreateQueue RPC to create a queue.
 
-        :param name: The name of the queue
-        :param priority_factor: The priority factor for the queue
-        :param user_owners: The user owners for the queue
-        :param group_owners: The group owners for the queue
-        :param resource_limits: The resource limits for the queue
-        :param permissions: The permissions for the queue
-        :return: A queue object per the Armada api definition.
+        :param queue: A queue to create.
         """
 
-        permissions = [p.to_grpc() for p in permissions] if permissions else None
-
-        request = submit_pb2.Queue(
-            name=name,
-            priority_factor=priority_factor,
-            user_owners=user_owners,
-            group_owners=group_owners,
-            resource_limits=resource_limits,
-            permissions=permissions,
-        )
-        response = self.submit_stub.CreateQueue(request)
+        response = self.submit_stub.CreateQueue(queue)
         return response
 
-    def update_queue(
-        self,
-        name: str,
-        priority_factor: Optional[float],
-        user_owners: Optional[List[str]] = None,
-        group_owners: Optional[List[str]] = None,
-        resource_limits: Optional[Dict[str, float]] = None,
-        permissions: Optional[List[Permissions]] = None,
-    ) -> None:
-        """Update the queue of name with values in queue_params
+    def update_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
+        """
+        Uses the UpdateQueue RPC to update a queue.
 
-        Uses UpdateQueue RPC to update the parameters on the queue.
-
-        :param name: The name of the queue
-        :param priority_factor: The priority factor for the queue
-        :param user_owners: The user owners for the queue
-        :param group_owners: The group owners for the queue
-        :param resource_limits: The resource limits for the queue
-        :param permissions: The permissions for the queue
-        :return: None
+        :param queue: A queue to update.
         """
 
-        permissions = [p.to_grpc() for p in permissions] if permissions else None
+        response = self.submit_stub.UpdateQueue(queue)
+        return response
 
-        request = submit_pb2.Queue(
-            name=name,
-            priority_factor=priority_factor,
-            user_owners=user_owners,
-            group_owners=group_owners,
-            resource_limits=resource_limits,
-            permissions=permissions,
-        )
-        self.submit_stub.UpdateQueue(request)
+    def create_queues(
+        self, queues: List[submit_pb2.Queue]
+    ) -> submit_pb2.BatchQueueCreateResponse:
+        """
+        Uses the CreateQueues RPC to create a list of queues.
+
+        :param queues: A list of queues to create.
+        """
+
+        queue_list = submit_pb2.QueueList(queues=queues)
+        response = self.submit_stub.CreateQueues(queue_list)
+        return response
+
+    def update_queues(
+        self, queues: List[submit_pb2.Queue]
+    ) -> submit_pb2.BatchQueueUpdateResponse:
+        """
+        Uses the UpdateQueues RPC to update a list of queues.
+
+        :param queues: A list of queues to update.
+        """
+
+        queue_list = submit_pb2.QueueList(queues=queues)
+        response = self.submit_stub.UpdateQueues(queue_list)
+        return response
 
     def delete_queue(self, name: str) -> None:
         """Delete an empty queue by name.
@@ -269,6 +273,38 @@ class ArmadaClient:
         :return: nothing
         """
         event_stream.cancel()
+
+    def create_queue_request(
+        self,
+        name: str,
+        priority_factor: Optional[float],
+        user_owners: Optional[List[str]] = None,
+        group_owners: Optional[List[str]] = None,
+        resource_limits: Optional[Dict[str, float]] = None,
+        permissions: Optional[List[Permissions]] = None,
+    ) -> submit_pb2.Queue:
+        """
+        Create a queue request object.
+
+        :param name: The name of the queue
+        :param priority_factor: The priority factor for the queue
+        :param user_owners: The user owners for the queue
+        :param group_owners: The group owners for the queue
+        :param resource_limits: The resource limits for the queue
+        :param permissions: The permissions for the queue
+        :return: A queue request object.
+        """
+
+        permissions = [p.to_grpc() for p in permissions] if permissions else None
+
+        return submit_pb2.Queue(
+            name=name,
+            priority_factor=priority_factor,
+            user_owners=user_owners,
+            group_owners=group_owners,
+            resource_limits=resource_limits,
+            permissions=permissions,
+        )
 
     def create_job_request_item(
         self,

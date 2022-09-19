@@ -2,26 +2,26 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	pool "github.com/jolestar/go-commons-pool"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/armada/repository/apimessages"
+	"github.com/G-Research/armada/internal/armada/repository/sequence"
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-const eventStreamPrefix = "Events:"
-const dataKey = "message"
-
-type EventStore interface {
-	ReportEvents(message []*api.EventMessage) error
-}
+const (
+	eventStreamPrefix = "Events:"
+	dataKey           = "message"
+)
 
 type EventRepository interface {
 	CheckStreamExists(queue string, jobSetId string) (bool, error)
@@ -31,13 +31,10 @@ type EventRepository interface {
 
 type RedisEventRepository struct {
 	db               redis.UniversalClient
-	eventRetention   configuration.EventRetentionPolicy
-	compressorPool   *pool.ObjectPool
 	decompressorPool *pool.ObjectPool
 }
 
-func NewRedisEventRepository(db redis.UniversalClient, eventRetention configuration.EventRetentionPolicy) *RedisEventRepository {
-
+func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 	// This is basically the default config but with a max of 100 rather than 8 and a min of 10 rather than 0.
 	poolConfig := pool.ObjectPoolConfig{
 		MaxTotal:                 100,
@@ -50,88 +47,16 @@ func NewRedisEventRepository(db redis.UniversalClient, eventRetention configurat
 		NumTestsPerEvictionRun:   10,
 	}
 
-	compressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
-			return compress.NewZlibCompressor(1024)
-		}), &poolConfig)
-
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor()
 		}), &poolConfig)
-	return &RedisEventRepository{db: db, eventRetention: eventRetention, compressorPool: compressorPool, decompressorPool: decompressorPool}
-}
 
-// ReportEvent reports the event to redis.  Note that this function may modify the supplied message in-place
-func (repo *RedisEventRepository) ReportEvent(message *api.EventMessage) error {
-	return repo.ReportEvents([]*api.EventMessage{message})
-}
-
-// ReportEvents reports events to redis.  Note that this function may modify the supplied messages in-place
-func (repo *RedisEventRepository) ReportEvents(messages []*api.EventMessage) error {
-	if len(messages) == 0 {
-		return nil
-	}
-
-	compressor, err := repo.compressorPool.BorrowObject(context.Background())
-	if err != nil {
-		return err
-	}
-	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
-		err := compressorPool.ReturnObject(ctx, object)
-		if err != nil {
-			log.WithError(err).Errorf("Error returning compressor to pool")
-		}
-	}(repo.compressorPool, context.Background(), compressor)
-
-	type eventData struct {
-		key  string
-		data []byte
-	}
-	data := []eventData{}
-	uniqueJobSets := make(map[string]bool)
-
-	for _, m := range messages {
-		event, e := api.UnwrapEvent(m)
-		if e != nil {
-			return e
-		}
-		key := getJobSetEventsKey(event.GetQueue(), event.GetJobSetId())
-		nullOutQueueAndJobset(m)
-		m, e = compressEventIfNecessary(m, compressor.(compress.Compressor))
-		if e != nil {
-			return e
-		}
-		messageData, e := proto.Marshal(m)
-		if e != nil {
-			return e
-		}
-		data = append(data, eventData{key: key, data: messageData})
-		uniqueJobSets[key] = true
-	}
-
-	pipe := repo.db.Pipeline()
-	for _, e := range data {
-		pipe.XAdd(&redis.XAddArgs{
-			Stream: e.key,
-			Values: map[string]interface{}{
-				dataKey: e.data,
-			},
-		})
-	}
-
-	if repo.eventRetention.ExpiryEnabled {
-		for key := range uniqueJobSets {
-			pipe.Expire(key, repo.eventRetention.RetentionDuration)
-		}
-	}
-
-	_, e := pipe.Exec()
-	return e
+	return &RedisEventRepository{db: db, decompressorPool: decompressorPool}
 }
 
 func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId string) (bool, error) {
-	result, err := repo.db.Exists(getJobSetEventsKey(queue, jobSetId)).Result()
+	result, err := repo.db.Exists(repo.getJobSetEventsKey(queue, jobSetId)).Result()
 	if err != nil {
 		return false, err
 	}
@@ -139,14 +64,14 @@ func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId strin
 	return exists, nil
 }
 
-func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {
-
-	if lastId == "" {
-		lastId = "0"
+func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, lastId string, limit int64, block time.Duration) ([]*api.EventStreamMessage, error) {
+	from, err := sequence.Parse(lastId)
+	if err != nil {
+		return nil, err
 	}
-
+	seqId := from.PrevRedisId()
 	cmd, err := repo.db.XRead(&redis.XReadArgs{
-		Streams: []string{getJobSetEventsKey(queue, jobSetId), lastId},
+		Streams: []string{repo.getJobSetEventsKey(queue, jobSetId), seqId},
 		Count:   limit,
 		Block:   block,
 	}).Result()
@@ -155,36 +80,26 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 	if err == redis.Nil {
 		return make([]*api.EventStreamMessage, 0), nil
 	} else if err != nil {
-		return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error reading from database: %s", err)
+		return nil, errors.WithStack(err)
 	}
 
-	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
-	if err != nil {
-		log.WithError(err).Errorf("Error borrowing decompressor")
-	}
-
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
-		err := decompressorPool.ReturnObject(ctx, object)
-		if err != nil {
-			log.WithError(err).Errorf("Error returning decompressorPool to pool")
-		}
-	}(repo.decompressorPool, context.Background(), decompressor)
-
-	messages := make([]*api.EventStreamMessage, 0)
+	messages := make([]*api.EventStreamMessage, 0, len(cmd[0].Messages))
 	for _, m := range cmd[0].Messages {
-		data := m.Values[dataKey]
-		msg := &api.EventMessage{}
-		bytes := []byte(data.(string))
-		err = proto.Unmarshal(bytes, msg)
+		// TODO: here we decompress all the events we fetched from the db- it would be much better
+		// If we could decompress lazily, but the interface confines us somewhat here
+		apiEvents, err := repo.extractEvents(m, queue, jobSetId)
 		if err != nil {
-			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error unmarshalling: %s", err)
+			return nil, err
 		}
-		msg, err = DecompressEventIfNecessary(msg, decompressor.(compress.Decompressor))
-		if err != nil {
-			return nil, fmt.Errorf("[RedisEventRepository.ReadEvents] error decompressing: %s", err)
+		for i, msg := range apiEvents {
+			msgId, err := sequence.FromRedisId(m.ID, i, i == len(apiEvents)-1)
+			if err != nil {
+				return nil, err
+			}
+			if msgId.IsAfter(from) {
+				messages = append(messages, &api.EventStreamMessage{Id: msgId.String(), Message: msg})
+			}
 		}
-		populateQueueAndJobset(msg, queue, jobSetId)
-		messages = append(messages, &api.EventStreamMessage{Id: m.ID, Message: msg})
 	}
 	return messages, nil
 }
@@ -192,120 +107,50 @@ func (repo *RedisEventRepository) ReadEvents(queue, jobSetId string, lastId stri
 func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (string, error) {
 	msg, err := repo.db.XRevRangeN(getJobSetEventsKey(queue, jobSetId), "+", "-", 1).Result()
 	if err != nil {
-		return "", fmt.Errorf("[RedisEventRepository.GetLastMessageId] error reading from database: %s", err)
+		return "", errors.Wrap(err, "Error retrieving the last message id from Redis")
 	}
 	if len(msg) > 0 {
-		return msg[0].ID, nil
+		apiEvents, err := repo.extractEvents(msg[0], queue, jobSetId)
+		if err != nil {
+			return "", err
+		}
+		msgId, err := sequence.FromRedisId(msg[0].ID, len(apiEvents)-1, true)
+		if err != nil {
+			return "", err
+		}
+		return msgId.String(), nil
 	}
 	return "0", nil
 }
 
-func getJobSetEventsKey(queue, jobSetId string) string {
+func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSetId string) ([]*api.EventMessage, error) {
+	data := msg.Values[dataKey]
+	bytes := []byte(data.(string))
+	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := decompressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning decompressor to pool")
+		}
+	}(repo.decompressorPool, context.Background(), decompressor)
+	decompressedData, err := decompressor.(compress.Decompressor).Decompress(bytes)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	es := &armadaevents.EventSequence{}
+	err = proto.Unmarshal(decompressedData, es)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// These fields are not present in the db messages, so we add them back here
+	es.Queue = queue
+	es.JobSetName = jobSetId
+	return apimessages.FromEventSequence(es)
+}
+
+func (repo *RedisEventRepository) getJobSetEventsKey(queue, jobSetId string) string {
 	return eventStreamPrefix + queue + ":" + jobSetId
-}
-
-func nullOutQueueAndJobset(msg *api.EventMessage) {
-	populateQueueAndJobset(msg, "", "")
-}
-
-func compressEventIfNecessary(msg *api.EventMessage, compressor compress.Compressor) (*api.EventMessage, error) {
-	if msg.GetFailed() != nil {
-		messageData, e := proto.Marshal(msg)
-		if e != nil {
-			return nil, e
-		}
-		compressedBytes, e := compressor.Compress(messageData)
-		if e != nil {
-			return nil, e
-		}
-		return &api.EventMessage{
-			Events: &api.EventMessage_FailedCompressed{
-				FailedCompressed: &api.JobFailedEventCompressed{
-					Event: compressedBytes,
-				},
-			},
-		}, nil
-	}
-	return msg, nil
-}
-
-func DecompressEventIfNecessary(msg *api.EventMessage, decompressor compress.Decompressor) (*api.EventMessage, error) {
-	failed := msg.GetFailedCompressed()
-	if failed != nil {
-		decompressedBytes, err := decompressor.Decompress(failed.GetEvent())
-		if err != nil {
-			return nil, err
-		}
-		msg := &api.EventMessage{}
-		err = proto.Unmarshal(decompressedBytes, msg)
-		if err != nil {
-			return nil, err
-		}
-		return msg, nil
-	}
-	return msg, nil
-}
-
-func populateQueueAndJobset(msg *api.EventMessage, queue, jobSetId string) {
-	switch event := msg.Events.(type) {
-	case *api.EventMessage_Submitted:
-		event.Submitted.Queue = queue
-		event.Submitted.JobSetId = jobSetId
-	case *api.EventMessage_Queued:
-		event.Queued.Queue = queue
-		event.Queued.JobSetId = jobSetId
-	case *api.EventMessage_DuplicateFound:
-		event.DuplicateFound.Queue = queue
-		event.DuplicateFound.JobSetId = jobSetId
-	case *api.EventMessage_Leased:
-		event.Leased.Queue = queue
-		event.Leased.JobSetId = jobSetId
-	case *api.EventMessage_LeaseReturned:
-		event.LeaseReturned.Queue = queue
-		event.LeaseReturned.JobSetId = jobSetId
-	case *api.EventMessage_LeaseExpired:
-		event.LeaseExpired.Queue = queue
-		event.LeaseExpired.JobSetId = jobSetId
-	case *api.EventMessage_Pending:
-		event.Pending.Queue = queue
-		event.Pending.JobSetId = jobSetId
-	case *api.EventMessage_Running:
-		event.Running.Queue = queue
-		event.Running.JobSetId = jobSetId
-	case *api.EventMessage_UnableToSchedule:
-		event.UnableToSchedule.Queue = queue
-		event.UnableToSchedule.JobSetId = jobSetId
-	case *api.EventMessage_Failed:
-		event.Failed.Queue = queue
-		event.Failed.JobSetId = jobSetId
-	case *api.EventMessage_Succeeded:
-		event.Succeeded.Queue = queue
-		event.Succeeded.JobSetId = jobSetId
-	case *api.EventMessage_Reprioritizing:
-		event.Reprioritizing.Queue = queue
-		event.Reprioritizing.JobSetId = jobSetId
-	case *api.EventMessage_Reprioritized:
-		event.Reprioritized.Queue = queue
-		event.Reprioritized.JobSetId = jobSetId
-	case *api.EventMessage_Cancelling:
-		event.Cancelling.Queue = queue
-		event.Cancelling.JobSetId = jobSetId
-	case *api.EventMessage_Cancelled:
-		event.Cancelled.Queue = queue
-		event.Cancelled.JobSetId = jobSetId
-	case *api.EventMessage_Terminated:
-		event.Terminated.Queue = queue
-		event.Terminated.JobSetId = jobSetId
-	case *api.EventMessage_Utilisation:
-		event.Utilisation.Queue = queue
-		event.Utilisation.JobSetId = jobSetId
-	case *api.EventMessage_IngressInfo:
-		event.IngressInfo.Queue = queue
-		event.IngressInfo.JobSetId = jobSetId
-	case *api.EventMessage_Updated:
-		event.Updated.Queue = queue
-		event.Updated.JobSetId = jobSetId
-	default:
-		log.Warnf("Unknown message type %T, message queue and jobset will not be filled in", event)
-	}
 }

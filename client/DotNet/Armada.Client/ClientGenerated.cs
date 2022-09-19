@@ -1171,6 +1171,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("clientId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string ClientId { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("compressedQueueOwnershipUserGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public byte[] CompressedQueueOwnershipUserGroups { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.DateTimeOffset? Created { get; set; }
     
@@ -1186,8 +1189,6 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobSetId { get; set; }
     
-        /// <summary>repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;
-        /// github.com.G-Research.armada.internal.events.</summary>
         [Newtonsoft.Json.JsonProperty("k8sIngress", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1Ingress> K8sIngress { get; set; }
     
@@ -1220,6 +1221,11 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
+    
+        /// <summary>Indicates which scheduler should manage this job.
+        /// If empty, the default scheduler is used.</summary>
+        [Newtonsoft.Json.JsonProperty("scheduler", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Scheduler { get; set; }
     
         [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }
@@ -1678,8 +1684,11 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("errorIfMissing", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public bool? ErrorIfMissing { get; set; }
     
-        [Newtonsoft.Json.JsonProperty("forceRedis", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
-        public bool? ForceRedis { get; set; }
+        [Newtonsoft.Json.JsonProperty("forceLegacy", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ForceLegacy { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("forceNew", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? ForceNew { get; set; }
     
         [Newtonsoft.Json.JsonProperty("fromMessageId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string FromMessageId { get; set; }
@@ -1754,6 +1763,11 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
+    
+        /// <summary>Indicates which scheduler should manage this job.
+        /// If empty, the default scheduler is used.</summary>
+        [Newtonsoft.Json.JsonProperty("scheduler", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Scheduler { get; set; }
     
         [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }

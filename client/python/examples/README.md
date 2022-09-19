@@ -115,6 +115,11 @@ A full example of creating a queue with all options.
 
 #### Walkthrough
 
+> We use `create_queue_request` to create the initial request for the queue.
+> ```py
+> def create_queue_request(client, queue):
+> ```
+
 > Permissions are used to control who can do what with the queue.
 > ```py
 > subject = Subject(type="Group", name="group1")
@@ -124,6 +129,23 @@ A full example of creating a queue with all options.
 > Resource limits are set similarly to [Kubernetes](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#resource-requests-and-limits-of-pod-and-container)
 > ```py
 > resource_limits = {"cpu": 1.0, "memory": 1.0}
+> ```
+
+We then have two functions:
+
+> `creating_full_queue_example()` which is used to create a single queue using `create_queue()`
+> ```py
+> def creating_full_queue_example(client, queue):
+> ```
+
+> `creating_multiple_queues_example()` which is used to create a multiple queues using `create_queues()`
+> ```py
+> def creating_multiple_queues_example(client, queue):
+> ```
+>
+> We also use the response of `create_queues()` to detect any errors
+> ```py
+> resp = client.create_queues([queue_req1, queue_req2])
 > ```
 
 ### cancelling.py
@@ -145,6 +167,15 @@ the job-set id.
 > ```py
 > client.cancel_jobs(queue=queue, job_set_id=job_set_id1)
 > ```
+
+> If you want to cancel a jobset, but only jobs in certain states, you can use `cancel_jobset()`
+> ```py
+> client.cancel_jobset(
+>     queue=queue, job_set_id=job_set_id, filter=[JobState.PENDING, JobState.RUNNING]
+> )
+> ```
+>
+> You can set `ilter_states` to either \[JobState.Queued] or [JobState.PENDING, JobState.RUNNING]
 
 ### monitor.py
 
@@ -243,4 +274,49 @@ class BasicAuthTest:
             ),
         )
         self.client = ArmadaClient(channel)
+```
+
+# Using OIDC Client Credentials
+
+```py
+# This is an example of how you can use OIDC and GRPC with a ClientCredential flow.
+
+class GrpcAuth(grpc.AuthMetadataPlugin):
+    def __init__(self, key):
+        self._key = key
+
+    def __call__(self, context, callback):
+        callback((("authorization", self._key),), None)
+
+
+def get_jwt():
+    client_id = os.environ.get("OIDC_CLIENT_ID")
+    client_secret = os.environ.get("OIDC_CLIENT_SECRET")
+    oidc_provider = os.environ.get("OIDC_PROVIDER_URL")
+    params = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "grant_type": "client_credentials",
+    }
+
+    response = requests.post(f"{oidc_provider}", data=params)
+
+    if response.status_code != 200:
+        raise ValueError("Error accessing the API token via OAuth")
+    return response.json()["access_token"]
+
+
+def get_grpc_channel(jwt):
+    channel = grpc.secure_channel(
+        "localhost:50051",
+        grpc.composite_channel_credentials(
+            grpc.local_channel_credentials(),
+            grpc.metadata_call_credentials(GrpcAuth("Bearer " + jwt)),
+        ),
+    )
+
+    return channel
+
+
+armada_client = ArmadaClient(channel=get_grpc_channel(get_jwt()))
 ```

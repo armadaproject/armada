@@ -16,7 +16,6 @@ type ClientPasswordDetails struct {
 }
 
 func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, error) {
-
 	ctx := context.Background()
 
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
@@ -30,7 +29,7 @@ func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, 
 		Endpoint: provider.Endpoint(),
 	}
 
-	source := &functionTokenSource{
+	source := &FunctionTokenSource{
 		func() (*oauth2.Token, error) {
 			return authConfig.PasswordCredentialsToken(ctx, config.Username, config.Password)
 		},

@@ -16,7 +16,6 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/jobservice"
 	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/pkg/client"
 )
 
 func runCmd(app *jobservice.App) *cobra.Command {
@@ -29,6 +28,7 @@ func runCmd(app *jobservice.App) *cobra.Command {
 
 	return cmd
 }
+
 func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		g, ctx := errgroup.WithContext(context.Background())
@@ -40,7 +40,6 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 		}
 		configArray := strings.Split(configValue, " ")
 		common.LoadConfig(&config, "./config/jobservice", configArray)
-		config.ApiConnection = *client.ExtractCommandlineArmadaApiConnectionDetails()
 
 		err := app.StartUp(ctx, &config)
 		if err != nil {

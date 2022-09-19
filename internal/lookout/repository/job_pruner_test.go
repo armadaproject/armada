@@ -25,7 +25,7 @@ func Test_HappyPath(t *testing.T) {
 		})
 	})
 
-	t.Run("delete nothing", func(t *testing.T) {
+	t.Run("delete nothing but null", func(t *testing.T) {
 		withPopulatedDatabase(t, func(db *sql.DB) {
 			err := DeleteOldJobs(db, 10, startDate.AddDate(0, 0, -1))
 			assert.NoError(t, err)
@@ -49,7 +49,6 @@ func Test_HappyPath(t *testing.T) {
 }
 
 func Test_BatchSize(t *testing.T) {
-
 	t.Run("different batch sizes", func(t *testing.T) {
 		batchSizes := []int{1, 2, 5, 10, 100}
 		for _, size := range batchSizes {
@@ -111,6 +110,13 @@ func withPopulatedDatabase(t *testing.T, action func(db *sql.DB)) {
 				jobId, "foo", "bar")
 			assert.NoError(t, err4)
 		}
+
+		// Extra job will a null submitted time.  This should always be deleted
+		_, err := db.Exec(
+			"INSERT INTO job (job_id, queue, jobset, submitted) VALUES ($1, $2, $3, $4)",
+			"null-submitted", queue, "test-jobset", nil)
+		assert.NoError(t, err)
+
 		action(db)
 		return nil
 	})

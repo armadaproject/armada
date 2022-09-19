@@ -29,7 +29,6 @@ type PulsarFromPulsar struct {
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {
@@ -90,7 +89,7 @@ func (srv *PulsarFromPulsar) Run(ctx context.Context) error {
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				break //expected
+				break // expected
 			}
 
 			// If receiving fails, try again in the hope that the problem is transient.
@@ -201,7 +200,8 @@ func (srv *PulsarFromPulsar) ResponseEventsFromSequence(ctx context.Context, seq
 			es = append(es, &armadaevents.EventSequence_Event{
 				Event: &armadaevents.EventSequence_Event_JobSucceeded{
 					JobSucceeded: &armadaevents.JobSucceeded{
-						JobId: e.JobRunSucceeded.JobId,
+						JobId:         e.JobRunSucceeded.JobId,
+						ResourceInfos: e.JobRunSucceeded.ResourceInfos,
 					},
 				},
 			})

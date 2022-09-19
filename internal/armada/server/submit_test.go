@@ -53,7 +53,13 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"memory": 0.2, "cpu": 0.3}}
+		originalQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 1.1,
+			UserOwners:     []string{"user-a", "user-b"},
+			GroupOwners:    []string{"group-a", "group-b"},
+			ResourceLimits: map[string]float64{"memory": 0.2, "cpu": 0.3},
+		}
 
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
@@ -74,12 +80,27 @@ func TestSubmitServer_CreateQueue_WithCustomSettings_CanBeReadBack(t *testing.T)
 func TestSubmitServer_CreateQueue_WhenQueueAlreadyExists_QueueIsNotChanged_AndReturnsAlreadyExists(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3}}
+		originalQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 1.1,
+			UserOwners:     []string{"user-a", "user-b"},
+			GroupOwners:    []string{"group-a", "group-b"},
+			ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3},
+		}
 
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		_, err = s.CreateQueue(context.Background(), &api.Queue{Name: queueName, PriorityFactor: 2, UserOwners: []string{"user-c"}, GroupOwners: []string{"group-c"}, ResourceLimits: map[string]float64{"cpu": 0.4}})
+		_, err = s.CreateQueue(
+			context.Background(),
+			&api.Queue{
+				Name:           queueName,
+				PriorityFactor: 2,
+				UserOwners:     []string{"user-c"},
+				GroupOwners:    []string{"group-c"},
+				ResourceLimits: map[string]float64{"cpu": 0.4},
+			},
+		)
 		assert.Equal(t, codes.AlreadyExists, status.Code(err))
 
 		roundTrippedQueue, err := s.GetQueue(context.Background(), &api.QueueGetRequest{Name: queueName})
@@ -111,11 +132,23 @@ func TestSubmitServer_UpdateQueue_WhenQueueExists_ReplacesQueue(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		const queueName = "myQueue"
 
-		originalQueue := &api.Queue{Name: queueName, PriorityFactor: 1.1, UserOwners: []string{"user-a", "user-b"}, GroupOwners: []string{"group-a", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3}}
+		originalQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 1.1,
+			UserOwners:     []string{"user-a", "user-b"},
+			GroupOwners:    []string{"group-a", "group-b"},
+			ResourceLimits: map[string]float64{"cpu": 0.2, "memory": 0.3},
+		}
 		_, err := s.CreateQueue(context.Background(), originalQueue)
 		assert.NoError(t, err)
 
-		updatedQueue := &api.Queue{Name: queueName, PriorityFactor: 2.2, UserOwners: []string{"user-a", "user-c"}, GroupOwners: []string{"group-c", "group-b"}, ResourceLimits: map[string]float64{"cpu": 0.3, "memory": 0.3}}
+		updatedQueue := &api.Queue{
+			Name:           queueName,
+			PriorityFactor: 2.2,
+			UserOwners:     []string{"user-a", "user-c"},
+			GroupOwners:    []string{"group-c", "group-b"},
+			ResourceLimits: map[string]float64{"cpu": 0.3, "memory": 0.3},
+		}
 		_, err = s.UpdateQueue(context.Background(), updatedQueue)
 		assert.NoError(t, err)
 
@@ -215,7 +248,6 @@ func TestSubmitServer_SubmitJob(t *testing.T) {
 }
 
 func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
-
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
 		jobSetId := util.NewULID()
 		jobRequest := &api.JobSubmitRequest{
@@ -379,9 +411,9 @@ func TestSubmitServer_SubmitJob_AddsExpectedEventsInCorrectOrder(t *testing.T) {
 		firstEvent := messages[0]
 		secondEvent := messages[1]
 
-		//First event should be submitted
+		// First event should be submitted
 		assert.NotNil(t, firstEvent.Message.GetSubmitted())
-		//Second event should be queued
+		// Second event should be queued
 		assert.NotNil(t, secondEvent.Message.GetQueued())
 	})
 }
@@ -400,21 +432,27 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 			jobIds = append(jobIds, jobItem.JobId)
 		}
 
-		//Get jobs for jobIds returned
+		// Get jobs for jobIds returned
 		jobs, _ := s.jobRepository.GetExistingJobsByIds(jobIds)
 		jobSet := make(map[string]*api.Job, 5)
 		for _, job := range jobs {
 			jobSet[job.Id] = job
 		}
 
-		//Confirm submitted spec and created spec line up, using order of returned jobIds to correlate submitted to created
+		// Confirm submitted spec and created spec line up, using order of returned jobIds to correlate submitted to created
 		for i := 0; i < len(jobRequest.JobRequestItems); i++ {
 			requestItem := jobRequest.JobRequestItems[i]
 			returnedId := jobIds[i]
 			createdJob := jobSet[returnedId]
 
 			assert.NotNil(t, createdJob)
-			assert.Equal(t, requestItem.PodSpec, createdJob.PodSpec)
+			if requestItem.PodSpec != nil {
+				assert.Equal(t, requestItem.PodSpec, createdJob.PodSpec)
+			} else if len(requestItem.PodSpecs) == 1 {
+				assert.Equal(t, requestItem.PodSpecs[0], createdJob.PodSpec)
+			} else {
+				assert.Equal(t, requestItem.PodSpecs, createdJob.PodSpecs)
+			}
 		}
 	})
 }
@@ -483,7 +521,6 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 	t.Run("one job", func(t *testing.T) {
 		withSubmitServerAndRepos(func(s *SubmitServer, jobRepo repository.JobRepository, events repository.EventRepository) {
-
 			newPriority := 123.0
 
 			jobSetId := util.NewULID()
@@ -1518,7 +1555,7 @@ func readJobEvents(events repository.EventRepository, jobSetId string) ([]*api.E
 		return nil, err
 	}
 
-	//Sort events based on Redis stream ID order (Actual stored order)
+	// Sort events based on Redis stream ID order (Actual stored order)
 	sort.Slice(messages, func(i, j int) bool {
 		return messages[i].Id < messages[j].Id
 	})
@@ -1576,7 +1613,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 
 	jobRepo := repository.NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
 	queueRepo := repository.NewRedisQueueRepository(client)
-	eventRepo := repository.NewRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
+	eventRepo := repository.NewLegacyRedisEventRepository(client, configuration.EventRetentionPolicy{ExpiryEnabled: false})
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
 
 	queueConfig := configuration.QueueManagementConfig{DefaultPriorityFactor: 1}
@@ -1683,8 +1720,9 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 					},
 				},
 			},
-			Owner:                    "test",
-			QueueOwnershipUserGroups: []string{},
+			Owner:                              "test",
+			QueueOwnershipUserGroups:           nil,
+			CompressedQueueOwnershipUserGroups: []byte{},
 		},
 	}
 

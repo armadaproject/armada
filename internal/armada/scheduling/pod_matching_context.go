@@ -52,7 +52,12 @@ func fits(resourceRequest, availableResources common.ComputeResourcesFloat) (boo
 			return false, errors.Errorf("pod requested resource %s, but none is available", resourceType)
 		}
 		if availableResourceQuantity < requestedResourceQuantity {
-			return false, errors.Errorf("pod requested %f of resource %s, but only %f is available", requestedResourceQuantity, resourceType, availableResourceQuantity)
+			return false, errors.Errorf(
+				"pod requested %f of resource %s, but only %f is available",
+				requestedResourceQuantity,
+				resourceType,
+				availableResourceQuantity,
+			)
 		}
 	}
 	return true, nil
@@ -67,7 +72,13 @@ func matchNodeSelector(podSpec *v1.PodSpec, labels map[string]string) (bool, err
 			return false, errors.Errorf("node selector requires labels[%s] = %s, but the node type does not include this label", label, selectorValue)
 		}
 		if nodeValue != selectorValue {
-			return false, errors.Errorf("node selector requires labels[%s] = %s, found labels[%s] = %s for this node type", label, selectorValue, label, nodeValue)
+			return false, errors.Errorf(
+				"node selector requires labels[%s] = %s, found labels[%s] = %s for this node type",
+				label,
+				selectorValue,
+				label,
+				nodeValue,
+			)
 		}
 	}
 	return true, nil

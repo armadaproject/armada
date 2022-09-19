@@ -104,21 +104,25 @@ def run_workflow(client, queue, job_set_id, job_request_items):
     Example workflow for the async logging example
     """
 
+    queue_req = client.create_queue_request(name=queue, priority_factor=1)
+
     # Handle if the queue already exists
     try:
-        client.create_queue(name=queue, priority_factor=1)
+        client.create_queue(queue_req)
 
     # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
             print(f"Queue {queue} already exists")
-            client.update_queue(name=queue, priority_factor=1)
+            queue_req = client.create_queue_request(name=queue, priority_factor=1)
+            client.update_queue(queue_req)
         else:
             raise e
 
     # Some different commands for logging to detect
-    client.update_queue(name=queue, priority_factor=2)
+    queue_req = client.create_queue_request(name=queue, priority_factor=2)
+    client.update_queue(queue_req)
 
     resp = client.submit_jobs(
         queue=queue, job_set_id=job_set_id, job_request_items=job_request_items

@@ -12,6 +12,7 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
+from armada_client.typings import JobState
 
 
 def create_dummy_job(client: ArmadaClient):
@@ -77,6 +78,28 @@ def cancelling_jobs_example(client, queue):
     client.cancel_jobs(queue=queue, job_set_id=job_set_id1)
 
 
+def cancelling_jobset_with_filter(client, queue):
+    """
+    Cancels a jobset with a filter.
+    """
+
+    # Create the PodSpec for the job
+    job_request_items = create_dummy_job(client)
+
+    # Create the jobset with a filter
+    job_set_id = f"set-{uuid.uuid1()}"
+    client.submit_jobs(
+        queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
+    )
+
+    # Cancel the jobset with a filter
+    client.cancel_jobset(
+        queue=queue,
+        job_set_id=job_set_id,
+        filter_states=[JobState.PENDING, JobState.RUNNING],
+    )
+
+
 def quick_create_queue(client, queue):
     """
     Creates a queue.
@@ -84,16 +107,18 @@ def quick_create_queue(client, queue):
     Will skip if the queue already exists.
     """
 
+    queue_req = client.create_queue_request(name=queue, priority_factor=1)
+
     # Make sure we handle the queue already existing
     try:
-        client.create_queue(name=queue, priority_factor=1)
+        client.create_queue(queue_req)
 
     # Handle the error we expect to maybe occur
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
             print(f"Queue {queue} already exists")
-            client.update_queue(name=queue, priority_factor=1)
+            client.update_queue(queue_req)
         else:
             raise e
 
@@ -101,9 +126,9 @@ def quick_create_queue(client, queue):
 def workflow():
     """
     Starts a workflow, which includes:
-        - Creating a queue
-        - Creating a jobset
-        - Creating a job
+        - Creating a queue and job
+        - Cancelling a job with its job-id and jobset-id
+        - Cancelling a job-set with a filter
     """
 
     # The queue and job_set_id that will be used for all jobs
@@ -123,6 +148,7 @@ def workflow():
     quick_create_queue(client, queue)
 
     cancelling_jobs_example(client, queue)
+    cancelling_jobset_with_filter(client, queue)
 
 
 if __name__ == "__main__":

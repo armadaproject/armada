@@ -42,7 +42,7 @@ type App struct {
 	// but can be overridden in tests to make assertions on the applications's output.
 	Out io.Writer
 	// Source of randomness. Tests can use a mocked random source in order to provide
-	// deterministic testing behavior.
+	// deterministic testing behaviour.
 	Random io.Reader
 	// Benchmark reports from test files
 	reports []*eventbenchmark.TestCaseBenchmarkReport
@@ -66,11 +66,6 @@ func New() *App {
 	}
 }
 
-// validateParams validates a.Params. Currently, it doesn't check anything.
-func (a *App) validateParams() error {
-	return nil
-}
-
 // Version prints build information (e.g., current git commit) to the app output.
 func (a *App) Version() error {
 	w := tabwriter.NewWriter(a.Out, 1, 1, 1, ' ', 0)
@@ -83,7 +78,6 @@ func (a *App) Version() error {
 }
 
 func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcase, error) {
-
 	// Load test spec.
 	testSpec, err := TestSpecFromFilePath(filePath)
 	if err != nil {
@@ -138,7 +132,7 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 		return nil, err
 	}
 
-	// Randomize jobSetName for each test to ensure we're only getting events for this run.
+	// Randomise jobSetName for each test to ensure we're only getting events for this run.
 	fileName := filepath.Base(filePath)
 	fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	testSpec.JobSetId = fileName + "-" + shortuuid.New()
@@ -153,7 +147,10 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 
 // GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
 // and then consumes events until ctx is cancelled.
-func GetCancelAllJobs(testSpec *api.TestSpec, apiConnectionDetails *client.ApiConnectionDetails) func(context.Context, chan *api.EventMessage, map[string]bool) error {
+func GetCancelAllJobs(
+	testSpec *api.TestSpec,
+	apiConnectionDetails *client.ApiConnectionDetails,
+) func(context.Context, chan *api.EventMessage, map[string]bool) error {
 	return func(ctx context.Context, ch chan *api.EventMessage, jobIds map[string]bool) error {
 		return client.WithSubmitClient(apiConnectionDetails, func(sc api.SubmitClient) error {
 			for jobId := range jobIds {
@@ -238,8 +235,17 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	if err != nil {
 		return errors.WithMessage(err, "error creating job logger")
 	}
+	executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
 	if testSpec.GetLogs {
-		g.Go(func() error { return jobLogger.Run(ctx) })
+		if executorClustersDefined {
+			g.Go(func() error { return jobLogger.Run(ctx) })
+		} else {
+			_, _ = fmt.Fprintf(
+				a.Out,
+				"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
+				testSpec.Name,
+			)
+		}
 	}
 
 	// Split the events into multiple channels, one for each downstream service.
@@ -268,7 +274,7 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	a.reports = append(a.reports, report)
 
 	// Armada JobSet logs
-	if testSpec.GetLogs {
+	if testSpec.GetLogs && executorClustersDefined {
 		jobLogger.PrintLogs()
 	}
 
@@ -279,9 +285,6 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 }
 
 func (a *App) createJobLogger(testSpec *api.TestSpec) (*joblogger.JobLogger, error) {
-	if len(a.Params.ApiConnectionDetails.ExecutorClusters) == 0 {
-		return nil, errors.New("no executor clusters configured to scrape for logs")
-	}
 	namespace, err := getJobNamespace(testSpec)
 	if err != nil {
 		return nil, err

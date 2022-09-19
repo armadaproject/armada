@@ -9,6 +9,7 @@ from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
+from armada_client.typings import JobState
 
 
 def submit_sleep_job(client):
@@ -100,8 +101,34 @@ def get_queue():
 @pytest.fixture(scope="session", autouse=True)
 def create_queue(client: ArmadaClient, queue_name):
 
-    client.create_queue(name=queue_name, priority_factor=1)
+    queue = client.create_queue_request(name=queue_name, priority_factor=1)
+    client.create_queue(queue)
     wait_for(client, queue=queue_name)
+
+
+def test_batch_update_and_create_queues(client: ArmadaClient):
+    # Need to separately create queue name so that it is not
+    # automatically created by the fixture.
+    queue_name1 = f"queue-{uuid.uuid1()}"
+    queue_name2 = f"queue-{uuid.uuid1()}"
+
+    queue1 = client.create_queue_request(name=queue_name1, priority_factor=1)
+    queue2 = client.create_queue_request(name=queue_name2, priority_factor=1)
+    client.create_queues([queue1, queue2])
+
+    queue1 = client.get_queue(name=queue_name1)
+    queue2 = client.get_queue(name=queue_name2)
+
+    assert queue1.priority_factor == queue2.priority_factor
+
+    updated_queue1 = client.create_queue_request(name=queue_name1, priority_factor=2)
+    updated_queue2 = client.create_queue_request(name=queue_name2, priority_factor=2)
+    client.update_queues([updated_queue1, updated_queue2])
+
+    queue1 = client.get_queue(name=queue_name1)
+    queue2 = client.get_queue(name=queue_name2)
+
+    assert queue1.priority_factor == queue2.priority_factor
 
 
 def test_get_queue(client: ArmadaClient, queue_name):
@@ -144,6 +171,23 @@ def test_submit_job_and_cancel_by_queue_job_set(client: ArmadaClient, queue_name
 
     expected = f"all jobs in job set {job_set_name}"
     assert expected == cancelled_message.cancelled_ids[0]
+
+
+def test_submit_job_and_cancelling_with_filter(client: ArmadaClient, queue_name):
+    job_set_name = f"set-{uuid.uuid4()}"
+    client.submit_jobs(
+        queue=queue_name,
+        job_set_id=job_set_name,
+        job_request_items=submit_sleep_job(client),
+    )
+
+    wait_for(client, queue=queue_name, job_set_id=job_set_name)
+
+    client.cancel_jobset(
+        queue=queue_name,
+        job_set_id=job_set_name,
+        filter_states=[JobState.RUNNING, JobState.PENDING],
+    )
 
 
 def test_get_job_events_stream(client: ArmadaClient, queue_name):

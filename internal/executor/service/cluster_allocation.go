@@ -31,15 +31,16 @@ func NewClusterAllocationService(
 	leaseService LeaseService,
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor) *ClusterAllocationService {
-
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+) *ClusterAllocationService {
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
 		eventReporter:      eventReporter,
 		utilisationService: utilisationService,
 		clusterContext:     clusterContext,
 		submitter:          submitter,
-		etcdHealthMonitor:  etcdHealthMonitor}
+		etcdHealthMonitor:  etcdHealthMonitor,
+	}
 }
 
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
@@ -132,7 +133,6 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 
 func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
 	err := allocationService.leaseService.ReturnLease(pod, reason)
-
 	if err != nil {
 		log.Errorf("Failed to return lease for job %s because %s", util.ExtractJobId(pod), err)
 	}

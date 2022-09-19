@@ -3,6 +3,7 @@ package pgkeyvalue
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -16,6 +17,11 @@ import (
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/logging"
 )
+
+type KeyValue struct {
+	Key   string
+	Value []byte
+}
 
 // PGKeyValueStore is a time-limited key-value store backed by postgres with a local LRU cache.
 // The store is write-only, i.e., writing to an existing key will return an error (of type *armadaerrors.ErrAlreadyExists).
@@ -58,7 +64,7 @@ func New(db *pgxpool.Pool, cacheSize int, tableName string) (*PGKeyValueStore, e
 }
 
 // Add adds a key-value pair. Returns true if successful and false if the key already exists.
-// The posgres table backing the key-value storage is created automatically if it doesn't already exist.
+// The postgres table backing the key-value storage is created automatically if it doesn't already exist.
 func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bool, error) {
 	ok, err := c.add(ctx, key, value)
 
@@ -70,6 +76,21 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 	}
 
 	return ok, err
+}
+
+// LoadOrStoreBatch returns the existing values for the supplied keys if present.  Otherwise, it stores and returns
+// the supplied value.
+// The postgres table backing the key-value storage is created automatically if it doesn't already exist.
+func (c *PGKeyValueStore) LoadOrStoreBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
+	ret, err := c.addBatch(ctx, batch)
+
+	// If the table doesn't exist, create it and try again.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
+		c.createTable(ctx)
+		ret, err = c.addBatch(ctx, batch)
+	}
+	return ret, err
 }
 
 // AddKey is equivalent to Add(ctx, key, nil).
@@ -86,8 +107,58 @@ func (c *PGKeyValueStore) createTable(ctx context.Context) error {
 	return err
 }
 
-func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
+func (c *PGKeyValueStore) addBatch(ctx context.Context, batch []*KeyValue) (map[string][]byte, error) {
+	addedByKey := map[string][]byte{}
+	keysToAdd := map[string][]byte{}
 
+	// first check the cache to see if we have added anything
+	for _, kv := range batch {
+		if val, ok := c.cache.Get(kv.Key); ok {
+			addedByKey[kv.Key] = val.([]byte)
+		} else {
+			keysToAdd[kv.Key] = kv.Value
+		}
+	}
+
+	if len(addedByKey) == len(batch) {
+		return addedByKey, nil
+	}
+
+	valueStrings := make([]string, 0, len(batch))
+	valueArgs := make([]interface{}, 0, len(batch)*3)
+	i := 0
+	now := time.Now().UTC()
+	for k, v := range keysToAdd {
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3))
+		valueArgs = append(valueArgs, k)
+		valueArgs = append(valueArgs, v)
+		valueArgs = append(valueArgs, now)
+		i++
+	}
+	stmt := fmt.Sprintf(
+		"INSERT INTO %s (key, value, inserted) VALUES %s ON CONFLICT (key) DO UPDATE SET key=EXCLUDED.key  RETURNING key, value",
+		c.tableName,
+		strings.Join(valueStrings, ","))
+	rows, err := c.db.Query(ctx, stmt, valueArgs...)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	for rows.Next() {
+		key := ""
+		var value []byte = nil
+		err := rows.Scan(&key, &value)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		c.cache.Add(key, value)
+		addedByKey[key] = value
+	}
+
+	return addedByKey, nil
+}
+
+func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bool, error) {
 	// Overwriting isn't allowed.
 	if _, ok := c.cache.Get(key); ok {
 		return false, nil
@@ -96,7 +167,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 	// Otherwise, get and set the key in a transaction.
 	var exists *bool
 	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
-
 		// Check if the key already exists in postgres.
 		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
 		err := tx.QueryRow(ctx, sql, key).Scan(&exists)
@@ -115,7 +185,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 
 		return nil
 	})
-
 	// We need to return on error (in particular tx rollback)
 	// to avoid writing to the cache after failing to write to postgres.
 	if err != nil {
@@ -135,7 +204,6 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 // Get returns the value associated with the provided key,
 // or &armadaerrors.ErrNotFound if the key can't be found.
 func (c *PGKeyValueStore) Get(ctx context.Context, key string) ([]byte, error) {
-
 	// First check the local cache.
 	if value, ok := c.cache.Get(key); ok {
 		return value.([]byte), nil

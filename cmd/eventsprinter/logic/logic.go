@@ -18,7 +18,6 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 	fmt.Println("Topic:", topic)
 	fmt.Println("Subscription", subscription)
 	return withSetup(url, topic, subscription, func(ctx context.Context, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Number of active jobs.
 		numJobs := 0
 
@@ -112,7 +111,9 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 					stripPodSpecsInEvent(event)
 				}
 				// TODO: This results in panics when there are tolerations in the podspec.
-				fmt.Printf("> EventSequence w. %d events (%d jobs active, for %s)\n%s\n", len(sequence.Events), numJobs, time.Since(risingEdge), proto.MarshalTextString(sequence))
+				fmt.Printf("> EventSequence w. %d events (%d jobs active, for %s)\n%s\n",
+					len(sequence.Events), numJobs, time.Since(risingEdge),
+					proto.MarshalTextString(sequence))
 			}
 		}
 		return nil
@@ -121,11 +122,6 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 
 func isSubmitJob(e *armadaevents.EventSequence_Event) bool {
 	_, ok := (e.Event).(*armadaevents.EventSequence_Event_SubmitJob)
-	return ok
-}
-
-func isJobRunLeased(e *armadaevents.EventSequence_Event) bool {
-	_, ok := (e.Event).(*armadaevents.EventSequence_Event_JobRunLeased)
 	return ok
 }
 
@@ -148,11 +144,6 @@ func isJobFailed(e *armadaevents.EventSequence_Event) bool {
 		return true
 	}
 	return false
-}
-
-func isJobRunSucceeded(e *armadaevents.EventSequence_Event) bool {
-	_, ok := (e.Event).(*armadaevents.EventSequence_Event_JobRunSucceeded)
-	return ok
 }
 
 func isJobSucceeded(e *armadaevents.EventSequence_Event) bool {
@@ -205,7 +196,6 @@ func stripPodSpec(spec *v1.PodSpec) *v1.PodSpec {
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
 func withSetup(url, topic, subscription string, action func(ctx context.Context, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
-
 	pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: url,
 	})

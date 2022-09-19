@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"sync/atomic"
+	"time"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/hashicorp/go-multierror"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -20,6 +23,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
@@ -33,6 +37,7 @@ type AggregatedQueueServer struct {
 	usageRepository          repository.UsageRepository
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
+	decompressorPool         *pool.ObjectPool
 }
 
 func NewAggregatedQueueServer(
@@ -45,6 +50,21 @@ func NewAggregatedQueueServer(
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
 ) *AggregatedQueueServer {
+	poolConfig := pool.ObjectPoolConfig{
+		MaxTotal:                 100,
+		MaxIdle:                  50,
+		MinIdle:                  10,
+		BlockWhenExhausted:       true,
+		MinEvictableIdleTime:     30 * time.Minute,
+		SoftMinEvictableIdleTime: math.MaxInt64,
+		TimeBetweenEvictionRuns:  0,
+		NumTestsPerEvictionRun:   10,
+	}
+
+	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+		func(context.Context) (interface{}, error) {
+			return compress.NewZlibDecompressor()
+		}), &poolConfig)
 	return &AggregatedQueueServer{
 		permissions:              permissions,
 		schedulingConfig:         schedulingConfig,
@@ -53,7 +73,9 @@ func NewAggregatedQueueServer(
 		queueRepository:          queueRepository,
 		usageRepository:          usageRepository,
 		eventStore:               eventStore,
-		schedulingInfoRepository: schedulingInfoRepository}
+		schedulingInfoRepository: schedulingInfoRepository,
+		decompressorPool:         decompressorPool,
+	}
 }
 
 func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
@@ -121,6 +143,11 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error leasing jobs: %s", err)
 	}
 
+	err = q.decompressJobOwnershipGroups(jobs)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "error leasing jobs: %s", err)
+	}
+
 	clusterLeasedReport := scheduling.CreateClusterLeasedReport(request.ClusterLeasedReport.ClusterId, &request.ClusterLeasedReport, jobs)
 	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
 	if err != nil {
@@ -139,7 +166,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-
 	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
 		return err
 	}
@@ -218,6 +244,11 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		poolLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
+	if err != nil {
+		return err
+	}
+
+	err = q.decompressJobOwnershipGroups(jobs)
 	if err != nil {
 		return err
 	}
@@ -301,6 +332,39 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	return result.ErrorOrNil()
+}
+
+func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) error {
+	for _, j := range jobs {
+		// No need to decompress, if compressed groups not set
+		if len(j.CompressedQueueOwnershipUserGroups) == 0 {
+			continue
+		}
+		groups, err := q.decompressOwnershipGroups(j.CompressedQueueOwnershipUserGroups)
+		if err != nil {
+			return fmt.Errorf("failed to decompress ownership groups for job %s because %s", j.Id, err)
+		}
+		j.QueueOwnershipUserGroups = groups
+		j.CompressedQueueOwnershipUserGroups = nil
+	}
+
+	return nil
+}
+
+func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
+	decompressor, err := q.decompressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
+	}
+
+	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := decompressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning decompressorPool to pool")
+		}
+	}(q.decompressorPool, context.Background(), decompressor)
+
+	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
@@ -464,7 +528,7 @@ func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
 		return nil, err
 	}
 	if len(jobs) < 1 {
-		return nil, fmt.Errorf("job with jobId %q not found", jobId)
+		return nil, errors.Errorf("job with jobId %q not found", jobId)
 	}
 	return jobs[0], err
 }

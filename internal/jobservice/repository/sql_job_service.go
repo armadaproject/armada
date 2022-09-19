@@ -1,3 +1,4 @@
+//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -13,6 +14,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+type JobTableUpdater interface {
+	SubscribeJobSet(string, string)
+	IsJobSetSubscribed(string, string) bool
+	UpdateJobServiceDb(*JobStatus)
+}
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
 // Locks are used for concurrent access of map
@@ -99,7 +106,7 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 }
 
 // Update database with JobTable.
-func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
+func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
 	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		panic(err)
@@ -144,7 +151,6 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 	if !ok {
 		s.jobSetSubscribe.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 	}
-
 }
 
 // UnSubscribe to JobSet and delete all the jobs in the database

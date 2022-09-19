@@ -9,14 +9,13 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
@@ -39,14 +38,8 @@ type SubmitFromLog struct {
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
 func (srv *SubmitFromLog) Run(ctx context.Context) error {
-
 	// Get the configured logger, or the standard logger if none is provided.
-	var log *logrus.Entry
-	if srv.Logger != nil {
-		log = srv.Logger.WithField("service", "SubmitFromLog")
-	} else {
-		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
-	}
+	log := srv.getLogger()
 	log.Info("service started")
 
 	// Recover from panics by restarting the service.
@@ -100,7 +93,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				break //expected
+				break // expected
 			}
 
 			// If receiving fails, try again in the hope that the problem is transient.
@@ -223,7 +216,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 		}
 	case *armadaevents.EventSequence_Event_CancelJobSet:
 		es := collectCancelJobSetEvents(ctx, i, sequence)
-		ok, err = srv.CancelJobSets(ctx, sequence.Queue, sequence.JobSetName, es)
+		ok, err = srv.CancelJobSets(ctx, sequence.UserId, sequence.Queue, sequence.JobSetName, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -314,19 +307,60 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
+func (srv *SubmitFromLog) getLogger() *logrus.Entry {
+	var log *logrus.Entry
+	if srv.Logger != nil {
+		log = srv.Logger.WithField("service", "SubmitFromLog")
+	} else {
+		log = logrus.StandardLogger().WithField("service", "SubmitFromLog")
+	}
+	return log
+}
+
 // SubmitJobs processes several job submit events in bulk.
 // It returns a boolean indicating if the events were processed and any error that occurred during processing.
 // Specifically, events are not processed if writing to the database results in a network-related error.
 // For any other error, the jobs are marked as failed and the events are considered to have been processed.
-func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups []string, queueName string, jobSetName string, es []*armadaevents.SubmitJob) (bool, error) {
+func (srv *SubmitFromLog) SubmitJobs(
+	ctx context.Context,
+	userId string,
+	groups []string,
+	queueName string,
+	jobSetName string,
+	es []*armadaevents.SubmitJob,
+) (bool, error) {
+	// Filter out jobs not indented for this scheduler.
+	// This is the default scheduler, which is indicated by the empty string.
+	schedulerJobs := selectJobsForLegacyScheduler(es)
 
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
-	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
+	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), schedulerJobs)
 	if err != nil {
 		return true, err
+	}
+
+	log := srv.getLogger()
+	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return false, err
+	}
+	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := compressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning compressor to pool")
+		}
+	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
+
+	compressedOwnershipGroups, err := compress.CompressStringArray(groups, compressor.(compress.Compressor))
+	if err != nil {
+		return true, err
+	}
+	for _, job := range jobs {
+		job.QueueOwnershipUserGroups = nil
+		job.CompressedQueueOwnershipUserGroups = compressedOwnershipGroups
 	}
 
 	// Submit the jobs by writing them to the database.
@@ -381,109 +415,13 @@ func (srv *SubmitFromLog) SubmitJobs(ctx context.Context, userId string, groups 
 	return true, result.ErrorOrNil()
 }
 
-func apiJobsFromLogSubmitJobs(userId string, groups []string, queueName string, jobSetName string, time time.Time, es []*armadaevents.SubmitJob) ([]*api.Job, error) {
-	var result *multierror.Error
-	jobs := make([]*api.Job, len(es), len(es))
-	for i, e := range es {
-		job, err := apiJobFromLogSubmitJob(userId, groups, queueName, jobSetName, time, e)
-		result = multierror.Append(result, err)
-		if err == nil {
-			jobs[i] = job
-		}
-	}
-	return jobs, result.ErrorOrNil()
-}
-
-// apiJobFromLogSubmitJob converts a SubmitJob log message into an api.Job struct, which is used by Armada internally.
-func apiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, jobSetName string, time time.Time, e *armadaevents.SubmitJob) (*api.Job, error) {
-
-	// check that we have a valid jobId
-	jobId, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
-	if err != nil {
-		return nil, err
-	}
-
-	// We only support PodSpecs as main object.
-	mainObject, ok := e.MainObject.Object.(*armadaevents.KubernetesMainObject_PodSpec)
-	if !ok {
-		return nil, errors.Errorf("expected *PodSpecWithAvoidList, but got %v", e.MainObject.Object)
-	}
-	podSpec := mainObject.PodSpec.PodSpec
-
-	// The job submit message contains a bag of additional k8s objects to create as part of the job.
-	// We need to separate those out into service and ingress types.
-	k8sServices := make([]*v1.Service, 0)
-	k8sIngresses := make([]*networking.Ingress, 0)
-	k8sPodSpecs := make([]*v1.PodSpec, 0)
-	k8sPodSpecs = append(k8sPodSpecs, podSpec)
-	for _, object := range e.Objects {
-
-		// The job-level ObjectMeta is the default.
-		objectMeta := metav1.ObjectMeta{
-			Namespace:   e.ObjectMeta.Namespace,
-			Annotations: e.ObjectMeta.Annotations,
-			Labels:      e.ObjectMeta.Labels,
-		}
-
-		// If a per-object ObjectMeta is provided, it takes precedence over the job-level one.
-		if object.ObjectMeta != nil {
-			objectMeta.Namespace = object.ObjectMeta.Namespace
-			objectMeta.Annotations = object.ObjectMeta.Annotations
-			objectMeta.Labels = object.ObjectMeta.Labels
-			objectMeta.Name = object.ObjectMeta.Name
-		}
-		switch o := object.Object.(type) {
-		case *armadaevents.KubernetesObject_Service:
-			k8sServices = append(k8sServices, &v1.Service{
-				ObjectMeta: objectMeta,
-				Spec:       *o.Service,
-			})
-		case *armadaevents.KubernetesObject_Ingress:
-			k8sIngresses = append(k8sIngresses, &networking.Ingress{
-				ObjectMeta: objectMeta,
-				Spec:       *o.Ingress,
-			})
-		case *armadaevents.KubernetesObject_PodSpec:
-			k8sPodSpecs = append(k8sPodSpecs, o.PodSpec.PodSpec)
-		default:
-			err := &armadaerrors.ErrInvalidArgument{
-				Name:    "Objects",
-				Value:   o,
-				Message: "unsupported k8s object",
-			}
-			return nil, errors.WithStack(err)
-		}
-	}
-
-	return &api.Job{
-		Id:       jobId,
-		ClientId: e.DeduplicationId,
-		Queue:    queueName,
-		JobSetId: jobSetName,
-
-		Namespace:   e.ObjectMeta.Namespace,
-		Labels:      e.ObjectMeta.Labels,
-		Annotations: e.ObjectMeta.Annotations,
-
-		K8SIngress: k8sIngresses,
-		K8SService: k8sServices,
-
-		Priority: float64(e.Priority),
-
-		PodSpecs:                 k8sPodSpecs,
-		Created:                  time,
-		Owner:                    ownerId,
-		QueueOwnershipUserGroups: groups,
-	}, nil
-}
-
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
 func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
 	jobIds := make([]string, len(es), len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
-			//TODO: should we instead cancel the jobs we can here?
+			// TODO: should we instead cancel the jobs we can here?
 			return false, err
 		}
 		jobIds[i] = id
@@ -494,20 +432,20 @@ func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*a
 // CancelJobSets processes several CancelJobSet events.
 // Because event sequences are specific to queue and job set, all CancelJobSet events in a sequence are equivalent,
 // and we only need to call CancelJobSet once.
-func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, queueName string, jobSetName string, es []*armadaevents.CancelJobSet) (bool, error) {
-	return srv.CancelJobSet(ctx, queueName, jobSetName)
+func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, userId string,
+	queueName string, jobSetName string, _ []*armadaevents.CancelJobSet,
+) (bool, error) {
+	return srv.CancelJobSet(ctx, userId, queueName, jobSetName)
 }
 
-func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, queueName string, jobSetName string) (bool, error) {
-
+func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queueName string, jobSetName string) (bool, error) {
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err
 	} else if err != nil {
 		return true, err
 	}
-	//TODO Set userid correctly so we know who actually cancelled the jobset
-	return srv.BatchedCancelJobsById(ctx, queueName, jobIds)
+	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
 }
 
 func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, jobIds []string) (bool, error) {
@@ -539,7 +477,6 @@ func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId stri
 
 // CancelJobsById cancels all jobs with the specified ids.
 func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, jobIds []string) ([]string, error) {
-
 	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
@@ -586,7 +523,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
-			//TODO: should we instead reprioritize the jobs we can here?
+			// TODO: should we instead reprioritize the jobs we can here?
 			return true, err
 		}
 		jobIds[i] = id
@@ -628,7 +565,13 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 // Returns a multierror containing all errors that occurred.
 // Since repeating this operation is safe (setting the priority is idempotent),
 // the bool indicating if events were processed is set to false if any job set failed.
-func (srv *SubmitFromLog) ReprioritizeJobSets(ctx context.Context, userId string, queueName string, jobSetName string, es []*armadaevents.ReprioritiseJobSet) (bool, error) {
+func (srv *SubmitFromLog) ReprioritizeJobSets(
+	ctx context.Context,
+	userId string,
+	queueName string,
+	jobSetName string,
+	es []*armadaevents.ReprioritiseJobSet,
+) (bool, error) {
 	okResult := true
 	var result *multierror.Error
 	for _, e := range es {
@@ -639,7 +582,13 @@ func (srv *SubmitFromLog) ReprioritizeJobSets(ctx context.Context, userId string
 	return okResult, result.ErrorOrNil()
 }
 
-func (srv *SubmitFromLog) ReprioritizeJobSet(ctx context.Context, userId string, queueName string, jobSetName string, e *armadaevents.ReprioritiseJobSet) (bool, error) {
+func (srv *SubmitFromLog) ReprioritizeJobSet(
+	ctx context.Context,
+	userId string,
+	queueName string,
+	jobSetName string,
+	e *armadaevents.ReprioritiseJobSet,
+) (bool, error) {
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err

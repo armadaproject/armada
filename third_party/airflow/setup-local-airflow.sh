@@ -2,9 +2,10 @@
 # somewhere else if you prefer (optional)
 export AIRFLOW_HOME=~/airflow
 
+# Run this command in any terminal.
 airflow db init
-airflow webserver -p 8081 &
-airflow scheduler &
-# Visit localhost:8080 in the browser and use the admin account details
-# shown on the terminal to login.
-# Enable the example_bash_operator dag in the home page
+# Run this command in a separate terminal.
+# 8081 is because Armada already has something listening on 8080 (default airflow port)
+airflow webserver -p 8081
+# Run this command in a separate terminal
+airflow scheduler

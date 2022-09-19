@@ -28,6 +28,13 @@ func New(ledgerID, entryID int64, partitionIdx, batchIdx int32) *PulsarMessageId
 	}
 }
 
+func (id *PulsarMessageId) String() string {
+	return fmt.Sprintf(
+		"PulsarMessageId{ledger: %d, entry: %d, partition: %d, batch: %d}",
+		id.ledgerID, id.entryID, id.partitionIdx, id.batchIdx,
+	)
+}
+
 // FromMessageId converts a pulsar.MessageID interface type to a *PulsarMessageId,
 // which can be used, e.g., for comparison.
 func FromMessageId(id pulsar.MessageID) *PulsarMessageId {
@@ -61,43 +68,43 @@ func (id *PulsarMessageId) Serialize() []byte {
 
 // Greater returns true if id occurred after other, or an error if the message ids are not comparable
 // (i.e., if they are from different partitions).
-func (id *PulsarMessageId) Greater(other *PulsarMessageId) (bool, error) {
-	if id.partitionIdx != other.partitionIdx {
+func (id *PulsarMessageId) Greater(other pulsar.MessageID) (bool, error) {
+	if id.partitionIdx != other.PartitionIdx() {
 		err := &armadaerrors.ErrInvalidArgument{
 			Name:    "other.partitionIdx",
-			Value:   other.partitionIdx,
+			Value:   other.PartitionIdx(),
+			Message: fmt.Sprintf("expected %d, but got %d; messages from different partitions are not comparable", id.partitionIdx, other.PartitionIdx()),
+		}
+		return false, errors.WithStack(err)
+	}
+
+	if id.ledgerID != other.LedgerID() {
+		return id.ledgerID > other.LedgerID(), nil
+	}
+
+	if id.entryID != other.EntryID() {
+		return id.entryID > other.EntryID(), nil
+	}
+
+	return id.batchIdx > other.BatchIdx(), nil
+}
+
+func (id *PulsarMessageId) Equal(other pulsar.MessageID) (bool, error) {
+	if id.partitionIdx != other.PartitionIdx() {
+		err := &armadaerrors.ErrInvalidArgument{
+			Name:    "other.partitionIdx",
+			Value:   other.PartitionIdx(),
 			Message: fmt.Sprintf("expected %d; messages from different partitions are not comparable", id.partitionIdx),
 		}
 		return false, errors.WithStack(err)
 	}
 
-	if id.ledgerID != other.ledgerID {
-		return id.ledgerID > other.ledgerID, nil
-	}
-
-	if id.entryID != other.entryID {
-		return id.entryID > other.entryID, nil
-	}
-
-	return id.batchIdx > other.batchIdx, nil
+	return id.ledgerID == other.LedgerID() &&
+		id.entryID == other.EntryID() &&
+		id.batchIdx == other.BatchIdx(), nil
 }
 
-func (id *PulsarMessageId) Equal(other *PulsarMessageId) (bool, error) {
-	if id.partitionIdx != other.partitionIdx {
-		err := &armadaerrors.ErrInvalidArgument{
-			Name:    "other.partitionIdx",
-			Value:   other.partitionIdx,
-			Message: fmt.Sprintf("expected %d; messages from different partitions are not comparable", id.partitionIdx),
-		}
-		return false, errors.WithStack(err)
-	}
-
-	return id.ledgerID == other.ledgerID &&
-		id.entryID == other.entryID &&
-		id.batchIdx == other.batchIdx, nil
-}
-
-func (id *PulsarMessageId) GreaterEqual(other *PulsarMessageId) (bool, error) {
+func (id *PulsarMessageId) GreaterEqual(other pulsar.MessageID) (bool, error) {
 	result, err := id.Equal(other)
 	if err != nil {
 		return false, err

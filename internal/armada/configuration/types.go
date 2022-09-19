@@ -23,15 +23,18 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime    time.Duration
-	CancelJobsBatchSize int
-	Redis               redis.UniversalOptions
-	Events              EventsConfig
-	EventsNats          NatsConfig
-	EventsJetstream     JetstreamConfig
-	EventsRedis         redis.UniversalOptions
+	PriorityHalfTime      time.Duration
+	CancelJobsBatchSize   int
+	Redis                 redis.UniversalOptions
+	Events                EventsConfig
+	EventsNats            NatsConfig
+	EventsJetstream       JetstreamConfig
+	EventsRedis           redis.UniversalOptions
+	EventsApiRedis        redis.UniversalOptions
+	DefaultToLegacyEvents bool
 
 	Scheduling        SchedulingConfig
+	NewScheduler      NewSchedulerConfig
 	QueueManagement   QueueManagementConfig
 	DatabaseRetention DatabaseRetentionPolicy
 	EventRetention    EventRetentionPolicy
@@ -82,6 +85,7 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
+	Preemption                                PreemptionConfig
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
@@ -98,6 +102,27 @@ type SchedulingConfig struct {
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
+}
+
+// NewSchedulerConfig stores config for the new Pulsar-based scheduler.
+// This scheduler will eventually replace the current scheduler.
+type NewSchedulerConfig struct {
+	Enabled bool
+}
+
+type PreemptionConfig struct {
+	// If true, Armada will:
+	// 1. Validate that submitted pods specify no or a valid priority class.
+	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
+	// 3. Assign jobs to executors that may preempt currently running jobs.
+	Enabled bool
+	// Map from priority class name to priority.
+	// Must be consistent with Kubernetes priority classes.
+	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
+	PriorityClasses map[string]int32
+	// Priority class assigned to pods that do not specify one.
+	// Must be an entry in PriorityClasses above.
+	DefaultPriorityClass string
 }
 
 type DatabaseRetentionPolicy struct {
