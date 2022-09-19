@@ -91,7 +91,6 @@ message GetJobSetsResponse {
 
 message GetJobsRequest {
     string queue = 1;
-    string reason = 10;
     bool newest_first = 2;
     repeated string job_states = 3;
     repeated string job_set_ids = 4;
@@ -100,6 +99,7 @@ message GetJobsRequest {
     string jobId = 7;
     string owner = 8;
     map<string, string> user_annotations = 9;
+    string reason = 10;
 }
 
 message GetJobsResponse {

@@ -505,6 +505,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       take: BATCH_SIZE,
       skip: 0,
       annotations: {},
+      reason: "",
     }
 
     for (const col of this.state.defaultColumns) {
