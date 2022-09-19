@@ -23,8 +23,8 @@ type KubernetesDetails struct {
 }
 
 func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error) {
-	tokenSource := functionTokenSource{
-		getToken: func() (*oauth2.Token, error) {
+	tokenSource := FunctionTokenSource{
+		GetToken: func() (*oauth2.Token, error) {
 			log.Info("Getting new authentication token")
 			kubernetesToken, err := getKubernetesToken()
 			if err != nil {
@@ -70,7 +70,7 @@ func AuthenticateKubernetes(config KubernetesDetails) (*TokenCredentials, error)
 		},
 	}
 
-	return &TokenCredentials{tokenSource: oauth2.ReuseTokenSource(nil, &tokenSource)}, nil
+	return &TokenCredentials{TokenSource: oauth2.ReuseTokenSource(nil, &tokenSource)}, nil
 }
 
 /**

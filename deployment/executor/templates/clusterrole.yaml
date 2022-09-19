@@ -71,3 +71,15 @@ rules:
     - nodes/proxy
   verbs:
     - get
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+- apiGroups:
+  - "authentication.k8s.io"
+  resources:
+  - tokenreviews
+  verbs:
+  - create
