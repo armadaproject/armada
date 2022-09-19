@@ -54,7 +54,7 @@ func Test_RecordRunEvents(t *testing.T) {
 			"SELECT count(*) FROM job_run WHERE created IS NOT NULL AND started IS NOT NULL AND finished IS NOT NULL"))
 		// event Cause is converted to string reason
 		assert.Equal(t, "OOM", selectNullString(t, db,
-			"SELECT reason FROM job WHERE job_id = '" + jobId + "'").String)
+			"SELECT reason FROM job WHERE job_id = '"+jobId+"'").String)
 	})
 }
 
