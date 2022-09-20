@@ -39,7 +39,7 @@ There are additional API methods defined in proto specifications, which are used
 - [usage.proto](https://github.com/g-research/armada/blob/master/pkg/api/usage.proto) - methods for reporting of resources usage
 
 ## REST
-The REST API only exposes the public part of the gRPC API and it is implemented using grpc-gateway (https://github.com/grpc-ecosystem/grpc-gateway).
+The REST API only exposes the public part of the gRPC API and it is implemented using [grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway).
 
 Swagger json specification can be found [here](https://github.com/g-research/armada/blob/master/pkg/api/api.swagger.json) and is also served by Armada under `my.armada.deployment/api/swagger.json`
 
