@@ -17,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/client/auth/exec"
 	"github.com/G-Research/armada/pkg/client/auth/kerberos"
+	"github.com/G-Research/armada/pkg/client/auth/kubernetes"
 	"github.com/G-Research/armada/pkg/client/auth/oidc"
 )
 
@@ -37,6 +38,7 @@ type ApiConnectionDetails struct {
 	GrpcKeepAliveTimeout time.Duration
 	// Authentication options.
 	BasicAuth                   common.LoginCredentials
+	KubernetesNativeAuth        kubernetes.NativeAuthDetails
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
@@ -98,6 +100,8 @@ func CreateApiConnectionWithCallOptions(
 func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredentials, error) {
 	if config.BasicAuth.Username != "" {
 		return &config.BasicAuth, nil
+	} else if config.KubernetesNativeAuth.Enabled {
+		return kubernetes.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
 	} else if config.OpenIdAuth.ProviderUrl != "" {
 		return oidc.AuthenticatePkce(config.OpenIdAuth)
 	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {

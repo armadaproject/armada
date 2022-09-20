@@ -43,12 +43,16 @@ type leaseContext struct {
 	queueCache map[string][]*api.Job
 }
 
+// LeaseJobs is the point of entry for requesting jobs to be leased to an executor.
+// I.e., this function is called from the lease request gRPC endpoint.
+// This function creates a leaseContext (a struct composed of all info necessary for scheduling)
+// and calls leaseContext.scheduleJobs, which returns a list of leased jobs.
 func LeaseJobs(ctx context.Context,
-	config *configuration.SchedulingConfig,
-	jobQueue JobQueue,
-	onJobLease func([]*api.Job),
-	request *api.LeaseRequest,
-	nodeResources []*nodeTypeAllocation,
+	config *configuration.SchedulingConfig, // Scheduler settings.
+	jobQueue JobQueue, // Job repository.
+	onJobLease func([]*api.Job), // Function to be called for all leased jobs.
+	request *api.LeaseRequest, // The gRPC lease request message.
+	nodeResources []*nodeTypeAllocation, // Resources available per node type.
 	activeClusterReports map[string]*api.ClusterUsageReport,
 	activeClusterLeaseJobReports map[string]*api.ClusterLeasedReport,
 	clusterPriorities map[string]map[string]float64,

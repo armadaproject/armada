@@ -293,7 +293,7 @@ build-docker-lookout: node-setup
 	# The following line is equivalent to running "npm run openapi".
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
-	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
@@ -339,12 +339,23 @@ tests:
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
+.ONESHELL:
+lint-fix:
+	$(GO_TEST_CMD) golangci-lint run --fix
+
+.ONESHELL:
+lint:
+	$(GO_TEST_CMD) golangci-lint run
+
+.ONESHELL:
+code-checks: lint
+
 # Rebuild and restart the server.
 .ONESHELL:
 rebuild-server: build-docker-server
 	docker rm -f server || true
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml --config /e2e/setup/server/armada-config.yaml
 
 # Rebuild and restart the executor.
 .ONESHELL:
@@ -476,7 +487,7 @@ setup-proto: download
 	mkdir -p proto/k8s.io/api/core/v1
 	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
 
-# Copy third party annotations from grpc-ecosystem
+	# Copy third party annotations from grpc-ecosystem
 	$(GO_CMD) bash -c " \
 	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
 	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
@@ -532,6 +543,11 @@ proto: setup-proto
 	# fix all imports ordering
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
 	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
+	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/scheduler/schedulerobjects/
+
+sql:
+	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
+	$(GO_TEST_CMD) templify -e -p=sql internal/scheduler/sql/schema.sql
 
 # Target for compiling the dotnet Armada REST client
 dotnet: dotnet-setup setup-proto
@@ -550,16 +566,6 @@ download:
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
-
-code-reports:
-	mkdir -p code_reports
-	$(GO_TEST_CMD) goimports -d -local "github.com/G-Research/armada" . | tee code_reports/goimports.txt
-	$(GO_TEST_CMD) ineffassign ./... | tee code_reports/ineffassign.txt
-
-code-checks: code-reports
-	sync # make sure everything has been synced to disc
-	if [ $(shell cat code_reports/ineffassign.txt | wc -l) -ne "0" ]; then exit 1; fi
-	if [ $(shell cat code_reports/goimports.txt | wc -l) -ne "0" ]; then exit 1; fi
 
 generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
@@ -588,7 +594,7 @@ build-dev-lookout: node-setup
 	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
 	# "npm run openapi" would result in running a docker container in docker.
 	docker run --rm $(DOCKER_RUN_AS_USER) \
-		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.2.0 /project/internal/lookout/ui/openapi.sh
+		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) npm run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	mkdir -p ./.build/lookout/config

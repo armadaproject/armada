@@ -36,10 +36,11 @@ message Job {
     // then neither of k8s_ingress or k8s_service can be provided, and vice versa.
     repeated IngressConfig ingress = 14;
     repeated ServiceConfig services = 16;
-    // repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;
-    // github.com.G-Research.armada.internal.events.
     repeated k8s.io.api.networking.v1.Ingress k8s_ingress = 17;
     repeated k8s.io.api.core.v1.Service k8s_service = 18;
+    // Indicates which scheduler should manage this job.
+    // If empty, the default scheduler is used.
+    string scheduler = 20;
 }
 
 message LeaseRequest {
@@ -60,10 +61,16 @@ message StreamingLeaseRequest {
     string cluster_id = 1;
     // Nodes are split into pools. This field indicates for which pool jobs are leased.
     string pool = 2;
+    // Total resources available for scheduling across all nodes.    
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
+    // For each queue, the total resources allocated to jobs from that queue.    
     ClusterLeasedReport cluster_leased_report = 4 [(gogoproto.nullable) = false];
+    // Jobs submitted to this executor must require at least this amount of resources.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 5 [(gogoproto.nullable) = false];
-    //
+    // For each node in the cluster:
+    // - the total resources on that node,
+    // - the amount of resources already assigned to jobs, and
+    // - any taints and labels on the node.
     repeated NodeInfo nodes = 6 [(gogoproto.nullable) = false];
     // Ids of received jobs. Used to ack received jobs.
     repeated string ReceivedJobIds = 7;
@@ -89,6 +96,9 @@ message NodeInfo {
     map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
 }
 
+// The Armada scheduler must account for taints, labels, and available resources.
+// These together make up the NodeType of a particular node.
+// Nodes with equal NodeType are considered as equivalent for scheduling and accounting.
 message NodeType {
     repeated k8s.io.api.core.v1.Taint taints = 1 [(gogoproto.nullable) = false];
     map<string,string> labels = 2;
@@ -105,13 +115,16 @@ message ClusterSchedulingInfoReport {
 }
 
 message QueueLeasedReport {
+    // Queue name.
     string name = 1;
+    // Total resources allocated to jobs from this queue.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_leased = 2 [(gogoproto.nullable) = false];
 }
 
 message ClusterLeasedReport {
     string cluster_id = 1;
     google.protobuf.Timestamp report_time = 2 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    // For each queue, the total resources allocated to jobs from that queue.
     repeated QueueLeasedReport queues = 3;
 }
 

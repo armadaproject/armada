@@ -58,7 +58,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 	defer db.Close()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
-	jobService := server.NewJobService(config, *sqlJobRepo)
+	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 	sqlJobRepo.CreateTable()
 
