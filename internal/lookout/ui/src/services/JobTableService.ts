@@ -1,5 +1,5 @@
 import { updateArray } from "../utils"
-import JobService, { GetJobsRequest, Job } from "./JobService"
+import { GetJobsRequest, Job, JobService } from "./JobService"
 
 type JobLoadState = "Loading" | "Loaded"
 
@@ -50,7 +50,7 @@ export default class JobTableService {
     return this.jobs
   }
 
-  async loadJobs(request: GetJobsRequest, start: number, stop: number) {
+  async loadJobs(request: GetJobsRequest, start: number, stop: number, signal: AbortSignal | undefined) {
     const startBatch = Math.floor(start / this.batchSize)
     const endBatch = Math.floor(stop / this.batchSize)
     const loadStartIndex = startBatch * this.batchSize
@@ -63,7 +63,11 @@ export default class JobTableService {
 
     for (let i = startBatch; i <= endBatch; i++) {
       request.skip = i * this.batchSize
-      const jobsBatch = await this.jobService.getJobs(request)
+      const [jobsBatch, interrupted] = await this.requestJobs(request, signal)
+      if (interrupted) {
+        this.jobs = [createLoadingJob()]
+        return
+      }
       newJobsLoaded.push(...convertToLoaded(jobsBatch))
       if (jobsBatch.length < this.batchSize) {
         canLoadMore = false
@@ -90,6 +94,20 @@ export default class JobTableService {
       this.jobs = [createLoadingJob()]
     }
     this.largestLoadedIndex = 0
+  }
+
+  private async requestJobs(request: GetJobsRequest, signal: AbortSignal | undefined): Promise<[Job[], boolean]> {
+    // Abort previous request
+    try {
+      const jobs = await this.jobService.getJobs(request, signal)
+      return [jobs, false]
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        return Promise.resolve([[], true])
+      }
+      console.error(e)
+      return Promise.resolve([[], false])
+    }
   }
 
   private markJobsAsLoaded(start: number, stop: number) {
