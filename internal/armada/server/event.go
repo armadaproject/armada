@@ -2,8 +2,9 @@ package server
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/armada/repository/sequence"
 
@@ -23,6 +24,7 @@ type EventServer struct {
 	eventRepository       repository.EventRepository
 	legacyEventRepository repository.EventRepository
 	queueRepository       repository.QueueRepository
+	jobRepository         repository.JobRepository
 	eventStore            repository.EventStore
 	defaultToLegacyEvents bool
 }
@@ -33,6 +35,7 @@ func NewEventServer(
 	legacyEventRepository repository.EventRepository,
 	eventStore repository.EventStore,
 	queueRepository repository.QueueRepository,
+	jobRepository repository.JobRepository,
 	defaultToLegacyEvents bool,
 ) *EventServer {
 	return &EventServer{
@@ -41,6 +44,7 @@ func NewEventServer(
 		legacyEventRepository: legacyEventRepository,
 		eventStore:            eventStore,
 		queueRepository:       queueRepository,
+		jobRepository:         jobRepository,
 		defaultToLegacyEvents: defaultToLegacyEvents,
 	}
 }
@@ -49,12 +53,51 @@ func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*t
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
+	if event, ok := message.Events.(*api.EventMessage_Preempted); ok {
+		if err := s.preemptedEventHandler(event); err != nil {
+			return &types.Empty{}, err
+		}
+	}
 	return &types.Empty{}, s.eventStore.ReportEvents([]*api.EventMessage{message})
+}
+
+func (s *EventServer) preemptedEventHandler(event *api.EventMessage_Preempted) error {
+	if event.Preempted.JobId != "" {
+		result, err := s.jobRepository.GetJobsByIds([]string{event.Preempted.JobId})
+		if err != nil {
+			return errors.WithMessage(err, "error fetching job for preempted pod job id")
+		}
+		if len(result) != 1 {
+			return errors.Errorf("invalid job result returned for preempted job id: expected length to be 1, received %d", len(result))
+		}
+		event.Preempted.JobSetId = result[0].Job.JobSetId
+		event.Preempted.Queue = result[0].Job.Queue
+	}
+	if event.Preempted.PreemptiveJobId != "" {
+		result, err := s.jobRepository.GetJobsByIds([]string{event.Preempted.PreemptiveJobId})
+		if err != nil {
+			return errors.WithMessage(err, "error fetching job for preemptive pod job id")
+		}
+		if len(result) != 1 {
+			return errors.Errorf("invalid job result returned for preemptive job id: expected length to be 1, received %d", len(result))
+		}
+		event.Preempted.PreemptiveJobSetId = result[0].Job.JobSetId
+		event.Preempted.PreemptiveJobQueue = result[0].Job.Queue
+	}
+
+	return nil
 }
 
 func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
+	}
+	for _, event := range message.Events {
+		if event, ok := event.Events.(*api.EventMessage_Preempted); ok {
+			if err := s.preemptedEventHandler(event); err != nil {
+				return &types.Empty{}, err
+			}
+		}
 	}
 	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
 }

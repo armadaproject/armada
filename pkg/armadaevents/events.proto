@@ -449,9 +449,6 @@ message PodUnschedulable {
 message LeaseExpired {
 }
 
-message JobPreempted {
-}
-
 message MaxRunsExceeded {
 }
 

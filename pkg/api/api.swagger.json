@@ -478,8 +478,7 @@
         "Error",
         "Evicted",
         "OOM",
-        "DeadlineExceeded",
-        "Preempted"
+        "DeadlineExceeded"
       ]
     },
     "apiContainerStatus": {
@@ -535,6 +534,9 @@
         },
         "pending": {
           "$ref": "#/definitions/apiJobPendingEvent"
+        },
+        "preempted": {
+          "$ref": "#/definitions/apiJobPreemptedEvent"
         },
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
@@ -997,6 +999,54 @@
         "podNumber": {
           "type": "integer",
           "format": "int32"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobPreemptedEvent": {
+      "type": "object",
+      "properties": {
+        "clusterId": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "node": {
+          "type": "string"
+        },
+        "preemptedPodName": {
+          "type": "string"
+        },
+        "preemptedPodNamespace": {
+          "type": "string"
+        },
+        "preemptiveJobId": {
+          "type": "string"
+        },
+        "preemptiveJobQueue": {
+          "type": "string"
+        },
+        "preemptiveJobSetId": {
+          "type": "string"
+        },
+        "preemptivePodName": {
+          "type": "string"
+        },
+        "preemptivePodNamespace": {
+          "type": "string"
         },
         "queue": {
           "type": "string"

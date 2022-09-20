@@ -132,6 +132,23 @@ message JobFailedEvent {
     Cause cause = 12;
 }
 
+message JobPreemptedEvent {
+    string job_id = 1;
+    string job_set_id = 2;
+    string queue = 3;
+    string preemptive_job_id = 4;
+    string preemptive_job_set_id = 5;
+    string preemptive_job_queue = 6;
+    google.protobuf.Timestamp created = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    string cluster_id = 8;
+    string preempted_pod_namespace = 9;
+    string preempted_pod_name = 10;
+    string preemptive_pod_namespace = 11;
+    string preemptive_pod_name = 12;
+    string message = 13;
+    string node = 14;
+}
+
 // Only used internally by Armada
 message JobFailedEventCompressed {
     bytes event = 1;
@@ -243,6 +260,7 @@ message EventMessage {
         JobReprioritizingEvent reprioritizing = 18;
         JobUpdatedEvent updated = 19;
         JobFailedEventCompressed failedCompressed = 20;  // This event is for internal armada use only
+        JobPreemptedEvent preempted = 21;
     }
 }
 
@@ -251,7 +269,6 @@ enum Cause {
     Evicted = 1;
     OOM = 2;
     DeadlineExceeded = 3;
-    Preempted = 4;
 }
 
 message ContainerStatus {

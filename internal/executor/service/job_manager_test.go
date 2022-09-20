@@ -173,10 +173,6 @@ func TestJobManager_ReportsDoneAndFailed_IfDeletedExternally(t *testing.T) {
 	runningPod := makeRunningPod()
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
-	// pod deletion triggers a handler which has a 3s wait due to Preemption event race condition
-	// wait for one second more to make sure the goroutine finishes
-	time.Sleep(4 * time.Second)
-
 	jobManager.ManageJobLeases()
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)

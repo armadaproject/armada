@@ -263,6 +263,11 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	return annotationPresent
 }
 
+func HasCurrentClusterEventBeenReported(event *v1.Event) bool {
+	_, annotationPresent := event.Annotations[domain.ClusterEventReported]
+	return annotationPresent
+}
+
 func CountPodsByPhase(pods []*v1.Pod) map[string]uint32 {
 	pods = RemoveDuplicates(pods)
 	result := map[string]uint32{}

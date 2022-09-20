@@ -489,8 +489,7 @@ func SwaggerJsonTemplate() string {
 		"        \"Error\",\n" +
 		"        \"Evicted\",\n" +
 		"        \"OOM\",\n" +
-		"        \"DeadlineExceeded\",\n" +
-		"        \"Preempted\"\n" +
+		"        \"DeadlineExceeded\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiContainerStatus\": {\n" +
@@ -546,6 +545,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"pending\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobPendingEvent\"\n" +
+		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobPreemptedEvent\"\n" +
 		"        },\n" +
 		"        \"queued\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
@@ -1008,6 +1010,54 @@ func SwaggerJsonTemplate() string {
 		"        \"podNumber\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobPreemptedEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clusterId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"message\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"node\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptedPodName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptedPodNamespace\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveJobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveJobQueue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveJobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptivePodName\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptivePodNamespace\": {\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
