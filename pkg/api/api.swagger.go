@@ -662,7 +662,6 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"k8sIngress\": {\n" +
-		"          \"description\": \"repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\\ngithub.com.G-Research.armada.internal.events.\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Ingress\"\n" +
@@ -713,6 +712,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +
@@ -1295,6 +1298,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +

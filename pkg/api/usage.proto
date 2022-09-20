@@ -13,9 +13,13 @@ option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
 message QueueReport {
+    // Queue name.
     string name = 1;
+    // Total resources requested by pods from this queue that are currently running.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
+    // Total resources currently being used by all pods from this queue.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_used = 3 [(gogoproto.nullable) = false];
+    // For this queue, number of pods by phase (e.g., running).
     map<string, uint32> count_of_pods_by_phase = 4;
 }
 

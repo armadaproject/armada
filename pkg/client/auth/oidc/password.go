@@ -29,7 +29,7 @@ func AuthenticateWithPassword(config ClientPasswordDetails) (*TokenCredentials, 
 		Endpoint: provider.Endpoint(),
 	}
 
-	source := &functionTokenSource{
+	source := &FunctionTokenSource{
 		func() (*oauth2.Token, error) {
 			return authConfig.PasswordCredentialsToken(ctx, config.Username, config.Password)
 		},
