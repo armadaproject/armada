@@ -3,7 +3,9 @@ package util
 import (
 	"errors"
 	"fmt"
+	"github.com/G-Research/armada/internal/common"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -263,9 +265,13 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	return annotationPresent
 }
 
-func HasCurrentClusterEventBeenReported(event *v1.Event) bool {
-	_, annotationPresent := event.Annotations[domain.ClusterEventReported]
+func HasCurrentClusterEventBeenReported(clusterEvent *v1.Event) bool {
+	_, annotationPresent := clusterEvent.Annotations[domain.ClusterEventReported]
 	return annotationPresent
+}
+
+func IsArmadaJobPod(name string) bool {
+	return strings.HasPrefix(name, common.PodNamePrefix)
 }
 
 func CountPodsByPhase(pods []*v1.Pod) map[string]uint32 {

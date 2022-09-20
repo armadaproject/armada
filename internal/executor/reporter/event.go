@@ -2,7 +2,9 @@ package reporter
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/internal/common"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -176,12 +178,15 @@ func enrichPreemptedEventFromInvolvedObject(event *api.JobPreemptedEvent, involv
 }
 
 func enrichPreemptedEventFromRelatedObject(event *api.JobPreemptedEvent, related *v1.ObjectReference) error {
-	preemptiveJobId, err := util.ExtractJobIdFromName(related.Name)
-	if err != nil {
-		return errors.WithMessage(err, "error extracting preemptive job id from pod name")
+	if strings.HasPrefix(related.Name, common.PodNamePrefix) {
+		preemptiveJobId, err := util.ExtractJobIdFromName(related.Name)
+		if err != nil {
+			return errors.WithMessage(err, "error extracting preemptive job id from pod name")
+		}
+
+		event.PreemptiveJobId = preemptiveJobId
 	}
 
-	event.PreemptiveJobId = preemptiveJobId
 	event.PreemptivePodNamespace = related.Namespace
 	event.PreemptivePodName = related.Name
 
@@ -194,10 +199,10 @@ func enrichPreemptedEventFromPreemptionMessage(event *api.JobPreemptedEvent, msg
 		return err
 	}
 
-	if event.PreemptiveJobId == "" {
+	if event.PreemptiveJobId == "" && util.IsArmadaJobPod(info.Name) {
 		jobId, err := util.ExtractJobIdFromName(info.Name)
 		if err != nil {
-			return errors.Errorf("preemptive pod is not part of an Armada job: %v", err)
+			return errors.Errorf("error extracting preemptive job id from pod name: %v", err)
 		}
 		event.PreemptiveJobId = jobId
 	}

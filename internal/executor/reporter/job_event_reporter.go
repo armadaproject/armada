@@ -100,7 +100,7 @@ func (eventReporter *JobEventReporter) Report(event api.Event) error {
 }
 
 func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Event) {
-	if util.HasCurrentClusterEventBeenReported(clusterEvent) {
+	if util.HasCurrentClusterEventBeenReported(clusterEvent) || !util.IsArmadaJobPod(clusterEvent.InvolvedObject.Name) {
 		return
 	}
 
