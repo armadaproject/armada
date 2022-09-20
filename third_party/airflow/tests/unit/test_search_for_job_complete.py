@@ -3,7 +3,7 @@ from armada.jobservice import jobservice_pb2
 
 
 def test_failed_event():
-    def test_callable(queue: str, job_set_id: str, job_id: str):
+    def test_callable(armada_queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(
             state=jobservice_pb2.JobServiceResponse.FAILED, error="Testing Failure"
         )
@@ -11,7 +11,7 @@ def test_failed_event():
     job_complete = search_for_job_complete(
         airflow_task_name="test",
         job_id="id",
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         job_status_callable=test_callable,
     )
@@ -22,7 +22,7 @@ def test_failed_event():
 
 
 def test_successful_event():
-    def test_callable(queue: str, job_set_id: str, job_id: str):
+    def test_callable(armada_queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(
             state=jobservice_pb2.JobServiceResponse.SUCCEEDED
         )
@@ -30,7 +30,7 @@ def test_successful_event():
     job_complete = search_for_job_complete(
         airflow_task_name="test",
         job_id="id",
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         job_status_callable=test_callable,
     )
@@ -39,7 +39,7 @@ def test_successful_event():
 
 
 def test_cancelled_event():
-    def test_callable(queue: str, job_set_id: str, job_id: str):
+    def test_callable(armada_queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(
             state=jobservice_pb2.JobServiceResponse.CANCELLED
         )
@@ -47,7 +47,7 @@ def test_cancelled_event():
     job_complete = search_for_job_complete(
         airflow_task_name="test",
         job_id="id",
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         job_status_callable=test_callable,
     )
@@ -56,7 +56,7 @@ def test_cancelled_event():
 
 
 def test_job_id_not_found():
-    def test_callable(queue: str, job_set_id: str, job_id: str):
+    def test_callable(armada_queue: str, job_set_id: str, job_id: str):
         return jobservice_pb2.JobServiceResponse(
             state=jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND
         )
@@ -64,7 +64,7 @@ def test_job_id_not_found():
     job_complete = search_for_job_complete(
         airflow_task_name="test",
         job_id="id",
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         job_status_callable=test_callable,
         time_out_for_failure=5,
