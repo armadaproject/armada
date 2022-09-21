@@ -2,10 +2,11 @@ package reporter
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
 
 	"github.com/pkg/errors"
 

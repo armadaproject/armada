@@ -3,11 +3,12 @@ package util
 import (
 	"errors"
 	"fmt"
-	"github.com/G-Research/armada/internal/common"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
