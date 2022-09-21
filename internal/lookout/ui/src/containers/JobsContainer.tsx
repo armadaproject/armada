@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid"
 
 import Jobs from "../components/jobs/Jobs"
 import IntervalService from "../services/IntervalService"
-import JobService, { GetJobsRequest, Job } from "../services/JobService"
+import { JobService, GetJobsRequest, Job } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import JobsLocalStorageService from "../services/JobsLocalStorageService"
 import JobsQueryParamsService from "../services/JobsQueryParamsService"
@@ -34,6 +34,7 @@ export type JobsContainerState = {
   jobDialogIsOpen: boolean
   clickedJob?: Job
   getJobsRequestStatus: RequestStatus
+  abortController: AbortController
 }
 
 export type ColumnSpec<T> = {
@@ -173,6 +174,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       cancelJobsIsOpen: false,
       reprioritizeJobsIsOpen: false,
       jobDialogIsOpen: false,
+      abortController: new AbortController(),
     }
 
     this.serveJobs = this.serveJobs.bind(this)
@@ -244,7 +246,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     if (shouldLoad) {
       const request = this.createGetJobsRequest()
-      await this.jobTableService.loadJobs(request, start, stop)
+      await this.jobTableService.loadJobs(request, start, stop, this.state.abortController.signal)
       await setStateAsync(this, {
         ...this.state,
         jobs: this.jobTableService.getJobs(),
@@ -551,11 +553,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   private async setFilters(updatedState: JobsContainerState) {
+    this.state.abortController.abort()
     this.queryParamsService.saveState(updatedState)
     this.jobTableService.refresh()
     await setStateAsync(this, {
       ...updatedState,
       jobs: this.jobTableService.getJobs(),
+      abortController: new AbortController(),
     })
     this.resetCacheService.start()
   }

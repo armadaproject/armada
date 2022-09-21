@@ -49,6 +49,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
@@ -445,6 +447,49 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		{
 			Events: &api.EventMessage_Pending{
 				Pending: apiEvent,
+			},
+		},
+	}, nil
+}
+
+func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
+	if e == nil {
+		// We only support PodPreempted right now
+		return nil, nil
+	}
+
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.PreemptedJobId)
+	if err != nil {
+		return nil, err
+	}
+	runId, err := armadaevents.UuidStringFromProtoUuid(e.PreemptedRunId)
+	if err != nil {
+		return nil, err
+	}
+
+	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(e.PreemptiveJobId)
+	if err != nil {
+		return nil, err
+	}
+	preemptiveRunId, err := armadaevents.UuidStringFromProtoUuid(e.PreemptiveRunId)
+	if err != nil {
+		return nil, err
+	}
+
+	apiEvent := &api.JobPreemptedEvent{
+		JobId:           jobId,
+		JobSetId:        jobSetName,
+		Queue:           queueName,
+		Created:         time,
+		RunId:           runId,
+		PreemptiveJobId: preemptiveJobId,
+		PreemptiveRunId: preemptiveRunId,
+	}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: apiEvent,
 			},
 		},
 	}, nil

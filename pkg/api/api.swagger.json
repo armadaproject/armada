@@ -535,6 +535,9 @@
         "pending": {
           "$ref": "#/definitions/apiJobPendingEvent"
         },
+        "preempted": {
+          "$ref": "#/definitions/apiJobPreemptedEvent"
+        },
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
         },
@@ -1001,6 +1004,36 @@
           "format": "int32"
         },
         "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobPreemptedEvent": {
+      "type": "object",
+      "properties": {
+        "clusterId": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "preemptiveJobId": {
+          "type": "string"
+        },
+        "preemptiveRunId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "runId": {
           "type": "string"
         }
       }

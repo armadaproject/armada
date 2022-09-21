@@ -39,18 +39,18 @@ def airflow_error(job_state: JobState, name: str, job_id: str):
 
 
 def default_job_status_callable(
-    queue: str,
+    armada_queue: str,
     job_set_id: str,
     job_id: str,
     job_service_client: JobServiceClient,
 ) -> jobservice_pb2.JobServiceResponse:
     return job_service_client.get_job_status(
-        queue=queue, job_id=job_id, job_set_id=job_set_id
+        queue=armada_queue, job_id=job_id, job_set_id=job_set_id
     )
 
 
 def search_for_job_complete(
-    queue: str,
+    armada_queue: str,
     job_set_id: str,
     airflow_task_name: str,
     job_id: str,
@@ -64,6 +64,7 @@ def search_for_job_complete(
 
     A terminated event is SUCCEEDED, FAILED or CANCELLED
 
+    :param armada_queue: The queue for armada
     :param job_set_id: Your job_set_id
     :param airflow_task_name: The name of your armada job
     :param job_id: The name of the job id that armada assigns to it
@@ -85,14 +86,14 @@ def search_for_job_complete(
         # We want to allow a test callable to be passed
         if job_service_client:
             job_status_return = job_status_callable(
-                queue=queue,
+                armada_queue=armada_queue,
                 job_id=job_id,
                 job_set_id=job_set_id,
                 job_service_client=job_service_client,
             )
         else:
             job_status_return = job_status_callable(
-                queue=queue, job_id=job_id, job_set_id=job_set_id
+                armada_queue=armada_queue, job_id=job_id, job_set_id=job_set_id
             )
 
         time.sleep(3)
