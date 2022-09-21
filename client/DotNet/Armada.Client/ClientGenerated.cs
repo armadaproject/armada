@@ -1083,6 +1083,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("pending", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobPendingEvent Pending { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("preempted", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobPreemptedEvent Preempted { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("queued", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobQueuedEvent Queued { get; set; }
     
@@ -1506,6 +1509,36 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Queue { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobPreemptedEvent 
+    {
+        [Newtonsoft.Json.JsonProperty("clusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobSetId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("preemptiveJobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PreemptiveJobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("preemptiveRunId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PreemptiveRunId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("runId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string RunId { get; set; }
     
     
     }

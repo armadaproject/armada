@@ -29,6 +29,10 @@ func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventH
 	c.handlers = append(c.handlers, &handler)
 }
 
+func (c *SyncFakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
+	c.handlers = append(c.handlers, &handler)
+}
+
 func (c *SyncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
 	pods := make([]*v1.Pod, 0, len(c.Pods))
 	for _, p := range c.Pods {
@@ -87,6 +91,10 @@ func (c *SyncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroup
 }
 
 func (c *SyncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+	return nil
+}
+
+func (c *SyncFakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error {
 	return nil
 }
 
