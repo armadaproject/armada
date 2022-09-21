@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/common"
 
 	"github.com/pkg/errors"
@@ -206,17 +208,12 @@ func enrichPreemptedEventFromPreemptionMessage(event *api.JobPreemptedEvent, msg
 			return errors.Errorf("error extracting preemptive job id from pod name: %v", err)
 		}
 		event.PreemptiveJobId = jobId
-	}
-	if event.PreemptivePodNamespace == "" {
 		event.PreemptivePodNamespace = info.Namespace
-	}
-	if event.PreemptivePodName == "" {
 		event.PreemptivePodName = info.Name
-	}
-	if event.Node == "" {
 		event.Node = info.Node
+	} else {
+		log.Debugf("Pre-emptive job %s is not an armada job,  will not populate the preemptive job fields", event.PreemptiveJobId)
 	}
-
 	return nil
 }
 

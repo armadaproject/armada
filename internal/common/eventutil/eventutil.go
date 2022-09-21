@@ -1043,7 +1043,6 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		// Do nothing; there's no corresponding Pulsar message.
 	case *api.EventMessage_Updated:
 		// Do nothing; we're not allowing arbitrary job updates.
-	// TODO: add case for Preempted event
 	case *api.EventMessage_Preempted:
 		sequence.Queue = m.Preempted.Queue
 		sequence.JobSetName = m.Preempted.JobSetId
@@ -1054,16 +1053,18 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		event := &armadaevents.EventSequence_Event_JobPreempted{
-			JobPreempted: &armadaevents.JobPreempted{
-				PreemptedJobId:         preemptedJobId,
-				PreemptedJobSetId:      m.Preempted.JobSetId,
-				PreemptedJobQueue:      m.Preempted.Queue,
-				PreemptedPodNamespace:  m.Preempted.PreemptedPodNamespace,
-				PreemptedPodName:       m.Preempted.PreemptedPodName,
-				PreemptivePodNamespace: m.Preempted.PreemptivePodNamespace,
-				PreemptivePodName:      m.Preempted.PreemptivePodName,
-				Message:                m.Preempted.Message,
-				Node:                   m.Preempted.Node,
+			JobPreempted: &armadaevents.JobRunPreempted{
+				Resource: &armadaevents.JobRunPreempted_PodPreempted{
+					PodPreempted: &armadaevents.PodPreempted{
+						PreemptedJobId:         preemptedJobId,
+						PreemptedPodNamespace:  m.Preempted.PreemptedPodNamespace,
+						PreemptedPodName:       m.Preempted.PreemptedPodName,
+						PreemptivePodNamespace: m.Preempted.PreemptivePodNamespace,
+						PreemptivePodName:      m.Preempted.PreemptivePodName,
+						Message:                m.Preempted.Message,
+						Node:                   m.Preempted.Node,
+					},
+				},
 			},
 		}
 
@@ -1072,9 +1073,9 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			if err != nil {
 				return nil, err
 			}
-			event.JobPreempted.PreemptiveJobId = preemptiveJobId
-			event.JobPreempted.PreemptiveJobSetId = m.Preempted.PreemptiveJobSetId
-			event.JobPreempted.PreemptiveJobQueue = m.Preempted.PreemptiveJobQueue
+			event.JobPreempted.GetPodPreempted().PreemptiveJobId = preemptiveJobId
+			event.JobPreempted.GetPodPreempted().PreemptiveJobSetId = m.Preempted.PreemptiveJobSetId
+			event.JobPreempted.GetPodPreempted().PreemptiveJobQueue = m.Preempted.PreemptiveJobQueue
 		}
 
 		sequenceEvent := &armadaevents.EventSequence_Event{

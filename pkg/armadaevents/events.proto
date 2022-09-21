@@ -84,7 +84,7 @@ message EventSequence {
             JobDuplicateDetected jobDuplicateDetected = 15;
             StandaloneIngressInfo standaloneIngressInfo = 16;
             ResourceUtilisation resourceUtilisation = 17;
-            JobPreempted jobPreempted = 19;
+            JobRunPreempted jobPreempted = 19;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -476,10 +476,16 @@ message DatabaseSequence{
     EventSequence eventSequence = 1;
 }
 
-message JobPreempted {
+// Message to indicate that a JobRun has been pre-empted
+message JobRunPreempted{
+    oneof resource {
+        PodPreempted podPreempted = 1;
+        //TODO: Add a PodGroupPrempted type here when we support them
+    }
+}
+
+message PodPreempted {
     Uuid preempted_job_id = 1;
-    string preempted_job_set_id = 2;
-    string preempted_job_queue = 3;
     string preempted_pod_namespace = 4;
     string preempted_pod_name = 5;
     Uuid preemptive_job_id = 6;

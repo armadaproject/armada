@@ -9,6 +9,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/repository/sequence"
 
 	"github.com/gogo/protobuf/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -89,13 +90,16 @@ func (s *EventServer) checkForPreemptedEvents(message *api.EventList) error {
 		return nil
 	}
 
-	results, err := s.jobRepository.GetJobsByIds(jobIds)
+	jobs, err := s.jobRepository.GetJobsByIds(jobIds)
 	if err != nil {
 		return errors.WithMessage(err, "error fetching jobs for preempted and preemptive job ids")
 	}
-
+	jobInfos := make(map[string]*repository.JobResult, len(jobs))
+	for _, job := range jobs {
+		jobInfos[job.JobId] = job
+	}
 	for _, event := range preemptedEvents {
-		if err := s.enrichPreemptedEvent(event, results); err != nil {
+		if err := s.enrichPreemptedEvent(event, jobInfos); err != nil {
 			return err
 		}
 	}
@@ -103,19 +107,19 @@ func (s *EventServer) checkForPreemptedEvents(message *api.EventList) error {
 	return nil
 }
 
-func (s *EventServer) enrichPreemptedEvent(event *api.EventMessage_Preempted, results []*repository.JobResult) error {
+func (s *EventServer) enrichPreemptedEvent(event *api.EventMessage_Preempted, jobInfos map[string]*repository.JobResult) error {
 	if event.Preempted.JobId != "" {
-		result := findJobResult(event.Preempted.JobId, results)
-		if result == nil {
+		result, ok := jobInfos[event.Preempted.JobId]
+		if !ok {
 			return errors.Errorf("error fetching job for preempted pod job id %s: job does not exist", event.Preempted.JobId)
 		}
 		event.Preempted.JobSetId = result.Job.JobSetId
 		event.Preempted.Queue = result.Job.Queue
 	}
 	if event.Preempted.PreemptiveJobId != "" {
-		result := findJobResult(event.Preempted.PreemptiveJobId, results)
-		if result == nil {
-			return errors.Errorf("error fetching job for preemptive pod job id %s: job does not exist", event.Preempted.PreemptiveJobId)
+		result, ok := jobInfos[event.Preempted.JobId]
+		if !ok {
+			log.Warnf("unable to resolve job for preemptive pod job id %s: job does not exist", event.Preempted.PreemptiveJobId)
 		}
 		event.Preempted.PreemptiveJobSetId = result.Job.JobSetId
 		event.Preempted.PreemptiveJobQueue = result.Job.Queue
