@@ -3,10 +3,7 @@ package reporter
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
-
-	"github.com/G-Research/armada/internal/common"
 
 	"github.com/pkg/errors"
 
@@ -143,7 +140,7 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 
 func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
 	event = &api.JobPreemptedEvent{
-		Created:   clusterEvent.EventTime.Time,
+		Created:   clusterEvent.LastTimestamp.Time,
 		ClusterId: clusterId,
 	}
 
@@ -155,6 +152,10 @@ func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *a
 		if err := enrichPreemptedEventFromRelatedObject(event, clusterEvent.Related); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := enrichPreemptedEventFromClusterEventMessage(event, clusterEvent.Message); err != nil {
+		return nil, err
 	}
 
 	return event, nil
@@ -173,7 +174,7 @@ func enrichPreemptedEventFromInvolvedObject(event *api.JobPreemptedEvent, involv
 }
 
 func enrichPreemptedEventFromRelatedObject(event *api.JobPreemptedEvent, related *v1.ObjectReference) error {
-	if strings.HasPrefix(related.Name, common.PodNamePrefix) {
+	if util.IsArmadaJobPod(related.Name) {
 		preemptiveJobId, err := util.ExtractJobIdFromName(related.Name)
 		if err != nil {
 			return errors.WithMessage(err, "error extracting preemptive job id from pod name")
@@ -183,6 +184,28 @@ func enrichPreemptedEventFromRelatedObject(event *api.JobPreemptedEvent, related
 	}
 
 	event.PreemptiveRunId = string(related.UID)
+
+	return nil
+}
+
+func enrichPreemptedEventFromClusterEventMessage(event *api.JobPreemptedEvent, msg string) error {
+	info, err := util.ParsePreemptionMessage(msg)
+	if err != nil {
+		return nil
+	}
+
+	if !util.IsArmadaJobPod(info.Name) {
+		return nil
+	}
+
+	if event.PreemptiveJobId == "" {
+		preemptiveJobId, err := util.ExtractJobIdFromName(info.Name)
+		if err != nil {
+			return errors.WithMessage(err, "error extracting preemptive job id from pod name")
+		}
+
+		event.PreemptiveJobId = preemptiveJobId
+	}
 
 	return nil
 }
