@@ -17,6 +17,7 @@ expected_events = [
     "JobIngressInfoEvent",
     "JobUnableToScheduleEvent",
     "JobFailedEvent",
+    "JobPreemptedEvent",
     "JobSucceededEvent",
     "JobUtilisationEvent",
     "JobReprioritizingEvent",
@@ -25,7 +26,6 @@ expected_events = [
     "JobCancelledEvent",
     "JobTerminatedEvent",
     "JobUpdatedEvent",
-    "JobRunPreempted",
 ]
 
 expected_event_states = [
@@ -106,6 +106,7 @@ class EventType(Enum):
     reprioritizing = "reprioritizing"
     updated = "updated"
     failedCompressed = "failedCompressed"
+    preempted = "preempted"
 
 '''
 
