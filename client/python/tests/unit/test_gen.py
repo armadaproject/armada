@@ -25,7 +25,7 @@ expected_events = [
     "JobCancelledEvent",
     "JobTerminatedEvent",
     "JobUpdatedEvent",
-    "JobRunPreempted",
+    "JobRunPreempted"
 ]
 
 expected_event_states = [
@@ -49,6 +49,7 @@ expected_event_states = [
     "reprioritizing",
     "updated",
     "failedCompressed",
+    "preempted"
 ]
 
 expected_import_text = """from enum import Enum
@@ -66,6 +67,7 @@ from armada_client.armada.event_pb2 import (
     JobIngressInfoEvent,
     JobUnableToScheduleEvent,
     JobFailedEvent,
+    JobPreemptedEvent,
     JobSucceededEvent,
     JobUtilisationEvent,
     JobReprioritizingEvent,
@@ -121,6 +123,7 @@ OneOfJobEvent = Union[
     JobIngressInfoEvent,
     JobUnableToScheduleEvent,
     JobFailedEvent,
+    JobPreemptedEvent,
     JobSucceededEvent,
     JobUtilisationEvent,
     JobReprioritizingEvent,
