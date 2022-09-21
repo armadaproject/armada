@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, queue, job_request_items, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -33,7 +33,7 @@ Airflow operators inherit from BaseOperator.
     * **job_service_client** (*JobServiceClient*) – The JobServiceClient that is used for polling
 
 
-    * **queue** (*str*) – The queue name
+    * **armada_queue** (*str*) – The queue name for Armada.
 
 
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
@@ -165,12 +165,12 @@ Throw an error on a terminal event if job errored out
 AirflowFailException tells Airflow Schedule to not reschedule the task
 
 
-### armada.operators.utils.default_job_status_callable(queue, job_set_id, job_id, job_service_client)
+### armada.operators.utils.default_job_status_callable(armada_queue, job_set_id, job_id, job_service_client)
 
 * **Parameters**
 
     
-    * **queue** (*str*) – 
+    * **armada_queue** (*str*) – 
 
 
     * **job_set_id** (*str*) – 
@@ -189,7 +189,7 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
 
 
 
-### armada.operators.utils.search_for_job_complete(queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
+### armada.operators.utils.search_for_job_complete(armada_queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
 Poll JobService cache until you get a terminated event.
 
 A terminated event is SUCCEEDED, FAILED or CANCELLED
@@ -198,6 +198,9 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 * **Parameters**
 
     
+    * **armada_queue** (*str*) – The queue for armada
+
+
     * **job_set_id** (*str*) – Your job_set_id
 
 
@@ -217,9 +220,6 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
     * **time_out_for_failure** (*int*) – The amount of time a job
     can be in job_id_not_found
     before we decide it was a invalid job
-
-
-    * **queue** (*str*) – 
 
 
 
