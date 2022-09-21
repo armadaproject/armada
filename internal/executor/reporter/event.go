@@ -1,10 +1,14 @@
 package reporter
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
+
+	"github.com/pkg/errors"
 
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -96,13 +100,13 @@ func CreateJobUnableToScheduleEvent(pod *v1.Pod, reason string, clusterId string
 
 func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices []*v1.Service, associatedIngresses []*networking.Ingress) (api.Event, error) {
 	if pod.Spec.NodeName == "" || pod.Status.HostIP == "" {
-		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
+		return nil, errors.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as pod is not allocated to a node", pod.Name, pod.Namespace)
 	}
 	if associatedServices == nil || associatedIngresses == nil {
-		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), associated ingresses may not be nil", pod.Name, pod.Namespace)
+		return nil, errors.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), associated ingresses may not be nil", pod.Name, pod.Namespace)
 	}
 	if len(associatedServices) == 0 && len(associatedIngresses) == 0 {
-		return nil, fmt.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as no associated ingress provided", pod.Name, pod.Namespace)
+		return nil, errors.Errorf("unable to create JobIngressInfoEvent for pod %s (%s), as no associated ingress provided", pod.Name, pod.Namespace)
 	}
 	containerPortMapping := map[int32]string{}
 	for _, service := range associatedServices {
@@ -137,8 +141,54 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	}, nil
 }
 
-func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
-	return CreateJobFailedEvent(pod, reason, api.Cause_Error, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
+func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
+	event = &api.JobPreemptedEvent{
+		Created:   clusterEvent.EventTime.Time,
+		ClusterId: clusterId,
+	}
+
+	if err := enrichPreemptedEventFromInvolvedObject(event, clusterEvent.InvolvedObject); err != nil {
+		return nil, err
+	}
+
+	if clusterEvent.Related != nil {
+		if err := enrichPreemptedEventFromRelatedObject(event, clusterEvent.Related); err != nil {
+			return nil, err
+		}
+	}
+
+	return event, nil
+}
+
+func enrichPreemptedEventFromInvolvedObject(event *api.JobPreemptedEvent, involved v1.ObjectReference) error {
+	preemptedJobId, err := util.ExtractJobIdFromName(involved.Name)
+	if err != nil {
+		return errors.WithMessage(err, "error extracting preempted job id from pod name")
+	}
+
+	event.JobId = preemptedJobId
+	event.RunId = string(involved.UID)
+
+	return nil
+}
+
+func enrichPreemptedEventFromRelatedObject(event *api.JobPreemptedEvent, related *v1.ObjectReference) error {
+	if strings.HasPrefix(related.Name, common.PodNamePrefix) {
+		preemptiveJobId, err := util.ExtractJobIdFromName(related.Name)
+		if err != nil {
+			return errors.WithMessage(err, "error extracting preemptive job id from pod name")
+		}
+
+		event.PreemptiveJobId = preemptiveJobId
+	}
+
+	event.PreemptiveRunId = string(related.UID)
+
+	return nil
+}
+
+func CreateSimpleJobFailedEvent(pod *v1.Pod, reason string, clusterId string, cause api.Cause) api.Event {
+	return CreateJobFailedEvent(pod, reason, cause, []*api.ContainerStatus{}, map[string]int32{}, clusterId)
 }
 
 func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, containerStatuses []*api.ContainerStatus,

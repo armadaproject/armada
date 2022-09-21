@@ -546,6 +546,9 @@ func SwaggerJsonTemplate() string {
 		"        \"pending\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobPendingEvent\"\n" +
 		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobPreemptedEvent\"\n" +
+		"        },\n" +
 		"        \"queued\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
 		"        },\n" +
@@ -1012,6 +1015,36 @@ func SwaggerJsonTemplate() string {
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobPreemptedEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clusterId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveJobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveRunId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +

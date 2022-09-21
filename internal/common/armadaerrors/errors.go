@@ -110,7 +110,7 @@ func (err *ErrInvalidArgument) Error() string {
 	if err.Message == "" {
 		return fmt.Sprintf("value %q is invalid for field %q", err.Value, err.Name)
 	}
-	return fmt.Sprintf("value %q is invalid for field %q; %s", err.Value, err.Name, err.Message)
+	return fmt.Sprintf("value %q is invalid for field %q: %s", err.Value, err.Name, err.Message)
 }
 
 // ErrMaxRetriesExceeded is an error that indicates we have retried an operation so many times that we have given up

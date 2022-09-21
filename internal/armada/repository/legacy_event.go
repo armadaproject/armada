@@ -294,6 +294,9 @@ func populateQueueAndJobset(msg *api.EventMessage, queue, jobSetId string) {
 	case *api.EventMessage_Updated:
 		event.Updated.Queue = queue
 		event.Updated.JobSetId = jobSetId
+	case *api.EventMessage_Preempted:
+		event.Preempted.Queue = queue
+		event.Preempted.JobSetId = jobSetId
 	default:
 		log.Warnf("Unknown message type %T, message queue and jobset will not be filled in", event)
 	}
