@@ -25,7 +25,7 @@ expected_events = [
     "JobCancelledEvent",
     "JobTerminatedEvent",
     "JobUpdatedEvent",
-    "JobRunPreempted"
+    "JobRunPreempted",
 ]
 
 expected_event_states = [
@@ -49,7 +49,7 @@ expected_event_states = [
     "reprioritizing",
     "updated",
     "failedCompressed",
-    "preempted"
+    "preempted",
 ]
 
 expected_import_text = """from enum import Enum
