@@ -25,6 +25,7 @@ expected_events = [
     "JobCancelledEvent",
     "JobTerminatedEvent",
     "JobUpdatedEvent",
+    "JobRunPreempted",
 ]
 
 expected_event_states = [
