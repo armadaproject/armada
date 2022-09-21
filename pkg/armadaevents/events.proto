@@ -478,13 +478,6 @@ message DatabaseSequence{
 
 // Message to indicate that a JobRun has been preempted
 message JobRunPreempted{
-    oneof resource {
-        PodPreempted podPreempted = 1;
-        //TODO: Add a PodGroupPreempted type here when we support them
-    }
-}
-
-message PodPreempted {
     // Uuid of the job that was preempted
     Uuid preempted_job_id = 1;
     // Uuid of the job run that was preempted.
