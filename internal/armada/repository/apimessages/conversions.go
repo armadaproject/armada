@@ -453,7 +453,6 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 }
 
 func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
-
 	podPreemption := e.GetPodPreempted()
 
 	if podPreemption == nil {

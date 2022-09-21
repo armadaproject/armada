@@ -239,7 +239,6 @@ func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedRunId, expectedPreemptedRunId)
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobId, expectedPreemptiveJobId)
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveRunId, expectedPreemptiveRunId)
-
 }
 
 func TestConvertJobSinglePodSpec(t *testing.T) {
