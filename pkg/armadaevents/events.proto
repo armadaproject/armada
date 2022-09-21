@@ -84,6 +84,7 @@ message EventSequence {
             JobDuplicateDetected jobDuplicateDetected = 15;
             StandaloneIngressInfo standaloneIngressInfo = 16;
             ResourceUtilisation resourceUtilisation = 17;
+            JobPreempted jobPreempted = 19;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -452,9 +453,6 @@ message PodUnschedulable {
 message LeaseExpired {
 }
 
-message JobPreempted {
-}
-
 message MaxRunsExceeded {
 }
 
@@ -476,4 +474,19 @@ message SeqUpdates{
 
 message DatabaseSequence{
     EventSequence eventSequence = 1;
+}
+
+message JobPreempted {
+    Uuid preempted_job_id = 1;
+    string preempted_job_set_id = 2;
+    string preempted_job_queue = 3;
+    string preempted_pod_namespace = 4;
+    string preempted_pod_name = 5;
+    Uuid preemptive_job_id = 6;
+    string preemptive_job_set_id = 7;
+    string preemptive_job_queue = 8;
+    string preemptive_pod_namespace = 9;
+    string preemptive_pod_name = 10;
+    string message = 11;
+    string node = 12;
 }

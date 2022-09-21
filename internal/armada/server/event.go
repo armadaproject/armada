@@ -2,8 +2,9 @@ package server
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/armada/repository/sequence"
 
@@ -23,6 +24,7 @@ type EventServer struct {
 	eventRepository       repository.EventRepository
 	legacyEventRepository repository.EventRepository
 	queueRepository       repository.QueueRepository
+	jobRepository         repository.JobRepository
 	eventStore            repository.EventStore
 	defaultToLegacyEvents bool
 }
@@ -33,6 +35,7 @@ func NewEventServer(
 	legacyEventRepository repository.EventRepository,
 	eventStore repository.EventStore,
 	queueRepository repository.QueueRepository,
+	jobRepository repository.JobRepository,
 	defaultToLegacyEvents bool,
 ) *EventServer {
 	return &EventServer{
@@ -41,6 +44,7 @@ func NewEventServer(
 		legacyEventRepository: legacyEventRepository,
 		eventStore:            eventStore,
 		queueRepository:       queueRepository,
+		jobRepository:         jobRepository,
 		defaultToLegacyEvents: defaultToLegacyEvents,
 	}
 }
@@ -49,6 +53,7 @@ func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*t
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
+
 	return &types.Empty{}, s.eventStore.ReportEvents([]*api.EventMessage{message})
 }
 
@@ -56,7 +61,76 @@ func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
+
+	if err := s.checkForPreemptedEvents(message); err != nil {
+		return &types.Empty{}, err
+	}
+
 	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
+}
+
+func (s *EventServer) checkForPreemptedEvents(message *api.EventList) error {
+	var preemptedEvents []*api.EventMessage_Preempted
+	var jobIds []string
+
+	for _, event := range message.Events {
+		if event, ok := event.Events.(*api.EventMessage_Preempted); ok {
+			preemptedEvents = append(preemptedEvents, event)
+			if event.Preempted.JobId != "" {
+				jobIds = append(jobIds, event.Preempted.JobId)
+			}
+			if event.Preempted.PreemptiveJobId != "" {
+				jobIds = append(jobIds, event.Preempted.PreemptiveJobId)
+			}
+		}
+	}
+
+	if len(preemptedEvents) == 0 {
+		return nil
+	}
+
+	results, err := s.jobRepository.GetJobsByIds(jobIds)
+	if err != nil {
+		return errors.WithMessage(err, "error fetching jobs for preempted and preemptive job ids")
+	}
+
+	for _, event := range preemptedEvents {
+		if err := s.enrichPreemptedEvent(event, results); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *EventServer) enrichPreemptedEvent(event *api.EventMessage_Preempted, results []*repository.JobResult) error {
+	if event.Preempted.JobId != "" {
+		result := findJobResult(event.Preempted.JobId, results)
+		if result == nil {
+			return errors.Errorf("error fetching job for preempted pod job id %s: job does not exist", event.Preempted.JobId)
+		}
+		event.Preempted.JobSetId = result.Job.JobSetId
+		event.Preempted.Queue = result.Job.Queue
+	}
+	if event.Preempted.PreemptiveJobId != "" {
+		result := findJobResult(event.Preempted.PreemptiveJobId, results)
+		if result == nil {
+			return errors.Errorf("error fetching job for preemptive pod job id %s: job does not exist", event.Preempted.PreemptiveJobId)
+		}
+		event.Preempted.PreemptiveJobSetId = result.Job.JobSetId
+		event.Preempted.PreemptiveJobQueue = result.Job.Queue
+	}
+
+	return nil
+}
+
+func findJobResult(jobId string, results []*repository.JobResult) *repository.JobResult {
+	for _, result := range results {
+		if result.JobId == jobId {
+			return result
+		}
+	}
+	return nil
 }
 
 // GetJobSetEvents streams back all events associated with a particular job set.

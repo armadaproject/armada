@@ -42,6 +42,7 @@ type ClusterContext interface {
 	ClusterIdentity
 
 	AddPodEventHandler(handler cache.ResourceEventHandlerFuncs)
+	AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs)
 	GetBatchPods() ([]*v1.Pod, error)
 	GetAllPods() ([]*v1.Pod, error)
 	GetActiveBatchPods() ([]*v1.Pod, error)
@@ -60,6 +61,7 @@ type ClusterContext interface {
 	DeleteIngress(ingress *networking.Ingress) error
 
 	AddAnnotation(pod *v1.Pod, annotations map[string]string) error
+	AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error
 
 	Stop()
 }
@@ -156,6 +158,10 @@ func (c *KubernetesClusterContext) AddPodEventHandler(handler cache.ResourceEven
 	c.podInformer.Informer().AddEventHandler(handler)
 }
 
+func (c *KubernetesClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
+	c.eventInformer.Informer().AddEventHandler(handler)
+}
+
 func (c *KubernetesClusterContext) Stop() {
 	close(c.stopper)
 }
@@ -191,7 +197,7 @@ func (c *KubernetesClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error
 	if err != nil {
 		return nil, err
 	}
-	eventsTyped := []*v1.Event{}
+	var eventsTyped []*v1.Event
 	for _, untyped := range events {
 		typed, ok := untyped.(*v1.Event)
 		if ok {
@@ -277,6 +283,25 @@ func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[st
 	_, err = c.kubernetesClient.CoreV1().
 		Pods(pod.Namespace).
 		Patch(context.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *KubernetesClusterContext) AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error {
+	patch := &domain.Patch{
+		MetaData: metav1.ObjectMeta{
+			Annotations: annotations,
+		},
+	}
+	patchBytes, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	_, err = c.kubernetesClient.CoreV1().
+		Events(event.Namespace).
+		Patch(context.Background(), event.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
