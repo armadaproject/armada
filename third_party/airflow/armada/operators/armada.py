@@ -39,7 +39,7 @@ class ArmadaOperator(BaseOperator):
     :param armada_client: The Armada Python GRPC client
                         that is used for interacting with Armada
     :param job_service_client: The JobServiceClient that is used for polling
-    :param queue: The queue name
+    :param armada_queue: The queue name for Armada.
     :param job_request_items: A PodSpec that is used by Armada for submitting a job
 
     :return: a job service client instance
@@ -50,7 +50,7 @@ class ArmadaOperator(BaseOperator):
         name: str,
         armada_client: ArmadaClient,
         job_service_client: JobServiceClient,
-        queue: str,
+        armada_queue: str,
         job_request_items,
         **kwargs,
     ) -> None:
@@ -58,7 +58,7 @@ class ArmadaOperator(BaseOperator):
         self.name = name
         self.armada_client = armada_client
         self.job_service = job_service_client
-        self.queue = queue
+        self.armada_queue = armada_queue
         self.job_request_items = job_request_items
 
     def execute(self, context) -> None:
@@ -75,7 +75,7 @@ class ArmadaOperator(BaseOperator):
         # and have all jobs in a dag correspond to same jobset
         job_set_id = context["run_id"]
         job = self.armada_client.submit_jobs(
-            queue=self.queue,
+            queue=self.armada_queue,
             job_set_id=job_set_id,
             job_request_items=self.job_request_items,
         )
@@ -88,7 +88,7 @@ class ArmadaOperator(BaseOperator):
 
         job_state, job_message = search_for_job_complete(
             job_service_client=self.job_service,
-            queue=self.queue,
+            armada_queue=self.armada_queue,
             job_set_id=job_set_id,
             airflow_task_name=self.name,
             job_id=job_id,
