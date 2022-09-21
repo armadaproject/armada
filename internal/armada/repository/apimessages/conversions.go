@@ -453,27 +453,25 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 }
 
 func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
-	podPreemption := e.GetPodPreempted()
-
-	if podPreemption == nil {
+	if e == nil {
 		// We only support PodPreempted right now
 		return nil, nil
 	}
 
-	jobId, err := armadaevents.UlidStringFromProtoUuid(podPreemption.PreemptedJobId)
+	jobId, err := armadaevents.UlidStringFromProtoUuid(e.PreemptedJobId)
 	if err != nil {
 		return nil, err
 	}
-	runId, err := armadaevents.UuidStringFromProtoUuid(podPreemption.PreemptedRunId)
+	runId, err := armadaevents.UuidStringFromProtoUuid(e.PreemptedRunId)
 	if err != nil {
 		return nil, err
 	}
 
-	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(podPreemption.PreemptiveJobId)
+	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(e.PreemptiveJobId)
 	if err != nil {
 		return nil, err
 	}
-	preemptiveRunId, err := armadaevents.UuidStringFromProtoUuid(podPreemption.PreemptiveRunId)
+	preemptiveRunId, err := armadaevents.UuidStringFromProtoUuid(e.PreemptiveRunId)
 	if err != nil {
 		return nil, err
 	}

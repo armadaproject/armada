@@ -235,10 +235,10 @@ func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
 	evtSeqPreempted := converted.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunPreempted)
 	assert.Equal(t, converted.JobSetName, testEvent.JobSetId)
 	assert.Equal(t, converted.Queue, testEvent.Queue)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedJobId, expectedPreemptedJobId)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedRunId, expectedPreemptedRunId)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobId, expectedPreemptiveJobId)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveRunId, expectedPreemptiveRunId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptedJobId, expectedPreemptedJobId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptedRunId, expectedPreemptedRunId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptiveJobId, expectedPreemptiveJobId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptiveRunId, expectedPreemptiveRunId)
 }
 
 func TestConvertJobSinglePodSpec(t *testing.T) {
