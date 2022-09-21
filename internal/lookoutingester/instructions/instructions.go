@@ -3,6 +3,7 @@ package instructions
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -457,6 +458,8 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
+			eventType := fmt.Sprintf("%T", e.Reason)
+                        jobRunUpdate.Reason = &eventType
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
 			break
 		}

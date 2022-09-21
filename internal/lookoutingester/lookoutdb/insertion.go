@@ -373,10 +373,12 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 			      node               varchar(512),
 			      started            timestamp,
 			      finished           timestamp,
+			      preempte           timestamp,
 			      succeeded          boolean,
 			      error              varchar(2048),
 			      pod_number         integer,
-			      unable_to_schedule boolean
+			      unable_to_schedule boolean,
+                              reason             varchar(64)
 				) ON COMMIT DROP;`, tmpTable))
 			return err
 		}
@@ -384,7 +386,7 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"run_id", "node", "started", "finished", "succeeded", "error", "pod_number", "unable_to_schedule"},
+				[]string{"run_id", "node", "started", "finished", "succeeded", "preempted", "error", "pod_number", "unable_to_schedule", "reason"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].RunId,
@@ -392,9 +394,11 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 						instructions[i].Started,
 						instructions[i].Finished,
 						instructions[i].Succeeded,
+						instructions[i].Preempted,
 						instructions[i].Error,
 						instructions[i].PodNumber,
 						instructions[i].UnableToSchedule,
+						instructions[i].Reason,
 					}, nil
 				}),
 			)
@@ -410,7 +414,9 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 		                  started = coalesce(tmp.started, job_run.started),
 		                  finished = coalesce(tmp.finished, job_run.finished),
 		                  succeeded = coalesce(tmp.succeeded, job_run.succeeded),
+		                  preempted = coalesce(tmp.preempted, job_run.preempted),
 		                  error = coalesce(tmp.error, job_run.error),
+		                  reason = coalesce(tmp.reason, job_run.reason),
 		                  pod_number = coalesce(tmp.pod_number, job_run.pod_number),
 		                  unable_to_schedule = coalesce(tmp.unable_to_schedule, job_run.unable_to_schedule)
 						FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),

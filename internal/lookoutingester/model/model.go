@@ -58,8 +58,10 @@ type UpdateJobRunInstruction struct {
 	Node             *string
 	Started          *time.Time
 	Finished         *time.Time
+	Preempted        *time.Time
 	Succeeded        *bool
 	Error            *string
+	Reason           *string
 	PodNumber        *int32
 	UnableToSchedule *bool
 }
