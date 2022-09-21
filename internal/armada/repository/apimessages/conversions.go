@@ -454,37 +454,39 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 
 func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
 
-	podPremption := e.GetPodPreempted()
+	podPreemption := e.GetPodPreempted()
 
-	if podPremption == nil {
+	if podPreemption == nil {
 		// We only support PodPreempted right now
 		return nil, nil
 	}
 
-	jobId, err := armadaevents.UlidStringFromProtoUuid(podPremption.PreemptedJobId)
+	jobId, err := armadaevents.UlidStringFromProtoUuid(podPreemption.PreemptedJobId)
+	if err != nil {
+		return nil, err
+	}
+	runId, err := armadaevents.UuidStringFromProtoUuid(podPreemption.PreemptedRunId)
 	if err != nil {
 		return nil, err
 	}
 
-	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(podPremption.PreemptiveJobId)
+	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(podPreemption.PreemptiveJobId)
+	if err != nil {
+		return nil, err
+	}
+	preemptiveRunId, err := armadaevents.UuidStringFromProtoUuid(podPreemption.PreemptiveRunId)
 	if err != nil {
 		return nil, err
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
-		JobId:                  jobId,
-		JobSetId:               jobSetName,
-		Queue:                  queueName,
-		PreemptiveJobId:        preemptiveJobId,
-		PreemptiveJobSetId:     podPremption.PreemptiveJobSetId,
-		PreemptiveJobQueue:     podPremption.PreemptiveJobQueue,
-		Created:                time,
-		PreemptedPodNamespace:  podPremption.PreemptedPodNamespace,
-		PreemptedPodName:       podPremption.PreemptivePodName,
-		PreemptivePodNamespace: podPremption.PreemptedPodNamespace,
-		PreemptivePodName:      podPremption.PreemptivePodName,
-		Message:                podPremption.Message,
-		Node:                   podPremption.Node,
+		JobId:           jobId,
+		JobSetId:        jobSetName,
+		Queue:           queueName,
+		Created:         time,
+		RunId:           runId,
+		PreemptiveJobId: preemptiveJobId,
+		PreemptiveRunId: preemptiveRunId,
 	}
 
 	return []*api.EventMessage{

@@ -1035,34 +1035,16 @@ func SwaggerJsonTemplate() string {
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"message\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"node\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"preemptedPodName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"preemptedPodNamespace\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
 		"        \"preemptiveJobId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"preemptiveJobQueue\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"preemptiveJobSetId\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"preemptivePodName\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
-		"        \"preemptivePodNamespace\": {\n" +
+		"        \"preemptiveRunId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +

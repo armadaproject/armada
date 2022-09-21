@@ -403,7 +403,7 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 		}
 		// Consider sequences within the same jobSet for compaction.
 		if jobSetSequences, ok := sequencesFromJobSetName[sequence.JobSetName]; ok {
-			// This first if should never trigger.
+			// This first if clause should never trigger.
 			if len(jobSetSequences) == 0 {
 				numSequences++
 				sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
@@ -1051,21 +1051,14 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		if err != nil {
 			return nil, err
 		}
+		preemptedRunId, err := armadaevents.ProtoUuidFromUuidString(m.Preempted.RunId)
+		if err != nil {
+			return nil, err
+		}
 
-		event := &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{
-				Resource: &armadaevents.JobRunPreempted_PodPreempted{
-					PodPreempted: &armadaevents.PodPreempted{
-						PreemptedJobId:         preemptedJobId,
-						PreemptedPodNamespace:  m.Preempted.PreemptedPodNamespace,
-						PreemptedPodName:       m.Preempted.PreemptedPodName,
-						PreemptivePodNamespace: m.Preempted.PreemptivePodNamespace,
-						PreemptivePodName:      m.Preempted.PreemptivePodName,
-						Message:                m.Preempted.Message,
-						Node:                   m.Preempted.Node,
-					},
-				},
-			},
+		podPreempted := &armadaevents.PodPreempted{
+			PreemptedJobId: preemptedJobId,
+			PreemptedRunId: preemptedRunId,
 		}
 
 		if m.Preempted.PreemptiveJobId != "" {
@@ -1073,11 +1066,23 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			if err != nil {
 				return nil, err
 			}
-			event.JobRunPreempted.GetPodPreempted().PreemptiveJobId = preemptiveJobId
-			event.JobRunPreempted.GetPodPreempted().PreemptiveJobSetId = m.Preempted.PreemptiveJobSetId
-			event.JobRunPreempted.GetPodPreempted().PreemptiveJobQueue = m.Preempted.PreemptiveJobQueue
+			podPreempted.PreemptiveJobId = preemptiveJobId
+		}
+		if m.Preempted.PreemptiveRunId != "" {
+			preemptiveRunId, err := armadaevents.ProtoUuidFromUuidString(m.Preempted.PreemptiveRunId)
+			if err != nil {
+				return nil, err
+			}
+			podPreempted.PreemptiveRunId = preemptiveRunId
 		}
 
+		event := &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				Resource: &armadaevents.JobRunPreempted_PodPreempted{
+					PodPreempted: podPreempted,
+				},
+			},
+		}
 		sequenceEvent := &armadaevents.EventSequence_Event{
 			Created: &m.Preempted.Created,
 			Event:   event,
@@ -1096,7 +1101,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	return sequence, nil
 }
 
-// Id used for messages for which we can't use the kubernetesId.
+// LEGACY_RUN_ID is used for messages for which we can't use the kubernetesId.
 const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
 
 func LegacyJobRunId() *armadaevents.Uuid {

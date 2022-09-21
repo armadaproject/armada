@@ -201,30 +201,30 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 
 func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
 	testEvent := api.JobPreemptedEvent{
-		JobId:                  "01gddx8ezywph2tbwfcvgpe5nn",
-		JobSetId:               "test-set-a",
-		Queue:                  "queue-a",
-		PreemptiveJobId:        "01gddx9rjds05t37zd83379t9z",
-		PreemptiveJobSetId:     "test-set-b",
-		PreemptiveJobQueue:     "queue-b",
-		Created:                time.Now(),
-		ClusterId:              "test-cluster",
-		PreemptedPodNamespace:  "test-a",
-		PreemptedPodName:       "test-preempted",
-		PreemptivePodNamespace: "test-b",
-		PreemptivePodName:      "test-preemptive",
-		Message:                "Preempted by test-b/test-preemptive on node test-cluster-a",
-		Node:                   "test-cluster-a",
+		JobId:           "01gddx8ezywph2tbwfcvgpe5nn",
+		JobSetId:        "test-set-a",
+		Queue:           "queue-a",
+		Created:         time.Now(),
+		ClusterId:       "test-cluster",
+		RunId:           "dde7325b-f1e9-43e6-8b38-f7a0ade07123",
+		PreemptiveJobId: "01gddx9rjds05t37zd83379t9z",
+		PreemptiveRunId: "db1da934-7366-449e-aed7-562e80730a35",
 	}
 	testEventMessage := api.EventMessage{Events: &api.EventMessage_Preempted{Preempted: &testEvent}}
 
 	expectedPreemptedJobId, err := armadaevents.ProtoUuidFromUlidString(testEvent.JobId)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, expectedPreemptedJobId)
+	expectedPreemptedRunId, err := armadaevents.ProtoUuidFromUuidString(testEvent.RunId)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, expectedPreemptedRunId)
 
 	expectedPreemptiveJobId, err := armadaevents.ProtoUuidFromUlidString(testEvent.PreemptiveJobId)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, expectedPreemptiveJobId)
+	expectedPreemptiveRunId, err := armadaevents.ProtoUuidFromUuidString(testEvent.PreemptiveRunId)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, expectedPreemptiveRunId)
 
 	converted, err := EventSequenceFromApiEvent(&testEventMessage)
 
@@ -236,15 +236,10 @@ func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
 	assert.Equal(t, converted.JobSetName, testEvent.JobSetId)
 	assert.Equal(t, converted.Queue, testEvent.Queue)
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedJobId, expectedPreemptedJobId)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedPodNamespace, testEvent.PreemptedPodNamespace)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedPodName, testEvent.PreemptedPodName)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedRunId, expectedPreemptedRunId)
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobId, expectedPreemptiveJobId)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobSetId, testEvent.PreemptiveJobSetId)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobQueue, testEvent.PreemptiveJobQueue)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptivePodNamespace, testEvent.PreemptivePodNamespace)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptivePodName, testEvent.PreemptivePodName)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().Message, testEvent.Message)
-	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().Node, testEvent.Node)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveRunId, expectedPreemptiveRunId)
+
 }
 
 func TestConvertJobSinglePodSpec(t *testing.T) {

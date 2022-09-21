@@ -476,23 +476,21 @@ message DatabaseSequence{
     EventSequence eventSequence = 1;
 }
 
-// Message to indicate that a JobRun has been pre-empted
+// Message to indicate that a JobRun has been preempted
 message JobRunPreempted{
     oneof resource {
         PodPreempted podPreempted = 1;
-        //TODO: Add a PodGroupPrempted type here when we support them
+        //TODO: Add a PodGroupPreempted type here when we support them
     }
 }
 
 message PodPreempted {
+    // Uuid of the job that was preempted
     Uuid preempted_job_id = 1;
-    string preempted_pod_namespace = 4;
-    string preempted_pod_name = 5;
-    Uuid preemptive_job_id = 6;
-    string preemptive_job_set_id = 7;
-    string preemptive_job_queue = 8;
-    string preemptive_pod_namespace = 9;
-    string preemptive_pod_name = 10;
-    string message = 11;
-    string node = 12;
+    // Uuid of the job run that was preempted.
+    Uuid preempted_run_id = 2;
+    // Uuid of the job that caused the preemption.
+    Uuid preemptive_job_id = 3;
+    // Uuid of the job run that caused the preemption.
+    Uuid preemptive_run_id = 4;
 }

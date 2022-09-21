@@ -1024,34 +1024,16 @@
         "jobSetId": {
           "type": "string"
         },
-        "message": {
-          "type": "string"
-        },
-        "node": {
-          "type": "string"
-        },
-        "preemptedPodName": {
-          "type": "string"
-        },
-        "preemptedPodNamespace": {
-          "type": "string"
-        },
         "preemptiveJobId": {
           "type": "string"
         },
-        "preemptiveJobQueue": {
-          "type": "string"
-        },
-        "preemptiveJobSetId": {
-          "type": "string"
-        },
-        "preemptivePodName": {
-          "type": "string"
-        },
-        "preemptivePodNamespace": {
+        "preemptiveRunId": {
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "runId": {
           "type": "string"
         }
       }

@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/G-Research/armada/internal/common"
 
 	"github.com/pkg/errors"
@@ -145,9 +143,8 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 
 func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
 	event = &api.JobPreemptedEvent{
-		ClusterId: clusterId,
 		Created:   clusterEvent.EventTime.Time,
-		Message:   clusterEvent.Message,
+		ClusterId: clusterId,
 	}
 
 	if err := enrichPreemptedEventFromInvolvedObject(event, clusterEvent.InvolvedObject); err != nil {
@@ -160,10 +157,6 @@ func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *a
 		}
 	}
 
-	if err := enrichPreemptedEventFromPreemptionMessage(event, clusterEvent.Message); err != nil {
-		return nil, err
-	}
-
 	return event, nil
 }
 
@@ -174,8 +167,7 @@ func enrichPreemptedEventFromInvolvedObject(event *api.JobPreemptedEvent, involv
 	}
 
 	event.JobId = preemptedJobId
-	event.PreemptedPodNamespace = involved.Namespace
-	event.PreemptedPodName = involved.Name
+	event.RunId = string(involved.UID)
 
 	return nil
 }
@@ -190,30 +182,8 @@ func enrichPreemptedEventFromRelatedObject(event *api.JobPreemptedEvent, related
 		event.PreemptiveJobId = preemptiveJobId
 	}
 
-	event.PreemptivePodNamespace = related.Namespace
-	event.PreemptivePodName = related.Name
+	event.PreemptiveRunId = string(related.UID)
 
-	return nil
-}
-
-func enrichPreemptedEventFromPreemptionMessage(event *api.JobPreemptedEvent, msg string) error {
-	info, err := util.ParsePreemptionMessage(msg)
-	if err != nil {
-		return err
-	}
-
-	if event.PreemptiveJobId == "" && util.IsArmadaJobPod(info.Name) {
-		jobId, err := util.ExtractJobIdFromName(info.Name)
-		if err != nil {
-			return errors.Errorf("error extracting preemptive job id from pod name: %v", err)
-		}
-		event.PreemptiveJobId = jobId
-		event.PreemptivePodNamespace = info.Namespace
-		event.PreemptivePodName = info.Name
-		event.Node = info.Node
-	} else {
-		log.Debugf("Pre-emptive job %s is not an armada job,  will not populate the preemptive job fields", event.PreemptiveJobId)
-	}
 	return nil
 }
 
