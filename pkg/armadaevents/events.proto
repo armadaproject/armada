@@ -84,7 +84,7 @@ message EventSequence {
             JobDuplicateDetected jobDuplicateDetected = 15;
             StandaloneIngressInfo standaloneIngressInfo = 16;
             ResourceUtilisation resourceUtilisation = 17;
-            JobRunPreempted jobPreempted = 19;
+            JobRunPreempted jobRunPreempted = 19;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.

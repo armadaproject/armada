@@ -49,6 +49,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalResourceUtilisation(es.Queue, es.JobSetName, *event.Created, esEvent.ResourceUtilisation)
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
@@ -445,6 +447,50 @@ func FromInternalJobRunAssigned(queueName string, jobSetName string, time time.T
 		{
 			Events: &api.EventMessage_Pending{
 				Pending: apiEvent,
+			},
+		},
+	}, nil
+}
+
+func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.Time, e *armadaevents.JobRunPreempted) ([]*api.EventMessage, error) {
+
+	podPremption := e.GetPodPreempted()
+
+	if podPremption == nil {
+		// We only support PodPreempted right now
+		return nil, nil
+	}
+
+	jobId, err := armadaevents.UlidStringFromProtoUuid(podPremption.PreemptedJobId)
+	if err != nil {
+		return nil, err
+	}
+
+	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(podPremption.PreemptiveJobId)
+	if err != nil {
+		return nil, err
+	}
+
+	apiEvent := &api.JobPreemptedEvent{
+		JobId:                  jobId,
+		JobSetId:               jobSetName,
+		Queue:                  queueName,
+		PreemptiveJobId:        preemptiveJobId,
+		PreemptiveJobSetId:     podPremption.PreemptiveJobSetId,
+		PreemptiveJobQueue:     podPremption.PreemptiveJobQueue,
+		Created:                time,
+		PreemptedPodNamespace:  podPremption.PreemptedPodNamespace,
+		PreemptedPodName:       podPremption.PreemptivePodName,
+		PreemptivePodNamespace: podPremption.PreemptedPodNamespace,
+		PreemptivePodName:      podPremption.PreemptivePodName,
+		Message:                podPremption.Message,
+		Node:                   podPremption.Node,
+	}
+
+	return []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: apiEvent,
 			},
 		},
 	}, nil

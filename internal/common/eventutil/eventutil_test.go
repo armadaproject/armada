@@ -230,21 +230,21 @@ func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, converted.Events, 1)
-	assert.IsType(t, converted.Events[0].Event, &armadaevents.EventSequence_Event_JobPreempted{})
+	assert.IsType(t, converted.Events[0].Event, &armadaevents.EventSequence_Event_JobRunPreempted{})
 
-	evtSeqPreempted := converted.Events[0].Event.(*armadaevents.EventSequence_Event_JobPreempted)
+	evtSeqPreempted := converted.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunPreempted)
 	assert.Equal(t, converted.JobSetName, testEvent.JobSetId)
 	assert.Equal(t, converted.Queue, testEvent.Queue)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptedJobId, expectedPreemptedJobId)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptedPodNamespace, testEvent.PreemptedPodNamespace)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptedPodName, testEvent.PreemptedPodName)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptiveJobId, expectedPreemptiveJobId)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptiveJobSetId, testEvent.PreemptiveJobSetId)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptiveJobQueue, testEvent.PreemptiveJobQueue)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptivePodNamespace, testEvent.PreemptivePodNamespace)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().PreemptivePodName, testEvent.PreemptivePodName)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().Message, testEvent.Message)
-	assert.Equal(t, evtSeqPreempted.JobPreempted.GetPodPreempted().Node, testEvent.Node)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedJobId, expectedPreemptedJobId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedPodNamespace, testEvent.PreemptedPodNamespace)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptedPodName, testEvent.PreemptedPodName)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobId, expectedPreemptiveJobId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobSetId, testEvent.PreemptiveJobSetId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptiveJobQueue, testEvent.PreemptiveJobQueue)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptivePodNamespace, testEvent.PreemptivePodNamespace)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().PreemptivePodName, testEvent.PreemptivePodName)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().Message, testEvent.Message)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.GetPodPreempted().Node, testEvent.Node)
 }
 
 func TestConvertJobSinglePodSpec(t *testing.T) {

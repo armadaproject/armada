@@ -1052,8 +1052,8 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			return nil, err
 		}
 
-		event := &armadaevents.EventSequence_Event_JobPreempted{
-			JobPreempted: &armadaevents.JobRunPreempted{
+		event := &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
 				Resource: &armadaevents.JobRunPreempted_PodPreempted{
 					PodPreempted: &armadaevents.PodPreempted{
 						PreemptedJobId:         preemptedJobId,
@@ -1073,9 +1073,9 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			if err != nil {
 				return nil, err
 			}
-			event.JobPreempted.GetPodPreempted().PreemptiveJobId = preemptiveJobId
-			event.JobPreempted.GetPodPreempted().PreemptiveJobSetId = m.Preempted.PreemptiveJobSetId
-			event.JobPreempted.GetPodPreempted().PreemptiveJobQueue = m.Preempted.PreemptiveJobQueue
+			event.JobRunPreempted.GetPodPreempted().PreemptiveJobId = preemptiveJobId
+			event.JobRunPreempted.GetPodPreempted().PreemptiveJobSetId = m.Preempted.PreemptiveJobSetId
+			event.JobRunPreempted.GetPodPreempted().PreemptiveJobQueue = m.Preempted.PreemptiveJobQueue
 		}
 
 		sequenceEvent := &armadaevents.EventSequence_Event{
