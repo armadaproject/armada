@@ -307,10 +307,12 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 	}
 
 	isTerminal := false
+	var reason string
 
 	for _, e := range event.GetErrors() {
 		if e.Terminal {
 			isTerminal = true
+			reason = fmt.Sprintf("%T", e.GetReason())
 			break
 		}
 	}
@@ -319,6 +321,7 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 			JobId:   jobId,
 			State:   pointer.Int32(int32(repository.JobFailedOrdinal)),
 			Updated: ts,
+			Reason:  reason,
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	}

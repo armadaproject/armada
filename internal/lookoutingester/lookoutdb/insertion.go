@@ -435,13 +435,15 @@ func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 				  started = coalesce($2, started),
 				  finished = coalesce($3, finished),
 				  succeeded = coalesce($4, succeeded),
-				  error = coalesce($5, error),
-				  pod_number = coalesce($6, pod_number),
-				  unable_to_schedule = coalesce($7, unable_to_schedule)
-				WHERE run_id = $8`
+				  preempted = coalesce($5, preempted),
+				  error = coalesce($6, error),
+				  reason = coalesce($7, reason),
+				  pod_number = coalesce($8, pod_number),
+				  unable_to_schedule = coalesce($9, unable_to_schedule)
+				WHERE run_id = $10`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
+			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.Reason. i.PodNumber, i.UnableToSchedule, i.RunId)
 			return err
 		})
 		if err != nil {

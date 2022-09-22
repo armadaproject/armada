@@ -28,6 +28,7 @@ type UpdateJobInstruction struct {
 	Updated   time.Time
 	Cancelled *time.Time
 	Duplicate *bool
+	Reason    *string
 }
 
 // CreateJobRunContainerInstruction is an instruction to create a new entry in the jobRunContainerInstruction table
@@ -61,7 +62,6 @@ type UpdateJobRunInstruction struct {
 	Preempted        *time.Time
 	Succeeded        *bool
 	Error            *string
-	Reason           *string
 	PodNumber        *int32
 	UnableToSchedule *bool
 }

@@ -15,7 +15,6 @@ function createLoadingJob(): JobMetadata {
     priority: 0,
     jobState: "",
     queue: "",
-    reason: "",
     submissionTime: "",
     runs: [],
     jobYaml: "",

@@ -91,7 +91,6 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
       }
       case "queue":
       case "jobSet":
-      case "reason":
       case "owner": {
         return (
           <Column
