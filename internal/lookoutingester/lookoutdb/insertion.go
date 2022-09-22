@@ -373,7 +373,7 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 			      node               varchar(512),
 			      started            timestamp,
 			      finished           timestamp,
-			      preempte           timestamp,
+			      preempted          timestamp,
 			      succeeded          boolean,
 			      error              varchar(2048),
 			      pod_number         integer,

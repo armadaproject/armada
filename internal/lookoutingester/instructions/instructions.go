@@ -113,7 +113,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnot
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			err = handleJobPreempted(ts, event.GetJobRunPreempted(), updateInstructions)
+			err = handleJobRunPreempted(ts, event.GetJobRunPreempted(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
