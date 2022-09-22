@@ -169,7 +169,8 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 				  job       jsonb,
                   orig_job_spec bytea,
 				  state     smallint,
-				  job_updated   timestamp
+				  job_updated   timestamp,
+                                  reason    varchar(64)
 				) ON COMMIT DROP;`, tmpTable))
 			return err
 		}
@@ -177,7 +178,7 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "job", "orig_job_spec", "state", "job_updated"},
+				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "job", "orig_job_spec", "state", "job_updated", "reason"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
@@ -190,6 +191,7 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 						instructions[i].JobProto,
 						instructions[i].State,
 						instructions[i].Updated,
+						instructions[i].Reason,
 					}, nil
 				}),
 			)
@@ -200,7 +202,7 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`
-					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated) SELECT * from %s
+					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated, reason) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			return err
@@ -212,12 +214,12 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 
 // CreateJobsScalar will insert jobs one by one into the database
 func CreateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobInstruction) {
-	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated, reason)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated)
+			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated, i.Reason)
 			return err
 		})
 		if err != nil {
@@ -239,7 +241,9 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 					state       smallint,
 					job_updated timestamp,
 					cancelled   timestamp,
-					duplicate   bool
+					duplicate   bool,
+                                        reason      varchar(64)
+
 				) ON COMMIT DROP;`, tmpTable))
 			return err
 		}
@@ -247,7 +251,7 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "priority", "state", "job_updated", "cancelled", "duplicate"},
+				[]string{"job_id", "priority", "state", "job_updated", "cancelled", "duplicate", "reason"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
@@ -256,6 +260,7 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 						instructions[i].Updated,
 						instructions[i].Cancelled,
 						instructions[i].Duplicate,
+						instructions[i].Reason,
 					}, nil
 				}),
 			)
@@ -271,7 +276,8 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
                   state = coalesce(tmp.state, job.state),
                   job_updated = tmp.job_updated,
                   cancelled = coalesce(tmp.cancelled, job.cancelled),
-                  duplicate = coalesce(tmp.duplicate, job.duplicate)
+                  duplicate = coalesce(tmp.duplicate, job.duplicate),
+                  reason = coalesce(tmp.reason, job.reason)
 				FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			return err
@@ -288,11 +294,12 @@ func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
                   state = coalesce($2, state),
                   job_updated = coalesce($3, job_updated),
                   cancelled = coalesce($4, cancelled),
-                  duplicate = coalesce($5, duplicate)
-				WHERE job_id = $6`
+                  duplicate = coalesce($5, duplicate),
+                  reason = coalesce($6, reason)
+				WHERE job_id = $7`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
+			_, err := db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.Reason, i.JobId)
 			return err
 		})
 		if err != nil {
@@ -377,8 +384,7 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 			      succeeded          boolean,
 			      error              varchar(2048),
 			      pod_number         integer,
-			      unable_to_schedule boolean,
-                              reason             varchar(64)
+			      unable_to_schedule boolean
 				) ON COMMIT DROP;`, tmpTable))
 			return err
 		}
@@ -386,19 +392,18 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"run_id", "node", "started", "finished", "succeeded", "preempted", "error", "pod_number", "unable_to_schedule", "reason"},
+				[]string{"run_id", "node", "started", "finished", "preempted", "succeeded", "error", "pod_number", "unable_to_schedule"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].RunId,
 						instructions[i].Node,
 						instructions[i].Started,
 						instructions[i].Finished,
-						instructions[i].Succeeded,
 						instructions[i].Preempted,
+						instructions[i].Succeeded,
 						instructions[i].Error,
 						instructions[i].PodNumber,
 						instructions[i].UnableToSchedule,
-						instructions[i].Reason,
 					}, nil
 				}),
 			)
@@ -416,7 +421,6 @@ func UpdateJobRunsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*m
 		                  succeeded = coalesce(tmp.succeeded, job_run.succeeded),
 		                  preempted = coalesce(tmp.preempted, job_run.preempted),
 		                  error = coalesce(tmp.error, job_run.error),
-		                  reason = coalesce(tmp.reason, job_run.reason),
 		                  pod_number = coalesce(tmp.pod_number, job_run.pod_number),
 		                  unable_to_schedule = coalesce(tmp.unable_to_schedule, job_run.unable_to_schedule)
 						FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
@@ -437,13 +441,12 @@ func UpdateJobRunsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*
 				  succeeded = coalesce($4, succeeded),
 				  preempted = coalesce($5, preempted),
 				  error = coalesce($6, error),
-				  reason = coalesce($7, reason),
-				  pod_number = coalesce($8, pod_number),
-				  unable_to_schedule = coalesce($9, unable_to_schedule)
-				WHERE run_id = $10`
+				  pod_number = coalesce($7, pod_number),
+				  unable_to_schedule = coalesce($8, unable_to_schedule)
+				WHERE run_id = $9`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.Reason. i.PodNumber, i.UnableToSchedule, i.RunId)
+			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
 			return err
 		})
 		if err != nil {

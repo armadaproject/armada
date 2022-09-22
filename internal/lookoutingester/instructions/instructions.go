@@ -321,7 +321,7 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 			JobId:   jobId,
 			State:   pointer.Int32(int32(repository.JobFailedOrdinal)),
 			Updated: ts,
-			Reason:  reason,
+			Reason:  &reason,
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	}
@@ -479,8 +479,6 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
-			eventType := fmt.Sprintf("%T", e.Reason)
-                        jobRunUpdate.Reason = &eventType
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
 			break
 		}

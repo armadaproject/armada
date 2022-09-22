@@ -18,6 +18,7 @@ type CreateJobInstruction struct {
 	JobProto  []byte
 	State     int64
 	Updated   time.Time
+	Reason    *string
 }
 
 // UpdateJobInstruction is an instruction to update an existing row in the jobs table
