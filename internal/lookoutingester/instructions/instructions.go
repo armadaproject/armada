@@ -112,13 +112,14 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnot
 			err = handleJobRunErrors(ts, event.GetJobRunErrors(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			err = handleJobPreempted(ts, event.GetJobRunPreempted(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			messageLogger.Debugf("Ignoring event type %T", event)
 		default:
 			messageLogger.Warnf("Ignoring unknown event type %T", event)
@@ -280,6 +281,22 @@ func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *
 		Updated: ts,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+
+	jobUpdate := model.UpdateJobInstruction{
+		JobId:   event.PreemptedJobId.String(),
+		State:   pointer.Int32(int32(repository.JobFailedOrdinal)),
+		Updated: ts,
+	}
+	jobRunUpdate := model.UpdateJobRunInstruction{
+		RunId: event.PreemptedRunId.String(),
+		Preempted: &ts,
+	}
+	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRunUpdate)
 	return nil
 }
 
