@@ -24,6 +24,7 @@ message JobInfo {
     string job_state = 4;
     string job_json = 5;
     string reason = 6;
+    google.protobuf.Timestamp preempted = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message RunInfo {

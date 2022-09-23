@@ -413,6 +413,10 @@ func SwaggerJsonTemplate() string {
 		"        \"jobState\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

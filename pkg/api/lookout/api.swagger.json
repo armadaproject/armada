@@ -402,6 +402,10 @@
         "jobState": {
           "type": "string"
         },
+        "preempted": {
+          "type": "string",
+          "format": "date-time"
+        },
         "reason": {
           "type": "string"
         },

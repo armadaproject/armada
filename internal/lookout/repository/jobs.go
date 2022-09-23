@@ -93,6 +93,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			jobRun_created,
 			jobRun_started,
 			jobRun_finished,
+			jobRun_preempted,
 			jobRun_succeeded,
 			jobRun_error).
 		Where(job_jobId.In(subDs))
@@ -213,6 +214,7 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 				jobMap[jobId] = &lookout.JobInfo{
 					Job:       job,
 					Cancelled: ParseNullTime(row.Cancelled),
+					Preempted: ParseNullTime(row.Preempted),
 					JobState:  state,
 					Reason:    reason,
 					Runs:      []*lookout.RunInfo{},

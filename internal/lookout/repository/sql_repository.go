@@ -73,6 +73,7 @@ var (
 	jobRun_created   = goqu.I("job_run.created")
 	jobRun_started   = goqu.I("job_run.started")
 	jobRun_finished  = goqu.I("job_run.finished")
+	jobRun_preempted = goqu.I("job_run.preempted")
 	jobRun_succeeded = goqu.I("job_run.succeeded")
 	jobRun_error     = goqu.I("job_run.error")
 
@@ -90,6 +91,7 @@ type JobRow struct {
 	Priority  sql.NullFloat64 `db:"priority"`
 	Submitted sql.NullTime    `db:"submitted"`
 	Cancelled sql.NullTime    `db:"cancelled"`
+	Preempted sql.NullTime    `db:"preempted"`
 	JobJson   sql.NullString  `db:"job"`
 	State     sql.NullInt64   `db:"state"`
 	RunId     sql.NullString  `db:"run_id"`
