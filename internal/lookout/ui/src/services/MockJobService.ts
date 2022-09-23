@@ -115,6 +115,7 @@ function createJobs(queue: string, total: number): Job[] {
       queue: queue,
       runs: [],
       submissionTime: new Date().toDateString(),
+      reason: "",
     })
   }
 

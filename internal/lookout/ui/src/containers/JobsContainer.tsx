@@ -341,7 +341,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         case "queue":
         case "jobId":
         case "owner":
-        case "reason":
         case "jobSet": {
           col.filter = ""
           break

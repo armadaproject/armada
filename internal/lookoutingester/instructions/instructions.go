@@ -285,17 +285,10 @@ func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *
 }
 
 func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
-
-	jobUpdate := model.UpdateJobInstruction{
-		JobId:   event.PreemptedJobId.String(),
-		State:   pointer.Int32(int32(repository.JobFailedOrdinal)),
-		Updated: ts,
-	}
 	jobRunUpdate := model.UpdateJobRunInstruction{
 		RunId: event.PreemptedRunId.String(),
 		Preempted: &ts,
 	}
-	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRunUpdate)
 	return nil
 }

@@ -412,7 +412,7 @@ export class LookoutJobService implements JobService {
     const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
     const preemptedTime = jobInfo.preempted ? dateToString(jobInfo.preempted) : undefined
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
-    const reason = jobInfo.reason ?? undefined
+    const reason = jobInfo.reason ?? ""
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
     const runs = getRuns(jobInfo)
@@ -428,6 +428,7 @@ export class LookoutJobService implements JobService {
       priority: priority,
       submissionTime: submissionTime,
       cancelledTime: cancelledTime,
+      preemptedTime: preemptedTime,
       jobState: jobState,
       reason: reason,
       runs: runs,
