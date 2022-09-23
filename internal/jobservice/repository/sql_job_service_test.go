@@ -2,7 +2,9 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -274,6 +276,39 @@ func TestHealthCheck(t *testing.T) {
 		healthCheck, err := r.HealthCheck()
 		assert.True(t, healthCheck)
 		assert.Nil(t, err)
+	})
+}
+
+// This test will fail if sqlite writes are not serialised somehow due to
+// SQLITE_BUSY errors.
+func TestConcurrentJobStatusUpdating(t *testing.T) {
+	WithSqlServiceRepo(func(r *SQLJobService) {
+		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
+
+		concurrency := 10
+		wg := sync.WaitGroup{}
+		wg.Add(concurrency)
+
+		startWg := sync.WaitGroup{}
+		startWg.Add(1)
+
+		for i := 0; i < concurrency; i++ {
+			go func(num int) {
+				defer wg.Done()
+
+				jobId := fmt.Sprintf("job-id-%d", num)
+				jobStatus := NewJobStatus("test", "job-set-1", jobId, *responseRunning)
+
+				startWg.Wait()
+				r.UpdateJobServiceDb(jobStatus)
+				actualSql, actualErr := r.GetJobStatus(jobId)
+				assert.Equal(t, actualSql, responseRunning)
+				assert.Nil(t, actualErr)
+			}(i)
+		}
+
+		startWg.Done()
+		wg.Wait()
 	})
 }
 
