@@ -37,6 +37,8 @@ type SQLJobService struct {
 	jobSetSubscribe  *JobSetSubscriptions
 	jobServiceConfig *configuration.JobServiceConfiguration
 	db               *sql.DB
+
+	writeLock sync.Mutex
 }
 
 func NewSQLJobService(jobSetSubscribe *JobSetSubscriptions, config *configuration.JobServiceConfiguration, db *sql.DB) *SQLJobService {
@@ -112,7 +114,12 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
 		panic(err)
 	}
 	jobState := jobTable.jobResponse.State.String()
+
+	// SQLite only allows one write at a time. Therefore we must serialize
+	// writes in order to avoid SQL_BUSY errors.
+	s.writeLock.Lock()
 	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
+	s.writeLock.Unlock()
 
 	// TODO: Make more robust
 	if errExec != nil {
