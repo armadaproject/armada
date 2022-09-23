@@ -4,6 +4,15 @@ import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableC
 import { ExpandMore } from "@material-ui/icons"
 
 import { Job } from "../../services/JobService"
+import {
+  convertStringToYaml,
+  getCommandFromJobYaml,
+  getCommandArgumentsFromJobYaml,
+  getCpuFromJobYaml,
+  getMemoryFromJobYaml,
+  getGpuFromJobYaml,
+  getDiskFromJobYaml,
+} from "../../utils"
 import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
 import RunDetailsRows from "./RunDetailsRows"
@@ -46,7 +55,7 @@ export default function JobDetails(props: DetailsProps) {
 
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
-
+  const jobYaml = convertStringToYaml(props.job.jobYaml)
   return (
     <div className="details-content">
       <TableContainer>
@@ -59,6 +68,13 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Job state" value={props.job.jobState} />
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
+            <DetailRow name="CPU" value={getCpuFromJobYaml(jobYaml)} />
+            <DetailRow name="GPU" value={getGpuFromJobYaml(jobYaml)} />
+            <DetailRow name="Memory" value={getMemoryFromJobYaml(jobYaml)} />
+            <DetailRow name="Disk" value={getDiskFromJobYaml(jobYaml)} />
+            <DetailRow name="Command" value={getCommandFromJobYaml(jobYaml)} />
+            <DetailRow name="Command Arguments" value={getCommandArgumentsFromJobYaml(jobYaml)} />
+
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&
