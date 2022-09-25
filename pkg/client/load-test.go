@@ -233,7 +233,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		submittedIds = ids
 	}()
 	WithEventClient(apiLoadTester.apiConnectionDetails, func(client api.EventClient) error {
-		WatchJobSet(client, queue, jobSetId, true, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
+		WatchJobSet(client, queue, jobSetId, true, false, false, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
 			if submittedIds == nil {
