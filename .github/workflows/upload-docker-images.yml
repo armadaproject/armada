@@ -1,0 +1,56 @@
+name: Release Armada
+
+on:
+  workflow_call: {}
+
+jobs:
+  upload-docker-images:
+    runs-on: ubuntu-22.04
+    environment: armada-dockerhub
+    steps:
+      # trigger docker image upload workflow; downloading tarballs from artifacts and uploading them to docker
+      - name: Assemble container tag
+        id: container_tag
+        uses: pr-mpt/actions-commit-hash@v1
+        with:
+          commit: "${{ github.sha }}"
+          prefix: "${{ github.ref_name }}"
+      - name: Download saved docker-images artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: docker-images
+          path: docker-images.zip
+      - name: Unzip docker-images artifacts
+        run: |
+          unzip docker-images.zip
+          tar xf docker-images.tar.gz
+          rm docker-images.tar.gz
+      - name: Upload images to docker
+        env:
+            DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+            DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        run: |
+          # Note(JayF): All the offical docker actions for uploading these
+          # containers also assume you need to rebuild them. That makes them
+          # ill-suited for our workflow.
+          TAG=$(echo -n "${{ steps.container_tag.outputs.long }}" | sed 's|/|-|g')
+          
+          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+
+          IMAGES_TO_UPLOAD=(
+            "armada-server"
+            "armada-executor"
+            "armada-armadactl"
+            "armada-testsuite"
+            "armada-lookout"
+            "armada-lookout-ingester"
+            "armada-event-ingester"
+            "armada-binoculars"
+            "armada-jobservice"
+          )
+          for image in "${IMAGES_TO_UPLOAD[@]}"; do
+              remote="gresearchdev/${image}-dev:${TAG}"
+              docker load -i $image.tar.gz
+              docker tag $image $remote 
+              docker push $remote
+          done
