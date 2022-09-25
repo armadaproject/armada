@@ -8,13 +8,6 @@ jobs:
     runs-on: ubuntu-22.04
     environment: armada-dockerhub
     steps:
-      # trigger docker image upload workflow; downloading tarballs from artifacts and uploading them to docker
-      - name: Assemble container tag
-        id: container_tag
-        uses: pr-mpt/actions-commit-hash@v1
-        with:
-          commit: "${{ github.sha }}"
-          prefix: "${{ github.ref_name }}"
       - name: Download saved docker-images artifact
         uses: actions/download-artifact@v2
         with:
@@ -33,7 +26,13 @@ jobs:
           # Note(JayF): All the offical docker actions for uploading these
           # containers also assume you need to rebuild them. That makes them
           # ill-suited for our workflow.
-          TAG=$(echo -n "${{ steps.container_tag.outputs.long }}" | sed 's|/|-|g')
+          TAG_SUFFIX=$(${{ github.sha }} | sed 's|/|-|g')
+          
+          if ${{github.ref_name}} == "master"; then
+            TAG=$TAG_SUFFIX
+          else
+            TAG="${{github.ref_name}}-$TAG_SUFFIX"
+          fi
           
           echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
