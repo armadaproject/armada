@@ -27,9 +27,9 @@ func Test_ValidateJobSubmitRequestItem(t *testing.T) {
 	assert.NoError(t, ValidateJobSubmitRequestItem(validIngressConfig))
 }
 
-func Test_ValidateJobRequestItemPodSpec(t *testing.T) {
-	noPodSpec := &api.JobSubmitRequestItem{}
-	err := ValidateJobRequestItemPodSpec(noPodSpec)
+func Test_ValidateApiJobPodSpecs(t *testing.T) {
+	noPodSpec := &api.Job{}
+	err := ValidateApiJobPodSpecs(noPodSpec)
 	assert.Error(
 		t,
 		err,
@@ -37,10 +37,10 @@ func Test_ValidateJobRequestItemPodSpec(t *testing.T) {
 	)
 	validateInvalidArgumentErrorMessage(t, err, "Job does not contain at least one PodSpec")
 
-	multiplePods := &api.JobSubmitRequestItem{
+	multiplePods := &api.Job{
 		PodSpecs: []*v1.PodSpec{{}, {}},
 	}
-	err = ValidateJobRequestItemPodSpec(multiplePods)
+	err = ValidateApiJobPodSpecs(multiplePods)
 	assert.Error(
 		t,
 		err,
@@ -48,48 +48,17 @@ func Test_ValidateJobRequestItemPodSpec(t *testing.T) {
 	)
 	validateInvalidArgumentErrorMessage(t, err, "Jobs with multiple pods are not supported")
 
-	multiplePodSpecs := &api.JobSubmitRequestItem{
+	multiplePodSpecs := &api.Job{
 		PodSpec:  &v1.PodSpec{},
 		PodSpecs: []*v1.PodSpec{{}},
 	}
-	err = ValidateJobRequestItemPodSpec(multiplePodSpecs)
+	err = ValidateApiJobPodSpecs(multiplePodSpecs)
 	assert.Error(
 		t,
 		err,
 		"validation should fail when both PodSpec and PodSpecs fields are specified",
 	)
 	validateInvalidArgumentErrorMessage(t, err, "Jobs with multiple pods are not supported")
-}
-
-func Test_ValidateJobRequestItemPriorityClass(t *testing.T) {
-	validPriorityClass := &api.JobSubmitRequestItem{
-		PodSpec: &v1.PodSpec{PriorityClassName: "some-priority-class"},
-	}
-	allowedPriorityClasses := map[string]int32{"some-priority-class": 10}
-	assert.NoError(
-		t,
-		ValidateJobRequestItemPriorityClass(validPriorityClass, true, allowedPriorityClasses),
-		"validation should pass when specified priority class is configured to be allowed and preemption is enabled",
-	)
-
-	err := ValidateJobRequestItemPriorityClass(validPriorityClass, false, allowedPriorityClasses)
-	assert.Error(
-		t,
-		err,
-		"validation should fail if priority class is specified and disabled",
-	)
-	validateInvalidArgumentErrorMessage(t, err, "Preemption is disabled in Server config")
-
-	invalidPriorityClass := &api.JobSubmitRequestItem{
-		PodSpec: &v1.PodSpec{PriorityClassName: "some-other-priority-class"},
-	}
-	err = ValidateJobRequestItemPriorityClass(invalidPriorityClass, true, allowedPriorityClasses)
-	assert.Error(
-		t,
-		err,
-		"validation should fail if specified priority class is not configured to be allowed",
-	)
-	validateInvalidArgumentErrorMessage(t, err, "Specified Priority Class is not supported in Server config")
 }
 
 func validateInvalidArgumentErrorMessage(t *testing.T, err error, msg string) {

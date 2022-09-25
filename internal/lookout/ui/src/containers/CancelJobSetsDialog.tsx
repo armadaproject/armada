@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"
 import { ApiJobState } from "../openapi/armada"
-import JobService, { CancelJobSetsResponse, JobSet } from "../services/JobService"
+import { JobService, CancelJobSetsResponse, JobSet } from "../services/JobService"
 import { ApiResult, RequestStatus } from "../utils"
 
 export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult"
@@ -24,7 +24,7 @@ export function getCancellableJobSets(jobSets: JobSet[]): JobSet[] {
 }
 
 export function getStatesToCancel(includeQueued: boolean, includeRunning: boolean): ApiJobState[] {
-  const result = []
+  const result: ApiJobState[] = []
   if (includeQueued) {
     result.push(ApiJobState.Queued)
   }

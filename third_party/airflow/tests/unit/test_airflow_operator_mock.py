@@ -81,7 +81,7 @@ def test_mock_success_job():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=tester_jobservice,
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         airflow_task_name="test-mock",
         job_id="test_succeeded",
@@ -100,7 +100,7 @@ def test_mock_failed_job():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=tester_jobservice,
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         airflow_task_name="test-mock",
         job_id="test_failed",
@@ -119,7 +119,7 @@ def test_mock_cancelled_job():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=tester_jobservice,
-        queue="test",
+        armada_queue="test",
         job_set_id="test",
         airflow_task_name="test-mock",
         job_id="test_cancelled",

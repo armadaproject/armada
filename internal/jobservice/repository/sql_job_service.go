@@ -1,3 +1,4 @@
+//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -13,6 +14,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+type JobTableUpdater interface {
+	SubscribeJobSet(string, string)
+	IsJobSetSubscribed(string, string) bool
+	UpdateJobServiceDb(*JobStatus)
+}
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
 // Locks are used for concurrent access of map
@@ -30,6 +37,8 @@ type SQLJobService struct {
 	jobSetSubscribe  *JobSetSubscriptions
 	jobServiceConfig *configuration.JobServiceConfiguration
 	db               *sql.DB
+
+	writeLock sync.Mutex
 }
 
 func NewSQLJobService(jobSetSubscribe *JobSetSubscriptions, config *configuration.JobServiceConfiguration, db *sql.DB) *SQLJobService {
@@ -99,13 +108,18 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 }
 
 // Update database with JobTable.
-func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobTable) {
+func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
 	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		panic(err)
 	}
 	jobState := jobTable.jobResponse.State.String()
+
+	// SQLite only allows one write at a time. Therefore we must serialize
+	// writes in order to avoid SQL_BUSY errors.
+	s.writeLock.Lock()
 	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
+	s.writeLock.Unlock()
 
 	// TODO: Make more robust
 	if errExec != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
@@ -33,6 +34,7 @@ import (
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -212,32 +214,46 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var submitServerToRegister api.SubmitServer
 	submitServerToRegister = submitServer
 
+	// If pool settings are provided, open a connection pool to be shared by all services.
+	var pool *pgxpool.Pool
+	if len(config.Postgres.Connection) != 0 {
+		pool, err = postgres.OpenPgxPool(config.Postgres)
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+	}
+
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
 	// Store a list of all Pulsar components to use during cleanup later.
+	var pulsarClient pulsar.Client
+	var pulsarCompressionType pulsar.CompressionType
+	var pulsarCompressionLevel pulsar.CompressionLevel
 	if config.Pulsar.Enabled {
 		serverId := uuid.New()
 
 		// API endpoints that generate Pulsar messages.
 		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
-		pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+		var err error
+		pulsarClient, err = pulsarutils.NewPulsarClient(&config.Pulsar)
 		if err != nil {
 			return err
 		}
 		defer pulsarClient.Close()
 
-		compressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+		pulsarCompressionType, err = pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
 		if err != nil {
 			return err
 		}
-		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+		pulsarCompressionLevel, err = pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
 		if err != nil {
 			return err
 		}
 		serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
 		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 			Name:             serverPulsarProducerName,
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
@@ -257,14 +273,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 		// If postgres details were provided, enable deduplication.
 		if config.Pulsar.DedupTable != "" {
-			log.Info("Pulsar submit API deduplication enabled")
-			db, err := postgres.OpenPgxPool(config.Postgres)
-			if err != nil {
-				return err
+			if pool == nil {
+				return errors.New("deduplication is enabled, but no postgres settings are provided")
 			}
-			defer db.Close()
+			log.Info("Pulsar submit API deduplication enabled")
 
-			store, err := pgkeyvalue.New(db, 1000000, config.Pulsar.DedupTable)
+			store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
 			if err != nil {
 				return err
 			}
@@ -319,8 +333,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
 			Name:             p2pPulsarProducer,
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
 			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 			Topic:            config.Pulsar.JobsetEventsTopic,
 		})
@@ -352,6 +366,65 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
 
+	// New Pulsar-based scheduler.
+	var newSchedulerApiServer *scheduler.ExecutorApi
+	if config.NewScheduler.Enabled {
+		if !config.Pulsar.Enabled {
+			return errors.New("new scheduler enabled, but Pulsar is disabled")
+		}
+		if pool == nil {
+			return errors.New("new scheduler enabled, but postgres is disabled")
+		}
+
+		// Scheduler jobs ingester.
+		schedulerIngester := &scheduler.Ingester{
+			PulsarClient: pulsarClient,
+			ConsumerOptions: pulsar.ConsumerOptions{
+				Topic:            config.Pulsar.JobsetEventsTopic,
+				SubscriptionName: "pulsar-scheduler-ingester",
+				Type:             pulsar.KeyShared,
+			},
+			MaxWriteInterval: time.Second,
+			MaxDbOps:         10000,
+			Db:               pool,
+		}
+		services = append(services, func() error {
+			return schedulerIngester.Run(ctx)
+		})
+
+		// The scheduler itself.
+		// TODO: I think we can safely re-use the same producer for all components.
+		schedulerProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		sched := scheduler.NewScheduler(schedulerProducer, pool)
+		services = append(services, func() error {
+			return sched.Run(ctx)
+		})
+
+		// API of the new scheduler.
+		apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+			CompressionType:  pulsarCompressionType,
+			CompressionLevel: pulsarCompressionLevel,
+			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+			Topic:            config.Pulsar.JobsetEventsTopic,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		newSchedulerApiServer = &scheduler.ExecutorApi{
+			Producer:       apiProducer,
+			Db:             pool,
+			MaxJobsPerCall: 100,
+		}
+	}
+
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
@@ -364,7 +437,15 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
-	eventServer := server.NewEventServer(permissions, eventRepository, legacyEventRepository, eventStore, queueRepository, config.DefaultToLegacyEvents)
+	eventServer := server.NewEventServer(
+		permissions,
+		eventRepository,
+		legacyEventRepository,
+		eventStore,
+		queueRepository,
+		jobRepository,
+		config.DefaultToLegacyEvents,
+	)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	// Allows for registering functions to be run periodically in the background.
@@ -377,9 +458,17 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
-	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	api.RegisterEventServer(grpcServer, eventServer)
 
+	// If the new Pulsar-driven scheduler is provided, run that.
+	// Otherwise run the legacy scheduler.
+	if newSchedulerApiServer != nil {
+		log.Info("Pulsar-based scheduler enabled")
+		api.RegisterAggregatedQueueServer(grpcServer, newSchedulerApiServer)
+	} else {
+		log.Info("legacy scheduler enabled")
+		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
+	}
 	grpc_prometheus.Register(grpcServer)
 
 	// Cancel the errgroup if grpcServer.Serve returns an error.

@@ -40,7 +40,9 @@ kubernetes:
   # Instantly fail jobs when the pod submission error matches the regexes below
   fatalPodSubmissionErrors:
     - "admission webhook"
+    - "namespaces \".*\" not found"
   pendingPodChecks:
+    timeWithoutEventsOrStatus: 10m
     events:
       - regexp: "Failed to pull image.*desc = failed to pull and unpack image"            # Suggests genuine problem with image name, no point in waiting around too long.
         type: Warning

@@ -546,6 +546,9 @@ func SwaggerJsonTemplate() string {
 		"        \"pending\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobPendingEvent\"\n" +
 		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobPreemptedEvent\"\n" +
+		"        },\n" +
 		"        \"queued\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
 		"        },\n" +
@@ -662,7 +665,6 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"k8sIngress\": {\n" +
-		"          \"description\": \"repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\\ngithub.com.G-Research.armada.internal.events.\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Ingress\"\n" +
@@ -713,6 +715,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +
@@ -1013,6 +1019,36 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobPreemptedEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clusterId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveJobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveRunId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobQueuedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1295,6 +1331,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +

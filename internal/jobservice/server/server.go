@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/G-Research/armada/internal/jobservice/events"
 	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 
@@ -15,10 +16,10 @@ import (
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
-	jobRepository    repository.SQLJobService
+	jobRepository    *repository.SQLJobService
 }
 
-func NewJobService(config *configuration.JobServiceConfiguration, sqlService repository.SQLJobService) *JobServiceServer {
+func NewJobService(config *configuration.JobServiceConfiguration, sqlService *repository.SQLJobService) *JobServiceServer {
 	return &JobServiceServer{jobServiceConfig: config, jobRepository: sqlService}
 }
 
@@ -27,9 +28,10 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 
 	if !s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId) {
 
-		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, s.jobServiceConfig, s.jobRepository)
+		eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
+		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, eventClient, s.jobRepository)
 		g.Go(func() error {
-			return eventJob.SubscribeToJobSetId(context.Background())
+			return eventJob.SubscribeToJobSetId(context.Background(), s.jobServiceConfig.SubscribeJobSetTime)
 		})
 	}
 	s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId)

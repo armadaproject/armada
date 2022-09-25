@@ -117,6 +117,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, userAnnot
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			messageLogger.Debugf("Ignoring event type %T", event)
 		default:
 			messageLogger.Warnf("Ignoring unknown event type %T", event)

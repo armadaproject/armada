@@ -17,6 +17,11 @@ func ConfigureAuth(config configuration.AuthConfig) []authorization.AuthService 
 			authorization.NewBasicAuthService(config.BasicAuth.Users))
 	}
 
+	if config.KubernetesAuth.KidMappingFileLocation != "" {
+		kubernetesAuthService := authorization.NewKubernetesNativeAuthService(config.KubernetesAuth)
+		authServices = append(authServices, &kubernetesAuthService)
+	}
+
 	if config.OpenIdAuth.ProviderUrl != "" {
 		openIdAuthService, err := authorization.NewOpenIdAuthServiceForProvider(context.Background(), &config.OpenIdAuth)
 		if err != nil {

@@ -4,7 +4,7 @@ import { RouteComponentProps, withRouter } from "react-router-dom"
 
 import Overview from "../components/Overview"
 import IntervalService from "../services/IntervalService"
-import JobService, { Job, QueueInfo } from "../services/JobService"
+import { JobService, Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
 import OverviewLocalStorageService from "../services/OverviewLocalStorageService"
 import { RequestStatus, setStateAsync } from "../utils"

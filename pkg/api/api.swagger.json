@@ -535,6 +535,9 @@
         "pending": {
           "$ref": "#/definitions/apiJobPendingEvent"
         },
+        "preempted": {
+          "$ref": "#/definitions/apiJobPreemptedEvent"
+        },
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
         },
@@ -651,7 +654,6 @@
           "type": "string"
         },
         "k8sIngress": {
-          "description": "repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\ngithub.com.G-Research.armada.internal.events.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1Ingress"
@@ -702,6 +704,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "scheduler": {
+          "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
+          "type": "string"
         },
         "services": {
           "type": "array",
@@ -1002,6 +1008,36 @@
         }
       }
     },
+    "apiJobPreemptedEvent": {
+      "type": "object",
+      "properties": {
+        "clusterId": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "preemptiveJobId": {
+          "type": "string"
+        },
+        "preemptiveRunId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        }
+      }
+    },
     "apiJobQueuedEvent": {
       "type": "object",
       "properties": {
@@ -1284,6 +1320,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "scheduler": {
+          "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
+          "type": "string"
         },
         "services": {
           "type": "array",

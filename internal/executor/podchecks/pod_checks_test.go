@@ -30,7 +30,7 @@ func Test_GetAction(t *testing.T) {
 
 	for _, test := range tests {
 		podChecks := podChecksWithMocks(test.eventAction, test.containerStateAction)
-		result, _ := podChecks.GetAction(&v1.Pod{}, []*v1.Event{}, time.Minute)
+		result, _ := podChecks.GetAction(basicPod(), []*v1.Event{{Message: "MockEvent", Type: "None"}}, time.Minute)
 		assert.Equal(t, test.expectedResult, result)
 	}
 }
@@ -40,6 +40,20 @@ func podChecksWithMocks(eventResult Action, containerStateResult Action) *PodChe
 		eventChecks:          &mockEventChecks{result: eventResult, message: mockMessage(eventResult)},
 		containerStateChecks: &mockContainerStateChecks{result: containerStateResult, message: mockMessage(containerStateResult)},
 	}
+}
+
+func Test_GetActionBadNode(t *testing.T) {
+	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, deadlineForUpdates: time.Minute}
+	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, 10*time.Minute)
+	assert.Equal(t, result, ActionRetry)
+	assert.Equal(t, message, "Pod status and pod events are both empty. Retrying")
+}
+
+func Test_GetActionBadNodeButUnderTimeLimit(t *testing.T) {
+	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, deadlineForUpdates: time.Minute}
+	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, 10*time.Second)
+	assert.Equal(t, result, ActionWait)
+	assert.Equal(t, message, "Pod status and pod events are both empty but we are under timelimit. Waiting")
 }
 
 func mockMessage(result Action) string {

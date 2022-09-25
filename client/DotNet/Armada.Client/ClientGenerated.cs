@@ -1083,6 +1083,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("pending", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobPendingEvent Pending { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("preempted", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public ApiJobPreemptedEvent Preempted { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("queued", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public ApiJobQueuedEvent Queued { get; set; }
     
@@ -1189,8 +1192,6 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string JobSetId { get; set; }
     
-        /// <summary>repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;
-        /// github.com.G-Research.armada.internal.events.</summary>
         [Newtonsoft.Json.JsonProperty("k8sIngress", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<V1Ingress> K8sIngress { get; set; }
     
@@ -1223,6 +1224,11 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
+    
+        /// <summary>Indicates which scheduler should manage this job.
+        /// If empty, the default scheduler is used.</summary>
+        [Newtonsoft.Json.JsonProperty("scheduler", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Scheduler { get; set; }
     
         [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }
@@ -1508,6 +1514,36 @@ namespace GResearch.Armada.Client
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
+    public partial class ApiJobPreemptedEvent 
+    {
+        [Newtonsoft.Json.JsonProperty("clusterId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string ClusterId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public System.DateTimeOffset? Created { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("jobSetId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string JobSetId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("preemptiveJobId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PreemptiveJobId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("preemptiveRunId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string PreemptiveRunId { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("queue", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Queue { get; set; }
+    
+        [Newtonsoft.Json.JsonProperty("runId", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string RunId { get; set; }
+    
+    
+    }
+    
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]
     public partial class ApiJobQueuedEvent 
     {
         [Newtonsoft.Json.JsonProperty("created", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
@@ -1760,6 +1796,11 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
+    
+        /// <summary>Indicates which scheduler should manage this job.
+        /// If empty, the default scheduler is used.</summary>
+        [Newtonsoft.Json.JsonProperty("scheduler", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string Scheduler { get; set; }
     
         [Newtonsoft.Json.JsonProperty("services", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<ApiServiceConfig> Services { get; set; }

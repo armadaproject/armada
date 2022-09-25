@@ -224,6 +224,7 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 		},
 		MainObject: mainObject,
 		Objects:    objects,
+		Scheduler:  job.Scheduler,
 	}, nil
 }
 
@@ -402,7 +403,7 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 		}
 		// Consider sequences within the same jobSet for compaction.
 		if jobSetSequences, ok := sequencesFromJobSetName[sequence.JobSetName]; ok {
-			// This first if should never trigger.
+			// This first if clause should never trigger.
 			if len(jobSetSequences) == 0 {
 				numSequences++
 				sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
@@ -688,7 +689,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
-								Namespace:    m.Running.NodeName,
+								Namespace:    m.Running.PodNamespace,
 								Name:         m.Running.PodName,
 								KubernetesId: m.Running.KubernetesId,
 								// TODO: These should be included.
@@ -864,6 +865,24 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runId,
 					JobId: jobId,
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								Namespace:    m.Succeeded.PodNamespace,
+								Name:         m.Succeeded.PodName,
+								KubernetesId: m.Succeeded.KubernetesId,
+								// TODO: These should be included.
+								Annotations: nil,
+								Labels:      nil,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									NodeName:  m.Succeeded.NodeName,
+									PodNumber: m.Succeeded.PodNumber,
+								},
+							},
+						},
+					},
 				},
 			},
 		})
@@ -1024,6 +1043,47 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		// Do nothing; there's no corresponding Pulsar message.
 	case *api.EventMessage_Updated:
 		// Do nothing; we're not allowing arbitrary job updates.
+	case *api.EventMessage_Preempted:
+		sequence.Queue = m.Preempted.Queue
+		sequence.JobSetName = m.Preempted.JobSetId
+
+		preemptedJobId, err := armadaevents.ProtoUuidFromUlidString(m.Preempted.JobId)
+		if err != nil {
+			return nil, err
+		}
+		preemptedRunId, err := armadaevents.ProtoUuidFromUuidString(m.Preempted.RunId)
+		if err != nil {
+			return nil, err
+		}
+
+		jobRunPreempted := &armadaevents.JobRunPreempted{
+			PreemptedJobId: preemptedJobId,
+			PreemptedRunId: preemptedRunId,
+		}
+
+		if m.Preempted.PreemptiveJobId != "" {
+			preemptiveJobId, err := armadaevents.ProtoUuidFromUlidString(m.Preempted.PreemptiveJobId)
+			if err != nil {
+				return nil, err
+			}
+			jobRunPreempted.PreemptiveJobId = preemptiveJobId
+		}
+		if m.Preempted.PreemptiveRunId != "" {
+			preemptiveRunId, err := armadaevents.ProtoUuidFromUuidString(m.Preempted.PreemptiveRunId)
+			if err != nil {
+				return nil, err
+			}
+			jobRunPreempted.PreemptiveRunId = preemptiveRunId
+		}
+
+		event := &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: jobRunPreempted,
+		}
+		sequenceEvent := &armadaevents.EventSequence_Event{
+			Created: &m.Preempted.Created,
+			Event:   event,
+		}
+		sequence.Events = append(sequence.Events, sequenceEvent)
 	default:
 		err = &armadaerrors.ErrInvalidArgument{
 			Name:    "msg",
@@ -1037,7 +1097,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	return sequence, nil
 }
 
-// Id used for messages for which we can't use the kubernetesId.
+// LEGACY_RUN_ID is used for messages for which we can't use the kubernetesId.
 const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
 
 func LegacyJobRunId() *armadaevents.Uuid {

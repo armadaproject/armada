@@ -54,7 +54,7 @@ def test_success_job():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
-        queue="test",
+        armada_queue="test",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=job_id,
@@ -75,7 +75,7 @@ def test_bad_job():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
-        queue="test",
+        armada_queue="test",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=job_id,
@@ -96,7 +96,7 @@ def test_two_jobs():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
-        queue="test",
+        armada_queue="test",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=first_job_id,
@@ -113,7 +113,7 @@ def test_two_jobs():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
-        queue="test",
+        armada_queue="test",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=second_job_id,
@@ -134,7 +134,7 @@ def test_two_jobs_good_bad():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
-        queue="test",
+        armada_queue="test",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=first_job_id,
@@ -151,7 +151,7 @@ def test_two_jobs_good_bad():
 
     job_state, job_message = search_for_job_complete(
         job_service_client=job_service_client,
-        queue="test",
+        armada_queue="test",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=second_job_id,
