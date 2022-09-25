@@ -27,8 +27,8 @@ jobs:
           rm docker-images.tar.gz
       - name: Upload images to docker
         env:
-            DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-            DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+            DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
+            DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
         run: |
           # Note(JayF): All the offical docker actions for uploading these
           # containers also assume you need to rebuild them. That makes them
