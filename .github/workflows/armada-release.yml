@@ -1,0 +1,83 @@
+name: Release Armada
+
+on:
+  release:
+    types: [published]
+
+# put secrets in an armada-release environment
+# ensure we use environment here
+jobs:
+  release-armadactl:
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    strategy:
+      matrix:
+        # We obviously will not matrix releases; but
+        # the go-setup workflow expects this to be set
+        # via a matrix
+        go: [ '1.18' ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+      - run: make build-armadactl-release
+        env:
+          RELEASE_VERSION: ${{ github.ref }}
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: dist/*
+          file_glob: true
+      - name: Upload artifact to github actions
+        uses: actions/upload-artifact@v3
+        with:
+          name: armadactl-release
+          path: dist/*
+
+  release-docker-images:
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    environment: armada-dockerhub
+    steps:
+      - name: Pull and re-tag docker images
+        env:
+         DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
+         DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+        run: |
+          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+    
+          IMAGES_TO_UPLOAD=(
+            "armada-server"
+            "armada-executor"
+            "armada-armadactl"
+            "armada-testsuite"
+            "armada-lookout"
+            "armada-lookout-ingester"
+            "armada-event-ingester"
+            "armada-binoculars"
+            "armada-jobservice"
+          )
+    
+          for image in "${IMAGES_TO_UPLOAD[@]}"; do
+            docker pull gresearchdev/${image}-dev:${{ github.sha }}
+            docker tag gresearchdev/${image}-dev:${{ github.sha }} gresearchdev/${image}:${{ github.ref }}
+            docker push gresearchdev/${image}:${{ github.ref }}
+          done
+  # Note(JayF): We should utilize release-charts stuff GROSS devops team is working on
+  # and not reinvent the wheel here
+  release-dotnet-client:
+    runs-on: ubuntu-22.04
+    environment: armada-nuget
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create version tag for dotnet
+        id: version
+        run: |
+          DOTNET_TAG=$(echo ${{ github.ref }} | sed 's/v//g')
+          echo "::set-output name=DOTNET_TAG::$DOTNET_TAG"
+      - run: make push-nuget
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.DOTNET_TAG }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      - name: Upload artifact to github actions
+        uses: actions/upload-artifact@v3
+        with:
+          name: armada-dotnet-client-release
+          path: bin/client/DotNet/*
