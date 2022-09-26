@@ -29,7 +29,7 @@ on:
 
 jobs:
   python-client-tox:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         go: [ '1.18' ]
@@ -41,7 +41,7 @@ jobs:
           python-version: '3.8.10'
           path: 'client/python'
   python-client-integration-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         go: [ '1.18' ]
