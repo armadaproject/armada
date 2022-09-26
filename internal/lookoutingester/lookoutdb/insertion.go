@@ -169,8 +169,7 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 				  job       jsonb,
                   orig_job_spec bytea,
 				  state     smallint,
-				  job_updated   timestamp,
-                                  reason    varchar(64)
+				  job_updated   timestamp
 				) ON COMMIT DROP;`, tmpTable))
 			return err
 		}
@@ -178,7 +177,7 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "job", "orig_job_spec", "state", "job_updated", "reason"},
+				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "job", "orig_job_spec", "state", "job_updated"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
@@ -191,7 +190,6 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 						instructions[i].JobProto,
 						instructions[i].State,
 						instructions[i].Updated,
-						instructions[i].Reason,
 					}, nil
 				}),
 			)
@@ -202,7 +200,7 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`
-					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated, reason) SELECT * from %s
+					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			return err
@@ -214,12 +212,12 @@ func CreateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 
 // CreateJobsScalar will insert jobs one by one into the database
 func CreateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*model.CreateJobInstruction) {
-	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated, reason)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated, i.Reason)
+			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated)
 			return err
 		})
 		if err != nil {
@@ -241,9 +239,7 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 					state       smallint,
 					job_updated timestamp,
 					cancelled   timestamp,
-					duplicate   bool,
-                                        reason      varchar(64)
-
+					duplicate   bool
 				) ON COMMIT DROP;`, tmpTable))
 			return err
 		}
@@ -251,7 +247,7 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "priority", "state", "job_updated", "cancelled", "duplicate", "reason"},
+				[]string{"job_id", "priority", "state", "job_updated", "cancelled", "duplicate"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
@@ -260,7 +256,6 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
 						instructions[i].Updated,
 						instructions[i].Cancelled,
 						instructions[i].Duplicate,
-						instructions[i].Reason,
 					}, nil
 				}),
 			)
@@ -276,8 +271,7 @@ func UpdateJobsBatch(ctx context.Context, db *pgxpool.Pool, instructions []*mode
                   state = coalesce(tmp.state, job.state),
                   job_updated = tmp.job_updated,
                   cancelled = coalesce(tmp.cancelled, job.cancelled),
-                  duplicate = coalesce(tmp.duplicate, job.duplicate),
-                  reason = coalesce(tmp.reason, job.reason)
+                  duplicate = coalesce(tmp.duplicate, job.duplicate)
 				FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			return err
@@ -294,12 +288,11 @@ func UpdateJobsScalar(ctx context.Context, db *pgxpool.Pool, instructions []*mod
                   state = coalesce($2, state),
                   job_updated = coalesce($3, job_updated),
                   cancelled = coalesce($4, cancelled),
-                  duplicate = coalesce($5, duplicate),
-                  reason = coalesce($6, reason)
-				WHERE job_id = $7`
+                  duplicate = coalesce($5, duplicate)
+				WHERE job_id = $6`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.Reason, i.JobId)
+			_, err := db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
 			return err
 		})
 		if err != nil {

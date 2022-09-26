@@ -46,15 +46,11 @@ func Test_RecordRunEvents(t *testing.T) {
 			Queue:        queue,
 			Created:      time.Now(),
 			KubernetesId: k8sId1,
-			Cause:        api.Cause(2), // <- 2 is Cause ID for OOM
 		})
 		assert.NoError(t, err)
 
 		assert.Equal(t, 1, selectInt(t, db,
 			"SELECT count(*) FROM job_run WHERE created IS NOT NULL AND started IS NOT NULL AND finished IS NOT NULL"))
-		// event Cause is converted to string reason
-		assert.Equal(t, "OOM", selectNullString(t, db,
-			"SELECT reason FROM job WHERE job_id = '"+jobId+"'").String)
 	})
 }
 

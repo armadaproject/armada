@@ -320,12 +320,6 @@ var expectedFailed = model.UpdateJobRunInstruction{
 	Error:     pointer.String(errMsg),
 }
 
-var expectedJobFailed = model.UpdateJobInstruction{
-	JobId:   jobIdString,
-	Updated: baseTime,
-	Reason:  pointer.String("PodError"),
-}
-
 var expectedJobRunContainer = model.CreateJobRunContainerInstruction{
 	RunId:    runIdString,
 	ExitCode: 1,

@@ -367,9 +367,6 @@ func SwaggerJsonTemplate() string {
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"reason\": {\n" +
-		"          \"type\": \"string\"\n" +
-		"        },\n" +
 		"        \"skip\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int64\"\n" +
@@ -416,9 +413,6 @@ func SwaggerJsonTemplate() string {
 		"        \"preempted\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
-		"        \"reason\": {\n" +
-		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"runs\": {\n" +
 		"          \"type\": \"array\",\n" +

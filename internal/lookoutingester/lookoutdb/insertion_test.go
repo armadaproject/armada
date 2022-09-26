@@ -42,7 +42,6 @@ var (
 	startTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
 	finishedTime, _  = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
 	preemptedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
-	reason           = "OOM"
 )
 
 // An invalid job id that exceeds th varchar count
@@ -61,7 +60,6 @@ type JobRow struct {
 	Duplicate bool
 	Updated   time.Time
 	Cancelled *time.Time
-	Reason    *string
 }
 
 type JobRunRow struct {
@@ -110,7 +108,6 @@ func defaultInstructionSet() *model.InstructionSet {
 			Priority: pointer.Int32(updatePriority),
 			State:    pointer.Int32(updateState),
 			Updated:  updateTime,
-			Reason:   &reason,
 		}},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{{
 			RunId:   runIdString,
@@ -169,7 +166,6 @@ var expectedJobAfterUpdate = JobRow{
 	JobJson:   []byte(jobJson),
 	JobProto:  []byte(jobProto),
 	Duplicate: false,
-	Reason:    &reason,
 }
 
 var expectedJobRun = JobRunRow{
@@ -672,7 +668,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	job := JobRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled, reason FROM job WHERE job_id = $1`,
+		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
 		&job.JobId,
@@ -687,7 +683,6 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.JobJson,
 		&job.JobProto,
 		&job.Cancelled,
-		&job.Reason,
 	)
 	assert.Nil(t, err)
 	return job

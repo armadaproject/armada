@@ -85,7 +85,6 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			job_cancelled,
 			job_job,
 			job_state,
-			job_reason,
 			jobRun_runId,
 			jobRun_podNumber,
 			jobRun_cluster,
@@ -114,10 +113,6 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 
 	if opts.Owner != "" {
 		filters = append(filters, StartsWith(job_owner, opts.Owner))
-	}
-
-	if opts.Reason != "" {
-		filters = append(filters, StartsWith(job_reason, opts.Reason))
 	}
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
@@ -202,10 +197,9 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 		if row.JobId.Valid {
 			jobId := row.JobId.String
 			if _, ok := jobMap[jobId]; !ok {
-				var state, reason string
+				var state string
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
-					reason = row.Reason.String
 				}
 				job, err := makeJobFromRow(row)
 				if err != nil {
@@ -216,7 +210,6 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 					Cancelled: ParseNullTime(row.Cancelled),
 					Preempted: ParseNullTime(row.Preempted),
 					JobState:  state,
-					Reason:    reason,
 					Runs:      []*lookout.RunInfo{},
 					JobJson:   ParseNullString(row.JobJson),
 				}

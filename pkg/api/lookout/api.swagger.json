@@ -356,9 +356,6 @@
         "queue": {
           "type": "string"
         },
-        "reason": {
-          "type": "string"
-        },
         "skip": {
           "type": "integer",
           "format": "int64"
@@ -405,9 +402,6 @@
         "preempted": {
           "type": "string",
           "format": "date-time"
-        },
-        "reason": {
-          "type": "string"
         },
         "runs": {
           "type": "array",

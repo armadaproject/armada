@@ -57,7 +57,6 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Owner" value={props.job.owner} />
             <DetailRow name="Job set" value={props.job.jobSet} />
             <DetailRow name="Job state" value={props.job.jobState} />
-            {props.job.reason && <DetailRow name="Reason" value={props.job.reason} />}
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}

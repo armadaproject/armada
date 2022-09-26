@@ -63,7 +63,6 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
         priority: 0,
         jobState: "",
         queue: "",
-        reason: "",
         submissionTime: "",
         runs: [],
         jobYaml: "",
