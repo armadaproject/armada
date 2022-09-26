@@ -125,17 +125,19 @@ func jobStateStrToJSRState(jobState string) (js.JobServiceResponse_State, error)
 
 // Update database with JobTable.
 func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
+	// SQLite only allows one write at a time. Therefore we must serialize
+	// writes in order to avoid SQL_BUSY errors.
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
 	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		panic(err)
 	}
+	defer stmt.Close()
 	jobState := jobTable.jobResponse.State.String()
 
-	// SQLite only allows one write at a time. Therefore we must serialize
-	// writes in order to avoid SQL_BUSY errors.
-	s.writeLock.Lock()
 	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
-	s.writeLock.Unlock()
 
 	// TODO: Make more robust
 	if errExec != nil {
