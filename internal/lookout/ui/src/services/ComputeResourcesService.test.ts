@@ -27,9 +27,13 @@ podSpec:
         limits:
           cpu: 150m
           memory: 64Mi
+          nvidia.com/gpu: 1
+          storage: 50m
         requests:
           cpu: 150m
           memory: 64Mi
+          nvidia.com/gpu: 1
+          storage: 50m
   imagePullPolicy: IfNotPresent
   restartPolicy: Never
   terminationGracePeriodSeconds: 0
@@ -44,7 +48,7 @@ podSpec:
     expect(getCommandArgumentsFromJobYaml(yamlifed)).toStrictEqual(["sleep $(( (RANDOM % 30) + 30 ))"])
     expect(getCpuFromJobYaml(yamlifed)).toStrictEqual(["150m"])
     expect(getMemoryFromJobYaml(yamlifed)).toStrictEqual(["64Mi"])
-    expect(getGpuFromJobYaml(yamlifed)).toStrictEqual([""])
-    expect(getStorageFromJobYaml(yamlifed)).toStrictEqual([""])
+    expect(getGpuFromJobYaml(yamlifed)).toStrictEqual([1])
+    expect(getStorageFromJobYaml(yamlifed)).toStrictEqual(["50m"])
   })
 })
