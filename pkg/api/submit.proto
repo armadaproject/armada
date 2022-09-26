@@ -26,6 +26,47 @@ message JobSubmitRequestItem {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
+    // Main object that determines when an application has finished.
+    KubernetesMainObject mainObject = 12;
+    // Set of additional Kubernetes objects to create as part of the job.
+    repeated KubernetesObject objects = 13;
+}
+
+// Kubernetes objects that can serve as main objects for an Armada job.
+message KubernetesMainObject {
+    ObjectMeta objectMeta = 1;
+    oneof object {
+        k8s.io.api.core.v1.PodSpec pod_spec = 2;
+    }
+}
+
+// Kubernetes objects that can be created as part of an Armada.
+message KubernetesObject {
+    ObjectMeta objectMeta = 1;
+    oneof object {
+        k8s.io.api.core.v1.PodSpec pod_spec = 2;
+        k8s.io.api.networking.v1.IngressSpec ingress = 3;
+        k8s.io.api.core.v1.ServiceSpec service = 4;
+        k8s.io.api.core.v1.ConfigMap configMap = 5;
+    }
+}
+
+// Auxiliary information needed to instantiate the object in Kubernetes.
+// Inspired by the Kubernetes ObjectMeta object; see:
+// https://github.com/kubernetes/apimachinery/blob/master/pkg/apis/meta/v1/generated.proto#L641
+message ObjectMeta {
+    // Unique id of the executor responsible for the Kubernetes cluster that created the object.
+    // Is set by the executor on object creation.
+    string executor_id = 1;
+    string namespace = 2;
+    string name = 3;
+    // Unique id assigned to the object by Kubernetes (typically a 128-bit UUID).
+    // Should be left empty on job creation, but should be set, e.g., when in the JobRunRunning message.
+    // Stored as a string because Kubernetes doesn't always use UUIDs; see
+    // https://github.com/kubernetes/apimachinery/blob/master/pkg/types/uid.go#L19
+    string kubernetes_id = 4;
+    map<string, string> annotations = 5;
+    map<string, string> labels = 6;
 }
 
 message IngressConfig {
