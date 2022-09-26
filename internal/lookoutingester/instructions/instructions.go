@@ -290,9 +290,9 @@ func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, up
 		return err
 	}
 	jobRunUpdate := model.UpdateJobRunInstruction{
-		RunId: runId,
+		RunId:     runId,
 		Preempted: &ts,
-		Finished: &ts,
+		Finished:  &ts,
 		Succeeded: pointer.Bool(false),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRunUpdate)

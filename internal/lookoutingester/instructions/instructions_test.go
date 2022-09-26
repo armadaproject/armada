@@ -321,9 +321,9 @@ var expectedFailed = model.UpdateJobRunInstruction{
 }
 
 var expectedJobFailed = model.UpdateJobInstruction{
-	JobId:    jobIdString,
-	Updated:  baseTime,
-	Reason:   pointer.String("PodError"),
+	JobId:   jobIdString,
+	Updated: baseTime,
+	Reason:  pointer.String("PodError"),
 }
 
 var expectedJobRunContainer = model.CreateJobRunContainerInstruction{
@@ -439,7 +439,7 @@ func TestPreempted(t *testing.T) {
 	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunPreempted},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
