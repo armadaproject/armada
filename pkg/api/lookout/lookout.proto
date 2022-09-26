@@ -62,11 +62,12 @@ message JobSetInfo {
     uint32 jobs_running = 5;
     uint32 jobs_succeeded = 6;
     uint32 jobs_failed = 7;
+    uint32 jobs_cancelled = 8;
 
-    DurationStats runningStats = 8;
-    DurationStats queuedStats = 9;
+    DurationStats runningStats = 9;
+    DurationStats queuedStats = 10;
 
-    google.protobuf.Timestamp submitted = 10 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp submitted = 11 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message DurationStats {

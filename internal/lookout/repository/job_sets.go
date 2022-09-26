@@ -19,6 +19,7 @@ type jobSetCountsRow struct {
 	Running   sql.NullInt64 `db:"running"`
 	Succeeded sql.NullInt64 `db:"succeeded"`
 	Failed    sql.NullInt64 `db:"failed"`
+	Cancelled sql.NullInt64 `db:"cancelled"`
 	Submitted sql.NullTime  `db:"submitted"`
 
 	RunningStatsMin     sql.NullTime `db:"running_min"`
@@ -68,10 +69,12 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 				goqu.L("COUNT(*) FILTER (WHERE job.state = 3)").As("running"),
 				goqu.L("COUNT(*) FILTER (WHERE job.state = 4)").As("succeeded"),
 				goqu.L("COUNT(*) FILTER (WHERE job.state = 5)").As("failed"),
+				goqu.L("COUNT(*) FILTER (WHERE job.state = 6)").As("cancelled"),
 				goqu.MAX(job_submitted).As("submitted")).
 			Where(goqu.And(
 				job_queue.Eq(opts.Queue),
 				job_state.In(
+					JobStateToIntMap[JobCancelled],
 					JobStateToIntMap[JobQueued],
 					JobStateToIntMap[JobPending],
 					JobStateToIntMap[JobRunning],
@@ -86,6 +89,7 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 			goqu.I("counts.running"),
 			goqu.I("counts.succeeded"),
 			goqu.I("counts.failed"),
+			goqu.I("counts.cancelled"),
 			goqu.I("counts.submitted")).
 		Where(activeOnlyFilter(opts.ActiveOnly)).
 		As("counts")
@@ -136,6 +140,7 @@ func (r *SQLJobRepository) createJobSetsDataset(opts *lookout.GetJobSetsRequest)
 			goqu.I("counts.running"),
 			goqu.I("counts.succeeded"),
 			goqu.I("counts.failed"),
+			goqu.I("counts.cancelled"),
 			goqu.I("counts.submitted").As("submitted"),
 			goqu.I("running_stats.min").As("running_min"),
 			goqu.I("running_stats.max").As("running_max"),
@@ -185,6 +190,7 @@ func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) 
 			JobsRunning:   uint32(ParseNullInt(row.Running)),
 			JobsSucceeded: uint32(ParseNullInt(row.Succeeded)),
 			JobsFailed:    uint32(ParseNullInt(row.Failed)),
+			JobsCancelled: uint32(ParseNullInt(row.Cancelled)),
 			Submitted:     ParseNullTime(row.Submitted),
 		}
 
