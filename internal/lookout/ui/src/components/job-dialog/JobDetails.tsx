@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react"
 import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
 
-import { Job } from "../../services/JobService"
 import {
   convertStringToYaml,
   getCommandFromJobYaml,
@@ -11,8 +10,9 @@ import {
   getCpuFromJobYaml,
   getMemoryFromJobYaml,
   getGpuFromJobYaml,
-  getDiskFromJobYaml,
-} from "../../utils"
+  getStorageFromJobYaml,
+} from "../../services/ComputeResourcesService"
+import { Job } from "../../services/JobService"
 import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
 import RunDetailsRows from "./RunDetailsRows"
@@ -44,7 +44,7 @@ export function useExpanded(): [Set<string>, ToggleFn, () => void] {
   return [expandedItems, toggle, clear]
 }
 
-export default function JobDetails(props: DetailsProps) {
+export function JobDetails(props: DetailsProps) {
   const [expandedItems, toggleExpanded, clearExpanded] = useExpanded()
 
   useEffect(() => {
@@ -56,6 +56,12 @@ export default function JobDetails(props: DetailsProps) {
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
   const jobYaml = convertStringToYaml(props.job.jobYaml)
+  const cpuResources = getCpuFromJobYaml(jobYaml)
+  const gpuResources = getGpuFromJobYaml(jobYaml)
+  const memoryResources = getMemoryFromJobYaml(jobYaml)
+  const diskResources = getStorageFromJobYaml(jobYaml)
+  const command = getCommandFromJobYaml(jobYaml)
+  const commandArgs = getCommandArgumentsFromJobYaml(jobYaml)
   return (
     <div className="details-content">
       <TableContainer>
@@ -68,13 +74,38 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Job state" value={props.job.jobState} />
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
-            <DetailRow name="CPU" value={getCpuFromJobYaml(jobYaml)} />
-            <DetailRow name="GPU" value={getGpuFromJobYaml(jobYaml)} />
-            <DetailRow name="Memory" value={getMemoryFromJobYaml(jobYaml)} />
-            <DetailRow name="Disk" value={getDiskFromJobYaml(jobYaml)} />
-            <DetailRow name="Command" value={getCommandFromJobYaml(jobYaml)} />
-            <DetailRow name="Command Arguments" value={getCommandArgumentsFromJobYaml(jobYaml)} />
-
+            {cpuResources &&
+              cpuResources.map(
+                (values, index) =>
+                  values.length > 0 && <DetailRow key={"CPU-" + index} name={"CPU-" + index} value={values} />,
+              )}
+            {gpuResources &&
+              gpuResources.map(
+                (values, index) =>
+                  values.length > 0 && <DetailRow key={"GPU-" + index} name={"GPU-" + index} value={values} />,
+              )}
+            {memoryResources &&
+              memoryResources.map(
+                (values, index) =>
+                  values.length > 0 && <DetailRow key={"Memory-" + index} name={"Memory-" + index} value={values} />,
+              )}
+            {diskResources &&
+              diskResources.map(
+                (values, index) =>
+                  values.length > 0 && <DetailRow key={"Disk-" + index} name={"Disk-" + index} value={values} />,
+              )}
+            {command &&
+              command.map(
+                (values, index) =>
+                  values.length > 0 && <DetailRow key={"Command-" + index} name={"Command-" + index} value={values} />,
+              )}
+            {commandArgs &&
+              commandArgs.map(
+                (values, index) =>
+                  values.length > 0 && (
+                    <DetailRow key={"Arguments-" + index} name={"Arguments-" + index} value={values} />
+                  ),
+              )}
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&

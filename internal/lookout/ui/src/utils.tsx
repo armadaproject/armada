@@ -7,7 +7,6 @@ interface UIConfig {
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
 }
-import { load } from "js-yaml"
 
 export type RequestStatus = "Loading" | "Idle"
 
@@ -147,51 +146,4 @@ const priorityRegex = new RegExp("^([0-9]+)$")
 
 export function priorityIsValid(priority: string): boolean {
   return priorityRegex.test(priority) && priority.length > 0
-}
-interface JobYaml {
-  podSpec: {
-    containers: Container[]
-  }
-}
-interface Container {
-  command: string[]
-  args: string[]
-  resources: {
-    limits: {
-      cpu: string
-      gpu: string
-      disk: string
-      memory: string
-    }
-  }
-}
-
-export function convertStringToYaml(jobYaml: string): JobYaml {
-  return load(jobYaml) as JobYaml
-}
-
-export function getCommandFromJobYaml(yamlifed: JobYaml): string {
-  if (yamlifed.podSpec.containers[0].command) {
-    return yamlifed.podSpec.containers[0].command.join()
-  }
-  return ""
-}
-export function getCommandArgumentsFromJobYaml(yamlifed: JobYaml): string {
-  if (yamlifed.podSpec.containers[0].args) {
-    return yamlifed.podSpec.containers[0].args.join()
-  }
-  return ""
-}
-
-export function getCpuFromJobYaml(yamlifed: JobYaml): string {
-  return yamlifed.podSpec.containers[0].resources?.limits?.cpu
-}
-export function getMemoryFromJobYaml(yamlifed: JobYaml): string {
-  return yamlifed.podSpec.containers[0].resources?.limits?.memory
-}
-export function getGpuFromJobYaml(yamlifed: JobYaml): string {
-  return yamlifed.podSpec.containers[0].resources?.limits?.gpu
-}
-export function getDiskFromJobYaml(yamlifed: JobYaml): string {
-  return yamlifed.podSpec.containers[0].resources?.limits?.disk
 }
