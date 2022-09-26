@@ -38,6 +38,10 @@ func NewOpenIdAuthService(verifier *oidc.IDTokenVerifier, groupsClaim string) *O
 	return &OpenIdAuthService{verifier, groupsClaim}
 }
 
+func (authService *OpenIdAuthService) Name() string {
+	return "OIDC"
+}
+
 func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
 	if err != nil {

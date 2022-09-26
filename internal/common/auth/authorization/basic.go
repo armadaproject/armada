@@ -18,6 +18,10 @@ func NewBasicAuthService(users map[string]configuration.UserInfo) *BasicAuthServ
 	return &BasicAuthService{users: users}
 }
 
+func (authService *BasicAuthService) Name() string {
+	return "Basic"
+}
+
 func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	basicAuth, err := grpc_auth.AuthFromMD(ctx, "basic")
 	if err == nil {
