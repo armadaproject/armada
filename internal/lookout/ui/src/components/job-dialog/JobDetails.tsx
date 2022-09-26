@@ -44,7 +44,7 @@ export function useExpanded(): [Set<string>, ToggleFn, () => void] {
   return [expandedItems, toggle, clear]
 }
 
-export function JobDetails(props: DetailsProps) {
+export default function JobDetails(props: DetailsProps) {
   const [expandedItems, toggleExpanded, clearExpanded] = useExpanded()
 
   useEffect(() => {
