@@ -71,6 +71,10 @@ type CacheData struct {
 	Valid bool   `json:"valid"`
 }
 
+func (authService *KubernetesNativeAuthService) Name() string {
+	return "KubernetesNative"
+}
+
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)

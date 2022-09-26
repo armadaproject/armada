@@ -64,6 +64,10 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, 
 	}, nil
 }
 
+func (authService *KerberosAuthService) Name() string {
+	return "Kerberos"
+}
+
 func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	encodedToken, err := grpc_auth.AuthFromMD(ctx, spnego.HTTPHeaderAuthResponseValueKey)
 	if err != nil {

@@ -31,6 +31,10 @@ type fakeAuthService struct {
 	err       error
 }
 
+func (f *fakeAuthService) Name() string {
+	return "Fake"
+}
+
 func (f *fakeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	return f.principal, f.err
 }

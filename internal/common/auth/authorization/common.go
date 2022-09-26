@@ -108,6 +108,7 @@ func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 // The gRPC server may be started with multiple AuthService to give several options for authentication.
 type AuthService interface {
 	Authenticate(ctx context.Context) (Principal, error)
+	Name() string
 }
 
 // CreateMiddlewareAuthFunction returns an authentication function that combines the given
