@@ -94,7 +94,7 @@ export default function JobSetTable(props: JobSetTableProps) {
         />
         <Column
           dataKey="latestSubmissionTime"
-          width={0.15 * props.width}
+          width={0.14 * props.width}
           label="Submission Time"
           headerRenderer={(cellProps) => (
             <SortableHeaderCell
@@ -108,38 +108,45 @@ export default function JobSetTable(props: JobSetTableProps) {
         />
         <Column
           dataKey="jobsQueued"
-          width={0.07 * props.width}
+          width={0.06 * props.width}
           label="Queued"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Queued")}
         />
         <Column
           dataKey="jobsPending"
-          width={0.07 * props.width}
+          width={0.06 * props.width}
           label="Pending"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Pending")}
         />
         <Column
           dataKey="jobsRunning"
-          width={0.07 * props.width}
+          width={0.06 * props.width}
           label="Running"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Running")}
         />
         <Column
           dataKey="jobsSucceeded"
-          width={0.07 * props.width}
+          width={0.06 * props.width}
           label="Succeeded"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Succeeded")}
         />
         <Column
           dataKey="jobsFailed"
-          width={0.07 * props.width}
+          width={0.06 * props.width}
           label="Failed"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
+        />
+        <Column
+          dataKey="jobsCancelled"
+          width={0.06 * props.width}
+          label="Cancelled"
+          className="job-set-table-number-cell"
+          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Cancelled")}
         />
       </VirtualizedTable>
     </div>
