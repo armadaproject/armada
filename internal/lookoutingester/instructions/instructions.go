@@ -285,9 +285,15 @@ func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *
 }
 
 func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.PreemptedRunId)
+	if err != nil {
+		return err
+	}
 	jobRunUpdate := model.UpdateJobRunInstruction{
-		RunId: event.PreemptedRunId.String(),
+		RunId: runId,
 		Preempted: &ts,
+		Finished: &ts,
+		Succeeded: pointer.Bool(false),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRunUpdate)
 	return nil
