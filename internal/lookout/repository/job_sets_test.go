@@ -143,6 +143,7 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 			JobsRunning:   1,
 			JobsSucceeded: 1,
 			JobsFailed:    1,
+			JobsCancelled: 1,
 			Submitted:     &someTime,
 		}, jobSetInfos[0])
 	})

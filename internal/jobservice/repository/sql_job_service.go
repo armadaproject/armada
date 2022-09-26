@@ -37,6 +37,8 @@ type SQLJobService struct {
 	jobSetSubscribe  *JobSetSubscriptions
 	jobServiceConfig *configuration.JobServiceConfiguration
 	db               *sql.DB
+
+	writeLock sync.Mutex
 }
 
 func NewSQLJobService(jobSetSubscribe *JobSetSubscriptions, config *configuration.JobServiceConfiguration, db *sql.DB) *SQLJobService {
@@ -79,30 +81,46 @@ func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, erro
 	row := s.db.QueryRow("SELECT JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
 	var jobState string
 	var jobError string
+
 	err := row.Scan(&jobState, &jobError)
+
 	if err == sql.ErrNoRows {
 		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	} else if err != nil {
 		return nil, err
 	}
-	jobProtoResponse := &js.JobServiceResponse{Error: jobError}
+
+	jobJSRState, err := jobStateStrToJSRState(jobState)
+	if err != nil {
+		return nil, err
+	}
+
+	return &js.JobServiceResponse{
+		Error: jobError,
+		State: jobJSRState,
+	}, nil
+}
+
+func jobStateStrToJSRState(jobState string) (js.JobServiceResponse_State, error) {
 	switch jobState {
 	case "SUBMITTED":
-		jobProtoResponse.State = js.JobServiceResponse_SUBMITTED
+		return js.JobServiceResponse_SUBMITTED, nil
 	case "DUPLICATE_FOUND":
-		jobProtoResponse.State = js.JobServiceResponse_DUPLICATE_FOUND
+		return js.JobServiceResponse_DUPLICATE_FOUND, nil
 	case "RUNNING":
-		jobProtoResponse.State = js.JobServiceResponse_RUNNING
+		return js.JobServiceResponse_RUNNING, nil
 	case "FAILED":
-		jobProtoResponse.State = js.JobServiceResponse_FAILED
+		return js.JobServiceResponse_FAILED, nil
 	case "SUCCEEDED":
-		jobProtoResponse.State = js.JobServiceResponse_SUCCEEDED
+		return js.JobServiceResponse_SUCCEEDED, nil
 	case "CANCELLED":
-		jobProtoResponse.State = js.JobServiceResponse_CANCELLED
+		return js.JobServiceResponse_CANCELLED, nil
 	case "JOB_ID_NOT_FOUND":
-		jobProtoResponse.State = js.JobServiceResponse_JOB_ID_NOT_FOUND
+		return js.JobServiceResponse_JOB_ID_NOT_FOUND, nil
 	}
-	return jobProtoResponse, nil
+
+	return js.JobServiceResponse_JOB_ID_NOT_FOUND,
+		fmt.Errorf("jobStateStrToJSRState: invalid job state string '%s'", jobState)
 }
 
 // Update database with JobTable.
@@ -112,7 +130,12 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
 		panic(err)
 	}
 	jobState := jobTable.jobResponse.State.String()
+
+	// SQLite only allows one write at a time. Therefore we must serialize
+	// writes in order to avoid SQL_BUSY errors.
+	s.writeLock.Lock()
 	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
+	s.writeLock.Unlock()
 
 	// TODO: Make more robust
 	if errExec != nil {
