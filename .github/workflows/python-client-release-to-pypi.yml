@@ -5,7 +5,7 @@ on:
 
 jobs:
   run-python-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         go: [ '1.18' ]
@@ -14,7 +14,7 @@ jobs:
       - uses: ./.github/workflows/go-setup
       - uses: ./.github/workflows/python-tests
         with:
-          python-version: '3.8.10'
+          python-version: '3.8'
           path: 'client/python'
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
