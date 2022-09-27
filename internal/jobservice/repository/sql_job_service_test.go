@@ -301,8 +301,6 @@ func TestHealthCheck(t *testing.T) {
 // This test will fail if sqlite writes are not serialised somehow due to
 // SQLITE_BUSY errors.
 func TestConcurrentJobStatusUpdating(t *testing.T) {
-	t.Skip("Test is flaky, need to more robustly handle SQL_BUSY errors occurring in UpdateJobServiceDb")
-
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 
