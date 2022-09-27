@@ -75,7 +75,7 @@ def main():
     states = get_event_states()
     print("Done creating EventStates")
 
-    classes = list(get_all_job_event_classes())
+    classes = get_all_job_event_classes()
     print("Done creating JobEvent classes")
 
     jobstates = get_job_states()
