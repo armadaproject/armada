@@ -59,7 +59,7 @@ export default function JobDetails(props: DetailsProps) {
   const cpuResources = getCpuFromJobYaml(jobYaml)
   const gpuResources = getGpuFromJobYaml(jobYaml)
   const memoryResources = getMemoryFromJobYaml(jobYaml)
-  const diskResources = getStorageFromJobYaml(jobYaml)
+  const storageResources = getStorageFromJobYaml(jobYaml)
   const command = getCommandFromJobYaml(jobYaml)
   const commandArgs = getCommandArgumentsFromJobYaml(jobYaml)
   return (
@@ -101,10 +101,10 @@ export default function JobDetails(props: DetailsProps) {
                 (values, index) =>
                   values.length > 0 && <DetailRow key={"Memory-" + index} name={"Memory-" + index} value={values} />,
               )}
-            {diskResources &&
-              diskResources.map(
+            {storageResources &&
+              storageResources.map(
                 (values, index) =>
-                  values.length > 0 && <DetailRow key={"Disk-" + index} name={"Disk-" + index} value={values} />,
+                  values.length > 0 && <DetailRow key={"Storage-" + index} name={"Storage-" + index} value={values} />,
               )}
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
