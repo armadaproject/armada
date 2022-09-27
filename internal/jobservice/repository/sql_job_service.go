@@ -45,6 +45,22 @@ func NewSQLJobService(jobSetSubscribe *JobSetSubscriptions, config *configuratio
 	return &SQLJobService{jobSetSubscribe: jobSetSubscribe, jobServiceConfig: config, db: db}
 }
 
+// Call on a newly created SQLJobService object to setup the DB for use.
+func (s *SQLJobService) Setup() {
+	s.useWAL()
+	s.CreateTable()
+}
+
+func (s *SQLJobService) useWAL() {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
+	_, err := s.db.Exec("PRAGMA journal_mode=WAL")
+	if err != nil {
+		panic(err)
+	}
+}
+
 type SubscribedTuple struct {
 	Queue  string
 	JobSet string
@@ -52,6 +68,9 @@ type SubscribedTuple struct {
 
 // Create a Table from a hard-coded schema.
 func (s *SQLJobService) CreateTable() {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
 	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
 		panic(err)
@@ -230,6 +249,9 @@ func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 
 // Delete Jobs in the database
 func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
 	result, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	if err != nil {
 		return 0, err

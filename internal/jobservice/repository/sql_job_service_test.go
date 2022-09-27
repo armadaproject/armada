@@ -323,7 +323,7 @@ func WithSqlServiceRepo(action func(r *SQLJobService)) {
 		panic(err)
 	}
 	repo := NewSQLJobService(jobStatusMap, config, db)
-	repo.CreateTable()
+	repo.Setup()
 	action(repo)
 	db.Close()
 	os.Remove("test.db")
