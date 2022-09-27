@@ -151,7 +151,7 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
 
 	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer stmt.Close()
 	jobState := jobTable.jobResponse.State.String()
