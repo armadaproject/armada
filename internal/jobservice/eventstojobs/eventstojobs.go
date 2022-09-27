@@ -105,7 +105,12 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
-					eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
+					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
+					if err != nil {
+						log.WithError(err).Error("could not update job status, retrying")
+						time.Sleep(5 * time.Second)
+						continue
+					}
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()
