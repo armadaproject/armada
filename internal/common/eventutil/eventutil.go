@@ -692,6 +692,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 								Namespace:    m.Running.PodNamespace,
 								Name:         m.Running.PodName,
 								KubernetesId: m.Running.KubernetesId,
+								ExecutorId:   m.Running.ClusterId,
 								// TODO: These should be included.
 								Annotations: nil,
 								Labels:      nil,
@@ -838,8 +839,19 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
-							Reason: &armadaevents.Error_MaxRunsExceeded{
-								MaxRunsExceeded: &armadaevents.MaxRunsExceeded{},
+							Reason: &armadaevents.Error_PodError{
+								PodError: &armadaevents.PodError{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.Failed.ClusterId,
+										Namespace:    m.Failed.PodNamespace,
+										Name:         m.Failed.PodName,
+										KubernetesId: m.Failed.KubernetesId,
+									},
+									Message:         m.Failed.Reason,
+									NodeName:        m.Failed.NodeName,
+									PodNumber:       m.Failed.PodNumber,
+									ContainerErrors: containerErrors,
+								},
 							},
 						},
 					},
@@ -889,6 +901,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	case *api.EventMessage_Reprioritized:
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId
+		sequence.UserId = m.Reprioritized.Requestor
 
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
 		if err != nil {
@@ -913,6 +926,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	case *api.EventMessage_Cancelled:
 		sequence.Queue = m.Cancelled.Queue
 		sequence.JobSetName = m.Cancelled.JobSetId
+		sequence.UserId = m.Cancelled.Requestor
 
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Cancelled.JobId)
 		if err != nil {
