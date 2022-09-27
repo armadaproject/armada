@@ -10,7 +10,12 @@ def get_event_states():
 
 
 def get_all_job_event_classes():
-    return [x for x in event_pb2.__dict__ if hasattr(getattr(event_pb2, x), "job_id")]
+    for possible_event in event_pb2.__dict__:
+        try:
+            if "job_id" in getattr(event_pb2, possible_event).DESCRIPTOR.fields_by_name:
+                yield possible_event
+        except AttributeError:
+            continue
 
 
 def get_job_states():
@@ -66,7 +71,7 @@ def main():
     states = get_event_states()
     print("Done creating EventStates")
 
-    classes = get_all_job_event_classes()
+    classes = list(get_all_job_event_classes())
     print("Done creating JobEvent classes")
 
     jobstates = get_job_states()
