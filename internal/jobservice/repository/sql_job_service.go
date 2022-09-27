@@ -18,7 +18,7 @@ import (
 type JobTableUpdater interface {
 	SubscribeJobSet(string, string)
 	IsJobSetSubscribed(string, string) bool
-	UpdateJobServiceDb(*JobStatus)
+	UpdateJobServiceDb(*JobStatus) error
 }
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
@@ -143,7 +143,7 @@ func jobStateStrToJSRState(jobState string) (js.JobServiceResponse_State, error)
 }
 
 // Update database with JobTable.
-func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
+func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
 	// SQLite only allows one write at a time. Therefore we must serialize
 	// writes in order to avoid SQL_BUSY errors.
 	s.writeLock.Lock()
@@ -158,10 +158,7 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
 
 	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
 
-	// TODO: Make more robust
-	if errExec != nil {
-		panic(errExec)
-	}
+	return errExec
 }
 
 // Simple Health Check to Verify if SqlLite is working.
