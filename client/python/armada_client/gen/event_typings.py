@@ -10,12 +10,16 @@ def get_event_states():
 
 
 def get_all_job_event_classes():
+    job_events = []
+
     for possible_event in event_pb2.__dict__:
         try:
             if "job_id" in getattr(event_pb2, possible_event).DESCRIPTOR.fields_by_name:
-                yield possible_event
+                job_events.append(possible_event)
         except AttributeError:
             continue
+
+    return job_events
 
 
 def get_job_states():
