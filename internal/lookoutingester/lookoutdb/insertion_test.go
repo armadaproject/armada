@@ -41,7 +41,7 @@ var (
 	updateTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
 	startTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
 	finishedTime, _  = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
-	preemptedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+	preemptedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:09.000Z")
 )
 
 // An invalid job id that exceeds th varchar count
