@@ -46,7 +46,6 @@ func New(params Params) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer pulsarClient.Close()
 
 	serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
 	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
@@ -58,7 +57,6 @@ func New(params Params) (*App, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
 	}
-	defer producer.Close()
 
 	ps := &server.PulsarSubmitServer{
 		Producer: producer,
