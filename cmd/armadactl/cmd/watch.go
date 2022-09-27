@@ -51,5 +51,7 @@ func watchCmd() *cobra.Command {
 	}
 	cmd.Flags().Bool("raw", false, "Output raw events")
 	cmd.Flags().Bool("exit-if-inactive", false, "Exit if there are no more active jobs")
+	cmd.Flags().Bool("force-new-events", false, "Debug Option to tell Armada server to serve events from the new redis repository")
+	cmd.Flags().Bool("exit-if-inactive", false, "Debug Option to tell Armada server to serve events from the old redis repository")
 	return cmd
 }
