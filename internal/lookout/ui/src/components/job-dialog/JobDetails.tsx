@@ -74,6 +74,18 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Job state" value={props.job.jobState} />
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
+            {command &&
+              command.map(
+                (values, index) =>
+                  values.length > 0 && <DetailRow key={"Command-" + index} name={"Command-" + index} value={values} />,
+              )}
+            {commandArgs &&
+              commandArgs.map(
+                (values, index) =>
+                  values.length > 0 && (
+                    <DetailRow key={"Arguments-" + index} name={"Arguments-" + index} value={values} />
+                  ),
+              )}
             {cpuResources &&
               cpuResources.map(
                 (values, index) =>
@@ -93,18 +105,6 @@ export default function JobDetails(props: DetailsProps) {
               diskResources.map(
                 (values, index) =>
                   values.length > 0 && <DetailRow key={"Disk-" + index} name={"Disk-" + index} value={values} />,
-              )}
-            {command &&
-              command.map(
-                (values, index) =>
-                  values.length > 0 && <DetailRow key={"Command-" + index} name={"Command-" + index} value={values} />,
-              )}
-            {commandArgs &&
-              commandArgs.map(
-                (values, index) =>
-                  values.length > 0 && (
-                    <DetailRow key={"Arguments-" + index} name={"Arguments-" + index} value={values} />
-                  ),
               )}
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}

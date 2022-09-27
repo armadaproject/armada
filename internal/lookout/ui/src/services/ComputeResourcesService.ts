@@ -10,13 +10,15 @@ interface Container {
   command: string[]
   args: string[]
   resources: {
-    limits: {
-      cpu: string
-      "nvidia.com/gpu": string
-      storage: string
-      memory: string
-    }
+    limits: Limits
   }
+}
+
+interface Limits {
+  cpu?: string
+  "nvidia.com/gpu"?: string
+  storage?: string
+  memory?: string
 }
 
 export function convertStringToYaml(jobYaml: string): JobYaml {
@@ -32,7 +34,7 @@ export function getCommandFromJobYaml(yamlifed: JobYaml): string[] | undefined {
   const stringArray: string[] = []
   yamlifed.podSpec.containers.map((val) => {
     if (val.command) {
-      stringArray.push(val.command.join())
+      stringArray.push(val.command.join(" "))
     } else {
       stringArray.push("")
     }
@@ -44,7 +46,7 @@ export function getCommandArgumentsFromJobYaml(yamlifed: JobYaml): string[] | un
   const stringArray: string[] = []
   yamlifed.podSpec.containers.map((val) => {
     if (val.args) {
-      stringArray.push(val.args.join())
+      stringArray.push(val.args.join(" "))
     } else {
       stringArray.push("")
     }

@@ -44,7 +44,7 @@ podSpec:
   test("Happy Path", () => {
     const yamlifed = convertStringToYaml(yaml)
     expect(convertStringToYaml(yaml)).toBeTruthy()
-    expect(getCommandFromJobYaml(yamlifed)).toStrictEqual(["sh,-c"])
+    expect(getCommandFromJobYaml(yamlifed)).toStrictEqual(["sh -c"])
     expect(getCommandArgumentsFromJobYaml(yamlifed)).toStrictEqual(["sleep $(( (RANDOM % 30) + 30 ))"])
     expect(getCpuFromJobYaml(yamlifed)).toStrictEqual(["150m"])
     expect(getMemoryFromJobYaml(yamlifed)).toStrictEqual(["64Mi"])
