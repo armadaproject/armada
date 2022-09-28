@@ -13,13 +13,20 @@ import (
 	"github.com/G-Research/armada/internal/executor/fake/context"
 )
 
+const (
+	AdmissionWebhookRegex  = "admission webhook"
+	NamespaceNotFoundRegex = "namespaces \".*\" not found"
+	HelloRegex             = "hello, [a-z]+!"
+)
+
 var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
 func TestIsRecoverable_ArbitraryErrorIsNotRecoverable(t *testing.T) {
 	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{
-		"admission webhook",
-		"hello, [a-z]+!",
+		AdmissionWebhookRegex,
+		HelloRegex,
+		NamespaceNotFoundRegex,
 	})
 
 	recoverable := submitter.isRecoverable(newArbitraryError("some error"))
@@ -45,14 +52,18 @@ func TestIsRecoverable_KubernetesStatusForbiddenIsUnrecoverable(t *testing.T) {
 func TestIsRecoverable_K8sApiMatchingRegexIsUnrecoverable(t *testing.T) {
 	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{
-		"admission webhook",
-		"hello, [a-z]+!",
+		AdmissionWebhookRegex,
+		HelloRegex,
+		NamespaceNotFoundRegex,
 	})
 
 	recoverable := submitter.isRecoverable(newK8sApiError("admission webhook failure: some webhook failed validation", "other status"))
 	assert.False(t, recoverable)
 
 	recoverable = submitter.isRecoverable(newK8sApiError("Error: hello, john!", "other status"))
+	assert.False(t, recoverable)
+
+	recoverable = submitter.isRecoverable(newK8sApiError("namespaces \"test-1\" not found", "other status"))
 	assert.False(t, recoverable)
 
 	recoverable = submitter.isRecoverable(newK8sApiError("hello world!", "other status"))

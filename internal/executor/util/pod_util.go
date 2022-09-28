@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -261,6 +264,15 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
 	_, annotationPresent := pod.Annotations[string(podPhase)]
 	return annotationPresent
+}
+
+func HasCurrentClusterEventBeenReported(clusterEvent *v1.Event) bool {
+	_, annotationPresent := clusterEvent.Annotations[domain.ClusterEventReported]
+	return annotationPresent
+}
+
+func IsArmadaJobPod(name string) bool {
+	return strings.HasPrefix(name, common.PodNamePrefix)
 }
 
 func CountPodsByPhase(pods []*v1.Pod) map[string]uint32 {

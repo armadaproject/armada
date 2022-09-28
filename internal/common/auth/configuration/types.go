@@ -9,9 +9,10 @@ import (
 type AuthConfig struct {
 	AnonymousAuth bool
 
-	BasicAuth  BasicAuthenticationConfig
-	OpenIdAuth OpenIdAuthenticationConfig
-	Kerberos   KerberosAuthenticationConfig
+	BasicAuth      BasicAuthenticationConfig
+	KubernetesAuth KubernetesAuthConfig
+	OpenIdAuth     OpenIdAuthenticationConfig
+	Kerberos       KerberosAuthenticationConfig
 
 	PermissionGroupMapping map[permission.Permission][]string
 	PermissionScopeMapping map[permission.Permission][]string
@@ -52,4 +53,9 @@ type LDAPConfig struct {
 	Password        string
 	GroupSearchBase string
 	CacheExpiry     time.Duration
+}
+
+type KubernetesAuthConfig struct {
+	KidMappingFileLocation string
+	InvalidTokenExpiry     int64
 }

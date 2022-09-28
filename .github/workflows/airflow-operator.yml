@@ -41,7 +41,7 @@ on:
 
 jobs:
   airflow-tox:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         go: [ '1.18' ]
@@ -51,5 +51,5 @@ jobs:
       - run: make airflow-operator
       - uses: ./.github/workflows/python-tests
         with:
-          python-version: '3.8.10'
+          python-version: '3.8'
           path: third_party/airflow

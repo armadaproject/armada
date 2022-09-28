@@ -2,7 +2,6 @@ package context
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"regexp"
 	"sort"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -52,6 +53,7 @@ type FakeClusterContext struct {
 	handlers              []*cache.ResourceEventHandlerFuncs
 	rwLock                sync.RWMutex
 	pods                  map[string]*v1.Pod
+	events                map[string]*v1.Event
 	nodes                 []*v1.Node
 	nodeAvailableResource map[string]common.ComputeResources
 }
@@ -74,6 +76,10 @@ func (*FakeClusterContext) Stop() {
 }
 
 func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
+	c.handlers = append(c.handlers, &handler)
+}
+
+func (c *FakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
 	c.handlers = append(c.handlers, &handler)
 }
 
@@ -164,27 +170,27 @@ func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {
 }
 
 func (c *FakeClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
+	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) GetServices(pod *v1.Pod) ([]*v1.Service, error) {
-	return nil, fmt.Errorf("Services not implemented in FakeClusterContext")
+	return nil, errors.Errorf("Services not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) DeleteService(service *v1.Service) error {
-	return fmt.Errorf("Services not implemented in FakeClusterContext")
+	return errors.Errorf("Services not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
-	return nil, fmt.Errorf("Ingresses not implemented in FakeClusterContext")
+	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
-	return nil, fmt.Errorf("Ingresses not implemented in FakeClusterContext")
+	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
-	return fmt.Errorf("Ingresses not implemented in FakeClusterContext")
+	return errors.Errorf("Ingresses not implemented in FakeClusterContext")
 }
 
 func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, state v1.ContainerState) (*v1.Pod, *v1.Pod) {
@@ -239,7 +245,21 @@ func (c *FakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]s
 
 	p, found := c.pods[pod.Name]
 	if !found {
-		return fmt.Errorf("Missing pod to annotate %v", pod.Name)
+		return errors.Errorf("missing pod to annotate: %s", pod.Name)
+	}
+	for k, v := range annotations {
+		p.Annotations[k] = v
+	}
+	return nil
+}
+
+func (c *FakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error {
+	c.rwLock.Lock()
+	defer c.rwLock.Unlock()
+
+	p, found := c.events[event.Name]
+	if !found {
+		return errors.Errorf("missing event to annotate: %s", event.Name)
 	}
 	for k, v := range annotations {
 		p.Annotations[k] = v

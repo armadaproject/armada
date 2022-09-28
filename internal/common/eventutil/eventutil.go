@@ -403,7 +403,7 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 		}
 		// Consider sequences within the same jobSet for compaction.
 		if jobSetSequences, ok := sequencesFromJobSetName[sequence.JobSetName]; ok {
-			// This first if should never trigger.
+			// This first if clause should never trigger.
 			if len(jobSetSequences) == 0 {
 				numSequences++
 				sequencesFromJobSetName[sequence.JobSetName] = append(jobSetSequences, sequence)
@@ -692,6 +692,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 								Namespace:    m.Running.PodNamespace,
 								Name:         m.Running.PodName,
 								KubernetesId: m.Running.KubernetesId,
+								ExecutorId:   m.Running.ClusterId,
 								// TODO: These should be included.
 								Annotations: nil,
 								Labels:      nil,
@@ -838,8 +839,19 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true,
-							Reason: &armadaevents.Error_MaxRunsExceeded{
-								MaxRunsExceeded: &armadaevents.MaxRunsExceeded{},
+							Reason: &armadaevents.Error_PodError{
+								PodError: &armadaevents.PodError{
+									ObjectMeta: &armadaevents.ObjectMeta{
+										ExecutorId:   m.Failed.ClusterId,
+										Namespace:    m.Failed.PodNamespace,
+										Name:         m.Failed.PodName,
+										KubernetesId: m.Failed.KubernetesId,
+									},
+									Message:         m.Failed.Reason,
+									NodeName:        m.Failed.NodeName,
+									PodNumber:       m.Failed.PodNumber,
+									ContainerErrors: containerErrors,
+								},
 							},
 						},
 					},
@@ -889,6 +901,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	case *api.EventMessage_Reprioritized:
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId
+		sequence.UserId = m.Reprioritized.Requestor
 
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
 		if err != nil {
@@ -913,6 +926,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	case *api.EventMessage_Cancelled:
 		sequence.Queue = m.Cancelled.Queue
 		sequence.JobSetName = m.Cancelled.JobSetId
+		sequence.UserId = m.Cancelled.Requestor
 
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Cancelled.JobId)
 		if err != nil {
@@ -1043,6 +1057,47 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		// Do nothing; there's no corresponding Pulsar message.
 	case *api.EventMessage_Updated:
 		// Do nothing; we're not allowing arbitrary job updates.
+	case *api.EventMessage_Preempted:
+		sequence.Queue = m.Preempted.Queue
+		sequence.JobSetName = m.Preempted.JobSetId
+
+		preemptedJobId, err := armadaevents.ProtoUuidFromUlidString(m.Preempted.JobId)
+		if err != nil {
+			return nil, err
+		}
+		preemptedRunId, err := armadaevents.ProtoUuidFromUuidString(m.Preempted.RunId)
+		if err != nil {
+			return nil, err
+		}
+
+		jobRunPreempted := &armadaevents.JobRunPreempted{
+			PreemptedJobId: preemptedJobId,
+			PreemptedRunId: preemptedRunId,
+		}
+
+		if m.Preempted.PreemptiveJobId != "" {
+			preemptiveJobId, err := armadaevents.ProtoUuidFromUlidString(m.Preempted.PreemptiveJobId)
+			if err != nil {
+				return nil, err
+			}
+			jobRunPreempted.PreemptiveJobId = preemptiveJobId
+		}
+		if m.Preempted.PreemptiveRunId != "" {
+			preemptiveRunId, err := armadaevents.ProtoUuidFromUuidString(m.Preempted.PreemptiveRunId)
+			if err != nil {
+				return nil, err
+			}
+			jobRunPreempted.PreemptiveRunId = preemptiveRunId
+		}
+
+		event := &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: jobRunPreempted,
+		}
+		sequenceEvent := &armadaevents.EventSequence_Event{
+			Created: &m.Preempted.Created,
+			Event:   event,
+		}
+		sequence.Events = append(sequence.Events, sequenceEvent)
 	default:
 		err = &armadaerrors.ErrInvalidArgument{
 			Name:    "msg",
@@ -1056,7 +1111,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 	return sequence, nil
 }
 
-// Id used for messages for which we can't use the kubernetesId.
+// LEGACY_RUN_ID is used for messages for which we can't use the kubernetesId.
 const LEGACY_RUN_ID = "00000000-0000-0000-0000-000000000000"
 
 func LegacyJobRunId() *armadaevents.Uuid {

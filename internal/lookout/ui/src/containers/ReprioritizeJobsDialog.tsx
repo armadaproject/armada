@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
 import ReprioritizeJobs from "../components/jobs/reprioritize-jobs/ReprioritizeJobs"
 import ReprioritizeJobsOutcome from "../components/jobs/reprioritize-jobs/ReprioritizeJobsOutcome"
-import JobService, { Job, ReprioritizeJobsResponse } from "../services/JobService"
+import { JobService, Job, ReprioritizeJobsResponse } from "../services/JobService"
 import { ApiResult, priorityIsValid, RequestStatus } from "../utils"
 import { REPRIORITIZEABLE_JOB_STATES } from "./JobsContainer"
 

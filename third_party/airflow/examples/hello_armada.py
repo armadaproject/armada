@@ -83,7 +83,7 @@ with DAG(
     armada = ArmadaOperator(
         task_id="armada",
         name="armada",
-        queue="test",
+        armada_queue="test",
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=submit_sleep_job(),

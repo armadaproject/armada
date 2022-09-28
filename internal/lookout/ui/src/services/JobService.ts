@@ -38,6 +38,7 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+  jobsCancelled: number
   latestSubmissionTime: string
 
   runningStats?: DurationStats
@@ -145,13 +146,29 @@ export const JOB_STATES_FOR_DISPLAY = ["Queued", "Pending", "Running", "Succeede
 
 export const UNKNOWN_CONTAINER = "Unknown Container"
 
-export default class JobService {
+export interface JobService {
+  getOverview(): Promise<QueueInfo[]>
+
+  getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]>
+
+  getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]>
+
+  cancelJobs(jobs: Job[]): Promise<CancelJobsResponse>
+
+  cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse>
+
+  reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse>
+
+  reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResponse>
+}
+
+export class LookoutJobService implements JobService {
   lookoutApi: LookoutApi
   submitApi: SubmitApi
   userAnnotationPrefix: string
 
-  constructor(lookoutAPi: LookoutApi, submitApi: SubmitApi, userAnnotationPrefix: string) {
-    this.lookoutApi = lookoutAPi
+  constructor(lookoutApi: LookoutApi, submitApi: SubmitApi, userAnnotationPrefix: string) {
+    this.lookoutApi = lookoutApi
     this.submitApi = submitApi
     this.userAnnotationPrefix = userAnnotationPrefix
   }
@@ -180,11 +197,11 @@ export default class JobService {
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
-  async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
+  async getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
-    try {
-      const response = await this.lookoutApi.getJobs({
+    const response = await this.lookoutApi.getJobs(
+      {
         body: {
           queue: getJobsRequest.queue,
           take: getJobsRequest.take,
@@ -196,12 +213,11 @@ export default class JobService {
           owner: getJobsRequest.owner,
           userAnnotations: getJobsRequest.annotations,
         },
-      })
-      if (response.jobInfos) {
-        return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
-      }
-    } catch (e) {
-      console.error(await e.json())
+      },
+      { signal },
+    )
+    if (response.jobInfos) {
+      return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
     }
     return []
   }
@@ -442,6 +458,7 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    jobsCancelled: jobSet.jobsCancelled ?? 0,
     latestSubmissionTime: dateToString(jobSet.submitted ?? new Date()),
     runningStats: durationStatsToViewModel(jobSet.runningStats),
     queuedStats: durationStatsToViewModel(jobSet.queuedStats),

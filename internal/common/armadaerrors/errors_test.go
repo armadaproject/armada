@@ -182,7 +182,7 @@ func TestIsNetworkErrorPulsar(t *testing.T) {
 }
 
 func TestIsNetworkErrorNats(t *testing.T) {
-	_, err := nats.Connect("nats://localhost:4222")
+	_, err := nats.Connect("nats://localhost:43432")
 
 	assert.True(t, IsNetworkError(errors.Wrap(err, "foo")))
 	assert.True(t, IsNetworkError(fmt.Errorf("%w", err)))

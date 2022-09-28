@@ -7,7 +7,7 @@ import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
-import JobService from "./services/JobService"
+import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 
 import "./App.css"

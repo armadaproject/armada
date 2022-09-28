@@ -58,9 +58,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 	defer db.Close()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
+	sqlJobRepo.Setup()
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
-	sqlJobRepo.CreateTable()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {

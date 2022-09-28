@@ -40,6 +40,7 @@ kubernetes:
   # Instantly fail jobs when the pod submission error matches the regexes below
   fatalPodSubmissionErrors:
     - "admission webhook"
+    - "namespaces \".*\" not found"
   pendingPodChecks:
     timeWithoutEventsOrStatus: 10m
     events:

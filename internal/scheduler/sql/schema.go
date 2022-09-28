@@ -9,7 +9,7 @@ package sql
 // SchemaTemplate is a generated function returning the template as a string.
 // That string should be parsed by the functions of the golang's template package.
 func SchemaTemplate() string {
-	var tmpl = "\n" +
+	tmpl := "\n" +
 		"-- TODO: Consistently compress proto messages.\n" +
 		"-- TODO: Cleanup may be expensive. Investigate.\n" +
 		"-- TODO: Research how postgres ANY works and what its limitations are.\n" +
