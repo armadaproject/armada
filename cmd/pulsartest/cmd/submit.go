@@ -53,7 +53,7 @@ func submitCmd() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
-			return a.Submit(path, false)
+			return a.Submit(path)
 		},
 	}
 
