@@ -87,6 +87,7 @@ func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 	assert.NoError(t, validateTerminationGracePeriod(podspecWithinRange, schedulingConfig))
 	assert.NoError(t, validateTerminationGracePeriod(podspecNoSetting, schedulingConfig))
 }
+
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 	schedulingConfig := &configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
