@@ -196,23 +196,43 @@ func getPreemptibleResources(
 func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 	nodeTypesIndex := map[string]*nodeTypeAllocation{}
 
-	for i, n := range nodes {
+	// Find the highest job priority across all jobs on the cluster.
+	// We only consider resources allocated to the highest-priority jobs as unavailable,
+	// since resources allocated to other jobs can potentially be reclaimed.
+	// This assumes there will be at least 1 job of the highest priority in the cluster.
+	var highestPriority int32
+	for _, node := range nodes {
+		for priority := range node.AllocatedResources {
+			if priority > highestPriority {
+				highestPriority = priority
+			}
+		}
+	}
+
+	for i, node := range nodes {
 		description := createNodeDescription(&nodes[i])
 		typeDescription, exists := nodeTypesIndex[description]
 
-		nodeAvailableResources := common.ComputeResources(n.AvailableResources).AsFloat()
-		nodeTotalResources := common.ComputeResources(n.TotalResources).AsFloat()
+		nodeTotalResources := common.ComputeResources(node.TotalResources).AsFloat()
+
+		// If there are jobs running on the node,
+		// subtract any resources allocated to the highest-priority jobs
+		nodeAvailableResources := nodeTotalResources.DeepCopy()
+		if allocated := node.AllocatedResources[highestPriority]; allocated.Resources != nil {
+			nodeAvailableResources.Sub(common.ComputeResources(allocated.Resources).AsFloat())
+		}
+
 		nodeAllocatedResources := make(map[int32]common.ComputeResourcesFloat)
-		for k, v := range n.AllocatedResources {
+		for k, v := range node.AllocatedResources {
 			nodeAllocatedResources[k] = common.ComputeResources(v.Resources).AsFloat()
 		}
 
 		if !exists {
 			typeDescription = &nodeTypeAllocation{
 				nodeType: api.NodeType{
-					Taints:               n.Taints,
-					Labels:               n.Labels,
-					AllocatableResources: n.AllocatableResources,
+					Taints:               node.Taints,
+					Labels:               node.Labels,
+					AllocatableResources: node.AllocatableResources,
 				},
 				availableResources: nodeAvailableResources,
 				totalResources:     nodeTotalResources,

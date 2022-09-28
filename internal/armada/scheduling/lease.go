@@ -95,6 +95,7 @@ func newLeaseContext(
 	currentClusterReport, ok := activeClusterReports[request.ClusterId]
 
 	totalCapacity := &common.ComputeResources{}
+
 	for _, clusterReport := range activeClusterReports {
 		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
 	}
@@ -369,11 +370,9 @@ func isJobSchedulable(c *leaseContext, job *api.Job, remainder common.ComputeRes
 	isJobLargeEnough := isLargeEnough(job, c.minimumJobSize)
 	isRemainderValid := remainder.IsValid()
 	isCandidateWithinLimit := candidatesLimit.IsWithinLimit(job)
-
 	isRegularlySchedulable := isJobLargeEnough && isRemainderValid && isCandidateWithinLimit
-	isPreemptiveJob := isJobLargeEnough && hasPriorityClass(job.PodSpec)
-
-	return isRegularlySchedulable || isPreemptiveJob
+	// isPreemptiveJob := isJobLargeEnough && hasPriorityClass(job.PodSpec)
+	return isRegularlySchedulable // || isPreemptiveJob
 }
 
 // validateOrDefaultPriorityClass checks is the pod spec's priority class configured as supported in Server config
