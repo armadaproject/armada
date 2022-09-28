@@ -2,10 +2,12 @@ package validation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
@@ -55,6 +57,36 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 	}, schedulingConfig))
 }
 
+func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
+	schedulingConfig := &configuration.SchedulingConfig{
+		TerminationGracePeriod: configuration.TerminationGracePeriodConfig{
+			Default: time.Duration(60 * time.Second),
+			Minimum: time.Duration(30 * time.Second),
+			Maximum: time.Duration(300 * time.Second),
+		},
+		Preemption: configuration.PreemptionConfig{
+			Enabled:              true,
+			DefaultPriorityClass: "high",
+			PriorityClasses:      map[string]int32{"high": 0},
+		},
+	}
+
+	podspecWithinRange := &v1.PodSpec{
+		TerminationGracePeriodSeconds: pointer.Int64(60),
+		PriorityClassName:             "high",
+	}
+	podspecOutsideRange := &v1.PodSpec{
+		TerminationGracePeriodSeconds: pointer.Int64(29),
+		PriorityClassName:             "high",
+	}
+	podspecNoSetting := &v1.PodSpec{
+		PriorityClassName: "high",
+	}
+
+	assert.Error(t, validateTerminationGracePeriod(podspecOutsideRange, schedulingConfig))
+	assert.NoError(t, validateTerminationGracePeriod(podspecWithinRange, schedulingConfig))
+	assert.NoError(t, validateTerminationGracePeriod(podspecNoSetting, schedulingConfig))
+}
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
 	schedulingConfig := &configuration.SchedulingConfig{
 		MinJobResources:     v1.ResourceList{},
