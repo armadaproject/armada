@@ -97,11 +97,19 @@ type SchedulingConfig struct {
 	Lease                                     LeaseSettings
 	DefaultJobLimits                          common.ComputeResources
 	DefaultJobTolerations                     []v1.Toleration
+	TerminationGracePeriod                    TerminationGracePeriodConfig
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
+}
+
+// TerminationGracePeriodConfig applied to preemptible jobs
+type TerminationGracePeriodConfig struct {
+	Minimum time.Duration
+	Maximum time.Duration
+	Default time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

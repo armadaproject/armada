@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
@@ -283,10 +284,12 @@ func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
 				Effect:   v1.TaintEffectNoSchedule,
 			},
 		}
+		expectedTerminationGracePeriodSeconds := int64(s.schedulingConfig.TerminationGracePeriod.Default.Seconds())
 
 		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Requests)
 		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Limits)
 		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpec.Tolerations)
+		assert.Equal(t, expectedTerminationGracePeriodSeconds, *retrievedJob[0].PodSpec.TerminationGracePeriodSeconds)
 	})
 }
 
@@ -1631,6 +1634,16 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 			"memory": resource.MustParse("1Gi"),
 		},
 		MaxPodSpecSizeBytes: 65535,
+		TerminationGracePeriod: configuration.TerminationGracePeriodConfig{
+			Default: time.Duration(60 * time.Second),
+			Minimum: time.Duration(30 * time.Second),
+			Maximum: time.Duration(300 * time.Second),
+		},
+		Preemption: configuration.PreemptionConfig{
+			Enabled:              true,
+			DefaultPriorityClass: "high",
+			PriorityClasses:      map[string]int32{"high": 0},
+		},
 	}
 
 	server := NewSubmitServer(
@@ -1718,6 +1731,8 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 							Effect:   "NoSchedule",
 						},
 					},
+					TerminationGracePeriodSeconds: pointer.Int64(60),
+					PriorityClassName:             "high",
 				},
 			},
 			Owner:                              "test",
