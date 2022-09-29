@@ -39,12 +39,12 @@ func TestOpenIdAuthService(t *testing.T) {
 	assert.True(t, principal.IsInGroup("test"))
 
 	_, e = service.Authenticate(context.Background())
-	assert.Equal(t, missingCredentials, e)
+	assert.Equal(t, missingCredentialsErr, e)
 
 	keySet.err = errors.New("wrong signature")
 	_, e = service.Authenticate(ctx)
 	assert.NotNil(t, e)
-	assert.NotEqual(t, missingCredentials, e)
+	assert.NotEqual(t, missingCredentialsErr, e)
 }
 
 type fakeKeySet struct {

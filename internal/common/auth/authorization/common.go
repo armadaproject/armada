@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	missingCredentials = status.Errorf(codes.InvalidArgument, "missing credentials")
-	invalidCredentials = status.Errorf(codes.Unauthenticated, "invalid username/password")
+	missingCredentialsErr = status.Errorf(codes.InvalidArgument, "missing credentials")
+	invalidCredentialsErr = status.Errorf(codes.Unauthenticated, "invalid username/password")
 )
 
 // Name of the key used to store principals in contexts.
@@ -119,24 +119,31 @@ type AuthService interface {
 //
 // If authentication succeeds, the username returned by the authentication service is added to the
 // request context for logging purposes.
-//
-// TODO Is this function correct? If an authentication service fails we may still wish to try the
-// remaining ones instead of returning immediately, which is what we do now.
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
+		missingCreds := make([]string, 0, len(authServices))
+		// TODO(Clif): Add principal name tried here.
+		invalidCreds := make([]string, 0, len(authServices))
+
 		for _, service := range authServices {
 			principal, err := service.Authenticate(ctx)
-			if err == missingCredentials {
+			if err == missingCredentialsErr {
 				// try next auth service
+				missingCreds = append(missingCreds, service.Name())
 				continue
-			}
-			if err != nil {
+			} else if err == invalidCredentialsErr {
+				invalidCreds = append(invalidCreds, service.Name())
+				continue
+			} else if err != nil {
 				return nil, err
 			}
-			// record user name for request logging
+			// record user name & auth service for request logging
 			grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
+			grpc_ctxtags.Extract(ctx).Set("authService", service.Name())
 			return WithPrincipal(ctx, principal), nil
 		}
-		return nil, status.Errorf(codes.Unauthenticated, "Request in not authenticated with any of the supported schemes.")
+		return nil, status.Errorf(codes.Unauthenticated,
+			"Request could not be authenticated with any of the supported schemes, missingCredsErr: %v, invalidCredsErr: %v",
+			missingCreds, invalidCreds)
 	}
 }

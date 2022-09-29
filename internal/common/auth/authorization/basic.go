@@ -32,7 +32,7 @@ func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principa
 		pair := strings.SplitN(string(payload), ":", 2)
 		return authService.loginUser(pair[0], pair[1])
 	}
-	return nil, missingCredentials
+	return nil, missingCredentialsErr
 }
 
 func (authService *BasicAuthService) loginUser(username string, password string) (Principal, error) {
@@ -40,5 +40,5 @@ func (authService *BasicAuthService) loginUser(username string, password string)
 	if ok && userInfo.Password == password {
 		return NewStaticPrincipal(username, userInfo.Groups), nil
 	}
-	return nil, invalidCredentials
+	return nil, invalidCredentialsErr
 }

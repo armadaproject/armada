@@ -73,7 +73,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	if err != nil {
 		// Add WWW-Authenticate header
 		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnego.HTTPHeaderAuthResponseValueKey))
-		return nil, missingCredentials
+		return nil, missingCredentialsErr
 	}
 
 	tokenData, err := base64.StdEncoding.DecodeString(encodedToken)

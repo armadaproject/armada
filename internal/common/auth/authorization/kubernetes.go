@@ -66,6 +66,10 @@ func NewKubernetesNativeAuthService(config configuration.KubernetesAuthConfig) K
 	}
 }
 
+func (authService *KubernetesNativeAuthService) Name() string {
+	return "KubernetesNative"
+}
+
 type CacheData struct {
 	Name  string `json:"name"`
 	Valid bool   `json:"valid"`
@@ -76,12 +80,12 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
 	if len(authHeader) < 2 || authHeader[0] != "KubernetesAuth" {
-		return nil, missingCredentials
+		return nil, missingCredentialsErr
 	}
 
 	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
-		return nil, missingCredentials
+		return nil, missingCredentialsErr
 	}
 
 	// Get token time

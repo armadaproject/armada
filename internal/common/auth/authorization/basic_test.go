@@ -26,10 +26,10 @@ func TestBasicAuthService(t *testing.T) {
 		metadata.NewIncomingContext(context.Background(), basicPassword("root", "test")))
 
 	assert.NotNil(t, e)
-	assert.NotEqual(t, e, missingCredentials)
+	assert.NotEqual(t, e, missingCredentialsErr)
 
 	_, e = service.Authenticate(context.Background())
-	assert.Equal(t, e, missingCredentials)
+	assert.Equal(t, e, missingCredentialsErr)
 }
 
 func basicPassword(user, password string) map[string][]string {

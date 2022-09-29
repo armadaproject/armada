@@ -45,7 +45,7 @@ func (authService *OpenIdAuthService) Name() string {
 func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
 	if err != nil {
-		return nil, missingCredentials
+		return nil, missingCredentialsErr
 	}
 
 	verifiedToken, err := authService.verifier.Verify(ctx, token)
