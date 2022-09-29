@@ -75,8 +75,8 @@ func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.Sche
 
 		return errors.Errorf("terminationGracePeriodSeconds of %v must be between %v and %v, or omitted",
 			terminationGracePeriodSeconds,
-			config.Preemption.MinTerminationGracePeriod,
-			config.Preemption.MaxTerminationGracePeriod)
+			config.Preemption.MinTerminationGracePeriod.Seconds(),
+			config.Preemption.MaxTerminationGracePeriod.Seconds())
 	}
 	return nil
 }
