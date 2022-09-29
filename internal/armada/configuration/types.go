@@ -97,19 +97,11 @@ type SchedulingConfig struct {
 	Lease                                     LeaseSettings
 	DefaultJobLimits                          common.ComputeResources
 	DefaultJobTolerations                     []v1.Toleration
-	TerminationGracePeriod                    TerminationGracePeriodConfig
 	MaxRetries                                uint // Maximum number of retries before a Job is failed
 	ResourceScarcity                          map[string]float64
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
-}
-
-// TerminationGracePeriodConfig applied to preemptible jobs
-type TerminationGracePeriodConfig struct {
-	Minimum time.Duration
-	Maximum time.Duration
-	Default time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -131,6 +123,11 @@ type PreemptionConfig struct {
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+
+	// TerminationGracePeriod settings for preemptible pods
+	MinTerminationGracePeriod     time.Duration
+	MaxTerminationGracePeriod     time.Duration
+	DefaultTerminationGracePeriod time.Duration
 }
 
 type DatabaseRetentionPolicy struct {

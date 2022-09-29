@@ -59,15 +59,13 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 
 func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 	schedulingConfig := &configuration.SchedulingConfig{
-		TerminationGracePeriod: configuration.TerminationGracePeriodConfig{
-			Default: time.Duration(20 * time.Second),
-			Minimum: time.Duration(30 * time.Second),
-			Maximum: time.Duration(300 * time.Second),
-		},
 		Preemption: configuration.PreemptionConfig{
-			Enabled:              true,
-			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]int32{"high": 0},
+			Enabled:                       true,
+			DefaultPriorityClass:          "high",
+			PriorityClasses:               map[string]int32{"high": 0},
+			DefaultTerminationGracePeriod: time.Duration(20 * time.Second),
+			MinTerminationGracePeriod:     time.Duration(30 * time.Second),
+			MaxTerminationGracePeriod:     time.Duration(300 * time.Second),
 		},
 	}
 
@@ -79,16 +77,11 @@ func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 		TerminationGracePeriodSeconds: pointer.Int64(29),
 		PriorityClassName:             "high",
 	}
-	podspecDefaultOutsideRange := &v1.PodSpec{
-		TerminationGracePeriodSeconds: pointer.Int64(int64(schedulingConfig.TerminationGracePeriod.Default.Seconds())),
-		PriorityClassName:             "high",
-	}
 	podspecNoSetting := &v1.PodSpec{
 		PriorityClassName: "high",
 	}
 
 	assert.Error(t, validateTerminationGracePeriod(podspecOutsideRange, schedulingConfig))
-	assert.Error(t, validateTerminationGracePeriod(podspecDefaultOutsideRange, schedulingConfig))
 	assert.NoError(t, validateTerminationGracePeriod(podspecWithinRange, schedulingConfig))
 	assert.NoError(t, validateTerminationGracePeriod(podspecNoSetting, schedulingConfig))
 }

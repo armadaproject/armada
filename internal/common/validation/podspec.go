@@ -62,28 +62,21 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.Schedulin
 func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.SchedulingConfig) error {
 	hasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
 	var terminationGracePeriodSeconds int64
-	var exceedsBounds, isDefault bool
+	var exceedsBounds bool
 	if hasTerminationGracePeriod {
 		terminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
-		exceedsBounds = (terminationGracePeriodSeconds < int64(config.TerminationGracePeriod.Minimum.Seconds()) ||
-			terminationGracePeriodSeconds > int64(config.TerminationGracePeriod.Maximum.Seconds()))
-		isDefault = terminationGracePeriodSeconds == int64(config.TerminationGracePeriod.Default)
+		exceedsBounds = (terminationGracePeriodSeconds < int64(config.Preemption.MinTerminationGracePeriod.Seconds()) ||
+			terminationGracePeriodSeconds > int64(config.Preemption.MaxTerminationGracePeriod.Seconds()))
 	}
 
 	if config.Preemption.Enabled &&
 		hasTerminationGracePeriod &&
 		exceedsBounds {
 
-		if isDefault {
-			return errors.Errorf("podspec has default terminationGracePeriodSeconds which is not within configured bounds %v and %v (check config)",
-				config.TerminationGracePeriod.Minimum,
-				config.TerminationGracePeriod.Maximum)
-		}
-
 		return errors.Errorf("terminationGracePeriodSeconds of %v must be between %v and %v, or omitted",
 			terminationGracePeriodSeconds,
-			config.TerminationGracePeriod.Minimum,
-			config.TerminationGracePeriod.Maximum)
+			config.Preemption.MinTerminationGracePeriod,
+			config.Preemption.MaxTerminationGracePeriod)
 	}
 	return nil
 }

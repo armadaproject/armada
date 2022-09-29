@@ -906,7 +906,7 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
 	preememptionEnabled := server.schedulingConfig.Preemption.Enabled
 	specNeedsTerminationGracePeriod := spec.PriorityClassName != "" && spec.TerminationGracePeriodSeconds == nil
-	defaultTerminationGracePeriod := int64(server.schedulingConfig.TerminationGracePeriod.Default.Seconds())
+	defaultTerminationGracePeriod := int64(server.schedulingConfig.Preemption.DefaultTerminationGracePeriod.Seconds())
 	defaultTerminationGracePeriodAvailable := defaultTerminationGracePeriod > 0
 
 	if preememptionEnabled &&
