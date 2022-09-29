@@ -6,11 +6,13 @@ import (
 )
 
 // nodeTypeAllocation stores the available resources for all nodes of a specific node type.
+// The resource maps herein are the sum over all nodes of that type.
 type nodeTypeAllocation struct {
 	nodeType           api.NodeType
 	availableResources common.ComputeResourcesFloat
 	totalResources     common.ComputeResourcesFloat
-	allocatedResources map[int32]common.ComputeResourcesFloat
+	// AvailableResources map[string]resource.Quantity
+	allocatedResourcesByPriority map[int32]common.ComputeResourcesFloat
 }
 
 type nodeTypeUsedResources map[*nodeTypeAllocation]common.ComputeResourcesFloat

@@ -88,7 +88,7 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 		},
 		onJobsLeased:  func(a []*api.Job) {},
 		clusterId:     "c1",
-		nodeResources: AggregateNodeTypeAllocations(nodes),
+		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
 
 		resourceScarcity:    scarcity,
 		priorities:          priorities,
@@ -152,7 +152,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		onJobsLeased: func(a []*api.Job) {},
 		clusterId:    "c1",
 
-		nodeResources: AggregateNodeTypeAllocations(nodes),
+		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
 
 		resourceScarcity:    scarcity,
 		priorities:          priorities,
@@ -203,7 +203,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 		},
 		onJobsLeased: func(a []*api.Job) {},
 
-		nodeResources: AggregateNodeTypeAllocations(nodes),
+		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
 
 		queue:      repository,
 		queueCache: map[string][]*api.Job{},
@@ -256,7 +256,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 		},
 		onJobsLeased: func(a []*api.Job) {},
 
-		nodeResources: AggregateNodeTypeAllocations(nodes),
+		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
 
 		queue:      repository,
 		queueCache: map[string][]*api.Job{},
