@@ -11,7 +11,7 @@ on:
 jobs:
   go-lint:
     # TODO(JayF): Configure this to only run when golang code has changed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +39,7 @@ jobs:
           exit $(git status -s -uno | wc -l)
 
   go-unit-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
