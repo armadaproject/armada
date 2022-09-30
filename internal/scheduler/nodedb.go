@@ -175,7 +175,6 @@ type SchedulerNode struct {
 	// it's computed from the taints and labels associated with the node.
 	NodeType *NodeType
 	// We store the NodeType.id here to simplify indexing.
-	// TODO: Remove NodeTypeId; use NodeType.Id.
 	NodeTypeId string
 	// Node info object received from the executor.
 	// TODO: We don't need to store this. Just get what we need out if.

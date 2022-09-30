@@ -139,7 +139,7 @@ func (it *NodeTypeResourceIterator) NextNodeItem() *SchedulerNode {
 	if !ok {
 		panic(fmt.Sprintf("expected *NodeItem, but got %T", obj))
 	}
-	if nodeItem.NodeTypeId != it.nodeType.id {
+	if nodeItem.NodeType != nil && nodeItem.NodeType.id != it.nodeType.id {
 		// The index is sorted by NodeType first.
 		// So we've seen all nodes of this NodeType if this comparison fails.
 		return nil
