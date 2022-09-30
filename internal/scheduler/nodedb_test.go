@@ -5,12 +5,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestSelectNodeForPod(t *testing.T) {
 	type ReqWithExpectation struct {
-		Req *PodSchedulingRequirements
+		Req *schedulerobjects.PodRequirements
 		// Whether we expect to find a node for this pod.
 		ExpectSuccess bool
 	}
@@ -22,10 +25,12 @@ func TestSelectNodeForPod(t *testing.T) {
 			Nodes: testNodeItems1,
 			Reqs: []*ReqWithExpectation{
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("1"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("1"),
+							},
 						},
 					},
 					ExpectSuccess: true,
@@ -36,10 +41,12 @@ func TestSelectNodeForPod(t *testing.T) {
 			Nodes: testNodeItems1,
 			Reqs: []*ReqWithExpectation{
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("7"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("7"),
+							},
 						},
 					},
 					ExpectSuccess: true,
@@ -50,10 +57,12 @@ func TestSelectNodeForPod(t *testing.T) {
 			Nodes: testNodeItems1,
 			Reqs: []*ReqWithExpectation{
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("8"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("8"),
+							},
 						},
 					},
 					ExpectSuccess: false,
@@ -64,28 +73,34 @@ func TestSelectNodeForPod(t *testing.T) {
 			Nodes: testNodeItems1,
 			Reqs: []*ReqWithExpectation{
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("7"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("7"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("4"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("4"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("1"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("1"),
+							},
 						},
 					},
 					ExpectSuccess: true,
@@ -96,55 +111,67 @@ func TestSelectNodeForPod(t *testing.T) {
 			Nodes: testNodeItems1,
 			Reqs: []*ReqWithExpectation{
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("7"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("7"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("5"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("5"),
+							},
 						},
 					},
 					ExpectSuccess: false,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("4"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("4"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("2"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("2"),
+							},
 						},
 					},
 					ExpectSuccess: false,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("1"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("1"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu": resource.MustParse("1"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu": resource.MustParse("1"),
+							},
 						},
 					},
 					ExpectSuccess: false,
@@ -155,61 +182,73 @@ func TestSelectNodeForPod(t *testing.T) {
 			Nodes: testNodeItems1,
 			Reqs: []*ReqWithExpectation{
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("7"),
-							"memory": resource.MustParse("7Gi"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("7"),
+								"memory": resource.MustParse("7Gi"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("5"),
-							"memory": resource.MustParse("5Gi"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("5"),
+								"memory": resource.MustParse("5Gi"),
+							},
 						},
 					},
 					ExpectSuccess: false,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("4"),
-							"memory": resource.MustParse("4Gi"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("4"),
+								"memory": resource.MustParse("4Gi"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("2"),
-							"memory": resource.MustParse("2Gi"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("2"),
+								"memory": resource.MustParse("2Gi"),
+							},
 						},
 					},
 					ExpectSuccess: false,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("1"),
-							"memory": resource.MustParse("1Gi"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("1"),
+								"memory": resource.MustParse("1Gi"),
+							},
 						},
 					},
 					ExpectSuccess: true,
 				},
 				{
-					Req: &PodSchedulingRequirements{
+					Req: &schedulerobjects.PodRequirements{
 						Priority: 0,
-						ResourceRequirements: map[string]resource.Quantity{
-							"cpu":    resource.MustParse("1"),
-							"memory": resource.MustParse("1Gi"),
+						ResourceRequirements: &v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								"cpu":    resource.MustParse("1"),
+								"memory": resource.MustParse("1Gi"),
+							},
 						},
 					},
 					ExpectSuccess: false,
@@ -272,12 +311,14 @@ func benchmarkSelectNodeForPod(numNodes int, b *testing.B) {
 	if !assert.NoError(b, err) {
 		return
 	}
-	req := &PodSchedulingRequirements{
+	req := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: map[string]resource.Quantity{
-			"cpu":    resource.MustParse("50"),
-			"memory": resource.MustParse("50"),
-			"gpu":    resource.MustParse("50"),
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("50"),
+				"memory": resource.MustParse("50"),
+				"gpu":    resource.MustParse("50"),
+			},
 		},
 	}
 

@@ -55,7 +55,7 @@ type InsufficientResources struct {
 	Available resource.Quantity
 }
 
-func (err *InsufficientResources) Error() string {
+func (err *InsufficientResources) String() string {
 	return fmt.Sprintf(
 		"pod requires %s %s, but only %s is available",
 		err.Required.String(),
@@ -146,6 +146,45 @@ func (node *SchedulerNode) canSchedulePod(req *PodSchedulingRequirements, assign
 	}
 
 	return 0, nil
+}
+
+func (node *SchedulerNode) PodRequirementsMet(req *schedulerobjects.PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
+	matches, reason, err := PodRequirementsMet(node.GetTaints(), node.GetLabels(), req)
+	if matches == false || err != nil {
+		return matches, 0, reason, err
+	}
+
+	// Check if the pod can be scheduled without preemption.
+	canSchedule := true
+	available := resource.Quantity{}
+	for resource, required := range req.ResourceRequirements.Requests {
+		q := node.availableQuantityByPriorityAndResource(0, string(resource))
+		q.DeepCopyInto(&available)
+		available.Sub(assignedResources.Get(0, string(resource)))
+		if required.Cmp(available) == 1 {
+			canSchedule = false
+			break
+		}
+	}
+	if canSchedule {
+		return true, 1, nil, nil
+	}
+
+	// Check if the pod can be scheduled with preemption.
+	for resource, required := range req.ResourceRequirements.Requests {
+		q := node.availableQuantityByPriorityAndResource(req.Priority, string(resource))
+		q.DeepCopyInto(&available)
+		available.Sub(assignedResources.Get(req.Priority, string(resource)))
+		if required.Cmp(available) == 1 {
+			return false, 0, &InsufficientResources{
+				Resource:  string(resource),
+				Required:  required,
+				Available: available,
+			}, nil
+		}
+	}
+
+	return true, 0, nil, nil
 }
 
 // TODO: Return something other than an error if the pod can't be scheduled.

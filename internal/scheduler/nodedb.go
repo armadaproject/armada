@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -46,12 +47,16 @@ type NodeDb struct {
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
 // TODO: Maybe PodToNode.
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodSchedulingRequirements) (*SchedulerNode, error) {
+// TODO: Return a report on which nodes were considered for scheduling and why they were excluded.
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*SchedulerNode, error) {
 
 	// Collect all node types that could schedule the pod.
-	nodeTypes := nodeDb.NodeTypesMatchingPod(req)
+	nodeTypes, numNodeTypesExcludedByReason, err := nodeDb.NodeTypesMatchingPod(req)
+	if err != nil {
+		return nil, err
+	}
 	if len(nodeTypes) == 0 {
-		return nil, errors.New("pod doesn't match any node type")
+		return nil, errors.Errorf("pod doesn't match any node type: %v", numNodeTypesExcludedByReason)
 	}
 
 	// The dominant resource is the one for which the pod requests
@@ -66,7 +71,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 		dominantResourceType,
 		req.Priority,
 		nodeTypes,
-		req.ResourceRequirements[dominantResourceType],
+		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
 	)
 	if err != nil {
 		return nil, err
@@ -78,8 +83,11 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 			break
 		}
 		// TODO: Use the score when selecting a node.
-		_, err := node.canSchedulePod(req, nodeDb.AssignedByNode[node.Id])
+		matches, _, _, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
 		if err != nil {
+			return nil, err
+		}
+		if !matches {
 			continue
 		}
 
@@ -98,11 +106,16 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 		}
 
 		// Mark these resources as used.
+		// TODO: Avoid unnecessary copy of req.ResourceRequirements.Requests.
+		rs := make(map[string]resource.Quantity)
+		for resource, quantity := range req.ResourceRequirements.Requests {
+			rs[string(resource)] = quantity
+		}
 		if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
-			assigned.MarkUsed(req.Priority, req.ResourceRequirements)
+			assigned.MarkUsed(req.Priority, rs)
 		} else {
 			assigned = NewAssignedByPriorityAndResourceType(nodeDb.priorities)
-			assigned.MarkUsed(req.Priority, req.ResourceRequirements)
+			assigned.MarkUsed(req.Priority, rs)
 			nodeDb.AssignedByNode[node.Id] = assigned
 		}
 
@@ -116,34 +129,47 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 // NodeTypesMatchingPod returns a slice composed of all node types
 // a given pod could be scheduled on, i.e., all node types with
 // matching node selectors and no untolerated taints.
-func (nodeDb *NodeDb) NodeTypesMatchingPod(req *PodSchedulingRequirements) []*NodeType {
+//
+// TODO: Update docstring.
+func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*NodeType, map[string]int, error) {
 	return NodeTypesMatchingPod(nodeDb.NodeTypes, req)
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
 // a given pod could be scheduled on, i.e., all node types with
 // matching node selectors and no untolerated taints.
-func NodeTypesMatchingPod(nodeTypes map[string]*NodeType, req *PodSchedulingRequirements) []*NodeType {
-	rv := make([]*NodeType, 0)
+//
+// TODO: Update docstring.
+func NodeTypesMatchingPod(nodeTypes map[string]*NodeType, req *schedulerobjects.PodRequirements) ([]*NodeType, map[string]int, error) {
+	selectedNodeTypes := make([]*NodeType, 0)
+	numNodeTypesExcludedByReason := make(map[string]int)
 	for _, nodeType := range nodeTypes {
-		if err := nodeType.canSchedulePod(req); err == nil {
-			rv = append(rv, nodeType)
+		matches, reason, err := nodeType.PodRequirementsMet(req)
+		if err != nil {
+			return nil, nil, err
+		}
+		if matches {
+			selectedNodeTypes = append(selectedNodeTypes, nodeType)
+		} else if reason != nil {
+			numNodeTypesExcludedByReason[reason.String()] += 1
+		} else {
+			numNodeTypesExcludedByReason["unknown reason"] += 1
 		}
 	}
-	return rv
+	return selectedNodeTypes, numNodeTypesExcludedByReason, nil
 }
 
-func (nodeDb *NodeDb) dominantResource(req *PodSchedulingRequirements) string {
+func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) string {
 	dominantResourceType := ""
 	dominantResourceFraction := 0.0
-	for t, q := range req.ResourceRequirements {
-		available, ok := nodeDb.totalResources[t]
+	for t, q := range req.ResourceRequirements.Requests {
+		available, ok := nodeDb.totalResources[string(t)]
 		if !ok {
-			return t
+			return string(t)
 		}
 		f := q.AsApproximateFloat64() / available.AsApproximateFloat64()
 		if f >= dominantResourceFraction {
-			dominantResourceType = t
+			dominantResourceType = string(t)
 			dominantResourceFraction = f
 		}
 	}

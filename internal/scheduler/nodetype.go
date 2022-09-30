@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 	v1 "k8s.io/api/core/v1"
 )
@@ -67,6 +68,12 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 // canSchedulePod determines whether a pod can be scheduled on nodes of this NodeType.
 // If the pod can't be scheduled, the returned error indicates why.
 // If no error is returned, the pod can be scheduled on nodes of this NodeType.
+//
+// TODO: Remove in favour of PodRequirementsMet.
 func (nodeType *NodeType) canSchedulePod(req *PodSchedulingRequirements) error {
 	return req.toleratesTaintsAndMatchesSelector(nodeType.Taints, nodeType.Labels)
+}
+
+func (nodeType *NodeType) PodRequirementsMet(req *schedulerobjects.PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+	return PodRequirementsMet(nodeType.Taints, nodeType.Labels, req)
 }
