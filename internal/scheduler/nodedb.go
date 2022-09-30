@@ -15,25 +15,30 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-// NodeDb is the scheduler-internal system for storing node information;
-// it's used to efficiently find nodes on which a job can be scheduled.
+// NodeDb is the scheduler-internal system for storing node information.
+// It's used to efficiently find nodes on which a pod can be scheduled.
 type NodeDb struct {
-	// Allowed priorities in sorted order.
-	// The assumption is that the number of distinct priorities is small.
+	// In-memory database. Stores *SchedulerNode.
+	// Used to efficiently iterate over nodes in sorted order.
+	Db *memdb.MemDB
+	// Allowed pod priorities in sorted order.
+	// Because the number of database indices scales linearly with the number of distinct priorities,
+	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
 	priorities []int32
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
+	// TODO: Do we need this? If so, compute it correctly.
 	totalResources map[string]*resource.Quantity
 	// Set of node types for which there exists at least 1 node in the db.
 	NodeTypes map[string]*NodeType
-	// In-memory database. Stores *SchedulerNode.
-	Db *memdb.MemDB
 	// Resources allocated by the scheduler to in-flight jobs,
 	// i.e., jobs for which resource usage is not yet reported by the executor.
 	AssignedByNode map[string]AssignedByPriorityAndResourceType
 	// Map from job id to the set of nodes on which that job has been assigned resources.
+	// Used to clear AssignedByNode once jobs start running.
 	NodesByJob map[uuid.UUID]map[string]interface{}
 	// Map from node id to the set of jobs that have resourced assigned to them on that node.
+	// Used to clear AssignedByNode once jobs start running.
 	JobsByNode map[string]map[uuid.UUID]interface{}
 }
 
@@ -108,8 +113,15 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 // a given pod could be scheduled on, i.e., all node types with
 // matching node selectors and no untolerated taints.
 func (nodeDb *NodeDb) NodeTypesMatchingPod(req *PodSchedulingRequirements) []*NodeType {
+	return NodeTypesMatchingPod(nodeDb.NodeTypes, req)
+}
+
+// NodeTypesMatchingPod returns a slice composed of all node types
+// a given pod could be scheduled on, i.e., all node types with
+// matching node selectors and no untolerated taints.
+func NodeTypesMatchingPod(nodeTypes map[string]*NodeType, req *PodSchedulingRequirements) []*NodeType {
 	rv := make([]*NodeType, 0)
-	for _, nodeType := range nodeDb.NodeTypes {
+	for _, nodeType := range nodeTypes {
 		if err := nodeType.canSchedulePod(req); err != nil {
 			rv = append(rv, nodeType)
 		}
@@ -138,6 +150,9 @@ func (nodeDb *NodeDb) dominantResource(req *PodSchedulingRequirements) string {
 // When the nodes were bound to the job, resources on those nodes were marked as assigned in the node db.
 // When the job is running, those resources are accounted for by the executor,
 // and should no longer be marked as assigned in the node db.
+//
+// TODO: This only clears AssignedByNode once there are no in-flight jobs for that node.
+// We could improve it to clear AssignedByNode on a per-job basis.
 func (nodeDb *NodeDb) MarkJobRunning(jobId uuid.UUID) {
 	for nodeId := range nodeDb.NodesByJob[jobId] {
 		delete(nodeDb.JobsByNode[nodeId], jobId)
@@ -157,15 +172,15 @@ type SchedulerNode struct {
 	// it's computed from the taints and labels associated with the node.
 	NodeType *NodeType
 	// We store the NodeType.id here to simplify indexing.
+	// TODO: Remove NodeTypeId; use NodeType.Id.
 	NodeTypeId string
 	// Node info object received from the executor.
+	// TODO: We don't need to store this. Just get what we need out if.
 	NodeInfo *api.NodeInfo
 	// Resources available for jobs of a given priority.
 	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
 	// where available resources = unused resources + resources assigned to lower-priority jobs.
 	AvailableResources AvailableByPriorityAndResourceType
-	// // Kubernetes node object.
-	// Node *v1.Node
 }
 
 func (node *SchedulerNode) GetLabels() map[string]string {
@@ -311,12 +326,12 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 		return nil, errors.WithStack(err)
 	}
 	priorities = []int32(priorities)
+	slices.Sort(priorities)
 	totalResources := make(map[string]*resource.Quantity)
 	for _, resourceType := range resourceTypes {
 		q := resource.MustParse("0")
 		totalResources[resourceType] = &q
 	}
-	slices.Sort(priorities)
 	return &NodeDb{
 		priorities:     priorities,
 		NodeTypes:      make(map[string]*NodeType),
@@ -335,15 +350,17 @@ func (nodeDb *NodeDb) Upsert(nodes []*SchedulerNode) error {
 	defer txn.Abort()
 	for _, node := range nodes {
 
-		// TODO: Add resources for every insertion. This will overestimate resources significantly.
-		m := node.AvailableResources[maxPriority]
-		for t, q := range m {
-			available := nodeDb.totalResources[t]
-			if available == nil {
-				nodeDb.totalResources[t] = &q
-			} else {
-				available.Add(q)
-				nodeDb.totalResources[t] = available
+		// If this is a new node, increase the overall resource count.
+		if _, ok := nodeDb.AssignedByNode[node.Id]; !ok {
+			for t, q := range node.AvailableResources[maxPriority] {
+				available := nodeDb.totalResources[t]
+				if available == nil {
+					q := q.DeepCopy()
+					nodeDb.totalResources[t] = &q
+				} else {
+					available.Add(q)
+					nodeDb.totalResources[t] = available
+				}
 			}
 		}
 
@@ -364,16 +381,15 @@ func (nodeDb *NodeDb) Upsert(nodes []*SchedulerNode) error {
 
 func (nodeDb *NodeDb) SchedulerNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string) *SchedulerNode {
 	return &SchedulerNode{
-		Id:       fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
-		NodeType: NewNodeTypeFromNodeInfo(nodeInfo, nil, nil),
-		NodeInfo: nodeInfo,
-		// Node:               nodeFromNodeInfo(nodeInfo),
+		Id:                 fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		NodeType:           NewNodeTypeFromNodeInfo(nodeInfo, nil, nil),
+		NodeInfo:           nodeInfo,
 		AvailableResources: availableResourcesFromNodeInfo(nodeInfo, nodeDb.priorities),
 	}
 }
 
-func availableResourcesFromNodeInfo(nodeInfo *api.NodeInfo, allowedPriorities []int32) map[int32]map[string]resource.Quantity {
-	rv := make(map[int32]map[string]resource.Quantity)
+func availableResourcesFromNodeInfo(nodeInfo *api.NodeInfo, allowedPriorities []int32) AvailableByPriorityAndResourceType {
+	rv := make(AvailableByPriorityAndResourceType)
 	for _, priority := range allowedPriorities {
 		rv[priority] = maps.Clone(nodeInfo.TotalResources)
 	}
