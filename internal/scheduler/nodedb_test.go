@@ -270,8 +270,12 @@ func TestSelectNodeForPod(t *testing.T) {
 
 			for _, req := range tc.Reqs {
 				report, err := db.SelectAndBindNodeToPod(uuid.New(), req.Req)
-				assert.NoError(t, err)
-				assert.NotNil(t, report)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.NotNil(t, report) {
+					return
+				}
 				if req.ExpectSuccess {
 					assert.NotNil(t, report.Node)
 				} else {
@@ -301,6 +305,7 @@ func BenchmarkUpsert1(b *testing.B)      { benchmarkUpsert(1, b) }
 func BenchmarkUpsert1000(b *testing.B)   { benchmarkUpsert(1000, b) }
 func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(100000, b) }
 
+// TODO: This considers more nodes than I'd expect it to.
 func benchmarkSelectNodeForPod(numNodes int, b *testing.B) {
 	db, err := NewNodeDb(testPriorities, testResources)
 	if !assert.NoError(b, err) {
@@ -322,10 +327,24 @@ func benchmarkSelectNodeForPod(numNodes int, b *testing.B) {
 		},
 	}
 
+	totalSuccessfulAssignments := 0.0
+	totalExcludedNodes := 0.0
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		db.SelectAndBindNodeToPod(uuid.New(), req)
+		jobId := uuid.New()
+		report, err := db.SelectAndBindNodeToPod(jobId, req)
+		if !assert.NoError(b, err) {
+			return
+		}
+		db.MarkJobRunning(jobId) // Needed to release resources.
+		for _, v := range report.NumExcludedNodesByReason {
+			totalExcludedNodes += float64(v)
+		}
+		if report.Node != nil {
+			totalSuccessfulAssignments += 1
+		}
 	}
+	b.Logf("node matched %f of times, excluded %f nodes on average", totalSuccessfulAssignments/float64(b.N), totalExcludedNodes/float64(b.N))
 }
 
 func BenchmarkSelectNodeForPod1(b *testing.B)      { benchmarkSelectNodeForPod(1, b) }

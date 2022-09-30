@@ -11,7 +11,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -327,16 +326,14 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*SchedulerN
 			Id:                 uuid.NewString(),
 			NodeTypeId:         "foo", // All nodes have the same node type.
 			NodeType:           &NodeType{id: "bar"},
-			AvailableResources: make(map[int32]map[string]resource.Quantity),
+			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
 		}
-		cumsum := make(map[string]resource.Quantity)
 		for _, p := range priorities {
+			rs := make(map[string]resource.Quantity)
 			for _, r := range resources {
-				q := cumsum[r]
-				q.Add(resource.MustParse(fmt.Sprintf("%d", rand.Intn(100))))
-				cumsum[r] = q
+				rs[r] = resource.MustParse(fmt.Sprintf("%d", rand.Intn(100)))
 			}
-			rv[i].AvailableResources[p] = maps.Clone(cumsum)
+			rv[i].AvailableResources.MarkAvailable(p, rs)
 		}
 	}
 	return rv
