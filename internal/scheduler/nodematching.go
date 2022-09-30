@@ -20,7 +20,7 @@ type UntoleratedTaint struct {
 }
 
 func (r *UntoleratedTaint) String() string {
-	return fmt.Sprintf("taint %+v not tolerated", r.Taint)
+	return fmt.Sprintf("taint %s not tolerated", r.Taint.String())
 }
 
 type MissingLabel struct {
@@ -28,7 +28,7 @@ type MissingLabel struct {
 }
 
 func (r *MissingLabel) String() string {
-	return fmt.Sprintf("label %s not set", r.Label)
+	return fmt.Sprintf("node does not match pod NodeSelector: label %s not set", r.Label)
 }
 
 type UnmatchedLabel struct {
@@ -38,7 +38,7 @@ type UnmatchedLabel struct {
 }
 
 func (r *UnmatchedLabel) String() string {
-	return fmt.Sprintf("required label %s = %s, but got %s", r.Label, r.PodValue, r.NodeValue)
+	return fmt.Sprintf("node does not match pod NodeSelector: required label %s = %s, but node has %s", r.Label, r.PodValue, r.NodeValue)
 }
 
 type UnmatchedNodeSelector struct {
@@ -46,7 +46,7 @@ type UnmatchedNodeSelector struct {
 }
 
 func (err *UnmatchedNodeSelector) String() string {
-	return fmt.Sprintf("node does not match %+v", err.NodeSelector)
+	return "node does not match pod NodeAffinity"
 }
 
 type InsufficientResources struct {

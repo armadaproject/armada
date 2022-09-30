@@ -269,13 +269,13 @@ func TestSelectNodeForPod(t *testing.T) {
 			}
 
 			for _, req := range tc.Reqs {
-				node, err := db.SelectAndBindNodeToPod(uuid.New(), req.Req)
+				report, err := db.SelectAndBindNodeToPod(uuid.New(), req.Req)
+				assert.NoError(t, err)
+				assert.NotNil(t, report)
 				if req.ExpectSuccess {
-					assert.NoError(t, err)
-					assert.NotNil(t, node)
+					assert.NotNil(t, report.Node)
 				} else {
-					assert.Error(t, err)
-					assert.Nil(t, node)
+					assert.Nil(t, report.Node)
 				}
 			}
 		})

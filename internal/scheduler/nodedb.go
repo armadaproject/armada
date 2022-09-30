@@ -44,19 +44,47 @@ type NodeDb struct {
 	JobsByNode map[string]map[uuid.UUID]interface{}
 }
 
+// PodSchedulingReport is returned by SelectAndBindNodeToPod and
+// contains detailed information on the scheduling decision made for this pod.
+type PodSchedulingReport struct {
+	// Id of the job this pod corresponds to.
+	JobId uuid.UUID
+	// Pod scheduling requirements.
+	Req *schedulerobjects.PodRequirements
+	// Node the pod was assigned to.
+	// If nil, the pod could not be assigned to any node.
+	Node *SchedulerNode
+	// Score indicates how well the pod fits on the selected node.
+	Score int
+	// Number of node types that
+	NumMatchedNodeTypes int
+	// Number of node types excluded by reason.
+	NumExcludedNodeTypesByReason map[string]int
+	// Number of nodes excluded by reason.
+	NumExcludedNodesByReason map[string]int
+}
+
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
 // TODO: Maybe PodToNode.
-// TODO: Return a report on which nodes were considered for scheduling and why they were excluded.
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*SchedulerNode, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 
-	// Collect all node types that could schedule the pod.
-	nodeTypes, numNodeTypesExcludedByReason, err := nodeDb.NodeTypesMatchingPod(req)
+	// Collect all node types that could potentially schedule the pod.
+	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
 		return nil, err
 	}
-	if len(nodeTypes) == 0 {
-		return nil, errors.Errorf("pod doesn't match any node type: %v", numNodeTypesExcludedByReason)
+
+	// Store number of nodes excluded by reason.
+	numExcludedNodesByReason := make(map[string]int)
+
+	// Create a report to be returned to the caller.
+	report := &PodSchedulingReport{
+		JobId:                        jobId,
+		Req:                          req,
+		NumMatchedNodeTypes:          len(nodeTypes),
+		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
+		NumExcludedNodesByReason:     numExcludedNodesByReason,
 	}
 
 	// The dominant resource is the one for which the pod requests
@@ -83,11 +111,12 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 			break
 		}
 		// TODO: Use the score when selecting a node.
-		matches, _, _, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
+		matches, score, reason, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
 		if err != nil {
 			return nil, err
 		}
 		if !matches {
+			numExcludedNodesByReason[reason.String()] += 1
 			continue
 		}
 
@@ -119,11 +148,11 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 			nodeDb.AssignedByNode[node.Id] = assigned
 		}
 
-		return node, nil
+		report.Node = node
+		report.Score = score
+		return report, nil
 	}
-
-	// TODO: Return a more specific reason.
-	return nil, errors.New("pod currently not schedulable on any node")
+	return report, nil
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
