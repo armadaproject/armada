@@ -13,25 +13,18 @@ services:
       - "POSTGRES_PASSWORD=psw"
     ports:
       - "5432:5432"
-  jetstream:
-    container_name: jetstream
-    image: nats:2.6.1-alpine
-    ports:
-      - "4222:4222"
-      - "6222:6222"
-      - "8222:8222"
+  pulsar:
+    image: kezhenxu94/pulsar
+    #image: apachepulsar/pulsar:2.10.0
+    # profiles: ["linux"]
+    container_name: pulsar
     volumes:
-      - ./config/jetstream:/app
-    command:
-      - "-c"
-      - "/app/jetstream.conf"
-  stan:
-    container_name: stan
-    image: nats-streaming
-    command: "-p 4223 -m 8223"
+      - ../../scripts/pulsar.sh:/pulsar.sh
+    entrypoint: sh -c "bin/pulsar standalone"
     ports:
-      - "4223:4223"
-      - "8223:8223"
+      - "6650:6650"
+    depends_on:
+      - redis
 
 # The Armada server and affiliated services
   armada-server:
@@ -43,12 +36,11 @@ services:
       - "--config"
       - "/app/config/armada/base.yaml"
       - "--config"
-      - "/app/config/armada/stan.yaml"
+      - "/app/config/armada/pulsar.yaml"
     depends_on:
       - redis
       - postgres
-      - jetstream
-      - stan
+      - pulsar
   lookout:
     container_name: lookout
     image: armada-lookout
@@ -57,7 +49,7 @@ services:
       - "8089:8089"
     command:
       - "--config"
-      - "/app/config/lookout/stan.yaml"
+      - "/app/config/lookout/pulsar.yaml"
     depends_on:
       - armada-server
       - postgres

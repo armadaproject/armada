@@ -26,4 +26,4 @@ eventsRedis:
 eventapi:
   postgres:
     connection:
-      host: "postgres"
+      host: "localhost"

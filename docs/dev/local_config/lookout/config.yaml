@@ -1,6 +1,7 @@
 grpcPort: 50059
 httpPort: 8089
 metricsPort: 9009
+disableEventProcessing: true
 
 grpc:
   keepaliveParams:
@@ -25,7 +26,7 @@ postgres:
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: postgres
+    host: localhost
     port: 5432
     user: postgres
     password: psw
