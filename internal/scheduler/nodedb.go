@@ -9,7 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/pkg/api"
@@ -37,36 +37,9 @@ type NodeDb struct {
 	JobsByNode map[string]map[uuid.UUID]interface{}
 }
 
-// This thing should be responsible for binding pods to nodes.
-// So I give it a set of pod and it should atomically bind all those or none of those.
-// This will work to remember which resources were promised away already.
-// I also need logic to clear that as I get data back from Kubernetes.
-// The way to do that is to remember what resources on what node were given to each job.
-// Because then I can clear the map when I hear back from the node.
-// I could remember which nodes are assigned to each job and then clear it once there are no pending jobs on a node.
-// That's the easiest. So let's do that.
-// That'd require that I remember which node
-
-// Each node has a set of job ids.
-// I keep a map from job id to slice of node names.
-// Whenever a job starts running, I remove that job id from all those nodes.
-// If the list of job ids becomes empty, I clear the assigned resources for it.
-
-// SelectAndBindNodesForPods takes a slice of pods.
-// All pods are either bound to nodes, or an error is returned.
-func (nodeDb *NodeDb) SelectAndBindNodesForPods(reqs []*PodSchedulingRequirements) (*SchedulerNode, error) {
-
-	// Find a node at a time.
-	// Remember allocated resources within this function.
-	// Then record allocated resources at a higher level.
-	// This thing can also cause preemptions.
-	//
-
-	return nil, nil
-}
-
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
+// TODO: Maybe PodToNode.
 func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodSchedulingRequirements) (*SchedulerNode, error) {
 
 	// Collect all node types that could schedule the pod.
@@ -98,19 +71,30 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 		// TODO: Use the score when selecting a node.
 		_, err := node.canSchedulePod(req, nodeDb.AssignedByNode[node.Id])
 		if err != nil {
-			// fmt.Printf("Can't schedule (score %d): %v -> %s\n", score, node, err)
 			continue
 		}
-		// fmt.Printf("Can schedule (score %d): %v\n", score, node)
 
-		nodeDb.JobsByNode[node.Id][jobId] = true
-		nodeDb.NodesByJob[jobId][node.Id] = true
-		if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
-			// assigned.Add()
+		// Record which jobs have resources assigned to them on each node.
+		if m, ok := nodeDb.JobsByNode[node.Id]; ok {
+			m[jobId] = true
 		} else {
-			// NewAssignedByPriorityAndResourceType()
-			// nodeDb.AssignedByNode[node.Id] = req
-			fmt.Println(assigned)
+			nodeDb.JobsByNode[node.Id] = map[uuid.UUID]interface{}{jobId: true}
+		}
+
+		// Record which nodes each job has resources assigned to on.
+		if m, ok := nodeDb.NodesByJob[jobId]; ok {
+			m[node.Id] = true
+		} else {
+			nodeDb.NodesByJob[jobId] = map[string]interface{}{node.Id: true}
+		}
+
+		// Mark these resources as used.
+		if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
+			assigned.MarkUsed(req.Priority, req.ResourceRequirements)
+		} else {
+			assigned = NewAssignedByPriorityAndResourceType(nodeDb.priorities)
+			assigned.MarkUsed(req.Priority, req.ResourceRequirements)
+			nodeDb.AssignedByNode[node.Id] = assigned
 		}
 
 		return node, nil
@@ -198,6 +182,8 @@ func (node *SchedulerNode) GetTaints() []v1.Taint {
 	return node.NodeInfo.Taints
 }
 
+type QuantityByResourceType map[string]resource.Quantity
+
 type QuantityByPriorityAndResourceType map[int32]map[string]resource.Quantity
 
 // AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.
@@ -205,9 +191,85 @@ type QuantityByPriorityAndResourceType map[int32]map[string]resource.Quantity
 // where available resources = unused resources + resources assigned to lower-priority pods.
 type AvailableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
+func NewAvailableByPriorityAndResourceType(priorities []int32) AvailableByPriorityAndResourceType {
+	rv := make(AvailableByPriorityAndResourceType)
+	for _, priority := range priorities {
+		rv[priority] = make(map[string]resource.Quantity)
+	}
+	return rv
+}
+
+// MarkUsed reduces the resources available to pods of priority p or lower.
+func (m AvailableByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
+	for priority, availableResourcesAtPriority := range m {
+		if priority <= p {
+			for usedResourceType, usedResourceQuantity := range rs {
+				q := availableResourcesAtPriority[usedResourceType]
+				if q.Cmp(usedResourceQuantity) == -1 {
+					q.Set(0)
+				} else {
+					q.Sub(usedResourceQuantity)
+				}
+				availableResourcesAtPriority[usedResourceType] = q
+			}
+		}
+	}
+}
+
+// MarkAvailable increases the resources available to pods of priority p or higher.
+func (m AvailableByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
+	for priority, availableResourcesAtPriority := range m {
+		if priority >= p {
+			for usedResourceType, usedResourceQuantity := range rs {
+				q := availableResourcesAtPriority[usedResourceType]
+				q.Add(usedResourceQuantity)
+				availableResourcesAtPriority[usedResourceType] = q
+			}
+		}
+	}
+}
+
 // AssignedByPriorityAndResourceType accounts for resources assigned to pods of a given priority or higher.
 // E.g., AssignedByPriorityAndResourceType[5]["cpu"] is the amount of CPU assigned to pods with priority 5 or higher.
 type AssignedByPriorityAndResourceType QuantityByPriorityAndResourceType
+
+func NewAssignedByPriorityAndResourceType(priorities []int32) AssignedByPriorityAndResourceType {
+	rv := make(AssignedByPriorityAndResourceType)
+	for _, priority := range priorities {
+		rv[priority] = make(map[string]resource.Quantity)
+	}
+	return rv
+}
+
+// MarkUsed increases the resources assigned to pods of priority p or higher.
+func (m AssignedByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
+	for priority, assignedResourcesAtPriority := range m {
+		if priority >= p {
+			for usedResourceType, usedResourceQuantity := range rs {
+				q := assignedResourcesAtPriority[usedResourceType]
+				q.Add(usedResourceQuantity)
+				assignedResourcesAtPriority[usedResourceType] = q
+			}
+		}
+	}
+}
+
+// MarkAvailable reduces the resources assigned to pods of priority p or lower.
+func (m AssignedByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
+	for priority, assignedResourcesAtPriority := range m {
+		if priority <= p {
+			for usedResourceType, usedResourceQuantity := range rs {
+				q := assignedResourcesAtPriority[usedResourceType]
+				if q.Cmp(usedResourceQuantity) == -1 {
+					q.Set(0)
+				} else {
+					q.Sub(usedResourceQuantity)
+				}
+				assignedResourcesAtPriority[usedResourceType] = q
+			}
+		}
+	}
+}
 
 func (availableByPriorityAndResourceType AvailableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
 	if availableByPriorityAndResourceType == nil {
@@ -260,6 +322,9 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 		NodeTypes:      make(map[string]*NodeType),
 		totalResources: totalResources,
 		Db:             db,
+		NodesByJob:     make(map[uuid.UUID]map[string]interface{}),
+		JobsByNode:     make(map[string]map[uuid.UUID]interface{}),
+		AssignedByNode: make(map[string]AssignedByPriorityAndResourceType),
 	}, nil
 }
 

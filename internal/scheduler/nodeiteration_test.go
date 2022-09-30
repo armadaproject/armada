@@ -320,7 +320,6 @@ var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 }
 
 // testNodeItems2 returns a randomly generated set of n nodes.
-// Each node has
 func testNodeItems2(priorities []int32, resources []string, n int) []*SchedulerNode {
 	rv := make([]*SchedulerNode, n)
 	for i := 0; i < n; i++ {
@@ -332,7 +331,6 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*SchedulerN
 		}
 		cumsum := make(map[string]resource.Quantity)
 		for _, p := range priorities {
-			// node.AvailableResources[p] = make(map[string]resource.Quantity)
 			for _, r := range resources {
 				q := cumsum[r]
 				q.Add(resource.MustParse(fmt.Sprintf("%d", rand.Intn(100))))

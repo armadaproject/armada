@@ -9,42 +9,215 @@ import (
 )
 
 func TestSelectNodeForPod(t *testing.T) {
-	tests := map[string]struct {
-		Nodes         []*SchedulerNode
-		Req           *PodSchedulingRequirements
+	type ReqWithExpectation struct {
+		Req *PodSchedulingRequirements
+		// Whether we expect to find a node for this pod.
 		ExpectSuccess bool
+	}
+	tests := map[string]struct {
+		Nodes []*SchedulerNode
+		Reqs  []*ReqWithExpectation
 	}{
 		"cpu 1": {
 			Nodes: testNodeItems1,
-			Req: &PodSchedulingRequirements{
-				Priority: 0,
-				ResourceRequirements: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
+			Reqs: []*ReqWithExpectation{
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+					ExpectSuccess: true,
 				},
 			},
-			ExpectSuccess: true,
 		},
 		"cpu 7": {
 			Nodes: testNodeItems1,
-			Req: &PodSchedulingRequirements{
-				Priority: 0,
-				ResourceRequirements: map[string]resource.Quantity{
-					"cpu": resource.MustParse("7"),
+			Reqs: []*ReqWithExpectation{
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("7"),
+						},
+					},
+					ExpectSuccess: true,
 				},
 			},
-			ExpectSuccess: true,
 		},
 		"cpu 8": {
 			Nodes: testNodeItems1,
-			Req: &PodSchedulingRequirements{
-				Priority: 0,
-				ResourceRequirements: map[string]resource.Quantity{
-					"cpu": resource.MustParse("8"),
+			Reqs: []*ReqWithExpectation{
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("8"),
+						},
+					},
+					ExpectSuccess: false,
 				},
 			},
-			ExpectSuccess: false,
+		},
+		"all cpu at priority 0": {
+			Nodes: testNodeItems1,
+			Reqs: []*ReqWithExpectation{
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("7"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("4"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+			},
+		},
+		"running total": {
+			Nodes: testNodeItems1,
+			Reqs: []*ReqWithExpectation{
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("7"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("5"),
+						},
+					},
+					ExpectSuccess: false,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("4"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("2"),
+						},
+					},
+					ExpectSuccess: false,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+					ExpectSuccess: false,
+				},
+			},
+		},
+		"running total with memory": {
+			Nodes: testNodeItems1,
+			Reqs: []*ReqWithExpectation{
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("7"),
+							"memory": resource.MustParse("7Gi"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("5"),
+							"memory": resource.MustParse("5Gi"),
+						},
+					},
+					ExpectSuccess: false,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("4"),
+							"memory": resource.MustParse("4Gi"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("2"),
+							"memory": resource.MustParse("2Gi"),
+						},
+					},
+					ExpectSuccess: false,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("1"),
+							"memory": resource.MustParse("1Gi"),
+						},
+					},
+					ExpectSuccess: true,
+				},
+				{
+					Req: &PodSchedulingRequirements{
+						Priority: 0,
+						ResourceRequirements: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("1"),
+							"memory": resource.MustParse("1Gi"),
+						},
+					},
+					ExpectSuccess: false,
+				},
+			},
 		},
 	}
+
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			db, err := NewNodeDb(testPriorities, testResources)
@@ -55,13 +228,16 @@ func TestSelectNodeForPod(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			node, err := db.SelectAndBindNodeToPod(uuid.New(), tc.Req)
-			if tc.ExpectSuccess {
-				assert.NoError(t, err)
-				assert.NotNil(t, node)
-			} else {
-				assert.Error(t, err)
-				assert.Nil(t, node)
+
+			for _, req := range tc.Reqs {
+				node, err := db.SelectAndBindNodeToPod(uuid.New(), req.Req)
+				if req.ExpectSuccess {
+					assert.NoError(t, err)
+					assert.NotNil(t, node)
+				} else {
+					assert.Error(t, err)
+					assert.Nil(t, node)
+				}
 			}
 		})
 	}
@@ -114,3 +290,159 @@ func benchmarkSelectNodeForPod(numNodes int, b *testing.B) {
 func BenchmarkSelectNodeForPod1(b *testing.B)      { benchmarkSelectNodeForPod(1, b) }
 func BenchmarkSelectNodeForPod1000(b *testing.B)   { benchmarkSelectNodeForPod(1000, b) }
 func BenchmarkSelectNodeForPod100000(b *testing.B) { benchmarkSelectNodeForPod(100000, b) }
+
+func TestAvailableByPriorityAndResourceType(t *testing.T) {
+	tests := map[string]struct {
+		Priorities          []int32
+		AvailableAtPriority int32
+		UsedAtPriority      int32
+		Resources           map[string]resource.Quantity
+	}{
+		"lowest priority": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 1,
+			UsedAtPriority:      1,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+		"mid priority": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 5,
+			UsedAtPriority:      5,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+		"highest priority": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 10,
+			UsedAtPriority:      10,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+		"low-mid": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 1,
+			UsedAtPriority:      5,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			m := NewAvailableByPriorityAndResourceType(tc.Priorities)
+			assert.Equal(t, len(tc.Priorities), len(m))
+
+			m.MarkAvailable(tc.AvailableAtPriority, tc.Resources)
+			for resourceType, quantity := range tc.Resources {
+				for _, p := range tc.Priorities {
+					actual := m.Get(p, resourceType)
+					if p >= tc.AvailableAtPriority {
+						assert.Equal(t, 0, quantity.Cmp(actual))
+					} else {
+						expected := resource.MustParse("0")
+						assert.Equal(t, 0, expected.Cmp(actual))
+					}
+				}
+			}
+
+			m.MarkUsed(tc.UsedAtPriority, tc.Resources)
+			for resourceType, quantity := range tc.Resources {
+				for _, p := range tc.Priorities {
+					actual := m.Get(p, resourceType)
+					if p > tc.UsedAtPriority {
+						assert.Equal(t, 0, quantity.Cmp(actual))
+					} else {
+						expected := resource.MustParse("0")
+						assert.Equal(t, 0, expected.Cmp(actual))
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestAssignedByPriorityAndResourceType(t *testing.T) {
+	tests := map[string]struct {
+		Priorities          []int32
+		AvailableAtPriority int32
+		UsedAtPriority      int32
+		Resources           map[string]resource.Quantity
+	}{
+		"lowest priority": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 1,
+			UsedAtPriority:      1,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+		"mid priority": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 5,
+			UsedAtPriority:      5,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+		"highest priority": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 10,
+			UsedAtPriority:      10,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+		"low-mid": {
+			Priorities:          []int32{1, 5, 10},
+			AvailableAtPriority: 1,
+			UsedAtPriority:      5,
+			Resources: map[string]resource.Quantity{
+				"cpu": resource.MustParse("1"),
+				"gpu": resource.MustParse("2"),
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			m := NewAssignedByPriorityAndResourceType(tc.Priorities)
+			assert.Equal(t, len(tc.Priorities), len(m))
+
+			m.MarkUsed(tc.UsedAtPriority, tc.Resources)
+			for resourceType, quantity := range tc.Resources {
+				for _, p := range tc.Priorities {
+					actual := m.Get(p, resourceType)
+					if p >= tc.UsedAtPriority {
+						assert.Equal(t, 0, quantity.Cmp(actual))
+					} else {
+						expected := resource.MustParse("0")
+						assert.Equal(t, 0, expected.Cmp(actual))
+					}
+				}
+			}
+
+			m.MarkAvailable(tc.AvailableAtPriority, tc.Resources)
+			for resourceType, quantity := range tc.Resources {
+				for _, p := range tc.Priorities {
+					actual := m.Get(p, resourceType)
+					if p > tc.AvailableAtPriority {
+						assert.Equal(t, 0, quantity.Cmp(actual))
+					} else {
+						expected := resource.MustParse("0")
+						assert.Equal(t, 0, expected.Cmp(actual))
+					}
+				}
+			}
+		})
+	}
+}

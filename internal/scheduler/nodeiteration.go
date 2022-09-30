@@ -10,39 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// func (srv *NodeMatcher) selectNode(req *JobSchedulingRequest) error {
-// 	for _, nodeType := range req.NodeTypes {
-// 		resource := "cpu"
-// 		resourceAmount, ok := req.ResourceRequirements[resource]
-// 		if !ok {
-// 			return errors.Errorf("job does not require %s", resource)
-// 		}
-// 		it, err := NodeTypeResourceIterator(srv.Db, "cpu", req.Priority, nodeType, resourceAmount)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 	}
-// }
-
-// // CandidateNodeIterator is an iterator over all nodes that the given pod can be assigned to, i.e., that
-// // 1. Has sufficient resources for the pod.
-// // 2. Matches any node selector given by the pod.
-// // 3. Has no taints the pod doesn't tolerate.
-// type CandidateNodeIterator struct {
-// 	req         *PodSchedulingRequirements
-// 	maxPriority int32
-// 	resource    string
-// }
-
-// // NewCandidateNodeIterator
-
-// // Keep a single NodeTypesResourceIterator internally.
-// // For each node, check if the node can schedule the job. If not, discard it.
-// // If it can, return it together with the score.
-// // Let's start by writing the logic to select a node.
-// // Then break it out if required.
-
 // NodeTypesResourceIterator extends NodeTypeResourceIterator to iterate over nodes of several node types.
 // Nodes are returned in sorted order, going from least to most of the specified resource available.
 type NodeTypesResourceIterator struct {
@@ -200,7 +167,6 @@ type NodeItemAvailableResourceIndex struct {
 	// Resource name, e.g., "cpu", "gpu", or "memory".
 	Resource string
 	// Job priority.
-	// Returns unused resources + resources allocated to jobs of lower priority.
 	Priority int32
 }
 
