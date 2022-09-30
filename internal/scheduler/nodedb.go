@@ -274,6 +274,17 @@ func NewAvailableByPriorityAndResourceType(priorities []int32) AvailableByPriori
 	return rv
 }
 
+func (m AvailableByPriorityAndResourceType) DeepCopy() AvailableByPriorityAndResourceType {
+	rv := make(AvailableByPriorityAndResourceType)
+	for priority, resourcesAtPriority := range m {
+		rv[priority] = make(map[string]resource.Quantity)
+		for resourceType, quantity := range resourcesAtPriority {
+			m[priority][resourceType] = quantity.DeepCopy()
+		}
+	}
+	return rv
+}
+
 // MarkUsed reduces the resources available to pods of priority p or lower.
 func (m AvailableByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
 	for priority, availableResourcesAtPriority := range m {

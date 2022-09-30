@@ -305,51 +305,115 @@ func BenchmarkUpsert1(b *testing.B)      { benchmarkUpsert(1, b) }
 func BenchmarkUpsert1000(b *testing.B)   { benchmarkUpsert(1000, b) }
 func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(100000, b) }
 
-// TODO: This considers more nodes than I'd expect it to.
-func benchmarkSelectNodeForPod(numNodes int, b *testing.B) {
+func benchmarkSelectAndBindNodeToPod(
+	numCpuNodes, numTaintedCpuNodes, numGpuNodes,
+	numSmallCpuJobsToSchedule, numLargeCpuJobsToSchedule, numGpuJobsToSchedule int,
+	b *testing.B) {
+
 	db, err := NewNodeDb(testPriorities, testResources)
 	if !assert.NoError(b, err) {
 		return
 	}
-	nodes := testNodeItems2(testPriorities, testResources, numNodes)
+	nodes := testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes, testPriorities)
 	err = db.Upsert(nodes)
 	if !assert.NoError(b, err) {
 		return
 	}
-	req := &schedulerobjects.PodRequirements{
+
+	smallCpuJob := &schedulerobjects.PodRequirements{
 		Priority: 0,
 		ResourceRequirements: &v1.ResourceRequirements{
 			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("50"),
-				"memory": resource.MustParse("50"),
-				"gpu":    resource.MustParse("50"),
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("4Gi"),
+			},
+		},
+	}
+	largeCpuJob := &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("32"),
+				"memory": resource.MustParse("256Gi"),
+			},
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   "largeJobsOnly",
+				Value: "true",
+			},
+		},
+	}
+	gpuJob := &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("4"),
+				"memory": resource.MustParse("16Gi"),
+				"gpu":    resource.MustParse("1"),
+			},
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   "gpu",
+				Value: "true",
 			},
 		},
 	}
 
-	totalSuccessfulAssignments := 0.0
-	totalExcludedNodes := 0.0
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		jobId := uuid.New()
-		report, err := db.SelectAndBindNodeToPod(jobId, req)
-		if !assert.NoError(b, err) {
-			return
+		jobIds := make([]uuid.UUID, 0)
+		for i := 0; i < numSmallCpuJobsToSchedule; i++ {
+			jobId := uuid.New()
+			jobIds = append(jobIds, jobId)
+			report, err := db.SelectAndBindNodeToPod(jobId, smallCpuJob)
+			if !assert.NoError(b, err) {
+				return
+			}
+			if !assert.NotNil(b, report.Node) {
+				return
+			}
 		}
-		db.MarkJobRunning(jobId) // Needed to release resources.
-		for _, v := range report.NumExcludedNodesByReason {
-			totalExcludedNodes += float64(v)
+		for i := 0; i < numLargeCpuJobsToSchedule; i++ {
+			jobId := uuid.New()
+			jobIds = append(jobIds, jobId)
+			report, err := db.SelectAndBindNodeToPod(jobId, largeCpuJob)
+			if !assert.NoError(b, err) {
+				return
+			}
+			if !assert.NotNil(b, report.Node) {
+				return
+			}
 		}
-		if report.Node != nil {
-			totalSuccessfulAssignments += 1
+		for i := 0; i < numGpuJobsToSchedule; i++ {
+			jobId := uuid.New()
+			jobIds = append(jobIds, jobId)
+			report, err := db.SelectAndBindNodeToPod(jobId, gpuJob)
+			if !assert.NoError(b, err) {
+				return
+			}
+			if !assert.NotNil(b, report.Node) {
+				return
+			}
+		}
+
+		// Release resources for the next iteration.
+		for _, jobId := range jobIds {
+			db.MarkJobRunning(jobId)
 		}
 	}
-	b.Logf("node matched %f of times, excluded %f nodes on average", totalSuccessfulAssignments/float64(b.N), totalExcludedNodes/float64(b.N))
 }
 
-func BenchmarkSelectNodeForPod1(b *testing.B)      { benchmarkSelectNodeForPod(1, b) }
-func BenchmarkSelectNodeForPod1000(b *testing.B)   { benchmarkSelectNodeForPod(1000, b) }
-func BenchmarkSelectNodeForPod100000(b *testing.B) { benchmarkSelectNodeForPod(100000, b) }
+func BenchmarkSelectAndBindNodeToPod100(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(70, 20, 10, 7, 2, 1, b)
+}
+func BenchmarkSelectAndBindNodeToPod1000(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(700, 200, 100, 70, 20, 10, b)
+}
+func BenchmarkSelectAndBindNodeToPod10000(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(7000, 2000, 1000, 700, 200, 100, b)
+}
 
 func TestAvailableByPriorityAndResourceType(t *testing.T) {
 	tests := map[string]struct {
