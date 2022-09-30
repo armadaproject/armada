@@ -3,8 +3,6 @@ package scheduler
 import (
 	"github.com/G-Research/armada/pkg/api"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/component-helpers/scheduling/corev1"
 )
 
 type taintsFilterFunc func(*v1.Taint) bool
@@ -69,39 +67,6 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 // canSchedulePod determines whether a pod can be scheduled on nodes of this NodeType.
 // If the pod can't be scheduled, the returned error indicates why.
 // If no error is returned, the pod can be scheduled on nodes of this NodeType.
-//
-// TODO: Return something other than an error if the pod can't be scheduled.
-// TODO: For the node selector check, return the constraint that wasn't met.
 func (nodeType *NodeType) canSchedulePod(req *PodSchedulingRequirements) error {
-	untoleratedTaint, hasUntoleratedTaint := corev1.FindMatchingUntoleratedTaint(
-		nodeType.Taints,
-		req.Tolerations,
-		nil,
-	)
-	if hasUntoleratedTaint {
-		return &ErrUntoleratedTaint{
-			Taint: untoleratedTaint,
-		}
-	}
-
-	if req.NodeSelector != nil {
-		matchesNodeSelector, err := corev1.MatchNodeSelectorTerms(
-			&v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: nodeType.Labels,
-				},
-			},
-			req.NodeSelector,
-		)
-		if err != nil {
-			return err
-		}
-		if !matchesNodeSelector {
-			return &ErrUnmatchedNodeSelector{
-				NodeSelector: req.NodeSelector,
-			}
-		}
-	}
-
-	return nil
+	return req.toleratesTaintsAndMatchesSelector(nodeType.Taints, nodeType.Labels)
 }

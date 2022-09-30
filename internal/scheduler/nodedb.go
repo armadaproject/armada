@@ -49,6 +49,9 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *PodScheduling
 
 	// Collect all node types that could schedule the pod.
 	nodeTypes := nodeDb.NodeTypesMatchingPod(req)
+	if len(nodeTypes) == 0 {
+		return nil, errors.New("pod doesn't match any node type")
+	}
 
 	// The dominant resource is the one for which the pod requests
 	// the largest fraction of available resources.
@@ -122,7 +125,7 @@ func (nodeDb *NodeDb) NodeTypesMatchingPod(req *PodSchedulingRequirements) []*No
 func NodeTypesMatchingPod(nodeTypes map[string]*NodeType, req *PodSchedulingRequirements) []*NodeType {
 	rv := make([]*NodeType, 0)
 	for _, nodeType := range nodeTypes {
-		if err := nodeType.canSchedulePod(req); err != nil {
+		if err := nodeType.canSchedulePod(req); err == nil {
 			rv = append(rv, nodeType)
 		}
 	}

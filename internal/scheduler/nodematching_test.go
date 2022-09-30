@@ -7,7 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func TestCanSchedulePod(t *testing.T) {
+func TestToleratesTaintsAndMatchesSelector(t *testing.T) {
 	tests := map[string]struct {
 		Taints        []v1.Taint
 		Labels        map[string]string
@@ -175,8 +175,7 @@ func TestCanSchedulePod(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeType := NewNodeType(tc.Taints, tc.Labels, nil, nil)
-			err := nodeType.canSchedulePod(tc.Req)
+			err := tc.Req.toleratesTaintsAndMatchesSelector(tc.Taints, tc.Labels)
 			if tc.ExpectSuccess {
 				assert.NoError(t, err)
 			} else {

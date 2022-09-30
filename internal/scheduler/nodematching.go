@@ -5,6 +5,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-helpers/scheduling/corev1"
 )
 
@@ -53,32 +54,9 @@ type PodSchedulingRequirements struct {
 // - 0: Pod can be scheduled by preempting running pods.
 // - 1: Pod can be scheduled without preempting any running pods.
 func (node *SchedulerNode) canSchedulePod(req *PodSchedulingRequirements, assignedResources AssignedByPriorityAndResourceType) (int, error) {
-	if taints := node.GetTaints(); len(taints) > 0 {
-		untoleratedTaint, toleratesAllTaints := corev1.FindMatchingUntoleratedTaint(
-			node.GetTaints(),
-			req.Tolerations,
-			nil,
-		)
-		if !toleratesAllTaints {
-			return 0, &ErrUntoleratedTaint{
-				Taint: untoleratedTaint,
-			}
-		}
-	}
-
-	if node.NodeInfo != nil {
-		matchesNodeSelector, err := corev1.MatchNodeSelectorTerms(
-			nodeFromNodeInfo(node.NodeInfo),
-			req.NodeSelector,
-		)
-		if err != nil {
-			return 0, err
-		}
-		if !matchesNodeSelector {
-			return 0, &ErrUnmatchedNodeSelector{
-				NodeSelector: req.NodeSelector,
-			}
-		}
+	err := req.toleratesTaintsAndMatchesSelector(node.GetTaints(), node.GetLabels())
+	if err != nil {
+		return 0, err
 	}
 
 	// Check if the pod can be scheduled without preemption.
@@ -112,4 +90,40 @@ func (node *SchedulerNode) canSchedulePod(req *PodSchedulingRequirements, assign
 	}
 
 	return 0, nil
+}
+
+// TODO: Return something other than an error if the pod can't be scheduled.
+// TODO: For the node selector check, return the constraint that wasn't met.
+func (req *PodSchedulingRequirements) toleratesTaintsAndMatchesSelector(taints []v1.Taint, labels map[string]string) error {
+	untoleratedTaint, hasUntoleratedTaint := corev1.FindMatchingUntoleratedTaint(
+		taints,
+		req.Tolerations,
+		nil,
+	)
+	if hasUntoleratedTaint {
+		return &ErrUntoleratedTaint{
+			Taint: untoleratedTaint,
+		}
+	}
+
+	if req.NodeSelector != nil {
+		matchesNodeSelector, err := corev1.MatchNodeSelectorTerms(
+			&v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+			},
+			req.NodeSelector,
+		)
+		if err != nil {
+			return err
+		}
+		if !matchesNodeSelector {
+			return &ErrUnmatchedNodeSelector{
+				NodeSelector: req.NodeSelector,
+			}
+		}
+	}
+
+	return nil
 }
