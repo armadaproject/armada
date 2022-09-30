@@ -2,6 +2,8 @@ package authorization
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
@@ -111,6 +113,19 @@ type AuthService interface {
 	Name() string
 }
 
+type authAttempt struct {
+	PrincipalName   string
+	AuthServiceName string
+	Error           error
+}
+
+func (aa *authAttempt) String() string {
+	return fmt.Sprintf("Auth attempted with principal %q via service %q, encountered error: %q",
+		aa.PrincipalName,
+		aa.AuthServiceName,
+		aa.Error.Error())
+}
+
 // CreateMiddlewareAuthFunction returns an authentication function that combines the given
 // authentication services. That function returns success if any service successfully
 // authenticates the user, and an error if all services fail to authenticate.
@@ -121,29 +136,38 @@ type AuthService interface {
 // request context for logging purposes.
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
-		missingCreds := make([]string, 0, len(authServices))
-		// TODO(Clif): Add principal name tried here.
-		invalidCreds := make([]string, 0, len(authServices))
-
+		authAttempts := make([]*authAttempt, 0, len(authServices))
 		for _, service := range authServices {
 			principal, err := service.Authenticate(ctx)
-			if err == missingCredentialsErr {
+
+			if err == missingCredentialsErr ||
+				err == invalidCredentialsErr {
+				principalName := ""
+				if principal != nil {
+					principalName = principal.GetName()
+				}
+				authAttempts = append(authAttempts, &authAttempt{
+					PrincipalName:   principalName,
+					AuthServiceName: service.Name(),
+					Error:           err,
+				})
 				// try next auth service
-				missingCreds = append(missingCreds, service.Name())
-				continue
-			} else if err == invalidCredentialsErr {
-				invalidCreds = append(invalidCreds, service.Name())
 				continue
 			} else if err != nil {
 				return nil, err
 			}
+
 			// record user name & auth service for request logging
 			grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
 			grpc_ctxtags.Extract(ctx).Set("authService", service.Name())
 			return WithPrincipal(ctx, principal), nil
 		}
+
+		var attempts strings.Builder
+		for _, attempt := range authAttempts {
+			fmt.Fprintf(&attempts, "[%s] ", attempt.String())
+		}
 		return nil, status.Errorf(codes.Unauthenticated,
-			"Request could not be authenticated with any of the supported schemes, missingCredsErr: %v, invalidCredsErr: %v",
-			missingCreds, invalidCreds)
+			"Request could not be authenticated with any of the supported schemes: %s", attempts.String())
 	}
 }
