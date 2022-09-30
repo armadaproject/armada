@@ -410,10 +410,6 @@ func SwaggerJsonTemplate() string {
 		"        \"jobState\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
-		"        \"preempted\": {\n" +
-		"          \"type\": \"string\",\n" +
-		"          \"format\": \"date-time\"\n" +
-		"        },\n" +
 		"        \"runs\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -525,6 +521,10 @@ func SwaggerJsonTemplate() string {
 		"        \"podNumber\": {\n" +
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
+		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
 		"        },\n" +
 		"        \"runState\": {\n" +
 		"          \"type\": \"string\"\n" +

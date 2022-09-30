@@ -80,7 +80,6 @@ export type Job = {
   priority: number
   submissionTime: string
   cancelledTime?: string
-  preemptedTime?: string
   jobState: string
   runs: Run[]
   jobYaml: string
@@ -98,6 +97,7 @@ export type Run = {
   podCreationTime?: string
   podStartTime?: string
   finishTime?: string
+  preemptedTime?: string
   podNumber: number
 }
 
@@ -410,7 +410,6 @@ export class LookoutJobService implements JobService {
     const priority = jobInfo.job?.priority ?? 0
     const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
     const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
-    const preemptedTime = jobInfo.preempted ? dateToString(jobInfo.preempted) : undefined
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
@@ -427,7 +426,6 @@ export class LookoutJobService implements JobService {
       priority: priority,
       submissionTime: submissionTime,
       cancelledTime: cancelledTime,
-      preemptedTime: preemptedTime,
       jobState: jobState,
       runs: runs,
       jobYaml: jobYaml,
@@ -588,6 +586,7 @@ function runInfoToViewModel(run: LookoutRunInfo): Run {
     podCreationTime: run.created ? dateToString(run.created) : undefined,
     podStartTime: run.started ? dateToString(run.started) : undefined,
     finishTime: run.finished ? dateToString(run.finished) : undefined,
+    preemptedTime: run.preempted ? dateToString(run.preempted) : undefined,
     podNumber: run.podNumber ?? 0,
   }
 }

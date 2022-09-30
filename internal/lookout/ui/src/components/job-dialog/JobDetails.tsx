@@ -60,7 +60,6 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
-            {props.job.preemptedTime && <DetailRow name="Preempted" value={props.job.preemptedTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&
               Object.entries(props.job.annotations).map(([name, value]) => (

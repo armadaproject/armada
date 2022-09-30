@@ -399,10 +399,6 @@
         "jobState": {
           "type": "string"
         },
-        "preempted": {
-          "type": "string",
-          "format": "date-time"
-        },
         "runs": {
           "type": "array",
           "items": {
@@ -514,6 +510,10 @@
         "podNumber": {
           "type": "integer",
           "format": "int32"
+        },
+        "preempted": {
+          "type": "string",
+          "format": "date-time"
         },
         "runState": {
           "type": "string"

@@ -23,7 +23,6 @@ message JobInfo {
     google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     string job_state = 4;
     string job_json = 5;
-    google.protobuf.Timestamp preempted = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message RunInfo {
@@ -38,6 +37,7 @@ message RunInfo {
     int32 pod_number = 9;
     string run_state = 10;
     bool unable_to_schedule = 11;
+    google.protobuf.Timestamp preempted = 12 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message QueueInfo {

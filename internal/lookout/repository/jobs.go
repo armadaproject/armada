@@ -208,7 +208,6 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 				jobMap[jobId] = &lookout.JobInfo{
 					Job:       job,
 					Cancelled: ParseNullTime(row.Cancelled),
-					Preempted: ParseNullTime(row.Preempted),
 					JobState:  state,
 					Runs:      []*lookout.RunInfo{},
 					JobJson:   ParseNullString(row.JobJson),
@@ -287,6 +286,7 @@ func makeRunFromRow(row *JobRow) *lookout.RunInfo {
 		Created:   ParseNullTime(row.Created), // Pod created (Pending)
 		Started:   ParseNullTime(row.Started), // Pod Running
 		Finished:  ParseNullTime(row.Finished),
+		Preempted: ParseNullTime(row.Preempted),
 	}
 }
 
