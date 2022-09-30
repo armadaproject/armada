@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
@@ -171,6 +172,9 @@ type SchedulerNode struct {
 	// Unique name associated with the node.
 	// Only used internally by the scheduler.
 	Id string
+	// Time at which this node was last updated.
+	// Used to garbage collect nodes that have been removed.
+	LastSeen time.Time
 	// The node type captures scheduling requirements of the node;
 	// it's computed from the taints and labels associated with the node.
 	NodeType *NodeType
