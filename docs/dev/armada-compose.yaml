@@ -25,6 +25,13 @@ services:
       - "6650:6650"
     depends_on:
       - redis
+  stan:
+    container_name: stan
+    image: nats-streaming
+    command: "-p 4223 -m 8223"
+    ports:
+      - "4223:4223"
+      - "8223:8223"
 
 # The Armada server and affiliated services
   armada-server:
