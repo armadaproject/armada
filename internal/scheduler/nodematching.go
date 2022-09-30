@@ -17,7 +17,7 @@ func (err *ErrUntoleratedTaint) Error() string {
 }
 
 type ErrUnmatchedNodeSelector struct {
-	NodeSelector v1.NodeSelector
+	NodeSelector *v1.NodeSelector
 }
 
 func (err *ErrUnmatchedNodeSelector) Error() string {
@@ -43,7 +43,7 @@ type PodSchedulingRequirements struct {
 	Priority             int32
 	ResourceRequirements map[string]resource.Quantity
 	Tolerations          []v1.Toleration
-	NodeSelector         v1.NodeSelector
+	NodeSelector         *v1.NodeSelector
 }
 
 // canSchedulePod determines whether a pod can be scheduled on this node.
@@ -69,7 +69,7 @@ func (node *SchedulerNode) canSchedulePod(req *PodSchedulingRequirements, assign
 	if node.NodeInfo != nil {
 		matchesNodeSelector, err := corev1.MatchNodeSelectorTerms(
 			nodeFromNodeInfo(node.NodeInfo),
-			&req.NodeSelector,
+			req.NodeSelector,
 		)
 		if err != nil {
 			return 0, err
