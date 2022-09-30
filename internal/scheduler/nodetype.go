@@ -65,15 +65,7 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 	return filteredLabels
 }
 
-// canSchedulePod determines whether a pod can be scheduled on nodes of this NodeType.
-// If the pod can't be scheduled, the returned error indicates why.
-// If no error is returned, the pod can be scheduled on nodes of this NodeType.
-//
-// TODO: Remove in favour of PodRequirementsMet.
-func (nodeType *NodeType) canSchedulePod(req *PodSchedulingRequirements) error {
-	return req.toleratesTaintsAndMatchesSelector(nodeType.Taints, nodeType.Labels)
-}
-
+// PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
 func (nodeType *NodeType) PodRequirementsMet(req *schedulerobjects.PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	return PodRequirementsMet(nodeType.Taints, nodeType.Labels, req)
 }
