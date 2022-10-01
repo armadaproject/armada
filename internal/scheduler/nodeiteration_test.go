@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -327,16 +327,113 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*SchedulerN
 			Id:                 uuid.NewString(),
 			NodeTypeId:         "foo", // All nodes have the same node type.
 			NodeType:           &NodeType{id: "bar"},
-			AvailableResources: make(map[int32]map[string]resource.Quantity),
+			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
 		}
-		cumsum := make(map[string]resource.Quantity)
 		for _, p := range priorities {
+			rs := make(map[string]resource.Quantity)
 			for _, r := range resources {
-				q := cumsum[r]
-				q.Add(resource.MustParse(fmt.Sprintf("%d", rand.Intn(100))))
-				cumsum[r] = q
+				rs[r] = resource.MustParse(fmt.Sprintf("%d", rand.Intn(100)))
 			}
-			rv[i].AvailableResources[p] = maps.Clone(cumsum)
+			rv[i].AvailableResources.MarkAvailable(p, rs)
+		}
+	}
+	return rv
+}
+
+func testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes int, priorities []int32) []*SchedulerNode {
+	rv := make([]*SchedulerNode, 0)
+	for i := 0; i < numCpuNodes; i++ {
+		node := &SchedulerNode{
+			Id: uuid.NewString(),
+			NodeType: &NodeType{
+				id: "cpu",
+			},
+			NodeTypeId:         "cpu",
+			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+		}
+		node.AvailableResources.MarkAvailable(
+			0,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("32"),
+				"memory": resource.MustParse("256Gi"),
+			},
+		)
+		rv = append(rv, node)
+	}
+	for i := 0; i < numTaintedCpuNodes; i++ {
+		node := &SchedulerNode{
+			Id: uuid.NewString(),
+			NodeType: &NodeType{
+				id: "taintedCpu",
+				Taints: []v1.Taint{
+					{
+						Key:    "largeJobsOnly",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+			},
+			NodeTypeId:         "taintedCpu",
+			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+		}
+		node.AvailableResources.MarkAvailable(
+			0,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("32"),
+				"memory": resource.MustParse("256Gi"),
+			},
+		)
+		rv = append(rv, node)
+	}
+	for i := 0; i < numTaintedCpuNodes; i++ {
+		node := &SchedulerNode{
+			Id: uuid.NewString(),
+			NodeType: &NodeType{
+				id: "gpu",
+				Taints: []v1.Taint{
+					{
+						Key:    "gpu",
+						Value:  "true",
+						Effect: v1.TaintEffectNoSchedule,
+					},
+				},
+			},
+			NodeTypeId:         "gpu",
+			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+		}
+		node.AvailableResources.MarkAvailable(
+			0,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("64"),
+				"memory": resource.MustParse("1024Gi"),
+				"gpu":    resource.MustParse("8"),
+			},
+		)
+		rv = append(rv, node)
+	}
+	return rv
+}
+
+func testNodesByTemplate(templates []*SchedulerNode, ns []int) []*SchedulerNode {
+	if len(templates) != len(ns) {
+		panic("templates and ns must be of equal length")
+	}
+	numNodes := 0
+	for _, n := range ns {
+		numNodes += n
+	}
+	rv := make([]*SchedulerNode, 0)
+	for _, template := range templates {
+		for i := 0; i < ns[i]; i++ {
+			node := &SchedulerNode{
+				Id:                 uuid.NewString(),
+				LastSeen:           template.LastSeen,
+				NodeType:           template.NodeType,
+				NodeTypeId:         template.NodeTypeId,
+				NodeInfo:           template.NodeInfo,
+				AvailableResources: template.AvailableResources.DeepCopy(),
+			}
+			rv = append(rv, node)
 		}
 	}
 	return rv

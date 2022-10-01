@@ -64,37 +64,6 @@ func (err *InsufficientResources) String() string {
 	)
 }
 
-type ErrUntoleratedTaint struct {
-	Taint v1.Taint
-}
-
-func (err *ErrUntoleratedTaint) Error() string {
-	return fmt.Sprintf("taint %+v not tolerated", err.Taint)
-}
-
-type ErrUnmatchedNodeSelector struct {
-	NodeSelector *v1.NodeSelector
-}
-
-func (err *ErrUnmatchedNodeSelector) Error() string {
-	return fmt.Sprintf("node does not match %+v", err.NodeSelector)
-}
-
-type ErrInsufficientResources struct {
-	Resource  string
-	Required  resource.Quantity
-	Available resource.Quantity
-}
-
-func (err *ErrInsufficientResources) Error() string {
-	return fmt.Sprintf(
-		"pod requires %s %s, but only %s is available",
-		err.Required.String(),
-		err.Resource,
-		err.Available.String(),
-	)
-}
-
 // PodRequirementsMet determines whether a pod can be scheduled on this node.
 // If the pod can be scheduled, the returned score indicates how well the node fits:
 // - 0: Pod can be scheduled by preempting running pods.

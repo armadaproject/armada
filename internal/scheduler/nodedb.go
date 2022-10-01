@@ -29,7 +29,6 @@ type NodeDb struct {
 	priorities []int32
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
-	// TODO: Do we need this? If so, compute it correctly.
 	totalResources map[string]*resource.Quantity
 	// Set of node types for which there exists at least 1 node in the db.
 	NodeTypes map[string]*NodeType
@@ -271,6 +270,17 @@ func NewAvailableByPriorityAndResourceType(priorities []int32) AvailableByPriori
 	rv := make(AvailableByPriorityAndResourceType)
 	for _, priority := range priorities {
 		rv[priority] = make(map[string]resource.Quantity)
+	}
+	return rv
+}
+
+func (m AvailableByPriorityAndResourceType) DeepCopy() AvailableByPriorityAndResourceType {
+	rv := make(AvailableByPriorityAndResourceType)
+	for priority, resourcesAtPriority := range m {
+		rv[priority] = make(map[string]resource.Quantity)
+		for resourceType, quantity := range resourcesAtPriority {
+			m[priority][resourceType] = quantity.DeepCopy()
+		}
 	}
 	return rv
 }
