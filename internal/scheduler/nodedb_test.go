@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -276,6 +277,7 @@ func TestSelectNodeForPod(t *testing.T) {
 				if !assert.NotNil(t, report) {
 					return
 				}
+				fmt.Println(report.String())
 				if req.ExpectSuccess {
 					assert.NotNil(t, report.Node)
 				} else {
