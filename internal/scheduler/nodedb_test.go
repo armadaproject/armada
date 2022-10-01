@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -11,14 +12,6 @@ import (
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
-
-func simpleCpuRequirements(cpu int) *v1.ResourceRequirements {
-	return &v1.ResourceRequirements{
-		Requests: v1.ResourceList{
-			"cpu": resource.MustParse(strconv.Itoa(cpu)),
-		},
-	}
-}
 
 func createNodeDb(nodes []*SchedulerNode) (*NodeDb, error) {
 	db, err := NewNodeDb(testPriorities, testResources)
@@ -32,293 +25,237 @@ func createNodeDb(nodes []*SchedulerNode) (*NodeDb, error) {
 	return db, nil
 }
 
-func TestSelectNodeForPod_Simple(t *testing.T) {
-
-	// Test that jobs up to 7 cores can be scheduled
+// testNodeItems1 has max of 1Gb and 7cpu available, so check that such jobs requesting less than this
+// can be scheduled
+func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
 	for i := 1; i < 7; i++ {
-		testName := "cpu 1"
+		testName := fmt.Sprintf("cpu %d", i)
 		t.Run(testName, func(t *testing.T) {
 			db, err := createNodeDb(testNodeItems1)
 			assert.NoError(t, err)
-			request := simpleCpuRequirements(i)
-			report, err := db.SelectAndBindNodeToPod(uuid.New(), request)
+			report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+				Priority: 0,
+				ResourceRequirements: &v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						"cpu":    resource.MustParse(strconv.Itoa(i)),
+						"memory": resource.MustParse("1Gi"),
+					},
+				},
+			})
 			assert.NoError(t, err)
 			assert.NotNil(t, report.Node)
 		})
 	}
 }
 
-func TestSelectNodeForPod(t *testing.T) {
+// testNodeItems1 has max of 1Gb and 7cpu available, so check that such jobs requesting more than this
+// cant be scheduled
+func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
 
-	tests := map[string]struct {
-		Nodes []*SchedulerNode
-		Reqs  []*ReqWithExpectation
-	}{
-		"cpu 1": {
-			Nodes: testNodeItems1,
-			Reqs: []*ReqWithExpectation{
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("1"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-			},
-		},
-		"cpu 7": {
-			Nodes: testNodeItems1,
-			Reqs: []*ReqWithExpectation{
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("7"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-			},
-		},
-		"cpu 8": {
-			Nodes: testNodeItems1,
-			Reqs: []*ReqWithExpectation{
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("8"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-			},
-		},
-		"all cpu at priority 0": {
-			Nodes: testNodeItems1,
-			Reqs: []*ReqWithExpectation{
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("7"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("4"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("1"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-			},
-		},
-		"running total": {
-			Nodes: testNodeItems1,
-			Reqs: []*ReqWithExpectation{
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("7"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("5"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("4"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("2"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("1"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu": resource.MustParse("1"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-			},
-		},
-		"running total with memory": {
-			Nodes: testNodeItems1,
-			Reqs: []*ReqWithExpectation{
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":    resource.MustParse("7"),
-								"memory": resource.MustParse("7Gi"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":    resource.MustParse("5"),
-								"memory": resource.MustParse("5Gi"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":    resource.MustParse("4"),
-								"memory": resource.MustParse("4Gi"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":    resource.MustParse("2"),
-								"memory": resource.MustParse("2Gi"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":    resource.MustParse("1"),
-								"memory": resource.MustParse("1Gi"),
-							},
-						},
-					},
-					ExpectSuccess: true,
-				},
-				{
-					Req: &schedulerobjects.PodRequirements{
-						Priority: 0,
-						ResourceRequirements: &v1.ResourceRequirements{
-							Requests: v1.ResourceList{
-								"cpu":    resource.MustParse("1"),
-								"memory": resource.MustParse("1Gi"),
-							},
-						},
-					},
-					ExpectSuccess: false,
-				},
-			},
-		},
+	db, err := createNodeDb(testNodeItems1)
+	assert.NoError(t, err)
+
+	invalidResources := []v1.ResourceList{
+		{"cpu": resource.MustParse("8"), "memory": resource.MustParse("1Gi")},
+		{"cpu": resource.MustParse("1"), "memory": resource.MustParse("10Gi")},
+		{"cpu": resource.MustParse("8000Mi")},
 	}
 
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			db, err := NewNodeDb(testPriorities, testResources)
-			if !assert.NoError(t, err) {
-				return
-			}
-			err = db.Upsert(tc.Nodes)
-			if !assert.NoError(t, err) {
-				return
-			}
-
-			for _, req := range tc.Reqs {
-				report, err := db.SelectAndBindNodeToPod(uuid.New(), req.Req)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.NotNil(t, report) {
-					return
-				}
-				if req.ExpectSuccess {
-					assert.NotNil(t, report.Node)
-				} else {
-					assert.Nil(t, report.Node)
-				}
-			}
+	for _, r := range invalidResources {
+		report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+			Priority:             0,
+			ResourceRequirements: &v1.ResourceRequirements{Requests: r},
 		})
+		assert.NoError(t, err)
+		assert.Nil(t, report.Node)
 	}
 }
 
+// Test that some resource we don't know about causes an error:
+// TODO:  Is returning an error here correct?
+func TestSelectNodeForPod_InvalidResource(t *testing.T) {
+	db, err := createNodeDb(testNodeItems1)
+	assert.NoError(t, err)
+
+	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "someResourceWeDontHave": resource.MustParse("1")},
+		},
+	})
+	assert.Error(t, err)
+	assert.Nil(t, report)
+}
+
+// Fill up all the priority zero space on testNodeItems1
+func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
+
+	db, err := createNodeDb(testNodeItems1)
+	assert.NoError(t, err)
+
+	requirements := []*schedulerobjects.PodRequirements{
+		{
+			Priority: 0,
+			ResourceRequirements: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": resource.MustParse("7")},
+			},
+		},
+		{
+			Priority: 0,
+			ResourceRequirements: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
+			},
+		},
+		{
+			Priority: 0,
+			ResourceRequirements: &v1.ResourceRequirements{
+				Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
+			},
+		},
+	}
+
+	// Fill up everything
+	for _, r := range requirements {
+		report, err := db.SelectAndBindNodeToPod(uuid.New(), r)
+		assert.NoError(t, err)
+		assert.Nil(t, report.Node)
+	}
+}
+
+// Check that each job that is scheduled reduces the available resource for the next
+func TestSelectNodeForPod_RunningTotal(t *testing.T) {
+
+	db, err := createNodeDb(testNodeItems1)
+	assert.NoError(t, err)
+
+	// First job can be scheduled
+	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("7")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+
+	// Second job can't be scheduled (too much cpu)
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+
+	// third job can be scheduled
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+
+	// fourth job can't be scheduled (we only have one cpu left)
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+
+	// fifth job can be scheduled
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+
+	// sixth job can't be scheduled (we have no cpu left)
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+}
+
+// Check that each job that is scheduled reduces the available resource for the next: including memory
+func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
+	db, err := createNodeDb(testNodeItems1)
+	assert.NoError(t, err)
+
+	// First job can be scheduled
+	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+
+	// Second job can't be scheduled (too much cpu)
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+
+	// Third job can be scheduled
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+
+	// Fourth job cant be scheduled
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+
+	// Fifth job can be scheduled
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+
+	// Sixth job cant be scheduled
+	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: &v1.ResourceRequirements{
+			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+		},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+}
+
+// Benchmarking
 func benchmarkUpsert(numNodes int, b *testing.B) {
 	db, err := NewNodeDb(testPriorities, testResources)
 	if !assert.NoError(b, err) {
