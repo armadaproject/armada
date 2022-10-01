@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,12 +12,44 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
-func TestSelectNodeForPod(t *testing.T) {
-	type ReqWithExpectation struct {
-		Req *schedulerobjects.PodRequirements
-		// Whether we expect to find a node for this pod.
-		ExpectSuccess bool
+func simpleCpuRequirements(cpu int) *v1.ResourceRequirements {
+	return &v1.ResourceRequirements{
+		Requests: v1.ResourceList{
+			"cpu": resource.MustParse(strconv.Itoa(cpu)),
+		},
 	}
+}
+
+func createNodeDb(nodes []*SchedulerNode) (*NodeDb, error) {
+	db, err := NewNodeDb(testPriorities, testResources)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Upsert(nodes)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+func TestSelectNodeForPod_Simple(t *testing.T) {
+
+	// Test that jobs up to 7 cores can be scheduled
+	for i := 1; i < 7; i++ {
+		testName := "cpu 1"
+		t.Run(testName, func(t *testing.T) {
+			db, err := createNodeDb(testNodeItems1)
+			assert.NoError(t, err)
+			request := simpleCpuRequirements(i)
+			report, err := db.SelectAndBindNodeToPod(uuid.New(), request)
+			assert.NoError(t, err)
+			assert.NotNil(t, report.Node)
+		})
+	}
+}
+
+func TestSelectNodeForPod(t *testing.T) {
+
 	tests := map[string]struct {
 		Nodes []*SchedulerNode
 		Reqs  []*ReqWithExpectation
