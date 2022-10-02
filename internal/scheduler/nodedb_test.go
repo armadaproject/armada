@@ -255,6 +255,65 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	assert.Nil(t, report.Node)
 }
 
+// TODO: Work out what correct behaviour is here
+func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
+	db, err := createNodeDb(testNodeItems1)
+	assert.NoError(t, err)
+
+	for i := 9; i > 0; i-- {
+		testName := fmt.Sprintf("cpu %d", i)
+		t.Run(testName, func(t *testing.T) {
+			report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
+				Priority: 2,
+				ResourceRequirements: &v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						"cpu": resource.MustParse(strconv.Itoa(i)),
+					},
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, report.Node)
+			if report.Node != nil {
+				println(fmt.Sprintf("i=%d, id=%s, type=%v, cpu=%v", i, report.Node.Id, report.Node.NodeType.id, report.Node.AvailableResources.Get(2, "cpu")))
+			}
+		})
+	}
+}
+
+//func TestSelectNodeForPod_RespectTaints(t *testing.T) {
+//	nodes := []*SchedulerNode{
+//		{
+//			Id:         "tainted-1",
+//			NodeTypeId: "foo",
+//			NodeType: &NodeType{
+//				id:     "tainted",
+//				Taints: []v1.Taint{{Key: "fish", Value: "chips", Effect: "NoSchedule"}},
+//			},
+//			AvailableResources: map[int32]map[string]resource.Quantity{
+//				0: {"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+//			},
+//		},
+//		{
+//			Id:         "untainted",
+//			NodeTypeId: "foo",
+//			NodeType:   &NodeType{id: "untainted"},
+//			AvailableResources: map[int32]map[string]resource.Quantity{
+//				0: {"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+//			},
+//		},
+//	}
+//
+//
+//	un&schedulerobjects.PodRequirements{
+//		Priority: 0,
+//		ResourceRequirements: &v1.ResourceRequirements{
+//			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}
+//
+//
+//	db, err := createNodeDb(nodes)
+//	assert.NoError(t, err)
+//}
+
 // Benchmarking
 func benchmarkUpsert(numNodes int, b *testing.B) {
 	db, err := NewNodeDb(testPriorities, testResources)

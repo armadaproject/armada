@@ -288,7 +288,7 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 
 var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 	{
-		Id:         uuid.NewString(),
+		Id:         "foo-1",
 		NodeTypeId: "foo",
 		NodeType:   &NodeType{id: "foo"},
 		AvailableResources: map[int32]map[string]resource.Quantity{
@@ -298,7 +298,7 @@ var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 		},
 	},
 	{
-		Id:         uuid.NewString(),
+		Id:         "foo-2",
 		NodeTypeId: "foo",
 		NodeType:   &NodeType{id: "foo"},
 		AvailableResources: map[int32]map[string]resource.Quantity{
@@ -308,7 +308,7 @@ var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 		},
 	},
 	{
-		Id:         uuid.NewString(),
+		Id:         "bar-1",
 		NodeTypeId: "bar",
 		NodeType:   &NodeType{id: "bar"},
 		AvailableResources: map[int32]map[string]resource.Quantity{
