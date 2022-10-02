@@ -8,7 +8,7 @@ armadactl.yaml
 loadtest.yaml
 test_reports
 code_reports
-jobservice.db
+/jobservice
 
 # Binaries for programs and plugins
 *.exe
