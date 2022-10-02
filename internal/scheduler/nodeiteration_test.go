@@ -288,7 +288,7 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 
 var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 	{
-		Id:         "foo-1",
+		Id:         "node1",
 		NodeTypeId: "foo",
 		NodeType:   &NodeType{id: "foo"},
 		AvailableResources: map[int32]map[string]resource.Quantity{
@@ -298,7 +298,7 @@ var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 		},
 	},
 	{
-		Id:         "foo-2",
+		Id:         "node2",
 		NodeTypeId: "foo",
 		NodeType:   &NodeType{id: "foo"},
 		AvailableResources: map[int32]map[string]resource.Quantity{
@@ -308,7 +308,7 @@ var testNodeItems1 []*SchedulerNode = []*SchedulerNode{
 		},
 	},
 	{
-		Id:         "bar-1",
+		Id:         "node3",
 		NodeTypeId: "bar",
 		NodeType:   &NodeType{id: "bar"},
 		AvailableResources: map[int32]map[string]resource.Quantity{
@@ -327,7 +327,7 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*SchedulerN
 			Id:                 uuid.NewString(),
 			NodeTypeId:         "foo", // All nodes have the same node type.
 			NodeType:           &NodeType{id: "bar"},
-			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+			AvailableResources: NewAvailableByPriorityAndResourceType(priorities, nil),
 		}
 		for _, p := range priorities {
 			rs := make(map[string]resource.Quantity)
@@ -348,16 +348,15 @@ func testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes int, priorities []i
 			NodeType: &NodeType{
 				id: "cpu",
 			},
-			NodeTypeId:         "cpu",
-			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+			NodeTypeId: "cpu",
+			AvailableResources: NewAvailableByPriorityAndResourceType(
+				priorities,
+				map[string]resource.Quantity{
+					"cpu":    resource.MustParse("32"),
+					"memory": resource.MustParse("256Gi"),
+				},
+			),
 		}
-		node.AvailableResources.MarkAvailable(
-			0,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		)
 		rv = append(rv, node)
 	}
 	for i := 0; i < numTaintedCpuNodes; i++ {
@@ -373,16 +372,15 @@ func testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes int, priorities []i
 					},
 				},
 			},
-			NodeTypeId:         "taintedCpu",
-			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+			NodeTypeId: "taintedCpu",
+			AvailableResources: NewAvailableByPriorityAndResourceType(
+				priorities,
+				map[string]resource.Quantity{
+					"cpu":    resource.MustParse("32"),
+					"memory": resource.MustParse("256Gi"),
+				},
+			),
 		}
-		node.AvailableResources.MarkAvailable(
-			0,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		)
 		rv = append(rv, node)
 	}
 	for i := 0; i < numTaintedCpuNodes; i++ {
@@ -398,17 +396,16 @@ func testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes int, priorities []i
 					},
 				},
 			},
-			NodeTypeId:         "gpu",
-			AvailableResources: NewAvailableByPriorityAndResourceType(priorities),
+			NodeTypeId: "gpu",
+			AvailableResources: NewAvailableByPriorityAndResourceType(
+				priorities,
+				map[string]resource.Quantity{
+					"cpu":    resource.MustParse("64"),
+					"memory": resource.MustParse("1024Gi"),
+					"gpu":    resource.MustParse("8"),
+				},
+			),
 		}
-		node.AvailableResources.MarkAvailable(
-			0,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		)
 		rv = append(rv, node)
 	}
 	return rv

@@ -43,26 +43,6 @@ type NodeDb struct {
 	JobsByNode map[string]map[uuid.UUID]interface{}
 }
 
-// PodSchedulingReport is returned by SelectAndBindNodeToPod and
-// contains detailed information on the scheduling decision made for this pod.
-type PodSchedulingReport struct {
-	// Id of the job this pod corresponds to.
-	JobId uuid.UUID
-	// Pod scheduling requirements.
-	Req *schedulerobjects.PodRequirements
-	// Node the pod was assigned to.
-	// If nil, the pod could not be assigned to any node.
-	Node *SchedulerNode
-	// Score indicates how well the pod fits on the selected node.
-	Score int
-	// Number of node types that
-	NumMatchedNodeTypes int
-	// Number of node types excluded by reason.
-	NumExcludedNodeTypesByReason map[string]int
-	// Number of nodes excluded by reason.
-	NumExcludedNodesByReason map[string]int
-}
-
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
 // TODO: Maybe PodToNode.
@@ -77,19 +57,21 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 	// Store number of nodes excluded by reason.
 	numExcludedNodesByReason := make(map[string]int)
 
-	// Create a report to be returned to the caller.
-	report := &PodSchedulingReport{
-		JobId:                        jobId,
-		Req:                          req,
-		NumMatchedNodeTypes:          len(nodeTypes),
-		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
-		NumExcludedNodesByReason:     numExcludedNodesByReason,
-	}
-
 	// The dominant resource is the one for which the pod requests
 	// the largest fraction of available resources.
 	// For efficiency, the scheduler only considers nodes with enough of the dominant resource.
 	dominantResourceType := nodeDb.dominantResource(req)
+
+	// Create a report to be returned to the caller.
+	report := &PodSchedulingReport{
+		Timestamp:                    time.Now(),
+		JobId:                        jobId,
+		Req:                          req,
+		DominantResourceType:         dominantResourceType,
+		NumMatchedNodeTypes:          len(nodeTypes),
+		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
+		NumExcludedNodesByReason:     numExcludedNodesByReason,
+	}
 
 	// Iterate over candidate nodes.
 	txn := nodeDb.Db.Txn(false)
@@ -153,6 +135,8 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 	}
 	return report, nil
 }
+
+// func (nodeDb *NodeDb) BindPodToNode(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 
 // NodeTypesMatchingPod returns a slice composed of all node types
 // a given pod could be scheduled on, i.e., all node types with
@@ -266,10 +250,14 @@ type QuantityByPriorityAndResourceType map[int32]map[string]resource.Quantity
 // where available resources = unused resources + resources assigned to lower-priority pods.
 type AvailableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAvailableByPriorityAndResourceType(priorities []int32) AvailableByPriorityAndResourceType {
+func NewAvailableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AvailableByPriorityAndResourceType {
 	rv := make(AvailableByPriorityAndResourceType)
 	for _, priority := range priorities {
-		rv[priority] = make(map[string]resource.Quantity)
+		m := make(map[string]resource.Quantity)
+		for t, q := range resources {
+			m[t] = q.DeepCopy()
+		}
+		rv[priority] = m
 	}
 	return rv
 }
@@ -305,7 +293,7 @@ func (m AvailableByPriorityAndResourceType) MarkUsed(p int32, rs map[string]reso
 // MarkAvailable increases the resources available to pods of priority p or higher.
 func (m AvailableByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
 	for priority, availableResourcesAtPriority := range m {
-		if priority >= p {
+		if priority <= p {
 			for usedResourceType, usedResourceQuantity := range rs {
 				q := availableResourcesAtPriority[usedResourceType]
 				q.Add(usedResourceQuantity)
@@ -315,8 +303,8 @@ func (m AvailableByPriorityAndResourceType) MarkAvailable(p int32, rs map[string
 	}
 }
 
-// AssignedByPriorityAndResourceType accounts for resources assigned to pods of a given priority or higher.
-// E.g., AssignedByPriorityAndResourceType[5]["cpu"] is the amount of CPU assigned to pods with priority 5 or higher.
+// AssignedByPriorityAndResourceType accounts for resources assigned to pods of a given priority or lower.
+// E.g., AssignedByPriorityAndResourceType[5]["cpu"] is the amount of CPU assigned to pods with priority 5 or lower.
 type AssignedByPriorityAndResourceType QuantityByPriorityAndResourceType
 
 func NewAssignedByPriorityAndResourceType(priorities []int32) AssignedByPriorityAndResourceType {
@@ -327,10 +315,10 @@ func NewAssignedByPriorityAndResourceType(priorities []int32) AssignedByPriority
 	return rv
 }
 
-// MarkUsed increases the resources assigned to pods of priority p or higher.
+// MarkUsed increases the resources assigned to pods of priority p or lower.
 func (m AssignedByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
 	for priority, assignedResourcesAtPriority := range m {
-		if priority >= p {
+		if priority <= p {
 			for usedResourceType, usedResourceQuantity := range rs {
 				q := assignedResourcesAtPriority[usedResourceType]
 				q.Add(usedResourceQuantity)
