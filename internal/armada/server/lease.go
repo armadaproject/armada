@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -109,16 +108,7 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster lease report: %s", err)
 	}
 
-	// When computing free resoruces,
-	// only consider jobs of the highest priority.
-	var minPriority int32
-	for _, priority := range q.schedulingConfig.Preemption.PriorityClasses {
-		if priority > minPriority {
-			minPriority = priority
-		}
-	}
-
-	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes, minPriority)
+	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
 	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
 	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if err != nil {
@@ -176,8 +166,6 @@ func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.Lease
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	log := ctxlogrus.Extract(stream.Context())
-
 	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
 		return err
 	}
@@ -188,15 +176,11 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return errors.WithStack(err)
 	}
 
-	// // Return no jobs if we don't have enough work.
-	// var res common.ComputeResources = req.Resources
-	// if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
-	// 	log.WithFields(logrus.Fields{
-	// 		"available": res,
-	// 		"minimum":   q.schedulingConfig.MinimumResourceToSchedule,
-	// 	}).Info("leasing no jobs: request less than minimum")
-	// 	return nil
-	// }
+	// Return no jobs if we don't have enough work.
+	var res common.ComputeResources = req.Resources
+	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
+		return nil
+	}
 
 	queues, err := q.queueRepository.GetAllQueues()
 	if err != nil {
@@ -217,15 +201,6 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
-	// When computing free resoruces,
-	// only consider jobs of the highest priority.
-	var minPriority int32
-	for _, priority := range q.schedulingConfig.Preemption.PriorityClasses {
-		if priority > minPriority {
-			minPriority = priority
-		}
-	}
-
 	// One of the below functions expects a regular lease request,
 	// so we need to convert.
 	leaseRequest := &api.LeaseRequest{
@@ -236,19 +211,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		MinimumJobSize:      req.MinimumJobSize,
 		Nodes:               req.Nodes,
 	}
-	nodeResources := scheduling.AggregateNodeTypeAllocations(req.Nodes, minPriority)
-
-	// foo := make(map[string]resource.Quantity)
-	// for _, node := range nodeResources {
-	// 	for t, q := range node.AvailableResources {
-	// 		bar := foo[t]
-	// 		bar.Add(q)
-	// 		foo[t] = bar
-	// 	}
-	// }
-	// leaseRequest.Resources = foo
-	// log.Infof("=== StreamingLeaseJobs leaseRequest.Resources: %v", leaseRequest.Resources)
-
+	nodeResources := scheduling.AggregateNodeTypeAllocations(req.Nodes)
 	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(leaseRequest, nodeResources)
 	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if err != nil {
@@ -263,9 +226,6 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
-	// TODO: This is the issue. It gets resource usage out of the cluster leased report.
-	// This thing prevents the scheduler from assigning more jobs than the fair share.
-	// The fair share thing still doesn't work.
 	clusterLeasedJobReports, err := q.usageRepository.GetClusterLeasedReports()
 	if err != nil {
 		return err
@@ -281,7 +241,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		leaseRequest,
 		nodeResources,
 		activePoolClusterReports,
-		poolLeasedJobReports, // TODO: This one
+		poolLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
 	if err != nil {

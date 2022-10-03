@@ -109,7 +109,7 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		},
 	}
 
-	aggregated := AggregateNodeTypeAllocations(nodes, 0)
+	aggregated := AggregateNodeTypeAllocations(nodes)
 	expected := []*nodeTypeAllocation{
 		{
 			nodeType: api.NodeType{
@@ -169,7 +169,7 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 		},
 	}
 
-	aggregated := AggregateNodeTypeAllocations(nodes, 0)
+	aggregated := AggregateNodeTypeAllocations(nodes)
 	expected := []*nodeTypeAllocation{
 		{
 			nodeType: api.NodeType{

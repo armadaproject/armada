@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -112,14 +111,11 @@ func matchAnyNodeTypeAllocation(
 	supportedPriorityClasses map[string]int32,
 ) (nodeTypeUsedResources, bool, error) {
 	newlyConsumed := nodeTypeUsedResources{}
+
 	for _, podSpec := range job.GetAllPodSpecs() {
-		nodeType, ok, err := matchAnyNodeTypePodAllocation(
-			podSpec,
-			nodeAllocations,
-			alreadyConsumed,
-			newlyConsumed,
-			supportedPriorityClasses,
-		)
+
+		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, supportedPriorityClasses)
+
 		if !ok {
 			return nodeTypeUsedResources{}, false, err
 		}
@@ -130,34 +126,31 @@ func matchAnyNodeTypeAllocation(
 	return newlyConsumed, true, nil
 }
 
-// TODO: This should account for preemptible resources.
 func matchAnyNodeTypePodAllocation(
 	podSpec *v1.PodSpec,
-	nodeTypeAllocations []*nodeTypeAllocation,
+	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources,
 	supportedPriorityClasses map[string]int32,
 ) (*nodeTypeAllocation, bool, error) {
-	if len(nodeTypeAllocations) == 0 {
+	if len(nodeAllocations) == 0 {
 		return nil, false, errors.Errorf("no nodes available")
 	}
 
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	var result *armadaerrors.ErrPodUnschedulable
-	for _, nodeTypeAllication := range nodeTypeAllocations {
-		available := nodeTypeAllication.availableResources.DeepCopy()
-		available.Sub(alreadyConsumed[nodeTypeAllication])
-		available.Sub(newlyConsumed[nodeTypeAllication])
-
-		// TODO: This should be node node.AvailableResources of the right priority.
-		available.LimitWith(common.ComputeResources(nodeTypeAllication.nodeType.AllocatableResources).AsFloat())
+	for _, node := range nodeAllocations {
+		available := node.availableResources.DeepCopy()
+		available.Sub(alreadyConsumed[node])
+		available.Sub(newlyConsumed[node])
+		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
 		resources := available
 		if hasPriorityClass(podSpec) {
 			preemptible, err := getPreemptibleResources(
 				supportedPriorityClasses,
 				podSpec.PriorityClassName,
-				nodeTypeAllication.allocatedResourcesByPriority,
+				node.allocatedResources,
 			)
 			if err != nil {
 				return nil, false, err
@@ -166,10 +159,10 @@ func matchAnyNodeTypePodAllocation(
 			preemptible.Add(available)
 			resources = preemptible
 		}
-		ok, err := podMatchingContext.Matches(&nodeTypeAllication.nodeType, resources)
+		ok, err := podMatchingContext.Matches(&node.nodeType, resources)
 		switch {
 		case ok:
-			return nodeTypeAllication, true, nil
+			return node, true, nil
 		case err != nil:
 			result = result.Add(err.Error(), 1)
 		default:
@@ -199,62 +192,50 @@ func getPreemptibleResources(
 	return preemptibleResources, nil
 }
 
-// AggregateNodeTypeAllocations aggregates total available resources by node type.
-func AggregateNodeTypeAllocations(nodes []api.NodeInfo, minPriority int32) []*nodeTypeAllocation {
-	nodeTypeAllocationByDescription := map[string]*nodeTypeAllocation{}
-	for i, node := range nodes {
+// AggregateNodeTypeAllocations computes the total available resources for each node type.
+func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
+	nodeTypesIndex := map[string]*nodeTypeAllocation{}
+
+	for i, n := range nodes {
 		description := createNodeDescription(&nodes[i])
-		typeDescription, exists := nodeTypeAllocationByDescription[description]
+		typeDescription, exists := nodeTypesIndex[description]
 
-		nodeTotalResources := common.ComputeResources(node.TotalResources).AsFloat()
-
-		// Subtract resources already consumed by running jobs.
-		// Only considers jobs with priority of minPriority or higher.
-		nodeAvailableResources := nodeTotalResources.DeepCopy()
-		for priority, allocated := range node.AllocatedResources {
-			if priority >= minPriority && len(allocated.Resources) > 0 {
-				nodeAvailableResources.Sub(common.ComputeResources(allocated.Resources).AsFloat())
-			}
-		}
-
-		logrus.Infof(
-			"=== AggregateNodeTypeAllocations nodeTotalResources: %v, nodeAvailableResources: %v",
-			nodeTotalResources, nodeAvailableResources,
-		)
-
-		// Compute allocated resources by priority.
+		nodeAvailableResources := common.ComputeResources(n.AvailableResources).AsFloat()
+		nodeTotalResources := common.ComputeResources(n.TotalResources).AsFloat()
 		nodeAllocatedResources := make(map[int32]common.ComputeResourcesFloat)
-		for k, v := range node.AllocatedResources {
+		for k, v := range n.AllocatedResources {
 			nodeAllocatedResources[k] = common.ComputeResources(v.Resources).AsFloat()
 		}
 
 		if !exists {
 			typeDescription = &nodeTypeAllocation{
 				nodeType: api.NodeType{
-					Taints:               node.Taints,
-					Labels:               node.Labels,
-					AllocatableResources: node.AllocatableResources,
+					Taints:               n.Taints,
+					Labels:               n.Labels,
+					AllocatableResources: n.AllocatableResources,
 				},
-				availableResources:           nodeAvailableResources,
-				totalResources:               nodeTotalResources,
-				allocatedResourcesByPriority: nodeAllocatedResources,
+				availableResources: nodeAvailableResources,
+				totalResources:     nodeTotalResources,
+				allocatedResources: nodeAllocatedResources,
 			}
 		} else {
 			typeDescription.totalResources.Add(nodeTotalResources)
 			typeDescription.availableResources.Add(nodeAvailableResources)
+
 			for priority, resources := range nodeAllocatedResources {
-				if totalAllocatedResources, ok := typeDescription.allocatedResourcesByPriority[priority]; ok {
+				totalAllocatedResources, exists := typeDescription.allocatedResources[priority]
+				if exists {
 					totalAllocatedResources.Add(resources)
 				} else {
-					typeDescription.allocatedResourcesByPriority[priority] = resources
+					typeDescription.allocatedResources[priority] = resources
 				}
 			}
 		}
-		nodeTypeAllocationByDescription[description] = typeDescription
+		nodeTypesIndex[description] = typeDescription
 	}
 
 	var result []*nodeTypeAllocation
-	for _, n := range nodeTypeAllocationByDescription {
+	for _, n := range nodeTypesIndex {
 		result = append(result, n)
 	}
 

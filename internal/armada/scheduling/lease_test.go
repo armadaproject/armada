@@ -74,21 +74,14 @@ func Test_distributeRemainder_highPriorityUserDoesNotBlockOthers(t *testing.T) {
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
-	nodes := []api.NodeInfo{
-		{
-			Name:                 "testNode",
-			AllocatableResources: nodeResources,
-			AvailableResources:   nodeResources,
-			TotalResources:       nodeResources,
-		},
-	}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 	c := leaseContext{
 		schedulingConfig: &configuration.SchedulingConfig{
 			QueueLeaseBatchSize: 10,
 		},
 		onJobsLeased:  func(a []*api.Job) {},
 		clusterId:     "c1",
-		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
+		nodeResources: AggregateNodeTypeAllocations(nodes),
 
 		resourceScarcity:    scarcity,
 		priorities:          priorities,
@@ -136,14 +129,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
-	nodes := []api.NodeInfo{
-		{
-			Name:                 "testNode",
-			AllocatableResources: nodeResources,
-			AvailableResources:   nodeResources,
-			TotalResources:       nodeResources,
-		},
-	}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
 		schedulingConfig: &configuration.SchedulingConfig{
@@ -152,7 +138,7 @@ func Test_distributeRemainder_DoesNotExceedSchedulingLimits(t *testing.T) {
 		onJobsLeased: func(a []*api.Job) {},
 		clusterId:    "c1",
 
-		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
+		nodeResources: AggregateNodeTypeAllocations(nodes),
 
 		resourceScarcity:    scarcity,
 		priorities:          priorities,
@@ -188,14 +174,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
-	nodes := []api.NodeInfo{
-		{
-			Name:                 "testNode",
-			AllocatableResources: nodeResources,
-			AvailableResources:   nodeResources,
-			TotalResources:       nodeResources,
-		},
-	}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
 		schedulingConfig: &configuration.SchedulingConfig{
@@ -203,7 +182,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadCountLimit(t *testing.T) {
 		},
 		onJobsLeased: func(a []*api.Job) {},
 
-		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
+		nodeResources: AggregateNodeTypeAllocations(nodes),
 
 		queue:      repository,
 		queueCache: map[string][]*api.Job{},
@@ -241,14 +220,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(4*time.Second))
 
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")}
-	nodes := []api.NodeInfo{
-		{
-			Name:                 "testNode",
-			AllocatableResources: nodeResources,
-			AvailableResources:   nodeResources,
-			TotalResources:       nodeResources,
-		},
-	}
+	nodes := []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}}
 
 	c := leaseContext{
 		schedulingConfig: &configuration.SchedulingConfig{
@@ -256,7 +228,7 @@ func Test_leaseJobs_DoesNotExceededLeasePayloadSizeLimit(t *testing.T) {
 		},
 		onJobsLeased: func(a []*api.Job) {},
 
-		nodeResources: AggregateNodeTypeAllocations(nodes, 0),
+		nodeResources: AggregateNodeTypeAllocations(nodes),
 
 		queue:      repository,
 		queueCache: map[string][]*api.Job{},
