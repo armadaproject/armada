@@ -112,6 +112,10 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		return nil, err
 	}
 
+	if e == nil || e.MainObject == nil || e.MainObject.Object == nil {
+		return nil, errors.Errorf("SubmitJob or one of its member pointers is nil")
+	}
+
 	// We only support PodSpecs as main object.
 	mainObject, ok := e.MainObject.Object.(*armadaevents.KubernetesMainObject_PodSpec)
 	if !ok {
