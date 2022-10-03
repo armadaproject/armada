@@ -1,4 +1,5 @@
 version: "3.8"
+
 services:
   # Infrastructure services needed for Armada
   redis:
@@ -30,8 +31,9 @@ services:
     image: nats-streaming
     command: "-p 4223 -m 8223"
     ports:
-      - "4223:4223"
-      - "8223:8223"
+      - "6650:6650"
+    depends_on:
+      - redis
 
 # The Armada server and affiliated services
   armada-server:
@@ -48,6 +50,9 @@ services:
       - redis
       - postgres
       - pulsar
+      - stan
+    volumes:
+      - "./config:/app/config:ro"
   lookout:
     container_name: lookout
     image: armada-lookout
@@ -60,6 +65,8 @@ services:
     depends_on:
       - armada-server
       - postgres
+    volumes:
+      - "./config:/app/config:ro"
   executor:
     container_name: executor
     image: armada-fakeexecutor
@@ -70,6 +77,8 @@ services:
       - "ARMADA_METRIC_PORT=9001"
     depends_on:
       - armada-server
+    volumes:
+      - "./config:/app/config:ro"
   binoculars:
     container_name: binoculars
     image: armada-binoculars
@@ -78,6 +87,8 @@ services:
       - "/app/config/binoculars/base.yaml"
     depends_on:
       - armada-server
+    volumes:
+      - "./config:/app/config:ro"
   job-service:
     container_name: job-service
     image: armada-jobservice
@@ -91,3 +102,4 @@ services:
       - ${PWD}:/run
     command:
       - "run"
+
