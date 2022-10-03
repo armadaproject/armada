@@ -3,9 +3,10 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestPodRequirementsMet(t *testing.T) {

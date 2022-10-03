@@ -310,8 +310,8 @@ func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(100000, b) }
 func benchmarkSelectAndBindNodeToPod(
 	numCpuNodes, numTaintedCpuNodes, numGpuNodes,
 	numSmallCpuJobsToSchedule, numLargeCpuJobsToSchedule, numGpuJobsToSchedule int,
-	b *testing.B) {
-
+	b *testing.B,
+) {
 	db, err := NewNodeDb(testPriorities, testResources)
 	if !assert.NoError(b, err) {
 		return
@@ -410,9 +410,11 @@ func benchmarkSelectAndBindNodeToPod(
 func BenchmarkSelectAndBindNodeToPod100(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(70, 20, 10, 7, 2, 1, b)
 }
+
 func BenchmarkSelectAndBindNodeToPod1000(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(700, 200, 100, 70, 20, 10, b)
 }
+
 func BenchmarkSelectAndBindNodeToPod10000(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(7000, 2000, 1000, 700, 200, 100, b)
 }
@@ -473,7 +475,6 @@ func TestAvailableByPriorityAndResourceType(t *testing.T) {
 					assert.Equal(t, 0, quantity.Cmp(actual))
 				}
 			}
-
 		})
 	}
 }

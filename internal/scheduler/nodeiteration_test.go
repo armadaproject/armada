@@ -15,8 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-var testPriorities []int32 = []int32{0, 1, 2, 3}
-var testResources []string = []string{"cpu", "memory", "gpu"}
+var (
+	testPriorities []int32  = []int32{0, 1, 2, 3}
+	testResources  []string = []string{"cpu", "memory", "gpu"}
+)
 
 func TestSchema(t *testing.T) {
 	err := nodeDbSchema(testPriorities, testResources).Validate()
@@ -102,13 +104,15 @@ func TestNodeTypesResourceIteratorPQ(t *testing.T) {
 				{priority: resource.MustParse("1Mi")},
 				{priority: resource.MustParse("2Mi")},
 				{priority: resource.MustParse("3Mi")},
-			}},
+			},
+		},
 		"4 10 11": {
 			expected: []*NodeTypesResourceIteratorItem{
 				{priority: resource.MustParse("4")},
 				{priority: resource.MustParse("10")},
 				{priority: resource.MustParse("11")},
-			}},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

@@ -1,13 +1,16 @@
 package scheduler
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
-	v1 "k8s.io/api/core/v1"
 )
 
-type taintsFilterFunc func(*v1.Taint) bool
-type labelsFilterFunc func(key, value string) bool
+type (
+	taintsFilterFunc func(*v1.Taint) bool
+	labelsFilterFunc func(key, value string) bool
+)
 
 // NodeType represents a particular combination of taints and labels.
 // The scheduler groups nodes by node type. When assigning pods to nodes,

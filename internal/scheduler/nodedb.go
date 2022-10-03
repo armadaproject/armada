@@ -47,7 +47,6 @@ type NodeDb struct {
 // and updates the internal state of the db to indicate that this pod is bound to that node.
 // TODO: Maybe PodToNode.
 func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
