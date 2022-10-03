@@ -8,22 +8,141 @@ import (
 	io "io"
 	math "math"
 	math_bits "math/bits"
+	time "time"
 
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
+	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	v1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+var _ = time.Kitchen
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
+
+// Captures the resource usage of a particular queue
+// in a given cluster.
+type QueueClusterResourceUsage struct {
+	Created             time.Time               `protobuf:"bytes,1,opt,name=created,proto3,stdtime" json:"created"`
+	Queue               string                  `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
+	ExecutorId          string                  `protobuf:"bytes,3,opt,name=executorId,proto3" json:"executorId,omitempty"`
+	ResourcesByPriority map[int32]*ResourceList `protobuf:"bytes,4,rep,name=resourcesByPriority,proto3" json:"resourcesByPriority,omitempty" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (m *QueueClusterResourceUsage) Reset()         { *m = QueueClusterResourceUsage{} }
+func (m *QueueClusterResourceUsage) String() string { return proto.CompactTextString(m) }
+func (*QueueClusterResourceUsage) ProtoMessage()    {}
+func (*QueueClusterResourceUsage) Descriptor() ([]byte, []int) {
+	return fileDescriptor_97dadc5fbd620721, []int{0}
+}
+func (m *QueueClusterResourceUsage) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *QueueClusterResourceUsage) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_QueueClusterResourceUsage.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *QueueClusterResourceUsage) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueClusterResourceUsage.Merge(m, src)
+}
+func (m *QueueClusterResourceUsage) XXX_Size() int {
+	return m.Size()
+}
+func (m *QueueClusterResourceUsage) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueClusterResourceUsage.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QueueClusterResourceUsage proto.InternalMessageInfo
+
+func (m *QueueClusterResourceUsage) GetCreated() time.Time {
+	if m != nil {
+		return m.Created
+	}
+	return time.Time{}
+}
+
+func (m *QueueClusterResourceUsage) GetQueue() string {
+	if m != nil {
+		return m.Queue
+	}
+	return ""
+}
+
+func (m *QueueClusterResourceUsage) GetExecutorId() string {
+	if m != nil {
+		return m.ExecutorId
+	}
+	return ""
+}
+
+func (m *QueueClusterResourceUsage) GetResourcesByPriority() map[int32]*ResourceList {
+	if m != nil {
+		return m.ResourcesByPriority
+	}
+	return nil
+}
+
+type ResourceList struct {
+	Resources map[string]resource.Quantity `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (m *ResourceList) Reset()         { *m = ResourceList{} }
+func (m *ResourceList) String() string { return proto.CompactTextString(m) }
+func (*ResourceList) ProtoMessage()    {}
+func (*ResourceList) Descriptor() ([]byte, []int) {
+	return fileDescriptor_97dadc5fbd620721, []int{1}
+}
+func (m *ResourceList) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ResourceList) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ResourceList.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ResourceList) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ResourceList.Merge(m, src)
+}
+func (m *ResourceList) XXX_Size() int {
+	return m.Size()
+}
+func (m *ResourceList) XXX_DiscardUnknown() {
+	xxx_messageInfo_ResourceList.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ResourceList proto.InternalMessageInfo
+
+func (m *ResourceList) GetResources() map[string]resource.Quantity {
+	if m != nil {
+		return m.Resources
+	}
+	return nil
+}
 
 // Minimal job representation used by the scheduler.
 type JobSchedulingInfo struct {
@@ -39,7 +158,7 @@ func (m *JobSchedulingInfo) Reset()         { *m = JobSchedulingInfo{} }
 func (m *JobSchedulingInfo) String() string { return proto.CompactTextString(m) }
 func (*JobSchedulingInfo) ProtoMessage()    {}
 func (*JobSchedulingInfo) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{0}
+	return fileDescriptor_97dadc5fbd620721, []int{2}
 }
 func (m *JobSchedulingInfo) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -114,7 +233,7 @@ func (m *ObjectRequirements) Reset()         { *m = ObjectRequirements{} }
 func (m *ObjectRequirements) String() string { return proto.CompactTextString(m) }
 func (*ObjectRequirements) ProtoMessage()    {}
 func (*ObjectRequirements) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{1}
+	return fileDescriptor_97dadc5fbd620721, []int{3}
 }
 func (m *ObjectRequirements) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -197,7 +316,7 @@ func (m *PodRequirements) Reset()         { *m = PodRequirements{} }
 func (m *PodRequirements) String() string { return proto.CompactTextString(m) }
 func (*PodRequirements) ProtoMessage()    {}
 func (*PodRequirements) Descriptor() ([]byte, []int) {
-	return fileDescriptor_97dadc5fbd620721, []int{2}
+	return fileDescriptor_97dadc5fbd620721, []int{4}
 }
 func (m *PodRequirements) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -269,6 +388,10 @@ func (m *PodRequirements) GetResourceRequirements() *v1.ResourceRequirements {
 }
 
 func init() {
+	proto.RegisterType((*QueueClusterResourceUsage)(nil), "schedulerobjects.QueueClusterResourceUsage")
+	proto.RegisterMapType((map[int32]*ResourceList)(nil), "schedulerobjects.QueueClusterResourceUsage.ResourcesByPriorityEntry")
+	proto.RegisterType((*ResourceList)(nil), "schedulerobjects.ResourceList")
+	proto.RegisterMapType((map[string]resource.Quantity)(nil), "schedulerobjects.ResourceList.ResourcesEntry")
 	proto.RegisterType((*JobSchedulingInfo)(nil), "schedulerobjects.JobSchedulingInfo")
 	proto.RegisterType((*ObjectRequirements)(nil), "schedulerobjects.ObjectRequirements")
 	proto.RegisterType((*PodRequirements)(nil), "schedulerobjects.PodRequirements")
@@ -280,40 +403,170 @@ func init() {
 }
 
 var fileDescriptor_97dadc5fbd620721 = []byte{
-	// 521 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x53, 0x41, 0x6b, 0xdb, 0x4c,
-	0x10, 0xb5, 0xe2, 0x38, 0xd8, 0xeb, 0x7c, 0x9f, 0x9d, 0x25, 0x07, 0x61, 0x8a, 0xea, 0x9a, 0x1e,
-	0x44, 0xa1, 0x12, 0x71, 0x2e, 0x26, 0x97, 0x52, 0x43, 0x4b, 0x5b, 0x48, 0x13, 0xd6, 0x81, 0x5e,
-	0x7a, 0x91, 0xd6, 0x23, 0x67, 0x1b, 0x79, 0x47, 0x5d, 0xad, 0x0c, 0xfe, 0x17, 0xfd, 0x59, 0x39,
-	0x06, 0x7a, 0xe9, 0xa9, 0x14, 0xfb, 0x17, 0xf4, 0x1f, 0x14, 0xad, 0x5a, 0xd7, 0xb6, 0x04, 0xbd,
-	0xcd, 0x3c, 0xde, 0xd3, 0x9b, 0xd9, 0x79, 0x22, 0x17, 0x42, 0x6a, 0x50, 0x32, 0x88, 0xfd, 0x94,
-	0xdf, 0xc2, 0x34, 0x8b, 0x41, 0xfd, 0xad, 0x30, 0xfc, 0x04, 0x5c, 0xa7, 0x25, 0xc0, 0x4b, 0x14,
-	0x6a, 0xa4, 0xdd, 0x7d, 0xbc, 0x37, 0xb8, 0x1b, 0xa5, 0x9e, 0x40, 0x3f, 0x48, 0x84, 0xcf, 0x51,
-	0x81, 0xbf, 0x38, 0xf3, 0x67, 0x20, 0x41, 0x05, 0x1a, 0xa6, 0x85, 0xaa, 0xf7, 0x7c, 0x26, 0xf4,
-	0x6d, 0x16, 0x7a, 0x1c, 0xe7, 0xfe, 0x0c, 0x67, 0xe8, 0x1b, 0x38, 0xcc, 0x22, 0xd3, 0x99, 0xc6,
-	0x54, 0x05, 0x7d, 0xf0, 0xd3, 0x22, 0x27, 0xef, 0x30, 0x9c, 0x14, 0x56, 0x42, 0xce, 0xde, 0xca,
-	0x08, 0x69, 0x8f, 0x34, 0x63, 0x11, 0x81, 0x16, 0x73, 0xb0, 0xad, 0xbe, 0xe5, 0xfe, 0xc7, 0x36,
-	0x3d, 0x75, 0x08, 0x09, 0xf4, 0x25, 0xa6, 0xfa, 0x4a, 0x72, 0xb0, 0x0f, 0xfa, 0x96, 0xdb, 0x64,
-	0x5b, 0x08, 0xed, 0x93, 0x76, 0xa2, 0x00, 0xe6, 0x89, 0x16, 0x61, 0x0c, 0x76, 0xdd, 0x10, 0xb6,
-	0x21, 0xea, 0x92, 0x0e, 0x47, 0xc9, 0x33, 0xa5, 0x40, 0xf2, 0xe5, 0x24, 0x88, 0xc0, 0x3e, 0x34,
-	0xac, 0x7d, 0x98, 0xde, 0x10, 0x5a, 0xec, 0xce, 0xe0, 0x73, 0x26, 0x14, 0xcc, 0x41, 0xea, 0xd4,
-	0x6e, 0xf4, 0xeb, 0x6e, 0x7b, 0xf8, 0xd4, 0x2b, 0xbd, 0xdb, 0x55, 0x89, 0xcb, 0x2a, 0xf4, 0x83,
-	0x94, 0xd0, 0x32, 0x93, 0x5e, 0x92, 0x4e, 0x82, 0xd3, 0x1d, 0xa3, 0x7c, 0xf5, 0xf6, 0xf0, 0x49,
-	0xd9, 0xe8, 0x7a, 0x97, 0xf8, 0xa6, 0xc6, 0xf6, 0xb5, 0xe3, 0xff, 0xc9, 0xb1, 0xda, 0x36, 0xfd,
-	0x5a, 0x27, 0x9d, 0x3d, 0x19, 0xfd, 0x40, 0x8e, 0x25, 0x4e, 0x61, 0x02, 0x31, 0x70, 0x8d, 0xca,
-	0xb6, 0xcc, 0x62, 0xe7, 0xff, 0xf4, 0xf3, 0xde, 0x6f, 0xa9, 0x5e, 0x49, 0xad, 0x96, 0x6c, 0xe7,
-	0x43, 0x74, 0x44, 0x9a, 0x41, 0x14, 0x09, 0x29, 0xf4, 0xd2, 0x5c, 0xa8, 0x3d, 0x7c, 0xe4, 0x15,
-	0xd9, 0xf1, 0x82, 0x44, 0x78, 0x79, 0x76, 0xbc, 0xc5, 0x99, 0xf7, 0xf2, 0x37, 0x87, 0x6d, 0xd8,
-	0xf4, 0x35, 0x69, 0x6b, 0x8c, 0xf3, 0x44, 0x09, 0x94, 0xa9, 0x5d, 0x37, 0x13, 0x39, 0x55, 0xe2,
-	0x9b, 0x0d, 0x6d, 0x7c, 0x78, 0xff, 0xfd, 0x71, 0x8d, 0x6d, 0x0b, 0xf3, 0x04, 0x25, 0x4a, 0xa0,
-	0xca, 0x27, 0xc8, 0x8f, 0xdb, 0x60, 0x9b, 0x9e, 0x3e, 0x23, 0xdd, 0x3f, 0x71, 0x40, 0x79, 0x8d,
-	0xb1, 0xe0, 0x4b, 0xbb, 0xd1, 0xb7, 0xdc, 0x16, 0x2b, 0xe1, 0xf4, 0x23, 0x39, 0x55, 0x90, 0x62,
-	0xa6, 0x38, 0xec, 0x9c, 0xe6, 0xc8, 0x6c, 0xe5, 0x56, 0x0d, 0xc6, 0x2a, 0xf8, 0xac, 0xf2, 0x2b,
-	0xbd, 0x17, 0xe4, 0xa4, 0xf4, 0x94, 0xb4, 0x4b, 0xea, 0x77, 0xb0, 0x34, 0xc7, 0x6f, 0xb1, 0xbc,
-	0xa4, 0xa7, 0xa4, 0xb1, 0x08, 0xe2, 0xac, 0x48, 0x7b, 0x8b, 0x15, 0xcd, 0xc5, 0xc1, 0xc8, 0x1a,
-	0xdb, 0xf7, 0x2b, 0xc7, 0x7a, 0x58, 0x39, 0xd6, 0x8f, 0x95, 0x63, 0x7d, 0x59, 0x3b, 0xb5, 0x87,
-	0xb5, 0x53, 0xfb, 0xb6, 0x76, 0x6a, 0xe1, 0x91, 0xf9, 0xbf, 0xce, 0x7f, 0x05, 0x00, 0x00, 0xff,
-	0xff, 0xf1, 0xbd, 0xd6, 0xee, 0x02, 0x04, 0x00, 0x00,
+	// 744 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x54, 0xcd, 0x6e, 0xdb, 0x46,
+	0x10, 0x16, 0x2d, 0xcb, 0x95, 0x56, 0xae, 0x7f, 0xb6, 0x3e, 0xb0, 0x42, 0x41, 0xab, 0x42, 0x0f,
+	0x42, 0x01, 0x2f, 0xe1, 0x9f, 0x83, 0xe1, 0x43, 0x8b, 0xaa, 0x6e, 0x51, 0x17, 0x71, 0x6c, 0xaf,
+	0x1d, 0xe4, 0x92, 0x0b, 0x45, 0x8d, 0xe8, 0x8d, 0xa8, 0x5d, 0x7a, 0xb9, 0x14, 0xc2, 0xb7, 0xf0,
+	0x63, 0xf9, 0x16, 0x03, 0xb9, 0xe4, 0x94, 0x04, 0xf6, 0x13, 0xf8, 0x0d, 0x02, 0x2e, 0x45, 0x89,
+	0x12, 0xe5, 0xe4, 0xc6, 0x9d, 0xfd, 0xe6, 0x9b, 0xf9, 0x86, 0xdf, 0x2c, 0x3a, 0x62, 0x5c, 0x81,
+	0xe4, 0x8e, 0x6f, 0x87, 0xee, 0x35, 0xf4, 0x22, 0x1f, 0xe4, 0xf4, 0x4b, 0x74, 0xdf, 0x82, 0xab,
+	0xc2, 0x42, 0x80, 0x04, 0x52, 0x28, 0x81, 0x37, 0xe6, 0xe3, 0x8d, 0x6d, 0x4f, 0x08, 0xcf, 0x07,
+	0x5b, 0xdf, 0x77, 0xa3, 0xbe, 0xad, 0xd8, 0x10, 0x42, 0xe5, 0x0c, 0x83, 0x34, 0xa5, 0xd1, 0x1a,
+	0x1c, 0x86, 0x84, 0x09, 0xdb, 0x09, 0x98, 0xed, 0x0a, 0x09, 0xf6, 0x68, 0xd7, 0xf6, 0x80, 0x83,
+	0x74, 0x14, 0xf4, 0xc6, 0x98, 0x83, 0x29, 0x66, 0xe8, 0xb8, 0xd7, 0x8c, 0x83, 0x8c, 0xed, 0x60,
+	0xe0, 0xe9, 0x24, 0x09, 0xa1, 0x88, 0xa4, 0x0b, 0x85, 0xac, 0x1d, 0x8f, 0xa9, 0xeb, 0xa8, 0x4b,
+	0x5c, 0x31, 0xb4, 0x3d, 0xe1, 0x89, 0x69, 0x0f, 0xc9, 0x49, 0x1f, 0xf4, 0x57, 0x0a, 0x6f, 0x3d,
+	0x2d, 0xa1, 0x9f, 0x2f, 0x22, 0x88, 0xe0, 0x6f, 0x3f, 0x0a, 0x15, 0x48, 0x3a, 0xe6, 0x7d, 0x15,
+	0x3a, 0x1e, 0xe0, 0x3f, 0xd0, 0x0f, 0xae, 0x84, 0x84, 0xdd, 0x34, 0x9a, 0x46, 0xbb, 0xbe, 0xd7,
+	0x20, 0xa9, 0x32, 0x92, 0xb1, 0x92, 0xab, 0x4c, 0x59, 0xa7, 0x7a, 0xf7, 0x69, 0xbb, 0x74, 0xfb,
+	0x79, 0xdb, 0xa0, 0x59, 0x12, 0xde, 0x42, 0x95, 0x9b, 0x84, 0xdc, 0x5c, 0x6a, 0x1a, 0xed, 0x1a,
+	0x4d, 0x0f, 0xd8, 0x42, 0x08, 0xde, 0x81, 0x1b, 0x29, 0x21, 0x4f, 0x7a, 0x66, 0x59, 0x5f, 0xe5,
+	0x22, 0x78, 0x84, 0x7e, 0xca, 0xe4, 0x85, 0x9d, 0xf8, 0x5c, 0x32, 0x21, 0x99, 0x8a, 0xcd, 0xe5,
+	0x66, 0xb9, 0x5d, 0xdf, 0x3b, 0x26, 0x85, 0xbf, 0xf0, 0x6c, 0xff, 0x84, 0x16, 0x69, 0xfe, 0xe1,
+	0x4a, 0xc6, 0x74, 0x51, 0x81, 0x46, 0x1f, 0x99, 0xcf, 0x25, 0xe0, 0x0d, 0x54, 0x1e, 0x40, 0xac,
+	0xa7, 0x50, 0xa1, 0xc9, 0x27, 0x3e, 0x40, 0x95, 0x91, 0xe3, 0x8f, 0xb5, 0xd5, 0xf7, 0xac, 0x62,
+	0x5f, 0x19, 0xd9, 0x0b, 0x16, 0x2a, 0x9a, 0x82, 0x8f, 0x96, 0x0e, 0x8d, 0xd6, 0x7b, 0x03, 0xad,
+	0xe6, 0xef, 0xf0, 0x05, 0xaa, 0x4d, 0xfa, 0x31, 0x0d, 0x2d, 0x73, 0xe7, 0xdb, 0x74, 0x53, 0x65,
+	0xba, 0xbd, 0xce, 0x72, 0x32, 0x7b, 0x3a, 0x65, 0x69, 0xf8, 0x68, 0x6d, 0x16, 0x92, 0x57, 0x50,
+	0x4b, 0x15, 0x1c, 0xcf, 0x2a, 0x20, 0x24, 0x35, 0x1c, 0xc9, 0x1b, 0x8e, 0x04, 0x03, 0x2f, 0x09,
+	0x90, 0x8c, 0x9a, 0x5c, 0x44, 0x0e, 0x57, 0x4c, 0xc5, 0x79, 0x45, 0x4f, 0x06, 0xda, 0xfc, 0x5f,
+	0x74, 0x2f, 0xd3, 0x96, 0x19, 0xf7, 0x4e, 0x78, 0x5f, 0xe0, 0x06, 0xaa, 0xfa, 0xac, 0x0f, 0x89,
+	0xf7, 0x75, 0xd9, 0x1f, 0xe9, 0xe4, 0x9c, 0x78, 0xc0, 0x51, 0xa7, 0x22, 0x54, 0x67, 0xdc, 0x4d,
+	0x1b, 0xa8, 0xd2, 0x5c, 0x04, 0x37, 0x51, 0x3d, 0x90, 0x00, 0xc3, 0x40, 0xb1, 0xae, 0x0f, 0xda,
+	0x24, 0x55, 0x9a, 0x0f, 0xe1, 0x36, 0x5a, 0x77, 0x05, 0x77, 0x23, 0x29, 0x81, 0xbb, 0xf1, 0xa5,
+	0xd3, 0x07, 0x73, 0x59, 0xa3, 0xe6, 0xc3, 0xf8, 0x0a, 0xe1, 0x74, 0x86, 0x14, 0x6e, 0x22, 0x26,
+	0x61, 0x08, 0x5c, 0x85, 0x66, 0x45, 0xcf, 0xf9, 0xb7, 0xe2, 0x9c, 0xcf, 0x0a, 0x58, 0xba, 0x20,
+	0xbf, 0x15, 0x22, 0x5c, 0x44, 0xe2, 0x53, 0xb4, 0x1e, 0x88, 0xde, 0x4c, 0xa1, 0x74, 0x73, 0x7e,
+	0x2d, 0x16, 0x3a, 0x9f, 0x05, 0xfe, 0x57, 0xa2, 0xf3, 0xb9, 0x9d, 0x35, 0xb4, 0x2a, 0xf3, 0x45,
+	0x3f, 0x94, 0xd1, 0xfa, 0x5c, 0x1a, 0x7e, 0x8d, 0x56, 0xb9, 0xe8, 0xc1, 0x25, 0xf8, 0xe0, 0x2a,
+	0x21, 0xc7, 0x06, 0xda, 0xff, 0x6e, 0x3d, 0xf2, 0x32, 0x97, 0x95, 0xae, 0xc5, 0x0c, 0x11, 0x3e,
+	0x44, 0x55, 0xa7, 0xdf, 0x67, 0x3c, 0x59, 0xbe, 0xd4, 0x22, 0xbf, 0xe4, 0x2c, 0x42, 0x92, 0x77,
+	0x8b, 0x8c, 0x76, 0xc9, 0x5f, 0x63, 0x0c, 0x9d, 0xa0, 0xf1, 0xbf, 0xa8, 0xae, 0x84, 0x9f, 0xbc,
+	0x4b, 0x4c, 0xf0, 0xd0, 0x2c, 0xeb, 0x8e, 0xac, 0x45, 0xc9, 0x57, 0x13, 0xd8, 0xd8, 0xc3, 0xf9,
+	0xc4, 0xc4, 0x41, 0xc1, 0x74, 0xfd, 0x93, 0xd5, 0x9b, 0x9c, 0xf1, 0xef, 0x68, 0x23, 0xb3, 0x83,
+	0xe0, 0xe7, 0xc2, 0x67, 0x6e, 0x6c, 0x56, 0xb4, 0xb9, 0x0b, 0x71, 0xfc, 0x06, 0x6d, 0x65, 0xfe,
+	0x9d, 0xf9, 0x35, 0x2b, 0x5a, 0x55, 0x7b, 0x51, 0x63, 0x74, 0x01, 0x9e, 0x2e, 0x64, 0x69, 0xfc,
+	0x89, 0x36, 0x0b, 0xa3, 0x5c, 0xb0, 0x6e, 0x5b, 0xf9, 0x75, 0xab, 0xe5, 0xd6, 0xa7, 0x63, 0xde,
+	0x3d, 0x58, 0xc6, 0xfd, 0x83, 0x65, 0x7c, 0x79, 0xb0, 0x8c, 0xdb, 0x47, 0xab, 0x74, 0xff, 0x68,
+	0x95, 0x3e, 0x3e, 0x5a, 0xa5, 0xee, 0x8a, 0x7e, 0x67, 0xf7, 0xbf, 0x06, 0x00, 0x00, 0xff, 0xff,
+	0xa3, 0x3e, 0xe3, 0xef, 0x9f, 0x06, 0x00, 0x00,
+}
+
+func (m *QueueClusterResourceUsage) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *QueueClusterResourceUsage) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *QueueClusterResourceUsage) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.ResourcesByPriority) > 0 {
+		for k := range m.ResourcesByPriority {
+			v := m.ResourcesByPriority[k]
+			baseI := i
+			if v != nil {
+				{
+					size, err := v.MarshalToSizedBuffer(dAtA[:i])
+					if err != nil {
+						return 0, err
+					}
+					i -= size
+					i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
+				}
+				i--
+				dAtA[i] = 0x12
+			}
+			i = encodeVarintSchedulerobjects(dAtA, i, uint64(k))
+			i--
+			dAtA[i] = 0x8
+			i = encodeVarintSchedulerobjects(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if len(m.ExecutorId) > 0 {
+		i -= len(m.ExecutorId)
+		copy(dAtA[i:], m.ExecutorId)
+		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.ExecutorId)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(m.Queue)))
+		i--
+		dAtA[i] = 0x12
+	}
+	n2, err2 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err2 != nil {
+		return 0, err2
+	}
+	i -= n2
+	i = encodeVarintSchedulerobjects(dAtA, i, uint64(n2))
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *ResourceList) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ResourceList) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ResourceList) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Resources) > 0 {
+		for k := range m.Resources {
+			v := m.Resources[k]
+			baseI := i
+			{
+				size, err := (&v).MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintSchedulerobjects(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintSchedulerobjects(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintSchedulerobjects(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *JobSchedulingInfo) Marshal() (dAtA []byte, err error) {
@@ -544,6 +797,56 @@ func encodeVarintSchedulerobjects(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+func (m *QueueClusterResourceUsage) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.Created)
+	n += 1 + l + sovSchedulerobjects(uint64(l))
+	l = len(m.Queue)
+	if l > 0 {
+		n += 1 + l + sovSchedulerobjects(uint64(l))
+	}
+	l = len(m.ExecutorId)
+	if l > 0 {
+		n += 1 + l + sovSchedulerobjects(uint64(l))
+	}
+	if len(m.ResourcesByPriority) > 0 {
+		for k, v := range m.ResourcesByPriority {
+			_ = k
+			_ = v
+			l = 0
+			if v != nil {
+				l = v.Size()
+				l += 1 + sovSchedulerobjects(uint64(l))
+			}
+			mapEntrySize := 1 + sovSchedulerobjects(uint64(k)) + l
+			n += mapEntrySize + 1 + sovSchedulerobjects(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
+func (m *ResourceList) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Resources) > 0 {
+		for k, v := range m.Resources {
+			_ = k
+			_ = v
+			l = v.Size()
+			mapEntrySize := 1 + len(k) + sovSchedulerobjects(uint64(len(k))) + 1 + l + sovSchedulerobjects(uint64(l))
+			n += mapEntrySize + 1 + sovSchedulerobjects(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
 func (m *JobSchedulingInfo) Size() (n int) {
 	if m == nil {
 		return 0
@@ -638,6 +941,447 @@ func sovSchedulerobjects(x uint64) (n int) {
 }
 func sozSchedulerobjects(x uint64) (n int) {
 	return sovSchedulerobjects(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *QueueClusterResourceUsage) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSchedulerobjects
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: QueueClusterResourceUsage: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: QueueClusterResourceUsage: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.Created, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queue = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ExecutorId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ExecutorId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourcesByPriority", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ResourcesByPriority == nil {
+				m.ResourcesByPriority = make(map[int32]*ResourceList)
+			}
+			var mapkey int32
+			var mapvalue *ResourceList
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSchedulerobjects
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSchedulerobjects
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapkey |= int32(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSchedulerobjects
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &ResourceList{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.ResourcesByPriority[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ResourceList) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowSchedulerobjects
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ResourceList: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ResourceList: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Resources", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowSchedulerobjects
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Resources == nil {
+				m.Resources = make(map[string]resource.Quantity)
+			}
+			var mapkey string
+			mapvalue := &resource.Quantity{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowSchedulerobjects
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSchedulerobjects
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapmsglen int
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowSchedulerobjects
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapmsglen |= int(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					if mapmsglen < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					postmsgIndex := iNdEx + mapmsglen
+					if postmsgIndex < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					if postmsgIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = &resource.Quantity{}
+					if err := mapvalue.Unmarshal(dAtA[iNdEx:postmsgIndex]); err != nil {
+						return err
+					}
+					iNdEx = postmsgIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthSchedulerobjects
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Resources[mapkey] = *mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipSchedulerobjects(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthSchedulerobjects
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *JobSchedulingInfo) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
