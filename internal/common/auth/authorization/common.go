@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"errors"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
@@ -127,10 +128,10 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
 			principal, err := service.Authenticate(ctx)
-			if err == missingCredentials {
+			if errors.Is(err, missingCredentials) {
 				// try next auth service
 				continue
-			} else if err == invalidCredentials {
+			} else if errors.Is(err, invalidCredentials) {
 				return nil, &armadaerrors.ErrUnauthorized{
 					Principal:   principal.GetName(),
 					AuthService: service.Name(),
