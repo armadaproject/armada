@@ -548,3 +548,32 @@ func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
 	}
 	return result
 }
+
+// ErrUnauthorized represents an error that occurs when a client tries to
+// perform some action through the gRPC API for which it cannot authenticate.
+//
+// It may be necessary populate the Action field by recovering this error at
+// the gRPC endpoint (using errors.As) and updating the field in-place.
+type ErrUnauthorized struct {
+	// Principal that attempted the action.
+	Principal string
+	// The authorization service which attempted to authenticate the principal.
+	AuthService string
+	// The attempted action
+	Action string
+	// Optional message included with the error message
+	Message string
+}
+
+func (err *ErrUnauthorized) Error() (s string) {
+	if err.Action != "" {
+		s = fmt.Sprintf("Could not authorize user %q via service %q while attempting action %q",
+			err.Principal, err.AuthService, err.Action)
+	} else {
+		s = fmt.Sprintf("Could not authorized user %q via service %q", err.AuthService, err.Action)
+	}
+	if err.Message != "" {
+		s += fmt.Sprintf("; %s", err.Message)
+	}
+	return
+}
