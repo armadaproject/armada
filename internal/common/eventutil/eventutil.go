@@ -790,7 +790,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			case api.Cause_Evicted:
 				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted_{}
 			case api.Cause_OOM:
-				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+				containerError.KubernetesReason = &armadaevents.ContainerError_OutOfMemory_{}
 			default:
 				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 					Name:    "Cause",
