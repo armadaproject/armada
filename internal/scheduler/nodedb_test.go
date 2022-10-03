@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/pkg/api"
 	"strconv"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func createNodeDb(nodes []*SchedulerNode) (*NodeDb, error) {
@@ -119,7 +119,7 @@ func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
 	for _, r := range requirements {
 		report, err := db.SelectAndBindNodeToPod(uuid.New(), r)
 		assert.NoError(t, err)
-		assert.Nil(t, report.Node)
+		assert.NotNil(t, report.Node)
 	}
 }
 
@@ -670,42 +670,29 @@ func BenchmarkSelectAndBindNodeToPod10000(b *testing.B) {
 
 func TestAvailableByPriorityAndResourceType(t *testing.T) {
 	tests := map[string]struct {
-		Priorities          []int32
-		AvailableAtPriority int32
-		UsedAtPriority      int32
-		Resources           map[string]resource.Quantity
+		Priorities     []int32
+		UsedAtPriority int32
+		Resources      map[string]resource.Quantity
 	}{
 		"lowest priority": {
-			Priorities:          []int32{1, 5, 10},
-			AvailableAtPriority: 1,
-			UsedAtPriority:      1,
+			Priorities:     []int32{1, 5, 10},
+			UsedAtPriority: 1,
 			Resources: map[string]resource.Quantity{
 				"cpu": resource.MustParse("1"),
 				"gpu": resource.MustParse("2"),
 			},
 		},
 		"mid priority": {
-			Priorities:          []int32{1, 5, 10},
-			AvailableAtPriority: 5,
-			UsedAtPriority:      5,
+			Priorities:     []int32{1, 5, 10},
+			UsedAtPriority: 5,
 			Resources: map[string]resource.Quantity{
 				"cpu": resource.MustParse("1"),
 				"gpu": resource.MustParse("2"),
 			},
 		},
 		"highest priority": {
-			Priorities:          []int32{1, 5, 10},
-			AvailableAtPriority: 10,
-			UsedAtPriority:      10,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-		"low-mid": {
-			Priorities:          []int32{1, 5, 10},
-			AvailableAtPriority: 1,
-			UsedAtPriority:      5,
+			Priorities:     []int32{1, 5, 10},
+			UsedAtPriority: 10,
 			Resources: map[string]resource.Quantity{
 				"cpu": resource.MustParse("1"),
 				"gpu": resource.MustParse("2"),
@@ -714,21 +701,8 @@ func TestAvailableByPriorityAndResourceType(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			m := NewAvailableByPriorityAndResourceType(tc.Priorities, nil)
+			m := NewAvailableByPriorityAndResourceType(tc.Priorities, tc.Resources)
 			assert.Equal(t, len(tc.Priorities), len(m))
-
-			m.MarkAvailable(tc.AvailableAtPriority, tc.Resources)
-			for resourceType, quantity := range tc.Resources {
-				for _, p := range tc.Priorities {
-					actual := m.Get(p, resourceType)
-					if p >= tc.AvailableAtPriority {
-						assert.Equal(t, 0, quantity.Cmp(actual))
-					} else {
-						expected := resource.MustParse("0")
-						assert.Equal(t, 0, expected.Cmp(actual))
-					}
-				}
-			}
 
 			m.MarkUsed(tc.UsedAtPriority, tc.Resources)
 			for resourceType, quantity := range tc.Resources {
@@ -740,6 +714,14 @@ func TestAvailableByPriorityAndResourceType(t *testing.T) {
 						expected := resource.MustParse("0")
 						assert.Equal(t, 0, expected.Cmp(actual))
 					}
+				}
+			}
+
+			m.MarkAvailable(tc.UsedAtPriority, tc.Resources)
+			for resourceType, quantity := range tc.Resources {
+				for _, p := range tc.Priorities {
+					actual := m.Get(p, resourceType)
+					assert.Equal(t, 0, quantity.Cmp(actual))
 				}
 			}
 		})
