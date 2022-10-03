@@ -92,7 +92,7 @@ type PodSchedulingReport struct {
 	DominantResourceType string
 	// Node the pod was assigned to.
 	// If nil, the pod could not be assigned to any node.
-	Node *SchedulerNode
+	Node *schedulerobjects.Node
 	// Score indicates how well the pod fits on the selected node.
 	Score int
 	// Number of node types that

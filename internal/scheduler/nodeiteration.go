@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -18,7 +19,7 @@ type NodeTypesResourceIterator struct {
 	pq       NodeTypesResourceIteratorPQ
 }
 
-func NewNodeTypesResourceIterator(txn *memdb.Txn, resource string, priority int32, nodeTypes []*NodeType, resourceQuantity resource.Quantity) (*NodeTypesResourceIterator, error) {
+func NewNodeTypesResourceIterator(txn *memdb.Txn, resource string, priority int32, nodeTypes []*schedulerobjects.NodeType, resourceQuantity resource.Quantity) (*NodeTypesResourceIterator, error) {
 	pq := make(NodeTypesResourceIteratorPQ, 0, len(nodeTypes))
 	for _, nodeType := range nodeTypes {
 		it, err := NewNodeTypeResourceIterator(txn, resource, priority, nodeType, resourceQuantity)
@@ -32,7 +33,7 @@ func NewNodeTypesResourceIterator(txn *memdb.Txn, resource string, priority int3
 		heap.Push(&pq, &NodeTypesResourceIteratorItem{
 			value:    nodeItem,
 			it:       it,
-			priority: nodeItem.availableQuantityByPriorityAndResource(priority, resource),
+			priority: nodeItem.AvailableQuantityByPriorityAndResource(priority, resource),
 		})
 	}
 	return &NodeTypesResourceIterator{
@@ -46,7 +47,7 @@ func (it *NodeTypesResourceIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
-func (it *NodeTypesResourceIterator) NextNodeItem() *SchedulerNode {
+func (it *NodeTypesResourceIterator) NextNodeItem() *schedulerobjects.Node {
 	if it.pq.Len() == 0 {
 		return nil
 	}
@@ -61,7 +62,7 @@ func (it *NodeTypesResourceIterator) NextNodeItem() *SchedulerNode {
 		heap.Push(&it.pq, &NodeTypesResourceIteratorItem{
 			value:    nodeItem,
 			it:       nodeTypesResourceIteratorItem.it,
-			priority: nodeItem.availableQuantityByPriorityAndResource(it.priority, it.resource),
+			priority: nodeItem.AvailableQuantityByPriorityAndResource(it.priority, it.resource),
 		})
 	}
 	return rv
@@ -76,7 +77,7 @@ func (it *NodeTypesResourceIterator) Next() interface{} {
 type NodeTypesResourceIteratorPQ []*NodeTypesResourceIteratorItem
 
 type NodeTypesResourceIteratorItem struct {
-	value *SchedulerNode
+	value *schedulerobjects.Node
 	// The iterator that produced this value.
 	it *NodeTypeResourceIterator
 	// The priority of the item in the queue.
@@ -122,7 +123,7 @@ func (pq *NodeTypesResourceIteratorPQ) Pop() any {
 // Available resources is the sum of unused resources and resources assigned to lower-priority jobs.
 // Nodes are returned in sorted order, going from least to most of the specified resource available.
 type NodeTypeResourceIterator struct {
-	nodeType *NodeType
+	nodeType *schedulerobjects.NodeType
 	it       memdb.ResultIterator
 }
 
@@ -130,16 +131,16 @@ func (it *NodeTypeResourceIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
-func (it *NodeTypeResourceIterator) NextNodeItem() *SchedulerNode {
+func (it *NodeTypeResourceIterator) NextNodeItem() *schedulerobjects.Node {
 	obj := it.it.Next()
 	if obj == nil {
 		return nil
 	}
-	nodeItem, ok := obj.(*SchedulerNode)
+	nodeItem, ok := obj.(*schedulerobjects.Node)
 	if !ok {
 		panic(fmt.Sprintf("expected *NodeItem, but got %T", obj))
 	}
-	if nodeItem.NodeType != nil && nodeItem.NodeType.id != it.nodeType.id {
+	if nodeItem.NodeType != nil && nodeItem.NodeType.Id != it.nodeType.Id {
 		// The index is sorted by NodeType first.
 		// So we've seen all nodes of this NodeType if this comparison fails.
 		return nil
@@ -151,9 +152,9 @@ func (it *NodeTypeResourceIterator) Next() interface{} {
 	return it.NextNodeItem()
 }
 
-func NewNodeTypeResourceIterator(txn *memdb.Txn, resource string, priority int32, nodeType *NodeType, resourceAmount resource.Quantity) (*NodeTypeResourceIterator, error) {
+func NewNodeTypeResourceIterator(txn *memdb.Txn, resource string, priority int32, nodeType *schedulerobjects.NodeType, resourceAmount resource.Quantity) (*NodeTypeResourceIterator, error) {
 	indexName := nodeResourcePriorityIndexName(resource, priority)
-	it, err := txn.LowerBound("nodes", indexName, nodeType.id, resourceAmount)
+	it, err := txn.LowerBound("nodes", indexName, nodeType.Id, resourceAmount)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -185,11 +186,11 @@ func (s *NodeItemAvailableResourceIndex) FromArgs(args ...interface{}) ([]byte, 
 
 // FromObject extracts the index key from a *NodeItem object.
 func (s *NodeItemAvailableResourceIndex) FromObject(raw interface{}) (bool, []byte, error) {
-	nodeItem, ok := raw.(*SchedulerNode)
+	nodeItem, ok := raw.(*schedulerobjects.Node)
 	if !ok {
 		return false, nil, errors.Errorf("expected *NodeItem, but got %T", raw)
 	}
-	q := nodeItem.availableQuantityByPriorityAndResource(s.Priority, s.Resource)
+	q := nodeItem.AvailableQuantityByPriorityAndResource(s.Priority, s.Resource)
 	return true, encodeQuantity(q), nil
 }
 

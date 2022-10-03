@@ -1,4 +1,4 @@
-package scheduler
+package schedulerobjects
 
 import (
 	"fmt"
@@ -7,8 +7,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-helpers/scheduling/corev1"
-
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
 type PodRequirementsNotMetReason interface {
@@ -64,54 +62,11 @@ func (err *InsufficientResources) String() string {
 	)
 }
 
-// PodRequirementsMet determines whether a pod can be scheduled on this node.
-// If the pod can be scheduled, the returned score indicates how well the node fits:
-// - 0: Pod can be scheduled by preempting running pods.
-// - 1: Pod can be scheduled without preempting any running pods.
-func (node *SchedulerNode) PodRequirementsMet(req *schedulerobjects.PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
-	matches, reason, err := PodRequirementsMet(node.GetTaints(), node.GetLabels(), req)
-	if matches == false || err != nil {
-		return matches, 0, reason, err
-	}
-
-	// Check if the pod can be scheduled without preemption.
-	canSchedule := true
-	available := resource.Quantity{}
-	for resource, required := range req.ResourceRequirements.Requests {
-		q := node.availableQuantityByPriorityAndResource(0, string(resource))
-		q.DeepCopyInto(&available)
-		available.Sub(assignedResources.Get(0, string(resource)))
-		if required.Cmp(available) == 1 {
-			canSchedule = false
-			break
-		}
-	}
-	if canSchedule {
-		return true, 1, nil, nil
-	}
-
-	// Check if the pod can be scheduled with preemption.
-	for resource, required := range req.ResourceRequirements.Requests {
-		q := node.availableQuantityByPriorityAndResource(req.Priority, string(resource))
-		q.DeepCopyInto(&available)
-		available.Sub(assignedResources.Get(req.Priority, string(resource)))
-		if required.Cmp(available) == 1 {
-			return false, 0, &InsufficientResources{
-				Resource:  string(resource),
-				Required:  required,
-				Available: available,
-			}, nil
-		}
-	}
-
-	return true, 0, nil, nil
-}
-
 // PodRequirementsMet returns true if the scheduling requirements in req
 // are met by a node with the provided taints and labels.
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
-func PodRequirementsMet(nodeTaints []v1.Taint, nodeLabels map[string]string, req *schedulerobjects.PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func PodRequirementsMet(nodeTaints []v1.Taint, nodeLabels map[string]string, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	untoleratedTaint, hasUntoleratedTaint := corev1.FindMatchingUntoleratedTaint(
 		nodeTaints,
 		req.Tolerations,

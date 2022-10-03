@@ -11,10 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
 )
 
-func createNodeDb(nodes []*SchedulerNode) (*NodeDb, error) {
+func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	db, err := NewNodeDb(testPriorities, testResources)
 	if err != nil {
 		return nil, err
@@ -323,19 +322,22 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 }
 
 func TestSelectNodeForPod_RespectTaints(t *testing.T) {
-	nodes := []*SchedulerNode{
+	nodes := []*schedulerobjects.Node{
 		{
 			Id:         "tainted-1",
 			NodeTypeId: "tainted",
-			NodeType: &NodeType{
-				id: "tainted",
+			NodeType: &schedulerobjects.NodeType{
+				Id: "tainted",
 				Taints: []v1.Taint{
 					{Key: "fish", Value: "chips", Effect: v1.TaintEffectNoSchedule},
 				},
 			},
-
-			AvailableResources: map[int32]map[string]resource.Quantity{
-				0: {"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
+			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+				0: schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("1Gi")},
+				},
 			},
 		},
 	}
@@ -383,20 +385,22 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 }
 
 func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
-	nodes := []*SchedulerNode{
+	nodes := []*schedulerobjects.Node{
 		{
 			Id:         "labelled-1",
 			NodeTypeId: "labelled",
-			NodeType: &NodeType{
-				id:     "labelled",
+			NodeType: &schedulerobjects.NodeType{
+				Id:     "labelled",
 				Labels: map[string]string{"foo": "bar"},
 			},
 			//TODO: why do I have to add the labels here but not the taints
-			NodeInfo: &api.NodeInfo{
-				Labels: map[string]string{"foo": "bar"},
-			},
-			AvailableResources: map[int32]map[string]resource.Quantity{
-				0: {"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")},
+			Labels: map[string]string{"foo": "bar"},
+			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+				0: schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("2"),
+						"memory": resource.MustParse("2Gi")},
+				},
 			},
 		},
 	}
@@ -444,20 +448,22 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 }
 
 func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
-	nodes := []*SchedulerNode{
+	nodes := []*schedulerobjects.Node{
 		{
 			Id:         "labelled-1",
 			NodeTypeId: "labelled",
-			NodeType: &NodeType{
-				id:     "labelled",
+			NodeType: &schedulerobjects.NodeType{
+				Id:     "labelled",
 				Labels: map[string]string{"foo": "bar"},
 			},
 			//TODO: why do I have to add the labels here but not the taints
-			NodeInfo: &api.NodeInfo{
-				Labels: map[string]string{"foo": "bar"},
-			},
-			AvailableResources: map[int32]map[string]resource.Quantity{
-				0: {"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")},
+			Labels: map[string]string{"foo": "bar"},
+			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+				0: schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("2"),
+						"memory": resource.MustParse("2Gi")},
+				},
 			},
 		},
 	}
@@ -666,125 +672,4 @@ func BenchmarkSelectAndBindNodeToPod1000(b *testing.B) {
 
 func BenchmarkSelectAndBindNodeToPod10000(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(7000, 2000, 1000, 700, 200, 100, b)
-}
-
-func TestAvailableByPriorityAndResourceType(t *testing.T) {
-	tests := map[string]struct {
-		Priorities     []int32
-		UsedAtPriority int32
-		Resources      map[string]resource.Quantity
-	}{
-		"lowest priority": {
-			Priorities:     []int32{1, 5, 10},
-			UsedAtPriority: 1,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-		"mid priority": {
-			Priorities:     []int32{1, 5, 10},
-			UsedAtPriority: 5,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-		"highest priority": {
-			Priorities:     []int32{1, 5, 10},
-			UsedAtPriority: 10,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			m := NewAvailableByPriorityAndResourceType(tc.Priorities, tc.Resources)
-			assert.Equal(t, len(tc.Priorities), len(m))
-
-			m.MarkUsed(tc.UsedAtPriority, tc.Resources)
-			for resourceType, quantity := range tc.Resources {
-				for _, p := range tc.Priorities {
-					actual := m.Get(p, resourceType)
-					if p > tc.UsedAtPriority {
-						assert.Equal(t, 0, quantity.Cmp(actual))
-					} else {
-						expected := resource.MustParse("0")
-						assert.Equal(t, 0, expected.Cmp(actual))
-					}
-				}
-			}
-
-			m.MarkAvailable(tc.UsedAtPriority, tc.Resources)
-			for resourceType, quantity := range tc.Resources {
-				for _, p := range tc.Priorities {
-					actual := m.Get(p, resourceType)
-					assert.Equal(t, 0, quantity.Cmp(actual))
-				}
-			}
-		})
-	}
-}
-
-func TestAssignedByPriorityAndResourceType(t *testing.T) {
-	tests := map[string]struct {
-		Priorities     []int32
-		UsedAtPriority int32
-		Resources      map[string]resource.Quantity
-	}{
-		"lowest priority": {
-			Priorities:     []int32{1, 5, 10},
-			UsedAtPriority: 1,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-		"mid priority": {
-			Priorities:     []int32{1, 5, 10},
-			UsedAtPriority: 5,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-		"highest priority": {
-			Priorities:     []int32{1, 5, 10},
-			UsedAtPriority: 10,
-			Resources: map[string]resource.Quantity{
-				"cpu": resource.MustParse("1"),
-				"gpu": resource.MustParse("2"),
-			},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			m := NewAssignedByPriorityAndResourceType(tc.Priorities)
-			assert.Equal(t, len(tc.Priorities), len(m))
-
-			m.MarkUsed(tc.UsedAtPriority, tc.Resources)
-			for resourceType, quantity := range tc.Resources {
-				for _, p := range tc.Priorities {
-					actual := m.Get(p, resourceType)
-					if p <= tc.UsedAtPriority {
-						assert.Equal(t, 0, quantity.Cmp(actual))
-					} else {
-						expected := resource.MustParse("0")
-						assert.Equal(t, 0, expected.Cmp(actual))
-					}
-				}
-			}
-
-			m.MarkAvailable(tc.UsedAtPriority, tc.Resources)
-			for resourceType := range tc.Resources {
-				for _, p := range tc.Priorities {
-					actual := m.Get(p, resourceType)
-					expected := resource.MustParse("0")
-					assert.Equal(t, 0, expected.Cmp(actual))
-				}
-			}
-		})
-	}
 }

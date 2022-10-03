@@ -1,6 +1,8 @@
 package schedulerobjects
 
 import (
+	"strings"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/pkg/api"
@@ -20,10 +22,24 @@ func NewNodeTypeFromNodeInfo(nodeInfo *api.NodeInfo, taintsFilter taintsFilterFu
 }
 
 func NewNodeType(taints []v1.Taint, labels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
+	taints = getFilteredTaints(taints, taintsFilter)
+	labels = getFilteredLabels(labels, labelsFilter)
 	return &NodeType{
-		Taints: getFilteredTaints(taints, taintsFilter),
-		Labels: getFilteredLabels(labels, labelsFilter),
+		Id:     nodeTypeIdFromTaintsAndLabels(taints, labels),
+		Taints: taints,
+		Labels: labels,
 	}
+}
+
+func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels map[string]string) string {
+	var sb strings.Builder
+	for _, taint := range taints {
+		sb.WriteString(taint.String())
+	}
+	for label, value := range labels {
+		sb.WriteString(label + "=" + value)
+	}
+	return sb.String()
 }
 
 // getFilteredTaints returns a list of taints satisfying the filter predicate.
@@ -57,6 +73,7 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
-func (nodeType *NodeType) PodRequirementsMet(req *schedulerobjects.PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+	// TODO: This check shouldn't reject due to missing labels.
 	return PodRequirementsMet(nodeType.Taints, nodeType.Labels, req)
 }

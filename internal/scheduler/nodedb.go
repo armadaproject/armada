@@ -7,14 +7,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
 )
 
 // NodeDb is the scheduler-internal system for storing node information.
@@ -31,10 +28,10 @@ type NodeDb struct {
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources map[string]*resource.Quantity
 	// Set of node types for which there exists at least 1 node in the db.
-	NodeTypes map[string]*NodeType
+	NodeTypes map[string]*schedulerobjects.NodeType
 	// Resources allocated by the scheduler to in-flight jobs,
 	// i.e., jobs for which resource usage is not yet reported by the executor.
-	AssignedByNode map[string]AssignedByPriorityAndResourceType
+	AssignedByNode map[string]schedulerobjects.AssignedByPriorityAndResourceType
 	// Map from job id to the set of nodes on which that job has been assigned resources.
 	// Used to clear AssignedByNode once jobs start running.
 	NodesByJob map[uuid.UUID]map[string]interface{}
@@ -86,7 +83,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 	}
 
 	for obj := it.Next(); obj != nil; obj = it.Next() {
-		node := obj.(*SchedulerNode)
+		node := obj.(*schedulerobjects.Node)
 		if node == nil {
 			break
 		}
@@ -116,14 +113,14 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 
 		// Mark these resources as used.
 		// TODO: Avoid unnecessary copy of req.ResourceRequirements.Requests.
-		rs := make(map[string]resource.Quantity)
+		rs := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
 		for resource, quantity := range req.ResourceRequirements.Requests {
-			rs[string(resource)] = quantity
+			rs.Resources[string(resource)] = quantity
 		}
 		if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
 			assigned.MarkUsed(req.Priority, rs)
 		} else {
-			assigned = NewAssignedByPriorityAndResourceType(nodeDb.priorities)
+			assigned = schedulerobjects.NewAssignedByPriorityAndResourceType(nodeDb.priorities)
 			assigned.MarkUsed(req.Priority, rs)
 			nodeDb.AssignedByNode[node.Id] = assigned
 		}
@@ -142,7 +139,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 // matching node selectors and no untolerated taints.
 //
 // TODO: Update docstring.
-func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*NodeType, map[string]int, error) {
+func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
 	return NodeTypesMatchingPod(nodeDb.NodeTypes, req)
 }
 
@@ -151,8 +148,8 @@ func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements
 // matching node selectors and no untolerated taints.
 //
 // TODO: Update docstring.
-func NodeTypesMatchingPod(nodeTypes map[string]*NodeType, req *schedulerobjects.PodRequirements) ([]*NodeType, map[string]int, error) {
-	selectedNodeTypes := make([]*NodeType, 0)
+func NodeTypesMatchingPod(nodeTypes map[string]*schedulerobjects.NodeType, req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
+	selectedNodeTypes := make([]*schedulerobjects.NodeType, 0)
 	numNodeTypesExcludedByReason := make(map[string]int)
 	for _, nodeType := range nodeTypes {
 		matches, reason, err := nodeType.PodRequirementsMet(req)
@@ -204,179 +201,179 @@ func (nodeDb *NodeDb) MarkJobRunning(jobId uuid.UUID) {
 	delete(nodeDb.NodesByJob, jobId)
 }
 
-// SchedulerNode is a scheduler-specific representation of a node.
-type SchedulerNode struct {
-	// Unique name associated with the node.
-	// Only used internally by the scheduler.
-	Id string
-	// Time at which this node was last updated.
-	// Used to garbage collect nodes that have been removed.
-	LastSeen time.Time
-	// The node type captures scheduling requirements of the node;
-	// it's computed from the taints and labels associated with the node.
-	NodeType *NodeType
-	// We store the NodeType.id here to simplify indexing.
-	NodeTypeId string
-	// Node info object received from the executor.
-	// TODO: We don't need to store this. Just get what we need out if.
-	NodeInfo *api.NodeInfo
-	// Resources available for jobs of a given priority.
-	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
-	// where available resources = unused resources + resources assigned to lower-priority jobs.
-	AvailableResources AvailableByPriorityAndResourceType
-}
+// // SchedulerNode is a scheduler-specific representation of a node.
+// type SchedulerNode struct {
+// 	// Unique name associated with the node.
+// 	// Only used internally by the scheduler.
+// 	Id string
+// 	// Time at which this node was last updated.
+// 	// Used to garbage collect nodes that have been removed.
+// 	LastSeen time.Time
+// 	// The node type captures scheduling requirements of the node;
+// 	// it's computed from the taints and labels associated with the node.
+// 	NodeType *NodeType
+// 	// We store the NodeType.id here to simplify indexing.
+// 	NodeTypeId string
+// 	// Node info object received from the executor.
+// 	// TODO: We don't need to store this. Just get what we need out if.
+// 	NodeInfo *api.NodeInfo
+// 	// Resources available for jobs of a given priority.
+// 	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
+// 	// where available resources = unused resources + resources assigned to lower-priority jobs.
+// 	AvailableResources AvailableByPriorityAndResourceType
+// }
 
-func (node *SchedulerNode) GetLabels() map[string]string {
-	if node.NodeInfo == nil {
-		return nil
-	}
-	return node.NodeInfo.Labels
-}
+// func (node *SchedulerNode) GetLabels() map[string]string {
+// 	if node.NodeInfo == nil {
+// 		return nil
+// 	}
+// 	return node.NodeInfo.Labels
+// }
 
-func (node *SchedulerNode) GetTaints() []v1.Taint {
-	if node.NodeInfo == nil {
-		return nil
-	}
-	return node.NodeInfo.Taints
-}
+// func (node *SchedulerNode) GetTaints() []v1.Taint {
+// 	if node.NodeInfo == nil {
+// 		return nil
+// 	}
+// 	return node.NodeInfo.Taints
+// }
 
-type QuantityByResourceType map[string]resource.Quantity
+// type QuantityByResourceType map[string]resource.Quantity
 
-type QuantityByPriorityAndResourceType map[int32]map[string]resource.Quantity
+// type QuantityByPriorityAndResourceType map[int32]map[string]resource.Quantity
 
-// AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.
-// E.g., AvailableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
-// where available resources = unused resources + resources assigned to lower-priority pods.
-type AvailableByPriorityAndResourceType QuantityByPriorityAndResourceType
+// // AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.
+// // E.g., AvailableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
+// // where available resources = unused resources + resources assigned to lower-priority pods.
+// type AvailableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAvailableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AvailableByPriorityAndResourceType {
-	rv := make(AvailableByPriorityAndResourceType)
-	for _, priority := range priorities {
-		m := make(map[string]resource.Quantity)
-		for t, q := range resources {
-			m[t] = q.DeepCopy()
-		}
-		rv[priority] = m
-	}
-	return rv
-}
+// func NewAvailableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AvailableByPriorityAndResourceType {
+// 	rv := make(AvailableByPriorityAndResourceType)
+// 	for _, priority := range priorities {
+// 		m := make(map[string]resource.Quantity)
+// 		for t, q := range resources {
+// 			m[t] = q.DeepCopy()
+// 		}
+// 		rv[priority] = m
+// 	}
+// 	return rv
+// }
 
-func (m AvailableByPriorityAndResourceType) DeepCopy() AvailableByPriorityAndResourceType {
-	rv := make(AvailableByPriorityAndResourceType)
-	for priority, resourcesAtPriority := range m {
-		rv[priority] = make(map[string]resource.Quantity)
-		for resourceType, quantity := range resourcesAtPriority {
-			m[priority][resourceType] = quantity.DeepCopy()
-		}
-	}
-	return rv
-}
+// func (m AvailableByPriorityAndResourceType) DeepCopy() AvailableByPriorityAndResourceType {
+// 	rv := make(AvailableByPriorityAndResourceType)
+// 	for priority, resourcesAtPriority := range m {
+// 		rv[priority] = make(map[string]resource.Quantity)
+// 		for resourceType, quantity := range resourcesAtPriority {
+// 			m[priority][resourceType] = quantity.DeepCopy()
+// 		}
+// 	}
+// 	return rv
+// }
 
-// MarkUsed reduces the resources available to pods of priority p or lower.
-func (m AvailableByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
-	for priority, availableResourcesAtPriority := range m {
-		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs {
-				q := availableResourcesAtPriority[usedResourceType]
-				if q.Cmp(usedResourceQuantity) == -1 {
-					q.Set(0)
-				} else {
-					q.Sub(usedResourceQuantity)
-				}
-				availableResourcesAtPriority[usedResourceType] = q
-			}
-		}
-	}
-}
+// // MarkUsed reduces the resources available to pods of priority p or lower.
+// func (m AvailableByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
+// 	for priority, availableResourcesAtPriority := range m {
+// 		if priority <= p {
+// 			for usedResourceType, usedResourceQuantity := range rs {
+// 				q := availableResourcesAtPriority[usedResourceType]
+// 				if q.Cmp(usedResourceQuantity) == -1 {
+// 					q.Set(0)
+// 				} else {
+// 					q.Sub(usedResourceQuantity)
+// 				}
+// 				availableResourcesAtPriority[usedResourceType] = q
+// 			}
+// 		}
+// 	}
+// }
 
-// MarkAvailable increases the resources available to pods of priority p or higher.
-func (m AvailableByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
-	for priority, availableResourcesAtPriority := range m {
-		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs {
-				q := availableResourcesAtPriority[usedResourceType]
-				q.Add(usedResourceQuantity)
-				availableResourcesAtPriority[usedResourceType] = q
-			}
-		}
-	}
-}
+// // MarkAvailable increases the resources available to pods of priority p or higher.
+// func (m AvailableByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
+// 	for priority, availableResourcesAtPriority := range m {
+// 		if priority <= p {
+// 			for usedResourceType, usedResourceQuantity := range rs {
+// 				q := availableResourcesAtPriority[usedResourceType]
+// 				q.Add(usedResourceQuantity)
+// 				availableResourcesAtPriority[usedResourceType] = q
+// 			}
+// 		}
+// 	}
+// }
 
-// AssignedByPriorityAndResourceType accounts for resources assigned to pods of a given priority or lower.
-// E.g., AssignedByPriorityAndResourceType[5]["cpu"] is the amount of CPU assigned to pods with priority 5 or lower.
-type AssignedByPriorityAndResourceType QuantityByPriorityAndResourceType
+// // AssignedByPriorityAndResourceType accounts for resources assigned to pods of a given priority or lower.
+// // E.g., AssignedByPriorityAndResourceType[5]["cpu"] is the amount of CPU assigned to pods with priority 5 or lower.
+// type AssignedByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAssignedByPriorityAndResourceType(priorities []int32) AssignedByPriorityAndResourceType {
-	rv := make(AssignedByPriorityAndResourceType)
-	for _, priority := range priorities {
-		rv[priority] = make(map[string]resource.Quantity)
-	}
-	return rv
-}
+// func NewAssignedByPriorityAndResourceType(priorities []int32) AssignedByPriorityAndResourceType {
+// 	rv := make(AssignedByPriorityAndResourceType)
+// 	for _, priority := range priorities {
+// 		rv[priority] = make(map[string]resource.Quantity)
+// 	}
+// 	return rv
+// }
 
-// MarkUsed increases the resources assigned to pods of priority p or lower.
-func (m AssignedByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
-	for priority, assignedResourcesAtPriority := range m {
-		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs {
-				q := assignedResourcesAtPriority[usedResourceType]
-				q.Add(usedResourceQuantity)
-				assignedResourcesAtPriority[usedResourceType] = q
-			}
-		}
-	}
-}
+// // MarkUsed increases the resources assigned to pods of priority p or lower.
+// func (m AssignedByPriorityAndResourceType) MarkUsed(p int32, rs map[string]resource.Quantity) {
+// 	for priority, assignedResourcesAtPriority := range m {
+// 		if priority <= p {
+// 			for usedResourceType, usedResourceQuantity := range rs {
+// 				q := assignedResourcesAtPriority[usedResourceType]
+// 				q.Add(usedResourceQuantity)
+// 				assignedResourcesAtPriority[usedResourceType] = q
+// 			}
+// 		}
+// 	}
+// }
 
-// MarkAvailable reduces the resources assigned to pods of priority p or lower.
-func (m AssignedByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
-	for priority, assignedResourcesAtPriority := range m {
-		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs {
-				q := assignedResourcesAtPriority[usedResourceType]
-				if q.Cmp(usedResourceQuantity) == -1 {
-					q.Set(0)
-				} else {
-					q.Sub(usedResourceQuantity)
-				}
-				assignedResourcesAtPriority[usedResourceType] = q
-			}
-		}
-	}
-}
+// // MarkAvailable reduces the resources assigned to pods of priority p or lower.
+// func (m AssignedByPriorityAndResourceType) MarkAvailable(p int32, rs map[string]resource.Quantity) {
+// 	for priority, assignedResourcesAtPriority := range m {
+// 		if priority <= p {
+// 			for usedResourceType, usedResourceQuantity := range rs {
+// 				q := assignedResourcesAtPriority[usedResourceType]
+// 				if q.Cmp(usedResourceQuantity) == -1 {
+// 					q.Set(0)
+// 				} else {
+// 					q.Sub(usedResourceQuantity)
+// 				}
+// 				assignedResourcesAtPriority[usedResourceType] = q
+// 			}
+// 		}
+// 	}
+// }
 
-func (availableByPriorityAndResourceType AvailableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if availableByPriorityAndResourceType == nil {
-		return resource.MustParse("0")
-	}
-	quantityByResourceType, ok := availableByPriorityAndResourceType[priority]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	q, ok := quantityByResourceType[resourceType]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	return q
-}
+// func (availableByPriorityAndResourceType AvailableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+// 	if availableByPriorityAndResourceType == nil {
+// 		return resource.MustParse("0")
+// 	}
+// 	quantityByResourceType, ok := availableByPriorityAndResourceType[priority]
+// 	if !ok {
+// 		return resource.MustParse("0")
+// 	}
+// 	q, ok := quantityByResourceType[resourceType]
+// 	if !ok {
+// 		return resource.MustParse("0")
+// 	}
+// 	return q
+// }
 
-func (assignedByPriorityAndResourceType AssignedByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if assignedByPriorityAndResourceType == nil {
-		return resource.MustParse("0")
-	}
-	quantityByResourceType, ok := assignedByPriorityAndResourceType[priority]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	q, ok := quantityByResourceType[resourceType]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	return q
-}
+// func (assignedByPriorityAndResourceType AssignedByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+// 	if assignedByPriorityAndResourceType == nil {
+// 		return resource.MustParse("0")
+// 	}
+// 	quantityByResourceType, ok := assignedByPriorityAndResourceType[priority]
+// 	if !ok {
+// 		return resource.MustParse("0")
+// 	}
+// 	q, ok := quantityByResourceType[resourceType]
+// 	if !ok {
+// 		return resource.MustParse("0")
+// 	}
+// 	return q
+// }
 
-func (nodeItem *SchedulerNode) availableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
-	return nodeItem.AvailableResources.Get(priority, resourceType)
-}
+// func (nodeItem *SchedulerNode) availableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
+// 	return nodeItem.AvailableResources.Get(priority, resourceType)
+// }
 
 func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(priorities, resourceTypes))
@@ -392,25 +389,24 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 	}
 	return &NodeDb{
 		priorities:     priorities,
-		NodeTypes:      make(map[string]*NodeType),
+		NodeTypes:      make(map[string]*schedulerobjects.NodeType),
 		totalResources: totalResources,
 		Db:             db,
 		NodesByJob:     make(map[uuid.UUID]map[string]interface{}),
 		JobsByNode:     make(map[string]map[uuid.UUID]interface{}),
-		AssignedByNode: make(map[string]AssignedByPriorityAndResourceType),
+		AssignedByNode: make(map[string]schedulerobjects.AssignedByPriorityAndResourceType),
 	}, nil
 }
 
 // Upsert will update the node db with the given nodes.
-func (nodeDb *NodeDb) Upsert(nodes []*SchedulerNode) error {
-	maxPriority := nodeDb.priorities[len(nodeDb.priorities)-1]
+func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
 
 		// If this is a new node, increase the overall resource count.
 		if _, ok := nodeDb.AssignedByNode[node.Id]; !ok {
-			for t, q := range node.AvailableResources[maxPriority] {
+			for t, q := range node.TotalResources.Resources {
 				available := nodeDb.totalResources[t]
 				if available == nil {
 					q := q.DeepCopy()
@@ -431,50 +427,50 @@ func (nodeDb *NodeDb) Upsert(nodes []*SchedulerNode) error {
 
 	// Record all known node types.
 	for _, node := range nodes {
-		nodeDb.NodeTypes[node.NodeType.id] = node.NodeType
+		nodeDb.NodeTypes[node.NodeType.Id] = node.NodeType
 	}
 
 	return nil
 }
 
-func (nodeDb *NodeDb) SchedulerNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string) *SchedulerNode {
-	return &SchedulerNode{
-		Id:                 fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
-		NodeType:           NewNodeTypeFromNodeInfo(nodeInfo, nil, nil),
-		NodeInfo:           nodeInfo,
-		AvailableResources: availableResourcesFromNodeInfo(nodeInfo, nodeDb.priorities),
-	}
-}
+// func (nodeDb *NodeDb) SchedulerNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string) *SchedulerNode {
+// 	return &SchedulerNode{
+// 		Id:                 fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+// 		NodeType:           NewNodeTypeFromNodeInfo(nodeInfo, nil, nil),
+// 		NodeInfo:           nodeInfo,
+// 		AvailableResources: availableResourcesFromNodeInfo(nodeInfo, nodeDb.priorities),
+// 	}
+// }
 
-func availableResourcesFromNodeInfo(nodeInfo *api.NodeInfo, allowedPriorities []int32) AvailableByPriorityAndResourceType {
-	rv := make(AvailableByPriorityAndResourceType)
-	for _, priority := range allowedPriorities {
-		rv[priority] = maps.Clone(nodeInfo.TotalResources)
-	}
-	for allocatedPriority, allocatedResources := range nodeInfo.AllocatedResources {
-		for _, priority := range allowedPriorities {
-			if priority <= allocatedPriority {
-				for resource, quantity := range allocatedResources.Resources {
-					q := rv[priority][resource]
-					q.Sub(quantity)
-					rv[priority][resource] = q
-				}
-			}
-		}
-	}
-	return rv
-}
+// func availableResourcesFromNodeInfo(nodeInfo *api.NodeInfo, allowedPriorities []int32) AvailableByPriorityAndResourceType {
+// 	rv := make(AvailableByPriorityAndResourceType)
+// 	for _, priority := range allowedPriorities {
+// 		rv[priority] = maps.Clone(nodeInfo.TotalResources)
+// 	}
+// 	for allocatedPriority, allocatedResources := range nodeInfo.AllocatedResources {
+// 		for _, priority := range allowedPriorities {
+// 			if priority <= allocatedPriority {
+// 				for resource, quantity := range allocatedResources.Resources {
+// 					q := rv[priority][resource]
+// 					q.Sub(quantity)
+// 					rv[priority][resource] = q
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return rv
+// }
 
-func nodeFromNodeInfo(nodeInfo *api.NodeInfo) *v1.Node {
-	return &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: nodeInfo.GetLabels(),
-		},
-		Spec: v1.NodeSpec{
-			Taints: nodeInfo.GetTaints(),
-		},
-	}
-}
+// func nodeFromNodeInfo(nodeInfo *api.NodeInfo) *v1.Node {
+// 	return &v1.Node{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Labels: nodeInfo.GetLabels(),
+// 		},
+// 		Spec: v1.NodeSpec{
+// 			Taints: nodeInfo.GetTaints(),
+// 		},
+// 	}
+// }
 
 func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 	indexes := make(map[string]*memdb.IndexSchema)
