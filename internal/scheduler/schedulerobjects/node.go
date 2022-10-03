@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
 	resource "k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 func SchedulerNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {
