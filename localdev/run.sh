@@ -1,5 +1,8 @@
 #! /bin/sh
 
+# make sure that this is the CWD
+cd "$(dirname "$0")"
+
 INFRA_SVCS="redis postgres pulsar stan"
 ARMADA_SVCS="armada-server lookout executor binoculars job-service"
 START_SVCS=""

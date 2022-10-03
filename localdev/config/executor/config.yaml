@@ -15,7 +15,7 @@ task:
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
 apiConnection:
-  armadaUrl : "localhost:50051"
+  armadaUrl : "armada-server:50051"
   forceNoTls: true
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8

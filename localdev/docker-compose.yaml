@@ -31,7 +31,8 @@ services:
     image: nats-streaming
     command: "-p 4223 -m 8223"
     ports:
-      - "6650:6650"
+      - "4223:4223"
+      - "8223:8223"
     depends_on:
       - redis
 
