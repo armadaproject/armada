@@ -19,11 +19,11 @@ pulsar:
   enabled: false
 redis:
   addrs:
-    - "localhost:6379"
+    - "redis:6379"
 eventsRedis:
   addrs:
-    - "localhost:6379"
+    - "redis:6379"
 eventapi:
   postgres:
     connection:
-      host: "localhost"
+      host: "postgres""
