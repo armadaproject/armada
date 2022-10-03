@@ -26,19 +26,12 @@ postgres:
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: localhost
+    host: postgres
     port: 5432
     user: postgres
     password: psw
     dbname: postgres
     sslmode: disable
-
-eventQueue: "ArmadaLookoutEventProcessor"
-nats:
-  Servers:
-    - "nats://localhost:4223"
-  ClusterID: "test-cluster"
-  Subject: "ArmadaTest"
 
 prunerConfig:
   daysToKeep: 42
