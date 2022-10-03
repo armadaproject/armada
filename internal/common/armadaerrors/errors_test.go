@@ -54,7 +54,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return nil, handlerErr
 	}
-	f := UnaryServerInterceptor(100)
+	f := UnaryServerInterceptor(1000)
 
 	// nils should be passed through as-is
 	handlerErr = nil
@@ -94,6 +94,22 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	st, ok = status.FromError(err)
 	assert.True(t, ok)
 	assert.Contains(t, st.Message(), id)
+
+	// the action or method should get added to errors that support it.
+	unauthErr := &ErrUnauthorized{
+		Principal:   "testUser",
+		AuthService: "testService",
+		Message:     "invalid username/password combo",
+	}
+	handlerErr = errors.WithMessage(errors.WithStack(unauthErr), "foo")
+	ctx = context.Background()
+	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
+	_, err = f(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "testMethod"}, handler)
+	st, ok = status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.Unauthenticated, st.Code())
+	assert.Equal(t, errors.WithMessage(unauthErr, "foo").Error(), st.Message())
+	assert.Contains(t, st.Message(), "testMethod")
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -105,7 +121,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	handler := func(srv interface{}, stream grpc.ServerStream) error {
 		return handlerErr
 	}
-	f := StreamServerInterceptor(100)
+	f := StreamServerInterceptor(1000)
 
 	// nils should be passed through as-is
 	handlerErr = nil
@@ -146,6 +162,23 @@ func TestStreamServerInterceptor(t *testing.T) {
 	st, ok = status.FromError(err)
 	assert.True(t, ok)
 	assert.Contains(t, st.Message(), id)
+
+	// the action or method should get added to errors that support it.
+	unauthErr := &ErrUnauthorized{
+		Principal:   "testUser",
+		AuthService: "testService",
+		Message:     "invalid username/password combo",
+	}
+	handlerErr = errors.WithMessage(errors.WithStack(unauthErr), "foo")
+	ctx = context.Background()
+	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
+	stream.WrappedContext = ctx
+	err = f(ctx, stream, &grpc.StreamServerInfo{FullMethod: "testMethod"}, handler)
+	st, ok = status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.Unauthenticated, st.Code())
+	assert.Equal(t, errors.WithMessage(unauthErr, "foo").Error(), st.Message())
+	assert.Contains(t, st.Message(), "testMethod")
 }
 
 func TestIsNetworkErrorRedis(t *testing.T) {
