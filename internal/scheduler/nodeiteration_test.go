@@ -298,9 +298,9 @@ var testNodeItems1 []*schedulerobjects.Node = []*schedulerobjects.Node{
 		NodeTypeId: "foo",
 		NodeType:   &schedulerobjects.NodeType{Id: "foo"},
 		AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-			0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-			1: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
-			2: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
+			0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+			1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
+			2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
 		},
 	},
 	{
