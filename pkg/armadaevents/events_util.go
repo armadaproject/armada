@@ -3,7 +3,6 @@ package armadaevents
 import (
 	"encoding/json"
 	"errors"
-	fmt "fmt"
 	time "time"
 )
 
@@ -31,7 +30,6 @@ func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
 	var submitJob EventSequence_Event_SubmitJob
 	if err = json.Unmarshal(*rawEvent.Event, &submitJob); err == nil {
 		ev.Event = &submitJob
-		fmt.Printf("EventSequence_Event UnmarshalJSON(): ev.Event = %+v\n", ev.Event)
 		return nil
 	}
 
