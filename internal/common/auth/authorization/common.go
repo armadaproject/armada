@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
 )
 
@@ -129,6 +130,12 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 			if err == missingCredentials {
 				// try next auth service
 				continue
+			} else if err == invalidCredentials {
+				return nil, &armadaerrors.ErrUnauthorized{
+					Principal:   principal.GetName(),
+					AuthService: service.Name(),
+					Message:     invalidCredentials.Error(),
+				}
 			}
 			if err != nil {
 				return nil, err

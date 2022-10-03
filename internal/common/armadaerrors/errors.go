@@ -278,6 +278,12 @@ func CodeFromError(err error) codes.Code {
 			return codes.InvalidArgument
 		}
 	}
+	{
+		var e *ErrUnauthorized
+		if errors.As(err, &e) {
+			return codes.Unauthenticated
+		}
+	}
 
 	return codes.Unknown
 }
@@ -385,6 +391,38 @@ func IsNetworkError(err error) bool {
 	return false
 }
 
+// Add the action to th error if possible.
+func addActionUnary(err error, info *grpc.UnaryServerInfo) {
+	{
+		var e *ErrUnauthorized
+		if errors.As(err, &e) {
+			e.Action = info.FullMethod
+		}
+	}
+	{
+		var e *ErrNoPermission
+		if errors.As(err, &e) {
+			e.Action = info.FullMethod
+		}
+	}
+}
+
+// Add the action to th error if possible.
+func addActionStream(err error, info *grpc.StreamServerInfo) {
+	{
+		var e *ErrUnauthorized
+		if errors.As(err, &e) {
+			e.Action = info.FullMethod
+		}
+	}
+	{
+		var e *ErrNoPermission
+		if errors.As(err, &e) {
+			e.Action = info.FullMethod
+		}
+	}
+}
+
 // UnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
 // and returns it as a gRPC status error. It also limits the number of characters returned.
 //
@@ -403,6 +441,8 @@ func UnaryServerInterceptor(maxErrorSize uint) grpc.UnaryServerInterceptor {
 		// Otherwise, get the cause and convert to a gRPC status error
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
+
+		addActionUnary(err, info)
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
@@ -436,6 +476,8 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 		// Otherwise, get the cause and convert to a gRPC status error
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
+
+		addActionStream(err, info)
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
@@ -570,7 +612,7 @@ func (err *ErrUnauthorized) Error() (s string) {
 		s = fmt.Sprintf("Could not authorize user %q via service %q while attempting action %q",
 			err.Principal, err.AuthService, err.Action)
 	} else {
-		s = fmt.Sprintf("Could not authorized user %q via service %q", err.AuthService, err.Action)
+		s = fmt.Sprintf("Could not authorize user %q via service %q", err.AuthService, err.Action)
 	}
 	if err.Message != "" {
 		s += fmt.Sprintf("; %s", err.Message)
