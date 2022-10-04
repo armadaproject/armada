@@ -60,17 +60,17 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.Schedulin
 }
 
 func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.SchedulingConfig) error {
-	hasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
-	hasBounds := int64(config.MaxTerminationGracePeriod.Seconds()) > 0
+	specHasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
+	configHasBounds := int64(config.MaxTerminationGracePeriod.Seconds()) > 0
 	var terminationGracePeriodSeconds int64
 	var exceedsBounds bool
-	if hasTerminationGracePeriod && hasBounds {
+	if specHasTerminationGracePeriod && configHasBounds {
 		terminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
 		exceedsBounds = (terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
 			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()))
 	}
 
-	if hasTerminationGracePeriod && exceedsBounds {
+	if exceedsBounds {
 		return errors.Errorf("terminationGracePeriodSeconds of %v must be between %v and %v, or omitted",
 			terminationGracePeriodSeconds,
 			config.MinTerminationGracePeriod.Seconds(),
