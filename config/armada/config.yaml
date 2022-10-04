@@ -35,16 +35,13 @@ scheduling:
   preemption:
     # if enabled, Armada will accept submitted jobs which have a priorityClassName field
     # otherwise it will refuse the jobs on submit
-    enabled: true
+    enabled: false
     # priorityClasses field is a map of priority class names to priority values
     # defined priority classes should exist with the same priority in all executor clusters
-    priorityClasses:
-      armada-preemptive-high-priority: 1000
-      armada-preemptive-medium-priority: 100
-      armada-preemptive-low-priority: 10
+    priorityClasses: {}
     # if preemption is enabled, Armada server will set the priorityClassName in the job's podSpec
     # with the value of defaultPriorityClass, if the podSpec does not already reference a priority class
-    defaultPriorityClass: armada-preemptive-low-priority
+    defaultPriorityClass: ""
   useProbabilisticSchedulingForAllResources: true
   queueLeaseBatchSize: 200
   maximumLeasePayloadSizeBytes: 7340032 # 1024 * 1024 * 7
