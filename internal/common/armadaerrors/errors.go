@@ -27,12 +27,12 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 )
 
-// ErrNoPermission represents an error that occurs when a client tries to perform some action
+// ErrUnauthorized represents an error that occurs when a client tries to perform some action
 // through the gRPC API for which it does not have permissions.
 //
 // It may be necessary populate the Action field by recovering this error at the gRPC endpoint (using errors.As)
 // and updating the field in-place.
-type ErrNoPermission struct {
+type ErrUnauthorized struct {
 	// Principal that attempted the action
 	Principal string
 	// The missing permission
@@ -43,7 +43,7 @@ type ErrNoPermission struct {
 	Message string
 }
 
-func (err *ErrNoPermission) Error() (s string) {
+func (err *ErrUnauthorized) Error() (s string) {
 	if err.Action != "" {
 		s = fmt.Sprintf("%s lacks permission %s required for action %s", err.Principal, err.Permission, err.Action)
 	} else {
@@ -400,7 +400,7 @@ func addActionUnary(err error, info *grpc.UnaryServerInfo) {
 		}
 	}
 	{
-		var e *ErrNoPermission
+		var e *ErrUnauthorized
 		if errors.As(err, &e) {
 			e.Action = info.FullMethod
 		}
@@ -416,7 +416,7 @@ func addActionStream(err error, info *grpc.StreamServerInfo) {
 		}
 	}
 	{
-		var e *ErrNoPermission
+		var e *ErrUnauthorized
 		if errors.As(err, &e) {
 			e.Action = info.FullMethod
 		}
