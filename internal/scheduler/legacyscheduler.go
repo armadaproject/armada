@@ -40,9 +40,6 @@ type LegacyScheduler struct {
 	JobSchedulingReportsByQueue map[string]map[uuid.UUID]*JobSchedulingReport
 }
 
-// func NewLegacyScheduler() *LegacyScheduler {
-// }
-
 // Schedule is similar to distributeRemainder, but is built on NodeDb.
 func (c *LegacyScheduler) Schedule(
 	ctx context.Context,
@@ -54,6 +51,11 @@ func (c *LegacyScheduler) Schedule(
 	totalResourcesByQueue := make(map[string]schedulerobjects.ResourceList)
 	for queue, quantityByPriorityAndResourceType := range initialUsageByQueue {
 		totalResourcesByQueue[queue] = quantityByPriorityAndResourceType.AggregateByResource()
+	}
+
+	// Initialise reports dict if not done already.
+	if c.JobSchedulingReportsByQueue == nil {
+		c.JobSchedulingReportsByQueue = make(map[string]map[uuid.UUID]*JobSchedulingReport)
 	}
 
 	// Total resources assigned during this invocation of the scheduler.
@@ -184,15 +186,17 @@ func (c *LegacyScheduler) Schedule(
 
 		// Check that this job is at least equal to the minimum job size.
 		jobTooSmall := false
-		for resourceType, quantity := range jobTotalResourceRequests {
-			if limit, ok := c.MinimumJobSize[resourceType]; ok {
-				if quantity.Cmp(limit) != -1 {
-					jobTooSmall = true
-					jobSchedulingReport.UnschedulableReason = fmt.Sprintf(
-						"job requests %s %s, but the minimum is %s",
-						quantity.String(), resourceType, limit.String(),
-					)
-					break
+		if len(c.MinimumJobSize) > 0 {
+			for resourceType, quantity := range jobTotalResourceRequests {
+				if limit, ok := c.MinimumJobSize[resourceType]; ok {
+					if quantity.Cmp(limit) != -1 {
+						jobTooSmall = true
+						jobSchedulingReport.UnschedulableReason = fmt.Sprintf(
+							"job requests %s %s, but the minimum is %s",
+							quantity.String(), resourceType, limit.String(),
+						)
+						break
+					}
 				}
 			}
 		}

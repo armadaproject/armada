@@ -401,8 +401,11 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	aggregatedUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for queue, queueReportByExecutorId := range q.usageByQueueAndExecutor {
 		quantityByPriorityAndResourceType := make(schedulerobjects.QuantityByPriorityAndResourceType)
-		for _, report := range queueReportByExecutorId {
-			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
+		for executorId, report := range queueReportByExecutorId {
+			// Aggregate on a per-pool basis.
+			if q.poolByExecutorId[executorId] == req.Pool {
+				quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
+			}
 		}
 		aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
 	}
