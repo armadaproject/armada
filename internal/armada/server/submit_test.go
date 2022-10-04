@@ -284,7 +284,7 @@ func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
 				Effect:   v1.TaintEffectNoSchedule,
 			},
 		}
-		expectedTerminationGracePeriodSeconds := int64(s.schedulingConfig.Preemption.DefaultTerminationGracePeriod.Seconds())
+		expectedTerminationGracePeriodSeconds := int64(s.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
 
 		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Requests)
 		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Limits)
@@ -1635,13 +1635,13 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		},
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
-			Enabled:                       true,
-			DefaultPriorityClass:          "high",
-			PriorityClasses:               map[string]int32{"high": 0},
-			DefaultTerminationGracePeriod: time.Duration(60 * time.Second),
-			MinTerminationGracePeriod:     time.Duration(30 * time.Second),
-			MaxTerminationGracePeriod:     time.Duration(300 * time.Second),
+			Enabled:              true,
+			DefaultPriorityClass: "high",
+			PriorityClasses:      map[string]int32{"high": 0},
 		},
+		DefaultTerminationGracePeriod: time.Duration(60 * time.Second),
+		MinTerminationGracePeriod:     time.Duration(30 * time.Second),
+		MaxTerminationGracePeriod:     time.Duration(300 * time.Second),
 	}
 
 	server := NewSubmitServer(
