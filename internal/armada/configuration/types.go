@@ -87,7 +87,9 @@ type PulsarConfig struct {
 type SchedulingConfig struct {
 	Preemption                                PreemptionConfig
 	UseProbabilisticSchedulingForAllResources bool
-	QueueLeaseBatchSize                       uint
+	// Number of jobs to load from the database at a time.
+	QueueLeaseBatchSize uint
+	// Minimum resources to schedule per request from an executor.
 	MinimumResourceToSchedule                 common.ComputeResourcesFloat
 	MaximumLeasePayloadSizeBytes              int
 	MaximalClusterFractionToSchedule          map[string]float64

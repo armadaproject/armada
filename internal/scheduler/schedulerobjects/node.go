@@ -9,7 +9,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func SchedulerNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {
+func NewNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {
 	nodeType := NewNodeTypeFromNodeInfo(nodeInfo, nil, nil)
 	availableByPriorityAndResource := NewAvailableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {

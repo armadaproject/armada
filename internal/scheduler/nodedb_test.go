@@ -35,7 +35,7 @@ func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
 			assert.NoError(t, err)
 			report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 				Priority: 0,
-				ResourceRequirements: &v1.ResourceRequirements{
+				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu":    resource.MustParse(strconv.Itoa(i)),
 						"memory": resource.MustParse("1Gi"),
@@ -64,7 +64,7 @@ func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
 	for _, r := range invalidResources {
 		report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 			Priority:             0,
-			ResourceRequirements: &v1.ResourceRequirements{Requests: r},
+			ResourceRequirements: v1.ResourceRequirements{Requests: r},
 		})
 		assert.NoError(t, err)
 		assert.Nil(t, report.Node)
@@ -79,7 +79,7 @@ func TestSelectNodeForPod_InvalidResource(t *testing.T) {
 
 	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "someResourceWeDontHave": resource.MustParse("1")},
 		},
 	})
@@ -96,19 +96,19 @@ func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
 	requirements := []*schedulerobjects.PodRequirements{
 		{
 			Priority: 0,
-			ResourceRequirements: &v1.ResourceRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
 				Requests: v1.ResourceList{"cpu": resource.MustParse("7")},
 			},
 		},
 		{
 			Priority: 0,
-			ResourceRequirements: &v1.ResourceRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
 				Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
 			},
 		},
 		{
 			Priority: 0,
-			ResourceRequirements: &v1.ResourceRequirements{
+			ResourceRequirements: v1.ResourceRequirements{
 				Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
 			},
 		},
@@ -131,7 +131,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 	// First job can be scheduled
 	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("7")},
 		},
 	})
@@ -141,7 +141,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 	// Second job can't be scheduled (too much cpu)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 		},
 	})
@@ -151,7 +151,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 	// third job can be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
 		},
 	})
@@ -161,7 +161,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 	// fourth job can't be scheduled (we only have one cpu left)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
 		},
 	})
@@ -171,7 +171,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 	// fifth job can be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
 		},
 	})
@@ -181,7 +181,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 	// sixth job can't be scheduled (we have no cpu left)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
 		},
 	})
@@ -197,7 +197,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	// First job can be scheduled
 	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")},
 		},
 	})
@@ -207,7 +207,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	// Second job can't be scheduled (too much cpu)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 		},
 	})
@@ -217,7 +217,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	// Third job can be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")},
 		},
 	})
@@ -227,7 +227,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	// Fourth job cant be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")},
 		},
 	})
@@ -237,7 +237,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	// Fifth job can be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	})
@@ -247,7 +247,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 	// Sixth job cant be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	})
@@ -263,7 +263,7 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 	// First job can be scheduled
 	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 2,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("9")},
 		},
 	})
@@ -273,7 +273,7 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 	// Second job can't be scheduled (too much cpu)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 2,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("7"), "memory": resource.MustParse("5Gi")},
 		},
 	})
@@ -283,7 +283,7 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 	// third job can be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 2,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("6")},
 		},
 	})
@@ -293,7 +293,7 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 	// fourth job can't be scheduled (we only have three cpu left)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 2,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
 		},
 	})
@@ -303,7 +303,7 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 	// fifth job can be scheduled
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 2,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("3")},
 		},
 	})
@@ -313,7 +313,7 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 	// sixth job can't be scheduled (we have no cpu left)
 	report, err = db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 		Priority: 2,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
 		},
 	})
@@ -344,14 +344,14 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 
 	jobWithoutToleration := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
 
 	jobWithDifferentToleration := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 		Tolerations: []v1.Toleration{{Key: "salt", Value: "pepper"}},
@@ -359,7 +359,7 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 
 	jobWithToleration := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 		Tolerations: []v1.Toleration{{Key: "fish", Value: "chips", Operator: v1.TolerationOpEqual, Effect: v1.TaintEffectNoSchedule}},
@@ -407,7 +407,7 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 
 	jobWithoutSelector := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
@@ -415,7 +415,7 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 	jobWithDifferentSelector := &schedulerobjects.PodRequirements{
 		Priority:     0,
 		NodeSelector: map[string]string{"fish": "chips"},
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
@@ -423,7 +423,7 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 	jobWithSelector := &schedulerobjects.PodRequirements{
 		Priority:     0,
 		NodeSelector: map[string]string{"foo": "bar"},
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
@@ -470,7 +470,7 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 
 	jobWithoutAffinity := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
@@ -494,7 +494,7 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 				},
 			},
 		},
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
@@ -518,7 +518,7 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 				},
 			},
 		},
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
 		},
 	}
@@ -579,7 +579,7 @@ func benchmarkSelectAndBindNodeToPod(
 
 	smallCpuJob := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("1"),
 				"memory": resource.MustParse("4Gi"),
@@ -588,7 +588,7 @@ func benchmarkSelectAndBindNodeToPod(
 	}
 	largeCpuJob := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("32"),
 				"memory": resource.MustParse("256Gi"),
@@ -603,7 +603,7 @@ func benchmarkSelectAndBindNodeToPod(
 	}
 	gpuJob := &schedulerobjects.PodRequirements{
 		Priority: 0,
-		ResourceRequirements: &v1.ResourceRequirements{
+		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("4"),
 				"memory": resource.MustParse("16Gi"),

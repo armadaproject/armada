@@ -196,28 +196,8 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 	switch object := submitJob.MainObject.Object.(type) {
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
-		resourceRequirements := aggregatePodResourceRequirements(podSpec)
-		tolerations := make([]v1.Toleration, len(podSpec.Tolerations))
-		for i, toleration := range podSpec.Tolerations {
-			tolerations[i] = toleration
-		}
-		var priority int32
-		if podSpec.Priority != nil {
-			priority = *podSpec.Priority
-		}
-		preemptionPolicy := "PreemptLowerPriority"
-		if podSpec.PreemptionPolicy != nil {
-			preemptionPolicy = string(*podSpec.PreemptionPolicy)
-		}
 		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
-			PodRequirements: &schedulerobjects.PodRequirements{
-				NodeSelector:         podSpec.NodeSelector,
-				Affinity:             podSpec.Affinity,
-				Tolerations:          tolerations,
-				Priority:             priority,
-				PreemptionPolicy:     preemptionPolicy,
-				ResourceRequirements: &resourceRequirements,
-			},
+			PodRequirements: schedulerobjects.PodRequirementsFromPodSpec(podSpec),
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,

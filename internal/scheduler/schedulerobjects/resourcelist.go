@@ -4,6 +4,62 @@ import resource "k8s.io/apimachinery/pkg/api/resource"
 
 type QuantityByPriorityAndResourceType map[int32]ResourceList
 
+func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
+	for p, rsb := range b {
+		rsa := a[p]
+		rsa.Add(rsb)
+	}
+}
+
+func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
+	for p, rsb := range b {
+		rsa := a[p]
+		rsa.Sub(rsb)
+	}
+}
+
+func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
+	rv := ResourceList{
+		Resources: make(map[string]resource.Quantity),
+	}
+	for _, rl := range a {
+		rv.Add(rl)
+	}
+	return rv
+}
+
+func (a ResourceList) Add(b ResourceList) {
+	if a.Resources == nil {
+		a.Resources = make(map[string]resource.Quantity)
+	}
+	for t, qb := range b.Resources {
+		qa := a.Resources[t]
+		qa.Add(qb)
+		a.Resources[t] = qa
+	}
+}
+
+func (a ResourceList) Sub(b ResourceList) {
+	if a.Resources == nil {
+		a.Resources = make(map[string]resource.Quantity)
+	}
+	for t, qb := range b.Resources {
+		qa := a.Resources[t]
+		qa.Sub(qb)
+		a.Resources[t] = qa
+	}
+}
+
+func (rl ResourceList) DeepCopy() ResourceList {
+	rv := ResourceList{
+		Resources: make(map[string]resource.Quantity),
+	}
+	for t, q := range rl.Resources {
+		rv.Resources[t] = q.DeepCopy()
+	}
+	return rv
+}
+
 // AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.
 // E.g., AvailableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
 // where available resources = unused resources + resources assigned to lower-priority pods.
