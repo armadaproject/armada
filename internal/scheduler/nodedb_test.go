@@ -333,7 +333,7 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 				},
 			},
 			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: schedulerobjects.ResourceList{
+				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
 						"memory": resource.MustParse("1Gi")},
@@ -396,7 +396,7 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 			//TODO: why do I have to add the labels here but not the taints
 			Labels: map[string]string{"foo": "bar"},
 			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: schedulerobjects.ResourceList{
+				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2Gi")},
@@ -459,7 +459,7 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 			//TODO: why do I have to add the labels here but not the taints
 			Labels: map[string]string{"foo": "bar"},
 			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: schedulerobjects.ResourceList{
+				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2Gi")},

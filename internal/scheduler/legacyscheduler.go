@@ -71,7 +71,7 @@ func (c *LegacyScheduler) Schedule(
 	numJobsToLease := 0
 
 	// To reduce the number of calls to Redis,
-	// we retreive jobs in batch and store jobs in-memory.
+	// we retrieve jobs in batch and store jobs in-memory.
 	jobCacheByQueue := make(map[string][]*api.Job)
 
 	// Used to return early if the scheduler makes no progress.
@@ -121,7 +121,7 @@ func (c *LegacyScheduler) Schedule(
 		roundResourcesCopy := roundResources.DeepCopy()
 
 		// To avoid querying the database for jobs at each iteration,
-		// retrive jobs only the first time we select a queue.
+		// retrieve jobs only the first time we select a queue.
 		candidateJobs, ok := jobCacheByQueue[queue]
 		if !ok {
 			var err error

@@ -308,9 +308,9 @@ var testNodeItems1 []*schedulerobjects.Node = []*schedulerobjects.Node{
 		NodeTypeId: "foo",
 		NodeType:   &schedulerobjects.NodeType{Id: "foo"},
 		AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-			0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
-			1: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
-			2: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
+			0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
+			1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
+			2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
 		},
 	},
 	{
@@ -318,9 +318,9 @@ var testNodeItems1 []*schedulerobjects.Node = []*schedulerobjects.Node{
 		NodeTypeId: "bar",
 		NodeType:   &schedulerobjects.NodeType{Id: "bar"},
 		AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-			0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
-			1: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
-			2: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
+			0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
+			1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
+			2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
 		},
 	},
 }
