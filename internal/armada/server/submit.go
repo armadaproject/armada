@@ -904,7 +904,7 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 
 // applyTerminationGracePeriodDefault will give the podspec a default if needed
 func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
-	specNeedsTerminationGracePeriod := spec.PriorityClassName != "" && spec.TerminationGracePeriodSeconds == nil
+	specNeedsTerminationGracePeriod := spec.TerminationGracePeriodSeconds == nil
 	defaultTerminationGracePeriod := int64(server.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
 	defaultTerminationGracePeriodAvailable := defaultTerminationGracePeriod > 0
 
