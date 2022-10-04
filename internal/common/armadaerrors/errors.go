@@ -279,7 +279,7 @@ func CodeFromError(err error) codes.Code {
 		}
 	}
 	{
-		var e *ErrUnauthorized
+		var e *ErrUnauthenticated
 		if errors.As(err, &e) {
 			return codes.Unauthenticated
 		}
@@ -394,7 +394,7 @@ func IsNetworkError(err error) bool {
 // Add the action to th error if possible.
 func addActionUnary(err error, info *grpc.UnaryServerInfo) {
 	{
-		var e *ErrUnauthorized
+		var e *ErrUnauthenticated
 		if errors.As(err, &e) {
 			e.Action = info.FullMethod
 		}
@@ -410,7 +410,7 @@ func addActionUnary(err error, info *grpc.UnaryServerInfo) {
 // Add the action to th error if possible.
 func addActionStream(err error, info *grpc.StreamServerInfo) {
 	{
-		var e *ErrUnauthorized
+		var e *ErrUnauthenticated
 		if errors.As(err, &e) {
 			e.Action = info.FullMethod
 		}
@@ -591,12 +591,12 @@ func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
 	return result
 }
 
-// ErrUnauthorized represents an error that occurs when a client tries to
+// ErrUnauthenticated represents an error that occurs when a client tries to
 // perform some action through the gRPC API for which it cannot authenticate.
 //
 // It may be necessary populate the Action field by recovering this error at
 // the gRPC endpoint (using errors.As) and updating the field in-place.
-type ErrUnauthorized struct {
+type ErrUnauthenticated struct {
 	// Principal that attempted the action.
 	Principal string
 	// The authorization service which attempted to authenticate the principal.
@@ -607,7 +607,7 @@ type ErrUnauthorized struct {
 	Message string
 }
 
-func (err *ErrUnauthorized) Error() (s string) {
+func (err *ErrUnauthenticated) Error() (s string) {
 	if err.Action != "" {
 		s = fmt.Sprintf("Could not authorize user %q via service %q while attempting action %q",
 			err.Principal, err.AuthService, err.Action)

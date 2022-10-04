@@ -96,7 +96,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	assert.Contains(t, st.Message(), id)
 
 	// the action or method should get added to errors that support it.
-	unauthErr := &ErrUnauthorized{
+	unauthErr := &ErrUnauthenticated{
 		Principal:   "testUser",
 		AuthService: "testService",
 		Message:     "invalid username/password combo",
@@ -164,7 +164,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 	assert.Contains(t, st.Message(), id)
 
 	// the action or method should get added to errors that support it.
-	unauthErr := &ErrUnauthorized{
+	unauthErr := &ErrUnauthenticated{
 		Principal:   "testUser",
 		AuthService: "testService",
 		Message:     "invalid username/password combo",

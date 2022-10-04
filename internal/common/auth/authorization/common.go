@@ -132,7 +132,7 @@ func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc
 				// try next auth service
 				continue
 			} else if errors.Is(err, invalidCredentials) {
-				return nil, &armadaerrors.ErrUnauthorized{
+				return nil, &armadaerrors.ErrUnauthenticated{
 					Principal:   principal.GetName(),
 					AuthService: service.Name(),
 					Message:     invalidCredentials.Error(),
