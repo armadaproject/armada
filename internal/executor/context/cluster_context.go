@@ -337,6 +337,7 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 
 	deleteOptions := createDeleteOptions()
 	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
+		localDeleteOptions := deleteOptions
 		if podToDelete == nil {
 			return
 		}
@@ -353,7 +354,10 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 		}
 
 		if err == nil {
-			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(context.Background(), podToDelete.Name, deleteOptions)
+			if podToDelete.DeletionGracePeriodSeconds != nil {
+				localDeleteOptions.GracePeriodSeconds = podToDelete.DeletionGracePeriodSeconds
+			}
+			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(context.Background(), podToDelete.Name, localDeleteOptions)
 		}
 
 		if err == nil || k8s_errors.IsNotFound(err) {
