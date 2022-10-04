@@ -434,7 +434,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		SchedulingConfig:            q.schedulingConfig,
 		ExecutorId:                  req.ClusterId,
 		NodeDb:                      nodeDb,
-		JobQueue:                    nil,
+		JobQueue:                    q.jobQueue,
 		InitialSeed:                 int64(time.Now().Nanosecond()),
 		JobSchedulingReportsByQueue: make(map[string]map[uuid.UUID]*scheduler.JobSchedulingReport),
 	}
