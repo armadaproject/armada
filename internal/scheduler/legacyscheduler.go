@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -30,15 +31,8 @@ type LegacyScheduler struct {
 	NodeDb *NodeDb
 	// Used to request jobs from Redis and to mark jobs as leased.
 	JobQueue scheduling.JobQueue
-	// Fraction of total resources that can be consumed by any given queue.
-	// Specifically, ResourceLimits["cpu"] is the fraction of all CPU any queue may consume,
-	// across all clusters.
-	//
-	// TODO: Separate limits by priority.
-	// TotalQueueResourceLimits map[string]float64
-	// Fraction of total resources that can be assigned to job from any given queue
-	// in a single request for jobs from the executor.
-	// RoundQueueResourceLimits map[string]float64
+	// Minimum quantity allowed for jobs leased to this cluster.
+	MinimumJobSize map[string]resource.Quantity
 	// Base random seed used for the the scheduling loop.
 	// The first iteration uses InitialSeed + 1, the second InitialSeed + 2, and so on.
 	InitialSeed int64
@@ -186,6 +180,24 @@ func (c *LegacyScheduler) Schedule(
 			q = roundResourcesCopy.Resources[resourceType]
 			q.Add(quantity)
 			roundResourcesCopy.Resources[resourceType] = q
+		}
+
+		// Check that this job is at least equal to the minimum job size.
+		jobTooSmall := false
+		for resourceType, quantity := range jobTotalResourceRequests {
+			if limit, ok := c.MinimumJobSize[resourceType]; ok {
+				if quantity.Cmp(limit) != -1 {
+					jobTooSmall = true
+					jobSchedulingReport.UnschedulableReason = fmt.Sprintf(
+						"job requests %s %s, but the minimum is %s",
+						quantity.String(), resourceType, limit.String(),
+					)
+					break
+				}
+			}
+		}
+		if jobTooSmall {
+			continue
 		}
 
 		// Check if scheduling this job would exceed per-queue resource limits.

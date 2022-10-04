@@ -15,6 +15,7 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -368,6 +369,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Store resource usage by queue and executor.
 	// TODO: This is stored in-memory. But we need to store it in a database.
+	distinctResourceTypes := make(map[string]interface{})
 	for _, r := range req.GetClusterLeasedReport().Queues {
 		resourcesByPriority := make(map[int32]schedulerobjects.ResourceList)
 		for p, rs := range r.ResourcesLeasedByPriority {
@@ -376,6 +378,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			for t, q := range rs.Resources {
 				resourcesByPriority[p].Resources[t] = q.DeepCopy()
+
+				// Collect all distinct resource types for which we have reported usage.
+				distinctResourceTypes[t] = true
 			}
 		}
 		report := &schedulerobjects.QueueClusterResourceUsage{
@@ -420,7 +425,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(&nodeInfo, req.ClusterId, priorities)
 	}
 
-	nodeDb, err := scheduler.NewNodeDb(priorities, []string{"cpu", "memory", "nvidia.com/gpu"})
+	nodeDb, err := scheduler.NewNodeDb(priorities, maps.Keys(distinctResourceTypes))
 	if err != nil {
 		return nil, err
 	}
@@ -436,6 +441,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		NodeDb:                      nodeDb,
 		JobQueue:                    q.jobQueue,
 		InitialSeed:                 int64(time.Now().Nanosecond()),
+		MinimumJobSize:              req.MinimumJobSize,
 		JobSchedulingReportsByQueue: make(map[string]map[uuid.UUID]*scheduler.JobSchedulingReport),
 	}
 
