@@ -46,8 +46,8 @@ type LegacyScheduler struct {
 // Schedule is similar to distributeRemainder, but is built on NodeDb.
 func (c *LegacyScheduler) Schedule(
 	ctx context.Context,
-	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType) ([]*api.Job, error) {
-
+	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 
 	// Total resource usage across all priorities by queue.

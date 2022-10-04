@@ -358,7 +358,6 @@ func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.Stre
 }
 
 func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
-
 	log := ctxlogrus.Extract(ctx)
 
 	// Each cluster is part of a cluster pool.
@@ -404,7 +403,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		quantityByPriorityAndResourceType := make(schedulerobjects.QuantityByPriorityAndResourceType)
 		for _, report := range queueReportByExecutorId {
 			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
-
 		}
 		aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
 	}

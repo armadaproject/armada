@@ -51,7 +51,6 @@ func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
 // testNodeItems1 has max of 1Gb and 7cpu available, so check that such jobs requesting more than this
 // cant be scheduled
 func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
-
 	db, err := createNodeDb(testNodeItems1)
 	assert.NoError(t, err)
 
@@ -89,7 +88,6 @@ func TestSelectNodeForPod_InvalidResource(t *testing.T) {
 
 // Fill up all the priority zero space on testNodeItems1
 func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
-
 	db, err := createNodeDb(testNodeItems1)
 	assert.NoError(t, err)
 
@@ -124,7 +122,6 @@ func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
 
 // Check that each job that is scheduled reduces the available resource for the next
 func TestSelectNodeForPod_RunningTotal(t *testing.T) {
-
 	db, err := createNodeDb(testNodeItems1)
 	assert.NoError(t, err)
 
@@ -336,7 +333,8 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
-						"memory": resource.MustParse("1Gi")},
+						"memory": resource.MustParse("1Gi"),
+					},
 				},
 			},
 		},
@@ -393,13 +391,14 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 				Id:     "labelled",
 				Labels: map[string]string{"foo": "bar"},
 			},
-			//TODO: why do I have to add the labels here but not the taints
+			// TODO: why do I have to add the labels here but not the taints
 			Labels: map[string]string{"foo": "bar"},
 			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
-						"memory": resource.MustParse("2Gi")},
+						"memory": resource.MustParse("2Gi"),
+					},
 				},
 			},
 		},
@@ -456,13 +455,14 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 				Id:     "labelled",
 				Labels: map[string]string{"foo": "bar"},
 			},
-			//TODO: why do I have to add the labels here but not the taints
+			// TODO: why do I have to add the labels here but not the taints
 			Labels: map[string]string{"foo": "bar"},
 			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
-						"memory": resource.MustParse("2Gi")},
+						"memory": resource.MustParse("2Gi"),
+					},
 				},
 			},
 		},
