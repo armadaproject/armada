@@ -3,22 +3,14 @@ import React, { useEffect, useState } from "react"
 import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
 
-import {
-  convertStringToYaml,
-  getCommandFromJobYaml,
-  getCommandArgumentsFromJobYaml,
-  getCpuFromJobYaml,
-  getMemoryFromJobYaml,
-  getGpuFromJobYaml,
-  getStorageFromJobYaml,
-} from "../../services/ComputeResourcesService"
+import { convertStringToYaml } from "../../services/ComputeResourcesService"
 import { Job } from "../../services/JobService"
+import ContainerDetails from "./ContainerDetails"
 import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
 import RunDetailsRows from "./RunDetailsRows"
 
 import "./Details.css"
-import ContainerDetails from "./ContainerDetails"
 
 type ToggleFn = (item: string, isExpanded: boolean) => void
 type DetailsProps = {
