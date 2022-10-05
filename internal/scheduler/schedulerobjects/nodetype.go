@@ -13,30 +13,47 @@ type (
 	labelsFilterFunc func(key, value string) bool
 )
 
-func NewNodeTypeFromNode(node *v1.Node, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
-	return NewNodeType(node.Spec.Taints, node.GetLabels(), taintsFilter, labelsFilter)
+func NewNodeTypeFromNode(node *v1.Node, wellKnownLabels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
+	return NewNodeType(node.Spec.Taints, node.GetLabels(), wellKnownLabels, taintsFilter, labelsFilter)
 }
 
-func NewNodeTypeFromNodeInfo(nodeInfo *api.NodeInfo, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
-	return NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), taintsFilter, labelsFilter)
+func NewNodeTypeFromNodeInfo(nodeInfo *api.NodeInfo, wellKnownLabels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
+	return NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), wellKnownLabels, taintsFilter, labelsFilter)
 }
 
-func NewNodeType(taints []v1.Taint, labels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
+func NewNodeType(taints []v1.Taint, labels, wellKnownLabels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
 	taints = getFilteredTaints(taints, taintsFilter)
 	labels = getFilteredLabels(labels, labelsFilter)
+	unsetWellKnownLabels := getFilteredLabels(labels, func(key, _ string) bool {
+		_, ok := labels[key]
+		return !ok
+	})
 	return &NodeType{
-		Id:     nodeTypeIdFromTaintsAndLabels(taints, labels),
-		Taints: taints,
-		Labels: labels,
+		Id:                   nodeTypeIdFromTaintsAndLabels(taints, labels, unsetWellKnownLabels),
+		Taints:               taints,
+		Labels:               labels,
+		UnsetWellKnownLabels: unsetWellKnownLabels,
 	}
 }
 
-func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels map[string]string) string {
+// nodeTypeIdFromTaintsAndLabels generates an id that is unique for each combination
+// of taints, labels, and unset labels. We insert "$" characters to achieve this,
+// since taints and labels are not allowed to contain this character.
+// See:
+// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
+func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetWellKnownLabels map[string]string) string {
 	var sb strings.Builder
 	for _, taint := range taints {
+		sb.WriteString("$t")
 		sb.WriteString(taint.String())
 	}
 	for label, value := range labels {
+		sb.WriteString("$l")
+		sb.WriteString(label + "=" + value)
+	}
+	for label, value := range unsetWellKnownLabels {
+		sb.WriteString("$u")
 		sb.WriteString(label + "=" + value)
 	}
 	return sb.String()
@@ -70,10 +87,4 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 		filteredLabels[key] = value
 	}
 	return filteredLabels
-}
-
-// PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
-func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-	// TODO: This check shouldn't reject due to missing labels.
-	return PodRequirementsMet(nodeType.Taints, nodeType.Labels, req)
 }

@@ -45,6 +45,10 @@ message NodeType {
     // To reduce the number of distinct node types, 
     // may contain only a subset of the labels of the node the node type is created from.
     map<string, string> labels = 3;
+    // Well-known labels not set by this node type.
+    // Used to filter out nodes when looking for nodes for a pod
+    // that requires at least one well-known label to be set.
+    map<string, string> unsetWellKnownLabels = 4;
 }
 
 // Captures the resource usage of a particular queue
