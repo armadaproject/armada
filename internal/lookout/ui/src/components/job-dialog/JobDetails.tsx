@@ -3,7 +3,6 @@ import React, { useEffect, useState } from "react"
 import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
 
-import { convertStringToYaml } from "../../services/ComputeResourcesService"
 import { Job } from "../../services/JobService"
 import ContainerDetails from "./ContainerDetails"
 import DetailRow from "./DetailRow"
@@ -48,7 +47,6 @@ export default function JobDetails(props: DetailsProps) {
 
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
-  const jobYaml = convertStringToYaml(props.job.jobYaml)
   return (
     <div className="details-content">
       <TableContainer>
@@ -61,7 +59,7 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Job state" value={props.job.jobState} />
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
-            <ContainerDetails jobYaml={jobYaml} />
+            <ContainerDetails jobYaml={props.job.jobYaml} />
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&

@@ -1,12 +1,4 @@
-import {
-  convertStringToYaml,
-  getCommandFromJobYaml,
-  getCommandArgumentsFromJobYaml,
-  getCpuFromJobYaml,
-  getMemoryFromJobYaml,
-  getGpuFromJobYaml,
-  getStorageFromJobYaml,
-} from "./ComputeResourcesService"
+import { getContainerInfoFromYaml } from "./ComputeResourcesService"
 
 describe("JobYamlToResourceConvertor", () => {
   const yaml = `
@@ -42,13 +34,12 @@ podSpec:
   namespace: default
   compressedQueueOwnershipUserGroups: eAEAGwDk/wz/gQIBAv+CAAEMAAAN/4IAAQhldmVyeW9uZQEAAP//a8EIJA==`
   test("Happy Path", () => {
-    const yamlifed = convertStringToYaml(yaml)
-    expect(convertStringToYaml(yaml)).toBeTruthy()
-    expect(getCommandFromJobYaml(yamlifed)).toStrictEqual(["sh -c"])
-    expect(getCommandArgumentsFromJobYaml(yamlifed)).toStrictEqual(["sleep $(( (RANDOM % 30) + 30 ))"])
-    expect(getCpuFromJobYaml(yamlifed)).toStrictEqual(["150m"])
-    expect(getMemoryFromJobYaml(yamlifed)).toStrictEqual(["64Mi"])
-    expect(getGpuFromJobYaml(yamlifed)).toStrictEqual([1])
-    expect(getStorageFromJobYaml(yamlifed)).toStrictEqual(["50m"])
+    const containerInfo = getContainerInfoFromYaml(yaml)
+    expect(containerInfo.command).toStrictEqual(["sh -c"])
+    expect(containerInfo.arguments).toStrictEqual(["sleep $(( (RANDOM % 30) + 30 ))"])
+    expect(containerInfo.cpu).toStrictEqual(["150m"])
+    expect(containerInfo.memory).toStrictEqual(["64Mi"])
+    expect(containerInfo.gpu).toStrictEqual([1])
+    expect(containerInfo["ephermal-storage"]).toStrictEqual(["50m"])
   })
 })

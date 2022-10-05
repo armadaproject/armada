@@ -6,6 +6,16 @@ export interface JobYaml {
     containers: Container[]
   }
 }
+
+export interface ContainerInfo {
+  command?: string[]
+  arguments?: string[]
+  cpu?: string[]
+  memory?: string[]
+  gpu?: string[]
+  "ephermal-storage"?: string[]
+}
+
 interface Container {
   command: string[]
   args: string[]
@@ -21,15 +31,23 @@ interface Limits {
   memory?: string
 }
 
-export function convertStringToYaml(jobYaml: string): JobYaml {
-  return load(jobYaml) as JobYaml
+export function getContainerInfoFromYaml(jobYaml: string): ContainerInfo {
+  const yaml = load(jobYaml) as JobYaml
+  return {
+    command: getCommandFromJobYaml(yaml),
+    arguments: getCommandArgumentsFromJobYaml(yaml),
+    cpu: getCpuFromJobYaml(yaml),
+    memory: getMemoryFromJobYaml(yaml),
+    gpu: getGpuFromJobYaml(yaml),
+    "ephermal-storage": getStorageFromJobYaml(yaml),
+  }
 }
 
 function checkContainerFieldExists(yamlified: JobYaml): boolean {
   return !yamlified.podSpec.containers
 }
 
-export function getCommandFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function getCommandFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
   yamlified.podSpec.containers.map((val) => {
@@ -41,7 +59,7 @@ export function getCommandFromJobYaml(yamlified: JobYaml): string[] | undefined 
   })
   return stringArray
 }
-export function getCommandArgumentsFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function getCommandArgumentsFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
   yamlified.podSpec.containers.map((val) => {
@@ -54,7 +72,7 @@ export function getCommandArgumentsFromJobYaml(yamlified: JobYaml): string[] | u
   return stringArray
 }
 
-export function getCpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function getCpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
   yamlified.podSpec.containers.map((val) => {
@@ -62,7 +80,7 @@ export function getCpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
-export function getMemoryFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function getMemoryFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
   yamlified.podSpec.containers.map((val) => {
@@ -70,7 +88,7 @@ export function getMemoryFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
-export function getGpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function getGpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
   yamlified.podSpec.containers.map((val) => {
@@ -79,7 +97,7 @@ export function getGpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
-export function getStorageFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function getStorageFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
   yamlified.podSpec.containers.map((val) => {

@@ -1,59 +1,46 @@
 import React from "react"
 
-import {
-  getCommandArgumentsFromJobYaml,
-  getCommandFromJobYaml,
-  getCpuFromJobYaml,
-  getGpuFromJobYaml,
-  getMemoryFromJobYaml,
-  getStorageFromJobYaml,
-  JobYaml,
-} from "../../services/ComputeResourcesService"
+import { getContainerInfoFromYaml } from "../../services/ComputeResourcesService"
 import DetailRow from "./DetailRow"
 
 import "./Details.css"
 
 interface ContainerDetailProps {
-  jobYaml: JobYaml
+  jobYaml: string
 }
 
 export default function ContainerDetails(props: ContainerDetailProps) {
-  const cpu = getCpuFromJobYaml(props.jobYaml)
-  const gpu = getGpuFromJobYaml(props.jobYaml)
-  const memory = getMemoryFromJobYaml(props.jobYaml)
-  const storage = getStorageFromJobYaml(props.jobYaml)
-  const command = getCommandFromJobYaml(props.jobYaml)
-  const commandArgs = getCommandArgumentsFromJobYaml(props.jobYaml)
+  const containerInfo = getContainerInfoFromYaml(props.jobYaml)
 
   return (
     <>
-      {command &&
-        command.map(
+      {containerInfo.command &&
+        containerInfo.command.map(
           (values, index) =>
             values.length > 0 && <DetailRow key={"Command-" + index} name={"Command-" + index} value={values} />,
         )}
-      {commandArgs &&
-        commandArgs.map(
+      {containerInfo.arguments &&
+        containerInfo.arguments.map(
           (values, index) =>
             values.length > 0 && <DetailRow key={"Arguments-" + index} name={"Arguments-" + index} value={values} />,
         )}
-      {cpu &&
-        cpu.map(
+      {containerInfo.cpu &&
+        containerInfo.cpu.map(
           (values, index) =>
             values.length > 0 && <DetailRow key={"CPU-" + index} name={"CPU-" + index} value={values} />,
         )}
-      {gpu &&
-        gpu.map(
+      {containerInfo.gpu &&
+        containerInfo.gpu.map(
           (values, index) =>
             values.length > 0 && <DetailRow key={"GPU-" + index} name={"GPU-" + index} value={values} />,
         )}
-      {memory &&
-        memory.map(
+      {containerInfo.memory &&
+        containerInfo.memory.map(
           (values, index) =>
             values.length > 0 && <DetailRow key={"Memory-" + index} name={"Memory-" + index} value={values} />,
         )}
-      {storage &&
-        storage.map(
+      {containerInfo["ephermal-storage"] &&
+        containerInfo["ephermal-storage"].map(
           (values, index) =>
             values.length > 0 && <DetailRow key={"Storage-" + index} name={"Storage-" + index} value={values} />,
         )}
