@@ -1,0 +1,49 @@
+syntax = 'proto3';
+
+package api;
+option csharp_namespace = "ArmadaProject.Io.Api";
+
+import "google/protobuf/empty.proto";
+import "k8s.io/api/core/v1/generated.proto";
+import "google/api/annotations.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) = true;
+
+// Q: How do we handle creating auxilliary objects, such as services and ingresses?
+// We could use the jobs API and put a flag to say if all pods must be in the same cluster or not.
+// For auxilliary resources, we should probably create one set in each cluster.
+// There was some concern about the job controller being too slow. But Armada can effectively be the job controller.
+// In which case Armada has to understand the jobs API and create the underlying pods.
+// The jobs API spec effectively creates a sequence of pods to be run. It doesn't support parallelism.
+// Meaning the jobs API should be seen as a higher-level API that creates pods for scheduling.
+// Meaning we can accept both jobs and pods directly. Where the job is internally replaced with several pods.
+// Each such pod inherits the retry policy of the job it was created from.
+// So the core should still be to schedule pods.
+// And we need a PodGroup to support parallelism.
+// Armada would then have a jobs controller built in that creates pods as necessary. Might even be able to create Armada jobs internally, each of which consists of a single pod.
+// I'm thinking that Armada should support kubectl apply -f for select resources.
+// We'd add namespaced default values for the things Armada cares about.
+// Or even pull those out of object annotations.
+// It doesn't look like the jobs API supports auxilliary resource, which we need.
+// The jobs API offers a natural connection with retries.
+// Meaning we can accept jobs and then schedule the underlying templates.
+// So to us a job is a sequence of batch things (e.g., pods or PodGroups) + a set of auxilliary resources that should exist for the lifetime of the job.
+// So we need to extend jobs to support PodGroups and auxilliary resources.
+// They need to be part of the job because their lifetime is coupled with that of the job.
+// I think we also want common metadata.
+// Let's target writing a KEP for auxilliary resources.
+// Job spec is in batchv1 "k8s.io/api/batch/v1"
+// Now I want to read up on the current KEPs and then write my own two KEPs.
+
+// In summary, we want:
+// - Support for multi-pod execution units.
+// - Support for auxilliary resources that exist for the lifetime of the job.
+
+
+// Links:
+// Forming wg-batch: https://github.com/kubernetes/community/issues/6263
+// KEP Add field queueName to batch/v1.Job spec: https://github.com/kubernetes/enhancements/issues/3328
+
+
