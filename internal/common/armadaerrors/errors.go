@@ -591,11 +591,7 @@ func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
 // It may be necessary populate the Action field by recovering this error at
 // the gRPC endpoint (using errors.As) and updating the field in-place.
 type ErrUnauthenticated struct {
-	// Principal that attempted the action.
-	Principal string
-	// The authorization service which attempted to authenticate the principal.
-	AuthService string
-	// The attempted action
+	// The action/method that was trying to be performed.
 	Action string
 	// Optional message included with the error message
 	Message string
@@ -606,14 +602,12 @@ func (err *ErrUnauthenticated) GRPCStatus() *status.Status {
 }
 
 func (err *ErrUnauthenticated) Error() (s string) {
+	s = "Request could not be authenticated"
 	if err.Action != "" {
-		s = fmt.Sprintf("Could not authorize user %q via auth service %q while attempting action %q",
-			err.Principal, err.AuthService, err.Action)
-	} else {
-		s = fmt.Sprintf("Could not authorize user %q via auth service %q", err.Principal, err.AuthService)
+		s += fmt.Sprintf(" for action %q", err.Action)
 	}
 	if err.Message != "" {
-		s += fmt.Sprintf("; %s", err.Message)
+		s += fmt.Sprintf(": %s", err.Message)
 	}
 	return
 }
@@ -627,6 +621,8 @@ type ErrInvalidCredentials struct {
 	AuthService string
 	// Optional message included with the error message
 	Message string
+	// The action/method that was trying to be performed.
+	Action string
 }
 
 func (err *ErrInvalidCredentials) GRPCStatus() *status.Status {
@@ -634,16 +630,12 @@ func (err *ErrInvalidCredentials) GRPCStatus() *status.Status {
 }
 
 func (err *ErrInvalidCredentials) Error() (s string) {
-	if err.Username != "" && err.Message != "" {
-		s = fmt.Sprintf("Invalid credentials presented for user %q via auth service %q: %s", err.Username, err.AuthService, err.Message)
-	} else if err.Username != "" {
-		s = fmt.Sprintf("Invalid credentials presented for user %q via auth service %q", err.Username, err.AuthService)
-	} else if err.Message != "" {
-		s = fmt.Sprintf("Invalid credentials presented via auth service %q: %s", err.AuthService, err.Message)
-	} else {
-		s = fmt.Sprintf("Invalid credentials presented via auth service %q.", err.AuthService)
-	}
-	return
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Invalid credentials presented",
+		err.Username,
+		err.AuthService,
+		err.Action,
+		err.Message)
 }
 
 // ErrMissingCredentials is returned when a given set of credentials are
@@ -653,6 +645,8 @@ type ErrMissingCredentials struct {
 	Message string
 	// The authorization service used.
 	AuthService string
+	// The action/method that was trying to be performed.
+	Action string
 }
 
 func (err *ErrMissingCredentials) GRPCStatus() *status.Status {
@@ -660,9 +654,60 @@ func (err *ErrMissingCredentials) GRPCStatus() *status.Status {
 	return status.New(codes.Unauthenticated, err.Error())
 }
 
-func (err *ErrMissingCredentials) Error() string {
-	if err.Message != "" {
-		return fmt.Sprintf("Missing credentials via auth service %q: %s", err.Message, err.AuthService)
+func (err *ErrMissingCredentials) Error() (s string) {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Missing credentials",
+		"",
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+type ErrInternalAuthServiceError struct {
+	// Optional message included with the error message.
+	Message string
+	// The authorization service used.
+	AuthService string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrInternalAuthServiceError) GRPCStatus() *status.Status {
+	// TODO(clif) Whats the right code to return here or should we give the
+	// auth service the opportunity to set it?
+	return status.New(codes.Unavailable, err.Error())
+}
+
+// ErrInternalAuthServiceError is returned when an auth service encounters
+// an internal error that is not directly related to the supplied input/
+// credentials.
+func (err *ErrInternalAuthServiceError) Error() string {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Encountered an internal error",
+		"",
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
+	username string,
+	authServiceName string,
+	action string,
+	auxMessage string,
+) (s string) {
+	s = mainMessage
+	if username != "" {
+		s += fmt.Sprintf(" for user %q", username)
 	}
-	return fmt.Sprintf("Missing credentials via auth service %q", err.AuthService)
+	if authServiceName != "" {
+		s += fmt.Sprintf(" via auth service %q", authServiceName)
+	}
+	if action != "" {
+		s += fmt.Sprintf(" while attempting %q", action)
+	}
+	if auxMessage != "" {
+		s += fmt.Sprintf(": %s", auxMessage)
+	}
+	return
 }

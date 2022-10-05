@@ -46,6 +46,7 @@ func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Princip
 	if err != nil {
 		return nil, &armadaerrors.ErrMissingCredentials{
 			AuthService: authService.Name(),
+			Message:     err.Error(),
 		}
 	}
 

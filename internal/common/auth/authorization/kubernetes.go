@@ -88,7 +88,7 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 
 	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
-		return nil, &armadaerrors.ErrMissingCredentials{
+		return nil, &armadaerrors.ErrInvalidCredentials{
 			AuthService: authService.Name(),
 		}
 	}
@@ -96,7 +96,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Get token time
 	expirationTime, err := parseTime(token)
 	if err != nil {
-		return nil, err
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	if authService.Clock.Now().After(expirationTime) {
@@ -124,12 +127,16 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Get URL from token KID
 	url, err := authService.getClusterURL(token)
 	if err != nil {
-		return nil, err
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	// Make request to token review endpoint
 	name, err := authService.reviewToken(ctx, url, token, []byte(ca))
 	if err != nil {
+		// reviewToken returns appropriate armadaerrors.
 		return nil, err
 	}
 
@@ -176,7 +183,12 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
 	result, err := authService.TokenReviewer.ReviewToken(ctx, clusterUrl, token, ca)
 	if err != nil {
-		return "", err
+		// TODO(clif) Hard to tell if this should be internal auth error
+		// or invalid creds still.
+		return "", &armadaerrors.ErrInternalAuthServiceError{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	if !result.Status.Authenticated {

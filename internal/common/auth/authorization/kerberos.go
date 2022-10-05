@@ -81,7 +81,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	tokenData, err := base64.StdEncoding.DecodeString(encodedToken)
 	if err != nil {
 		log.Errorf("SPNEGO invalid token, could not decode: %v", err)
-		return nil, &armadaerrors.ErrMissingCredentials{
+		return nil, &armadaerrors.ErrInvalidCredentials{
 			Message:     "SPNEGO invalid token",
 			AuthService: authService.Name(),
 		}
@@ -91,7 +91,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	err = token.Unmarshal(tokenData)
 	if err != nil {
 		log.Errorf("SPNEGO invalid token, could not unmarshal : %v", err)
-		return nil, &armadaerrors.ErrMissingCredentials{
+		return nil, &armadaerrors.ErrInvalidCredentials{
 			Message:     "SPNEGO invalid token",
 			AuthService: authService.Name(),
 		}
@@ -110,7 +110,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	authenticated, credentialsContext, st := svc.AcceptSecContext(&token)
 	if st.Code != gssapi.StatusComplete && st.Code != gssapi.StatusContinueNeeded {
 		log.Errorf("SPNEGO validation error: %v", st)
-		return nil, &armadaerrors.ErrMissingCredentials{
+		return nil, &armadaerrors.ErrInvalidCredentials{
 			Message:     fmt.Sprintf("SPNEGO validation error: %v", st),
 			AuthService: authService.Name(),
 		}
@@ -118,7 +118,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	if st.Code == gssapi.StatusContinueNeeded {
 		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnegoNegTokenRespIncompleteKRB5))
 		log.Error("SPNEGO GSS-API continue needed")
-		return nil, &armadaerrors.ErrMissingCredentials{
+		return nil, &armadaerrors.ErrInvalidCredentials{
 			Message:     "SPNEGO GSS-API continue needed",
 			AuthService: authService.Name(),
 		}
@@ -146,7 +146,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 			return NewStaticPrincipal(user, userGroups), nil
 		}
 		log.Error("Failed to read ad credentials")
-		return nil, &armadaerrors.ErrMissingCredentials{
+		return nil, &armadaerrors.ErrInvalidCredentials{
 			Message:     "Failed to read ad credentials",
 			AuthService: authService.Name(),
 		}
@@ -165,7 +165,10 @@ func (authService *KerberosAuthService) mapUserGroups(groupSIDs []string) ([]str
 	if authService.groupLookup != nil {
 		userGroups, err := authService.groupLookup.GetGroupNames(groupSIDs)
 		if err != nil {
-			return nil, err
+			return nil, &armadaerrors.ErrInternalAuthServiceError{
+				AuthService: authService.Name(),
+				Message:     err.Error(),
+			}
 		}
 		prefixedUserGroups := []string{}
 		for _, group := range userGroups {

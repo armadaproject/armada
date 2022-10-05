@@ -97,9 +97,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 
 	// the action or method should get added to errors that support it.
 	unauthErr := &ErrUnauthenticated{
-		Principal:   "testUser",
-		AuthService: "testService",
-		Message:     "invalid username/password combo",
+		Message: "invalid username/password combo",
 	}
 	handlerErr = errors.WithMessage(errors.WithStack(unauthErr), "foo")
 	ctx = context.Background()
@@ -165,9 +163,7 @@ func TestStreamServerInterceptor(t *testing.T) {
 
 	// the action or method should get added to errors that support it.
 	unauthErr := &ErrUnauthenticated{
-		Principal:   "testUser",
-		AuthService: "testService",
-		Message:     "invalid username/password combo",
+		Message: "invalid username/password combo",
 	}
 	handlerErr = errors.WithMessage(errors.WithStack(unauthErr), "foo")
 	ctx = context.Background()
