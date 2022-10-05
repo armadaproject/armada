@@ -350,72 +350,107 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*schedulero
 func testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, 0)
 	for i := 0; i < numCpuNodes; i++ {
-		node := &schedulerobjects.Node{
-			Id: uuid.NewString(),
-			NodeType: &schedulerobjects.NodeType{
-				Id: "cpu",
-			},
-			NodeTypeId: "cpu",
-			AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
-				priorities,
-				map[string]resource.Quantity{
-					"cpu":    resource.MustParse("32"),
-					"memory": resource.MustParse("256Gi"),
-				},
-			),
-		}
-		rv = append(rv, node)
+		rv = append(rv, testCpuNode(priorities))
 	}
 	for i := 0; i < numTaintedCpuNodes; i++ {
-		node := &schedulerobjects.Node{
-			Id: uuid.NewString(),
-			NodeType: &schedulerobjects.NodeType{
-				Id: "taintedCpu",
-				Taints: []v1.Taint{
-					{
-						Key:    "largeJobsOnly",
-						Value:  "true",
-						Effect: v1.TaintEffectNoSchedule,
-					},
-				},
-			},
-			NodeTypeId: "taintedCpu",
-			AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
-				priorities,
-				map[string]resource.Quantity{
-					"cpu":    resource.MustParse("32"),
-					"memory": resource.MustParse("256Gi"),
-				},
-			),
-		}
-		rv = append(rv, node)
+		rv = append(rv, testTaintedCpuNode(priorities))
 	}
-	for i := 0; i < numTaintedCpuNodes; i++ {
-		node := &schedulerobjects.Node{
-			Id: uuid.NewString(),
-			NodeType: &schedulerobjects.NodeType{
-				Id: "gpu",
-				Taints: []v1.Taint{
-					{
-						Key:    "gpu",
-						Value:  "true",
-						Effect: v1.TaintEffectNoSchedule,
-					},
-				},
-			},
-			NodeTypeId: "gpu",
-			AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
-				priorities,
-				map[string]resource.Quantity{
-					"cpu":    resource.MustParse("64"),
-					"memory": resource.MustParse("1024Gi"),
-					"gpu":    resource.MustParse("8"),
-				},
-			),
-		}
-		rv = append(rv, node)
+	for i := 0; i < numGpuNodes; i++ {
+		rv = append(rv, testTaintedGpuNode(priorities))
 	}
 	return rv
+}
+
+func testCpuNode(priorities []int32) *schedulerobjects.Node {
+	return &schedulerobjects.Node{
+		Id: uuid.NewString(),
+		NodeType: &schedulerobjects.NodeType{
+			Id: "cpu",
+		},
+		NodeTypeId: "cpu",
+		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+			priorities,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("32"),
+				"memory": resource.MustParse("256Gi"),
+			},
+		),
+	}
+}
+
+func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
+	return &schedulerobjects.Node{
+		Id: uuid.NewString(),
+		NodeType: &schedulerobjects.NodeType{
+			Id: "taintedCpu",
+			Taints: []v1.Taint{
+				{
+					Key:    "largeJobsOnly",
+					Value:  "true",
+					Effect: v1.TaintEffectNoSchedule,
+				},
+			},
+		},
+		NodeTypeId: "taintedCpu",
+		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+			priorities,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("32"),
+				"memory": resource.MustParse("256Gi"),
+			},
+		),
+	}
+}
+
+func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
+	return &schedulerobjects.Node{
+		Id: uuid.NewString(),
+		NodeType: &schedulerobjects.NodeType{
+			Id: "gpu",
+			Taints: []v1.Taint{
+				{
+					Key:    "gpu",
+					Value:  "true",
+					Effect: v1.TaintEffectNoSchedule,
+				},
+			},
+		},
+		NodeTypeId: "gpu",
+		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+			priorities,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("64"),
+				"memory": resource.MustParse("1024Gi"),
+				"gpu":    resource.MustParse("8"),
+			},
+		),
+	}
+}
+
+func testA100GpuNode(priorities []int32) *schedulerobjects.Node {
+	return &schedulerobjects.Node{
+		Id: uuid.NewString(),
+		NodeType: &schedulerobjects.NodeType{
+			Id: "gpu",
+			Taints: []v1.Taint{
+				{
+					Key:    "gpu",
+					Value:  "true",
+					Effect: v1.TaintEffectNoSchedule,
+				},
+			},
+		},
+		Labels:     map[string]string{"a100": "true"},
+		NodeTypeId: "gpu",
+		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+			priorities,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("64"),
+				"memory": resource.MustParse("1024Gi"),
+				"gpu":    resource.MustParse("8"),
+			},
+		),
+	}
 }
 
 func testNodesByTemplate(templates []*schedulerobjects.Node, ns []int) []*schedulerobjects.Node {

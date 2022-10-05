@@ -84,7 +84,7 @@ func (c *LegacyScheduler) Schedule(
 	seed := c.InitialSeed
 
 	// Schedule jobs one at a time.
-	for numJobsToLease < c.SchedulingConfig.MaximumJobsToSchedule && len(totalResourcesByQueue) > 0 && consecutiveIterationsWithNoJobsLeased < len(totalResourcesByQueue) {
+	for (c.SchedulingConfig.MaximumJobsToSchedule == 0 || numJobsToLease < c.SchedulingConfig.MaximumJobsToSchedule) && len(totalResourcesByQueue) > 0 && consecutiveIterationsWithNoJobsLeased < len(totalResourcesByQueue) {
 
 		// Return early if the context deadline has expired.
 		select {
@@ -92,6 +92,8 @@ func (c *LegacyScheduler) Schedule(
 			break
 		default:
 		}
+
+		fmt.Println("iteration ", seed)
 
 		// Select a queue to schedule job from.
 		// Queues with fewer resources allocated to them are selected with higher propability.
@@ -102,6 +104,8 @@ func (c *LegacyScheduler) Schedule(
 		)
 		queue, _ := pickQueueRandomly(shares, seed)
 		consecutiveIterationsWithNoJobsLeased++
+
+		fmt.Println("queue ", queue)
 
 		// Total resource usage (across priorities) for this queue.
 		totalResourcesForQueue, ok := totalResourcesByQueue[queue]
@@ -127,23 +131,29 @@ func (c *LegacyScheduler) Schedule(
 		candidateJobs, ok := jobCacheByQueue[queue]
 		if !ok {
 			var err error
+			batchSize := int64(c.SchedulingConfig.QueueLeaseBatchSize)
+			if batchSize == 0 {
+				// Use a default batch size of 100 if not set.
+				batchSize = 100
+			}
 			candidateJobs, err = c.JobQueue.PeekClusterQueue(
 				c.ExecutorId,
 				queue,
-				int64(c.SchedulingConfig.QueueLeaseBatchSize),
+				batchSize,
 			)
 			if err != nil {
 				return nil, err
 			}
 			jobCacheByQueue[queue] = candidateJobs
 		}
+		fmt.Println(len(candidateJobs), " candidate jobs")
 		if len(candidateJobs) == 0 {
 			continue
 		}
 
 		// Pop one job from the candidate list.
-		candidateJob := candidateJobs[len(candidateJobs)-1]
-		jobCacheByQueue[queue] = candidateJobs[:len(candidateJobs)-1]
+		candidateJob := candidateJobs[0]
+		jobCacheByQueue[queue] = candidateJobs[1:]
 
 		// Convert the string representation of a job id to a uuid.UUID.
 		jobIdProto, err := armadaevents.ProtoUuidFromUlidString(candidateJob.Id)

@@ -411,6 +411,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	// Create a NodeDb
+	// TODO: We also need a global nodedb to account for global resource usage.
+	// And to check if a node could ever be scheduled.
 	priorities := make([]int32, 0)
 	if len(q.schedulingConfig.Preemption.PriorityClasses) > 0 {
 		for _, p := range q.schedulingConfig.Preemption.PriorityClasses {
@@ -420,7 +422,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		priorities = append(priorities, 0)
 	}
 
-	// TODO: Get resource types programmatically.
 	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
 	for i, nodeInfo := range req.Nodes {
 		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(&nodeInfo, req.ClusterId, priorities)

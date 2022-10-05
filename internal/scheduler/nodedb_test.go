@@ -577,46 +577,9 @@ func benchmarkSelectAndBindNodeToPod(
 		return
 	}
 
-	smallCpuJob := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("4Gi"),
-			},
-		},
-	}
-	largeCpuJob := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "largeJobsOnly",
-				Value: "true",
-			},
-		},
-	}
-	gpuJob := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("4"),
-				"memory": resource.MustParse("16Gi"),
-				"gpu":    resource.MustParse("1"),
-			},
-		},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "gpu",
-				Value: "true",
-			},
-		},
-	}
+	smallCpuJob := testSmallCpuJob()
+	largeCpuJob := testLargeCpuJob()
+	gpuJob := testGpuJob()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -659,6 +622,75 @@ func benchmarkSelectAndBindNodeToPod(
 		for _, jobId := range jobIds {
 			db.MarkJobRunning(jobId)
 		}
+	}
+}
+
+func testSmallCpuJob() *schedulerobjects.PodRequirements {
+	return &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("4Gi"),
+			},
+		},
+	}
+}
+
+func testLargeCpuJob() *schedulerobjects.PodRequirements {
+	return &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("32"),
+				"memory": resource.MustParse("256Gi"),
+			},
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   "largeJobsOnly",
+				Value: "true",
+			},
+		},
+	}
+}
+
+func testGpuJob() *schedulerobjects.PodRequirements {
+	return &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("4"),
+				"memory": resource.MustParse("16Gi"),
+				"gpu":    resource.MustParse("1"),
+			},
+		},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   "gpu",
+				Value: "true",
+			},
+		},
+	}
+}
+
+func testA100Job() *schedulerobjects.PodRequirements {
+	return &schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("4"),
+				"memory": resource.MustParse("16Gi"),
+				"gpu":    resource.MustParse("1"),
+			},
+		},
+		NodeSelector: map[string]string{"a100": "true"},
+		Tolerations: []v1.Toleration{
+			{
+				Key:   "gpu",
+				Value: "true",
+			},
+		},
 	}
 }
 
