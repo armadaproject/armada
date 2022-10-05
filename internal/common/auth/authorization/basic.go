@@ -28,7 +28,7 @@ func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principa
 	if err == nil {
 		payload, err := base64.StdEncoding.DecodeString(basicAuth)
 		if err != nil {
-			return nil, &armadaerrors.ErrMissingCredentials{
+			return nil, &armadaerrors.ErrInvalidCredentials{
 				AuthService: authService.Name(),
 				Message:     err.Error(),
 			}
