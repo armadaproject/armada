@@ -17,7 +17,8 @@ func TestConstructInMemoryDoesNotExist(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
-		r.UpdateJobServiceDb(jobStatus)
+		err := r.UpdateJobServiceDb(jobStatus)
+		assert.Nil(t, err)
 
 		resp, err := r.GetJobStatus("job-set-1")
 		assert.Nil(t, err)
@@ -30,7 +31,8 @@ func TestConstructInMemoryServiceFailed(t *testing.T) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
 
-		r.UpdateJobServiceDb(jobStatus)
+		err := r.UpdateJobServiceDb(jobStatus)
+		assert.Nil(t, err)
 
 		resp, err := r.GetJobStatus("job-id")
 		assert.Nil(t, err)
@@ -106,9 +108,10 @@ func TestDeleteJobsInJobSet(t *testing.T) {
 
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
 
-		r.UpdateJobServiceDb(jobStatus1)
-		jobResponse1, _ := r.GetJobStatus("job-id")
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
 
+		jobResponse1, _ := r.GetJobStatus("job-id")
 		assert.Equal(t, jobResponse1, responseExpected1)
 
 		r.SubscribeJobSet("test", "job-set-1")
@@ -131,7 +134,9 @@ func TestCheckToUnSubscribe(t *testing.T) {
 
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
 
-		r.UpdateJobServiceDb(jobStatus1)
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
+
 		r.SubscribeJobSet("test", "job-set-1")
 		assert.True(t, r.IsJobSetSubscribed("test", "job-set-1"))
 		assert.False(t, r.CheckToUnSubscribe("test", "job-set-1", 100000))
@@ -147,8 +152,11 @@ func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
 		jobStatus2 := NewJobStatus("test", "job-set-2", "job-id-3", *responseExpected2)
 
-		r.UpdateJobServiceDb(jobStatus1)
-		r.UpdateJobServiceDb(jobStatus2)
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus2)
+		assert.Nil(t, err)
+
 		assert.False(t, r.IsJobSetSubscribed("test", "job-set-1"))
 		assert.False(t, r.CheckToUnSubscribe("test", "job-set-1", 100000))
 	})
@@ -190,13 +198,20 @@ func TestGetJobStatusAllStates(t *testing.T) {
 		jobStatus6 := NewJobStatus("test", "job-set-1", "job-id-6", *responseCancelled)
 		jobStatus7 := NewJobStatus("test", "job-set-1", "job-id-7", *responseDoesNotExist)
 
-		r.UpdateJobServiceDb(jobStatus1)
-		r.UpdateJobServiceDb(jobStatus2)
-		r.UpdateJobServiceDb(jobStatus3)
-		r.UpdateJobServiceDb(jobStatus4)
-		r.UpdateJobServiceDb(jobStatus5)
-		r.UpdateJobServiceDb(jobStatus6)
-		r.UpdateJobServiceDb(jobStatus7)
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus2)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus3)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus4)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus5)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus6)
+		assert.Nil(t, err)
+		err = r.UpdateJobServiceDb(jobStatus7)
+		assert.Nil(t, err)
 
 		actualFailed, errFailed := r.GetJobStatus("job-id")
 		actualSuccess, errSuccess := r.GetJobStatus("job-id-2")
@@ -229,7 +244,8 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 
 		jobStatus1 := NewJobStatus("test-race", "job-set-race", "job-race", *responseSuccess)
-		r.UpdateJobServiceDb(jobStatus1)
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
 		r.SubscribeJobSet("test-race", "job-set-race")
 		r.CleanupJobSetAndJobs("test-race", "job-set-race")
 		actualSuccess, actualError := r.GetJobStatus("job-race")
@@ -246,7 +262,8 @@ func TestGetJobStatusAfterPersisting(t *testing.T) {
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseSuccess)
-		r.UpdateJobServiceDb(jobStatus1)
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
 		actual, actualErr := r.GetJobStatus("job-id")
 		assert.Nil(t, actualErr)
 		assert.Equal(t, actual, responseSuccess)
@@ -259,12 +276,14 @@ func TestDuplicateIdDatabaseInsert(t *testing.T) {
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseRunning)
-		r.UpdateJobServiceDb(jobStatus1)
+		err := r.UpdateJobServiceDb(jobStatus1)
+		assert.Nil(t, err)
 		actualSql, actualErr := r.GetJobStatus("job-id")
 		assert.Equal(t, actualSql, responseRunning)
 		assert.Nil(t, actualErr)
 		jobStatus2 := NewJobStatus("test", "job-set-1", "job-id", *responseSuccess)
-		r.UpdateJobServiceDb(jobStatus2)
+		err = r.UpdateJobServiceDb(jobStatus2)
+		assert.Nil(t, err)
 		actualSuccessSql, actualSuccessErr := r.GetJobStatus("job-id")
 		assert.Equal(t, actualSuccessSql, responseSuccess)
 		assert.Nil(t, actualSuccessErr)
@@ -282,8 +301,6 @@ func TestHealthCheck(t *testing.T) {
 // This test will fail if sqlite writes are not serialised somehow due to
 // SQLITE_BUSY errors.
 func TestConcurrentJobStatusUpdating(t *testing.T) {
-	t.Skip("Test is flaky, need to more robustly handle SQL_BUSY errors occurring in UpdateJobServiceDb")
-
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 
@@ -302,7 +319,8 @@ func TestConcurrentJobStatusUpdating(t *testing.T) {
 				jobStatus := NewJobStatus("test", "job-set-1", jobId, *responseRunning)
 
 				startWg.Wait()
-				r.UpdateJobServiceDb(jobStatus)
+				err := r.UpdateJobServiceDb(jobStatus)
+				assert.Nil(t, err)
 				actualSql, actualErr := r.GetJobStatus(jobId)
 				assert.Equal(t, actualSql, responseRunning)
 				assert.Nil(t, actualErr)
@@ -323,7 +341,7 @@ func WithSqlServiceRepo(action func(r *SQLJobService)) {
 		panic(err)
 	}
 	repo := NewSQLJobService(jobStatusMap, config, db)
-	repo.CreateTable()
+	repo.Setup()
 	action(repo)
 	db.Close()
 	os.Remove("test.db")

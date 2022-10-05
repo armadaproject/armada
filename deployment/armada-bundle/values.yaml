@@ -1,0 +1,150 @@
+# Default values for armada-bundle.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+dependencies:
+  armada-server: true
+  armada-executor: true
+  armada-lookout: true
+  armada-lookout-migration: true
+  armada-lookout-ingester: true
+  redis-ha: true
+  stan: true
+  pulsar: true
+  executor-cluster-monitoring: true
+  postgresql: true
+
+redis-ha:
+  fullnameOverride: redis-ha
+  hardAntiAffinity: false
+  persistentVolume:
+    enabled: false
+
+postgresql:
+  fullnameOverride: postgresql
+  auth:
+    postgresPassword: psw
+
+armada-lookout-migration:
+  image:
+    tag: v0.3.29
+  ingressClass: nginx
+  clusterIssuer: dev-ca
+
+  prometheus:
+    enabled: true
+
+  applicationConfig:
+    nats:
+      servers:
+        - nats://nats.default.svc.cluster.local:4222
+      clusterId: nats
+      subject: ArmadaTest
+      queueGroup: ArmadaLookoutEventProcessor
+    postgres:
+      maxOpenConns: 100
+      maxIdleConns: 25
+      connMaxLifetime: 30m
+      connection:
+        host: postgresql.default.svc.cluster.local
+        port: 5432
+        user: postgres
+        password: psw
+        dbname: postgres
+    uiConfig:
+      armadaApiBaseUrl: "http://armada.default.svc.cluster.local:8080"
+    prunerConfig:
+      daysToKeep: 42
+      batchSize: 1000
+
+stan:
+  nameOverride: "nats"
+
+kube-prometheus-stack:
+  alertmanager:
+    enabled: false
+
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+
+  grafana:
+    service:
+      type: NodePort
+      nodePort: 30001
+
+  prometheusOperator:
+    admissionWebhooks:
+      enabled: false
+    tls:
+      enabled: false
+    tlsProxy:
+      enabled: false
+    createCustomResource: false
+
+armada:
+  image:
+    repository: gresearchdev/armada-server
+    tag: v0.3.29
+  ingressClass: nginx
+  ingress:
+    labels:
+      kubernetes.io/ingress.class: nginx
+  clusterIssuer: dev-ca
+  hostnames: []
+
+  applicationConfig:
+    grpcPort: 50051
+    httpPort: 8080
+    pulsar: {}
+
+  prometheus:
+    enabled: true
+
+  nodePort: 30000
+
+armada-executor:
+  image:
+    repository: gresearchdev/armada-executor
+    tag: v0.3.29
+  nodeSelector: nil
+  applicationConfig:
+    apiConnection:
+      armadaUrl: armada.default.svc.cluster.local:50051
+      ## Please note that this setting is insecure
+      ## Do not use this setting in a production environment
+      ## This should only be used for the quickstart and local testing
+      forceNoTls: true
+    kubernetes:
+      minimumPodAge: 0s
+
+  prometheus:
+    enabled: true
+
+executor-cluster-monitoring:
+  additionalLabels:
+    app: prometheus-operator
+    release: prometheus-operator
+
+  interval: 5s
+
+armada-lookout:
+  image:
+    repository: gresearchdev/armada-lookout
+    tag: v0.3.29
+  ingressClass: nginx
+  ingress:
+    labels:
+      kubernetes.io/ingress.class: nginx
+  clusterIssuer: dev-ca
+  hostnames: []
+
+  prometheus:
+    enabled: true
+
+  applicationConfig: {}
+
+pulsar:
+  initialize: true
+  fullnameOverride: pulsar
