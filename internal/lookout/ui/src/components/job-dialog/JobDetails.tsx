@@ -18,6 +18,7 @@ import { PreviousRuns } from "./PreviousRuns"
 import RunDetailsRows from "./RunDetailsRows"
 
 import "./Details.css"
+import ContainerDetails from "./ContainerDetails"
 
 type ToggleFn = (item: string, isExpanded: boolean) => void
 type DetailsProps = {
@@ -56,12 +57,6 @@ export default function JobDetails(props: DetailsProps) {
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
   const jobYaml = convertStringToYaml(props.job.jobYaml)
-  const cpuResources = getCpuFromJobYaml(jobYaml)
-  const gpuResources = getGpuFromJobYaml(jobYaml)
-  const memoryResources = getMemoryFromJobYaml(jobYaml)
-  const storageResources = getStorageFromJobYaml(jobYaml)
-  const command = getCommandFromJobYaml(jobYaml)
-  const commandArgs = getCommandArgumentsFromJobYaml(jobYaml)
   return (
     <div className="details-content">
       <TableContainer>
@@ -74,38 +69,7 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Job state" value={props.job.jobState} />
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
-            {command &&
-              command.map(
-                (values, index) =>
-                  values.length > 0 && <DetailRow key={"Command-" + index} name={"Command-" + index} value={values} />,
-              )}
-            {commandArgs &&
-              commandArgs.map(
-                (values, index) =>
-                  values.length > 0 && (
-                    <DetailRow key={"Arguments-" + index} name={"Arguments-" + index} value={values} />
-                  ),
-              )}
-            {cpuResources &&
-              cpuResources.map(
-                (values, index) =>
-                  values.length > 0 && <DetailRow key={"CPU-" + index} name={"CPU-" + index} value={values} />,
-              )}
-            {gpuResources &&
-              gpuResources.map(
-                (values, index) =>
-                  values.length > 0 && <DetailRow key={"GPU-" + index} name={"GPU-" + index} value={values} />,
-              )}
-            {memoryResources &&
-              memoryResources.map(
-                (values, index) =>
-                  values.length > 0 && <DetailRow key={"Memory-" + index} name={"Memory-" + index} value={values} />,
-              )}
-            {storageResources &&
-              storageResources.map(
-                (values, index) =>
-                  values.length > 0 && <DetailRow key={"Storage-" + index} name={"Storage-" + index} value={values} />,
-              )}
+            <ContainerDetails jobYaml={jobYaml} />
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&

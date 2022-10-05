@@ -28,12 +28,12 @@ podSpec:
           cpu: 150m
           memory: 64Mi
           nvidia.com/gpu: 1
-          storage: 50m
+          ephemeral-storage: 50m
         requests:
           cpu: 150m
           memory: 64Mi
           nvidia.com/gpu: 1
-          storage: 50m
+          ephemeral-storage: 50m
   imagePullPolicy: IfNotPresent
   restartPolicy: Never
   terminationGracePeriodSeconds: 0
