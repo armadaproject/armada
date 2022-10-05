@@ -22,12 +22,15 @@ func NewNodeTypeFromNodeInfo(nodeInfo *api.NodeInfo, wellKnownLabels map[string]
 }
 
 func NewNodeType(taints []v1.Taint, labels, wellKnownLabels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
-	taints = getFilteredTaints(taints, taintsFilter)
-	labels = getFilteredLabels(labels, labelsFilter)
-	unsetWellKnownLabels := getFilteredLabels(labels, func(key, _ string) bool {
+	unsetWellKnownLabels := getFilteredLabels(wellKnownLabels, func(key, _ string) bool {
 		_, ok := labels[key]
 		return !ok
 	})
+	if unsetWellKnownLabels == nil {
+		unsetWellKnownLabels = make(map[string]string)
+	}
+	taints = getFilteredTaints(taints, taintsFilter)
+	labels = getFilteredLabels(labels, labelsFilter)
 	return &NodeType{
 		Id:                   nodeTypeIdFromTaintsAndLabels(taints, labels, unsetWellKnownLabels),
 		Taints:               taints,
