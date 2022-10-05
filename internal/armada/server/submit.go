@@ -906,11 +906,8 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
 	specNeedsTerminationGracePeriod := spec.TerminationGracePeriodSeconds == nil
 	defaultTerminationGracePeriod := int64(server.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
-	defaultTerminationGracePeriodAvailable := defaultTerminationGracePeriod > 0
 
-	if specNeedsTerminationGracePeriod &&
-		defaultTerminationGracePeriodAvailable {
-
+	if specNeedsTerminationGracePeriod {
 		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriod
 	}
 }

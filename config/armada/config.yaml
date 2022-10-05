@@ -53,7 +53,7 @@ scheduling:
     enabled: false
   minTerminationGracePeriod: 5s
   maxTerminationGracePeriod: 300s
-  defaultTerminationGracePeriod: 60s
+  defaultTerminationGracePeriod: 5s
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
