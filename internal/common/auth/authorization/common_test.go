@@ -6,12 +6,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 )
 
 func TestCreateMiddlewareAuthFunction(t *testing.T) {
 	principal := NewStaticPrincipal("test", []string{"group"})
 	failingService := &fakeAuthService{nil, errors.New("failed")}
-	serviceWithoutCredentials := &fakeAuthService{nil, missingCredentials}
+	serviceWithoutCredentials := &fakeAuthService{nil, &armadaerrors.ErrMissingCredentials{}}
 	successfulService := &fakeAuthService{principal, nil}
 
 	_, e := CreateMiddlewareAuthFunction([]AuthService{failingService, successfulService})(context.Background())

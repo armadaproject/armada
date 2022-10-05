@@ -13,11 +13,6 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-var (
-	missingCredentials = status.Errorf(codes.InvalidArgument, "missing credentials")
-	invalidCredentials = status.Errorf(codes.Unauthenticated, "invalid username/password")
-)
-
 // Name of the key used to store principals in contexts.
 const principalKey = "principal"
 
@@ -127,15 +122,22 @@ type AuthService interface {
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
+			var missingCredsErr *armadaerrors.ErrMissingCredentials
+			var invalidCredsErr *armadaerrors.ErrInvalidCredentials
+
 			principal, err := service.Authenticate(ctx)
-			if errors.Is(err, missingCredentials) {
+			if errors.As(err, &missingCredsErr) {
 				// try next auth service
 				continue
-			} else if errors.Is(err, invalidCredentials) {
+			} else if errors.As(err, &invalidCredsErr) {
+				principalName := "<none>"
+				if principal != nil {
+					principalName = principal.GetName()
+				}
 				return nil, &armadaerrors.ErrUnauthenticated{
-					Principal:   principal.GetName(),
+					Principal:   principalName,
 					AuthService: service.Name(),
-					Message:     invalidCredentials.Error(),
+					Message:     err.Error(),
 				}
 			}
 			if err != nil {

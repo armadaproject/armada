@@ -7,6 +7,7 @@ import (
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
@@ -32,7 +33,9 @@ func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principa
 		pair := strings.SplitN(string(payload), ":", 2)
 		return authService.loginUser(pair[0], pair[1])
 	}
-	return nil, missingCredentials
+	return nil, &armadaerrors.ErrMissingCredentials{
+		AuthService: authService.Name(),
+	}
 }
 
 func (authService *BasicAuthService) loginUser(username string, password string) (Principal, error) {
@@ -40,5 +43,8 @@ func (authService *BasicAuthService) loginUser(username string, password string)
 	if ok && userInfo.Password == password {
 		return NewStaticPrincipal(username, userInfo.Groups), nil
 	}
-	return nil, invalidCredentials
+	return nil, &armadaerrors.ErrInvalidCredentials{
+		Username:    username,
+		AuthService: authService.Name(),
+	}
 }

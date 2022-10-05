@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
@@ -80,12 +81,16 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
 	if len(authHeader) < 2 || authHeader[0] != "KubernetesAuth" {
-		return nil, missingCredentials
+		return nil, &armadaerrors.ErrMissingCredentials{
+			AuthService: authService.Name(),
+		}
 	}
 
 	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
-		return nil, missingCredentials
+		return nil, &armadaerrors.ErrMissingCredentials{
+			AuthService: authService.Name(),
+		}
 	}
 
 	// Get token time
@@ -95,7 +100,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	}
 
 	if authService.Clock.Now().After(expirationTime) {
-		return nil, fmt.Errorf("invalid token, expired")
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     "invalid token, expired",
+		}
 	}
 
 	// Check Cache
@@ -105,7 +113,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 			if cacheInfo.Valid {
 				return NewStaticPrincipal(cacheInfo.Name, []string{cacheInfo.Name}), nil
 			} else {
-				return nil, fmt.Errorf("token invalid")
+				return nil, &armadaerrors.ErrInvalidCredentials{
+					AuthService: authService.Name(),
+					Message:     "token invalid",
+				}
 			}
 		}
 	}
@@ -170,7 +181,10 @@ func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context,
 
 	if !result.Status.Authenticated {
 		authService.TokenCache.Set(token, CacheData{Valid: false}, time.Duration(authService.InvalidTokenExpiry))
-		return "", fmt.Errorf("provided token was rejected by TokenReview")
+		return "", &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     "provided token was rejected by TokenReview",
+		}
 	}
 
 	return result.Status.User.Username, nil

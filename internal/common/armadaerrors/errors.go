@@ -278,12 +278,6 @@ func CodeFromError(err error) codes.Code {
 			return codes.InvalidArgument
 		}
 	}
-	{
-		var e *ErrUnauthenticated
-		if errors.As(err, &e) {
-			return codes.Unauthenticated
-		}
-	}
 
 	return codes.Unknown
 }
@@ -607,15 +601,68 @@ type ErrUnauthenticated struct {
 	Message string
 }
 
+func (err *ErrUnauthenticated) GRPCStatus() *status.Status {
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
 func (err *ErrUnauthenticated) Error() (s string) {
 	if err.Action != "" {
-		s = fmt.Sprintf("Could not authorize user %q via service %q while attempting action %q",
+		s = fmt.Sprintf("Could not authorize user %q via auth service %q while attempting action %q",
 			err.Principal, err.AuthService, err.Action)
 	} else {
-		s = fmt.Sprintf("Could not authorize user %q via service %q", err.AuthService, err.Action)
+		s = fmt.Sprintf("Could not authorize user %q via auth service %q", err.Principal, err.AuthService)
 	}
 	if err.Message != "" {
 		s += fmt.Sprintf("; %s", err.Message)
 	}
 	return
+}
+
+// ErrInvalidCredentials is returned when a given set of credentials cannot
+// be authenticated by some authentication method/service.
+type ErrInvalidCredentials struct {
+	// The username half of the invalid credentials, if available.
+	Username string
+	// The authorization service which attempted to authenticate the user.
+	AuthService string
+	// Optional message included with the error message
+	Message string
+}
+
+func (err *ErrInvalidCredentials) GRPCStatus() *status.Status {
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrInvalidCredentials) Error() (s string) {
+	if err.Username != "" && err.Message != "" {
+		s = fmt.Sprintf("Invalid credentials presented for user %q via auth service %q: %s", err.Username, err.AuthService, err.Message)
+	} else if err.Username != "" {
+		s = fmt.Sprintf("Invalid credentials presented for user %q via auth service %q", err.Username, err.AuthService)
+	} else if err.Message != "" {
+		s = fmt.Sprintf("Invalid credentials presented via auth service %q: %s", err.AuthService, err.Message)
+	} else {
+		s = fmt.Sprintf("Invalid credentials presented via auth service %q.", err.AuthService)
+	}
+	return
+}
+
+// ErrMissingCredentials is returned when a given set of credentials are
+// missing either due to omission or they cannot otherwise be decoded.
+type ErrMissingCredentials struct {
+	// Optional message included with the error message.
+	Message string
+	// The authorization service used.
+	AuthService string
+}
+
+func (err *ErrMissingCredentials) GRPCStatus() *status.Status {
+	// return codes.InvalidArgument
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrMissingCredentials) Error() string {
+	if err.Message != "" {
+		return fmt.Sprintf("Missing credentials via auth service %q: %s", err.Message, err.AuthService)
+	}
+	return fmt.Sprintf("Missing credentials via auth service %q", err.AuthService)
 }
