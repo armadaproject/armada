@@ -63,64 +63,9 @@ func (err *InsufficientResources) String() string {
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
-func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-
-	// TODO: This check shouldn't reject due to missing labels.
-	return PodRequirementsMet(nodeType.Taints, nodeType.Labels, req)
-}
-
-// PodRequirementsMet returns true if the scheduling requirements in req
-// are met by a node with the provided taints and labels.
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
-func PodRequirementsMet(nodeTaints []v1.Taint, nodeLabels map[string]string, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-	untoleratedTaint, hasUntoleratedTaint := corev1.FindMatchingUntoleratedTaint(
-		nodeTaints,
-		req.Tolerations,
-		nil,
-	)
-	if hasUntoleratedTaint {
-		return false, &UntoleratedTaint{Taint: untoleratedTaint}, nil
-	}
-
-	for label, podValue := range req.NodeSelector {
-		if nodeValue, ok := nodeLabels[label]; ok {
-			if nodeValue != podValue {
-				return false, &UnmatchedLabel{
-					Label:     label,
-					PodValue:  podValue,
-					NodeValue: nodeValue,
-				}, nil
-			}
-		} else {
-			return false, &MissingLabel{Label: label}, nil
-		}
-	}
-
-	if affinityNodeSelector := req.GetAffinityNodeSelector(); affinityNodeSelector != nil {
-		matchesNodeSelector, err := corev1.MatchNodeSelectorTerms(
-			&v1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: nodeLabels,
-				},
-			},
-			affinityNodeSelector,
-		)
-		if err != nil {
-			return false, nil, err
-		}
-		if !matchesNodeSelector {
-			return false, &UnmatchedNodeSelector{
-				NodeSelector: affinityNodeSelector,
-			}, nil
-		}
-	}
-
-	return true, nil, nil
-}
-
-// PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
-func (nodeType *NodeType) PodRequirementsMet2(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	matches, reason, err := podTolerationRequirementsMet(nodeType.GetTaints(), req)
 	if !matches || err != nil {
 		return matches, reason, err
@@ -132,13 +77,20 @@ func (nodeType *NodeType) PodRequirementsMet2(req *PodRequirements) (bool, PodRe
 // If the pod can be scheduled, the returned score indicates how well the node fits:
 // - 0: Pod can be scheduled by preempting running pods.
 // - 1: Pod can be scheduled without preempting any running pods.
-func (node *Node) PodRequirementsMet2(req *PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
+// If the requirements are not met, it returns the reason for why.
+// If the requirements can't be parsed, an error is returned.
+func (node *Node) PodRequirementsMet(req *PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
 	matches, reason, err := podTolerationRequirementsMet(node.GetTaints(), req)
 	if !matches || err != nil {
 		return matches, 0, reason, err
 	}
 
 	matches, reason, err = podNodeSelectorRequirementsMet(node.GetLabels(), nil, req)
+	if !matches || err != nil {
+		return matches, 0, reason, err
+	}
+
+	matches, reason, err = podNodeAffinityRequirementsMet(node.GetLabels(), req)
 	if !matches || err != nil {
 		return matches, 0, reason, err
 	}
