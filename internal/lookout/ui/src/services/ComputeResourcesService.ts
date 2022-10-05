@@ -59,6 +59,7 @@ function getCommandFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
+
 function getCommandArgumentsFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
@@ -80,6 +81,7 @@ function getCpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
+
 function getMemoryFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
@@ -88,6 +90,7 @@ function getMemoryFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
+
 function getGpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
@@ -97,6 +100,7 @@ function getGpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
   })
   return stringArray
 }
+
 function getStorageFromJobYaml(yamlified: JobYaml): string[] | undefined {
   if (checkContainerFieldExists(yamlified)) return
   const stringArray: string[] = []
