@@ -1,9 +1,21 @@
+# In order to submit a preemptive job, first we need to create the priority class
+# uncomment and apply the following example priority class resource before submitting this job
+#
+# apiVersion: scheduling.k8s.io/v1
+# kind: PriorityClass
+# metadata:
+#   name: armada-example-priority-class
+# value: 10
+# preemptionPolicy: PreemptLowerPriority
+# globalDefault: false
+# description: "Example priority class for preemptive Armada jobs."
+
 queue: queue-a
 jobSetId: job-set-1
 jobs:
   - priority: 1
     podSpec:
-      priorityClassName: armada-preemptive-low-priority
+      priorityClassName: armada-example-priority-class
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
