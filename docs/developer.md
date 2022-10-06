@@ -202,9 +202,9 @@ Additionally, the `moq` tool has been used to generate test mocks in `internal/j
 ```
 go install github.com/matryer/moq@latest
 cd internal/jobservice/events (or wherever)
+rm ./*_moq.go
 go generate
 ```
-
 
 ### Usage metrics
 
