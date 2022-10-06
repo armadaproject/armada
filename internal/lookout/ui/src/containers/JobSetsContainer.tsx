@@ -21,6 +21,17 @@ type JobSetsContainerParams = {
   currentView: JobSetsView
 }
 
+export type JobSetWidths = {
+  jobSetId: number
+  latestSubmissionTime: number
+  jobsQueued: number
+  jobsPending: number
+  jobsRunning: number
+  jobsCancelled: number
+  jobsFailed: number
+  jobsSucceeded: number
+}
+
 export type JobSetsContainerState = {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
@@ -31,6 +42,7 @@ export type JobSetsContainerState = {
   activeOnly: boolean
   cancelJobSetsIsOpen: boolean
   reprioritizeJobSetsIsOpen: boolean
+  jobSetWidths: JobSetWidths
 } & JobSetsContainerParams
 
 export type JobSetsView = "job-counts" | "runtime" | "queued-time"
@@ -63,6 +75,16 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
       reprioritizeJobSetsIsOpen: false,
       newestFirst: true,
       activeOnly: false,
+      jobSetWidths: {
+        jobSetId: 0.5,
+        latestSubmissionTime: 0.14,
+        jobsQueued: 0.06,
+        jobsRunning: 0.06,
+        jobsCancelled: 0.06,
+        jobsFailed: 0.06,
+        jobsSucceeded: 0.06,
+        jobsPending: 0.06,
+      },
     }
 
     this.setQueue = this.setQueue.bind(this)
@@ -82,6 +104,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
     this.loadJobSets = this.loadJobSets.bind(this)
     this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
+    this.resizeColumns = this.resizeColumns.bind(this)
   }
 
   async componentDidMount() {
@@ -271,6 +294,21 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     return this.props.jobService.getJobSets(getJobSetsRequest)
   }
 
+  resizeColumns = (dataKey: keyof JobSetWidths, deltaX: number) =>
+    this.setState((prevState) => {
+      const MIN_COLUMN_WIDTH = 0.06
+      const prevWidths = prevState.jobSetWidths
+      const percentDelta = deltaX / 100.0
+      console.log("prevWidths", prevState.jobSetWidths)
+      console.log("deltaX", deltaX, "key: ", dataKey, "prevWidths[dataKey]", prevWidths[dataKey])
+      return {
+        jobSetWidths: {
+          ...prevWidths,
+          [dataKey]: Math.max(MIN_COLUMN_WIDTH, prevWidths[dataKey] + percentDelta),
+        },
+      }
+    })
+
   render() {
     const selectedJobSets = Array.from(this.state.selectedJobSets.values())
     return (
@@ -299,6 +337,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           queue={this.state.queue}
           view={this.state.currentView}
           jobSets={this.state.jobSets}
+          jobSetWidths={this.state.jobSetWidths}
           selectedJobSets={this.state.selectedJobSets}
           getJobSetsRequestStatus={this.state.getJobSetsRequestStatus}
           autoRefresh={this.state.autoRefresh}
@@ -317,6 +356,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onCancelJobSetsClick={() => this.openCancelJobSets(true)}
           onToggleAutoRefresh={this.toggleAutoRefresh}
           onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
+          onResizeColumns={this.resizeColumns}
         />
       </>
     )

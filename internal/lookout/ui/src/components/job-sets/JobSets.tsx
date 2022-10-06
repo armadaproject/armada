@@ -17,7 +17,7 @@ import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
 import { AutoSizer } from "react-virtualized"
 
-import { JobSetsView, isJobSetsView } from "../../containers/JobSetsContainer"
+import { JobSetsView, isJobSetsView, JobSetWidths } from "../../containers/JobSetsContainer"
 import { DurationStats, JobSet } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import AutoRefreshToggle from "../AutoRefreshToggle"
@@ -30,6 +30,7 @@ import "./JobSets.css"
 interface JobSetsProps {
   queue: string
   view: JobSetsView
+  jobSetWidths: JobSetWidths
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   canCancel: boolean
@@ -51,6 +52,7 @@ interface JobSetsProps {
   onReprioritizeJobSetsClick: () => void
   onOrderChange: (newestFirst: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
+  onResizeColumns: (dataKey: keyof JobSetWidths, deltaX: number) => void
 }
 
 const menuProps: Partial<MenuProps> = {
@@ -71,6 +73,7 @@ export default function JobSets(props: JobSetsProps) {
       height={height}
       width={width}
       jobSets={props.jobSets}
+      jobSetWidths={props.jobSetWidths}
       selectedJobSets={props.selectedJobSets}
       newestFirst={props.newestFirst}
       onJobSetClick={props.onJobSetClick}
@@ -79,6 +82,7 @@ export default function JobSets(props: JobSetsProps) {
       onDeselectAllClick={props.onDeselectAllClick}
       onSelectAllClick={props.onSelectAllClick}
       onOrderChange={props.onOrderChange}
+      onResizeColumns={props.onResizeColumns}
     />
   )
   if (props.view === "queued-time") {

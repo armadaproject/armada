@@ -1,9 +1,11 @@
 import React from "react"
 
+import Draggable from "react-draggable"
 import Truncate from "react-truncate"
-import { TableCellProps, Table as VirtualizedTable } from "react-virtualized"
+import { TableCellProps, Table as VirtualizedTable, TableHeaderProps } from "react-virtualized"
 import { Column, defaultTableCellRenderer } from "react-virtualized"
 
+import { JobSetWidths } from "../../containers/JobSetsContainer"
 import { JobSet } from "../../services/JobService"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
@@ -16,6 +18,7 @@ interface JobSetTableProps {
   height: number
   width: number
   jobSets: JobSet[]
+  jobSetWidths: JobSetWidths
   selectedJobSets: Map<string, JobSet>
   newestFirst: boolean
   onJobSetClick: (jobSet: string, state: string) => void
@@ -24,6 +27,7 @@ interface JobSetTableProps {
   onDeselectAllClick: () => void
   onSelectAllClick: () => void
   onOrderChange: (newestFirst: boolean) => void
+  onResizeColumns: (dataKey: keyof JobSetWidths, deltaX: number) => void
 }
 
 function cellRendererForState(
@@ -42,6 +46,23 @@ function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
     <Truncate width={width * 1.5} lines={1}>
       {cellProps.cellData}
     </Truncate>
+  )
+}
+
+function headerRender(props: TableHeaderProps, onResizeColumns: (dataKey: keyof JobSetWidths, deltaX: number) => void) {
+  return (
+    <React.Fragment key={props.dataKey}>
+      <div>{props.label}</div>
+      <Draggable
+        axis="x"
+        defaultClassName="DragHandle"
+        defaultClassNameDragging="DragHandleActive"
+        onStop={(event, data) => onResizeColumns(props.dataKey as keyof JobSetWidths, data.x)}
+        position={{ x: 0, y: 0 }}
+      >
+        <span className="DragHandleIcon">⋮</span>
+      </Draggable>
+    </React.Fragment>
   )
 }
 
@@ -87,66 +108,76 @@ export default function JobSetTable(props: JobSetTableProps) {
       >
         <Column
           dataKey="jobSetId"
-          width={0.5 * props.width}
+          width={props.jobSetWidths.jobSetId * props.width}
           label="Job Set"
-          cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, 0.5 * props.width)}
+          cellRenderer={(cellProps) => cellRendererForJobSet(cellProps, props.jobSetWidths.jobSetId * props.width)}
           className="job-set-table-job-set-name-cell"
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
         <Column
           dataKey="latestSubmissionTime"
-          width={0.14 * props.width}
+          width={props.jobSetWidths.latestSubmissionTime * props.width}
           label="Submission Time"
           headerRenderer={(cellProps) => (
-            <SortableHeaderCell
-              name="Submission Time"
-              descending={props.newestFirst}
-              className="job-set-submission-time-header-cell"
-              onOrderChange={props.onOrderChange}
-              {...cellProps}
-            />
+            <div>
+              <SortableHeaderCell
+                name="Submission Time"
+                descending={props.newestFirst}
+                className="job-set-submission-time-header-cell"
+                onOrderChange={props.onOrderChange}
+                {...cellProps}
+              />
+              {headerRender(cellProps, props.onResizeColumns)}
+            </div>
           )}
         />
         <Column
           dataKey="jobsQueued"
-          width={0.06 * props.width}
+          width={props.jobSetWidths.jobsQueued * props.width}
           label="Queued"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Queued")}
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
         <Column
           dataKey="jobsPending"
-          width={0.06 * props.width}
+          width={props.jobSetWidths.jobsPending * props.width}
           label="Pending"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Pending")}
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
         <Column
           dataKey="jobsRunning"
-          width={0.06 * props.width}
+          width={props.jobSetWidths.jobsRunning * props.width}
           label="Running"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Running")}
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
         <Column
           dataKey="jobsSucceeded"
-          width={0.06 * props.width}
+          width={props.jobSetWidths.jobsSucceeded * props.width}
           label="Succeeded"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Succeeded")}
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
         <Column
           dataKey="jobsFailed"
-          width={0.06 * props.width}
+          width={props.jobSetWidths.jobsFailed * props.width}
           label="Failed"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
         <Column
           dataKey="jobsCancelled"
-          width={0.06 * props.width}
+          width={props.jobSetWidths.jobsCancelled * props.width}
           label="Cancelled"
           className="job-set-table-number-cell"
           cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Cancelled")}
+          headerRenderer={(headerProps) => headerRender(headerProps, props.onResizeColumns)}
         />
       </VirtualizedTable>
     </div>
