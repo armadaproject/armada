@@ -36,7 +36,7 @@ services:
     depends_on:
       - redis
 
-# The Armada server and affiliated services
+  # The Armada server and affiliated services
   armada-server:
     container_name: armada
     image: golang:1.18-buster
@@ -45,29 +45,30 @@ services:
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
-    working_dir: "/app"
-    entrypoint: "go run ./cmd/armada/main.go --config ./localdev/config/armada/base.yaml --config ./localdev/config/armada/pulsar.yaml"
     depends_on:
       - redis
       - postgres
       - pulsar
       - stan
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/armada/main.go --config ./localdev/config/armada/base.yaml --config ./localdev/config/armada/pulsar.yaml"
   lookout:
     container_name: lookout
-    image: armada-lookout
+    image: golang:1.18-buster
     ports:
       - "9009:9009"
       - "8089:8089"
     volumes:
       - "..:/app:ro"
-    working_dir: "/app"
-    entrypoint: "go run ./cmd/lookout/main.go --config ./localdev/config/lookout/pulsar.yaml"      
+      - "./volumes/go:/go:rw"
     depends_on:
       - armada-server
       - postgres
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/lookout/main.go --config ./localdev/config/lookout/pulsar.yaml"
   executor:
     container_name: executor
-    image: armada-fakeexecutor
+    image: golang:1.18-buster
     ports:
       - "9001:9001"
     environment:
@@ -76,28 +77,39 @@ services:
     depends_on:
       - armada-server
     volumes:
-      - "./config:/app/config:ro"
+      - "..:/app:ro"
+      - "./volumes/go:/go:rw"
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/executor/main.go"
   binoculars:
     container_name: binoculars
-    image: armada-binoculars
-    command:
-      - "--config"
-      - "/app/config/binoculars/base.yaml"
+    image: golang:1.18-buster
     depends_on:
       - armada-server
     volumes:
-      - "./config:/app/config:ro"
+      - "..:/app:ro"
+      - "./volumes/go:/go:rw"
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/binoculars/main.go --config ./localdev/config/binoculars/base.yaml"
   job-service:
     container_name: job-service
-    image: armada-jobservice
-    environment:
-    # You must set APP_UID=nnnn and APP_GID=nnnn (on separate lines, where 'nnnn' is the
-    # value of `id -u` and `id -g`, respectively) in a .env file at the root of the
-    # Armada repo, to use this.
-      - APP_UID
-      - APP_GID
+    image: golang:1.18-buster
+    depends_on:
+      - armada-server
     volumes:
-      - ${PWD}:/run
-    command:
-      - "run"
+      - "..:/app:ro"
+      - "./volumes/go:/go:rw"
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/jobservice/main.go run"
+  lookout-ingester:
+    container_name: lookout-ingester
+    image: golang:1.18-buster
+    depends_on:
+      - armada-server
+    volumes:
+      - "..:/app:ro"
+      - "./volumes/go:/go:rw"
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/lookoutingester/main.go --config ./localdev/config/lookoutingester/config.yaml"
+      
 
