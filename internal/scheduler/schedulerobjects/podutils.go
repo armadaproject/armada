@@ -1,6 +1,9 @@
 package schedulerobjects
 
-import v1 "k8s.io/api/core/v1"
+import (
+	"github.com/G-Research/armada/internal/common"
+	v1 "k8s.io/api/core/v1"
+)
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	affinity := req.Affinity
@@ -24,21 +27,12 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec) *PodRequirements {
 		preemptionPolicy = string(*podSpec.PreemptionPolicy)
 	}
 	resourceRequirements := v1.ResourceRequirements{
-		Limits:   make(v1.ResourceList),
-		Requests: make(v1.ResourceList),
-	}
-	for _, container := range podSpec.Containers {
-		for resourceType, quantity := range container.Resources.Limits {
-			q := resourceRequirements.Limits[resourceType]
-			q.Add(quantity)
-			resourceRequirements.Limits[resourceType] = q
-
-		}
-		for resourceType, quantity := range container.Resources.Requests {
-			q := resourceRequirements.Requests[resourceType]
-			q.Add(quantity)
-			resourceRequirements.Requests[resourceType] = q
-		}
+		Limits: v1ResourceListFromComputeResources(
+			common.TotalPodResourceLimit(podSpec),
+		),
+		Requests: v1ResourceListFromComputeResources(
+			common.TotalPodResourceRequest(podSpec),
+		),
 	}
 	return &PodRequirements{
 		NodeSelector:         podSpec.NodeSelector,
@@ -48,4 +42,12 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec) *PodRequirements {
 		PreemptionPolicy:     preemptionPolicy,
 		ResourceRequirements: resourceRequirements,
 	}
+}
+
+func v1ResourceListFromComputeResources(resources common.ComputeResources) v1.ResourceList {
+	rv := make(v1.ResourceList)
+	for t, q := range resources {
+		rv[v1.ResourceName(t)] = q
+	}
+	return rv
 }

@@ -437,6 +437,27 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 
+	// Map queue names to priority factor for all active queues, i.e.,
+	// all queues for which the jobs queue has not been deleted automatically by Redis.
+	queues, err := q.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, err
+	}
+	priorityFactorByQueue := make(map[string]float64)
+	apiQueues := make([]*api.Queue, len(queues))
+	for i, queue := range queues {
+		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
+		apiQueues[i] = &api.Queue{Name: queue.Name}
+	}
+	activeQueues, err := q.jobRepository.FilterActiveQueues(apiQueues)
+	if err != nil {
+		return nil, err
+	}
+	priorityFactorByActiveQueue := make(map[string]float64)
+	for _, queue := range activeQueues {
+		priorityFactorByActiveQueue[queue.Name] = priorityFactorByQueue[queue.Name]
+	}
+
 	// TODO: Need to populate with all queues (or at least all with jobs queued).
 	scheduler := &scheduler.LegacyScheduler{
 		SchedulingConfig:            q.schedulingConfig,
@@ -445,6 +466,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		JobQueue:                    q.jobQueue,
 		InitialSeed:                 int64(time.Now().Nanosecond()),
 		MinimumJobSize:              req.MinimumJobSize,
+		PriorityFactorByQueue:       priorityFactorByActiveQueue,
 		JobSchedulingReportsByQueue: make(map[string]map[uuid.UUID]*scheduler.JobSchedulingReport),
 	}
 
@@ -452,7 +474,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	jobs, err := scheduler.Schedule(ctx, aggregatedUsageByQueue)
 	if len(jobs) > 0 {
 		// If we successfully leased jobs, those have to be sent to the executor,
-		// since the leases will have been written into the database.
+		// since the leases will have been written into Redis.
 		if err != nil {
 			logging.WithStacktrace(log, err).Error("failed to schedule jobs")
 		}

@@ -33,6 +33,8 @@ type LegacyScheduler struct {
 	JobQueue scheduling.JobQueue
 	// Minimum quantity allowed for jobs leased to this cluster.
 	MinimumJobSize map[string]resource.Quantity
+	// These factors influence the fraction of resources assigned to each queue.
+	PriorityFactorByQueue map[string]float64
 	// Base random seed used for the the scheduling loop.
 	// The first iteration uses InitialSeed + 1, the second InitialSeed + 2, and so on.
 	InitialSeed int64
@@ -79,6 +81,10 @@ func (c *LegacyScheduler) Schedule(
 	// Used to return early if the scheduler makes no progress.
 	consecutiveIterationsWithNoJobsLeased := 0
 
+	// Maps queue name to a bool, which is true if there are no more
+	// jobs in this queue, beyond those already downloaded.
+	gotAllQueuedJobsByQueue := make(map[string]bool)
+
 	// Random seed used when selecting queues.
 	// Provided as a paremeter to ensure the scheduler is deterministic when testing.
 	seed := c.InitialSeed
@@ -103,6 +109,7 @@ func (c *LegacyScheduler) Schedule(
 		seed += 1
 		shares := WeightsFromAggregatedUsageByQueue(
 			c.SchedulingConfig.ResourceScarcity,
+			c.PriorityFactorByQueue,
 			totalResourcesByQueue,
 		)
 		queue, _ := pickQueueRandomly(shares, seed)
@@ -148,6 +155,7 @@ func (c *LegacyScheduler) Schedule(
 				return nil, err
 			}
 			jobCacheByQueue[queue] = candidateJobs
+			gotAllQueuedJobsByQueue[queue] = len(candidateJobs) == int(batchSize)
 		}
 		fmt.Println(len(candidateJobs), " candidate jobs")
 		if len(candidateJobs) == 0 {
@@ -298,6 +306,11 @@ func (c *LegacyScheduler) Schedule(
 		fmt.Println("queue resource usage: ", totalResourcesByQueue[queue])
 		consecutiveIterationsWithNoJobsLeased = 0
 		numJobsToLease += 1
+
+		// Exit if we've processed all jobs for some queue.
+		if len(jobCacheByQueue[queue]) == 0 && gotAllQueuedJobsByQueue[queue] {
+			break
+		}
 	}
 
 	jobs := make([]*api.Job, 0)
@@ -317,10 +330,14 @@ func (c *LegacyScheduler) Schedule(
 	return jobs, nil
 }
 
-func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
+func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
 	shares := make(map[string]float64)
 	for queue, rl := range aggregateResourceUsageByQueue {
-		shares[queue] = ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1e-9
+		priorityFactor, ok := priorityFactorByQueue[queue]
+		if !ok {
+			priorityFactor = 1
+		}
+		shares[queue] = priorityFactor / (ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1)
 	}
 	return shares
 }

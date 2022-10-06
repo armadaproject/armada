@@ -166,6 +166,7 @@ func (a ComputeResources) AsFloat() ComputeResourcesFloat {
 }
 
 func QuantityAsFloat64(q resource.Quantity) float64 {
+	q.AsApproximateFloat64()
 	dec := q.AsDec()
 	unscaled := dec.UnscaledBig()
 	scale := dec.Scale()
@@ -295,6 +296,20 @@ func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 
 	for _, initContainer := range podSpec.InitContainers {
 		containerResource := FromResourceList(initContainer.Resources.Requests)
+		totalResources.Max(containerResource)
+	}
+	return totalResources
+}
+
+func TotalPodResourceLimit(podSpec *v1.PodSpec) ComputeResources {
+	totalResources := make(ComputeResources)
+	for _, container := range podSpec.Containers {
+		containerResource := FromResourceList(container.Resources.Limits)
+		totalResources.Add(containerResource)
+	}
+
+	for _, initContainer := range podSpec.InitContainers {
+		containerResource := FromResourceList(initContainer.Resources.Limits)
 		totalResources.Max(containerResource)
 	}
 	return totalResources
