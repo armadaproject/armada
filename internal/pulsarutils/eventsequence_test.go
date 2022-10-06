@@ -3,6 +3,7 @@ package pulsarutils
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -10,11 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPublishSequences_Error(t *testing.T) {
+func TestPublishSequences_SendAsyncErr(t *testing.T) {
 	producer := &mockProducer{}
-	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{
-		{},
-	})
+	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}})
 	assert.NoError(t, err)
 
 	producer = &mockProducer{
@@ -24,9 +23,32 @@ func TestPublishSequences_Error(t *testing.T) {
 	assert.ErrorIs(t, err, producer.sendAsyncErr)
 }
 
+func TestPublishSequences_FlushErr(t *testing.T) {
+	// TODO: Causes "panic: send on closed channel"
+	producer := &mockProducer{
+		flushErr: errors.New("flushErr"),
+	}
+	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}})
+	assert.ErrorIs(t, err, producer.sendAsyncErr)
+}
+
+func TestPublishSequences_Timeout(t *testing.T) {
+	// TODO: Fails
+	producer := &mockProducer{
+		sendAsyncDuration: 1 * time.Second,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
+	err := PublishSequences(ctx, producer, []*armadaevents.EventSequence{{}})
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
 type mockProducer struct {
-	sendErr      error
-	sendAsyncErr error
+	sendDuration      time.Duration
+	sendAsyncDuration time.Duration
+	sendErr           error
+	sendAsyncErr      error
+	flushErr          error
 }
 
 func (producer *mockProducer) Topic() string {
@@ -38,10 +60,12 @@ func (producer *mockProducer) Name() string {
 }
 
 func (producer *mockProducer) Send(context.Context, *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+	time.Sleep(producer.sendDuration)
 	return nil, producer.sendErr
 }
 
 func (producer *mockProducer) SendAsync(_ context.Context, _ *pulsar.ProducerMessage, f func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+	time.Sleep(producer.sendAsyncDuration)
 	go f(nil, nil, producer.sendAsyncErr)
 }
 
@@ -50,7 +74,7 @@ func (producer *mockProducer) LastSequenceID() int64 {
 }
 
 func (producer *mockProducer) Flush() error {
-	return nil
+	return producer.flushErr
 }
 
 func (producer *mockProducer) Close() {}
