@@ -14,6 +14,137 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+func testSchedule(
+	nodes []*schedulerobjects.Node,
+	jobsByQueue map[string][]*api.Job,
+	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	scheduler *LegacyScheduler,
+	expectedScheduledJobsByQueue map[string][]string,
+	t *testing.T) {
+
+	nodeDb, err := NewNodeDb(testPriorities, testResources)
+	if !assert.NoError(t, err) {
+		return
+	}
+	err = nodeDb.Upsert(nodes)
+	if !assert.NoError(t, err) {
+		return
+	}
+	scheduler.NodeDb = nodeDb
+
+	jobQueue := newFakeJobQueue()
+	jobQueue.jobsByQueue = jobsByQueue
+	scheduler.JobQueue = jobQueue
+
+	jobs, err := scheduler.Schedule(context.Background(), initialUsageByQueue)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	actualScheduledJobsByQueue := jobIdsByQueueFromJobs(jobs)
+	assert.Equal(t, expectedScheduledJobsByQueue, actualScheduledJobsByQueue)
+}
+
+func TestScheduleOne2(t *testing.T) {
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+	scheduler := &LegacyScheduler{
+		SchedulingConfig: configuration.SchedulingConfig{},
+		ExecutorId:       "executor",
+		MinimumJobSize:   make(map[string]resource.Quantity),
+	}
+
+	queue := "queue"
+	jobsByQueue := map[string][]*api.Job{
+		queue: {
+			apiJobFromPodSpec(queue, podSpecFromPodRequirements(testSmallCpuJob())),
+		},
+	}
+	expectedScheduledJobs := jobIdsByQueueFromJobs(jobsByQueue[queue])
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		queue: {
+			0: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("1"),
+				},
+			},
+		},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, expectedScheduledJobs, t)
+}
+
+func TestScheduleOneQueue(t *testing.T) {
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+	scheduler := &LegacyScheduler{
+		SchedulingConfig: configuration.SchedulingConfig{},
+		ExecutorId:       "executor",
+		MinimumJobSize:   make(map[string]resource.Quantity),
+	}
+
+	jobsByQueue := map[string][]*api.Job{}
+	for _, req := range testNSmallCpuJob(10) {
+		jobsByQueue["A"] = append(
+			jobsByQueue["A"],
+			apiJobFromPodSpec("A", podSpecFromPodRequirements(req)),
+		)
+	}
+
+	expectedScheduledJobs := make([]*api.Job, 0)
+	for _, jobs := range jobsByQueue {
+		expectedScheduledJobs = append(expectedScheduledJobs, jobs...)
+	}
+	expectedScheduledJobsByQueue := jobIdsByQueueFromJobs(expectedScheduledJobs)
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, expectedScheduledJobsByQueue, t)
+}
+
+func TestScheduleTwoQueues(t *testing.T) {
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+	scheduler := &LegacyScheduler{
+		SchedulingConfig: configuration.SchedulingConfig{},
+		ExecutorId:       "executor",
+		MinimumJobSize:   make(map[string]resource.Quantity),
+	}
+
+	jobsByQueue := map[string][]*api.Job{}
+	for _, req := range testNSmallCpuJob(10) {
+		jobsByQueue["A"] = append(
+			jobsByQueue["A"],
+			apiJobFromPodSpec("A", podSpecFromPodRequirements(req)),
+		)
+	}
+	for _, req := range testNSmallCpuJob(10) {
+		jobsByQueue["B"] = append(
+			jobsByQueue["B"],
+			apiJobFromPodSpec("B", podSpecFromPodRequirements(req)),
+		)
+	}
+
+	expectedScheduledJobs := make([]*api.Job, 0)
+	for _, jobs := range jobsByQueue {
+		expectedScheduledJobs = append(expectedScheduledJobs, jobs...)
+	}
+	expectedScheduledJobsByQueue := jobIdsByQueueFromJobs(expectedScheduledJobs)
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {},
+		"B": {},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, expectedScheduledJobsByQueue, t)
+}
+
 func TestScheduleOne(t *testing.T) {
 
 	nodes := []*schedulerobjects.Node{
@@ -29,7 +160,7 @@ func TestScheduleOne(t *testing.T) {
 	}
 
 	jobQueue := newFakeJobQueue()
-	legacyScheduler := LegacyScheduler{
+	legacyScheduler := &LegacyScheduler{
 		SchedulingConfig: configuration.SchedulingConfig{},
 		ExecutorId:       "executor",
 		NodeDb:           nodeDb,
@@ -52,14 +183,14 @@ func TestScheduleOne(t *testing.T) {
 		},
 	}
 
-	expectedScheduledJobs := jobIdsFromJobs(jobQueue.jobsByQueue[queue])
+	expectedScheduledJobs := jobIdsByQueueFromJobs(jobQueue.jobsByQueue[queue])
 
 	jobs, err := legacyScheduler.Schedule(context.Background(), initialUsageByQueue)
 	if !assert.NoError(t, err) {
 		return
 	}
 
-	actualScheduledJobs := jobIdsFromJobs(jobs)
+	actualScheduledJobs := jobIdsByQueueFromJobs(jobs)
 
 	assert.Equal(t, expectedScheduledJobs, actualScheduledJobs)
 	assert.Equal(t, 1, len(legacyScheduler.JobSchedulingReportsByQueue))
@@ -72,10 +203,10 @@ func TestScheduleOne(t *testing.T) {
 	// }
 }
 
-func jobIdsFromJobs(jobs []*api.Job) []string {
-	rv := make([]string, len(jobs))
-	for i, job := range jobs {
-		rv[i] = job.Id
+func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
+	rv := make(map[string][]string)
+	for _, job := range jobs {
+		rv[job.Queue] = append(rv[job.Queue], job.Id)
 	}
 	return rv
 }

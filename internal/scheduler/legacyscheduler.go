@@ -67,7 +67,7 @@ func (c *LegacyScheduler) Schedule(
 	roundResourcesByQueue := make(map[string]schedulerobjects.ResourceList)
 
 	// Jobs to lease for each queue.
-	leasedJobsByQueue := make(map[string]map[uuid.UUID]*api.Job)
+	leasedJobsByQueue := make(map[string][]*api.Job)
 
 	// Track the total number of jobs to lease.
 	numJobsToLease := 0
@@ -93,6 +93,9 @@ func (c *LegacyScheduler) Schedule(
 		default:
 		}
 
+		fmt.Println()
+		fmt.Println("=======")
+
 		fmt.Println("iteration ", seed)
 
 		// Select a queue to schedule job from.
@@ -105,7 +108,7 @@ func (c *LegacyScheduler) Schedule(
 		queue, _ := pickQueueRandomly(shares, seed)
 		consecutiveIterationsWithNoJobsLeased++
 
-		fmt.Println("queue ", queue)
+		fmt.Println("queue ", queue, " shares: ", shares)
 
 		// Total resource usage (across priorities) for this queue.
 		totalResourcesForQueue, ok := totalResourcesByQueue[queue]
@@ -154,6 +157,8 @@ func (c *LegacyScheduler) Schedule(
 		// Pop one job from the candidate list.
 		candidateJob := candidateJobs[0]
 		jobCacheByQueue[queue] = candidateJobs[1:]
+
+		fmt.Println("selected ", candidateJob.Id, " ", len(jobCacheByQueue[queue]), " remaining")
 
 		// Convert the string representation of a job id to a uuid.UUID.
 		jobIdProto, err := armadaevents.ProtoUuidFromUlidString(candidateJob.Id)
@@ -283,26 +288,20 @@ func (c *LegacyScheduler) Schedule(
 		}
 
 		// The job can be scheduled.
-		if jobsToLeaseForQueue, ok := leasedJobsByQueue[queue]; ok {
-			jobsToLeaseForQueue[jobId] = candidateJob
-		} else {
-			leasedJobsByQueue[queue] = map[uuid.UUID]*api.Job{
-				jobId: candidateJob,
-			}
-		}
+		leasedJobsByQueue[queue] = append(leasedJobsByQueue[queue], candidateJob)
 
 		// Update the resource accounting for this queue.
 		totalResourcesByQueue[queue] = totalResourcesForQueue
 		roundResourcesByQueue[queue] = roundResourcesForQueue
 		roundResources = roundResourcesCopy
 
+		fmt.Println("queue resource usage: ", totalResourcesByQueue[queue])
 		consecutiveIterationsWithNoJobsLeased = 0
 		numJobsToLease += 1
 	}
 
 	jobs := make([]*api.Job, 0)
-	for queue, jobsToLeaseById := range leasedJobsByQueue {
-		jobsToLease := maps.Values(jobsToLeaseById)
+	for queue, jobsToLease := range leasedJobsByQueue {
 
 		// TryLeaseJobs returns a list of jobs that were successfully leased.
 		// For example, jobs concurrently leased to another executor are skipped.
@@ -321,7 +320,7 @@ func (c *LegacyScheduler) Schedule(
 func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
 	shares := make(map[string]float64)
 	for queue, rl := range aggregateResourceUsageByQueue {
-		shares[queue] = ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
+		shares[queue] = ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1e-9
 	}
 	return shares
 }

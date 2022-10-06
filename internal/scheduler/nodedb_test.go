@@ -625,6 +625,38 @@ func benchmarkSelectAndBindNodeToPod(
 	}
 }
 
+func testNSmallCpuJob(n int) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testSmallCpuJob()
+	}
+	return rv
+}
+
+func testNLargeCpuJob(n int) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testLargeCpuJob()
+	}
+	return rv
+}
+
+func testNGPUJob(n int) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testGpuJob()
+	}
+	return rv
+}
+
+func testNA100Job(n int) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testA100Job()
+	}
+	return rv
+}
+
 func testSmallCpuJob() *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: 0,
