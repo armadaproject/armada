@@ -663,6 +663,9 @@ func (err *ErrMissingCredentials) Error() (s string) {
 		err.Message)
 }
 
+// ErrInternalAuthServiceError is returned when an auth service encounters
+// an internal error that is not directly related to the supplied input/
+// credentials.
 type ErrInternalAuthServiceError struct {
 	// Optional message included with the error message.
 	Message string
@@ -678,9 +681,6 @@ func (err *ErrInternalAuthServiceError) GRPCStatus() *status.Status {
 	return status.New(codes.Unavailable, err.Error())
 }
 
-// ErrInternalAuthServiceError is returned when an auth service encounters
-// an internal error that is not directly related to the supplied input/
-// credentials.
 func (err *ErrInternalAuthServiceError) Error() string {
 	return craftFullErrorMessageForAuthRelatedErrors(
 		"Encountered an internal error",
