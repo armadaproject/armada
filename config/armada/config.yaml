@@ -51,7 +51,7 @@ scheduling:
     memory: 1Mi
   preemption:
     enabled: false
-  minTerminationGracePeriod: 5s
+  minTerminationGracePeriod: 0s
   maxTerminationGracePeriod: 300s
   defaultTerminationGracePeriod: 5s
 queueManagement:
