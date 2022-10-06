@@ -1,6 +1,7 @@
-# In order to submit a preemptive job, first we need to create the priority class
-# uncomment and apply the following example priority class resource before submitting this job
+# In order to submit a preemptive job, first we need to create a priority class.
+# In this example, we will create a priority class with priority 10 and reference it in the job's podSpec.
 #
+# Uncomment and apply the following example priority class resource before submitting this job.
 # apiVersion: scheduling.k8s.io/v1
 # kind: PriorityClass
 # metadata:
