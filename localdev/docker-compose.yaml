@@ -20,8 +20,8 @@ services:
     # profiles: ["linux"]
     container_name: pulsar
     volumes:
-      - ../../scripts/pulsar.sh:/pulsar.sh
-    entrypoint: sh -c "bin/pulsar standalone"
+      - ./pulsar.sh:/pulsar-config.sh
+    entrypoint: sh -c "/pulsar-config.sh"
     ports:
       - "6650:6650"
     depends_on:
@@ -39,21 +39,18 @@ services:
 # The Armada server and affiliated services
   armada-server:
     container_name: armada
-    image: armada
+    image: golang:1.18-buster
     ports:
       - "50051:50051"
-    command:
-      - "--config"
-      - "/app/config/armada/base.yaml"
-      - "--config"
-      - "/app/config/armada/pulsar.yaml"
+    working_dir: "/app"
+    entrypoint: "go run ./cmd/armada/main.go --config ./localdev/config/armada/base.yaml --config ./localdev/config/armada/pulsar.yaml"
     depends_on:
       - redis
       - postgres
       - pulsar
       - stan
     volumes:
-      - "./config:/app/config:ro"
+      - "..:/app:ro"
   lookout:
     container_name: lookout
     image: armada-lookout
