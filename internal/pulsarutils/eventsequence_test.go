@@ -32,7 +32,7 @@ func TestPublishSequences_FlushErr(t *testing.T) {
 	assert.ErrorIs(t, err, producer.sendAsyncErr)
 }
 
-func TestPublishSequences_Timeout(t *testing.T) {
+func TestPublishSequences_RespectTimeout(t *testing.T) {
 	// TODO: Fails
 	producer := &mockProducer{
 		sendAsyncDuration: 1 * time.Second,
