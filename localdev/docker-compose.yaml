@@ -1,12 +1,15 @@
 version: "3.8"
 
 services:
+  #
   # Infrastructure services needed for Armada
+  #
   redis:
     container_name: redis
     image: redis
     ports:
       - "6379:6379"
+
   postgres:
     container_name: postgres
     image: postgres
@@ -14,6 +17,7 @@ services:
       - "POSTGRES_PASSWORD=psw"
     ports:
       - "5432:5432"
+
   pulsar:
     image: kezhenxu94/pulsar
     #image: apachepulsar/pulsar:2.10.0
@@ -26,6 +30,7 @@ services:
       - "6650:6650"
     depends_on:
       - redis
+
   stan:
     container_name: stan
     image: nats-streaming
@@ -36,7 +41,9 @@ services:
     depends_on:
       - redis
 
+  #
   # The Armada server and affiliated services
+  #
   armada-server:
     container_name: armada
     image: golang:1.18-buster
@@ -52,6 +59,7 @@ services:
       - stan
     working_dir: "/app"
     entrypoint: "go run ./cmd/armada/main.go --config ./localdev/config/armada/base.yaml --config ./localdev/config/armada/pulsar.yaml"
+    
   lookout:
     container_name: lookout
     image: golang:1.18-buster
@@ -65,7 +73,8 @@ services:
       - armada-server
       - postgres
     working_dir: "/app"
-    entrypoint: "go run ./cmd/lookout/main.go --config ./localdev/config/lookout/pulsar.yaml"
+    entrypoint: "go run ./cmd/lookout/main.go --config ./localdev/config/lookout/config.yaml"
+    
   executor:
     container_name: executor
     image: golang:1.18-buster
@@ -81,6 +90,7 @@ services:
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: "go run ./cmd/executor/main.go"
+    
   binoculars:
     container_name: binoculars
     image: golang:1.18-buster
@@ -91,6 +101,7 @@ services:
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: "go run ./cmd/binoculars/main.go --config ./localdev/config/binoculars/base.yaml"
+    
   job-service:
     container_name: job-service
     image: golang:1.18-buster
@@ -101,6 +112,7 @@ services:
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: "go run ./cmd/jobservice/main.go run"
+
   lookout-ingester:
     container_name: lookout-ingester
     image: golang:1.18-buster
