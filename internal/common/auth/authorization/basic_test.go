@@ -2,7 +2,6 @@ package authorization
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +27,6 @@ func TestBasicAuthService(t *testing.T) {
 		metadata.NewIncomingContext(context.Background(), basicPassword("root", "test")))
 
 	assert.NotNil(t, e)
-	fmt.Println(e.Error())
 	var invalidCredsErr *armadaerrors.ErrInvalidCredentials
 	assert.ErrorAs(t, e, &invalidCredsErr)
 
