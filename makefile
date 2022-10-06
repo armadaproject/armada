@@ -377,7 +377,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 .ONESHELL:
-setup-cluster: python
+setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
 	# We need an ingress controller to enable cluster ingress
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
