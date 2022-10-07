@@ -85,6 +85,9 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
+	// NodeReservedResources config is used to factor in reserved resources on each node
+	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
+	NodeReservedResources                     common.ComputeResources
 	Preemption                                PreemptionConfig
 	UseProbabilisticSchedulingForAllResources bool
 	QueueLeaseBatchSize                       uint

@@ -427,7 +427,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	return &types.Empty{}, nil
 }
 
-func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.OrderedStringMap, principalName string) error {
+func (q *AggregatedQueueServer) addAvoidNodeAffinity(
+	jobId string,
+	labels *api.OrderedStringMap,
+	principalName string,
+) error {
 	allClusterSchedulingInfo, err := q.schedulingInfoRepository.GetClusterSchedulingInfo()
 	if err != nil {
 		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error getting scheduling information: %w", err)
@@ -440,7 +444,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.O
 		}
 
 		changed := addAvoidNodeAffinity(jobs[0], labels, func(jobsToValidate []*api.Job) error {
-			if ok, err := validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo); !ok {
+			if ok, err := validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo, q.schedulingConfig.NodeReservedResources); !ok {
 				if err != nil {
 					return errors.WithMessage(err, "can't schedule at least 1 job")
 				} else {

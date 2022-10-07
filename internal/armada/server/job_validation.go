@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/G-Research/armada/internal/common"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/armada/scheduling"
@@ -10,10 +11,14 @@ import (
 // validateJobsCanBeScheduled returns a boolean indicating if all pods that make up the provided jobs
 // can be scheduled. If it returns false, it also returns an error with information about which job
 // can't be scheduled and why.
-func validateJobsCanBeScheduled(jobs []*api.Job, allClusterSchedulingInfo map[string]*api.ClusterSchedulingInfoReport) (bool, error) {
+func validateJobsCanBeScheduled(
+	jobs []*api.Job,
+	allClusterSchedulingInfo map[string]*api.ClusterSchedulingInfoReport,
+	nodeReservedResources common.ComputeResources,
+) (bool, error) {
 	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
 	for i, job := range jobs {
-		if ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo); !ok {
+		if ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo, nodeReservedResources); !ok {
 			if err != nil {
 				return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
 			} else {

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common"
 	"testing"
 	"time"
 
@@ -162,7 +163,7 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 			MaxRetries: maxRetries,
 		},
 		mockJobRepository,
-		cache.NewQueueCache(&util.DefaultClock{}, fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository),
+		cache.NewQueueCache(&util.DefaultClock{}, fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository, common.ComputeResources{}),
 		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,

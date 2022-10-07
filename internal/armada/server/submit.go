@@ -296,7 +296,7 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, "error getting scheduling info: %s", err)
 	}
 
-	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
+	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo, server.schedulingConfig.NodeReservedResources); !ok {
 		if err != nil {
 			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
 		}

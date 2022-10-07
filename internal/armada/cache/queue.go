@@ -35,6 +35,8 @@ type QueueCache struct {
 	runningResources map[string]map[string]metrics.ResourceMetrics
 
 	queueNonMatchingJobIds map[string]map[string]stringSet
+
+	nodeReservedResources common.ComputeResources
 }
 
 func NewQueueCache(
@@ -42,6 +44,7 @@ func NewQueueCache(
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	nodeReservedResources common.ComputeResources,
 ) *QueueCache {
 	collector := &QueueCache{
 		clock:                    clock,
@@ -53,6 +56,7 @@ func NewQueueCache(
 		queueNonMatchingJobIds:   map[string]map[string]stringSet{},
 		runningDurations:         map[string]map[string]*metrics.FloatMetrics{},
 		runningResources:         map[string]map[string]metrics.ResourceMetrics{},
+		nodeReservedResources:    nodeReservedResources,
 	}
 
 	return collector
@@ -89,7 +93,10 @@ func (c *QueueCache) Refresh() {
 	}
 }
 
-func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport) error {
+func (c *QueueCache) calculateQueuedJobMetrics(
+	queue queue.Queue,
+	clusterInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport,
+) error {
 	queuedJobIds, e := c.jobRepository.GetQueueJobIds(queue.Name)
 	if e != nil {
 		return fmt.Errorf("failed getting queued jobs - %s", e)
@@ -113,7 +120,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByP
 			for pool, infos := range clusterInfoByPool {
 				matches := false
 				for _, schedulingInfo := range infos {
-					if ok, _ := scheduling.MatchSchedulingRequirements(job, schedulingInfo); ok {
+					if ok, _ := scheduling.MatchSchedulingRequirements(job, schedulingInfo, c.nodeReservedResources); ok {
 						matches = true
 					} else {
 						nonMatchingClusters[schedulingInfo.ClusterId] = empty{}

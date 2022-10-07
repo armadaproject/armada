@@ -157,7 +157,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			err = errors.WithMessage(err, "error getting scheduling info")
 			return nil, err
 		}
-		if ok, err := validateJobsCanBeScheduled(legacySchedulerJobs, allClusterSchedulingInfo); !ok {
+		if ok, err := validateJobsCanBeScheduled(legacySchedulerJobs, allClusterSchedulingInfo, srv.SubmitServer.schedulingConfig.NodeReservedResources); !ok {
 			if err != nil {
 				return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
 			} else {
