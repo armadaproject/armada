@@ -24,7 +24,7 @@ services:
     # profiles: ["linux"]
     container_name: pulsar
     volumes:
-      - ./scripts/pulsar.sh:/pulsar-start.sh
+      - ./scripts/pulsar-start.sh:/pulsar-start.sh
     entrypoint: sh -c "/pulsar-start.sh"
     ports:
       - "6650:6650"
@@ -69,11 +69,12 @@ services:
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
+      - "./scripts/lookout-start.sh:/lookout-start.sh"
     depends_on:
       - armada-server
       - postgres
     working_dir: "/app"
-    entrypoint: "go run ./cmd/lookout/main.go --config ./localdev/config/lookout/config.yaml"
+    entrypoint: sh -c "/lookout-start.sh"
     
   executor:
     container_name: executor
@@ -118,6 +119,7 @@ services:
     image: golang:1.18-buster
     depends_on:
       - armada-server
+      - lookout
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"

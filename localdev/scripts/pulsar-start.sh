@@ -15,4 +15,5 @@ sleep 10
 /pulsar/bin/pulsar-admin namespaces set-auto-topic-creation public/default --disable
 /pulsar/bin/pulsar-admin namespaces set-auto-topic-creation armada/armada --disable
 
+# Keep the container running until a signal is received
 sleep infinity
