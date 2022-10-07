@@ -42,7 +42,7 @@ func New(params Params) (*App, error) {
 		return nil, err
 	}
 
-	producerName := fmt.Sprintf("test-%s", serverId)
+	producerName := fmt.Sprintf("pulsartest-%s", serverId)
 	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Name:             producerName,
 		CompressionType:  compressionType,
