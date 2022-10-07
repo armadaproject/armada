@@ -24,7 +24,7 @@ func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
 
 	ev.Created = rawEvent.Created
 
-	// Unmarshal into a map, which is temporarily used only to get the marshaled
+	// Unmarshal into a map, which is temporarily used only to get the marshalled
 	// key that signifies the actual struct underlying this instance of the
 	// isEventSequence_Event_Event interface.
 	var mapEvent map[string]interface{}
