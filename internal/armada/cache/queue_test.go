@@ -1,9 +1,10 @@
 package cache
 
 import (
-	"github.com/G-Research/armada/internal/common"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
 
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"

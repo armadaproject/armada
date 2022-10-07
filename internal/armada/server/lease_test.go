@@ -3,9 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
 
 	"github.com/stretchr/testify/assert"
 

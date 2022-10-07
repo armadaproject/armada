@@ -1,8 +1,9 @@
 package server
 
 import (
-	"github.com/G-Research/armada/internal/common"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common"
 
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/pkg/api"
