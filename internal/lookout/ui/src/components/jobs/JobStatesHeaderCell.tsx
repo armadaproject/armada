@@ -1,6 +1,7 @@
 import React from "react"
 
 import { Checkbox, Input, InputLabel, ListItemText, MenuItem, MenuProps, Select } from "@material-ui/core"
+import Draggable from "react-draggable"
 import { TableHeaderProps } from "react-virtualized"
 
 import { JOB_STATES_FOR_DISPLAY } from "../../services/JobService"
@@ -10,6 +11,7 @@ import "./JobStatesHeaderCell.css"
 type JobStatesHeaderCellProps = {
   jobStates: string[]
   onJobStatesChange: (jobStates: string[]) => void
+  onResizeColumns: (dataIndex: number) => void
 } & TableHeaderProps
 
 const ITEM_HEIGHT = 64
@@ -34,34 +36,42 @@ const menuProps: Partial<MenuProps> = {
 
 export default function JobStatesHeaderCell(props: JobStatesHeaderCellProps) {
   return (
-    <div className="job-states-header-cell">
-      <InputLabel shrink={true} id="job-table-state-select-label">
-        Job states
-      </InputLabel>
-      <Select
-        labelId="job-table-state-select-label"
-        id="job-table-state-select"
-        multiple
-        value={props.jobStates}
-        onChange={(event) => {
-          const newJobStates = (event.target.value as string[]).filter((jobState) =>
-            JOB_STATES_FOR_DISPLAY.includes(jobState),
-          )
-          props.onJobStatesChange(newJobStates)
-        }}
-        input={<Input />}
-        renderValue={(selected) => `${(selected as string[]).length} selected`}
-        displayEmpty={true}
-        MenuProps={menuProps}
-        className="job-states-header-cell-select"
-      >
-        {JOB_STATES_FOR_DISPLAY.map((jobState) => (
-          <MenuItem key={jobState} value={jobState}>
-            <Checkbox checked={props.jobStates.indexOf(jobState) > -1} />
-            <ListItemText primary={jobState} />
-          </MenuItem>
-        ))}
-      </Select>
-    </div>
+    <Draggable
+      axis="x"
+      defaultClassName="DragHandle"
+      defaultClassNameDragging="DragHandleActive"
+      onStop={(event, data) => props.onResizeColumns(data.x)}
+      position={{ x: 0, y: 0 }}
+    >
+      <div className="job-states-header-cell">
+        <InputLabel shrink={true} id="job-table-state-select-label">
+          Job states
+        </InputLabel>
+        <Select
+          labelId="job-table-state-select-label"
+          id="job-table-state-select"
+          multiple
+          value={props.jobStates}
+          onChange={(event) => {
+            const newJobStates = (event.target.value as string[]).filter((jobState) =>
+              JOB_STATES_FOR_DISPLAY.includes(jobState),
+            )
+            props.onJobStatesChange(newJobStates)
+          }}
+          input={<Input />}
+          renderValue={(selected) => `${(selected as string[]).length} selected`}
+          displayEmpty={true}
+          MenuProps={menuProps}
+          className="job-states-header-cell-select"
+        >
+          {JOB_STATES_FOR_DISPLAY.map((jobState) => (
+            <MenuItem key={jobState} value={jobState}>
+              <Checkbox checked={props.jobStates.indexOf(jobState) > -1} />
+              <ListItemText primary={jobState} />
+            </MenuItem>
+          ))}
+        </Select>
+      </div>
+    </Draggable>
   )
 }

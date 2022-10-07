@@ -294,17 +294,15 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     return this.props.jobService.getJobSets(getJobSetsRequest)
   }
 
-  resizeColumns = (dataKey: keyof JobSetWidths, deltaX: number) =>
+  resizeColumns = (dataKey: keyof JobSetWidths | string, deltaX: number) =>
     this.setState((prevState) => {
       const MIN_COLUMN_WIDTH = 0.06
       const prevWidths = prevState.jobSetWidths
       const percentDelta = deltaX / 100.0
-      console.log("prevWidths", prevState.jobSetWidths)
-      console.log("deltaX", deltaX, "key: ", dataKey, "prevWidths[dataKey]", prevWidths[dataKey])
       return {
         jobSetWidths: {
           ...prevWidths,
-          [dataKey]: Math.max(MIN_COLUMN_WIDTH, prevWidths[dataKey] + percentDelta),
+          [dataKey]: Math.max(MIN_COLUMN_WIDTH, prevWidths[dataKey as keyof JobSetWidths] + percentDelta),
         },
       }
     })

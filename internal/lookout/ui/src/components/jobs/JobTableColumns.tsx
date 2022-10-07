@@ -18,6 +18,7 @@ type JobTableColumnsProps = {
   totalWidth: number
   onChangeColumnValue: (id: string, val: string | boolean | string[]) => void
   onJobIdClick: (jobIndex: number) => void
+  onResizeColumn: (dataKey: string, dataX: number) => void
 }
 
 function calculateColumnWidth(columnWeight: number, totalWidth: number, totalWeight: number) {
@@ -31,6 +32,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
   return props.columns.map((col, i) => {
     switch (col.id) {
       case "submissionTime": {
+        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -43,6 +45,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
                 className="job-submission-time-header-cell"
                 descending={col.filter as boolean}
                 onOrderChange={(newValue) => props.onChangeColumnValue(col.id, newValue)}
+                onResizeColumns={curriedResize}
                 {...headerProps}
               />
             )}
@@ -50,6 +53,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
         )
       }
       case "jobState": {
+        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -62,6 +66,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
               <JobStatesHeaderCell
                 jobStates={col.filter as string[]}
                 onJobStatesChange={(newValue) => props.onChangeColumnValue(col.id, newValue)}
+                onResizeColumns={curriedResize}
                 {...headerProps}
               />
             )}
@@ -69,6 +74,8 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
         )
       }
       case "jobId": {
+        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
+
         return (
           <Column
             key={i}
@@ -83,6 +90,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
                 headerLabel={col.name}
                 value={col.filter as string}
                 onChange={(newValue) => props.onChangeColumnValue(col.id, newValue)}
+                onResizeColumns={curriedResize}
                 {...headerProps}
               />
             )}
@@ -92,6 +100,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
       case "queue":
       case "jobSet":
       case "owner": {
+        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -103,6 +112,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
                 headerLabel={col.name}
                 value={col.filter as string}
                 onChange={(newValue) => props.onChangeColumnValue(col.id, newValue)}
+                onResizeColumns={curriedResize}
                 {...headerProps}
               />
             )}
@@ -110,6 +120,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
         )
       }
       default: {
+        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -127,6 +138,7 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
                 headerLabel={col.name}
                 value={col.filter as string}
                 onChange={(newValue) => props.onChangeColumnValue(col.id, newValue)}
+                onResizeColumns={curriedResize}
                 {...headerProps}
               />
             )}

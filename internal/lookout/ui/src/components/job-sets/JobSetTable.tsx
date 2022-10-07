@@ -27,7 +27,7 @@ interface JobSetTableProps {
   onDeselectAllClick: () => void
   onSelectAllClick: () => void
   onOrderChange: (newestFirst: boolean) => void
-  onResizeColumns: (dataKey: keyof JobSetWidths, deltaX: number) => void
+  onResizeColumns: (dataKey: keyof JobSetWidths | string, deltaX: number) => void
 }
 
 function cellRendererForState(
@@ -51,8 +51,7 @@ function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
 
 function headerRender(props: TableHeaderProps, onResizeColumns: (dataKey: keyof JobSetWidths, deltaX: number) => void) {
   return (
-    <React.Fragment key={props.dataKey}>
-      <div>{props.label}</div>
+    <>
       <Draggable
         axis="x"
         defaultClassName="DragHandle"
@@ -60,9 +59,9 @@ function headerRender(props: TableHeaderProps, onResizeColumns: (dataKey: keyof 
         onStop={(event, data) => onResizeColumns(props.dataKey as keyof JobSetWidths, data.x)}
         position={{ x: 0, y: 0 }}
       >
-        <span className="DragHandleIcon">⋮</span>
+        <div>{props.label}</div>
       </Draggable>
-    </React.Fragment>
+    </>
   )
 }
 
@@ -119,16 +118,14 @@ export default function JobSetTable(props: JobSetTableProps) {
           width={props.jobSetWidths.latestSubmissionTime * props.width}
           label="Submission Time"
           headerRenderer={(cellProps) => (
-            <div>
-              <SortableHeaderCell
-                name="Submission Time"
-                descending={props.newestFirst}
-                className="job-set-submission-time-header-cell"
-                onOrderChange={props.onOrderChange}
-                {...cellProps}
-              />
-              {headerRender(cellProps, props.onResizeColumns)}
-            </div>
+            <SortableHeaderCell
+              name="Submission Time"
+              descending={props.newestFirst}
+              className="job-set-submission-time-header-cell"
+              onOrderChange={props.onOrderChange}
+              onResizeColumns={props.onResizeColumns.bind(props.onResizeColumns, cellProps.dataKey)}
+              {...cellProps}
+            />
           )}
         />
         <Column

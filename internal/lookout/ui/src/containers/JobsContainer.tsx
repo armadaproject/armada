@@ -485,6 +485,25 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.resetCacheService.registerCallback(resetCache)
   }
 
+  resizeColumns = (dataKey: string, deltaX: number) =>
+    this.setState((prevState) => {
+      const column = prevState.defaultColumns.find((value) => value.id === dataKey)
+      const defaultColumns = prevState.defaultColumns
+      if (column === undefined) {
+        return {
+          defaultColumns,
+        }
+      }
+      const MIN_COLUMN_WIDTH = 0.01
+      const prevWidths = column?.width as number
+      const percentDelta = deltaX / 100.0
+      const newWidth = Math.max(MIN_COLUMN_WIDTH, prevWidths + percentDelta)
+      column.width = newWidth
+      return {
+        defaultColumns,
+      }
+    })
+
   private createGetJobsRequest(): GetJobsRequest {
     const request: GetJobsRequest = {
       queue: "",
@@ -611,6 +630,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           onInteract={this.resetAutoRefresh}
           onRegisterResetCache={this.registerResetCache}
           onClear={this.clearFilters}
+          onResizeColumns={this.resizeColumns}
         />
       </>
     )

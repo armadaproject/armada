@@ -52,7 +52,7 @@ interface JobSetsProps {
   onReprioritizeJobSetsClick: () => void
   onOrderChange: (newestFirst: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
-  onResizeColumns: (dataKey: keyof JobSetWidths, deltaX: number) => void
+  onResizeColumns: (dataKey: keyof JobSetWidths | string, deltaX: number) => void
 }
 
 const menuProps: Partial<MenuProps> = {

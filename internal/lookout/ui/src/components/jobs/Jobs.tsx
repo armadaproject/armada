@@ -40,6 +40,7 @@ type JobsProps = {
   onInteract: () => void
   onRegisterResetCache: (resetCache: () => void) => void
   onClear: () => void
+  onResizeColumns: (dataKey: string, dataX: number) => void
 }
 
 export default class Jobs extends React.Component<JobsProps, Record<string, never>> {
@@ -175,6 +176,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                         totalWidth: width,
                         onChangeColumnValue: this.props.onChangeColumnValue,
                         onJobIdClick: this.props.onJobIdClick,
+                        onResizeColumn: this.props.onResizeColumns,
                       })}
                     </Table>
                   )

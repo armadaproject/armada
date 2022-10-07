@@ -66,6 +66,7 @@ function countTotalSelected(defaultColumns: ColumnSpec<any>[], annotationColumns
 }
 
 export default function ColumnSelect(props: ColumnSelectProps) {
+  console.log("Columns", props.defaultColumns)
   return (
     <div className="job-states-header-cell">
       <InputLabel shrink={true} id="job-table-state-select-label">
