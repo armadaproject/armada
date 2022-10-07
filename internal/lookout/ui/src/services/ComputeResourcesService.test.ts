@@ -20,12 +20,12 @@ podSpec:
           cpu: 150m
           memory: 64Mi
           nvidia.com/gpu: 1
-          ephemeral-storage: 50m
+          ephemeral-storage: 50Mi
         requests:
           cpu: 150m
           memory: 64Mi
           nvidia.com/gpu: 1
-          ephemeral-storage: 50m
+          ephemeral-storage: 50Mi
   imagePullPolicy: IfNotPresent
   restartPolicy: Never
   terminationGracePeriodSeconds: 0
@@ -34,12 +34,22 @@ podSpec:
   namespace: default
   compressedQueueOwnershipUserGroups: eAEAGwDk/wz/gQIBAv+CAAEMAAAN/4IAAQhldmVyeW9uZQEAAP//a8EIJA==`
   test("Happy Path", () => {
-    const containerInfo = getContainerInfoFromYaml(yaml)
-    expect(containerInfo.command).toStrictEqual(["sh -c"])
-    expect(containerInfo.arguments).toStrictEqual(["sleep $(( (RANDOM % 30) + 30 ))"])
-    expect(containerInfo.cpu).toStrictEqual(["150m"])
-    expect(containerInfo.memory).toStrictEqual(["64Mi"])
-    expect(containerInfo.gpu).toStrictEqual([1])
-    expect(containerInfo["ephermal-storage"]).toStrictEqual(["50m"])
+    const info = getContainerInfoFromYaml(yaml)
+    expect(info).toBeTruthy()
+    if (info?.containerInfo[0]) {
+      expect(info.containerInfo[0]).toEqual({
+        name: "sleep",
+        command: "sh -c",
+        args: "sleep $(( (RANDOM % 30) + 30 ))",
+        resources: {
+          limits: {
+            cpu: "150m",
+            memory: "64Mi",
+            "nvidia.com/gpu": 1,
+            "ephemeral-storage": "50Mi",
+          },
+        },
+      })
+    }
   })
 })

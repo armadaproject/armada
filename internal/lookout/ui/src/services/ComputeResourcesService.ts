@@ -8,15 +8,19 @@ export interface JobYaml {
 }
 
 export interface ContainerInfo {
-  command?: string[]
-  arguments?: string[]
-  cpu?: string[]
-  memory?: string[]
-  gpu?: string[]
-  "ephermal-storage"?: string[]
+  containerInfo: ContainerString[]
 }
 
+interface ContainerString {
+  name: string
+  command: string
+  args: string
+  resources: {
+    limits: Limits
+  }
+}
 interface Container {
+  name: string
   command: string[]
   args: string[]
   resources: {
@@ -31,81 +35,32 @@ interface Limits {
   memory?: string
 }
 
-export function getContainerInfoFromYaml(jobYaml: string): ContainerInfo {
+export function getContainerInfoFromYaml(jobYaml: string): ContainerInfo | undefined {
   const yaml = load(jobYaml) as JobYaml
-  return {
-    command: getCommandFromJobYaml(yaml),
-    arguments: getCommandArgumentsFromJobYaml(yaml),
-    cpu: getCpuFromJobYaml(yaml),
-    memory: getMemoryFromJobYaml(yaml),
-    gpu: getGpuFromJobYaml(yaml),
-    "ephermal-storage": getStorageFromJobYaml(yaml),
-  }
+  return detailsFromPodSpec(yaml)
 }
 
 function checkContainerFieldExists(yamlified: JobYaml): boolean {
   return !yamlified.podSpec.containers
 }
 
-function getCommandFromJobYaml(yamlified: JobYaml): string[] | undefined {
+function detailsFromPodSpec(yamlified: JobYaml): ContainerInfo | undefined {
   if (checkContainerFieldExists(yamlified)) return
-  const stringArray: string[] = []
-  yamlified.podSpec.containers.map((val) => {
-    if (val.command) {
-      stringArray.push(val.command.join(" "))
-    } else {
-      stringArray.push("")
+  const mapVal = yamlified.podSpec.containers.map((val) => {
+    const container: ContainerString = {
+      name: val.name,
+      command: val.command ? val.command.join(" ") : "",
+      args: val.args ? val.args.join(" ") : "",
+      resources: {
+        limits: {
+          cpu: val.resources?.limits?.cpu ?? "",
+          memory: val.resources?.limits?.memory ?? "",
+          "ephemeral-storage": val.resources.limits["ephemeral-storage"] ?? "",
+          "nvidia.com/gpu": val.resources.limits["nvidia.com/gpu"] ?? "",
+        },
+      },
     }
+    return container
   })
-  return stringArray
-}
-
-function getCommandArgumentsFromJobYaml(yamlified: JobYaml): string[] | undefined {
-  if (checkContainerFieldExists(yamlified)) return
-  const stringArray: string[] = []
-  yamlified.podSpec.containers.map((val) => {
-    if (val.args) {
-      stringArray.push(val.args.join(" "))
-    } else {
-      stringArray.push("")
-    }
-  })
-  return stringArray
-}
-
-function getCpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
-  if (checkContainerFieldExists(yamlified)) return
-  const stringArray: string[] = []
-  yamlified.podSpec.containers.map((val) => {
-    stringArray.push(val.resources?.limits?.cpu ?? "")
-  })
-  return stringArray
-}
-
-function getMemoryFromJobYaml(yamlified: JobYaml): string[] | undefined {
-  if (checkContainerFieldExists(yamlified)) return
-  const stringArray: string[] = []
-  yamlified.podSpec.containers.map((val) => {
-    stringArray.push(val.resources?.limits?.memory ?? "")
-  })
-  return stringArray
-}
-
-function getGpuFromJobYaml(yamlified: JobYaml): string[] | undefined {
-  if (checkContainerFieldExists(yamlified)) return
-  const stringArray: string[] = []
-  yamlified.podSpec.containers.map((val) => {
-    const gpuValue = val.resources.limits["nvidia.com/gpu"]
-    gpuValue ? stringArray.push(gpuValue) : stringArray.push("")
-  })
-  return stringArray
-}
-
-function getStorageFromJobYaml(yamlified: JobYaml): string[] | undefined {
-  if (checkContainerFieldExists(yamlified)) return
-  const stringArray: string[] = []
-  yamlified.podSpec.containers.map((val) => {
-    stringArray.push(val.resources?.limits["ephemeral-storage"] ?? "")
-  })
-  return stringArray
+  return { containerInfo: mapVal }
 }

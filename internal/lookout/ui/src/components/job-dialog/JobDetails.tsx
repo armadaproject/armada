@@ -59,7 +59,6 @@ export default function JobDetails(props: DetailsProps) {
             <DetailRow name="Job state" value={props.job.jobState} />
             <DetailRow name="Priority" value={props.job.priority.toString()} />
             <DetailRow name="Submitted" value={props.job.submissionTime} />
-            <ContainerDetails jobYaml={props.job.jobYaml} />
             {props.job.cancelledTime && <DetailRow name="Cancelled" value={props.job.cancelledTime} />}
             {lastRun && <RunDetailsRows run={lastRun} jobId={props.job.jobId} />}
             {props.job.annotations &&
@@ -83,6 +82,8 @@ export default function JobDetails(props: DetailsProps) {
           onToggleExpand={toggleExpanded}
         />
       )}
+      <ContainerDetails jobYaml={props.job.jobYaml} />
+
       {props.job.jobYaml && (
         <div className="details-yaml-container">
           <Accordion>

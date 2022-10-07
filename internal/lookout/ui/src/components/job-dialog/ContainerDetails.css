@@ -1,0 +1,11 @@
+.container-details-title {
+    margin-top: 2em;
+    margin-left: 16px;
+    width: 100%;
+}
+
+.container-details {
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+}
