@@ -489,18 +489,31 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.setState((prevState) => {
       const column = prevState.defaultColumns.find((value) => value.id === dataKey)
       const defaultColumns = prevState.defaultColumns
-      if (column === undefined) {
+      const annotationColumns = prevState.annotationColumns
+      const annotationColumn = prevState.annotationColumns.find((value) => value.name === dataKey)
+
+      const newWidth = (width: number) => {
+        const MIN_COLUMN_WIDTH = 0.01
+        const percentDelta = deltaX / 100.0
+        const newWidth = Math.max(MIN_COLUMN_WIDTH, width + percentDelta)
+        return newWidth
+      }
+      if (annotationColumn && column === undefined) {
+        annotationColumn.width = newWidth(annotationColumn.width)
         return {
+          ...this.state,
+          annotationColumns,
+        }
+      } else if (column) {
+        column.width = newWidth(column.width)
+        return {
+          ...this.state,
           defaultColumns,
         }
-      }
-      const MIN_COLUMN_WIDTH = 0.01
-      const prevWidths = column?.width as number
-      const percentDelta = deltaX / 100.0
-      const newWidth = Math.max(MIN_COLUMN_WIDTH, prevWidths + percentDelta)
-      column.width = newWidth
-      return {
-        defaultColumns,
+      } else {
+        return {
+          ...this.state,
+        }
       }
     })
 
