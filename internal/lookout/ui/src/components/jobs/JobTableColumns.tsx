@@ -30,9 +30,9 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
   const leftoverWidth = props.totalWidth - CHECKBOX_WIDTH
   const totalColumnWeight = props.columns.map((col) => col.width).reduce((a, b) => a + b, 0)
   return props.columns.map((col, i) => {
+    const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
     switch (col.id) {
       case "submissionTime": {
-        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -53,7 +53,6 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
         )
       }
       case "jobState": {
-        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -74,8 +73,6 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
         )
       }
       case "jobId": {
-        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
-
         return (
           <Column
             key={i}
@@ -100,7 +97,6 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
       case "queue":
       case "jobSet":
       case "owner": {
-        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
@@ -120,7 +116,6 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
         )
       }
       default: {
-        const curriedResize = props.onResizeColumn.bind(props.onResizeColumn, col.accessor)
         return (
           <Column
             key={i}
