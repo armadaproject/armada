@@ -78,7 +78,7 @@ DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 # This is used to generate published artifacts; to raise the golang version we publish and run
 # tests-in-docker against, you have to update the tag of the image used here.
 GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
-	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=darwin -e GARCH=arm64 \
+	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
 	golang:1.18-buster
 
