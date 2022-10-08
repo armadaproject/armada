@@ -163,6 +163,7 @@ func TestSchedule_TwoQueues(t *testing.T) {
 	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, expectedScheduledJobsByQueue, nil, t)
 }
 
+// Test that two queues with equal weights are equally allocated jobs equally
 func TestSchedule_TwoQueueFairness(t *testing.T) {
 
 	// Create a cluster with 32 cores.
@@ -219,6 +220,170 @@ func TestSchedule_TwoQueueFairness(t *testing.T) {
 	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
 }
 
+// Test that two queues with unequal weights are allocated jobs according to the weighting
+func TestSchedule_TwoQueueFairnessDifferentPriorities(t *testing.T) {
+
+	// Create a cluster with 32 cores.
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+
+	// Two queues with 40 single-core jobs each.
+	jobsByQueue := map[string][]*api.Job{}
+	for _, req := range testNSmallCpuJob(40) {
+		jobsByQueue["A"] = append(
+			jobsByQueue["A"],
+			apiJobFromPodSpec("A", podSpecFromPodRequirements(req)),
+		)
+	}
+	for _, req := range testNSmallCpuJob(40) {
+		jobsByQueue["B"] = append(
+			jobsByQueue["B"],
+			apiJobFromPodSpec("B", podSpecFromPodRequirements(req)),
+		)
+	}
+
+	scheduler := &LegacyScheduler{
+		SchedulingConfig:      configuration.SchedulingConfig{},
+		ExecutorId:            "executor",
+		MinimumJobSize:        make(map[string]resource.Quantity),
+		PriorityFactorByQueue: map[string]float64{"A": 3, "B": 1},
+	}
+
+	expectedResourcesByQueue := map[string]resourceLimits{
+		"A": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("23"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("25"),
+			},
+		),
+		"B": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("7"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("9"),
+			},
+		),
+	}
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {},
+		"B": {},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
+
+}
+
+// Test that two queues with equal weights have fair share if one queue already has jobs
+func TestSchedule_TwoQueueFairnessWIthIntial(t *testing.T) {
+	// Create a cluster with 32 cores.
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+
+	// Two queues with 20 single-core jobs each.
+	jobsByQueue := map[string][]*api.Job{}
+	for _, req := range testNSmallCpuJob(20) {
+		jobsByQueue["A"] = append(
+			jobsByQueue["A"],
+			apiJobFromPodSpec("A", podSpecFromPodRequirements(req)),
+		)
+	}
+	for _, req := range testNSmallCpuJob(20) {
+		jobsByQueue["B"] = append(
+			jobsByQueue["B"],
+			apiJobFromPodSpec("B", podSpecFromPodRequirements(req)),
+		)
+	}
+
+	scheduler := &LegacyScheduler{
+		SchedulingConfig:      configuration.SchedulingConfig{},
+		ExecutorId:            "executor",
+		MinimumJobSize:        make(map[string]resource.Quantity),
+		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+	}
+
+	expectedResourcesByQueue := map[string]resourceLimits{
+		"A": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("14"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("18"),
+			},
+		),
+		"B": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("14"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("18"),
+			},
+		),
+	}
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {
+			0: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("16"),
+				},
+			},
+		},
+		"B": {},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
+}
+
+// Test that no jobs are scheduled if there aren't enough resources
+func TestSchedule_CantSchedule(t *testing.T) {
+
+	// Create a cluster with 32 cores.
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+
+	jobsByQueue := map[string][]*api.Job{
+		"A": {
+			apiJobFromPodSpec("A", podSpecFromPodRequirements(testSmallCpuJob())),
+		},
+	}
+
+	scheduler := &LegacyScheduler{
+		SchedulingConfig:      configuration.SchedulingConfig{},
+		ExecutorId:            "executor",
+		MinimumJobSize:        make(map[string]resource.Quantity),
+		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+	}
+
+	expectedResourcesByQueue := map[string]resourceLimits{
+		"A": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("0"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("0"),
+			},
+		),
+	}
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"B": {
+			0: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("32"),
+				},
+			},
+		},
+	}
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
+}
+
 type resourceLimits struct {
 	Minimum schedulerobjects.ResourceList
 	Maximum schedulerobjects.ResourceList
@@ -248,6 +413,96 @@ func assertResourceLimitsSatisfied(t *testing.T, limits resourceLimits, resource
 	return true
 }
 
+// Test that big jobs that cannot be scheduled, don't block small jobs that can
+func TestSchedule_BigJobDoesBlockSmallJobs(t *testing.T) {
+	// Create a cluster with 32 cores.
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+
+	jobsByQueue := map[string][]*api.Job{}
+
+	// Give each queue an unschedulable job
+	jobsByQueue["A"] = append(
+		jobsByQueue["A"],
+		apiJobFromPodSpec("A", podSpecFromPodRequirements(&schedulerobjects.PodRequirements{
+			Priority: 0,
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    resource.MustParse("100"),
+					"memory": resource.MustParse("4Gi"),
+				},
+			},
+		})),
+	)
+
+	jobsByQueue["B"] = append(
+		jobsByQueue["B"],
+		apiJobFromPodSpec("B", podSpecFromPodRequirements(&schedulerobjects.PodRequirements{
+			Priority: 0,
+			ResourceRequirements: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					"cpu":    resource.MustParse("100"),
+					"memory": resource.MustParse("4Gi"),
+				},
+			},
+		})),
+	)
+
+	// Add 20 single-core jobs each to each queue
+	for _, req := range testNSmallCpuJob(20) {
+		jobsByQueue["A"] = append(
+			jobsByQueue["A"],
+			apiJobFromPodSpec("A", podSpecFromPodRequirements(req)),
+		)
+	}
+	for _, req := range testNSmallCpuJob(20) {
+		jobsByQueue["B"] = append(
+			jobsByQueue["B"],
+			apiJobFromPodSpec("B", podSpecFromPodRequirements(req)),
+		)
+	}
+
+	scheduler := &LegacyScheduler{
+		SchedulingConfig:      configuration.SchedulingConfig{},
+		ExecutorId:            "executor",
+		MinimumJobSize:        make(map[string]resource.Quantity),
+		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+	}
+
+	expectedResourcesByQueue := map[string]resourceLimits{
+		"A": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("14"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("18"),
+			},
+		),
+		"B": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("14"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("18"),
+			},
+		),
+	}
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {
+			0: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("16"),
+				},
+			},
+		},
+		"B": {},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
+}
+
 func (limits resourceLimits) areSatisfied(resources schedulerobjects.ResourceList) bool {
 	for t, q := range limits.Minimum.Resources {
 		min := resources.Resources[t]
@@ -264,10 +519,6 @@ func (limits resourceLimits) areSatisfied(resources schedulerobjects.ResourceLis
 	}
 	return true
 }
-
-// Two queues, check that both get about half of resources.
-// Three queues, check that all get about 1/3 of resources.
-// Two queues with factors 1 and 2. Check that one gets about 1/3 and the other about 2/3.
 
 // TODO: Test pods with large init containers (that we account for them).
 
