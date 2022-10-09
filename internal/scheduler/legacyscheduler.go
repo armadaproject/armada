@@ -35,9 +35,8 @@ type LegacyScheduler struct {
 	MinimumJobSize map[string]resource.Quantity
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactorByQueue map[string]float64
-	// Base random seed used for the the scheduling loop.
-	// The first iteration uses InitialSeed + 1, the second InitialSeed + 2, and so on.
-	InitialSeed int64
+	// Random number generator, used to select queues
+	Rand *rand.Rand
 	// Store reports for each scheduling attempt.
 	JobSchedulingReportsByQueue map[string]map[uuid.UUID]*JobSchedulingReport
 }
@@ -85,10 +84,9 @@ func (c *LegacyScheduler) Schedule(
 	// jobs in this queue, beyond those already downloaded.
 	gotAllQueuedJobsByQueue := make(map[string]bool)
 
-	// Random seed used when selecting queues.
-	// Provided as a paremeter to ensure the scheduler is deterministic when testing.
-	seed := c.InitialSeed
-
+	// Queues that have no schedulable jobs on them
+	queuesWithoutSchedulableJobs := make(map[string]bool)
+	iteration := 0
 	// Schedule jobs one at a time.
 	for (c.SchedulingConfig.MaximumJobsToSchedule == 0 || numJobsToLease < c.SchedulingConfig.MaximumJobsToSchedule) && len(totalResourcesByQueue) > 0 && consecutiveIterationsWithNoJobsLeased < len(totalResourcesByQueue) {
 
@@ -102,17 +100,18 @@ func (c *LegacyScheduler) Schedule(
 		fmt.Println()
 		fmt.Println("=======")
 
-		fmt.Println("iteration ", seed)
+		fmt.Println("iteration ", iteration)
+		iteration++
 
 		// Select a queue to schedule job from.
-		// Queues with fewer resources allocated to them are selected with higher propability.
-		seed += 1
+		// Queues with fewer resources allocated to them are selected with higher probability.
 		shares := WeightsFromAggregatedUsageByQueue(
 			c.SchedulingConfig.ResourceScarcity,
 			c.PriorityFactorByQueue,
 			totalResourcesByQueue,
+			queuesWithoutSchedulableJobs,
 		)
-		queue, _ := pickQueueRandomly(shares, seed)
+		queue, _ := pickQueueRandomly(shares, c.Rand)
 		consecutiveIterationsWithNoJobsLeased++
 
 		fmt.Println("queue ", queue, " shares: ", shares)
@@ -309,7 +308,7 @@ func (c *LegacyScheduler) Schedule(
 
 		// Exit if we've processed all jobs for some queue.
 		if len(jobCacheByQueue[queue]) == 0 && gotAllQueuedJobsByQueue[queue] {
-			break
+			queuesWithoutSchedulableJobs[queue] = true
 		}
 	}
 
@@ -330,14 +329,18 @@ func (c *LegacyScheduler) Schedule(
 	return jobs, nil
 }
 
-func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
+func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList, queuesToSkip map[string]bool) map[string]float64 {
 	shares := make(map[string]float64)
 	for queue, rl := range aggregateResourceUsageByQueue {
-		priorityFactor, ok := priorityFactorByQueue[queue]
-		if !ok {
-			priorityFactor = 1
+		if !queuesToSkip[queue] {
+			priorityFactor, ok := priorityFactorByQueue[queue]
+			if !ok {
+				priorityFactor = 1
+			}
+			shares[queue] = priorityFactor / (ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1)
+		} else {
+			log.Debugf("Skipping queue %s as it has no jobss to be  scheduled", queue)
 		}
-		shares[queue] = priorityFactor / (ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1)
 	}
 	return shares
 }
@@ -355,7 +358,7 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 // pickQueueRandomly returns a queue randomly selected from the provided map.
 // The probability of returning a particular queue AQueue is shares[AQueue] / sharesSum,
 // where sharesSum is the sum of all values in the provided map.
-func pickQueueRandomly(shares map[string]float64, seed int64) (string, float64) {
+func pickQueueRandomly(shares map[string]float64, random *rand.Rand) (string, float64) {
 	if len(shares) == 0 {
 		return "", 0
 	}
@@ -365,7 +368,7 @@ func pickQueueRandomly(shares map[string]float64, seed int64) (string, float64) 
 	for _, share := range shares {
 		sum += share
 	}
-	pick := sum * rand.New(rand.NewSource(seed)).Float64()
+	pick := sum * random.Float64()
 	current := 0.0
 
 	// Iterate over queues in deterministic order.

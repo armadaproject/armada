@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/util"
 	"io"
 	"math"
 	"sync/atomic"
@@ -464,7 +465,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		ExecutorId:                  req.ClusterId,
 		NodeDb:                      nodeDb,
 		JobQueue:                    q.jobQueue,
-		InitialSeed:                 int64(time.Now().Nanosecond()),
+		Rand:                        util.NewThreadsafeRand(int64(time.Now().Nanosecond())),
 		MinimumJobSize:              req.MinimumJobSize,
 		PriorityFactorByQueue:       priorityFactorByActiveQueue,
 		JobSchedulingReportsByQueue: make(map[string]map[uuid.UUID]*scheduler.JobSchedulingReport),

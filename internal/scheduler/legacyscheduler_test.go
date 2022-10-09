@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/pointer"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +15,9 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
+
+// Random with known seed for repeatable tests
+var random = util.NewThreadsafeRand(42)
 
 func testSchedule(
 	nodes []*schedulerobjects.Node,
@@ -69,6 +71,7 @@ func TestSchedule_OneJob(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1},
+		Rand:                  random,
 	}
 
 	jobsByQueue := map[string][]*api.Job{
@@ -101,6 +104,7 @@ func TestSchedule_OneQueue(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1},
+		Rand:                  random,
 	}
 
 	jobsByQueue := map[string][]*api.Job{}
@@ -134,6 +138,7 @@ func TestSchedule_TwoQueues(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		Rand:                  random,
 	}
 
 	jobsByQueue := map[string][]*api.Job{}
@@ -205,10 +210,10 @@ func TestSchedule_TwoQueueFairness(t *testing.T) {
 		),
 		"B": newResourceLimits(
 			map[string]resource.Quantity{
-				"cpu": resource.MustParse("14"),
+				"cpu": resource.MustParse("20"),
 			},
 			map[string]resource.Quantity{
-				"cpu": resource.MustParse("18"),
+				"cpu": resource.MustParse("21"),
 			},
 		),
 	}
@@ -249,6 +254,7 @@ func TestSchedule_TwoQueueFairnessDifferentPriorities(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 3, "B": 1},
+		Rand:                  random,
 	}
 
 	expectedResourcesByQueue := map[string]resourceLimits{
@@ -306,6 +312,7 @@ func TestSchedule_TwoQueueFairnessWithIntial(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		Rand:                  random,
 	}
 
 	expectedResourcesByQueue := map[string]resourceLimits{
@@ -360,6 +367,7 @@ func TestSchedule_CantSchedule(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		Rand:                  random,
 	}
 
 	expectedResourcesByQueue := map[string]resourceLimits{
@@ -394,11 +402,11 @@ func TestSchedule_PreemptOtherUser(t *testing.T) {
 		testCpuNode(testPriorities),
 	}
 
-	// Queue B has 20 jobs of one core each
+	// Queue B has 32 jobs of one core each
 	jobsByQueue := map[string][]*api.Job{}
-	for _, req := range testNSmallCpuJob(20) {
+	for _, req := range testNSmallCpuJob(32) {
 		job := podSpecFromPodRequirements(req)
-		job.Priority = pointer.Int32(1) // set a higher priority than queue a's jobs
+		//job.Priority = pointer.Int32(1) // set a higher priority than queue a's jobs
 		jobsByQueue["B"] = append(
 			jobsByQueue["B"],
 			apiJobFromPodSpec("B", job),
@@ -410,6 +418,7 @@ func TestSchedule_PreemptOtherUser(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		Rand:                  random,
 	}
 
 	expectedResourcesByQueue := map[string]resourceLimits{
@@ -530,6 +539,7 @@ func TestSchedule_BigJobDoesBlockSmallJobs(t *testing.T) {
 		ExecutorId:            "executor",
 		MinimumJobSize:        make(map[string]resource.Quantity),
 		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		Rand:                  random,
 	}
 
 	expectedResourcesByQueue := map[string]resourceLimits{

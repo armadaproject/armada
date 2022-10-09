@@ -89,6 +89,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 		}
 		// TODO: Use the score when selecting a node.
 		matches, score, reason, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
+		fmt.Printf("score is  %d, matches is %v\n", score, matches)
 		if err != nil {
 			return nil, err
 		}
