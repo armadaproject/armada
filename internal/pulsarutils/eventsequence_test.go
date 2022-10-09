@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 func TestPublishSequences_SendAsyncErr(t *testing.T) {
@@ -24,16 +25,14 @@ func TestPublishSequences_SendAsyncErr(t *testing.T) {
 }
 
 func TestPublishSequences_FlushErr(t *testing.T) {
-	// TODO: Causes "panic: send on closed channel"
 	producer := &mockProducer{
 		flushErr: errors.New("flushErr"),
 	}
 	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}})
-	assert.ErrorIs(t, err, producer.sendAsyncErr)
+	assert.ErrorIs(t, err, producer.flushErr)
 }
 
 func TestPublishSequences_RespectTimeout(t *testing.T) {
-	// TODO: Fails
 	producer := &mockProducer{
 		sendAsyncDuration: 1 * time.Second,
 	}

@@ -40,15 +40,18 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)
 
-	// Send each sequence async. Collect any errors via ch.
-	ch := make(chan error, len(sequences))
-	defer close(ch)
-	for _, sequence := range sequences {
+	// Send each sequence async. Collect any errors via channels.
+	chs := make([]chan error, len(sequences))
+	for i := range chs {
+		chs[i] = make(chan error)
+	}
+	for i, sequence := range sequences {
 		payload, err := proto.Marshal(sequence)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
+		i := i
 		producer.SendAsync(
 			ctx,
 			&pulsar.ProducerMessage{
@@ -61,7 +64,8 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 			},
 			// Callback on send.
 			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
-				ch <- err
+				chs[i] <- err
+				close(chs[i])
 			},
 		)
 	}
@@ -74,8 +78,14 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 
 	// Collect any errors experienced by the async send and return.
 	var result *multierror.Error
-	for range sequences {
-		result = multierror.Append(result, <-ch)
+	for i := range sequences {
+		select {
+		case <-ctx.Done():
+			result = multierror.Append(result, ctx.Err())
+			return result.ErrorOrNil()
+		case err := <-chs[i]:
+			result = multierror.Append(result, err)
+		}
 	}
 	return result.ErrorOrNil()
 }
