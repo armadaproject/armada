@@ -16,6 +16,18 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+// TODO: Tests we should add:
+// - Three queues. Check that all get about 1/3 of resources.
+// - Two queues with factors 1 and 2. Check that one gets about 1/3 and the other about 2/3.
+// - Scheduling from one queue with taints and toleration. Ensure those can/can't be scheduled accordingly.
+// - One queue where the highest-priority jobs can't be scheduled. That we schedule jobs after those.
+// - Respect QueueLeaseBatchSize (i.e., max number of jobs per queue to load per invocation of the scheduler).
+// - Respect MaximalClusterFractionToSchedule (i.e., max fraction of total cluster resources to schedule per invocation of the scheduler).
+// - Respect MaximalResourceFractionToSchedulePerQueue (i.e., max fraction of total cluster resources to schedule per queue per invocation of the scheduler).
+// - Respect MaximalResourceFractionPerQueue (i.e., max fraction of all resources a single queue can obtain).
+// - Respect MaximumJobsToSchedule (i.e., max number of jobs to schedule per invocation of the scheduler).
+// - Test that we correctly account for init container resource requirements.
+
 func testSchedule(
 	nodes []*schedulerobjects.Node,
 	jobsByQueue map[string][]*api.Job,
@@ -264,70 +276,6 @@ func (limits resourceLimits) areSatisfied(resources schedulerobjects.ResourceLis
 	}
 	return true
 }
-
-// Two queues, check that both get about half of resources.
-// Three queues, check that all get about 1/3 of resources.
-// Two queues with factors 1 and 2. Check that one gets about 1/3 and the other about 2/3.
-
-// TODO: Test pods with large init containers (that we account for them).
-
-// func TestScheduleOne(t *testing.T) {
-
-// 	nodes := []*schedulerobjects.Node{
-// 		testCpuNode(testPriorities),
-// 	}
-// 	nodeDb, err := NewNodeDb(testPriorities, testResources)
-// 	if !assert.NoError(t, err) {
-// 		return
-// 	}
-// 	err = nodeDb.Upsert(nodes)
-// 	if !assert.NoError(t, err) {
-// 		return
-// 	}
-
-// 	jobQueue := newFakeJobQueue()
-// 	legacyScheduler := &LegacyScheduler{
-// 		SchedulingConfig: configuration.SchedulingConfig{},
-// 		ExecutorId:       "executor",
-// 		NodeDb:           nodeDb,
-// 		JobQueue:         jobQueue,
-// 		MinimumJobSize:   make(map[string]resource.Quantity),
-// 	}
-
-// 	queue := "queue"
-// 	jobQueue.jobsByQueue[queue] = []*api.Job{
-// 		apiJobFromPodSpec(queue, podSpecFromPodRequirements(testSmallCpuJob())),
-// 	}
-
-// 	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
-// 		queue: {
-// 			0: schedulerobjects.ResourceList{
-// 				Resources: map[string]resource.Quantity{
-// 					"cpu": resource.MustParse("1"),
-// 				},
-// 			},
-// 		},
-// 	}
-
-// 	expectedScheduledJobs := jobIdsByQueueFromJobs(jobQueue.jobsByQueue[queue])
-
-// 	jobs, err := legacyScheduler.Schedule(context.Background(), initialUsageByQueue)
-// 	if !assert.NoError(t, err) {
-// 		return
-// 	}
-
-// 	actualScheduledJobs := jobIdsByQueueFromJobs(jobs)
-
-// 	assert.Equal(t, expectedScheduledJobs, actualScheduledJobs)
-// 	assert.Equal(t, 1, len(legacyScheduler.JobSchedulingReportsByQueue))
-// 	assert.Equal(t, 1, len(legacyScheduler.JobSchedulingReportsByQueue[queue]))
-
-// 	// for _, reports := range legacyScheduler.JobSchedulingReportsByQueue {
-// 	// 	for _, jobReport := range reports {
-// 	// 		fmt.Println(jobReport)
-// 	// 	}
-// 	// }
-// }
 
 func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
 	rv := make(map[string][]string)
