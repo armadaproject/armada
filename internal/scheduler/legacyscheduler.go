@@ -208,6 +208,8 @@ func (c *LegacyScheduler) Schedule(
 		}
 
 		// Check that this job is at least equal to the minimum job size.
+		// TODO: These per-job checks could be expressed as filter functions, e.g., of type
+		// jobsFilterFunc func(*api.Job) bool
 		jobTooSmall := false
 		if len(c.MinimumJobSize) > 0 {
 			for resourceType, quantity := range jobTotalResourceRequests {
@@ -308,6 +310,7 @@ func (c *LegacyScheduler) Schedule(
 		numJobsToLease += 1
 
 		// Exit if we've processed all jobs for some queue.
+		// Since continuing would be unfair to that queue.
 		if len(jobCacheByQueue[queue]) == 0 && gotAllQueuedJobsByQueue[queue] {
 			break
 		}
