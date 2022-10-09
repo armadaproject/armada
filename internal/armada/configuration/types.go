@@ -102,6 +102,9 @@ type SchedulingConfig struct {
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
+	MinTerminationGracePeriod                 time.Duration
+	MaxTerminationGracePeriod                 time.Duration
+	DefaultTerminationGracePeriod             time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

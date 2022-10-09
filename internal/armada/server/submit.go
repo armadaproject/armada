@@ -897,6 +897,19 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 	if shouldDefaultPriorityClass {
 		spec.PriorityClassName = defaultPriorityClass
 	}
+
+	// add missing TerminationGracePeriod if needed
+	server.applyTerminationGracePeriodDefault(spec)
+}
+
+// applyTerminationGracePeriodDefault will give the podspec a default if needed
+func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
+	specNeedsTerminationGracePeriod := spec.TerminationGracePeriodSeconds == nil
+	defaultTerminationGracePeriod := int64(server.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
+
+	if specNeedsTerminationGracePeriod {
+		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriod
+	}
 }
 
 // fillContainerRequestsAndLimits updates resource's requests/limits of container to match the value of

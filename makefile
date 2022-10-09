@@ -458,7 +458,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 .ONESHELL:
-tests-e2e-python:
+tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 # Output test results in Junit format, e.g., to display in Jenkins.
