@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/pointer"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -279,7 +280,7 @@ func TestSchedule_TwoQueueFairnessDifferentPriorities(t *testing.T) {
 }
 
 // Test that two queues with equal weights have fair share if one queue already has jobs
-func TestSchedule_TwoQueueFairnessWIthIntial(t *testing.T) {
+func TestSchedule_TwoQueueFairnessWithIntial(t *testing.T) {
 	// Create a cluster with 32 cores.
 	nodes := []*schedulerobjects.Node{
 		testCpuNode(testPriorities),
@@ -382,6 +383,67 @@ func TestSchedule_CantSchedule(t *testing.T) {
 		},
 	}
 	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
+}
+
+// Test that a user can preempt another user's jobs up to their fair share
+// TODO:  Why is this failing
+func TestSchedule_PreemptOtherUser(t *testing.T) {
+
+	// Create a cluster with 32 cores.
+	nodes := []*schedulerobjects.Node{
+		testCpuNode(testPriorities),
+	}
+
+	// Queue B has 20 jobs of one core each
+	jobsByQueue := map[string][]*api.Job{}
+	for _, req := range testNSmallCpuJob(20) {
+		job := podSpecFromPodRequirements(req)
+		job.Priority = pointer.Int32(1) // set a higher priority than queue a's jobs
+		jobsByQueue["B"] = append(
+			jobsByQueue["B"],
+			apiJobFromPodSpec("B", job),
+		)
+	}
+
+	scheduler := &LegacyScheduler{
+		SchedulingConfig:      configuration.SchedulingConfig{},
+		ExecutorId:            "executor",
+		MinimumJobSize:        make(map[string]resource.Quantity),
+		PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+	}
+
+	expectedResourcesByQueue := map[string]resourceLimits{
+		"A": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("18"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("14"),
+			},
+		),
+		"B": newResourceLimits(
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("14"),
+			},
+			map[string]resource.Quantity{
+				"cpu": resource.MustParse("18"),
+			},
+		),
+	}
+
+	initialUsageByQueue := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {
+			0: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("32"),
+				},
+			},
+		},
+		"B": {},
+	}
+
+	testSchedule(nodes, jobsByQueue, initialUsageByQueue, scheduler, nil, expectedResourcesByQueue, t)
+
 }
 
 type resourceLimits struct {
