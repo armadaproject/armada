@@ -13,6 +13,7 @@
 | James Murkin         | [JamesMurkin](https://github.com/JamesMurkin)           | G-Research  |
 | Dejan Zele Pejchev   | [dejanzele](https://github.com/dejanzele)               | G-Research  |
 | Jamie Poole          | [jimbobby5](https://github.com/jimbobby5)               | G-Research  |
+| Alex Scammon         | [stackedsax](https://github.com/stackedsax)             | G-Research  |
 | Rich Scott           | [richscott](https://github.com/richscott)               | G-Research  |
 | Albin Severinson     | [severinson](https://github.com/severinson)             | G-Research  |
 | Daniel Rastelli      | [theAntiYeti](https://github.com/theAntiYeti)           | G-Research  |
