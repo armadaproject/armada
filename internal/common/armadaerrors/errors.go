@@ -385,34 +385,36 @@ func IsNetworkError(err error) bool {
 	return false
 }
 
-// Add the action to th error if possible.
-func addActionUnary(err error, info *grpc.UnaryServerInfo) {
+// Add the action to the error if possible.
+func addAction(err error, action string) {
 	{
 		var e *ErrUnauthenticated
 		if errors.As(err, &e) {
-			e.Action = info.FullMethod
+			e.Action = action
 		}
 	}
 	{
 		var e *ErrUnauthorized
 		if errors.As(err, &e) {
-			e.Action = info.FullMethod
-		}
-	}
-}
-
-// Add the action to th error if possible.
-func addActionStream(err error, info *grpc.StreamServerInfo) {
-	{
-		var e *ErrUnauthenticated
-		if errors.As(err, &e) {
-			e.Action = info.FullMethod
+			e.Action = action
 		}
 	}
 	{
-		var e *ErrUnauthorized
+		var e *ErrInternalAuthServiceError
 		if errors.As(err, &e) {
-			e.Action = info.FullMethod
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrMissingCredentials
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrInvalidCredentials
+		if errors.As(err, &e) {
+			e.Action = action
 		}
 	}
 }
@@ -436,7 +438,9 @@ func UnaryServerInterceptor(maxErrorSize uint) grpc.UnaryServerInterceptor {
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
 
-		addActionUnary(err, info)
+		if info != nil {
+			addAction(err, info.FullMethod)
+		}
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
@@ -471,7 +475,9 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
 
-		addActionStream(err, info)
+		if info != nil {
+			addAction(err, info.FullMethod)
+		}
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
