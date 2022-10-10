@@ -256,18 +256,18 @@ func determineJobStateDuration(row *JobRow) string {
 	if row == nil {
 		return ""
 	}
-	var timeStamp *time.Time
+	var timeStamp time.Time
 	if row.Finished.Valid {
-		timeStamp = &row.Finished.Time
+		timeStamp = row.Finished.Time
 	} else if row.Started.Valid {
-		timeStamp = &row.Started.Time
+		timeStamp = row.Started.Time
 	} else if row.Created.Valid {
-		timeStamp = &row.Created.Time
+		timeStamp = row.Created.Time
 	} else {
 		return ""
 	}
 
-	timeInState := time.Now().Sub(*timeStamp)
+	timeInState := time.Now().Sub(timeStamp)
 	return duration.ShortHumanDuration(timeInState)
 }
 
