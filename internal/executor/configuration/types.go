@@ -1,8 +1,9 @@
 package configuration
 
 import (
-	"google.golang.org/grpc/keepalive"
 	"time"
+
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
