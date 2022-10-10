@@ -7,11 +7,27 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
+
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api"
 )
 
-func generateES() ([]byte, error) {
+const (
+	armadaQueueName = "queue-a"
+	armadaUserId    = "test-user"
+	userNamespace   = "test-user-ns"
+)
+
+var (
+	jobSetId string = util.NewULID()
+	clientId string = uuid.New().String()
+)
+
+func generateBasicEventSequence_Event() ([]byte, error) {
 	now := time.Now()
 
 	evSubmitJob := EventSequence_Event_SubmitJob{
@@ -40,8 +56,43 @@ func generateES() ([]byte, error) {
 	return eseYaml, nil
 }
 
-func TestEventSequenceYamlUnmarshal(t *testing.T) {
-	eventSeqYaml, err := generateES()
+func generateFullES() ([]byte, error) {
+	cpu, _ := resource.ParseQuantity("80m")
+	memory, _ := resource.ParseQuantity("50Mi")
+
+	reqItem := &api.JobSubmitRequestItem{
+		Namespace: userNamespace,
+		Priority:  1,
+		ClientId:  clientId,
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  "container1",
+					Image: "alpine:3.10",
+					Args:  []string{"sleep", "5s"},
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+						Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					},
+				},
+			},
+		},
+	}
+
+	es := ExpectedSequenceFromRequestItem(armadaQueueName, armadaUserId, userNamespace,
+		jobSetId, ProtoUuidFromUuid(uuid.New()), reqItem)
+
+	esYaml, err := yaml.Marshal(es)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return esYaml, nil
+}
+
+// Verify a single EventSequence_Event object
+func TestEventSequence_EventUnmarshal(t *testing.T) {
+	eventSeqYaml, err := generateBasicEventSequence_Event()
 	assert.Nil(t, err)
 	assert.NotEmpty(t, eventSeqYaml)
 
@@ -55,4 +106,30 @@ func TestEventSequenceYamlUnmarshal(t *testing.T) {
 	assert.NotNil(t, eseSubmitJob.SubmitJob)
 	assert.Equal(t, uint32(1), eseSubmitJob.SubmitJob.Priority)
 	assert.Equal(t, "job-1", eseSubmitJob.SubmitJob.DeduplicationId)
+}
+
+// Verify a full EventSequence, which may contain a number of events
+func TestEventSequenceUnmarshal(t *testing.T) {
+	eventSeqYaml, err := generateFullES()
+	assert.Nil(t, err)
+	assert.NotEmpty(t, eventSeqYaml)
+
+	es := &EventSequence{}
+
+	err = apimachineryYaml.NewYAMLOrJSONDecoder(bytes.NewReader(eventSeqYaml), 128).Decode(es)
+	assert.Nil(t, err)
+	assert.Equal(t, armadaQueueName, es.Queue)
+	assert.Equal(t, armadaUserId, es.UserId)
+	assert.Equal(t, jobSetId, es.JobSetName)
+	assert.Len(t, es.Groups, 0)
+	assert.Len(t, es.Events, 6)
+
+	assert.NotNil(t, es.Events[0].Event)
+	evSubmitJob, ok := es.Events[0].Event.(*EventSequence_Event_SubmitJob)
+	assert.True(t, ok)
+
+	assert.Equal(t, clientId, evSubmitJob.SubmitJob.DeduplicationId)
+	assert.Equal(t, uint32(1), evSubmitJob.SubmitJob.Priority)
+	assert.Equal(t, userNamespace, evSubmitJob.SubmitJob.ObjectMeta.Namespace)
+	assert.Nil(t, evSubmitJob.SubmitJob.ObjectMeta.Annotations)
 }
