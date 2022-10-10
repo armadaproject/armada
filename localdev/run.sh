@@ -1,10 +1,17 @@
-#! /bin/sh
+#! /bin/bash
 
-# make sure that this is the CWD
+# make the dir containing this file the CWD
 cd "$(dirname "$0")"
 
+# start the kubernetes cluster if needed
+kind get clusters | grep demo-a
+if [ $? -ne 0 ];
+then
+kind create cluster --name demo-a --config ../docs/dev/kind.yaml
+fi
+
 INFRA_SVCS="redis postgres pulsar stan"
-ARMADA_SVCS="armada-server lookout executor binoculars job-service"
+ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservice"
 START_SVCS=""
 
 # Start all services mentioned in the compose file we use, with the

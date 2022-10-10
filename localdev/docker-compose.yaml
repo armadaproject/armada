@@ -3,6 +3,7 @@ version: "3.8"
 services:
   #
   # Infrastructure services needed for Armada
+  # Note that kubernetes cluster is also needed (kind) but is external to the compose environment
   #
   redis:
     container_name: redis
@@ -27,7 +28,7 @@ services:
       - ./scripts/pulsar-start.sh:/pulsar-start.sh
     entrypoint: sh -c "/pulsar-start.sh"
     ports:
-      - "6650:6650"
+      - "0.0.0.0:6650:6650"
     depends_on:
       - redis
 
@@ -45,10 +46,11 @@ services:
   # The Armada server and affiliated services
   #
   armada-server:
-    container_name: armada
+    container_name: armada-server
     image: golang:1.18-buster
     ports:
       - "50051:50051"
+      - "8080:8080"
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
@@ -58,7 +60,7 @@ services:
       - pulsar
       - stan
     working_dir: "/app"
-    entrypoint: "go run ./cmd/armada/main.go --config ./localdev/config/armada/base.yaml --config ./localdev/config/armada/pulsar.yaml"
+    entrypoint: sh -c "localdev/scripts/armada-start.sh"
     
   lookout:
     container_name: lookout
@@ -69,42 +71,42 @@ services:
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
-      - "./scripts/lookout-start.sh:/lookout-start.sh"
     depends_on:
       - armada-server
       - postgres
     working_dir: "/app"
-    entrypoint: sh -c "/lookout-start.sh"
+    entrypoint: sh -c "localdev/scripts/lookout-start.sh"
     
   executor:
     container_name: executor
     image: golang:1.18-buster
     ports:
       - "9001:9001"
-    environment:
-      - "ARMADA_APPLICATION_CLUSTERID=demo-a"
-      - "ARMADA_METRIC_PORT=9001"
     depends_on:
       - armada-server
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
+      - "~/.kube:/tmp/.kube"
     working_dir: "/app"
-    entrypoint: "go run ./cmd/executor/main.go"
+    entrypoint: sh -c "localdev/scripts/executor-start.sh"
     
   binoculars:
     container_name: binoculars
     image: golang:1.18-buster
+    ports:
+      - "8082:8082"
     depends_on:
       - armada-server
     volumes:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
+      - "~/.kube:/tmp/.kube"
     working_dir: "/app"
-    entrypoint: "go run ./cmd/binoculars/main.go --config ./localdev/config/binoculars/base.yaml"
+    entrypoint: sh -c "localdev/scripts/binoculars-start.sh"
     
-  job-service:
-    container_name: job-service
+  jobservice:
+    container_name: jobservice
     image: golang:1.18-buster
     depends_on:
       - armada-server
@@ -112,7 +114,7 @@ services:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
-    entrypoint: "go run ./cmd/jobservice/main.go run"
+    entrypoint: sh -c "localdev/scripts/jobservice-start.sh"
 
   lookout-ingester:
     container_name: lookout-ingester
@@ -124,6 +126,6 @@ services:
       - "..:/app:ro"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
-    entrypoint: "go run ./cmd/lookoutingester/main.go --config ./localdev/config/lookoutingester/config.yaml"
+    entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"
       
 
