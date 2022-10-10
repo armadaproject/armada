@@ -7,8 +7,23 @@ import (
 )
 
 type rawES_Event struct {
-	Created    *time.Time
+	Created    *time.Time       `json:"created"`
 	EventBytes *json.RawMessage `json:"Event"`
+}
+
+type rawKubernetesMainObject struct {
+	ObjectMeta  *ObjectMeta `json:"objectMeta,omitempty"`
+	ObjectBytes json.RawMessage
+}
+
+type rawKubernetesObject struct {
+	ObjectMeta  *ObjectMeta `json:"objectMeta,omitempty"`
+	ObjectBytes json.RawMessage
+}
+
+type rawKubernetesResourceInfo struct {
+	ObjectMeta *ObjectMeta `json:"objectMeta,omitempty"`
+	InfoBytes  *json.RawMessage
 }
 
 func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
@@ -144,6 +159,140 @@ func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
 			ev.Event = &jobRunPreempted
 		default:
 			return errors.New("could not determine EventSequence_Event.Event type for unmarshaling")
+		}
+	}
+
+	return nil
+}
+
+func (kmo *KubernetesMainObject) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" || string(data) == `""` {
+		return nil
+	}
+
+	var rawKmo rawKubernetesMainObject
+	err := json.Unmarshal(data, &rawKmo)
+	if err != nil {
+		return err
+	}
+
+	kmo.ObjectMeta = rawKmo.ObjectMeta
+
+	if rawKmo.ObjectBytes == nil {
+		return nil
+	}
+
+	var mapObj map[string]interface{}
+	if err = json.Unmarshal(rawKmo.ObjectBytes, &mapObj); err != nil {
+		return err
+	}
+
+	for k := range mapObj {
+		switch k {
+		case "pod_spec":
+			var ps KubernetesMainObject_PodSpec
+			if err = json.Unmarshal(rawKmo.ObjectBytes, &ps); err != nil {
+				return err
+			}
+			kmo.Object = &ps
+		default:
+			return errors.New("could not determine isKubernetesMainObject_Object type for unmarshaling")
+		}
+	}
+
+	return nil
+}
+
+func (ko *KubernetesObject) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" || string(data) == `""` {
+		return nil
+	}
+
+	var rawKo rawKubernetesObject
+	err := json.Unmarshal(data, &rawKo)
+	if err != nil {
+		return err
+	}
+
+	ko.ObjectMeta = rawKo.ObjectMeta
+
+	if rawKo.ObjectBytes == nil {
+		return nil
+	}
+
+	var mapObj map[string]interface{}
+	if err = json.Unmarshal(rawKo.ObjectBytes, &mapObj); err != nil {
+		return err
+	}
+
+	for k := range mapObj {
+		switch k {
+		case "pod_spec":
+			var ps KubernetesObject_PodSpec
+			if err = json.Unmarshal(rawKo.ObjectBytes, &ps); err != nil {
+				return err
+			}
+			ko.Object = &ps
+		case "ingress":
+			var ing KubernetesObject_Ingress
+			if err = json.Unmarshal(rawKo.ObjectBytes, &ing); err != nil {
+				return err
+			}
+			ko.Object = &ing
+		case "service":
+			var svc KubernetesObject_Service
+			if err = json.Unmarshal(rawKo.ObjectBytes, &svc); err != nil {
+				return err
+			}
+			ko.Object = &svc
+		case "configMap":
+			var cm KubernetesObject_ConfigMap
+			if err = json.Unmarshal(rawKo.ObjectBytes, &cm); err != nil {
+				return err
+			}
+			ko.Object = &cm
+		default:
+			return errors.New("could not determine isKubernetesObject_Object type for unmarshaling")
+		}
+	}
+
+	return nil
+}
+
+func (kri *KubernetesResourceInfo) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" || string(data) == `""` {
+		return nil
+	}
+
+	var rawKri rawKubernetesResourceInfo
+	err := json.Unmarshal(data, &rawKri)
+	if err != nil {
+		return err
+	}
+
+	kri.ObjectMeta = rawKri.ObjectMeta
+
+	var mapObj map[string]interface{}
+	if err = json.Unmarshal(*rawKri.InfoBytes, &mapObj); err != nil {
+		return err
+	}
+
+	for k := range mapObj {
+		switch k {
+		case "podInfo":
+			var pi KubernetesResourceInfo_PodInfo
+			if err = json.Unmarshal(*rawKri.InfoBytes, &pi); err != nil {
+				return err
+			}
+			kri.Info = &pi
+		case "ingressInfo":
+			var ing KubernetesResourceInfo_IngressInfo
+			if err = json.Unmarshal(*rawKri.InfoBytes, &ing); err != nil {
+				return err
+			}
+			kri.Info = &ing
+		default:
+			return errors.New("could not determine isKubernetesResourceInfo_Info type for unmarshaling")
 		}
 	}
 
