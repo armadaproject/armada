@@ -42,6 +42,9 @@ type KerberosAuthService struct {
 	groupNameSuffix string
 	settings        []func(*service.Settings)
 	groupLookup     groups.GroupLookup
+
+	// This allows tests to replace the SPNEGO service with a mocked one.
+	newSpnegoSvc func(*keytab.Keytab, ...func(*service.Settings)) SPNEGOService
 }
 
 func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, groupLookup groups.GroupLookup) (*KerberosAuthService, error) {
@@ -61,11 +64,18 @@ func NewKerberosAuthService(config *configuration.KerberosAuthenticationConfig, 
 		groupNameSuffix: config.GroupNameSuffix,
 		settings:        settings,
 		groupLookup:     groupLookup,
+		newSpnegoSvc: func(kt *keytab.Keytab, options ...func(*service.Settings)) SPNEGOService {
+			return spnego.SPNEGOService(kt, options...)
+		},
 	}, nil
 }
 
 func (authService *KerberosAuthService) Name() string {
 	return "SPNEGO Kerberos"
+}
+
+type SPNEGOService interface {
+	AcceptSecContext(gssapi.ContextToken) (bool, context.Context, gssapi.Status)
 }
 
 func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Principal, error) {
@@ -106,7 +116,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 			settings = append([]func(*service.Settings){service.ClientAddress(clientHost)}, settings...)
 		}
 	}
-	svc := spnego.SPNEGOService(authService.kt, settings...)
+	svc := authService.newSpnegoSvc(authService.kt, settings...)
 
 	authenticated, credentialsContext, st := svc.AcceptSecContext(&token)
 	if st.Code != gssapi.StatusComplete && st.Code != gssapi.StatusContinueNeeded {
