@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -196,20 +198,22 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 		if row.JobId.Valid {
 			jobId := row.JobId.String
 			if _, ok := jobMap[jobId]; !ok {
-				state := ""
+				var state, stateDuration string
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
 				}
+				stateDuration = determineJobStateDuration(row)
 				job, err := makeJobFromRow(row)
 				if err != nil {
 					return nil, err
 				}
 				jobMap[jobId] = &lookout.JobInfo{
-					Job:       job,
-					Cancelled: ParseNullTime(row.Cancelled),
-					JobState:  state,
-					Runs:      []*lookout.RunInfo{},
-					JobJson:   ParseNullString(row.JobJson),
+					Job:              job,
+					Cancelled:        ParseNullTime(row.Cancelled),
+					JobState:         state,
+					JobStateDuration: stateDuration,
+					Runs:             []*lookout.RunInfo{},
+					JobJson:          ParseNullString(row.JobJson),
 				}
 			}
 
@@ -246,6 +250,25 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 			return jobInfos[i].Job.Id < jobInfos[j].Job.Id
 		}
 	})
+}
+
+func determineJobStateDuration(row *JobRow) string {
+	if row == nil {
+		return ""
+	}
+	var timeStamp *time.Time
+	if row.Finished.Valid {
+		timeStamp = &row.Finished.Time
+	} else if row.Started.Valid {
+		timeStamp = &row.Started.Time
+	} else if row.Created.Valid {
+		timeStamp = &row.Created.Time
+	} else {
+		return ""
+	}
+
+	timeInState := time.Now().Sub(*timeStamp)
+	return duration.ShortHumanDuration(timeInState)
 }
 
 func makeJobFromRow(row *JobRow) (*api.Job, error) {
