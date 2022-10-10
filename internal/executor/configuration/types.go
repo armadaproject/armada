@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"google.golang.org/grpc/keepalive"
 	"time"
 
 	"github.com/G-Research/armada/internal/common"
@@ -87,6 +88,7 @@ type ExecutorConfiguration struct {
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
 	Client        ClientConfiguration
+	GRPC          keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration
