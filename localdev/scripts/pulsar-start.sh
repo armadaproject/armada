@@ -3,7 +3,7 @@
 
 # Create the partitioned topic used by Armada.
 # pulsar-admin errors if the Pulsar server hasn't started up yet.
-sleep 10 
+sleep 30
 
 /pulsar/bin/pulsar-admin tenants create armada
 /pulsar/bin/pulsar-admin namespaces create armada/armada
