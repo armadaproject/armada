@@ -75,6 +75,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 		_ = grpc.SetHeader(ctx, metadata.Pairs(spnego.HTTPHeaderAuthResponse, spnego.HTTPHeaderAuthResponseValueKey))
 		return nil, &armadaerrors.ErrMissingCredentials{
 			AuthService: authService.Name(),
+			Message:     err.Error(),
 		}
 	}
 
@@ -82,7 +83,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	if err != nil {
 		log.Errorf("SPNEGO invalid token, could not decode: %v", err)
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			Message:     "SPNEGO invalid token",
+			Message:     "SPNEGO invalid token, could not decode",
 			AuthService: authService.Name(),
 		}
 	}
@@ -92,7 +93,7 @@ func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Princ
 	if err != nil {
 		log.Errorf("SPNEGO invalid token, could not unmarshal : %v", err)
 		return nil, &armadaerrors.ErrInvalidCredentials{
-			Message:     "SPNEGO invalid token",
+			Message:     "SPNEGO invalid token, could not unmarshal",
 			AuthService: authService.Name(),
 		}
 	}
