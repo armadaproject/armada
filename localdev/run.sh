@@ -1,30 +1,25 @@
 #! /bin/bash
 INFRA_SVCS="redis postgres pulsar stan"
 ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservice"
-START_SVCS=""
 
 # make the dir containing this file the CWD
 cd "$(dirname "$0")"
 
 # start the kubernetes cluster if needed
-kind get clusters | grep demo-a
+kind get clusters | grep demo-a &> /dev/null
 if [ $? -ne 0 ];
 then
 kind create cluster --name demo-a --config ../docs/dev/kind.yaml
 fi
 
+# see if pulsar is already up, in which case we don't need to sleep
+SLEEP_TIME=0
+docker-compose ps | grep -E "pulsar.+running" &> /dev/null
+if [ $? -ne 0 ];
+then
+    echo "Pausing for pulsar start up ..."
+    SLEEP_TIME=30
+fi
 docker-compose up -d $INFRA_SVCS
-
-sleep 30
-
-
-# Start all services mentioned in the compose file we use, with the
-# exception of the service(s) given as arguments to this script
-for SVC in $ARMADA_SVCS ; do
-  echo $* | grep -q $SVC
-  if [ $? -ne 0 ] ; then
-    START_SVCS="$START_SVCS $SVC"
-  fi
-done
-
-docker-compose up -d $START_SVCS
+sleep $SLEEP_TIME
+docker-compose up -d $ARMADA_SVCS
