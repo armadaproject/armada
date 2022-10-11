@@ -20,7 +20,7 @@ services:
       - "5432:5432"
 
   pulsar:
-    image: ${PULSAR_IMAGE:-"apachepulsar/pulsar:2.10.0"}
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
     container_name: pulsar
     volumes:
       - ./scripts/pulsar-start.sh:/pulsar-start.sh
