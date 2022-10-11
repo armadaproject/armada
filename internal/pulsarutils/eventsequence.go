@@ -70,14 +70,25 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 		)
 	}
 
-	// Flush queued messages and wait until persisted.
-	err := producer.Flush()
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	// Flush queued messages. Run asynch to ensure we respect context timeout.
+	flushCh := make(chan error)
+	go func() {
+		err := producer.Flush()
+		if err != nil {
+			flushCh <- errors.WithStack(err)
+		}
+		close(flushCh)
+	}()
 
-	// Collect any errors experienced by the async send and return.
+	// Collect any errors experienced by the async flush/send and return.
 	var result *multierror.Error
+	select {
+	case <-ctx.Done():
+		result = multierror.Append(result, ctx.Err())
+		return result.ErrorOrNil()
+	case err := <-flushCh:
+		result = multierror.Append(result, err)
+	}
 	for i := range sequences {
 		select {
 		case <-ctx.Done():
