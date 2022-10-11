@@ -12,6 +12,14 @@ then
 kind create cluster --name demo-a --config ../docs/dev/kind.yaml
 fi
 
+
+# select arm64 image for pulsar if needed
+uname -a | grep "arm64" &> /dev/null
+if [ $? -eq 0 ];
+then
+    export PULSAR_IMAGE="kezhenxu94/pulsar"
+fi
+
 # see if pulsar is already up, in which case we don't need to sleep
 SLEEP_TIME=0
 docker-compose ps | grep -E "pulsar.+running" &> /dev/null
@@ -20,6 +28,7 @@ then
     echo "Pausing for pulsar start up ..."
     SLEEP_TIME=30
 fi
+
 docker-compose up -d $INFRA_SVCS
 sleep $SLEEP_TIME
 docker-compose up -d $ARMADA_SVCS
