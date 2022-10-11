@@ -7,9 +7,8 @@ import (
 
 	"github.com/coreos/go-oidc"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 )
@@ -38,20 +37,33 @@ func NewOpenIdAuthService(verifier *oidc.IDTokenVerifier, groupsClaim string) *O
 	return &OpenIdAuthService{verifier, groupsClaim}
 }
 
+func (authService *OpenIdAuthService) Name() string {
+	return "OIDC"
+}
+
 func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
 	if err != nil {
-		return nil, missingCredentials
+		return nil, &armadaerrors.ErrMissingCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	verifiedToken, err := authService.verifier.Verify(ctx, token)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, err.Error())
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	rawClaims, err := extractRawClaims(verifiedToken)
 	if err != nil {
-		return nil, err
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	return NewStaticPrincipalWithScopesAndClaims(

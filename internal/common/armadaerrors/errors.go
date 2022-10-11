@@ -27,12 +27,12 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 )
 
-// ErrNoPermission represents an error that occurs when a client tries to perform some action
+// ErrUnauthorized represents an error that occurs when a client tries to perform some action
 // through the gRPC API for which it does not have permissions.
 //
 // It may be necessary populate the Action field by recovering this error at the gRPC endpoint (using errors.As)
 // and updating the field in-place.
-type ErrNoPermission struct {
+type ErrUnauthorized struct {
 	// Principal that attempted the action
 	Principal string
 	// The missing permission
@@ -43,7 +43,7 @@ type ErrNoPermission struct {
 	Message string
 }
 
-func (err *ErrNoPermission) Error() (s string) {
+func (err *ErrUnauthorized) Error() (s string) {
 	if err.Action != "" {
 		s = fmt.Sprintf("%s lacks permission %s required for action %s", err.Principal, err.Permission, err.Action)
 	} else {
@@ -385,6 +385,40 @@ func IsNetworkError(err error) bool {
 	return false
 }
 
+// Add the action to the error if possible.
+func addAction(err error, action string) {
+	{
+		var e *ErrUnauthenticated
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrUnauthorized
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrInternalAuthServiceError
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrMissingCredentials
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrInvalidCredentials
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+}
+
 // UnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
 // and returns it as a gRPC status error. It also limits the number of characters returned.
 //
@@ -403,6 +437,10 @@ func UnaryServerInterceptor(maxErrorSize uint) grpc.UnaryServerInterceptor {
 		// Otherwise, get the cause and convert to a gRPC status error
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
+
+		if info != nil {
+			addAction(err, info.FullMethod)
+		}
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
@@ -436,6 +474,10 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 		// Otherwise, get the cause and convert to a gRPC status error
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
+
+		if info != nil {
+			addAction(err, info.FullMethod)
+		}
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
@@ -547,4 +589,131 @@ func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
 		return nil
 	}
 	return result
+}
+
+// ErrUnauthenticated represents an error that occurs when a client tries to
+// perform some action through the gRPC API for which it cannot authenticate.
+//
+// It may be necessary populate the Action field by recovering this error at
+// the gRPC endpoint (using errors.As) and updating the field in-place.
+type ErrUnauthenticated struct {
+	// The action/method that was trying to be performed.
+	Action string
+	// Optional message included with the error message
+	Message string
+}
+
+func (err *ErrUnauthenticated) GRPCStatus() *status.Status {
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrUnauthenticated) Error() (s string) {
+	s = "Request could not be authenticated"
+	if err.Action != "" {
+		s += fmt.Sprintf(" for action %q", err.Action)
+	}
+	if err.Message != "" {
+		s += fmt.Sprintf(": %s", err.Message)
+	}
+	return
+}
+
+// ErrInvalidCredentials is returned when a given set of credentials cannot
+// be authenticated by some authentication method/service.
+type ErrInvalidCredentials struct {
+	// The username half of the invalid credentials, if available.
+	Username string
+	// The authorization service which attempted to authenticate the user.
+	AuthService string
+	// Optional message included with the error message
+	Message string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrInvalidCredentials) GRPCStatus() *status.Status {
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrInvalidCredentials) Error() (s string) {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Invalid credentials presented",
+		err.Username,
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+// ErrMissingCredentials is returned when a given set of credentials are
+// missing either due to omission or they cannot otherwise be decoded.
+type ErrMissingCredentials struct {
+	// Optional message included with the error message.
+	Message string
+	// The authorization service used.
+	AuthService string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrMissingCredentials) GRPCStatus() *status.Status {
+	// return codes.InvalidArgument
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrMissingCredentials) Error() (s string) {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Missing credentials",
+		"",
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+// ErrInternalAuthServiceError is returned when an auth service encounters
+// an internal error that is not directly related to the supplied input/
+// credentials.
+type ErrInternalAuthServiceError struct {
+	// Optional message included with the error message.
+	Message string
+	// The authorization service used.
+	AuthService string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrInternalAuthServiceError) GRPCStatus() *status.Status {
+	// TODO(clif) Whats the right code to return here or should we give the
+	// auth service the opportunity to set it?
+	return status.New(codes.Unavailable, err.Error())
+}
+
+func (err *ErrInternalAuthServiceError) Error() string {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Encountered an internal error",
+		"",
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
+	username string,
+	authServiceName string,
+	action string,
+	auxMessage string,
+) (s string) {
+	s = mainMessage
+	if username != "" {
+		s += fmt.Sprintf(" for user %q", username)
+	}
+	if authServiceName != "" {
+		s += fmt.Sprintf(" via auth service %q", authServiceName)
+	}
+	if action != "" {
+		s += fmt.Sprintf(" while attempting %q", action)
+	}
+	if auxMessage != "" {
+		s += fmt.Sprintf(": %s", auxMessage)
+	}
+	return
 }
