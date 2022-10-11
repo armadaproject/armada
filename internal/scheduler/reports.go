@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -94,14 +95,22 @@ type JobSchedulingReport struct {
 	Timestamp time.Time
 	// Id of the job this pod corresponds to.
 	JobId uuid.UUID
+	// Job spec.
+	Job *api.Job
 	// Executor this job was assigned to.
 	// If empty, the job could not be scheduled,
 	// and the UnschedulableReason is populated.
 	ExecutorId string
+	// Resources assigned to this queue during this invocation of the scheduler,
+	// if the job were to be scheduled.
+	RoundQueueResources schedulerobjects.ResourceList
+	// Total Resources assigned to this queue,
+	// if the job were to be scheduled.
+	TotalQueueResources schedulerobjects.ResourceList
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string
-	// Reports for the individual pods that make up the job.
+	// Scheduling reports for the individual pods that make up the job.
 	PodSchedulingReports []*PodSchedulingReport
 }
 

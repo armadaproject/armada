@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,12 +39,29 @@ type NodeDb struct {
 	// Map from node id to the set of jobs that have resourced assigned to them on that node.
 	// Used to clear AssignedByNode once jobs start running.
 	JobsByNode map[string]map[uuid.UUID]interface{}
+	// Mutex to control access to AssignedByNode, NodesByJob, and JobsByNode.
+	mu sync.Mutex
+}
+
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+	report, err := nodeDb.SelectNodeForPod(jobId, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if report.Node != nil {
+		err = nodeDb.BindNodeToPod(jobId, req, report.Node)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return report, nil
 }
 
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
-// TODO: Maybe PodToNode.
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -88,7 +106,9 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 			break
 		}
 		// TODO: Use the score when selecting a node.
+		nodeDb.mu.Lock()
 		matches, score, reason, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
+		nodeDb.mu.Unlock()
 		fmt.Printf("score is  %d, matches is %v\n", score, matches)
 		if err != nil {
 			return nil, err
@@ -98,34 +118,6 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 			continue
 		}
 
-		// Record which jobs have resources assigned to them on each node.
-		if m, ok := nodeDb.JobsByNode[node.Id]; ok {
-			m[jobId] = true
-		} else {
-			nodeDb.JobsByNode[node.Id] = map[uuid.UUID]interface{}{jobId: true}
-		}
-
-		// Record which nodes each job has resources assigned to on.
-		if m, ok := nodeDb.NodesByJob[jobId]; ok {
-			m[node.Id] = true
-		} else {
-			nodeDb.NodesByJob[jobId] = map[string]interface{}{node.Id: true}
-		}
-
-		// Mark these resources as used.
-		// TODO: Avoid unnecessary copy of req.ResourceRequirements.Requests.
-		rs := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-		for resource, quantity := range req.ResourceRequirements.Requests {
-			rs.Resources[string(resource)] = quantity
-		}
-		if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
-			assigned.MarkUsed(req.Priority, rs)
-		} else {
-			assigned = schedulerobjects.NewAssignedByPriorityAndResourceType(nodeDb.priorities)
-			assigned.MarkUsed(req.Priority, rs)
-			nodeDb.AssignedByNode[node.Id] = assigned
-		}
-
 		report.Node = node
 		report.Score = score
 		return report, nil
@@ -133,7 +125,40 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 	return report, nil
 }
 
-// func (nodeDb *NodeDb) BindPodToNode(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) BindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+	nodeDb.mu.Lock()
+	defer nodeDb.mu.Unlock()
+
+	// Record which jobs have resources assigned to them on each node.
+	if m, ok := nodeDb.JobsByNode[node.Id]; ok {
+		m[jobId] = true
+	} else {
+		nodeDb.JobsByNode[node.Id] = map[uuid.UUID]interface{}{jobId: true}
+	}
+
+	// Record which nodes each job has resources assigned to on.
+	if m, ok := nodeDb.NodesByJob[jobId]; ok {
+		m[node.Id] = true
+	} else {
+		nodeDb.NodesByJob[jobId] = map[string]interface{}{node.Id: true}
+	}
+
+	// Mark these resources as used.
+	// TODO: Avoid unnecessary copy of req.ResourceRequirements.Requests.
+	rs := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
+	for resource, quantity := range req.ResourceRequirements.Requests {
+		rs.Resources[string(resource)] = quantity
+	}
+	if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
+		assigned.MarkUsed(req.Priority, rs)
+	} else {
+		assigned = schedulerobjects.NewAssignedByPriorityAndResourceType(nodeDb.priorities)
+		assigned.MarkUsed(req.Priority, rs)
+		nodeDb.AssignedByNode[node.Id] = assigned
+	}
+
+	return nil
+}
 
 // NodeTypesMatchingPod returns a slice composed of all node types
 // a given pod could be scheduled on, i.e., all node types with

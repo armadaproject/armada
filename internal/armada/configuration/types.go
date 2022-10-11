@@ -104,6 +104,9 @@ type SchedulingConfig struct {
 	PoolResourceScarcity                      map[string]map[string]float64
 	MaxPodSpecSizeBytes                       uint
 	MinJobResources                           v1.ResourceList
+	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
+	//  for which the scheduler creates indexes for efficient lookup.
+	IndexedResources []string
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -112,6 +115,7 @@ type NewSchedulerConfig struct {
 	Enabled bool
 }
 
+// TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
 	// If true, Armada will:
 	// 1. Validate that submitted pods specify no or a valid priority class.

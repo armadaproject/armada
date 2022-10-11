@@ -577,9 +577,9 @@ func benchmarkSelectAndBindNodeToPod(
 		return
 	}
 
-	smallCpuJob := testSmallCpuJob()
-	largeCpuJob := testLargeCpuJob()
-	gpuJob := testGpuJob()
+	smallCpuJob := testSmallCpuJob(0)
+	largeCpuJob := testLargeCpuJob(0)
+	gpuJob := testGpuJob(0)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -625,41 +625,41 @@ func benchmarkSelectAndBindNodeToPod(
 	}
 }
 
-func testNSmallCpuJob(n int) []*schedulerobjects.PodRequirements {
+func testNSmallCpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testSmallCpuJob()
+		rv[i] = testSmallCpuJob(priority)
 	}
 	return rv
 }
 
-func testNLargeCpuJob(n int) []*schedulerobjects.PodRequirements {
+func testNLargeCpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testLargeCpuJob()
+		rv[i] = testLargeCpuJob(priority)
 	}
 	return rv
 }
 
-func testNGPUJob(n int) []*schedulerobjects.PodRequirements {
+func testNGPUJob(priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testGpuJob()
+		rv[i] = testGpuJob(priority)
 	}
 	return rv
 }
 
-func testNA100Job(n int) []*schedulerobjects.PodRequirements {
+func testNA100Job(priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testA100Job()
+		rv[i] = testA100Job(priority)
 	}
 	return rv
 }
 
-func testSmallCpuJob() *schedulerobjects.PodRequirements {
+func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority: 0,
+		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("1"),
@@ -669,9 +669,9 @@ func testSmallCpuJob() *schedulerobjects.PodRequirements {
 	}
 }
 
-func testLargeCpuJob() *schedulerobjects.PodRequirements {
+func testLargeCpuJob(priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority: 0,
+		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("32"),
@@ -687,9 +687,9 @@ func testLargeCpuJob() *schedulerobjects.PodRequirements {
 	}
 }
 
-func testGpuJob() *schedulerobjects.PodRequirements {
+func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority: 0,
+		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("4"),
@@ -706,9 +706,9 @@ func testGpuJob() *schedulerobjects.PodRequirements {
 	}
 }
 
-func testA100Job() *schedulerobjects.PodRequirements {
+func testA100Job(priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority: 0,
+		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
 				"cpu":    resource.MustParse("4"),
