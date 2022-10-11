@@ -27,6 +27,7 @@ const (
 	jobClusterMapKey   = "Job:ClusterId" //                    - map jobId -> cluster
 	jobRetriesPrefix   = "Job:Retries:"  // {jobId}            - number of retry attempts
 	jobClientIdPrefix  = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
+	jobExistsPrefix    = "Job:added"     // {jobId}            - flag to say we've added the job
 	keySeparator       = ":"
 )
 
@@ -95,6 +96,7 @@ func NewRedisJobRepository(
 type SubmitJobResult struct {
 	JobId             string
 	SubmittedJob      *api.Job
+	AlreadyProcessed  bool
 	DuplicateDetected bool
 	Error             error
 }
@@ -122,11 +124,14 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 	result := make([]*SubmitJobResult, 0, len(jobs))
 	for i, saveResult := range saveResults {
 		resultJobId, err := saveResult.String()
+		alreadyProcessed := resultJobId == "-1"
+		duplicatedDetected := !alreadyProcessed && resultJobId != jobs[i].Id
 		submitJobResult := &SubmitJobResult{
 			JobId:             resultJobId,
 			SubmittedJob:      jobs[i],
 			Error:             err,
-			DuplicateDetected: resultJobId != jobs[i].Id,
+			DuplicateDetected: duplicatedDetected,
+			AlreadyProcessed:  alreadyProcessed,
 		}
 		result = append(result, submitJobResult)
 	}
@@ -1050,6 +1055,7 @@ func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 			jobSetPrefix + job.JobSetId,
 			jobSetPrefix + job.Queue + keySeparator + job.JobSetId,
 			jobClientIdPrefix + job.Queue + keySeparator + job.ClientId,
+			jobExistsPrefix + job.Id,
 		},
 		job.Id, job.Priority, *jobData, job.ClientId)
 }
@@ -1062,11 +1068,18 @@ local jobKey = KEYS[2]
 local jobSetKey = KEYS[3]
 local jobSetQueueKey = KEYS[4]
 local jobClientIdKey = KEYS[5]
+local jobExistsKey = KEYS[6]
 
 local jobId = ARGV[1]
 local jobPriority = ARGV[2]
 local jobData = ARGV[3]
 local clientId = ARGV[4]
+
+
+local jobExists = redis.call('EXISTS', jobExistsKey, 'EX', 604800)
+if jobExists == 1 then 
+	return '-1'
+end
 
 if clientId ~= '' then
 	local existingJobId = redis.call('GET', jobClientIdKey)
@@ -1076,6 +1089,7 @@ if clientId ~= '' then
 	redis.call('SET', jobClientIdKey, jobId, 'EX', 14400)
 end
 
+redis.call('SET', jobExistsKey, '1')
 redis.call('SET', jobKey, jobData)
 redis.call('SADD', jobSetKey, jobId)
 redis.call('SADD', jobSetQueueKey, jobId)

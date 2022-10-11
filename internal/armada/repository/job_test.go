@@ -779,6 +779,21 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 	})
 }
 
+func TestUpdateJobs_AlreadyProcessed(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		queue := "test-queue"
+		jobId := util.NewULID()
+		submit1 := addTestJobInner(t, r, jobId, queue, "", 1, v1.ResourceRequirements{}, nil)
+		assert.NoError(t, submit1.Error)
+		assert.False(t, submit1.AlreadyProcessed)
+		assert.Equal(t, jobId, submit1.JobId)
+
+		submit2 := addTestJobInner(t, r, jobId, queue, "", 1, v1.ResourceRequirements{}, nil)
+		assert.NoError(t, submit2.Error)
+		assert.True(t, submit2.AlreadyProcessed)
+	})
+}
+
 func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_SameBatch(t *testing.T) {
 	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 10)
 }
@@ -838,24 +853,31 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
-	return addTestJobInner(t, r, queue, clientId, 1, v1.ResourceRequirements{
+	result := addTestJobInner(t, r, "", queue, clientId, 1, v1.ResourceRequirements{
 		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 	}, []v1.Toleration{})
+	result.SubmittedJob.Id = result.JobId // Update job ids for tests to be able to test the duplicate d
+	return result.SubmittedJob
 }
 
 func addTestJobInner(
 	t *testing.T,
 	r *RedisJobRepository,
+	id string,
 	queue string,
 	clientId string,
 	priority float64,
 	requirements v1.ResourceRequirements,
 	tolerations []v1.Toleration,
-) *api.Job {
+) *SubmitJobResult {
+
+	if id == "" {
+		id = util.NewULID()
+	}
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
-		Id:       util.NewULID(),
+		Id:       id,
 		ClientId: clientId,
 		Queue:    queue,
 		JobSetId: "set1",
@@ -876,11 +898,10 @@ func addTestJobInner(
 
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
-	for i, result := range results {
+	for _, result := range results {
 		assert.Empty(t, result.Error)
-		jobs[i].Id = result.JobId // Update job ids for tests to be able to test the duplicate detection
 	}
-	return jobs[0]
+	return results[0]
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
