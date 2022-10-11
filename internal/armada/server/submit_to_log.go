@@ -540,7 +540,7 @@ func (srv *PulsarSubmitServer) Authorize(
 	}
 	if !srv.Permissions.UserHasPermission(ctx, anyPerm) {
 		if !principalHasQueuePermissions(principal, q, perm) {
-			err = &armadaerrors.ErrNoPermission{
+			err = &armadaerrors.ErrUnauthorized{
 				Principal:  principal.GetName(),
 				Permission: string(perm),
 				Action:     string(perm) + " for queue " + q.Name,
