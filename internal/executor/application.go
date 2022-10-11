@@ -189,10 +189,13 @@ func StartUpWithContext(
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
 	grpc_prometheus.EnableClientHandlingTimeHistogram()
-	return client.CreateApiConnectionWithCallOptions(&config.ApiConnection,
+	return client.CreateApiConnectionWithCallOptions(
+		&config.ApiConnection,
 		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithKeepaliveParams(config.GRPC),
+	)
 }
 
 func validateConfig(config configuration.ExecutorConfiguration) error {
