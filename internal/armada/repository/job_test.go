@@ -871,7 +871,6 @@ func addTestJobInner(
 	requirements v1.ResourceRequirements,
 	tolerations []v1.Toleration,
 ) *SubmitJobResult {
-
 	if id == "" {
 		id = util.NewULID()
 	}

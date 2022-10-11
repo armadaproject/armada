@@ -391,7 +391,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 				reason: fmt.Sprintf("Failed to save job in Armada: %s", submissionResult.Error.Error()),
 			})
 		} else if submissionResult.AlreadyProcessed {
-			log.Warn("Already Processed job id %s, this job submission will be discarded", submissionResult.JobId)
+			log.Warnf("Already Processed job id %s, this job submission will be discarded", submissionResult.JobId)
 		} else if submissionResult.DuplicateDetected {
 			doubleSubmits = append(doubleSubmits, submissionResult)
 		} else {
