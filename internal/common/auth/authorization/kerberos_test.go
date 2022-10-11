@@ -116,7 +116,7 @@ func getContextWithEncodedKerberosToken(rawToken []byte) context.Context {
 	return nMD.ToIncoming(context.Background())
 }
 
-func TestKerberosAuthenticate(t *testing.T) {
+func TestKerberosAuthenticateMissingCreds(t *testing.T) {
 	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		assert.NotNil(t, kAuthSvc)
 
@@ -125,25 +125,37 @@ func TestKerberosAuthenticate(t *testing.T) {
 		assert.Nil(t, principal)
 		missingCredsErr := &armadaerrors.ErrMissingCredentials{}
 		assert.ErrorAs(t, err, &missingCredsErr)
+	})
+}
 
+func TestKerberosAuthenticateBadHeaderToken(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// Improperly formatted token in header
 		nMD := metautils.NiceMD{}
 		nMD.Set(
 			"authorization",
 			spnego.HTTPHeaderAuthResponseValueKey)
 
-		principal, err = kAuthSvc.Authenticate(nMD.ToIncoming(context.Background()))
+		principal, err := kAuthSvc.Authenticate(nMD.ToIncoming(context.Background()))
 		assert.Nil(t, principal)
-		missingCredsErr = &armadaerrors.ErrMissingCredentials{}
+		missingCredsErr := &armadaerrors.ErrMissingCredentials{}
 		assert.ErrorAs(t, err, &missingCredsErr)
+	})
+}
 
+func TestKerberosAuthenticateUnmarshalTokenError(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// Unmarshal error
-		principal, err = kAuthSvc.Authenticate(
+		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken([]byte("")))
 		assert.Nil(t, principal)
 		invalidCredsErr := &armadaerrors.ErrInvalidCredentials{}
 		assert.ErrorAs(t, err, &invalidCredsErr)
+	})
+}
 
+func TestKerberosAuthenticateSPNEGOValidationError(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// SPNEGO validation error
 		kAuthSvc.newSpnegoSvc = func(kt *keytab.Keytab, options ...func(*service.Settings)) SPNEGOService {
 			return &mockSPNEGOService{
@@ -158,12 +170,16 @@ func TestKerberosAuthenticate(t *testing.T) {
 		}
 		token, err := hex.DecodeString(testGSSAPIInit)
 		assert.Nil(t, err)
-		principal, err = kAuthSvc.Authenticate(
+		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.Nil(t, principal)
-		invalidCredsErr = &armadaerrors.ErrInvalidCredentials{}
+		invalidCredsErr := &armadaerrors.ErrInvalidCredentials{}
 		assert.ErrorAs(t, err, &invalidCredsErr)
+	})
+}
 
+func TestKerberosAuthenticateStatusContinueError(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// Status continue error
 		kAuthSvc.newSpnegoSvc = func(kt *keytab.Keytab, options ...func(*service.Settings)) SPNEGOService {
 			return &mockSPNEGOService{
@@ -176,14 +192,18 @@ func TestKerberosAuthenticate(t *testing.T) {
 				},
 			}
 		}
-		token, err = hex.DecodeString(testGSSAPIInit)
+		token, err := hex.DecodeString(testGSSAPIInit)
 		assert.Nil(t, err)
-		principal, err = kAuthSvc.Authenticate(
+		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.Nil(t, principal)
-		invalidCredsErr = &armadaerrors.ErrInvalidCredentials{}
+		invalidCredsErr := &armadaerrors.ErrInvalidCredentials{}
 		assert.ErrorAs(t, err, &invalidCredsErr)
+	})
+}
 
+func TestKerberosAuthenticateFailedToReadADCreds(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// Failed to read ad creds error
 		creds := credentials.New(testUser, testRealm)
 		credContext := context.Background()
@@ -200,23 +220,27 @@ func TestKerberosAuthenticate(t *testing.T) {
 				},
 			}
 		}
-		token, err = hex.DecodeString(testGSSAPIInit)
+		token, err := hex.DecodeString(testGSSAPIInit)
 		assert.Nil(t, err)
-		principal, err = kAuthSvc.Authenticate(
+		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.Nil(t, principal)
-		invalidCredsErr = &armadaerrors.ErrInvalidCredentials{}
+		invalidCredsErr := &armadaerrors.ErrInvalidCredentials{}
 		assert.ErrorAs(t, err, &invalidCredsErr)
+	})
+}
 
+func TestKerberosAuthenticateSuccess(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// Success auth
-		creds = credentials.New(testUser, testRealm)
+		creds := credentials.New(testUser, testRealm)
 
 		adCreds := credentials.ADCredentials{
 			EffectiveName:       "testEffectiveName",
 			GroupMembershipSIDs: []string{"testSID"},
 		}
 		creds.SetAttribute(credentials.AttributeKeyADCredentials, adCreds)
-		credContext = context.Background()
+		credContext := context.Background()
 		credContext = context.WithValue(credContext, ctxCredentials, creds)
 
 		kAuthSvc.newSpnegoSvc = func(kt *keytab.Keytab, options ...func(*service.Settings)) SPNEGOService {
@@ -231,22 +255,26 @@ func TestKerberosAuthenticate(t *testing.T) {
 			}
 		}
 
-		token, err = hex.DecodeString(testGSSAPIInit)
+		token, err := hex.DecodeString(testGSSAPIInit)
 		assert.Nil(t, err)
-		principal, err = kAuthSvc.Authenticate(
+		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.NotNil(t, principal)
 		assert.NoError(t, err)
+	})
+}
 
+func TestKerberosAuthenticateAuthFailure(t *testing.T) {
+	WithTestKerberosAuthService(func(kAuthSvc *KerberosAuthService) {
 		// Failed auth due to invalid creds
-		creds = credentials.New(testUser, testRealm)
+		creds := credentials.New(testUser, testRealm)
 
-		adCreds = credentials.ADCredentials{
+		adCreds := credentials.ADCredentials{
 			EffectiveName:       "testEffectiveName",
 			GroupMembershipSIDs: []string{"testSID"},
 		}
 		creds.SetAttribute(credentials.AttributeKeyADCredentials, adCreds)
-		credContext = context.Background()
+		credContext := context.Background()
 		credContext = context.WithValue(credContext, ctxCredentials, creds)
 
 		kAuthSvc.newSpnegoSvc = func(kt *keytab.Keytab, options ...func(*service.Settings)) SPNEGOService {
@@ -256,17 +284,17 @@ func TestKerberosAuthenticate(t *testing.T) {
 				ctx:    credContext,
 				status: gssapi.Status{
 					Code:    gssapi.StatusComplete,
-					Message: "Auth success",
+					Message: "Auth failed",
 				},
 			}
 		}
 
-		token, err = hex.DecodeString(testGSSAPIInit)
+		token, err := hex.DecodeString(testGSSAPIInit)
 		assert.Nil(t, err)
-		principal, err = kAuthSvc.Authenticate(
+		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.Nil(t, principal)
-		invalidCredsErr = &armadaerrors.ErrInvalidCredentials{}
+		invalidCredsErr := &armadaerrors.ErrInvalidCredentials{}
 		assert.ErrorAs(t, err, &invalidCredsErr)
 	})
 }
