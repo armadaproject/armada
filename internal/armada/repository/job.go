@@ -1089,7 +1089,7 @@ if clientId ~= '' then
 	redis.call('SET', jobClientIdKey, jobId, 'EX', 14400)
 end
 
-redis.call('SET', jobExistsKey, '1')
+redis.call('SET', jobExistsKey, '1', 'EX', 604800)
 redis.call('SET', jobKey, jobData)
 redis.call('SADD', jobSetKey, jobId)
 redis.call('SADD', jobSetQueueKey, jobId)
