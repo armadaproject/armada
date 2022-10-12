@@ -2,8 +2,6 @@ package pulsartest
 
 import (
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
@@ -14,10 +12,6 @@ import (
 )
 
 type App struct {
-	// Out is used to write the output. Default to standard out,
-	// but can be overridden in tests to make assertions on the applications's output.
-	Out io.Writer
-
 	Producer pulsar.Producer
 }
 
@@ -54,7 +48,6 @@ func New(params Params) (*App, error) {
 	}
 
 	app := &App{
-		Out:      os.Stdout,
 		Producer: producer,
 	}
 	return app, nil
