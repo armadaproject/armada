@@ -381,8 +381,6 @@ func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*sched
 	return nodes
 }
 
-// TODO: Test minimum job size.
-// TODO: Test batch size (i.e., max number of consecutive jobs that can't be scheduled).
 func TestSchedule(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
