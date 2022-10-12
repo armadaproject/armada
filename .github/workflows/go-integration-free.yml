@@ -11,7 +11,7 @@ on:
 jobs:
   go-integration-tests:
     if: github.repository_owner != 'G-Research'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
