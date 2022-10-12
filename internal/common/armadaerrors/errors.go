@@ -509,6 +509,12 @@ func IsRetryablePostgresError(err error) bool {
 		_, ok := retryablePostgresErrors[err.Code]
 		return ok
 	}
+
+	// This is quite nasty: the connectError reported by pgx isn't exported so instead we use a string match
+	if strings.Contains(err.Error(), "failed to connect") {
+		return true
+	}
+
 	// Check to see if we have a wrapped network error
 	return IsNetworkError(cause)
 }
