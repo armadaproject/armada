@@ -387,11 +387,39 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		priorityClasses[fmt.Sprintf("%d", priority)] = priority
 	}
 	return configuration.SchedulingConfig{
+		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 1},
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses: priorityClasses,
 		},
 		IndexedResources: []string{"cpu", "memory"},
 	}
+}
+
+func withRoundLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximalClusterFractionToSchedule = limits
+	return config
+}
+
+func withPerQueueLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximalResourceFractionPerQueue = limits
+	return config
+}
+
+func withPerQueueRoundLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximalResourceFractionToSchedulePerQueue = limits
+	return config
+}
+
+func withMaxJobsToSchedule(n int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumJobsToSchedule = n
+	return config
+}
+
+func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+	for _, node := range nodes {
+		schedulerobjects.AvailableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkUsed(p, rs)
+	}
+	return nodes
 }
 
 func TestSchedule(t *testing.T) {
@@ -403,11 +431,364 @@ func TestSchedule(t *testing.T) {
 		ReqsByQueue map[string][]*schedulerobjects.PodRequirements
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorsByQueue map[string]float64
+		// Initial resource usage for all queues.
+		InitialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
 		// For each queue, the indices of jobs expected to be scheduled.
 		ExpectedIndicesByQueue map[string][]int
 		// For each queue, the expected resources assigned to jobs from that queue.
 		ExpectedResourcesByQueue map[string]resourceLimits
-	}{}
+	}{
+		"one queue one job": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 1),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
+		"one queue several jobs": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 32),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": intRange(0, 31),
+			},
+		},
+		"one queue some jobs do not fit": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 33),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": intRange(0, 31),
+			},
+		},
+		"one queue with jobs of varying size": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 32), testNLargeCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": intRange(0, 32),
+			},
+		},
+		"preempt lower-priority jobs": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(1, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			// TODO: We could optimise this by un-leasing preempted jobs.
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": intRange(0, 1),
+			},
+		},
+		"no preemption of higher-priority jobs": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNLargeCpuJob(1, 1), testNSmallCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
+		// TODO: Also try with tainted nodes.
+		"unschedulable jobs do not block schedulable jobs": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 10)...), testNSmallCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 11},
+			},
+		},
+		"max jobs to schedule limit": {
+			SchedulingConfig: withMaxJobsToSchedule(2, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 5),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1},
+			},
+		},
+		"round limits": {
+			SchedulingConfig: withRoundLimits(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 5),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1},
+			},
+		},
+		"round per-queue limits": {
+			SchedulingConfig: withPerQueueRoundLimits(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 5),
+				"B": testNSmallCpuJob(0, 5),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1},
+				"B": {0, 1},
+			},
+		},
+		"overall per-queue limits": {
+			SchedulingConfig: withPerQueueLimits(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 5),
+				"B": testNSmallCpuJob(0, 5),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1},
+				"B": {0, 1},
+			},
+		},
+		"overall per-queue limits with initial usage": {
+			SchedulingConfig: withPerQueueLimits(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 5),
+				"B": testNSmallCpuJob(0, 5),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+				"A": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("0"),
+						},
+					},
+				},
+				"B": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+				},
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1},
+				"B": {0},
+			},
+		},
+		"fairness two queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 32),
+				"B": testNSmallCpuJob(0, 32),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			ExpectedResourcesByQueue: map[string]resourceLimits{
+				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("14")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("18")},
+				),
+				"B": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("14")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("18")},
+				),
+			},
+		},
+		"fairness three queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 32),
+				"B": testNSmallCpuJob(0, 32),
+				"C": testNSmallCpuJob(0, 32),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+			},
+			ExpectedResourcesByQueue: map[string]resourceLimits{
+				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+				),
+				"B": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+				),
+				"C": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+				),
+			},
+		},
+		"weighted fairness two queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 32),
+				"B": testNSmallCpuJob(0, 32),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 2,
+				"B": 1,
+			},
+			ExpectedResourcesByQueue: map[string]resourceLimits{
+				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("19")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("23")},
+				),
+				"B": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("9")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("13")},
+				),
+			},
+		},
+		// // TODO: Ths test fails. Investigate how combining resources, resource scarcity, and our custom asApproximateFloat function are supposed to work.
+		// "fairness two queues with initial usage": {
+		// 	SchedulingConfig: testSchedulingConfig(),
+		// 	Nodes:            testNCpuNode(1, testPriorities),
+		// 	ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+		// 		"A": testNSmallCpuJob(0, 32),
+		// 		"B": testNSmallCpuJob(0, 32),
+		// 	},
+		// 	PriorityFactorsByQueue: map[string]float64{
+		// 		"A": 1,
+		// 		"B": 1,
+		// 	},
+		// 	InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		// 		"A": {
+		// 			0: schedulerobjects.ResourceList{
+		// 				Resources: map[string]resource.Quantity{
+		// 					"cpu": resource.MustParse("100"),
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// 	ExpectedResourcesByQueue: map[string]resourceLimits{
+		// 		"A": newResourceLimits(
+		// 			map[string]resource.Quantity{"cpu": resource.MustParse("4")},
+		// 			map[string]resource.Quantity{"cpu": resource.MustParse("8")},
+		// 		),
+		// 		"B": newResourceLimits(
+		// 			map[string]resource.Quantity{"cpu": resource.MustParse("24")},
+		// 			map[string]resource.Quantity{"cpu": resource.MustParse("28")},
+		// 		),
+		// 	},
+		// },
+		"node with no available capacity": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes: withUsedResources(
+				0,
+				schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("32"),
+					},
+				},
+				testNCpuNode(1, testPriorities),
+			),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 1),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": nil,
+			},
+		},
+		"node with some available capacity": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes: withUsedResources(
+				0,
+				schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("31"),
+					},
+				},
+				testNCpuNode(1, testPriorities),
+			),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 2),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
+		"preempt used resources of lower-priority jobs": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes: withUsedResources(
+				0,
+				schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("32"),
+					},
+				},
+				testNCpuNode(1, testPriorities),
+			),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNLargeCpuJob(1, 1),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
+	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			jobRepository := newMockJobRepository()
@@ -435,23 +816,44 @@ func TestSchedule(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			scheduler.Rand = random
+			scheduler.Rand = util.NewThreadsafeRand(42)
 
-			jobs, err := scheduler.Schedule(context.Background(), nil)
+			jobs, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
 				return
 			}
 
-			if len(tc.ExpectedIndicesByQueue) != 0 {
+			// Check that the right jobs got scheduled.
+			if tc.ExpectedIndicesByQueue != nil {
 				actualScheduledJobsByQueue := jobIdsByQueueFromJobs(jobs)
 				for queue, expected := range expectedByQueue {
-					actual := actualScheduledJobsByQueue[queue]
+					actual, ok := actualScheduledJobsByQueue[queue]
+					if !ok {
+						// Since expected is []string{} if we expect no jobs to be scheduled.
+						actual = make([]string, 0)
+					}
 					assert.Equal(t, expected, actual, "queue %s", queue)
 				}
 			}
 
+			// Check that each queue was allocated the right amount of resources.
+			if tc.ExpectedResourcesByQueue != nil {
+				actualUsageByQueue := usageByQueue(jobs)
+				for queue, usage := range actualUsageByQueue {
+					fmt.Printf("%s usage: %v\n", queue, usage)
+					assertResourceLimitsSatisfied(t, tc.ExpectedResourcesByQueue[queue], usage)
+				}
+			}
 		})
 	}
+}
+
+func intRange(a, b int) []int {
+	rv := make([]int, b-a+1)
+	for i := range rv {
+		rv[i] = a + i
+	}
+	return rv
 }
 
 func TestSchedule_OneJobNew(t *testing.T) {

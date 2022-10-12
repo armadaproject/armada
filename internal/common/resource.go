@@ -166,7 +166,6 @@ func (a ComputeResources) AsFloat() ComputeResourcesFloat {
 }
 
 func QuantityAsFloat64(q resource.Quantity) float64 {
-	q.AsApproximateFloat64()
 	dec := q.AsDec()
 	unscaled := dec.UnscaledBig()
 	scale := dec.Scale()

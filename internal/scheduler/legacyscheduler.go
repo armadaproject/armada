@@ -158,6 +158,21 @@ type QueueCandidateJobsIterator struct {
 	roundQueueResources schedulerobjects.ResourceList
 }
 
+func NewQueueCandidateJobsIterator(ctx context.Context, queue string, initialTotalQueueResources schedulerobjects.ResourceList, scheduler LegacyScheduler) (*QueueCandidateJobsIterator, error) {
+	jobsIterator, err := NewQueuedJobsIterator(ctx, queue, scheduler.JobRepository)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("NewQueueCandidateJobsIterator ", initialTotalQueueResources)
+	return &QueueCandidateJobsIterator{
+		LegacyScheduler:     scheduler,
+		ctx:                 ctx,
+		jobsIterator:        jobsIterator,
+		totalQueueResources: initialTotalQueueResources.DeepCopy(),
+		roundQueueResources: schedulerobjects.ResourceList{},
+	}, nil
+}
+
 // Update the internal state of the iterator to reflect that a job was leased.
 func (it *QueueCandidateJobsIterator) Lease(jobSchedulingReport *JobSchedulingReport) {
 	it.totalQueueResources = jobSchedulingReport.TotalQueueResources
@@ -167,20 +182,6 @@ func (it *QueueCandidateJobsIterator) Lease(jobSchedulingReport *JobSchedulingRe
 			it.NodeDb.BindNodeToPod(jobSchedulingReport.JobId, report.Req, report.Node)
 		}
 	}
-}
-
-func NewQueueCandidateJobsIterator(ctx context.Context, queue string, initialTotalQueueResources schedulerobjects.ResourceList, scheduler LegacyScheduler) (*QueueCandidateJobsIterator, error) {
-	jobsIterator, err := NewQueuedJobsIterator(ctx, queue, scheduler.JobRepository)
-	if err != nil {
-		return nil, err
-	}
-	return &QueueCandidateJobsIterator{
-		LegacyScheduler:     scheduler,
-		ctx:                 ctx,
-		jobsIterator:        jobsIterator,
-		totalQueueResources: initialTotalQueueResources.DeepCopy(),
-		roundQueueResources: schedulerobjects.ResourceList{},
-	}, nil
 }
 
 func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
@@ -240,6 +241,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		q.Add(quantity)
 		roundQueueResources.Resources[resourceType] = q
 	}
+	fmt.Println("totalQueueResources ", totalQueueResources)
 
 	// Check that the job is large enough for this executor.
 	if ok, reason := it.jobIsLargeEnough(jobTotalResourceRequests); !ok {
@@ -414,7 +416,7 @@ func (c *LegacyScheduler) Schedule(
 
 	// Iterator over (potentially) schedulable jobs for each queue.
 	iteratorsByQueue := make(map[string]*QueueCandidateJobsIterator)
-	for queue, _ := range c.PriorityFactorByQueue {
+	for queue := range c.PriorityFactorByQueue {
 		it, err := NewQueueCandidateJobsIterator(ctx, queue, initialUsageByQueue[queue].AggregateByResource(), *c)
 		if err != nil {
 			return nil, err
@@ -440,7 +442,7 @@ func (c *LegacyScheduler) Schedule(
 		// Select a queue to schedule job from.
 		// Queues with fewer resources allocated to them are selected with higher probability.
 		weights := WeightsFromAggregatedUsageByQueue(
-			c.SchedulingConfig.ResourceScarcity,
+			c.SchedulingConfig.ResourceScarcity, // TODO: May want to use util.GetResourceScarcity for pool-specific values.
 			c.PriorityFactorByQueue,
 			totalResourcesByQueue,
 		)
@@ -511,6 +513,7 @@ func (c *LegacyScheduler) Schedule(
 			numJobsToLease++
 			roundResources = roundResourcesCopy
 			totalResourcesByQueue[queue] = report.TotalQueueResources
+			fmt.Println(queue, " totalResourcesByQueue ", totalResourcesByQueue[queue])
 			break
 		}
 	}
@@ -836,8 +839,10 @@ func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, prio
 	rv := make(map[string]float64)
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if rl, ok := aggregateResourceUsageByQueue[queue]; ok {
+			fmt.Println(queue, " denominator ", ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)+1)
 			rv[queue] = priorityFactor / (ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1)
 		} else {
+			fmt.Println(queue, " denominator ", 1)
 			rv[queue] = priorityFactor
 		}
 	}
