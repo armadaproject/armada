@@ -18,15 +18,8 @@ import (
 )
 
 // TODO: Tests we should add:
-// - Three queues. Check that all get about 1/3 of resources.
-// - Two queues with factors 1 and 2. Check that one gets about 1/3 and the other about 2/3.
 // - Scheduling from one queue with taints and toleration. Ensure those can/can't be scheduled accordingly.
-// - One queue where the highest-priority jobs can't be scheduled. That we schedule jobs after those.
 // - Respect QueueLeaseBatchSize (i.e., max number of jobs per queue to load per invocation of the scheduler).
-// - Respect MaximalClusterFractionToSchedule (i.e., max fraction of total cluster resources to schedule per invocation of the scheduler).
-// - Respect MaximalResourceFractionToSchedulePerQueue (i.e., max fraction of total cluster resources to schedule per queue per invocation of the scheduler).
-// - Respect MaximalResourceFractionPerQueue (i.e., max fraction of all resources a single queue can obtain).
-// - Respect MaximumJobsToSchedule (i.e., max number of jobs to schedule per invocation of the scheduler).
 // - Test that we correctly account for init container resource requirements.
 
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
@@ -342,7 +335,7 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		priorityClasses[fmt.Sprintf("%d", priority)] = priority
 	}
 	return configuration.SchedulingConfig{
-		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 1},
+		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses: priorityClasses,
 		},
@@ -472,7 +465,6 @@ func TestSchedule(t *testing.T) {
 				"A": {0},
 			},
 		},
-		// TODO: Also try with tainted nodes.
 		"unschedulable jobs do not block schedulable jobs": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
@@ -648,38 +640,38 @@ func TestSchedule(t *testing.T) {
 				),
 			},
 		},
-		// // TODO: Ths test fails. Investigate how combining resources, resource scarcity, and our custom asApproximateFloat function are supposed to work.
-		// "fairness two queues with initial usage": {
-		// 	SchedulingConfig: testSchedulingConfig(),
-		// 	Nodes:            testNCpuNode(1, testPriorities),
-		// 	ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-		// 		"A": testNSmallCpuJob(0, 32),
-		// 		"B": testNSmallCpuJob(0, 32),
-		// 	},
-		// 	PriorityFactorsByQueue: map[string]float64{
-		// 		"A": 1,
-		// 		"B": 1,
-		// 	},
-		// 	InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
-		// 		"A": {
-		// 			0: schedulerobjects.ResourceList{
-		// 				Resources: map[string]resource.Quantity{
-		// 					"cpu": resource.MustParse("100"),
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// 	ExpectedResourcesByQueue: map[string]resourceLimits{
-		// 		"A": newResourceLimits(
-		// 			map[string]resource.Quantity{"cpu": resource.MustParse("4")},
-		// 			map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-		// 		),
-		// 		"B": newResourceLimits(
-		// 			map[string]resource.Quantity{"cpu": resource.MustParse("24")},
-		// 			map[string]resource.Quantity{"cpu": resource.MustParse("28")},
-		// 		),
-		// 	},
-		// },
+		// TODO: Investigate how combining resources, resource scarcity, and our custom asApproximateFloat function are supposed to work.
+		"fairness two queues with initial usage": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 32),
+				"B": testNSmallCpuJob(0, 32),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+				"A": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("100"),
+						},
+					},
+				},
+			},
+			ExpectedResourcesByQueue: map[string]resourceLimits{
+				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("4")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
+				),
+				"B": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("24")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("28")},
+				),
+			},
+		},
 		"node with no available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResources(
@@ -741,6 +733,19 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0},
+			},
+		},
+		"respect taints": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNTaintedCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
 			},
 		},
 	}
