@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 
+	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
@@ -42,4 +43,9 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 	}
 
 	return response, err
+}
+
+func (s *JobServiceServer) Health(ctx context.Context, _ *types.Empty) (*js.HealthCheckResponse, error) {
+	log.Info("JobService Health Check Successful")
+	return &js.HealthCheckResponse{Status: js.HealthCheckResponse_SERVING}, nil
 }

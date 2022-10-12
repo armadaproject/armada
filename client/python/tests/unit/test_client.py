@@ -5,7 +5,7 @@ import pytest
 
 from server_mock import EventService, SubmitService
 
-from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2
+from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2, health_pb2
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -236,3 +236,11 @@ def test_get_job_events_stream():
 
     for _ in events:
         pass
+
+def test_health_submit():
+    health = tester.submit_health()
+    assert(health.SERVING == health_pb2.HealthCheckResponse.SERVING)
+
+def test_health_event():
+    health = tester.event_health()
+    assert(health.SERVING == health_pb2.HealthCheckResponse.SERVING)

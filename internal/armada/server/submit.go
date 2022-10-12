@@ -82,6 +82,14 @@ func NewSubmitServer(
 	}
 }
 
+func (server *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+	err := checkPermission(server.permissions, ctx, permissions.SubmitJobs)
+	if err != nil {
+		return nil, status.Errorf(codes.Unavailable, "[HealthCheck] error: %s", err)
+	}
+	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	q, err := server.queueRepository.GetQueue(req.Name)
 	var expected *repository.ErrQueueNotFound

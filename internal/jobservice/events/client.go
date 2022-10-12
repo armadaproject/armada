@@ -7,8 +7,11 @@ import (
 
 	"google.golang.org/grpc"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
+	"github.com/gogo/protobuf/types"
 )
 
 // JobEventReader is the interface for retrieving job set event messages
@@ -39,6 +42,7 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 		return nil, err
 	}
 	eventClient := api.NewEventClient(ec.conn)
+
 	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
 	if err != nil {
 		return nil, err
@@ -72,5 +76,12 @@ func (ec *EventClient) ensureApiConnection() error {
 		return connErr
 	}
 	ec.conn = conn
+	eventClient := api.NewEventClient(ec.conn)
+	health, err := eventClient.Health(context.Background(), &types.Empty{})
+	if health.Status != api.HealthCheckResponse_SERVING {
+		log.Error("Health Check Failed for Events with %s", err)
+		return err
+	}
+
 	return nil
 }

@@ -19,3 +19,6 @@ def mock_dummy_mapper_terminal(request):
 class JobService(jobservice_pb2_grpc.JobServiceServicer):
     def GetJobStatus(self, request, context):
         return mock_dummy_mapper_terminal(request)
+    def Health(self, request, context):
+        return jobservice_pb2.HealthCheckResponse(status=jobservice_pb2.HealthCheckResponse.SERVING)
+
