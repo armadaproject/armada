@@ -24,14 +24,6 @@ func TestPublishSequences_SendAsyncErr(t *testing.T) {
 	assert.ErrorIs(t, err, producer.sendAsyncErr)
 }
 
-func TestPublishSequences_FlushErr(t *testing.T) {
-	producer := &mockProducer{
-		flushErr: errors.New("flushErr"),
-	}
-	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}})
-	assert.ErrorIs(t, err, producer.flushErr)
-}
-
 func TestPublishSequences_RespectTimeout(t *testing.T) {
 	producer := &mockProducer{
 		sendAsyncDuration: 1 * time.Second,
