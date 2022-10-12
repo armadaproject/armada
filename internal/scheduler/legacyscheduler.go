@@ -156,6 +156,8 @@ type QueueCandidateJobsIterator struct {
 	totalQueueResources schedulerobjects.ResourceList
 	// Resources assigned to this queue during this invocation of the scheduler.
 	roundQueueResources schedulerobjects.ResourceList
+	// Store reports for each scheduling attempt.
+	schedulingReportsRepository *SchedulingReportsRepository
 }
 
 func NewQueueCandidateJobsIterator(ctx context.Context, queue string, initialTotalQueueResources schedulerobjects.ResourceList, scheduler LegacyScheduler) (*QueueCandidateJobsIterator, error) {
@@ -202,6 +204,11 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 		}
 		fmt.Println(job.Id, " reason ", jobSchedulingReport.UnschedulableReason)
 		if jobSchedulingReport.UnschedulableReason != "" {
+			// Store reports for unsuccessful attempts.
+			// Successful attempts are stored by the main scheduling loop.
+			if it.schedulingReportsRepository != nil {
+				it.schedulingReportsRepository.Add(job.Queue, jobSchedulingReport)
+			}
 			continue
 		}
 		return jobSchedulingReport, nil
@@ -217,9 +224,10 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		return nil, err
 	}
 	jobSchedulingReport := &JobSchedulingReport{
-		Timestamp: time.Now(),
-		JobId:     jobId,
-		Job:       job,
+		Timestamp:  time.Now(),
+		JobId:      jobId,
+		Job:        job,
+		ExecutorId: it.ExecutorId,
 	}
 
 	// Add the resource requests of this job to the total usage for this queue.
@@ -241,7 +249,6 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		q.Add(quantity)
 		roundQueueResources.Resources[resourceType] = q
 	}
-	fmt.Println("totalQueueResources ", totalQueueResources)
 
 	// Check that the job is large enough for this executor.
 	if ok, reason := it.jobIsLargeEnough(jobTotalResourceRequests); !ok {
@@ -361,7 +368,7 @@ type LegacyScheduler struct {
 	// Random number generator, used to select queues
 	Rand *rand.Rand
 	// Store reports for each scheduling attempt.
-	JobSchedulingReportsByQueue map[string]map[uuid.UUID]*JobSchedulingReport
+	SchedulingReportsRepository *SchedulingReportsRepository
 }
 
 func NewLegacyScheduler(schedulingConfig configuration.SchedulingConfig, executorId string, nodes []*schedulerobjects.Node, jobRepository SchedulerJobRepository, priorityFactorByQueue map[string]float64) (*LegacyScheduler, error) {
@@ -421,12 +428,8 @@ func (c *LegacyScheduler) Schedule(
 		if err != nil {
 			return nil, err
 		}
+		it.schedulingReportsRepository = c.SchedulingReportsRepository
 		iteratorsByQueue[queue] = it
-	}
-
-	// Initialise reports dict if not done already.
-	if c.JobSchedulingReportsByQueue == nil {
-		c.JobSchedulingReportsByQueue = make(map[string]map[uuid.UUID]*JobSchedulingReport)
 	}
 
 	// Total resources assigned during this invocation of the scheduler.
@@ -488,6 +491,9 @@ func (c *LegacyScheduler) Schedule(
 				c.SchedulingConfig.MaximalClusterFractionToSchedule,
 			); exceeded {
 				report.UnschedulableReason = reason + " (overall per scheduling round limit)"
+				if c.SchedulingReportsRepository != nil {
+					c.SchedulingReportsRepository.Add(queue, report)
+				}
 				continue
 			}
 
@@ -504,6 +510,9 @@ func (c *LegacyScheduler) Schedule(
 			report.PodSchedulingReports = []*PodSchedulingReport{podReport}
 			if podReport.Node == nil {
 				report.UnschedulableReason = "pod does not fit on any node"
+				if c.SchedulingReportsRepository != nil {
+					c.SchedulingReportsRepository.Add(queue, report)
+				}
 				continue // Found no node for this job.
 			}
 
@@ -513,7 +522,9 @@ func (c *LegacyScheduler) Schedule(
 			numJobsToLease++
 			roundResources = roundResourcesCopy
 			totalResourcesByQueue[queue] = report.TotalQueueResources
-			fmt.Println(queue, " totalResourcesByQueue ", totalResourcesByQueue[queue])
+			if c.SchedulingReportsRepository != nil {
+				c.SchedulingReportsRepository.Add(queue, report)
+			}
 			break
 		}
 	}
@@ -532,306 +543,6 @@ func (c *LegacyScheduler) Schedule(
 		}
 		jobs = append(jobs, successfullyLeasedJobs...)
 	}
-	return jobs, nil
-}
-
-// Schedule is similar to distributeRemainder, but is built on NodeDb.
-func (c *LegacyScheduler) ScheduleOld(
-	ctx context.Context,
-	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-) ([]*api.Job, error) {
-	log := ctxlogrus.Extract(ctx)
-
-	// Total resource usage across all priorities by queue.
-	totalResourcesByQueue := make(map[string]schedulerobjects.ResourceList)
-	for queue, quantityByPriorityAndResourceType := range initialUsageByQueue {
-		totalResourcesByQueue[queue] = quantityByPriorityAndResourceType.AggregateByResource()
-	}
-
-	// Initialise reports dict if not done already.
-	if c.JobSchedulingReportsByQueue == nil {
-		c.JobSchedulingReportsByQueue = make(map[string]map[uuid.UUID]*JobSchedulingReport)
-	}
-
-	// Total resources assigned during this invocation of the scheduler.
-	roundResources := schedulerobjects.ResourceList{
-		Resources: make(map[string]resource.Quantity),
-	}
-
-	// Total resources assigned to each queue during this invocation of the scheduler.
-	roundResourcesByQueue := make(map[string]schedulerobjects.ResourceList)
-
-	// Jobs to lease for each queue.
-	leasedJobsByQueue := make(map[string][]*api.Job)
-
-	// Track the total number of jobs to lease.
-	numJobsToLease := 0
-
-	// To reduce the number of calls to Redis,
-	// we retrieve jobs in batch and store jobs in-memory.
-	jobCacheByQueue := make(map[string][]*api.Job)
-
-	// Used to return early if the scheduler makes no progress.
-	consecutiveIterationsWithNoJobsLeased := 0
-
-	// Maps queue name to a bool, which is true if there are no more
-	// jobs in this queue, beyond those already downloaded.
-	gotAllQueuedJobsByQueue := make(map[string]bool)
-
-	// Queues that have no schedulable jobs on them
-	queuesWithoutSchedulableJobs := make(map[string]bool)
-	iteration := 0
-	// Schedule jobs one at a time.
-	for (c.SchedulingConfig.MaximumJobsToSchedule == 0 || numJobsToLease < c.SchedulingConfig.MaximumJobsToSchedule) && len(totalResourcesByQueue) > 0 && consecutiveIterationsWithNoJobsLeased < len(totalResourcesByQueue) {
-
-		// Return early if the context deadline has expired.
-		select {
-		case <-ctx.Done():
-			break
-		default:
-		}
-
-		fmt.Println()
-		fmt.Println("=======")
-
-		fmt.Println("iteration ", iteration)
-		iteration++
-
-		// Select a queue to schedule job from.
-		// Queues with fewer resources allocated to them are selected with higher probability.
-		shares := WeightsFromAggregatedUsageByQueue(
-			c.SchedulingConfig.ResourceScarcity,
-			c.PriorityFactorByQueue,
-			totalResourcesByQueue,
-		)
-		queue, _ := pickQueueRandomly(shares, c.Rand)
-		consecutiveIterationsWithNoJobsLeased++
-
-		fmt.Println("queue ", queue, " shares: ", shares)
-
-		// Total resource usage (across priorities) for this queue.
-		//
-		// TODO: Move into per-queue checks.
-		totalResourcesForQueue, ok := totalResourcesByQueue[queue]
-		if !ok {
-			totalResourcesForQueue = schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-			totalResourcesByQueue[queue] = totalResourcesForQueue
-		}
-		totalResourcesForQueue = totalResourcesForQueue.DeepCopy()
-
-		// Total resources (across priorities) assigned for this queue during this invocation of the scheduler.
-		//
-		// TODO: Move into per-queue checks.
-		roundResourcesForQueue, ok := roundResourcesByQueue[queue]
-		if !ok {
-			roundResourcesForQueue = schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-			roundResourcesByQueue[queue] = roundResourcesForQueue
-		}
-		roundResourcesForQueue = roundResourcesForQueue.DeepCopy()
-
-		// Total resources (across priorities) assigned during this invocation of the scheduler.
-		roundResourcesCopy := roundResources.DeepCopy()
-
-		// To avoid querying the database for jobs at each iteration,
-		// retrieve jobs only the first time we select a queue.
-		candidateJobs, ok := jobCacheByQueue[queue]
-		if !ok {
-			var err error
-			batchSize := int64(c.SchedulingConfig.QueueLeaseBatchSize)
-			if batchSize == 0 {
-				// Use a default batch size of 100 if not set.
-				batchSize = 100
-			}
-			candidateJobs, err = c.JobQueue.PeekClusterQueue(
-				c.ExecutorId,
-				queue,
-				batchSize,
-			)
-			if err != nil {
-				return nil, err
-			}
-			jobCacheByQueue[queue] = candidateJobs
-			gotAllQueuedJobsByQueue[queue] = len(candidateJobs) == int(batchSize)
-		}
-		fmt.Println(len(candidateJobs), " candidate jobs")
-		if len(candidateJobs) == 0 {
-			continue
-		}
-
-		// Pop one job from the candidate list.
-		candidateJob := candidateJobs[0]
-		jobCacheByQueue[queue] = candidateJobs[1:]
-
-		fmt.Println("selected ", candidateJob.Id, " ", len(jobCacheByQueue[queue]), " remaining")
-
-		// Convert the string representation of a job id to a uuid.UUID.
-		jobIdProto, err := armadaevents.ProtoUuidFromUlidString(candidateJob.Id)
-		if err != nil {
-			logging.WithStacktrace(log, err).Errorf("failed to parse %s into uuid", candidateJob.Id)
-			continue
-		}
-		jobId := armadaevents.UuidFromProtoUuid(jobIdProto)
-
-		// Create a scheduling report for this job.
-		jobSchedulingReport := &JobSchedulingReport{
-			Timestamp: time.Now(),
-			JobId:     jobId,
-		}
-		if m, ok := c.JobSchedulingReportsByQueue[queue]; ok {
-			m[jobId] = jobSchedulingReport
-		} else {
-			c.JobSchedulingReportsByQueue[queue] = map[uuid.UUID]*JobSchedulingReport{
-				jobId: jobSchedulingReport,
-			}
-		}
-
-		// Add the resource requests of this job to the total usage for this queue.
-		//
-		// TODO: Account for resource usage separately by priority.
-		jobTotalResourceRequests := common.TotalJobResourceRequest(candidateJob)
-		for resourceType, quantity := range jobTotalResourceRequests {
-			q := totalResourcesForQueue.Resources[resourceType]
-			q.Add(quantity)
-			totalResourcesForQueue.Resources[resourceType] = q
-
-			q = roundResourcesForQueue.Resources[resourceType]
-			q.Add(quantity)
-			roundResourcesForQueue.Resources[resourceType] = q
-
-			q = roundResourcesCopy.Resources[resourceType]
-			q.Add(quantity)
-			roundResourcesCopy.Resources[resourceType] = q
-		}
-
-		// Check that this job is at least equal to the minimum job size.
-		// TODO: These per-job checks could be expressed as filter functions, e.g., of type
-		// jobsFilterFunc func(*api.Job) bool
-		//
-		// TODO: Move into per-queue checks.
-		jobTooSmall := false
-		if len(c.MinimumJobSize) > 0 {
-			for resourceType, quantity := range jobTotalResourceRequests {
-				if limit, ok := c.MinimumJobSize[resourceType]; ok {
-					if quantity.Cmp(limit) != -1 {
-						jobTooSmall = true
-						jobSchedulingReport.UnschedulableReason = fmt.Sprintf(
-							"job requests %s %s, but the minimum is %s",
-							quantity.String(), resourceType, limit.String(),
-						)
-						break
-					}
-				}
-			}
-		}
-		if jobTooSmall {
-			continue
-		}
-
-		// Check if scheduling this job would exceed per-queue resource limits.
-		//
-		// TODO: Move into per-queue checks.
-		queueTotalResourceLimitsExceeded := false
-		for resourceType, limit := range c.SchedulingConfig.MaximalClusterFractionToSchedule {
-			totalAmount := c.NodeDb.totalResources[resourceType]
-			amountUsedByQueue := totalResourcesForQueue.Resources[resourceType]
-			if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
-				queueTotalResourceLimitsExceeded = true
-				break
-			}
-		}
-		if queueTotalResourceLimitsExceeded {
-			jobSchedulingReport.UnschedulableReason = "queueTotalResourceLimitsExceeded"
-			continue
-		}
-
-		// Check if scheduling this job would exceed per-queue resource limits for this round.
-		//
-		// TODO: Move into per-queue checks.
-		queueRoundResourceLimitsExceeded := false
-		for resourceType, limit := range c.SchedulingConfig.MaximalResourceFractionToSchedulePerQueue {
-			totalAmount := c.NodeDb.totalResources[resourceType]
-			amountUsedByQueue := roundResourcesForQueue.Resources[resourceType]
-			if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
-				queueRoundResourceLimitsExceeded = true
-				break
-			}
-		}
-		if queueRoundResourceLimitsExceeded {
-			jobSchedulingReport.UnschedulableReason = "queueRoundResourceLimitsExceeded"
-			continue
-		}
-
-		// Check if scheduling this job would exceed resource limits for this round.
-		roundResourceLimitsExceeded := false
-		for resourceType, limit := range c.SchedulingConfig.MaximalClusterFractionToSchedule {
-			totalAmount := c.NodeDb.totalResources[resourceType]
-			amountUsed := roundResourcesCopy.Resources[resourceType]
-			if amountUsed.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
-				roundResourceLimitsExceeded = true
-				break
-			}
-		}
-		if roundResourceLimitsExceeded {
-			jobSchedulingReport.UnschedulableReason = "roundResourceLimitsExceeded"
-			continue
-		}
-
-		podSpec := podSpecFromJob(candidateJob)
-		if podSpec == nil {
-			log.Errorf("failed to get pod for job with id %s", candidateJob.Id)
-			jobSchedulingReport.UnschedulableReason = "failedToGetPodSpec"
-			continue
-		}
-
-		// Try to find a node for this pod.
-		// Store the report returned by the NodeDb.
-		req := schedulerobjects.PodRequirementsFromPodSpec(podSpec)
-		report, err := c.NodeDb.SelectAndBindNodeToPod(jobId, req)
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("error selecting node for pod")
-			return nil, err
-		}
-		jobSchedulingReport.PodSchedulingReports = append(jobSchedulingReport.PodSchedulingReports, report)
-
-		// Could not find a node for this pod.
-		if report.Node == nil {
-			jobSchedulingReport.UnschedulableReason = "failedToSchedulePod"
-			continue
-		}
-
-		// The job can be scheduled.
-		leasedJobsByQueue[queue] = append(leasedJobsByQueue[queue], candidateJob)
-
-		// Update the resource accounting for this queue.
-		totalResourcesByQueue[queue] = totalResourcesForQueue
-		roundResourcesByQueue[queue] = roundResourcesForQueue
-		roundResources = roundResourcesCopy
-
-		fmt.Println("queue resource usage: ", totalResourcesByQueue[queue])
-		consecutiveIterationsWithNoJobsLeased = 0
-		numJobsToLease += 1
-
-		// Exit if we've processed all jobs for some queue.
-		// Since continuing would be unfair to that queue.
-		if len(jobCacheByQueue[queue]) == 0 && gotAllQueuedJobsByQueue[queue] {
-			queuesWithoutSchedulableJobs[queue] = true
-		}
-	}
-
-	jobs := make([]*api.Job, 0)
-	for queue, jobsToLease := range leasedJobsByQueue {
-
-		// TryLeaseJobs returns a list of jobs that were successfully leased.
-		// For example, jobs concurrently leased to another executor are skipped.
-		//
-		// TODO: Reports generated above will be incorrect if creating the lease fails.
-		successfullyLeasedJobs, err := c.JobQueue.TryLeaseJobs(c.ExecutorId, queue, jobsToLease)
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to lease jobs")
-		}
-		jobs = append(jobs, successfullyLeasedJobs...)
-	}
-
 	return jobs, nil
 }
 

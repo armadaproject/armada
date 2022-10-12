@@ -381,6 +381,9 @@ func TestSchedule(t *testing.T) {
 		PriorityFactorsByQueue map[string]float64
 		// Initial resource usage for all queues.
 		InitialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
+		// Skip checking if reports were generated.
+		// Needed for tests where not all jobs are considered.
+		DoNotCheckReports bool
 		// For each queue, the indices of jobs expected to be scheduled.
 		ExpectedIndicesByQueue map[string][]int
 		// For each queue, the expected resources assigned to jobs from that queue.
@@ -487,6 +490,7 @@ func TestSchedule(t *testing.T) {
 			PriorityFactorsByQueue: map[string]float64{
 				"A": 1,
 			},
+			DoNotCheckReports: true,
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1},
 			},
@@ -776,6 +780,7 @@ func TestSchedule(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
+			scheduler.SchedulingReportsRepository = NewSchedulingReportsRepository(100, 100)
 			scheduler.Rand = util.NewThreadsafeRand(42)
 
 			jobs, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
@@ -800,8 +805,27 @@ func TestSchedule(t *testing.T) {
 			if tc.ExpectedResourcesByQueue != nil {
 				actualUsageByQueue := usageByQueue(jobs)
 				for queue, usage := range actualUsageByQueue {
-					fmt.Printf("%s usage: %v\n", queue, usage)
 					assertResourceLimitsSatisfied(t, tc.ExpectedResourcesByQueue[queue], usage)
+				}
+			}
+
+			// Check that scheduling reports were generated.
+			// TODO: Check that reports correctly indicate success/not.
+			if !tc.DoNotCheckReports {
+				for queue, jobs := range jobRepository.jobsByQueue {
+					queueReport, ok := scheduler.SchedulingReportsRepository.GetQueueSchedulingReport(queue)
+					assert.NotNil(t, queueReport)
+					assert.True(t, ok)
+					for _, job := range jobs {
+						fmt.Println("job ", job.Id)
+						jobUuid, err := uuidFromUlidString(job.Id)
+						if !assert.NoError(t, err) {
+							return
+						}
+						jobReport, ok := scheduler.SchedulingReportsRepository.GetJobSchedulingReport(jobUuid)
+						assert.NotNil(t, jobReport)
+						assert.True(t, ok)
+					}
 				}
 			}
 		})
@@ -921,8 +945,10 @@ func podSpecFromPodRequirements(req *schedulerobjects.PodRequirements) *v1.PodSp
 }
 
 type mockJobRepository struct {
-	jobsByQueue         map[string][]*api.Job
-	jobsById            map[string]*api.Job
+	jobsByQueue map[string][]*api.Job
+	jobsById    map[string]*api.Job
+	// Ids of all jobs hat were leased to an executor.
+	leasedJobs          map[string]bool
 	getQueueJobIdsDelay time.Duration
 }
 
@@ -930,6 +956,7 @@ func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
 		jobsByQueue: make(map[string][]*api.Job),
 		jobsById:    make(map[string]*api.Job),
+		leasedJobs:  make(map[string]bool),
 	}
 }
 
@@ -947,9 +974,11 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {
 	time.Sleep(repo.getQueueJobIdsDelay)
 	if jobs, ok := repo.jobsByQueue[queue]; ok {
-		rv := make([]string, len(jobs))
-		for i, job := range jobs {
-			rv[i] = job.Id
+		rv := make([]string, 0, len(jobs))
+		for _, job := range jobs {
+			if !repo.leasedJobs[job.Id] {
+				rv = append(rv, job.Id)
+			}
 		}
 		return rv, nil
 	} else {
@@ -968,16 +997,27 @@ func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]*api.Job
 }
 
 func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	remainingJobs := []*api.Job{}
-outer:
-	for _, j := range repo.jobsByQueue[queue] {
-		for _, l := range jobs {
-			if j == l {
-				continue outer
-			}
+	successfullyLeasedJobs := make([]*api.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if !repo.leasedJobs[job.Id] {
+			successfullyLeasedJobs = append(successfullyLeasedJobs, job)
+			repo.leasedJobs[job.Id] = true
 		}
-		remainingJobs = append(remainingJobs, j)
 	}
-	repo.jobsByQueue[queue] = remainingJobs
-	return jobs, nil
+	return successfullyLeasedJobs, nil
 }
+
+// func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+// 	remainingJobs := []*api.Job{}
+// outer:
+// 	for _, j := range repo.jobsByQueue[queue] {
+// 		for _, l := range jobs {
+// 			if j == l {
+// 				continue outer
+// 			}
+// 		}
+// 		remainingJobs = append(remainingJobs, j)
+// 	}
+// 	repo.jobsByQueue[queue] = remainingJobs
+// 	return jobs, nil
+// }
