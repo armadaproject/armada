@@ -402,6 +402,7 @@ func NewLegacyScheduler(schedulingConfig configuration.SchedulingConfig, executo
 		NodeDb:                nodeDb,
 		JobRepository:         jobRepository,
 		PriorityFactorByQueue: priorityFactorByQueue,
+		Rand:                  rand.New(rand.NewSource(rand.Int63())),
 	}, nil
 }
 
