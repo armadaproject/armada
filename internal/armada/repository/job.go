@@ -1076,7 +1076,7 @@ local jobData = ARGV[3]
 local clientId = ARGV[4]
 
 
-local jobExists = redis.call('EXISTS', jobExistsKey, 'EX', 604800)
+local jobExists = redis.call('EXISTS', jobExistsKey)
 if jobExists == 1 then 
 	return '-1'
 end
