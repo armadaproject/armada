@@ -55,7 +55,7 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 			return errors.WithStack(err)
 		}
 
-		i := i
+		ch := chs[i]
 		producer.SendAsync(
 			ctx,
 			&pulsar.ProducerMessage{
@@ -68,8 +68,8 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 			},
 			// Callback on send.
 			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
-				chs[i] <- err
-				close(chs[i])
+				ch <- err
+				close(ch)
 			},
 		)
 	}
