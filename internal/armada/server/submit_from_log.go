@@ -384,13 +384,14 @@ func (srv *SubmitFromLog) SubmitJobs(
 	var doubleSubmits []*repository.SubmitJobResult
 	for i, submissionResult := range submissionResults {
 		jobResponse := &api.JobSubmitResponseItem{JobId: submissionResult.JobId}
-
 		if submissionResult.Error != nil {
 			jobResponse.Error = submissionResult.Error.Error()
 			jobFailures = append(jobFailures, &jobFailure{
 				job:    jobs[i],
 				reason: fmt.Sprintf("Failed to save job in Armada: %s", submissionResult.Error.Error()),
 			})
+		} else if submissionResult.AlreadyProcessed {
+			log.Warnf("Already Processed job id %s, this job submission will be discarded", submissionResult.JobId)
 		} else if submissionResult.DuplicateDetected {
 			doubleSubmits = append(doubleSubmits, submissionResult)
 		} else {
