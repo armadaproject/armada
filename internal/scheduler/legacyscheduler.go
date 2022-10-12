@@ -165,7 +165,6 @@ func NewQueueCandidateJobsIterator(ctx context.Context, queue string, initialTot
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("NewQueueCandidateJobsIterator ", initialTotalQueueResources)
 	return &QueueCandidateJobsIterator{
 		LegacyScheduler:     scheduler,
 		ctx:                 ctx,
@@ -202,7 +201,6 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(job.Id, " reason ", jobSchedulingReport.UnschedulableReason)
 		if jobSchedulingReport.UnschedulableReason != "" {
 			// Store reports for unsuccessful attempts.
 			// Successful attempts are stored by the main scheduling loop.
@@ -451,10 +449,6 @@ func (c *LegacyScheduler) Schedule(
 		)
 		queue, _ := pickQueueRandomly(weights, c.Rand)
 
-		fmt.Println("selected queue ", queue, " using weights ", weights)
-
-		time.Sleep(100 * time.Millisecond)
-
 		// Schedule one job from this queue.
 		it, ok := iteratorsByQueue[queue]
 		if !ok {
@@ -471,8 +465,6 @@ func (c *LegacyScheduler) Schedule(
 				delete(c.PriorityFactorByQueue, queue)
 				break
 			}
-
-			fmt.Println("selected job ", report.Job.Id)
 
 			// Check overall per-round resource limits.
 			// Add the resource requests of this job to the total usage for this queue.
@@ -550,10 +542,8 @@ func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, prio
 	rv := make(map[string]float64)
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if rl, ok := aggregateResourceUsageByQueue[queue]; ok {
-			fmt.Println(queue, " denominator ", ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)+1)
 			rv[queue] = priorityFactor / (ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1)
 		} else {
-			fmt.Println(queue, " denominator ", 1)
 			rv[queue] = priorityFactor
 		}
 	}

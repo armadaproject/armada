@@ -817,7 +817,6 @@ func TestSchedule(t *testing.T) {
 					assert.NotNil(t, queueReport)
 					assert.True(t, ok)
 					for _, job := range jobs {
-						fmt.Println("job ", job.Id)
 						jobUuid, err := uuidFromUlidString(job.Id)
 						if !assert.NoError(t, err) {
 							return
