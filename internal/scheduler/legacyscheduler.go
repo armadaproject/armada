@@ -115,28 +115,6 @@ func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan *api
 	return nil
 }
 
-// func (it *QueueCandidateJobsIterator) schedulingReportFromJobService(ctx context.Context, in chan *api.Job, out chan *JobSchedulingReport) error {
-// 	for {
-// 		select {
-// 		case <-ctx.Done():
-// 			return ctx.Err()
-// 		case job, ok := <-in:
-// 			if !ok {
-// 				return errors.New("channel closed")
-// 			}
-// 			report, err := it.schedulingReportFromJob(ctx, job)
-// 			if err != nil {
-// 				return err
-// 			}
-// 			select {
-// 			case <-ctx.Done():
-// 				return ctx.Err()
-// 			case out <- report:
-// 			}
-// 		}
-// 	}
-// }
-
 // QueueCandidateJobsIterator is an iterator over all jobs in a queue
 // that could potentially be scheduled. Specifically, all jobs that
 // - would not exceed per-round resource limits,
@@ -193,9 +171,13 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 	}
 
 	// Return the next job in the queue that could potentially be scheduled.
+	var consecutiveUnschedulableJobs uint
 	for job, err := it.jobsIterator.Next(); job != nil; job, err = it.jobsIterator.Next() {
 		if err != nil {
 			return nil, err
+		}
+		if it.SchedulingConfig.QueueLeaseBatchSize != 0 && consecutiveUnschedulableJobs == it.SchedulingConfig.QueueLeaseBatchSize {
+			break
 		}
 		jobSchedulingReport, err := it.schedulingReportFromJob(it.ctx, job)
 		if err != nil {
@@ -207,6 +189,7 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 			if it.schedulingReportsRepository != nil {
 				it.schedulingReportsRepository.Add(job.Queue, jobSchedulingReport)
 			}
+			consecutiveUnschedulableJobs++
 			continue
 		}
 		return jobSchedulingReport, nil

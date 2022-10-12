@@ -276,6 +276,12 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 			LeaseJobs:       true,
 			ExpectedIndices: []int{1, 2, 3, 4, 5, 6, 7, 8},
 		},
+		"maxConsecutiveUnschedulableJobs": {
+			Reqs:             append(append(testNSmallCpuJob(0, 1), testNGPUJob(0, 10)...), testNSmallCpuJob(0, 1)...),
+			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: withMaxConsecutiveUnschedulableJobs(3, testSchedulingConfig()),
+			ExpectedIndices:  []int{0},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -363,6 +369,11 @@ func withMaxJobsToSchedule(n int, config configuration.SchedulingConfig) configu
 	return config
 }
 
+func withMaxConsecutiveUnschedulableJobs(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.QueueLeaseBatchSize = n
+	return config
+}
+
 func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AvailableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkUsed(p, rs)
@@ -370,6 +381,8 @@ func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*sched
 	return nodes
 }
 
+// TODO: Test minimum job size.
+// TODO: Test batch size (i.e., max number of consecutive jobs that can't be scheduled).
 func TestSchedule(t *testing.T) {
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -381,6 +394,8 @@ func TestSchedule(t *testing.T) {
 		PriorityFactorsByQueue map[string]float64
 		// Initial resource usage for all queues.
 		InitialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
+		// Minimum job size.
+		MinimumJobSize map[string]resource.Quantity
 		// Skip checking if reports were generated.
 		// Needed for tests where not all jobs are considered.
 		DoNotCheckReports bool
@@ -752,6 +767,22 @@ func TestSchedule(t *testing.T) {
 				"A": {1},
 			},
 		},
+		"minimum job size": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			MinimumJobSize: map[string]resource.Quantity{
+				"cpu": resource.MustParse("2"),
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -781,7 +812,8 @@ func TestSchedule(t *testing.T) {
 				return
 			}
 			scheduler.SchedulingReportsRepository = NewSchedulingReportsRepository(100, 100)
-			scheduler.Rand = util.NewThreadsafeRand(42)
+			scheduler.MinimumJobSize = tc.MinimumJobSize
+			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
 			jobs, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
