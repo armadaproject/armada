@@ -37,6 +37,7 @@ func TestEventServer_Health(t *testing.T) {
 		},
 	)
 }
+
 func TestEventServer_ReportUsage(t *testing.T) {
 	withEventServer(
 		t,
