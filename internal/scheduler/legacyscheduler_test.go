@@ -18,8 +18,6 @@ import (
 )
 
 // TODO: Tests we should add:
-// - Scheduling from one queue with taints and toleration. Ensure those can/can't be scheduled accordingly.
-// - Respect QueueLeaseBatchSize (i.e., max number of jobs per queue to load per invocation of the scheduler).
 // - Test that we correctly account for init container resource requirements.
 
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
@@ -1035,18 +1033,3 @@ func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs
 	}
 	return successfullyLeasedJobs, nil
 }
-
-// func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-// 	remainingJobs := []*api.Job{}
-// outer:
-// 	for _, j := range repo.jobsByQueue[queue] {
-// 		for _, l := range jobs {
-// 			if j == l {
-// 				continue outer
-// 			}
-// 		}
-// 		remainingJobs = append(remainingJobs, j)
-// 	}
-// 	repo.jobsByQueue[queue] = remainingJobs
-// 	return jobs, nil
-// }
