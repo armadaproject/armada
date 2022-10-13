@@ -109,7 +109,6 @@ func (nodeDb *NodeDb) SelectNodeForPod(jobId uuid.UUID, req *schedulerobjects.Po
 		nodeDb.mu.Lock()
 		matches, score, reason, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
 		nodeDb.mu.Unlock()
-		fmt.Printf("score is  %d, matches is %v\n", score, matches)
 		if err != nil {
 			return nil, err
 		}

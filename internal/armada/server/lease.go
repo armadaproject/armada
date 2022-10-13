@@ -10,16 +10,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/common/util"
-
 	"github.com/gogo/protobuf/types"
-	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -50,6 +46,8 @@ type AggregatedQueueServer struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
+	// For storing reports of scheduling attempts.
+	schedulingReportsRepository *scheduler.SchedulingReportsRepository
 }
 
 func NewAggregatedQueueServer(
@@ -403,9 +401,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
 	}
 
-	// Create a NodeDb
-	// TODO: We also need a global nodedb to account for global resource usage.
-	// And to check if a node could ever be scheduled.
+	// Collect all allowed priorities.
 	priorities := make([]int32, 0)
 	if len(q.schedulingConfig.Preemption.PriorityClasses) > 0 {
 		for _, p := range q.schedulingConfig.Preemption.PriorityClasses {
@@ -415,19 +411,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		priorities = append(priorities, 0)
 	}
 
+	// Nodes to be considered by the scheduler.
 	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
 	for i, nodeInfo := range req.Nodes {
 		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(&nodeInfo, req.ClusterId, priorities)
-	}
-
-	nodeDb, err := scheduler.NewNodeDb(priorities, maps.Keys(distinctResourceTypes))
-	if err != nil {
-		return nil, err
-	}
-
-	err = nodeDb.Upsert(nodes)
-	if err != nil {
-		return nil, err
 	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
@@ -451,20 +438,23 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		priorityFactorByActiveQueue[queue.Name] = priorityFactorByQueue[queue.Name]
 	}
 
-	// TODO: Need to populate with all queues (or at least all with jobs queued).
-	scheduler := &scheduler.LegacyScheduler{
-		SchedulingConfig:            q.schedulingConfig,
-		ExecutorId:                  req.ClusterId,
-		NodeDb:                      nodeDb,
-		JobQueue:                    q.jobQueue,
-		Rand:                        util.NewThreadsafeRand(int64(time.Now().Nanosecond())),
-		MinimumJobSize:              req.MinimumJobSize,
-		PriorityFactorByQueue:       priorityFactorByActiveQueue,
-		JobSchedulingReportsByQueue: make(map[string]map[uuid.UUID]*scheduler.JobSchedulingReport),
+	sched, err := scheduler.NewLegacyScheduler(
+		q.schedulingConfig,
+		req.ClusterId,
+		nodes,
+		q.jobRepository,
+		priorityFactorByActiveQueue,
+	)
+	if err != nil {
+		return nil, err
 	}
+	sched.SchedulingReportsRepository = q.schedulingReportsRepository
 
-	jobs, err := scheduler.Schedule(ctx, aggregatedUsageByQueue)
+	// TODO: Test minimum job size.
+	sched.MinimumJobSize = req.MinimumJobSize
 
+	// TODO: Return updated resource usage and store it.
+	jobs, err := sched.Schedule(ctx, aggregatedUsageByQueue)
 	if len(jobs) > 0 {
 		// If we successfully leased jobs, those have to be sent to the executor,
 		// since the leases will have been written into Redis.

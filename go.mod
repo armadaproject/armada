@@ -88,6 +88,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+require github.com/openconfig/goyang v1.1.0
+
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.1 // indirect

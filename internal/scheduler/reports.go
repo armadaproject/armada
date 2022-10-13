@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"text/tabwriter"
@@ -8,9 +9,11 @@ import (
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -39,11 +42,43 @@ func NewSchedulingReportsRepository(maxQueueSchedulingReports, maxJobSchedulingR
 	}
 }
 
+func (repo *SchedulingReportsRepository) GetQueueReport(ctx context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
+	report, ok := repo.GetQueueSchedulingReport(queue.Name)
+	if !ok {
+		return nil, &armadaerrors.ErrNotFound{
+			Type:    "QueueSchedulingReport",
+			Value:   queue.Name,
+			Message: "this queue has not been considered for scheduling recently",
+		}
+	}
+	return &schedulerobjects.QueueReport{
+		Report: report.String(),
+	}, nil
+}
+
+func (repo *SchedulingReportsRepository) GetJobReport(ctx context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
+	jobUuid, err := uuidFromUlidString(jobId.Id)
+	if err != nil {
+		return nil, err
+	}
+	report, ok := repo.GetJobSchedulingReport(jobUuid)
+	if !ok {
+		return nil, &armadaerrors.ErrNotFound{
+			Type:    "JobSchedulingReport",
+			Value:   jobId.Id,
+			Message: "this job has not been considered for scheduling recently",
+		}
+	}
+	return &schedulerobjects.JobReport{
+		Report: report.String(),
+	}, nil
+}
+
 func (repo *SchedulingReportsRepository) Add(queueName string, report *JobSchedulingReport) {
 	repo.MostRecentJobSchedulingReports.Add(report.JobId, report)
 	if value, ok := repo.MostRecentQueueSchedulingReports.Get(queueName); ok {
 		queueReport := value.(*QueueSchedulingReport)
-		if report.ExecutorId != "" {
+		if report.UnschedulableReason == "" {
 			queueReport.MostRecentSuccessfulJobSchedulingReport = report
 		} else {
 			queueReport.MostRecentUnsuccessfulJobSchedulingReport = report
@@ -52,7 +87,7 @@ func (repo *SchedulingReportsRepository) Add(queueName string, report *JobSchedu
 		queueReport := &QueueSchedulingReport{
 			Name: queueName,
 		}
-		if report.ExecutorId != "" {
+		if report.UnschedulableReason == "" {
 			queueReport.MostRecentSuccessfulJobSchedulingReport = report
 		} else {
 			queueReport.MostRecentUnsuccessfulJobSchedulingReport = report
@@ -88,6 +123,26 @@ type QueueSchedulingReport struct {
 	MostRecentUnsuccessfulJobSchedulingReport *JobSchedulingReport
 }
 
+func (report *QueueSchedulingReport) String() string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Queue:\t%s\n", report.Name)
+	if report.MostRecentSuccessfulJobSchedulingReport != nil {
+		fmt.Fprint(w, "Most recent successful scheduling attempt:\n")
+		fmt.Fprint(w, indent.String("\t", report.MostRecentSuccessfulJobSchedulingReport.String()))
+	} else {
+		fmt.Fprint(w, "Most recent successful scheduling attempt:\tnone\n")
+	}
+	if report.MostRecentUnsuccessfulJobSchedulingReport != nil {
+		fmt.Fprint(w, "Most recent unsuccessful scheduling attempt:\n")
+		fmt.Fprint(w, indent.String("\t", report.MostRecentUnsuccessfulJobSchedulingReport.String()))
+	} else {
+		fmt.Fprint(w, "Most recent unsuccessful scheduling attempt:\n")
+	}
+	w.Flush()
+	return sb.String()
+}
+
 // JobSchedulingReport is created by the scheduler and contains information
 // about the decision made by the scheduler for this job.
 type JobSchedulingReport struct {
@@ -117,6 +172,7 @@ type JobSchedulingReport struct {
 func (report *JobSchedulingReport) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
 	if jobId, err := armadaevents.UlidStringFromProtoUuid(
 		armadaevents.ProtoUuidFromUuid(report.JobId),
 	); err == nil {
@@ -124,13 +180,12 @@ func (report *JobSchedulingReport) String() string {
 	} else {
 		fmt.Fprintf(w, "Job id:\t%s\n", err)
 	}
-	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
 	if report.ExecutorId != "" {
 		fmt.Fprintf(w, "Executor:\t%s\n", report.ExecutorId)
 	} else {
 		fmt.Fprint(w, "Executor:\tnone\n")
 	}
-	if report.ExecutorId != "" {
+	if report.UnschedulableReason != "" {
 		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", report.UnschedulableReason)
 	} else {
 		fmt.Fprint(w, "UnschedulableReason:\tnone\n")
@@ -140,9 +195,10 @@ func (report *JobSchedulingReport) String() string {
 	} else {
 		fmt.Fprint(w, "Pod scheduling reports:\n")
 	}
-	for _, podSchedulingReports := range report.PodSchedulingReports {
-		fmt.Fprint(w, podSchedulingReports.String())
+	for _, podSchedulingReport := range report.PodSchedulingReports {
+		fmt.Fprint(w, indent.String("\t", podSchedulingReport.String()))
 	}
+	w.Flush()
 	return sb.String()
 }
 
@@ -174,6 +230,7 @@ type PodSchedulingReport struct {
 func (report *PodSchedulingReport) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
 	if jobId, err := armadaevents.UlidStringFromProtoUuid(
 		armadaevents.ProtoUuidFromUuid(report.JobId),
 	); err == nil {
@@ -181,7 +238,6 @@ func (report *PodSchedulingReport) String() string {
 	} else {
 		fmt.Fprintf(w, "Job id:\t%s\n", err)
 	}
-	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
 	if report.Node != nil {
 		fmt.Fprintf(w, "Node:\t%s\n", report.Node.Id)
 	} else {
@@ -207,7 +263,7 @@ func (report *PodSchedulingReport) String() string {
 		}
 		fmt.Fprintf(
 			w,
-			"\tand any nodes with less than %s %s available at priority %d\n",
+			"\tany nodes with less than %s %s available at priority %d\n",
 			requestForDominantResourceType.String(),
 			report.DominantResourceType,
 			report.Req.Priority,
