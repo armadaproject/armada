@@ -24,7 +24,8 @@ type NodeDb struct {
 	// Allowed pod priorities in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
-	priorities []int32
+	priorities       []int32
+	indexedResources map[string]interface{}
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources map[string]*resource.Quantity
@@ -196,6 +197,10 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 	dominantResourceType := ""
 	dominantResourceFraction := 0.0
 	for t, q := range req.ResourceRequirements.Requests {
+		// Skip any resource types that are not indexed.
+		if _, ok := nodeDb.indexedResources[string(t)]; !ok {
+			continue
+		}
 		available, ok := nodeDb.totalResources[string(t)]
 		if !ok {
 			return string(t)
@@ -234,18 +239,21 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 	priorities = []int32(priorities)
 	slices.Sort(priorities)
 	totalResources := make(map[string]*resource.Quantity)
+	indexedResources := make(map[string]interface{})
 	for _, resourceType := range resourceTypes {
 		q := resource.MustParse("0")
 		totalResources[resourceType] = &q
+		indexedResources[resourceType] = true
 	}
 	return &NodeDb{
-		priorities:     priorities,
-		NodeTypes:      make(map[string]*schedulerobjects.NodeType),
-		totalResources: totalResources,
-		Db:             db,
-		NodesByJob:     make(map[uuid.UUID]map[string]interface{}),
-		JobsByNode:     make(map[string]map[uuid.UUID]interface{}),
-		AssignedByNode: make(map[string]schedulerobjects.AssignedByPriorityAndResourceType),
+		priorities:       priorities,
+		indexedResources: indexedResources,
+		NodeTypes:        make(map[string]*schedulerobjects.NodeType),
+		totalResources:   totalResources,
+		Db:               db,
+		NodesByJob:       make(map[uuid.UUID]map[string]interface{}),
+		JobsByNode:       make(map[string]map[uuid.UUID]interface{}),
+		AssignedByNode:   make(map[string]schedulerobjects.AssignedByPriorityAndResourceType),
 	}, nil
 }
 
@@ -293,7 +301,7 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 	}
 	for _, priority := range priorities {
 		for _, resource := range resources {
-			name := fmt.Sprintf("%d-%s", priority, resource)
+			name := nodeResourcePriorityIndexName(resource, priority)
 			indexes[name] = &memdb.IndexSchema{
 				Name:   name,
 				Unique: false,
