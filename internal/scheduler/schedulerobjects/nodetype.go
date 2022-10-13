@@ -22,6 +22,7 @@ func NewNodeTypeFromNodeInfo(nodeInfo *api.NodeInfo, wellKnownLabels map[string]
 }
 
 func NewNodeType(taints []v1.Taint, labels, wellKnownLabels map[string]string, taintsFilter taintsFilterFunc, labelsFilter labelsFilterFunc) *NodeType {
+	// TODO: Pass through well-known labels from config.
 	unsetWellKnownLabels := getFilteredLabels(wellKnownLabels, func(key, _ string) bool {
 		_, ok := labels[key]
 		return !ok
@@ -40,24 +41,34 @@ func NewNodeType(taints []v1.Taint, labels, wellKnownLabels map[string]string, t
 }
 
 // nodeTypeIdFromTaintsAndLabels generates an id that is unique for each combination
-// of taints, labels, and unset labels. We insert "$" characters to achieve this,
-// since taints and labels are not allowed to contain this character.
-// See:
+// of taints, labels, and unset labels, of the form
+// $taint1$taint2...&$label1=labelValue1$label2=labelValue2...&$unsetWellKnownLabel1=unsetWellKnownLabelValue1...
+//
+// We separate taints/labels by $, labels and values by =, and and groups by &,
+// since these characters are not allowed in taints and labels; see
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 // https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
 func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetWellKnownLabels map[string]string) string {
+	// TODO: To reduce key size (and thus improve performance), we could hash the string.
+	// TODO: We should test this function to ensure there are no collisions. And that the string is never empty.
 	var sb strings.Builder
 	for _, taint := range taints {
-		sb.WriteString("$t")
+		sb.WriteString("$")
 		sb.WriteString(taint.String())
 	}
+	sb.WriteString("&")
 	for label, value := range labels {
-		sb.WriteString("$l")
-		sb.WriteString(label + "=" + value)
+		sb.WriteString("$")
+		sb.WriteString(label)
+		sb.WriteString("=")
+		sb.WriteString(value)
 	}
+	sb.WriteString("&")
 	for label, value := range unsetWellKnownLabels {
-		sb.WriteString("$u")
-		sb.WriteString(label + "=" + value)
+		sb.WriteString("$")
+		sb.WriteString(label)
+		sb.WriteString("=")
+		sb.WriteString(value)
 	}
 	return sb.String()
 }
