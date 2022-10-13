@@ -283,7 +283,6 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			repo := newMockJobRepository()
 			jobs := make([]*api.Job, len(tc.Reqs))
 			for i, req := range tc.Reqs { // Queue name doesn't matter.

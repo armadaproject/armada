@@ -200,7 +200,6 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 }
 
 func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Context, job *api.Job) (*JobSchedulingReport, error) {
-
 	// Create a scheduling report for this job.
 	jobId, err := uuidFromUlidString(job.Id)
 	if err != nil {
@@ -396,7 +395,6 @@ func (c *LegacyScheduler) Schedule(
 	ctx context.Context,
 	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) ([]*api.Job, error) {
-
 	log := ctxlogrus.Extract(ctx)
 
 	// Total resource usage across all priorities by queue.
