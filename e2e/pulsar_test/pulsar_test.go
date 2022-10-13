@@ -39,7 +39,7 @@ const (
 	armadaUrl            = "localhost:50051"
 	armadaQueueName      = "e2e-test-queue"
 	armadaUserId         = "anonymous"
-	defaultPulsarTimeout = 30 * time.Second
+	defaultPulsarTimeout = 60 * time.Second
 )
 
 // We setup kind to expose ingresses on this ULR.
