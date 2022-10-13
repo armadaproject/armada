@@ -1,8 +1,9 @@
 package schedulerobjects
 
 import (
-	"github.com/G-Research/armada/internal/common"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/armada/internal/common"
 )
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
