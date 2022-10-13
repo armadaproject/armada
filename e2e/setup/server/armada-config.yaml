@@ -10,6 +10,9 @@ scheduling:
     memory: 0.99
     cpu: 0.99
   probabilityOfUsingNewScheduler: 1
+  preemption:
+  maxQueueReportsToStore: 1000
+  MaxJobReportsToStore: 100000  
   defaultJobLimits:
     cpu: 1
     memory: 1Gi
