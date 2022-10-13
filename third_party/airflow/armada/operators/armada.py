@@ -25,7 +25,7 @@ from armada.operators.jobservice import JobServiceClient
 import logging
 
 from armada.operators.utils import airflow_error, search_for_job_complete
-from third_party.airflow.armada.jobservice import jobservice_pb2
+from armada.jobservice import jobservice_pb2
 
 armada_logger = logging.getLogger("airflow.task")
 
