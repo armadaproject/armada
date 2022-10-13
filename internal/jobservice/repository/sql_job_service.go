@@ -18,7 +18,7 @@ import (
 type JobTableUpdater interface {
 	SubscribeJobSet(string, string)
 	IsJobSetSubscribed(string, string) bool
-	UpdateJobServiceDb(*JobStatus)
+	UpdateJobServiceDb(*JobStatus) error
 }
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
@@ -45,6 +45,22 @@ func NewSQLJobService(jobSetSubscribe *JobSetSubscriptions, config *configuratio
 	return &SQLJobService{jobSetSubscribe: jobSetSubscribe, jobServiceConfig: config, db: db}
 }
 
+// Call on a newly created SQLJobService object to setup the DB for use.
+func (s *SQLJobService) Setup() {
+	s.useWAL()
+	s.CreateTable()
+}
+
+func (s *SQLJobService) useWAL() {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
+	_, err := s.db.Exec("PRAGMA journal_mode=WAL")
+	if err != nil {
+		panic(err)
+	}
+}
+
 type SubscribedTuple struct {
 	Queue  string
 	JobSet string
@@ -52,6 +68,9 @@ type SubscribedTuple struct {
 
 // Create a Table from a hard-coded schema.
 func (s *SQLJobService) CreateTable() {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
 	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
 		panic(err)
@@ -124,23 +143,22 @@ func jobStateStrToJSRState(jobState string) (js.JobServiceResponse_State, error)
 }
 
 // Update database with JobTable.
-func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) {
-	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
-	if err != nil {
-		panic(err)
-	}
-	jobState := jobTable.jobResponse.State.String()
-
+func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
 	// SQLite only allows one write at a time. Therefore we must serialize
 	// writes in order to avoid SQL_BUSY errors.
 	s.writeLock.Lock()
-	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
-	s.writeLock.Unlock()
+	defer s.writeLock.Unlock()
 
-	// TODO: Make more robust
-	if errExec != nil {
-		panic(errExec)
+	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
 	}
+	defer stmt.Close()
+	jobState := jobTable.jobResponse.State.String()
+
+	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
+
+	return errExec
 }
 
 // Simple Health Check to Verify if SqlLite is working.
@@ -228,6 +246,9 @@ func (s *SQLJobService) UpdateJobSetTime(queue string, jobSet string) error {
 
 // Delete Jobs in the database
 func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
+	s.writeLock.Lock()
+	defer s.writeLock.Unlock()
+
 	result, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	if err != nil {
 		return 0, err

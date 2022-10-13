@@ -8,6 +8,7 @@ armadactl.yaml
 loadtest.yaml
 test_reports
 code_reports
+/jobservice
 jobservice.db
 
 # Binaries for programs and plugins
@@ -68,3 +69,4 @@ typings.py
 third_party/airflow/docs/build/
 third_party/airflow/build/
 build/ssl/certs/ca-certificates.crt
+localdev/volumes/go/pkg/

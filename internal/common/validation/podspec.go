@@ -11,9 +11,9 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingConfig) error {
-	maxAllowedSize := schedulingSpec.MaxPodSpecSizeBytes
-	minJobResources := schedulingSpec.MinJobResources
+func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {
+	maxAllowedSize := schedulingConfig.MaxPodSpecSizeBytes
+	minJobResources := schedulingConfig.MinJobResources
 
 	if spec == nil {
 		return errors.Errorf("empty pod spec")
@@ -28,6 +28,11 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingC
 	}
 
 	err := validateAffinity(spec.Affinity)
+	if err != nil {
+		return err
+	}
+
+	err = validateTerminationGracePeriod(spec, schedulingConfig)
 	if err != nil {
 		return err
 	}
@@ -52,6 +57,25 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingC
 		}
 	}
 	return validatePorts(spec)
+}
+
+func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.SchedulingConfig) error {
+	specHasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
+	var terminationGracePeriodSeconds int64
+	var exceedsBounds bool
+	if specHasTerminationGracePeriod {
+		terminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
+		exceedsBounds = (terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
+			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()))
+	}
+
+	if exceedsBounds {
+		return errors.Errorf("terminationGracePeriodSeconds of %v must be between %v and %v, or omitted",
+			terminationGracePeriodSeconds,
+			config.MinTerminationGracePeriod.Seconds(),
+			config.MaxTerminationGracePeriod.Seconds())
+	}
+	return nil
 }
 
 func validateContainerResource(
