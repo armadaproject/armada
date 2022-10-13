@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/armada/cache"
@@ -342,6 +344,14 @@ func (repo *fakeQueueRepository) DeleteQueue(name string) error {
 }
 
 type fakeUsageRepository struct{}
+
+func (repo *fakeUsageRepository) GetClusterQueueResourceUsage() (map[string]*schedulerobjects.ClusterResourceUsageReport, error) {
+	return nil, nil
+}
+
+func (repo *fakeUsageRepository) UpdateClusterQueueResourceUsage(cluster string, resourceUsage *schedulerobjects.ClusterResourceUsageReport) error {
+	return nil
+}
 
 func (repo *fakeUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	return map[string]*api.ClusterUsageReport{}, nil

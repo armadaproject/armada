@@ -85,6 +85,7 @@ func NewAggregatedQueueServer(
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
+		clock:                    clock.RealClock{},
 	}
 }
 
@@ -361,7 +362,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 
-	usageByQueueAndExecutor := q.createUsageByQueueAndExecutor(reportsByCluster, req.Pool)
+	usageByQueueAndExecutor := q.createUsageByQueueAndExecutor(reportsByCluster, req.ClusterId, req.Pool)
 
 	distinctResourceTypes := make(map[string]interface{})
 	for _, r := range req.GetClusterLeasedReport().Queues {
@@ -460,8 +461,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		// since the leases will have been written into Redis.
 		if err != nil {
 			logging.WithStacktrace(log, err).Error("failed to schedule jobs")
+
+			// Save usage report to redis
+			// If this fails it *shouldn't* be too bad
+			//TODO: check if the report has actually been updated (mutated) at this point to reflect the new reality
 			usageReport := createClusterUsageReport(usageByQueueAndExecutor, req.ClusterId, req.Pool)
-			q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, usageReport)
+			err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, usageReport)
+			if err != nil {
+				logging.WithStacktrace(log, err).Error("failed to save usage report to redis")
+			}
 		}
 
 		return jobs, nil
@@ -671,12 +679,19 @@ func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
 	return jobs[0], err
 }
 
-func (q *AggregatedQueueServer) createUsageByQueueAndExecutor(reportsByCluster map[string]*schedulerobjects.ClusterResourceUsageReport, pool string) map[string]map[string]*schedulerobjects.QueueClusterResourceUsage {
+// createUsageByQueueAndExecutor Creates a map of usage first by queue and then by cluster
+// This exists because the ClusterResourceUsageReports we store in redis have to be keyed by cluster first
+// and here we  need to index by queue first.
+// Note that the desired cluster is excluded as this will be filled in later as are clusters that are not in the
+// same pool as the desired cluster
+func (q *AggregatedQueueServer) createUsageByQueueAndExecutor(reportsByCluster map[string]*schedulerobjects.ClusterResourceUsageReport, desiredCluster string, pool string) map[string]map[string]*schedulerobjects.QueueClusterResourceUsage {
 	const activeClusterExpiry = 10 * time.Minute
 	now := q.clock.Now()
 	usageByQueueAndExecutor := make(map[string]map[string]*schedulerobjects.QueueClusterResourceUsage)
 	for cluster, reports := range reportsByCluster {
-		if reports.Pool == pool {
+		// we don't add the reports from the desired cluster here as these will be filled in later
+		// We also don't care about any cluters that aren't in the same pool
+		if cluster != desiredCluster && reports.Pool == pool {
 			for _, report := range reports.Usages {
 				if report.Created.Add(activeClusterExpiry).After(now) {
 					if m, ok := usageByQueueAndExecutor[report.Queue]; ok {
@@ -692,6 +707,8 @@ func (q *AggregatedQueueServer) createUsageByQueueAndExecutor(reportsByCluster m
 	return usageByQueueAndExecutor
 }
 
+// createClusterUsageReport creates a schedulerobjects.ClusterResourceUsageReport suitable for storing in redis
+// from the map of QueueClusterResourceUsage which is indexed by queue and cluster
 func createClusterUsageReport(reportsByQueue map[string]map[string]*schedulerobjects.QueueClusterResourceUsage, desiredCluster string, pool string) *schedulerobjects.ClusterResourceUsageReport {
 	usages := make([]*schedulerobjects.QueueClusterResourceUsage, 0)
 	for _, resourceByCluster := range reportsByQueue {
