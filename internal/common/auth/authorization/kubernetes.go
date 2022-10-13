@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
@@ -71,27 +72,41 @@ type CacheData struct {
 	Valid bool   `json:"valid"`
 }
 
+func (authService *KubernetesNativeAuthService) Name() string {
+	return "KubernetesNative"
+}
+
 func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
 	if len(authHeader) < 2 || authHeader[0] != "KubernetesAuth" {
-		return nil, missingCredentials
+		return nil, &armadaerrors.ErrMissingCredentials{
+			AuthService: authService.Name(),
+		}
 	}
 
 	token, ca, err := parseAuth(authHeader[1])
 	if err != nil {
-		return nil, missingCredentials
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+		}
 	}
 
 	// Get token time
 	expirationTime, err := parseTime(token)
 	if err != nil {
-		return nil, err
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	if authService.Clock.Now().After(expirationTime) {
-		return nil, fmt.Errorf("invalid token, expired")
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     "invalid token, expired",
+		}
 	}
 
 	// Check Cache
@@ -101,7 +116,10 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 			if cacheInfo.Valid {
 				return NewStaticPrincipal(cacheInfo.Name, []string{cacheInfo.Name}), nil
 			} else {
-				return nil, fmt.Errorf("token invalid")
+				return nil, &armadaerrors.ErrInvalidCredentials{
+					AuthService: authService.Name(),
+					Message:     "token invalid",
+				}
 			}
 		}
 	}
@@ -109,12 +127,16 @@ func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context
 	// Get URL from token KID
 	url, err := authService.getClusterURL(token)
 	if err != nil {
-		return nil, err
+		return nil, &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	// Make request to token review endpoint
 	name, err := authService.reviewToken(ctx, url, token, []byte(ca))
 	if err != nil {
+		// reviewToken returns appropriate armadaerrors.
 		return nil, err
 	}
 
@@ -161,12 +183,20 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
 	result, err := authService.TokenReviewer.ReviewToken(ctx, clusterUrl, token, ca)
 	if err != nil {
-		return "", err
+		// TODO(clif) Hard to tell if this should be internal auth error
+		// or invalid creds still.
+		return "", &armadaerrors.ErrInternalAuthServiceError{
+			AuthService: authService.Name(),
+			Message:     err.Error(),
+		}
 	}
 
 	if !result.Status.Authenticated {
 		authService.TokenCache.Set(token, CacheData{Valid: false}, time.Duration(authService.InvalidTokenExpiry))
-		return "", fmt.Errorf("provided token was rejected by TokenReview")
+		return "", &armadaerrors.ErrInvalidCredentials{
+			AuthService: authService.Name(),
+			Message:     "provided token was rejected by TokenReview",
+		}
 	}
 
 	return result.Status.User.Username, nil

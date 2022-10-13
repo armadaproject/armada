@@ -335,7 +335,8 @@ func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) er
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
 
-	deleteOptions := createDeleteOptions()
+	// GracePeriodSeconds to nil yields to podspec setting
+	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
 	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
 			return
