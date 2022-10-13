@@ -44,7 +44,7 @@ def sleep_pod(image: str):
 
 def test_success_job():
     job_set_name = f"test-{uuid.uuid1()}"
-    
+
     job = no_auth_client.submit_jobs(
         queue="test",
         job_set_id=job_set_name,
