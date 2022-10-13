@@ -437,6 +437,13 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
+	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
+		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
+			config.Scheduling.MaxQueueReportsToStore,
+			config.Scheduling.MaxJobReportsToStore,
+		)
+	}
+
 	eventServer := server.NewEventServer(
 		permissions,
 		eventRepository,

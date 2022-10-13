@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -51,7 +52,7 @@ type AggregatedQueueServer struct {
 	// Map from executor name to the pool that executor belongs to.
 	poolByExecutorId map[string]string
 	// For storing reports of scheduling attempts.
-	schedulingReportsRepository *scheduler.SchedulingReportsRepository
+	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
 }
 
 func NewAggregatedQueueServer(
@@ -196,9 +197,21 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return nil
 	}
 
-	jobs, err := q.legacyGetJobs(stream.Context(), req)
-	if err != nil {
-		return err
+	// Get jobs to be leased.
+	// TODO: The lease call resource reporting logic should be moved here.
+	var jobs []*api.Job
+	if rand.Float64() < q.schedulingConfig.ProbabilityOfUsingNewScheduler {
+		// New scheduler.
+		jobs, err = q.getJobs(stream.Context(), req)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Old scheduler.
+		jobs, err = q.legacyGetJobs(stream.Context(), req)
+		if err != nil {
+			return err
+		}
 	}
 
 	// The server streams jobs to the executor.
@@ -458,9 +471,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 	sched.SchedulingReportsRepository = q.schedulingReportsRepository
-
-	// TODO: Test minimum job size.
 	sched.MinimumJobSize = req.MinimumJobSize
+
+	// Give Schedule() a 3 second shorter deadline than ctx,
+	// to give it a chance to finish up before ctx is cancelled.
+	if deadline, ok := ctx.Deadline(); ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
+		defer cancel()
+	}
 
 	// TODO: Return updated resource usage and store it.
 	jobs, err := sched.Schedule(ctx, aggregatedUsageByQueue)
