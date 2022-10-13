@@ -543,7 +543,7 @@ func TestService(t *testing.T) {
 		}
 
 		_, ok := sequence.Events[numEventsExpected-1].GetEvent().(*armadaevents.EventSequence_Event_JobSucceeded)
-		assert.True(t, ok) // FIXME(Clif) Failure here
+		assert.True(t, ok)
 
 		// Cancel the original job (i.e., the nginx job).
 		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
