@@ -91,7 +91,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// and generate a job duplicate found event.
 		originalId, found := originalIds[apiJob.GetId()]
 		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
-			if found {
+			if found && originalId != "" {
 				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
 					JobId:         responses[i].JobId,
 					Queue:         req.Queue,
