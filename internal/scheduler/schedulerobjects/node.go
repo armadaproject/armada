@@ -10,6 +10,7 @@ import (
 )
 
 func NewNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {
+	// TODO: Pass in well-known labels from config.
 	nodeType := NewNodeTypeFromNodeInfo(nodeInfo, nil, nil, nil)
 	availableByPriorityAndResource := NewAvailableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {
