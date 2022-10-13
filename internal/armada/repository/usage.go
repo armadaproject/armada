@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/pkg/errors"
-
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 

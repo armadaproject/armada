@@ -137,7 +137,10 @@ type QueueCandidateJobsIterator struct {
 	schedulingReportsRepository *SchedulingReportsRepository
 }
 
-func NewQueueCandidateJobsIterator(ctx context.Context, queue string, initialTotalQueueResources schedulerobjects.ResourceList, initialTotalQueueResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType, scheduler LegacyScheduler) (*QueueCandidateJobsIterator, error) {
+func NewQueueCandidateJobsIterator(
+	ctx context.Context,
+	queue string, initialTotalQueueResources schedulerobjects.ResourceList, initialTotalQueueResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType, scheduler LegacyScheduler,
+) (*QueueCandidateJobsIterator, error) {
 	jobsIterator, err := NewQueuedJobsIterator(ctx, queue, scheduler.JobRepository)
 	if err != nil {
 		return nil, err
