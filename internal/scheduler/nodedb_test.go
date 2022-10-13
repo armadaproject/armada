@@ -82,8 +82,8 @@ func TestSelectNodeForPod_InvalidResource(t *testing.T) {
 			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "someResourceWeDontHave": resource.MustParse("1")},
 		},
 	})
-	assert.Error(t, err)
-	assert.Nil(t, report)
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
 }
 
 // Fill up all the priority zero space on testNodeItems1
