@@ -9,6 +9,7 @@ scheduling:
   maximalClusterFractionToSchedule:
     memory: 0.99
     cpu: 0.99
+  probabilityOfUsingNewScheduler: 1
   defaultJobLimits:
     cpu: 1
     memory: 1Gi
