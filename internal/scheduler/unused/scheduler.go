@@ -1,13 +1,5 @@
 package scheduler
 
-import (
-	"fmt"
-	"sync"
-
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
-)
-
 // Scheduler contains the current state of the Armada scheduler.
 //
 // Armada uses a two-stage scheduling approach, consisting of an Armada-level meta-scheduler and a set of per-cluster
@@ -77,209 +69,210 @@ import (
 // message has made it through the log and been written to postgres by the log processor.
 //
 // TODO: Figure out how the executor + cluster-scheduler (likely the standard k8s scheduler) subsystem will work.
-type Scheduler struct {
-	// Complete list of queues that jobs are scheduled from.
-	queues []*Queue
-	// Priority queue of queues considered for scheduling.
-	pq QueuePQ
-	// Queues not currently considered for scheduling.
-	// Queues are placed here temporarily if their highest priority job can't be scheduled.
-	paused []*Queue
-	// Connected executor clusters.
-	clusters []*Cluster
-	// Subset of clusters eligible for scheduling.
-	// schedulableClusters []*Queue
-	// Lock protecting all fields of this struct.
-	lock *sync.Mutex
-}
 
-type Cluster struct {
-	Id string
-	// Used to determine which clusters each job can be assigned to.
-	// Total amount of resources available across the cluster.
-	TotalResources map[string]int64
-	// For each resource, the maximum available on any single node.
-	MaxResources map[string]int64
-	// Total amount of resources claimed by the jobs leased to the cluster.
-	ClaimedResources map[string]int64
-}
+// type Scheduler struct {
+// 	// Complete list of queues that jobs are scheduled from.
+// 	queues []*Queue
+// 	// Priority queue of queues considered for scheduling.
+// 	pq QueuePQ
+// 	// Queues not currently considered for scheduling.
+// 	// Queues are placed here temporarily if their highest priority job can't be scheduled.
+// 	paused []*Queue
+// 	// Connected executor clusters.
+// 	clusters []*Cluster
+// 	// Subset of clusters eligible for scheduling.
+// 	// schedulableClusters []*Queue
+// 	// Lock protecting all fields of this struct.
+// 	lock *sync.Mutex
+// }
 
-// Representing a job lease, i.e., the assignment of a job to a cluster.
-type Lease struct {
-	Id         string
-	JobId      string
-	ExecutorId string
-}
+// type Cluster struct {
+// 	Id string
+// 	// Used to determine which clusters each job can be assigned to.
+// 	// Total amount of resources available across the cluster.
+// 	TotalResources map[string]int64
+// 	// For each resource, the maximum available on any single node.
+// 	MaxResources map[string]int64
+// 	// Total amount of resources claimed by the jobs leased to the cluster.
+// 	ClaimedResources map[string]int64
+// }
 
-// scheduleForever continually schedules jobs.
-func (s *Scheduler) scheduleForever() {
-	for {
-		err := s.scheduleOne()
-		if err != nil {
-			fmt.Printf("error: %s\n", err)
-		}
-		// TODO: Look at the error code to determine any changes that need to be made.
-	}
-}
+// // Representing a job lease, i.e., the assignment of a job to a cluster.
+// type Lease struct {
+// 	Id         string
+// 	JobId      string
+// 	ExecutorId string
+// }
 
-// scheduleOne schedules one job, or returns an error.
-func (s *Scheduler) scheduleOne() error {
-	queue, err := s.selectQueue()
-	if err != nil {
-		return err
-	}
+// // scheduleForever continually schedules jobs.
+// func (s *Scheduler) scheduleForever() {
+// 	for {
+// 		err := s.scheduleOne()
+// 		if err != nil {
+// 			fmt.Printf("error: %s\n", err)
+// 		}
+// 		// TODO: Look at the error code to determine any changes that need to be made.
+// 	}
+// }
 
-	job, err := queue.selectJob()
-	if err != nil {
-		return err
-	}
+// // scheduleOne schedules one job, or returns an error.
+// func (s *Scheduler) scheduleOne() error {
+// 	queue, err := s.selectQueue()
+// 	if err != nil {
+// 		return err
+// 	}
 
-	lease, err := s.suggestLease(queue, job)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("suggested lease: %s\n", lease)
-	return nil
-}
+// 	job, err := queue.selectJob()
+// 	if err != nil {
+// 		return err
+// 	}
 
-// selectQueue returns the highest priority queue from the scheduler priority queue.
-// Does not remove the queue from the priority queue.
-func (s *Scheduler) selectQueue() (*Queue, error) {
-	if s.pq.Len() == 0 {
-		err := errors.Errorf("no queues available")
-		return nil, errors.WithStack(err)
-	}
-	return s.pq[0], nil
-}
+// 	lease, err := s.suggestLease(queue, job)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Printf("suggested lease: %s\n", lease)
+// 	return nil
+// }
 
-// selectJob returns the highest priority job from the queue priority queue.
-// Does not remove the queue from the priority queue.
-func (q *Queue) selectJob() (*Job, error) {
-	if q.Pq.Len() == 0 {
-		err := errors.Errorf("no jobs available")
-		return nil, errors.WithStack(err)
-	}
-	return q.Pq[0], nil
-}
+// // selectQueue returns the highest priority queue from the scheduler priority queue.
+// // Does not remove the queue from the priority queue.
+// func (s *Scheduler) selectQueue() (*Queue, error) {
+// 	if s.pq.Len() == 0 {
+// 		err := errors.Errorf("no queues available")
+// 		return nil, errors.WithStack(err)
+// 	}
+// 	return s.pq[0], nil
+// }
 
-// suggestLease returns a suggested scheduling decision (i.e., a lease), or an error.
-// The caller is responsible for acting on that decision (or not) and updating the scheduler data structures accordingly.
-func (s *Scheduler) suggestLease(queue *Queue, job *Job) (*Lease, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	if len(s.clusters) == 0 {
-		err := errors.Errorf("no clusters available")
-		return nil, errors.WithStack(err)
-	}
+// // selectJob returns the highest priority job from the queue priority queue.
+// // Does not remove the queue from the priority queue.
+// func (q *Queue) selectJob() (*Job, error) {
+// 	if q.Pq.Len() == 0 {
+// 		err := errors.Errorf("no jobs available")
+// 		return nil, errors.WithStack(err)
+// 	}
+// 	return q.Pq[0], nil
+// }
 
-	// Select the clusters the job could possibly run on.
-	eligible := FilterIneligibleClusters(job, s.clusters)
-	if len(eligible) == 0 {
-		// The job can never be run on any connected cluster.
-		err := errors.Errorf("no eligible clusters for job")
-		return nil, errors.WithStack(err)
-	}
+// // suggestLease returns a suggested scheduling decision (i.e., a lease), or an error.
+// // The caller is responsible for acting on that decision (or not) and updating the scheduler data structures accordingly.
+// func (s *Scheduler) suggestLease(queue *Queue, job *Job) (*Lease, error) {
+// 	s.lock.Lock()
+// 	defer s.lock.Unlock()
+// 	if len(s.clusters) == 0 {
+// 		err := errors.Errorf("no clusters available")
+// 		return nil, errors.WithStack(err)
+// 	}
 
-	// Select the subset of those the job could be assigned to now.
-	available := FilterUnavailableClusters(job, eligible)
-	if len(available) == 0 {
-		// It may be possible to schedule the job later.
-		err := errors.Errorf("no currently available clusters for job")
-		return nil, errors.WithStack(err)
-	}
+// 	// Select the clusters the job could possibly run on.
+// 	eligible := FilterIneligibleClusters(job, s.clusters)
+// 	if len(eligible) == 0 {
+// 		// The job can never be run on any connected cluster.
+// 		err := errors.Errorf("no eligible clusters for job")
+// 		return nil, errors.WithStack(err)
+// 	}
 
-	// Of the available clusters, determine which cluster to assign the job to.
-	cluster, err := selectCluster(job, available)
-	if err != nil {
-		return nil, err
-	}
-	return &Lease{
-		Id:         uuid.New().String(),
-		JobId:      job.Id,
-		ExecutorId: cluster.Id,
-	}, nil
-}
+// 	// Select the subset of those the job could be assigned to now.
+// 	available := FilterUnavailableClusters(job, eligible)
+// 	if len(available) == 0 {
+// 		// It may be possible to schedule the job later.
+// 		err := errors.Errorf("no currently available clusters for job")
+// 		return nil, errors.WithStack(err)
+// 	}
 
-// FilterIneligibleClusters filters out any clusters on which the job could never be scheduled,
-// e.g., because it lacks required accelerators.
-func FilterIneligibleClusters(job *Job, clusters []*Cluster) []*Cluster {
-	rv := make([]*Cluster, 0)
-	for _, cluster := range clusters {
-		if cluster.CanRun(job) {
-			rv = append(rv, cluster)
-		}
-	}
-	return clusters
-}
+// 	// Of the available clusters, determine which cluster to assign the job to.
+// 	cluster, err := selectCluster(job, available)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &Lease{
+// 		Id:         uuid.New().String(),
+// 		JobId:      job.Id,
+// 		ExecutorId: cluster.Id,
+// 	}, nil
+// }
 
-// FilterUnavailableClusters filters out any clusters on which the job can't be scheduled right now,
-// e.g., because it is too busy.
-func FilterUnavailableClusters(job *Job, clusters []*Cluster) []*Cluster {
-	rv := make([]*Cluster, 0)
-	for _, cluster := range clusters {
-		if cluster.CanRunNow(job) {
-			rv = append(rv, cluster)
-		}
-	}
-	return clusters
-}
+// // FilterIneligibleClusters filters out any clusters on which the job could never be scheduled,
+// // e.g., because it lacks required accelerators.
+// func FilterIneligibleClusters(job *Job, clusters []*Cluster) []*Cluster {
+// 	rv := make([]*Cluster, 0)
+// 	for _, cluster := range clusters {
+// 		if cluster.CanRun(job) {
+// 			rv = append(rv, cluster)
+// 		}
+// 	}
+// 	return clusters
+// }
 
-// CanRun returns true if the cluster could run the provided job, i.e.,
-// if it has sufficient resources available.
-func (c *Cluster) CanRun(job *Job) bool {
-	for resource, requiredAmount := range job.Claims {
-		amount, ok := c.TotalResources[resource]
-		if !ok || amount < requiredAmount {
-			return false
-		}
-		amount, ok = c.MaxResources[resource]
-		if !ok || amount < requiredAmount {
-			return false
-		}
-	}
-	return true
-}
+// // FilterUnavailableClusters filters out any clusters on which the job can't be scheduled right now,
+// // e.g., because it is too busy.
+// func FilterUnavailableClusters(job *Job, clusters []*Cluster) []*Cluster {
+// 	rv := make([]*Cluster, 0)
+// 	for _, cluster := range clusters {
+// 		if cluster.CanRunNow(job) {
+// 			rv = append(rv, cluster)
+// 		}
+// 	}
+// 	return clusters
+// }
 
-// CanRunNow returns true if the cluster has sufficient available resources to run the job now.
-// Depending on how the available resources are spread across the nodes of the cluster,
-// the job may still need to be queued.
-func (c *Cluster) CanRunNow(job *Job) bool {
-	for resource, requiredAmount := range job.Claims {
-		amount, ok := c.TotalResources[resource]
-		if !ok {
-			return false
-		}
-		claimed, ok := c.ClaimedResources[resource]
-		if !ok {
-			return false
-		}
-		if amount-claimed < requiredAmount {
-			return false
-		}
-	}
-	return true
-}
+// // CanRun returns true if the cluster could run the provided job, i.e.,
+// // if it has sufficient resources available.
+// func (c *Cluster) CanRun(job *Job) bool {
+// 	for resource, requiredAmount := range job.Claims {
+// 		amount, ok := c.TotalResources[resource]
+// 		if !ok || amount < requiredAmount {
+// 			return false
+// 		}
+// 		amount, ok = c.MaxResources[resource]
+// 		if !ok || amount < requiredAmount {
+// 			return false
+// 		}
+// 	}
+// 	return true
+// }
 
-// selectCluster returns the cluster best suited for scheduling the given job.
-func selectCluster(job *Job, candidates []*Cluster) (*Cluster, error) {
-	if len(candidates) == 0 {
-		err := errors.Errorf("no clusters available to select from")
-		return nil, errors.WithStack(err)
-	}
-	cluster := candidates[0]
-	score := cluster.Score(job)
-	for _, candidate := range candidates[1:] {
-		candidateScore := candidate.Score(job)
-		if candidateScore > score {
-			cluster = candidate
-			score = candidateScore
-		}
-	}
-	return cluster, nil
-}
+// // CanRunNow returns true if the cluster has sufficient available resources to run the job now.
+// // Depending on how the available resources are spread across the nodes of the cluster,
+// // the job may still need to be queued.
+// func (c *Cluster) CanRunNow(job *Job) bool {
+// 	for resource, requiredAmount := range job.Claims {
+// 		amount, ok := c.TotalResources[resource]
+// 		if !ok {
+// 			return false
+// 		}
+// 		claimed, ok := c.ClaimedResources[resource]
+// 		if !ok {
+// 			return false
+// 		}
+// 		if amount-claimed < requiredAmount {
+// 			return false
+// 		}
+// 	}
+// 	return true
+// }
 
-// Score returns an integer that indicates how suitable the cluster is for scheduling the given job.
-// A higher value indicates that the cluster is more suitable.
-func (cluster *Cluster) Score(job *Job) int {
-	return 0
-}
+// // selectCluster returns the cluster best suited for scheduling the given job.
+// func selectCluster(job *Job, candidates []*Cluster) (*Cluster, error) {
+// 	if len(candidates) == 0 {
+// 		err := errors.Errorf("no clusters available to select from")
+// 		return nil, errors.WithStack(err)
+// 	}
+// 	cluster := candidates[0]
+// 	score := cluster.Score(job)
+// 	for _, candidate := range candidates[1:] {
+// 		candidateScore := candidate.Score(job)
+// 		if candidateScore > score {
+// 			cluster = candidate
+// 			score = candidateScore
+// 		}
+// 	}
+// 	return cluster, nil
+// }
+
+// // Score returns an integer that indicates how suitable the cluster is for scheduling the given job.
+// // A higher value indicates that the cluster is more suitable.
+// func (cluster *Cluster) Score(job *Job) int {
+// 	return 0
+// }

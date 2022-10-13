@@ -396,13 +396,13 @@ func testNTaintedtGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
-func testNA100Node(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testA100GpuNode(priorities)
-	}
-	return rv
-}
+// func testNA100Node(n int, priorities []int32) []*schedulerobjects.Node {
+// 	rv := make([]*schedulerobjects.Node, n)
+// 	for i := 0; i < n; i++ {
+// 		rv[i] = testA100GpuNode(priorities)
+// 	}
+// 	return rv
+// }
 
 func testCpuNode(priorities []int32) *schedulerobjects.Node {
 	return &schedulerobjects.Node{
@@ -520,30 +520,6 @@ func testA100GpuNode(priorities []int32) *schedulerobjects.Node {
 			},
 		),
 	}
-}
-
-func testNodesByTemplate(templates []*schedulerobjects.Node, ns []int) []*schedulerobjects.Node {
-	if len(templates) != len(ns) {
-		panic("templates and ns must be of equal length")
-	}
-	numNodes := 0
-	for _, n := range ns {
-		numNodes += n
-	}
-	rv := make([]*schedulerobjects.Node, 0)
-	for _, template := range templates {
-		for i := 0; i < ns[i]; i++ {
-			node := &schedulerobjects.Node{
-				Id:                             uuid.NewString(),
-				LastSeen:                       template.LastSeen,
-				NodeType:                       template.NodeType,
-				NodeTypeId:                     template.NodeTypeId,
-				AvailableByPriorityAndResource: schedulerobjects.AvailableByPriorityAndResourceType(template.AvailableByPriorityAndResource).DeepCopy(),
-			}
-			rv = append(rv, node)
-		}
-	}
-	return rv
 }
 
 func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
