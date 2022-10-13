@@ -470,7 +470,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err != nil {
 		return nil, err
 	}
-	sched.SchedulingReportsRepository = q.schedulingReportsRepository
+	sched.SchedulingReportsRepository = q.SchedulingReportsRepository
 	sched.MinimumJobSize = req.MinimumJobSize
 
 	// Give Schedule() a 3 second shorter deadline than ctx,
