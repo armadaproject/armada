@@ -186,6 +186,8 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 		if jobSchedulingReport.UnschedulableReason != "" {
 			// Store reports for unsuccessful attempts.
 			// Successful attempts are stored by the main scheduling loop.
+			// Zero out the job spec to reduce memory usage.
+			jobSchedulingReport.Job = nil
 			if it.schedulingReportsRepository != nil {
 				it.schedulingReportsRepository.Add(job.Queue, jobSchedulingReport)
 			}
@@ -499,6 +501,8 @@ func (c *LegacyScheduler) Schedule(
 			roundResources = roundResourcesCopy
 			totalResourcesByQueue[queue] = report.TotalQueueResources
 			if c.SchedulingReportsRepository != nil {
+				// Zero out the job spec to reduce memory usage.
+				report.Job = nil
 				c.SchedulingReportsRepository.Add(queue, report)
 			}
 			break
