@@ -905,23 +905,6 @@ func assertResourceLimitsSatisfied(t *testing.T, limits resourceLimits, resource
 	return true
 }
 
-func (limits resourceLimits) areSatisfied(resources schedulerobjects.ResourceList) bool {
-	for t, q := range limits.Minimum.Resources {
-		min := resources.Resources[t]
-		if min.Cmp(q) == -1 {
-			return false
-		}
-	}
-	for t, q := range resources.Resources {
-		if max, ok := limits.Maximum.Resources[t]; ok {
-			if max.Cmp(q) == 1 {
-				return false
-			}
-		}
-	}
-	return true
-}
-
 func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
 	rv := make(map[string][]string)
 	for _, job := range jobs {

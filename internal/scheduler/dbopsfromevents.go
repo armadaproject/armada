@@ -6,7 +6,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -207,37 +206,4 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 		return nil, errors.Errorf("unsupported object type %T", object)
 	}
 	return schedulingInfo, nil
-}
-
-// aggregatePodResourceRequirements returns a ResourceRequirements
-// capturing the total resource requirements of all containers that make up a pod.
-func aggregatePodResourceRequirements(podSpec *v1.PodSpec) v1.ResourceRequirements {
-	containerRequirements := make([]v1.ResourceRequirements, len(podSpec.Containers))
-	for i, container := range podSpec.Containers {
-		containerRequirements[i] = container.Resources
-	}
-	return aggregateResourceRequirements(containerRequirements...)
-}
-
-// aggregateResourceRequirements returns a ResourceRequirements
-// the limits and requests of which is the sum of the limits and requests
-// over all requirements given as arguments.
-func aggregateResourceRequirements(requirements ...v1.ResourceRequirements) v1.ResourceRequirements {
-	rv := v1.ResourceRequirements{
-		Limits:   make(v1.ResourceList),
-		Requests: make(v1.ResourceList),
-	}
-	for _, v := range requirements {
-		for resource, quantity := range v.Limits {
-			q := rv.Limits[resource]
-			q.Add(quantity)
-			rv.Limits[resource] = q
-		}
-		for resource, quantity := range v.Requests {
-			q := rv.Requests[resource]
-			q.Add(quantity)
-			rv.Requests[resource] = q
-		}
-	}
-	return rv
 }

@@ -40,9 +40,6 @@ type JobsIterator interface {
 	Next() (*api.Job, error)
 }
 
-// TODO: Not used.
-type jobsFilterFunc func(*api.Job) bool
-
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 // It loads jobs in batches from Redis asynch.
 type QueuedJobsIterator struct {

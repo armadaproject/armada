@@ -35,6 +35,7 @@ import (
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler"
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -459,6 +460,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+	if aggregatedQueueServer.SchedulingReportsRepository != nil {
+		schedulerobjects.RegisterSchedulerReportingServer(
+			grpcServer,
+			aggregatedQueueServer.SchedulingReportsRepository,
+		)
+	}
 
 	// If the new Pulsar-driven scheduler is provided, run that.
 	// Otherwise run the legacy scheduler.
