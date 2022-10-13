@@ -7,17 +7,15 @@ import (
 
 	"google.golang.org/grpc"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gogo/protobuf/types"
-
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
+	"github.com/gogo/protobuf/types"
 )
 
 // JobEventReader is the interface for retrieving job set event messages
 type JobEventReader interface {
 	GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error)
+	Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error)
 	Close()
 }
 
@@ -51,6 +49,17 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 	return stream.Recv()
 }
 
+func (ec *EventClient) Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
+	err := ec.ensureApiConnection()
+	if err != nil {
+		return nil, err
+	}
+	eventClient := api.NewEventClient(ec.conn)
+
+	health, err := eventClient.Health(ctx, empty)
+	return health, err
+}
+
 // Close will close the api connection if established
 func (ec *EventClient) Close() {
 	if ec.hasConn() {
@@ -75,12 +84,6 @@ func (ec *EventClient) ensureApiConnection() error {
 	conn, connErr := client.CreateApiConnection(ec.config)
 	if connErr != nil {
 		return connErr
-	}
-	eventClient := api.NewEventClient(conn)
-	health, err := eventClient.Health(context.Background(), &types.Empty{})
-	if health.Status != api.HealthCheckResponse_SERVING {
-		log.Errorf("Health Check Failed for Events with %s", err)
-		return err
 	}
 	ec.conn = conn
 

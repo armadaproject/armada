@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
 	"github.com/G-Research/armada/internal/jobservice/repository"
 
+	"github.com/G-Research/armada/pkg/api"
 	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
@@ -47,5 +48,12 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 
 func (s *JobServiceServer) Health(ctx context.Context, _ *types.Empty) (*js.HealthCheckResponse, error) {
 	log.Info("JobService Health Check Successful")
+	eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
+	health, err := eventClient.Health(context.Background(), &types.Empty{})
+	if health.Status != api.HealthCheckResponse_SERVING {
+		log.Errorf("Health Check Failed for Events with %s", err)
+		return nil, err
+	}
+
 	return &js.HealthCheckResponse{Status: js.HealthCheckResponse_SERVING}, nil
 }

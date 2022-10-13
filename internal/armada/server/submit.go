@@ -83,10 +83,7 @@ func NewSubmitServer(
 }
 
 func (server *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
-	err := checkPermission(server.permissions, ctx, permissions.SubmitJobs)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[HealthCheck] error: %s", err)
-	}
+	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 
