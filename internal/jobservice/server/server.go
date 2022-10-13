@@ -46,13 +46,11 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 }
 
 func (s *JobServiceServer) Health(ctx context.Context, _ *types.Empty) (*js.HealthCheckResponse, error) {
-	log.Info("JobService Health Check Starting")
 	eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
 	_, err := eventClient.Health(context.Background(), &types.Empty{})
 	if err != nil {
 		log.Errorf("Health Check Failed for Events with %s", err)
 		return nil, err
 	}
-	log.Info("JobService Health and Event Health Successful")
 	return &js.HealthCheckResponse{Status: js.HealthCheckResponse_SERVING}, nil
 }
