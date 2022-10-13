@@ -400,7 +400,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		usageByQueue[r.Name] = report
 	}
 
-	//Store the usage so that other clusters can make use of it
+	// Store the usage so that other clusters can make use of it
 	clusterUsageReport := q.createClusterUsageReport(usageByQueue, req.Pool)
 	err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport)
 	if err != nil {
