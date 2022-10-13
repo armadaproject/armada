@@ -196,12 +196,8 @@ func (s *NodeItemAvailableResourceIndex) FromObject(raw interface{}) (bool, []by
 }
 
 func encodeQuantity(val resource.Quantity) []byte {
-	i, ok := val.AsInt64()
-	if !ok {
-		err := errors.Errorf("failed to represent %s as int64", val.String())
-		panic(err)
-	}
-	return encodeInt(i)
+	// We assume that any quantity we want to compare can be represented as an int64.
+	return encodeInt(val.MilliValue())
 }
 
 func encodeInt(val int64) []byte {

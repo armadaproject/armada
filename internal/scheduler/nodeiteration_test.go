@@ -66,15 +66,26 @@ func TestQuantityIndexComparison(t *testing.T) {
 			A: resource.MustParse("100M"),
 			B: resource.MustParse("200M"),
 		},
-		// TODO: These two cases fail. Do we need to support them?
-		// "1 1001m": {
-		// 	A: resource.MustParse("1"),
-		// 	B: resource.MustParse("1001m"),
-		// },
-		// "1 1000m": {
-		// 	A: resource.MustParse("1"),
-		// 	B: resource.MustParse("1000m"),
-		// },
+		"54870m 54871m": {
+			A: resource.MustParse("54870m"),
+			B: resource.MustParse("54871m"),
+		},
+		"1000Ti 1001Ti": {
+			A: resource.MustParse("1000Ti"),
+			B: resource.MustParse("1001Ti"),
+		},
+		"1000Pi 1001Pi": {
+			A: resource.MustParse("1000Pi"),
+			B: resource.MustParse("1001Pi"),
+		},
+		"1 1001m": {
+			A: resource.MustParse("1"),
+			B: resource.MustParse("1001m"),
+		},
+		"1 1000m": {
+			A: resource.MustParse("1"),
+			B: resource.MustParse("1000m"),
+		},
 		"1Gi 1001Mi": {
 			A: resource.MustParse("1Gi"),
 			B: resource.MustParse("1001Mi"),
