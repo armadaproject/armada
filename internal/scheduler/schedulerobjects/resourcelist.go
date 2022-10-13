@@ -4,10 +4,19 @@ import resource "k8s.io/apimachinery/pkg/api/resource"
 
 type QuantityByPriorityAndResourceType map[int32]ResourceList
 
+func (a QuantityByPriorityAndResourceType) DeepCopy() QuantityByPriorityAndResourceType {
+	rv := make(QuantityByPriorityAndResourceType)
+	for p, rl := range a {
+		rv[p] = rl.DeepCopy()
+	}
+	return rv
+}
+
 func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
 	for p, rsb := range b {
 		rsa := a[p]
 		rsa.Add(rsb)
+		a[p] = rsa
 	}
 }
 
@@ -28,7 +37,7 @@ func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
 	return rv
 }
 
-func (a ResourceList) Add(b ResourceList) {
+func (a *ResourceList) Add(b ResourceList) {
 	if a.Resources == nil {
 		a.Resources = make(map[string]resource.Quantity)
 	}
@@ -39,7 +48,7 @@ func (a ResourceList) Add(b ResourceList) {
 	}
 }
 
-func (a ResourceList) Sub(b ResourceList) {
+func (a *ResourceList) Sub(b ResourceList) {
 	if a.Resources == nil {
 		a.Resources = make(map[string]resource.Quantity)
 	}
@@ -50,7 +59,7 @@ func (a ResourceList) Sub(b ResourceList) {
 	}
 }
 
-func (rl ResourceList) DeepCopy() ResourceList {
+func (rl *ResourceList) DeepCopy() ResourceList {
 	rv := ResourceList{
 		Resources: make(map[string]resource.Quantity),
 	}

@@ -313,7 +313,7 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			it, err := NewQueueCandidateJobsIterator(ctx, "A", tc.InitialQueueResources, scheduler)
+			it, err := NewQueueCandidateJobsIterator(ctx, "A", tc.InitialQueueResources, nil, scheduler)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -810,7 +810,7 @@ func TestSchedule(t *testing.T) {
 			scheduler.MinimumJobSize = tc.MinimumJobSize
 			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
-			jobs, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
+			jobs, _, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
 				return
 			}

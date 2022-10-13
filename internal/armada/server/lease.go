@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/clock"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
@@ -44,14 +45,7 @@ type AggregatedQueueServer struct {
 	eventStore               repository.EventStore
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	decompressorPool         *pool.ObjectPool
-	// Map from "executorId-queue" to the most recent cluster usage report for that cluster.
-	// TODO: These should be stored in a database instead of in-memory.
-	// usageByExecutorId map[string]*schedulerobjects.QueueClusterResourceUsage
-	usageByQueueAndExecutor map[string]map[string]*schedulerobjects.QueueClusterResourceUsage
-	usageByExecutorAndQueue map[string]map[string]*schedulerobjects.QueueClusterResourceUsage
-	// usageByExecutorId sync.Map
-	// Map from executor name to the pool that executor belongs to.
-	poolByExecutorId map[string]string
+	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
 	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
 }
@@ -91,9 +85,7 @@ func NewAggregatedQueueServer(
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
-		usageByQueueAndExecutor:  make(map[string]map[string]*schedulerobjects.QueueClusterResourceUsage),
-		usageByExecutorAndQueue:  make(map[string]map[string]*schedulerobjects.QueueClusterResourceUsage),
-		poolByExecutorId:         make(map[string]string),
+		clock:                    clock.RealClock{},
 	}
 }
 
@@ -389,14 +381,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	log := ctxlogrus.Extract(ctx)
 	log.Info("using new scheduler for lease call")
 
-	// Each cluster is part of a cluster pool.
-	// Fair share is computed separately for each pool,
-	// so we need to store which pool each executor is part of.
-	// TODO: Protect with a mutex.
-	q.poolByExecutorId[req.GetClusterId()] = req.Pool
-
-	// Store resource usage by queue and executor.
-	// TODO: This is stored in-memory. But we need to store it in a database.
+	usageByQueue := make(map[string]*schedulerobjects.QueueClusterResourceUsage)
 	for _, r := range req.GetClusterLeasedReport().Queues {
 		resourcesByPriority := make(map[int32]schedulerobjects.ResourceList)
 		for p, rs := range r.ResourcesLeasedByPriority {
@@ -412,51 +397,24 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			ExecutorId:          req.GetClusterLeasedReport().ClusterId,
 			ResourcesByPriority: resourcesByPriority,
 		}
-
-		// TODO: Protect with mutex
-		if m, ok := q.usageByExecutorAndQueue[report.ExecutorId]; ok {
-			m[r.Name] = report
-		} else {
-			m = map[string]*schedulerobjects.QueueClusterResourceUsage{r.Name: report}
-			q.usageByExecutorAndQueue[report.ExecutorId] = m
-		}
-
-		// TODO: Protect with mutex
-		// TODO: Not needed anymore. Since we're using usageByExecutorAndQueue.
-		if m, ok := q.usageByQueueAndExecutor[r.Name]; ok {
-			m[report.ExecutorId] = report
-		} else {
-			m = map[string]*schedulerobjects.QueueClusterResourceUsage{report.ExecutorId: report}
-			q.usageByQueueAndExecutor[r.Name] = m
-		}
+		usageByQueue[r.Name] = report
 	}
 
-	// Aggregate resource usage across clusters.
-	aggregatedUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
-	for executorId, usageReportByQueue := range q.usageByExecutorAndQueue {
-		for queue, report := range usageReportByQueue {
-			quantityByPriorityAndResourceType, ok := aggregatedUsageByQueue[queue]
-			if !ok {
-				quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
-				aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
-			}
-
-			// Aggregate on a per-pool basis.
-			if q.poolByExecutorId[executorId] == req.Pool {
-				quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
-			}
-		}
+	//Store the usage so that other clusters can make use of it
+	clusterUsageReport := q.createClusterUsageReport(usageByQueue, req.Pool)
+	err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport)
+	if err != nil {
+		return nil, err
 	}
-	// for queue, queueReportByExecutorId := range q.usageByQueueAndExecutor {
-	// 	quantityByPriorityAndResourceType := make(schedulerobjects.QuantityByPriorityAndResourceType)
-	// 	for executorId, report := range queueReportByExecutorId {
-	// 		// Aggregate on a per-pool basis.
-	// 		if q.poolByExecutorId[executorId] == req.Pool {
-	// 			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
-	// 		}
-	// 	}
-	// 	aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
-	// }
+
+	// load the usage from all other executors
+	reportsByExecutor, err := q.usageRepository.GetClusterQueueResourceUsage()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create an aggregated usage by queue over all clusters
+	aggregatedUsageByQueue := q.aggregateUsage(reportsByExecutor, req.Pool)
 
 	// Collect all allowed priorities.
 	priorities := make([]int32, 0)
@@ -516,11 +474,24 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		defer cancel()
 	}
 
-	// TODO: Return updated resource usage and store it.
-	jobs, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+	// Run the scheduler.
+	jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+
+	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
+	// This ensures resources of leased jobs are accounted for without needing to wait for jobs to start running.
+	for queue, report := range mostRecentSuccessfulJobSchedulingReportByQueue {
+		if queueClusterUsageReport, ok := clusterUsageReport.ResourcesByQueue[queue]; ok {
+			queueClusterUsageReport.ResourcesByPriority = report.TotalQueueResourcesByPriority
+		}
+		err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport)
+		if err != nil {
+			logging.WithStacktrace(log, err).Error("failed to update cluster usage")
+		}
+	}
+
+	// If we successfully leased jobs, those have to be sent to the executor,
+	// since the leases will have been written into Redis.
 	if len(jobs) > 0 {
-		// If we successfully leased jobs, those have to be sent to the executor,
-		// since the leases will have been written into Redis.
 		if err != nil {
 			logging.WithStacktrace(log, err).Error("failed to schedule jobs")
 		}
@@ -530,6 +501,39 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	return jobs, nil
+}
+
+// aggregateUsage Creates a map of usage first by cluster and then by queue
+// Note that the desired cluster is excluded as this will be filled in later as are clusters that are not in the
+// same pool as the desired cluster
+func (q *AggregatedQueueServer) aggregateUsage(reportsByCluster map[string]*schedulerobjects.ClusterResourceUsageReport, pool string) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+	const activeClusterExpiry = 10 * time.Minute
+	now := q.clock.Now()
+
+	// Aggregate resource usage across clusters.
+	aggregatedUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+	for _, clusterReport := range reportsByCluster {
+		if clusterReport.Pool == pool && clusterReport.Created.Add(activeClusterExpiry).After(now) {
+			for queue, report := range clusterReport.ResourcesByQueue {
+				quantityByPriorityAndResourceType, ok := aggregatedUsageByQueue[queue]
+				if !ok {
+					quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
+					aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
+				}
+				quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
+			}
+		}
+	}
+	return aggregatedUsageByQueue
+}
+
+// createClusterUsageReport creates a schedulerobjects.ClusterResourceUsageReport suitable for storing in redis
+func (q *AggregatedQueueServer) createClusterUsageReport(resourceByQueue map[string]*schedulerobjects.QueueClusterResourceUsage, pool string) *schedulerobjects.ClusterResourceUsageReport {
+	return &schedulerobjects.ClusterResourceUsageReport{
+		Pool:             pool,
+		Created:          q.clock.Now(),
+		ResourcesByQueue: resourceByQueue,
+	}
 }
 
 func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) error {

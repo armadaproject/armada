@@ -60,6 +60,14 @@ message QueueClusterResourceUsage {
     map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false];
 }
 
+// A collection of QueueClusterResourceUsage
+// This is only needed to brige the gap between the redis based scheduler and the new scheduler.
+message ClusterResourceUsageReport {
+    string pool = 1;
+    google.protobuf.Timestamp created = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+    map<string, QueueClusterResourceUsage> resourcesByQueue = 3;
+}
+
 message ResourceList {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
 }

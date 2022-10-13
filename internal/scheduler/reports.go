@@ -162,6 +162,9 @@ type JobSchedulingReport struct {
 	// Total Resources assigned to this queue,
 	// if the job were to be scheduled.
 	TotalQueueResources schedulerobjects.ResourceList
+	// Total Resources assigned to this queue by priority,
+	// if the job were to be scheduled.
+	TotalQueueResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string
