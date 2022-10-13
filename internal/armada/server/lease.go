@@ -92,6 +92,7 @@ func NewAggregatedQueueServer(
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
 		usageByQueueAndExecutor:  make(map[string]map[string]*schedulerobjects.QueueClusterResourceUsage),
+		usageByExecutorAndQueue:  make(map[string]map[string]*schedulerobjects.QueueClusterResourceUsage),
 		poolByExecutorId:         make(map[string]string),
 	}
 }
@@ -194,6 +195,10 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return errors.WithStack(err)
 	}
 
+	if err = q.usageRepository.UpdateClusterLeased(&req.ClusterLeasedReport); err != nil {
+		return err
+	}
+
 	// Return no jobs if we don't have enough work.
 	var res common.ComputeResources = req.Resources
 	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
@@ -205,16 +210,27 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	var jobs []*api.Job
 	if rand.Float64() < q.schedulingConfig.ProbabilityOfUsingNewScheduler {
 		// New scheduler.
+		// But we need to call the old scheduler with leaseJobs = false because other component rely on its reporting.
+		_, err = q.legacyGetJobs(stream.Context(), req, false)
+		if err != nil {
+			return err
+		}
+
 		jobs, err = q.getJobs(stream.Context(), req)
 		if err != nil {
 			return err
 		}
 	} else {
 		// Old scheduler.
-		jobs, err = q.legacyGetJobs(stream.Context(), req)
+		jobs, err = q.legacyGetJobs(stream.Context(), req, true)
 		if err != nil {
 			return err
 		}
+	}
+
+	err = q.decompressJobOwnershipGroups(jobs)
+	if err != nil {
+		return err
 	}
 
 	// The server streams jobs to the executor.
@@ -298,7 +314,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	return result.ErrorOrNil()
 }
 
-func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.StreamingLeaseRequest, leaseJobs bool) ([]*api.Job, error) {
 	queues, err := q.queueRepository.GetAllQueues()
 	if err != nil {
 		return nil, err
@@ -311,10 +327,6 @@ func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.Stre
 
 	usageReports, err := q.usageRepository.GetClusterUsageReports()
 	if err != nil {
-		return nil, err
-	}
-
-	if err = q.usageRepository.UpdateClusterLeased(&req.ClusterLeasedReport); err != nil {
 		return nil, err
 	}
 
@@ -333,6 +345,11 @@ func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.Stre
 	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if err != nil {
 		return nil, err
+	}
+
+	// If not true, only report usage and then exit.
+	if !leaseJobs {
+		return nil, nil
 	}
 
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
@@ -361,11 +378,6 @@ func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.Stre
 		poolLeasedJobReports,
 		clusterPriorities,
 		activeQueues)
-	if err != nil {
-		return nil, err
-	}
-
-	err = q.decompressJobOwnershipGroups(jobs)
 	if err != nil {
 		return nil, err
 	}
@@ -402,6 +414,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 
 		// TODO: Protect with mutex
+		if m, ok := q.usageByExecutorAndQueue[report.ExecutorId]; ok {
+			m[r.Name] = report
+		} else {
+			m = map[string]*schedulerobjects.QueueClusterResourceUsage{r.Name: report}
+			q.usageByExecutorAndQueue[report.ExecutorId] = m
+		}
+
+		// TODO: Protect with mutex
+		// TODO: Not needed anymore. Since we're using usageByExecutorAndQueue.
 		if m, ok := q.usageByQueueAndExecutor[r.Name]; ok {
 			m[report.ExecutorId] = report
 		} else {
