@@ -1,4 +1,3 @@
-import base64
 import uuid
 from armada_client.armada import (
     submit_pb2,
@@ -13,38 +12,12 @@ import grpc
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import JobState, search_for_job_complete
 
+no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
 job_service_client = JobServiceClient(
     channel=grpc.insecure_channel(target="127.0.0.1:60003")
 )
 
-class GrpcBasicAuth(grpc.AuthMetadataPlugin):
-    def __init__(self, username: str, password: str):
-        self._username = username
-        self._password = password
-        super().__init__()
 
-    def __call__(self, context, callback):
-        b64encoded_auth = base64.b64encode(
-            bytes(f"{self._username}:{self._password}", "utf-8")
-        ).decode("ascii")
-        callback((("authorization", f"basic {b64encoded_auth}"),), None)
-
-class BasicAuthTest:
-    def __init__(self, host, port, username, password, disable_ssl=False):
-        if disable_ssl:
-            channel_credentials = grpc.local_channel_credentials()
-        else:
-            channel_credentials = grpc.ssl_channel_credentials()
-        channel = grpc.secure_channel(
-            f"{host}:{port}",
-            grpc.composite_channel_credentials(
-                channel_credentials,
-                grpc.metadata_call_credentials(GrpcBasicAuth(username, password)),
-            ),
-        )
-        self.client = ArmadaClient(channel)
-
-no_auth_client = BasicAuthTest(host="localhost", port=50051, username="user1", password="password1", disable_ssl=True).client
 def sleep_pod(image: str):
     pod = core_v1.PodSpec(
         containers=[
@@ -68,11 +41,6 @@ def sleep_pod(image: str):
     )
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
 
-def test_create_queue():
-    no_auth_client.create_queue(submit_pb2.Queue(name="test", priority_factor=1.0))
-
-def test_delete_queue():
-    no_auth_client.delete_queue(name="test")
 
 def test_success_job():
     job_set_name = f"test-{uuid.uuid1()}"
