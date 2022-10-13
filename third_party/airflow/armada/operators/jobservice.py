@@ -42,6 +42,6 @@ class JobServiceClient:
         )
         return self.job_stub.GetJobStatus(job_service_request)
 
-    def check(self) -> jobservice_pb2.HealthCheckResponse:
+    def health(self) -> jobservice_pb2.HealthCheckResponse:
         """Health Check for GRPC Request"""
         return self.job_stub.Health(request=empty_pb2.Empty())
