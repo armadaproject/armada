@@ -489,38 +489,38 @@ func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
-func testA100GpuNode(priorities []int32) *schedulerobjects.Node {
-	return &schedulerobjects.Node{
-		Id: uuid.NewString(),
-		NodeType: &schedulerobjects.NodeType{
-			Id: "a100",
-			Taints: []v1.Taint{
-				{
-					Key:    "gpu",
-					Value:  "true",
-					Effect: v1.TaintEffectNoSchedule,
-				},
-			},
-		},
-		Labels:     map[string]string{"a100": "true"},
-		NodeTypeId: "a100",
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		),
-	}
-}
+// func testA100GpuNode(priorities []int32) *schedulerobjects.Node {
+// 	return &schedulerobjects.Node{
+// 		Id: uuid.NewString(),
+// 		NodeType: &schedulerobjects.NodeType{
+// 			Id: "a100",
+// 			Taints: []v1.Taint{
+// 				{
+// 					Key:    "gpu",
+// 					Value:  "true",
+// 					Effect: v1.TaintEffectNoSchedule,
+// 				},
+// 			},
+// 		},
+// 		Labels:     map[string]string{"a100": "true"},
+// 		NodeTypeId: "a100",
+// 		TotalResources: schedulerobjects.ResourceList{
+// 			Resources: map[string]resource.Quantity{
+// 				"cpu":    resource.MustParse("64"),
+// 				"memory": resource.MustParse("1024Gi"),
+// 				"gpu":    resource.MustParse("8"),
+// 			},
+// 		},
+// 		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+// 			priorities,
+// 			map[string]resource.Quantity{
+// 				"cpu":    resource.MustParse("64"),
+// 				"memory": resource.MustParse("1024Gi"),
+// 				"gpu":    resource.MustParse("8"),
+// 			},
+// 		),
+// 	}
+// }
 
 func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
 	txn := db.Txn(true)

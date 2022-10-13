@@ -39,8 +39,8 @@ package scheduler
 // which the highest priority job can be assigned to some executor.
 //
 // At a high level, the scheduler operates in one of two modes. If the cluster is undersubscribed (i.e., jobs can be run
-// immediately), jobs are assigned to executors using a bin packing strategy to maximize density. If the cluster is
-// oversubscribed (i.e., jobs need to be queued), jobs are assigned to executors to minimize resource contention. In both
+// immediately), jobs are assigned to executors using a bin packing strategy to maximise density. If the cluster is
+// oversubscribed (i.e., jobs need to be queued), jobs are assigned to executors to minimise resource contention. In both
 // cases, this is to increase the chance that large incoming jobs can be scheduled in a timely fashion.
 //
 // The scheduling algorithm works as follows:

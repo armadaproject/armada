@@ -649,13 +649,13 @@ func testNGPUJob(priority int32, n int) []*schedulerobjects.PodRequirements {
 	return rv
 }
 
-func testNA100Job(priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testA100Job(priority)
-	}
-	return rv
-}
+// func testNA100Job(priority int32, n int) []*schedulerobjects.PodRequirements {
+// 	rv := make([]*schedulerobjects.PodRequirements, n)
+// 	for i := 0; i < n; i++ {
+// 		rv[i] = testA100Job(priority)
+// 	}
+// 	return rv
+// }
 
 func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
@@ -706,25 +706,25 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 	}
 }
 
-func testA100Job(priority int32) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("4"),
-				"memory": resource.MustParse("16Gi"),
-				"gpu":    resource.MustParse("1"),
-			},
-		},
-		NodeSelector: map[string]string{"a100": "true"},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "gpu",
-				Value: "true",
-			},
-		},
-	}
-}
+// func testA100Job(priority int32) *schedulerobjects.PodRequirements {
+// 	return &schedulerobjects.PodRequirements{
+// 		Priority: priority,
+// 		ResourceRequirements: v1.ResourceRequirements{
+// 			Requests: v1.ResourceList{
+// 				"cpu":    resource.MustParse("4"),
+// 				"memory": resource.MustParse("16Gi"),
+// 				"gpu":    resource.MustParse("1"),
+// 			},
+// 		},
+// 		NodeSelector: map[string]string{"a100": "true"},
+// 		Tolerations: []v1.Toleration{
+// 			{
+// 				Key:   "gpu",
+// 				Value: "true",
+// 			},
+// 		},
+// 	}
+// }
 
 func BenchmarkSelectAndBindNodeToPod100(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(70, 20, 10, 7, 2, 1, b)
