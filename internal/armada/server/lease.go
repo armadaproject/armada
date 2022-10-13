@@ -48,6 +48,7 @@ type AggregatedQueueServer struct {
 	// TODO: These should be stored in a database instead of in-memory.
 	// usageByExecutorId map[string]*schedulerobjects.QueueClusterResourceUsage
 	usageByQueueAndExecutor map[string]map[string]*schedulerobjects.QueueClusterResourceUsage
+	usageByExecutorAndQueue map[string]map[string]*schedulerobjects.QueueClusterResourceUsage
 	// usageByExecutorId sync.Map
 	// Map from executor name to the pool that executor belongs to.
 	poolByExecutorId map[string]string
@@ -90,6 +91,8 @@ func NewAggregatedQueueServer(
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
+		usageByQueueAndExecutor:  make(map[string]map[string]*schedulerobjects.QueueClusterResourceUsage),
+		poolByExecutorId:         make(map[string]string),
 	}
 }
 
@@ -372,6 +375,7 @@ func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.Stre
 
 func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
+	log.Info("using new scheduler for lease call")
 
 	// Each cluster is part of a cluster pool.
 	// Fair share is computed separately for each pool,
@@ -381,7 +385,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Store resource usage by queue and executor.
 	// TODO: This is stored in-memory. But we need to store it in a database.
-	distinctResourceTypes := make(map[string]interface{})
 	for _, r := range req.GetClusterLeasedReport().Queues {
 		resourcesByPriority := make(map[int32]schedulerobjects.ResourceList)
 		for p, rs := range r.ResourcesLeasedByPriority {
@@ -390,9 +393,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			for t, q := range rs.Resources {
 				resourcesByPriority[p].Resources[t] = q.DeepCopy()
-
-				// Collect all distinct resource types for which we have reported usage.
-				distinctResourceTypes[t] = true
 			}
 		}
 		report := &schedulerobjects.QueueClusterResourceUsage{
@@ -412,16 +412,30 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Aggregate resource usage across clusters.
 	aggregatedUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
-	for queue, queueReportByExecutorId := range q.usageByQueueAndExecutor {
-		quantityByPriorityAndResourceType := make(schedulerobjects.QuantityByPriorityAndResourceType)
-		for executorId, report := range queueReportByExecutorId {
+	for executorId, usageReportByQueue := range q.usageByExecutorAndQueue {
+		for queue, report := range usageReportByQueue {
+			quantityByPriorityAndResourceType, ok := aggregatedUsageByQueue[queue]
+			if !ok {
+				quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
+				aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
+			}
+
 			// Aggregate on a per-pool basis.
 			if q.poolByExecutorId[executorId] == req.Pool {
 				quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
 			}
 		}
-		aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
 	}
+	// for queue, queueReportByExecutorId := range q.usageByQueueAndExecutor {
+	// 	quantityByPriorityAndResourceType := make(schedulerobjects.QuantityByPriorityAndResourceType)
+	// 	for executorId, report := range queueReportByExecutorId {
+	// 		// Aggregate on a per-pool basis.
+	// 		if q.poolByExecutorId[executorId] == req.Pool {
+	// 			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
+	// 		}
+	// 	}
+	// 	aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
+	// }
 
 	// Collect all allowed priorities.
 	priorities := make([]int32, 0)
