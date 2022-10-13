@@ -237,10 +237,12 @@ def test_get_job_events_stream():
     for _ in events:
         pass
 
+
 def test_health_submit():
     health = tester.submit_health()
-    assert(health.SERVING == health_pb2.HealthCheckResponse.SERVING)
+    assert health.SERVING == health_pb2.HealthCheckResponse.SERVING
+
 
 def test_health_event():
     health = tester.event_health()
-    assert(health.SERVING == health_pb2.HealthCheckResponse.SERVING)
+    assert health.SERVING == health_pb2.HealthCheckResponse.SERVING
