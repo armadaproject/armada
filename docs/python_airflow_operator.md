@@ -99,16 +99,6 @@ Implementation of gRPC stubs from JobService
 
 
 
-#### check()
-Health Check for GRPC Request
-
-
-* **Return type**
-
-    *HealthCheckResponse*
-
-
-
 #### get_job_status(queue, job_set_id, job_id)
 Get job status of a given job in a queue and job_set_id.
 
@@ -137,6 +127,16 @@ Uses the GetJobStatus rpc to get a status of your job
 * **Return type**
 
     *JobServiceResponse*
+
+
+
+#### health()
+Health Check for GRPC Request
+
+
+* **Return type**
+
+    *HealthCheckResponse*
 
 
 ## armada.operators.utils module

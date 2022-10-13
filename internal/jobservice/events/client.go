@@ -76,7 +76,7 @@ func (ec *EventClient) ensureApiConnection() error {
 	if connErr != nil {
 		return connErr
 	}
-	eventClient := api.NewEventClient(ec.conn)
+	eventClient := api.NewEventClient(conn)
 	health, err := eventClient.Health(context.Background(), &types.Empty{})
 	if health.Status != api.HealthCheckResponse_SERVING {
 		log.Errorf("Health Check Failed for Events with %s", err)
