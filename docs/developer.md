@@ -22,9 +22,8 @@ You can use a [kind](https://github.com/kubernetes-sigs/kind) Kubernetes cluster
  
 This is recommended if load doesn't matter or you are working on features that rely on integrating with kubernetes functionality
   
-##### Fake-executorg
+##### Fake-executor
 You can use fake-executor
-
  - It is easy to setup, as it is just a Go program that emulates a kubernetes cluster
  - It allows you emulate clusters much larger than your current machine
  - As the jobs aren't really running, it won't properly emulate a real kubernetes cluster

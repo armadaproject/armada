@@ -3,9 +3,9 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: armada-test
 nodes:
 - role: worker
-  image: "kindest/node:v1.21.10"
+  image: kindest/node:v1.21.10
 - role: control-plane
-  image: kindest/node:v1.21.1  
+  image: kindest/node:v1.21.10
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration
