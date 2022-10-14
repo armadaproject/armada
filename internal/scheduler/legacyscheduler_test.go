@@ -292,10 +292,18 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 				expected[i] = jobs[j]
 			}
 
+			// Set total resources equal to the aggregate over tc.Nodes.
+			// TODO: We may want to provide totalResources separately.
+			totalResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
+			for _, node := range tc.Nodes {
+				totalResources.Add(node.TotalResources)
+			}
+
 			scheduler := LegacyScheduler{
 				SchedulingConfig: tc.SchedulingConfig,
 				JobRepository:    repo,
 				MinimumJobSize:   tc.MinimumJobSize,
+				TotalResources:   totalResources,
 			}
 			if tc.Nodes != nil {
 				nodeDb, err := NewNodeDb(testPriorities, testResources)
@@ -792,9 +800,17 @@ func TestSchedule(t *testing.T) {
 				expectedByQueue[queue] = expected
 			}
 
+			// Set total resources equal to the aggregate over tc.Nodes.
+			// TODO: We may want to provide totalResources separately.
+			totalResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
+			for _, node := range tc.Nodes {
+				totalResources.Add(node.TotalResources)
+			}
+
 			scheduler, err := NewLegacyScheduler(
 				tc.SchedulingConfig,
 				"executor",
+				totalResources,
 				tc.Nodes,
 				jobRepository,
 				tc.PriorityFactorsByQueue,
