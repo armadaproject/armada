@@ -196,7 +196,8 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
 		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
-			PodRequirements: schedulerobjects.PodRequirementsFromPodSpec(podSpec),
+			// TODO: We should not pass in nil here. Priority will not be set correctly.
+			PodRequirements: schedulerobjects.PodRequirementsFromPodSpec(podSpec, nil),
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,
