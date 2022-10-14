@@ -630,7 +630,6 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 	usage := 0.0
 	for resourceName, quantity := range rl.Resources {
 		scarcity := resourceScarcity[resourceName] // TODO: Defaults to 0.
-		// TODO: Why do we have our own Float64 conversion instead of quantity.AsApproximateFloat64?
 		usage += common.QuantityAsFloat64(quantity) * scarcity
 	}
 	return usage
