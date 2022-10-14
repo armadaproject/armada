@@ -216,15 +216,6 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		ExecutorId: it.ExecutorId,
 	}
 
-	// Get the priority of the pod spec embedded in the job.
-	var jobPriority int32
-	podSpec := podSpecFromJob(job)
-	if podSpec != nil && it.SchedulingConfig.Preemption.PriorityClasses != nil {
-		if p, ok := it.SchedulingConfig.Preemption.PriorityClasses[podSpec.PriorityClassName]; ok {
-			jobPriority = p
-		}
-	}
-
 	// Add the resource requests of this job to the total usage for this queue.
 	// We mutate copies of it.roundQueueResources and it.totalQueueResources.
 	// Later, if the job is scheduled, we update it.round... and it.total in-place.
@@ -236,6 +227,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	totalQueueResourcesByPriority := it.totalQueueResourcesByPriority.DeepCopy()
 	jobSchedulingReport.RoundQueueResources = roundQueueResources
 	jobSchedulingReport.TotalQueueResources = totalQueueResources
+	jobSchedulingReport.TotalQueueResourcesByPriority = totalQueueResourcesByPriority
 	for resourceType, quantity := range jobTotalResourceRequests {
 		q := totalQueueResources.Resources[resourceType]
 		q.Add(quantity)
@@ -245,14 +237,15 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		q.Add(quantity)
 		roundQueueResources.Resources[resourceType] = q
 
-		rl := totalQueueResourcesByPriority[jobPriority]
+		priority, _ := PriorityFromJob(job, it.SchedulingConfig.Preemption.PriorityClasses)
+		rl := totalQueueResourcesByPriority[priority]
 		if rl.Resources == nil {
 			rl.Resources = make(map[string]resource.Quantity)
 		}
 		q = rl.Resources[resourceType]
 		q.Add(quantity)
 		rl.Resources[resourceType] = q
-		totalQueueResourcesByPriority[jobPriority] = rl
+		totalQueueResourcesByPriority[priority] = rl
 	}
 
 	// Check that the job is large enough for this executor.
@@ -296,6 +289,27 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	}
 
 	return jobSchedulingReport, nil
+}
+
+func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
+	return PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
+}
+
+// PriorityFromPodSpec returns the priority set in a pod spec.
+// If priority is set diectly, that value is returned.
+// Otherwise, it returns priorityByPriorityClassName[podSpec.PriorityClassName].
+// ok is false if no priority is set for this pod spec, in which case priority is 0.
+func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
+	if podSpec == nil {
+		return
+	}
+	if podSpec.Priority != nil {
+		priority = *podSpec.Priority
+		ok = true
+	} else if priorityByPriorityClassName != nil {
+		priority, ok = priorityByPriorityClassName[podSpec.PriorityClassName]
+	}
+	return
 }
 
 func uuidFromUlidString(ulid string) (uuid.UUID, error) {

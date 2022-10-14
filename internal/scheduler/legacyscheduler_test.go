@@ -17,9 +17,6 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-// TODO: Tests we should add:
-// - Test that we correctly account for init container resource requirements.
-
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
@@ -654,7 +651,6 @@ func TestSchedule(t *testing.T) {
 				),
 			},
 		},
-		// TODO: Investigate how combining resources, resource scarcity, and our custom asApproximateFloat function are supposed to work.
 		"fairness two queues with initial usage": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
@@ -810,7 +806,7 @@ func TestSchedule(t *testing.T) {
 			scheduler.MinimumJobSize = tc.MinimumJobSize
 			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
-			jobs, _, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
+			jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -839,6 +835,40 @@ func TestSchedule(t *testing.T) {
 			// Check that scheduling reports were generated.
 			// TODO: Check that reports correctly indicate success/not.
 			if !tc.DoNotCheckReports {
+
+				// Check that report.TotalQueueResources is set correctly.
+				for queue, expected := range usageByQueue(jobs) {
+					report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
+					if !assert.NotNil(t, report) {
+						continue
+					}
+					if !assert.True(t, ok) {
+						continue
+					}
+					if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
+						expected.Add(initialUsage.AggregateByResource())
+					}
+					actual := report.TotalQueueResources
+					assert.True(t, expected.Equal(actual))
+				}
+
+				// Check that report.TotalQueueResourcesByPriority is set correctly.
+				for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
+					report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
+					if !assert.NotNil(t, report) {
+						continue
+					}
+					if !assert.True(t, ok) {
+						continue
+					}
+					if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
+						expected.Add(initialUsage)
+					}
+					actual := report.TotalQueueResourcesByPriority
+					assert.True(t, expected.Equal(actual))
+				}
+
+				// Check that there are reports in scheduler.SchedulingReportsRepository for all queues and jobs.
 				for queue, jobs := range jobRepository.jobsByQueue {
 					queueReport, ok := scheduler.SchedulingReportsRepository.GetQueueSchedulingReport(queue)
 					assert.NotNil(t, queueReport)
@@ -912,6 +942,7 @@ func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
 }
 
 func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
+	// TODO: Could be built on top of usageByQueueAndPriority.
 	rv := make(map[string]schedulerobjects.ResourceList)
 	for _, job := range jobs {
 		rl, ok := rv[job.Queue]
@@ -926,6 +957,29 @@ func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
 			quantity.Add(q)
 			rl.Resources[t] = quantity
 		}
+	}
+	return rv
+}
+
+func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]int32) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+	for _, job := range jobs {
+		m, ok := rv[job.Queue]
+		if !ok {
+			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
+			rv[job.Queue] = m
+		}
+		priority, _ := PriorityFromJob(job, priorityByPriorityClassName)
+		rl, ok := m[priority]
+		if !ok {
+			rl.Resources = make(map[string]resource.Quantity)
+		}
+		for t, q := range common.TotalJobResourceRequest(job) {
+			quantity := rl.Resources[t]
+			quantity.Add(q)
+			rl.Resources[t] = quantity
+		}
+		m[priority] = rl
 	}
 	return rv
 }

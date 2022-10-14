@@ -27,6 +27,32 @@ func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceTy
 	}
 }
 
+func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResourceType) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if a == nil {
+		if b == nil {
+			return true
+		} else {
+			return false
+		}
+	}
+	if b == nil && a != nil {
+		return false
+	}
+	for p, rla := range a {
+		if rlb, ok := b[p]; ok {
+			if !rla.Equal(rlb) {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
 func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
 	rv := ResourceList{
 		Resources: make(map[string]resource.Quantity),
@@ -67,6 +93,32 @@ func (rl *ResourceList) DeepCopy() ResourceList {
 		rv.Resources[t] = q.DeepCopy()
 	}
 	return rv
+}
+
+func (a ResourceList) Equal(b ResourceList) bool {
+	if len(a.Resources) != len(b.Resources) {
+		return false
+	}
+	if a.Resources == nil {
+		if b.Resources == nil {
+			return true
+		} else {
+			return false
+		}
+	}
+	if b.Resources == nil && a.Resources != nil {
+		return false
+	}
+	for t, qa := range a.Resources {
+		if qb, ok := b.Resources[t]; ok {
+			if qa.Cmp(qb) != 0 {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	return true
 }
 
 // AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.
