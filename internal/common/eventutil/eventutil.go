@@ -898,6 +898,31 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 				},
 			},
 		})
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobSucceeded{
+				JobSucceeded: &armadaevents.JobSucceeded{
+					JobId: jobId,
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								Namespace:    m.Succeeded.PodNamespace,
+								Name:         m.Succeeded.PodName,
+								KubernetesId: m.Succeeded.KubernetesId,
+								// TODO: These should be included.
+								Annotations: nil,
+								Labels:      nil,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									NodeName:  m.Succeeded.NodeName,
+									PodNumber: m.Succeeded.PodNumber,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
 	case *api.EventMessage_Reprioritized:
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId

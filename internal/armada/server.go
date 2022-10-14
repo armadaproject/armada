@@ -344,14 +344,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		defer producer.Close()
 
-		pulsarFromPulsar := server.PulsarFromPulsar{
-			Consumer: consumer,
-			Producer: producer,
-		}
-		services = append(services, func() error {
-			return pulsarFromPulsar.Run(ctx)
-		})
-
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
 			eventsPrinter := server.EventsPrinter{
