@@ -123,6 +123,22 @@ Uses the GetJobStatus rpc to get a status of your job
     A Job Service Request (State, Error)
 
 
+
+* **Return type**
+
+    *JobServiceResponse*
+
+
+
+#### health()
+Health Check for GRPC Request
+
+
+* **Return type**
+
+    *HealthCheckResponse*
+
+
 ## armada.operators.utils module
 
 

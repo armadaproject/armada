@@ -17,6 +17,7 @@ from armada_client.armada import (
     submit_pb2,
     submit_pb2_grpc,
     usage_pb2_grpc,
+    health_pb2,
 )
 from armada_client.event import Event
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -87,6 +88,20 @@ class ArmadaClient:
         """
 
         return Event(event)
+
+    def submit_health(self) -> health_pb2.HealthCheckResponse:
+        """
+        Health check for Submit Service.
+        :return: A HealthCheckResponse object.
+        """
+        return self.submit_stub.Health(request=empty_pb2.Empty())
+
+    def event_health(self) -> health_pb2.HealthCheckResponse:
+        """
+        Health check for Event Service.
+        :return: A HealthCheckResponse object.
+        """
+        return self.event_stub.Health(request=empty_pb2.Empty())
 
     def submit_jobs(
         self, queue: str, job_set_id: str, job_request_items

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,6 +28,14 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
+
+func TestSubmitServer_HealthCheck(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		health, err := s.Health(context.Background(), &types.Empty{})
+		assert.NoError(t, err)
+		assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
+	})
+}
 
 func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
