@@ -327,7 +327,8 @@ func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl 
 	for resourceType, limit := range limits {
 		totalAmount := scheduler.TotalResources.Resources[resourceType]
 		amountUsedByQueue := rl.Resources[resourceType]
-		if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
+		// TODO: Use fixed-point division instead.
+		if common.QuantityAsFloat64(amountUsedByQueue)/common.QuantityAsFloat64(totalAmount) > limit {
 			return true, fmt.Sprintf("scheduling would exceed %s quota", resourceType)
 		}
 	}
