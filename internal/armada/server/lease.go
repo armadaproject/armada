@@ -187,7 +187,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return errors.WithStack(err)
 	}
 
-	// Old scheduler reporting logic. Should be called on all requests.
+	// Old scheduler resource accounting logic. Should be called on all requests.
 	err = q.usageRepository.UpdateClusterLeased(&req.ClusterLeasedReport)
 	if err != nil {
 		return err
@@ -200,16 +200,39 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
+	// New scheduler resource accounting logic.
+	usageByQueue := make(map[string]*schedulerobjects.QueueClusterResourceUsage)
+	for _, r := range req.GetClusterLeasedReport().Queues {
+		resourcesByPriority := make(map[int32]schedulerobjects.ResourceList)
+		for p, rs := range r.ResourcesLeasedByPriority {
+			resourcesByPriority[p] = schedulerobjects.ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			}
+			for t, q := range rs.Resources {
+				resourcesByPriority[p].Resources[t] = q.DeepCopy()
+			}
+		}
+		report := &schedulerobjects.QueueClusterResourceUsage{
+			Created:             q.clock.Now(),
+			Queue:               r.Name,
+			ExecutorId:          req.GetClusterLeasedReport().ClusterId,
+			ResourcesByPriority: resourcesByPriority,
+		}
+		usageByQueue[r.Name] = report
+	}
+	clusterUsageReport := q.createClusterUsageReport(usageByQueue, req.Pool)
+	err = q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport)
+	if err != nil {
+		return err
+	}
+
 	// Return no jobs if we don't have enough work.
-	//
-	// TODO: Make sure reporting logic is called before this.
 	var res common.ComputeResources = req.Resources
 	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
 		return nil
 	}
 
 	// Get jobs to be leased.
-	// TODO: The lease call resource reporting logic should be moved here.
 	var jobs []*api.Job
 	if rand.Float64() < q.schedulingConfig.ProbabilityOfUsingNewScheduler {
 		// New scheduler.
@@ -323,6 +346,9 @@ func leaseRequestFromStreamingLeaseRequest(req *api.StreamingLeaseRequest) *api.
 }
 
 func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.LeaseRequest) ([]*api.Job, error) {
+	log := ctxlogrus.Extract(ctx)
+	log.Info("using old scheduler for lease call")
+
 	usageReports, err := q.usageRepository.GetClusterUsageReports()
 	if err != nil {
 		return nil, err
@@ -376,34 +402,6 @@ func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.Leas
 func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log.Info("using new scheduler for lease call")
-
-	// TODO: This reporting logic should always be called.
-	usageByQueue := make(map[string]*schedulerobjects.QueueClusterResourceUsage)
-	for _, r := range req.GetClusterLeasedReport().Queues {
-		resourcesByPriority := make(map[int32]schedulerobjects.ResourceList)
-		for p, rs := range r.ResourcesLeasedByPriority {
-			resourcesByPriority[p] = schedulerobjects.ResourceList{
-				Resources: make(map[string]resource.Quantity),
-			}
-			for t, q := range rs.Resources {
-				resourcesByPriority[p].Resources[t] = q.DeepCopy()
-			}
-		}
-		report := &schedulerobjects.QueueClusterResourceUsage{
-			Created:             q.clock.Now(),
-			Queue:               r.Name,
-			ExecutorId:          req.GetClusterLeasedReport().ClusterId,
-			ResourcesByPriority: resourcesByPriority,
-		}
-		usageByQueue[r.Name] = report
-	}
-
-	// Store the usage so that other clusters can make use of it
-	clusterUsageReport := q.createClusterUsageReport(usageByQueue, req.Pool)
-	err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport)
-	if err != nil {
-		return nil, err
-	}
 
 	// load the usage from all other executors
 	reportsByExecutor, err := q.usageRepository.GetClusterQueueResourceUsage()
@@ -478,21 +476,29 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
 	if len(mostRecentSuccessfulJobSchedulingReportByQueue) > 0 {
+		executorReport, ok := reportsByExecutor[req.ClusterId]
+		if !ok {
+			executorReport = &schedulerobjects.ClusterResourceUsageReport{
+				Pool:             req.Pool,
+				Created:          q.clock.Now(),
+				ResourcesByQueue: make(map[string]*schedulerobjects.QueueClusterResourceUsage),
+			}
+			reportsByExecutor[req.ClusterId] = executorReport
+		}
 		for queue, jobSchedulingReport := range mostRecentSuccessfulJobSchedulingReportByQueue {
-			if queueClusterUsage, ok := usageByQueue[queue]; ok && queueClusterUsage != nil {
+			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil {
 				queueClusterUsage.ResourcesByPriority = jobSchedulingReport.TotalQueueResourcesByPriority
 			} else {
 				queueClusterUsage = &schedulerobjects.QueueClusterResourceUsage{
 					Created:             q.clock.Now(),
 					Queue:               queue,
-					ExecutorId:          req.GetClusterLeasedReport().ClusterId,
+					ExecutorId:          req.ClusterId,
 					ResourcesByPriority: jobSchedulingReport.TotalQueueResourcesByPriority,
 				}
-				usageByQueue[queue] = queueClusterUsage
+				executorReport.ResourcesByQueue[queue] = queueClusterUsage
 			}
 		}
-		clusterUsageReport = q.createClusterUsageReport(usageByQueue, req.Pool)
-		if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport); err != nil {
+		if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, executorReport); err != nil {
 			logging.WithStacktrace(log, err).Errorf("failed to update cluster usage")
 		}
 	}
