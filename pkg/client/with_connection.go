@@ -3,6 +3,7 @@ package client
 import (
 	"google.golang.org/grpc"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -25,6 +26,13 @@ func WithSubmitClient(apiConnectionDetails *ApiConnectionDetails, action func(ap
 func WithEventClient(apiConnectionDetails *ApiConnectionDetails, action func(api.EventClient) error) error {
 	return WithConnection(apiConnectionDetails, func(cc *grpc.ClientConn) error {
 		client := api.NewEventClient(cc)
+		return action(client)
+	})
+}
+
+func WithSchedulerReportingClient(apiConnectionDetails *ApiConnectionDetails, action func(schedulerobjects.SchedulerReportingClient) error) error {
+	return WithConnection(apiConnectionDetails, func(cc *grpc.ClientConn) error {
+		client := schedulerobjects.NewSchedulerReportingClient(cc)
 		return action(client)
 	})
 }
