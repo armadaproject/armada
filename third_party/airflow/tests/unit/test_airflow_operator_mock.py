@@ -11,7 +11,7 @@ from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
 import pytest
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import JobState, search_for_job_complete
-from armada.jobservice import jobservice_pb2_grpc
+from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 from armada_client_mock import SubmitService, EventService
 from job_service_mock import JobService
 
@@ -69,6 +69,11 @@ def sleep_job():
         ],
     )
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def test_job_service_health():
+    health = tester_jobservice.health()
+    assert health.status == jobservice_pb2.HealthCheckResponse.SERVING
 
 
 def test_mock_success_job():

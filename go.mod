@@ -32,6 +32,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
+	github.com/hashicorp/go-memdb v1.3.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
@@ -55,6 +56,7 @@ require (
 	github.com/nats-io/nats.go v1.16.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/rakyll/statik v0.1.7
@@ -86,7 +88,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/patrickmn/go-cache v2.1.0+incompatible
+require github.com/openconfig/goyang v1.1.0
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect

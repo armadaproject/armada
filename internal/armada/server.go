@@ -35,6 +35,7 @@ import (
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler"
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -343,14 +344,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		defer producer.Close()
 
-		pulsarFromPulsar := server.PulsarFromPulsar{
-			Consumer: consumer,
-			Producer: producer,
-		}
-		services = append(services, func() error {
-			return pulsarFromPulsar.Run(ctx)
-		})
-
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
 			eventsPrinter := server.EventsPrinter{
@@ -437,6 +430,13 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
+	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
+		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
+			config.Scheduling.MaxQueueReportsToStore,
+			config.Scheduling.MaxJobReportsToStore,
+		)
+	}
+
 	eventServer := server.NewEventServer(
 		permissions,
 		eventRepository,
@@ -459,6 +459,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+	if aggregatedQueueServer.SchedulingReportsRepository != nil {
+		schedulerobjects.RegisterSchedulerReportingServer(
+			grpcServer,
+			aggregatedQueueServer.SchedulingReportsRepository,
+		)
+	}
 
 	// If the new Pulsar-driven scheduler is provided, run that.
 	// Otherwise run the legacy scheduler.
