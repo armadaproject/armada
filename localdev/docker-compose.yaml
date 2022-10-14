@@ -64,7 +64,7 @@ services:
       - "50051:50051"
       - "8080:8080"
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     depends_on:
       - redis
@@ -83,7 +83,7 @@ services:
       - "9009:9009"
       - "8089:8089"
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     depends_on:
       - armada-server
@@ -101,7 +101,7 @@ services:
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/executor-start.sh"
@@ -116,7 +116,7 @@ services:
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/binoculars-start.sh"
@@ -129,7 +129,7 @@ services:
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/jobservice-start.sh"
@@ -143,7 +143,7 @@ services:
       - armada-server
       - lookout
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"
