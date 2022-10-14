@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -31,7 +32,7 @@ type NodeDb struct {
 	indexedResources map[string]interface{}
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
-	totalResources map[string]*resource.Quantity
+	totalResources map[string]resource.Quantity
 	// Set of node types for which there exists at least 1 node in the db.
 	NodeTypes map[string]*schedulerobjects.NodeType
 	// Resources allocated by the scheduler to in-flight jobs,
@@ -228,7 +229,8 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 		if !ok {
 			return string(t)
 		}
-		f := q.AsApproximateFloat64() / available.AsApproximateFloat64()
+
+		f := common.QuantityAsFloat64(q) / common.QuantityAsFloat64(available)
 		if f >= dominantResourceFraction {
 			dominantResourceType = string(t)
 			dominantResourceFraction = f
@@ -261,11 +263,11 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 	}
 	priorities = []int32(priorities)
 	slices.Sort(priorities)
-	totalResources := make(map[string]*resource.Quantity)
+	totalResources := make(map[string]resource.Quantity)
 	indexedResources := make(map[string]interface{})
 	for _, resourceType := range resourceTypes {
 		q := resource.MustParse("0")
-		totalResources[resourceType] = &q
+		totalResources[resourceType] = q
 		indexedResources[resourceType] = true
 	}
 	return &NodeDb{
@@ -290,13 +292,8 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 		if _, ok := nodeDb.AssignedByNode[node.Id]; !ok {
 			for t, q := range node.TotalResources.Resources {
 				available := nodeDb.totalResources[t]
-				if available == nil {
-					q := q.DeepCopy()
-					nodeDb.totalResources[t] = &q
-				} else {
-					available.Add(q)
-					nodeDb.totalResources[t] = available
-				}
+				available.Add(q)
+				nodeDb.totalResources[t] = available
 			}
 		}
 
