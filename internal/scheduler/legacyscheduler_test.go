@@ -271,7 +271,7 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 			LeaseJobs:       true,
 			ExpectedIndices: []int{1, 2, 3, 4, 5, 6, 7, 8},
 		},
-		"maxConsecutiveUnschedulableJobs": {
+		"respect maxConsecutiveUnschedulableJobs": {
 			Reqs:             append(append(testNSmallCpuJob(0, 1), testNGPUJob(0, 10)...), testNSmallCpuJob(0, 1)...),
 			Nodes:            testNCpuNode(1, testPriorities),
 			SchedulingConfig: withMaxConsecutiveUnschedulableJobs(3, testSchedulingConfig()),
@@ -394,6 +394,9 @@ func TestSchedule(t *testing.T) {
 		PriorityFactorsByQueue map[string]float64
 		// Initial resource usage for all queues.
 		InitialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
+		// Total resources across all clusters.
+		// If empty, it is computed as the total resources across the provided nodes.
+		TotalResources schedulerobjects.ResourceList
 		// Minimum job size.
 		MinimumJobSize map[string]resource.Quantity
 		// Skip checking if reports were generated.
@@ -549,6 +552,33 @@ func TestSchedule(t *testing.T) {
 			PriorityFactorsByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1},
+				"B": {0, 1},
+			},
+		},
+		"overall per-queue limits with large memory amount": {
+			SchedulingConfig: withPerQueueLimits(
+				map[string]float64{
+					"cpu":    2.0 / 162975640.0,
+					"memory": 0.1,
+				},
+				testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 5),
+				"B": testNSmallCpuJob(0, 5),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"memory": resource.MustParse("5188205838208Ki"),
+					"cpu":    resource.MustParse("162975640"),
+				},
 			},
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1},
@@ -800,17 +830,17 @@ func TestSchedule(t *testing.T) {
 				expectedByQueue[queue] = expected
 			}
 
-			// Set total resources equal to the aggregate over tc.Nodes.
-			// TODO: We may want to provide totalResources separately.
-			totalResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-			for _, node := range tc.Nodes {
-				totalResources.Add(node.TotalResources)
+			// If not provided, set total resources equal to the aggregate over tc.Nodes.
+			if tc.TotalResources.Resources == nil {
+				for _, node := range tc.Nodes {
+					tc.TotalResources.Add(node.TotalResources)
+				}
 			}
 
 			scheduler, err := NewLegacyScheduler(
 				tc.SchedulingConfig,
 				"executor",
-				totalResources,
+				tc.TotalResources,
 				tc.Nodes,
 				jobRepository,
 				tc.PriorityFactorsByQueue,

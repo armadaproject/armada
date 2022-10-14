@@ -327,7 +327,8 @@ func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl 
 	for resourceType, limit := range limits {
 		totalAmount := scheduler.TotalResources.Resources[resourceType]
 		amountUsedByQueue := rl.Resources[resourceType]
-		if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
+		// TODO: Use fixed-point division instead.
+		if common.QuantityAsFloat64(amountUsedByQueue)/common.QuantityAsFloat64(totalAmount) > limit {
 			return true, fmt.Sprintf("scheduling would exceed %s quota", resourceType)
 		}
 	}
@@ -629,7 +630,6 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 	usage := 0.0
 	for resourceName, quantity := range rl.Resources {
 		scarcity := resourceScarcity[resourceName] // TODO: Defaults to 0.
-		// TODO: Why do we have our own Float64 conversion instead of quantity.AsApproximateFloat64?
 		usage += common.QuantityAsFloat64(quantity) * scarcity
 	}
 	return usage
