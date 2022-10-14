@@ -74,15 +74,6 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 		)
 	}
 
-	// Flush queued messages. We do not return the error from flush,
-	// since we collect the errors for the messages sent in this function below.
-	go func() {
-		err := producer.Flush()
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to flush messages")
-		}
-	}()
-
 	// Collect any errors experienced by the async flush/send and return.
 	var result *multierror.Error
 	for i := range sequences {
