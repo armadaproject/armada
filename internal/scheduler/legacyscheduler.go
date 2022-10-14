@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -17,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
@@ -379,9 +381,6 @@ type LegacyScheduler struct {
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
 	// Used to request jobs from Redis and to mark jobs as leased.
-	// TODO: Remove. Not needed for updated implementation.
-	JobQueue scheduling.JobQueue
-	// Used to get gets.
 	JobRepository SchedulerJobRepository
 	// Minimum quantity allowed for jobs leased to this cluster.
 	MinimumJobSize map[string]resource.Quantity
@@ -391,6 +390,40 @@ type LegacyScheduler struct {
 	Rand *rand.Rand
 	// Store reports for each scheduling attempt.
 	SchedulingReportsRepository *SchedulingReportsRepository
+}
+
+func (sched *LegacyScheduler) String() string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
+	if len(sched.TotalResources.Resources) == 0 {
+		fmt.Fprint(w, "Total resources:\tnone\n")
+	} else {
+		fmt.Fprint(w, "Total resources:\n")
+		for t, q := range sched.TotalResources.Resources {
+			fmt.Fprintf(w, "  %s: %s\n", t, q.String())
+		}
+	}
+	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
+	if len(sched.PriorityFactorByQueue) == 0 {
+		fmt.Fprint(w, "Queues:\tnone\n")
+	} else {
+		fmt.Fprint(w, "Queues:\n")
+		for queue, priorityFactor := range sched.PriorityFactorByQueue {
+			fmt.Fprintf(w, "  %s: %f\n", queue, priorityFactor)
+		}
+	}
+	fmt.Fprintf(w, "Max cluster fraction to schedule:\t%v\n", sched.SchedulingConfig.MaximalClusterFractionToSchedule)
+	fmt.Fprintf(w, "Max overall fraction per queue:\t%v\n", sched.SchedulingConfig.MaximalResourceFractionPerQueue)
+	fmt.Fprintf(w, "Max overall fraction per queue to schedule:\t%v\n", sched.SchedulingConfig.MaximalResourceFractionToSchedulePerQueue)
+	if sched.NodeDb == nil {
+		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.NodeDb)
+	} else {
+		fmt.Fprint(w, "NodeDb:\n")
+		fmt.Fprint(w, indent.String("\t", sched.NodeDb.String()))
+	}
+	w.Flush()
+	return sb.String()
 }
 
 func NewLegacyScheduler(
