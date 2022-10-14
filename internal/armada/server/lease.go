@@ -477,7 +477,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
 	if len(mostRecentSuccessfulJobSchedulingReportByQueue) > 0 {
 		executorReport, ok := reportsByExecutor[req.ClusterId]
-		if !ok {
+		if !ok || executorReport.ResourcesByQueue == nil {
 			executorReport = &schedulerobjects.ClusterResourceUsageReport{
 				Pool:             req.Pool,
 				Created:          q.clock.Now(),
