@@ -68,6 +68,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		capacityReport.AvailableCapacity,
 		capacityReport.Nodes,
 		utilisation.GetAllocationByQueue(activePods),
+		utilisation.GetAllocationByQueueAndPriority(activePods),
 	)
 	logAvailableResources(capacityReport, len(newJobs))
 	if err != nil {
