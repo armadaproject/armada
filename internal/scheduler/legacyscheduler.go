@@ -294,24 +294,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 }
 
 func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
-	return PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
-}
-
-// PriorityFromPodSpec returns the priority set in a pod spec.
-// If priority is set diectly, that value is returned.
-// Otherwise, it returns priorityByPriorityClassName[podSpec.PriorityClassName].
-// ok is false if no priority is set for this pod spec, in which case priority is 0.
-func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
-	if podSpec == nil {
-		return
-	}
-	if podSpec.Priority != nil {
-		priority = *podSpec.Priority
-		ok = true
-	} else if priorityByPriorityClassName != nil {
-		priority, ok = priorityByPriorityClassName[podSpec.PriorityClassName]
-	}
-	return
+	return schedulerobjects.PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
 }
 
 func uuidFromUlidString(ulid string) (uuid.UUID, error) {
@@ -327,7 +310,8 @@ func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl 
 	for resourceType, limit := range limits {
 		totalAmount := scheduler.TotalResources.Resources[resourceType]
 		amountUsedByQueue := rl.Resources[resourceType]
-		if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
+		// TODO: Use fixed-point division instead.
+		if common.QuantityAsFloat64(amountUsedByQueue)/common.QuantityAsFloat64(totalAmount) > limit {
 			return true, fmt.Sprintf("scheduling would exceed %s quota", resourceType)
 		}
 	}
@@ -362,7 +346,7 @@ func (scheduler *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uu
 
 	// Try to find a node for this pod.
 	// Store the report returned by the NodeDb.
-	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec)
+	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, scheduler.SchedulingConfig.Preemption.PriorityClasses)
 	report, err := scheduler.NodeDb.SelectNodeForPod(jobId, req)
 	if err != nil {
 		return nil, err
@@ -629,7 +613,6 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 	usage := 0.0
 	for resourceName, quantity := range rl.Resources {
 		scarcity := resourceScarcity[resourceName] // TODO: Defaults to 0.
-		// TODO: Why do we have our own Float64 conversion instead of quantity.AsApproximateFloat64?
 		usage += common.QuantityAsFloat64(quantity) * scarcity
 	}
 	return usage
