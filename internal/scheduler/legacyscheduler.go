@@ -404,7 +404,6 @@ func (sched *LegacyScheduler) String() string {
 			fmt.Fprintf(w, "  %s: %s\n", t, q.String())
 		}
 	}
-	// fmt.Fprintf(w, "Total resources:\t%v\n", sched.TotalResources.Resources)
 	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
 	if len(sched.PriorityFactorByQueue) == 0 {
 		fmt.Fprint(w, "Queues:\tnone\n")

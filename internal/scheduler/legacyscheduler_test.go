@@ -822,8 +822,6 @@ func TestSchedule(t *testing.T) {
 			scheduler.MinimumJobSize = tc.MinimumJobSize
 			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
-			fmt.Println(scheduler)
-
 			jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
 				return
