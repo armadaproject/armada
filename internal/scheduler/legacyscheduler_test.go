@@ -792,9 +792,17 @@ func TestSchedule(t *testing.T) {
 				expectedByQueue[queue] = expected
 			}
 
+			// Set total resources equal to the aggregate over tc.Nodes.
+			// TODO: We may want to provide totalResources separately.
+			totalResources := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
+			for _, node := range tc.Nodes {
+				totalResources.Add(node.TotalResources)
+			}
+
 			scheduler, err := NewLegacyScheduler(
 				tc.SchedulingConfig,
 				"executor",
+				totalResources,
 				tc.Nodes,
 				jobRepository,
 				tc.PriorityFactorsByQueue,

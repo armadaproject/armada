@@ -323,8 +323,7 @@ func uuidFromUlidString(ulid string) (uuid.UUID, error) {
 // Check if scheduling this job would exceed per-queue resource limits.
 func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
 	for resourceType, limit := range limits {
-		// TODO: Should be computed globally.
-		totalAmount := scheduler.NodeDb.totalResources[resourceType] // TODO: Could be a float computed at init.
+		totalAmount := scheduler.TotalResources.Resources[resourceType]
 		amountUsedByQueue := rl.Resources[resourceType]
 		if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
 			return true, fmt.Sprintf("scheduling would exceed %s quota", resourceType)
@@ -373,6 +372,10 @@ type LegacyScheduler struct {
 	SchedulingConfig configuration.SchedulingConfig
 	// Executor for which we're currently scheduling jobs.
 	ExecutorId string
+	// Total resources across all clusters.
+	// Used when computing resource limits.
+	TotalResources schedulerobjects.ResourceList
+	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
 	// Used to request jobs from Redis and to mark jobs as leased.
@@ -390,7 +393,14 @@ type LegacyScheduler struct {
 	SchedulingReportsRepository *SchedulingReportsRepository
 }
 
-func NewLegacyScheduler(schedulingConfig configuration.SchedulingConfig, executorId string, nodes []*schedulerobjects.Node, jobRepository SchedulerJobRepository, priorityFactorByQueue map[string]float64) (*LegacyScheduler, error) {
+func NewLegacyScheduler(
+	schedulingConfig configuration.SchedulingConfig,
+	executorId string,
+	totalResources schedulerobjects.ResourceList,
+	nodes []*schedulerobjects.Node,
+	jobRepository SchedulerJobRepository,
+	priorityFactorByQueue map[string]float64,
+) (*LegacyScheduler, error) {
 	priorities := make([]int32, 0)
 	for _, priority := range schedulingConfig.Preemption.PriorityClasses {
 		priorities = append(priorities, priority)
@@ -409,9 +419,14 @@ func NewLegacyScheduler(schedulingConfig configuration.SchedulingConfig, executo
 		return nil, err
 	}
 
-	if len(nodes) == 0 {
-		return nil, errors.New("no nodes provided for scheduler initialisation")
+	if len(totalResources.Resources) == 0 {
+		return nil, errors.New("no resources available for scheduling")
 	}
+
+	if len(nodes) == 0 {
+		return nil, errors.New("no nodes available for scheduling")
+	}
+
 	err = nodeDb.Upsert(nodes)
 	if err != nil {
 		return nil, err
@@ -420,6 +435,7 @@ func NewLegacyScheduler(schedulingConfig configuration.SchedulingConfig, executo
 	return &LegacyScheduler{
 		SchedulingConfig:      schedulingConfig,
 		ExecutorId:            executorId,
+		TotalResources:        totalResources,
 		NodeDb:                nodeDb,
 		JobRepository:         jobRepository,
 		PriorityFactorByQueue: priorityFactorByQueue,
