@@ -125,7 +125,7 @@ func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()
 	return ServeHttp(port, mux)
 }
 
-// ServeHttp starts a HTTP server listening on the given port.
+// ServeHttp starts an HTTP server listening on the given port.
 func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
