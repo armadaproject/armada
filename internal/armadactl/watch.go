@@ -13,10 +13,10 @@ import (
 )
 
 // Watch prints events associated with a particular job set.
-func (a *App) Watch(queue string, jobSetId string, raw bool, exit_on_inactive bool) error {
+func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool, forceNewEvents bool, forceLegacyEvents bool) error {
 	fmt.Fprintf(a.Out, "Watching job set %s\n", jobSetId)
 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
-		client.WatchJobSet(c, queue, jobSetId, true, true, context.Background(), func(state *domain.WatchContext, event api.Event) bool {
+		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, context.Background(), func(state *domain.WatchContext, event api.Event) bool {
 			if raw {
 				data, err := json.Marshal(event)
 				if err != nil {
@@ -43,7 +43,7 @@ func (a *App) Watch(queue string, jobSetId string, raw bool, exit_on_inactive bo
 					a.printSummary(state, event)
 				}
 			}
-			if exit_on_inactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
+			if exitOnInactive && state.GetNumberOfJobs() == state.GetNumberOfFinishedJobs() {
 				return true
 			}
 			return false
