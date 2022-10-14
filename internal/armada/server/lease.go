@@ -393,6 +393,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 		}
 		report := &schedulerobjects.QueueClusterResourceUsage{
+			Created:             q.clock.Now(),
 			Queue:               r.Name,
 			ExecutorId:          req.GetClusterLeasedReport().ClusterId,
 			ResourcesByPriority: resourcesByPriority,
@@ -478,14 +479,24 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := sched.Schedule(ctx, aggregatedUsageByQueue)
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
-	// This ensures resources of leased jobs are accounted for without needing to wait for jobs to start running.
-	for queue, report := range mostRecentSuccessfulJobSchedulingReportByQueue {
-		if queueClusterUsageReport, ok := clusterUsageReport.ResourcesByQueue[queue]; ok {
-			queueClusterUsageReport.ResourcesByPriority = report.TotalQueueResourcesByPriority
+	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
+	if len(mostRecentSuccessfulJobSchedulingReportByQueue) > 0 {
+		for queue, jobSchedulingReport := range mostRecentSuccessfulJobSchedulingReportByQueue {
+			if queueClusterUsage, ok := usageByQueue[queue]; ok && queueClusterUsage != nil {
+				queueClusterUsage.ResourcesByPriority = jobSchedulingReport.TotalQueueResourcesByPriority
+			} else {
+				queueClusterUsage = &schedulerobjects.QueueClusterResourceUsage{
+					Created:             q.clock.Now(),
+					Queue:               queue,
+					ExecutorId:          req.GetClusterLeasedReport().ClusterId,
+					ResourcesByPriority: jobSchedulingReport.TotalQueueResourcesByPriority,
+				}
+				usageByQueue[queue] = queueClusterUsage
+			}
 		}
-		err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport)
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to update cluster usage")
+		clusterUsageReport = q.createClusterUsageReport(usageByQueue, req.Pool)
+		if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, clusterUsageReport); err != nil {
+			logging.WithStacktrace(log, err).Errorf("failed to update cluster usage")
 		}
 	}
 
