@@ -24,11 +24,14 @@ func validateFailedEvent(actual *api.EventMessage, expected *api.EventMessage) e
 	if !ok {
 		return errors.New("error casting expected event as Failed event")
 	}
-	if expectedFailedEvent.Failed.Reason != receivedFailedEvent.Failed.Reason {
-		return errors.Errorf(
-			"error asserting failure reason: expected %s, got %s",
-			expectedFailedEvent.Failed.Reason, receivedFailedEvent.Failed.Reason,
-		)
+	// only check messages if there is an expected message to check
+	if len(expectedFailedEvent.Failed.GetReason()) > 0 {
+		if expectedFailedEvent.Failed.GetReason() != receivedFailedEvent.Failed.GetReason() {
+			return errors.Errorf(
+				"error asserting failure reason: expected %s, got %s",
+				expectedFailedEvent.Failed.GetReason(), receivedFailedEvent.Failed.GetReason(),
+			)
+		}
 	}
 
 	return nil
