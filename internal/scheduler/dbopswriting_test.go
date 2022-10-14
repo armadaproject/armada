@@ -259,7 +259,8 @@ func addDefaultValues(op DbOperation) DbOperation {
 }
 
 func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, op DbOperation) error {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	// Apply the op to the database.
 	err := WriteDbOp(ctx, db, op)

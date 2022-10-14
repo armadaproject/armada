@@ -46,6 +46,7 @@ func (ls *MockLeaseService) RequestJobLeases(
 	availableResource *common.ComputeResources,
 	nodes []api.NodeInfo,
 	leasedResourceByQueue map[string]common.ComputeResources,
+	leasedResourceByQueueAndPriority map[string]map[int32]common.ComputeResources,
 ) ([]*api.Job, error) {
 	ls.RequestJobLeasesCalls++
 	return make([]*api.Job, 0), nil
