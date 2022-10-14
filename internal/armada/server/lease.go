@@ -29,6 +29,7 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
@@ -403,6 +404,20 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	log := ctxlogrus.Extract(ctx)
 	log.Info("using new scheduler for lease call")
 
+	// Get the total capacity available across all clusters.
+	usageReports, err := q.usageRepository.GetClusterUsageReports()
+	if err != nil {
+		return nil, err
+	}
+	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
+	totalCapacity := make(common.ComputeResources)
+	for _, clusterReport := range activeClusterReports {
+		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
+	}
+	totalCapacityRl := schedulerobjects.ResourceList{
+		Resources: totalCapacity,
+	}
+
 	// load the usage from all other executors
 	reportsByExecutor, err := q.usageRepository.GetClusterQueueResourceUsage()
 	if err != nil {
@@ -452,6 +467,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	sched, err := scheduler.NewLegacyScheduler(
 		q.schedulingConfig,
 		req.ClusterId,
+		totalCapacityRl,
 		nodes,
 		q.jobRepository,
 		priorityFactorByActiveQueue,
