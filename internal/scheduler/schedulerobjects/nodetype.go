@@ -40,6 +40,48 @@ func NewNodeType(taints []v1.Taint, labels, wellKnownLabels map[string]string, t
 	}
 }
 
+func NewNodeTypeNew(taints []v1.Taint, labels map[string]string, indexedLabels map[string]interface{}, indexedTaints map[string]interface{}) *NodeType {
+
+	// Filter out any taints that should not be indexed.
+	// The default is to index all taints.
+	if indexedTaints != nil {
+		labels = getFilteredLabels(labels, func(key, _ string) bool {
+			_, ok := indexedLabels[key]
+			return ok
+		})
+	}
+
+	// Filter out any labels that should not be indexed.
+	if indexedLabels != nil {
+		labels = getFilteredLabels(labels, func(key, _ string) bool {
+			_, ok := indexedLabels[key]
+			return ok
+		})
+	} else {
+		// The default is to not index any labels.
+		labels = make(map[string]string)
+	}
+
+	// Get the indexed labels that are not set to create indexes for unset labels.
+	setIndexedLabels := make(map[string]string)
+	for key, value := range labels {
+		setIndexedLabels[key] = value
+	}
+	unsetIndexedLabels := make(map[string]string)
+	for key := range indexedLabels {
+		if _, ok := setIndexedLabels[key]; !ok {
+			unsetIndexedLabels[key] = "" // Only the key is used.
+		}
+	}
+
+	return &NodeType{
+		Id:                   nodeTypeIdFromTaintsAndLabels(taints, labels, unsetIndexedLabels),
+		Taints:               taints,
+		Labels:               labels,
+		UnsetWellKnownLabels: unsetIndexedLabels,
+	}
+}
+
 // nodeTypeIdFromTaintsAndLabels generates an id that is unique for each combination
 // of taints, labels, and unset labels, of the form
 // $taint1$taint2...&$label1=labelValue1$label2=labelValue2...&$unsetWellKnownLabel1=unsetWellKnownLabelValue1...
@@ -64,11 +106,9 @@ func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetWellKnownLabe
 		sb.WriteString(value)
 	}
 	sb.WriteString("&")
-	for label, value := range unsetWellKnownLabels {
+	for label := range unsetWellKnownLabels {
 		sb.WriteString("$")
 		sb.WriteString(label)
-		sb.WriteString("=")
-		sb.WriteString(value)
 	}
 	return sb.String()
 }
