@@ -134,7 +134,10 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources []string
+	IndexedResources              []string
+	MinTerminationGracePeriod     time.Duration
+	MaxTerminationGracePeriod     time.Duration
+	DefaultTerminationGracePeriod time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

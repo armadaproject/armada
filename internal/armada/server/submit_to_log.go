@@ -91,7 +91,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// and generate a job duplicate found event.
 		originalId, found := originalIds[apiJob.GetId()]
 		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
-			if found {
+			if found && originalId != "" {
 				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
 					JobId:         responses[i].JobId,
 					Queue:         req.Queue,
@@ -540,7 +540,7 @@ func (srv *PulsarSubmitServer) Authorize(
 	}
 	if !srv.Permissions.UserHasPermission(ctx, anyPerm) {
 		if !principalHasQueuePermissions(principal, q, perm) {
-			err = &armadaerrors.ErrNoPermission{
+			err = &armadaerrors.ErrUnauthorized{
 				Principal:  principal.GetName(),
 				Permission: string(perm),
 				Action:     string(perm) + " for queue " + q.Name,
