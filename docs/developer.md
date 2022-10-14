@@ -106,9 +106,9 @@ Lookout requires Armada to be configured with NATS Streaming.
 To run Lookout, firstly build frontend:
 ```bash
 cd ./internal/lookout/ui
-npm install
-npm run openapi
-npm run build
+yarn install
+yarn run openapi
+yarn run build
 ```
 Start NATS Streaming:
 ```bash
@@ -130,7 +130,7 @@ go run ./cmd/lookout/main.go
 For UI development you can also use the React development server.
 Note that the Lookout API will still have to be running for this to work.
 ```bash
-npm run start
+yarn run start
 ```
 
 #### Quick dev setup
