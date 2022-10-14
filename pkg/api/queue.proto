@@ -119,6 +119,9 @@ message QueueLeasedReport {
     string name = 1;
     // Total resources allocated to jobs from this queue.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_leased = 2 [(gogoproto.nullable) = false];
+    // Total resources allocated to jobs from this queue,
+    // grouped by pod priority.
+    map<int32, ComputeResource> resources_leased_by_priority = 3 [(gogoproto.nullable) = false];
 }
 
 message ClusterLeasedReport {
