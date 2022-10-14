@@ -478,6 +478,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	sched.SchedulingReportsRepository = q.SchedulingReportsRepository
 	sched.MinimumJobSize = req.MinimumJobSize
 
+	// Log initial scheduler state.
+	log.Info("LegacyScheduler:\n" + sched.String())
+
 	// Give Schedule() a 3 second shorter deadline than ctx,
 	// to give it a chance to finish up before ctx is cancelled.
 	if deadline, ok := ctx.Deadline(); ok {
