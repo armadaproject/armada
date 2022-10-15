@@ -120,12 +120,7 @@ export default function DurationPlotsTable(props: DurationPlotsTableProps) {
   const maxValue = maxDuration + fivePercent
 
   return (
-    <div
-      style={{
-        height: props.height,
-        width: props.width,
-      }}
-    >
+    <div>
       <Table
         height={props.height}
         width={props.width}
