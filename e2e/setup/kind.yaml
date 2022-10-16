@@ -2,8 +2,10 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: armada-test
 nodes:
+- role: worker
+  image: kindest/node:v1.21.10
 - role: control-plane
-  image: kindest/node:v1.21.1  
+  image: kindest/node:v1.21.10
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration
@@ -12,8 +14,11 @@ nodes:
         node-labels: "ingress-ready=true"
   extraPortMappings:
   - containerPort: 80 # port of the nginx ingress controller
-    hostPort: 5000 # expose ingresses on localhost:5000
+    hostPort: 5001 # expose ingresses on localhost:5001
     protocol: TCP
   - containerPort: 3000 # arbitrary port used to test "node port services"
     hostPort: 3000 # expose service on localhost:3000
+    protocol: TCP
+  - containerPort: 6443 # control plane
+    hostPort: 6443  # exposes control plane on localhost:6443
     protocol: TCP

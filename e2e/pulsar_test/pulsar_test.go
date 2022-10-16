@@ -43,7 +43,7 @@ const (
 )
 
 // We setup kind to expose ingresses on this ULR.
-const ingressUrl = "http://localhost:5000"
+const ingressUrl = "http://localhost:5001"
 
 // Armada exposes all ingresses on this path.
 // Routing to the correct service is done using the hostname header.

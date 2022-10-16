@@ -6,10 +6,10 @@ ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservi
 cd "$(dirname "$0")"
 
 # start the kubernetes cluster if needed
-kind get clusters | grep demo-a &> /dev/null
+kind get clusters | grep armada-test &> /dev/null
 if [ $? -ne 0 ];
 then
-kind create cluster --name demo-a --config ../docs/dev/kind.yaml
+scripts/kind-start.sh
 fi
 
 
@@ -26,7 +26,7 @@ docker-compose ps | grep -E "pulsar.+running" &> /dev/null
 if [ $? -ne 0 ];
 then
     echo "Pausing for pulsar start up ..."
-    SLEEP_TIME=30
+    SLEEP_TIME=50
 fi
 
 docker-compose up -d $INFRA_SVCS
