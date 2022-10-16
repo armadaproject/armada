@@ -45,6 +45,7 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 
 func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64) error {
 	var fromMessageId string
+	log.Infof("Subscribing to %s", eventToJobService.jobSetId)
 	eventToJobService.jobServiceRepository.SubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)

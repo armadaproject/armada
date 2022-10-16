@@ -141,6 +141,10 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	return s.serveEventsFromRepository(request, eventRepository, stream)
 }
 
+func (s *EventServer) Health(ctx context.Context, cont_ *types.Empty) (*api.HealthCheckResponse, error) {
+	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
 func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repository.EventRepository {
 	// User has explicitly said they want to use the new event store
 	if request.ForceNew {

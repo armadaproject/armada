@@ -246,6 +246,17 @@ Uses the DeleteQueue RPC to delete the queue.
 
 
 
+#### event_health()
+Health check for Event Service.
+:return: A HealthCheckResponse object.
+
+
+* **Return type**
+
+    armada.health_pb2.HealthCheckResponse
+
+
+
 #### get_job_events_stream(queue, job_set_id, from_message_id=None)
 Get event stream for a job set.
 
@@ -367,6 +378,17 @@ or job set.
 * **Return type**
 
     armada.submit_pb2.JobReprioritizeResponse
+
+
+
+#### submit_health()
+Health check for Submit Service.
+:return: A HealthCheckResponse object.
+
+
+* **Return type**
+
+    armada.health_pb2.HealthCheckResponse
 
 
 

@@ -82,6 +82,11 @@ func NewSubmitServer(
 	}
 }
 
+func (server *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+	// For now, lets make the health check really simple.
+	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	q, err := server.queueRepository.GetQueue(req.Name)
 	var expected *repository.ErrQueueNotFound

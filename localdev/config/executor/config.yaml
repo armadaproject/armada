@@ -23,13 +23,13 @@ metric:
   port: 9001
   exposeQueueUsageMetrics: false
 kubernetes:
-  impersonateUsers: false
+  impersonateUsers: true
   etcd:
     fractionOfStorageInUseSoftLimit: 0.8
     fractionOfStorageInUseHardLimit: 0.9
     minimumAvailable: 2
-  QPS: 10000
-  Burst: 10000
+  QPS: 100
+  Burst: 100
   minimumPodAge: 3m
   failedPodExpiry: 10m
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)
