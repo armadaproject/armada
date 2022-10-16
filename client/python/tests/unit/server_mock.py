@@ -1,5 +1,11 @@
 from google.protobuf import empty_pb2
-from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2, event_pb2_grpc
+from armada_client.armada import (
+    submit_pb2_grpc,
+    submit_pb2,
+    event_pb2,
+    event_pb2_grpc,
+    health_pb2,
+)
 
 
 class SubmitService(submit_pb2_grpc.SubmitServicer):
@@ -36,6 +42,11 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
     def UpdateQueues(self, request, context):
         return submit_pb2.BatchQueueUpdateResponse()
 
+    def Health(self, request, context):
+        return health_pb2.HealthCheckResponse(
+            status=health_pb2.HealthCheckResponse.SERVING
+        )
+
 
 class EventService(event_pb2_grpc.EventServicer):
     def GetJobSetEvents(self, request, context):
@@ -44,3 +55,8 @@ class EventService(event_pb2_grpc.EventServicer):
 
         for event in events:
             yield event
+
+    def Health(self, request, context):
+        return health_pb2.HealthCheckResponse(
+            status=health_pb2.HealthCheckResponse.SERVING
+        )
