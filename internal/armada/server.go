@@ -318,18 +318,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return submitFromLog.Run(ctx)
 		})
 
-		// Service that reads from Pulsar and submits messages back into Pulsar.
-		// E.g., needed to automatically publish JobSucceeded after a JobRunSucceeded.
-		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: config.Pulsar.PulsarFromPulsarSubscription,
-			Type:             pulsar.KeyShared,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		defer consumer.Close()
-
 		// Create a new producer for this service.
 		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
