@@ -64,9 +64,5 @@
   "devDependencies": {
     "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3"
-  },
-  "resolutions": {
-    "@types/react": "17.0.1",
-    "@types/react-dom": "17.0.1"
   }
 }
