@@ -5,12 +5,10 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
@@ -38,8 +36,6 @@ func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.E
 // eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
 // before passing to this function.
 func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences []*armadaevents.EventSequence) error {
-	log := ctxlogrus.Extract(ctx)
-
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)
@@ -73,15 +69,6 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 			},
 		)
 	}
-
-	// Flush queued messages. We do not return the error from flush,
-	// since we collect the errors for the messages sent in this function below.
-	go func() {
-		err := producer.Flush()
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to flush messages")
-		}
-	}()
 
 	// Collect any errors experienced by the async flush/send and return.
 	var result *multierror.Error

@@ -80,7 +80,6 @@ pulsar:
   maxAllowedMessageSize: 4194304 # 4MB
   jobsetEventsTopic: "persistent://armada/armada/events"
   redisFromPulsarSubscription: "RedisFromPulsar"
-  pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
   eventsPrinter: false
