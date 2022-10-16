@@ -318,20 +318,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return submitFromLog.Run(ctx)
 		})
 
-		// Create a new producer for this service.
-		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
-		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             p2pPulsarProducer,
-			CompressionType:  pulsarCompressionType,
-			CompressionLevel: pulsarCompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		})
-		if err != nil {
-			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
-		}
-		defer producer.Close()
-
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
 			eventsPrinter := server.EventsPrinter{
