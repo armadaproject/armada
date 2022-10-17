@@ -103,7 +103,11 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	var filters []goqu.Expression
 
 	if opts.Queue != "" {
-		filters = append(filters, StartsWith(job_queue, opts.Queue))
+		if quotedString, ok := getQuotedString(opts.Queue); ok {
+			filters = append(filters, Exactly(job_queue, quotedString))
+		} else {
+			filters = append(filters, StartsWith(job_queue, opts.Queue))
+		}
 	}
 
 	if opts.JobId != "" {

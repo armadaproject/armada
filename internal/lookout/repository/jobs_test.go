@@ -2,6 +2,7 @@ package repository
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -1431,5 +1432,34 @@ func TestGetJobs_RemovesDuplicateJobsByDefault(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, duplicate.job, jobInfos[0].Job)
+	})
+}
+
+func TestGetJobs_ExactQueueNameMatching(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		correctJob := NewJobSimulator(t, jobStore).
+			CreateJobWithId(queue, "correct").
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue:       fmt.Sprintf("%q", queue),
+			Take:        10,
+			NewestFirst: false,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, correctJob.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue:       "\"queue2\"",
+			Take:        10,
+			NewestFirst: false,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(jobInfos))
 	})
 }

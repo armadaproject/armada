@@ -50,6 +50,10 @@ func StartsWith(field exp.IdentifierExpression, pattern string) goqu.Expression 
 	return field.Like(pattern + "%")
 }
 
+func Exactly(field exp.IdentifierExpression, pattern string) goqu.Expression {
+	return field.Eq(pattern)
+}
+
 func NewNullString(s string) sql.NullString {
 	if len(s) == 0 {
 		return sql.NullString{}
@@ -100,4 +104,12 @@ func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {
 		return time.Time{}
 	}
 	return nullTime.Time
+}
+
+func getQuotedString(haystack string) (string, bool) {
+	// TODO: This only handles the case of one quoted string in the haystack.
+	if strings.Count(haystack, "\"") != 2 {
+		return "", false
+	}
+	return strings.Split(haystack, "\"")[1], true
 }

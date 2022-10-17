@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -254,4 +255,27 @@ func (js *JobSimulator) Duplicate(originalJobId string) *JobSimulator {
 	}
 	assert.NoError(js.t, js.jobStore.RecordJobDuplicate(duplicateFoundEvent))
 	return js
+}
+
+func TestGetQuotedString(t *testing.T) {
+	testCases := []struct {
+		haystack        string
+		expectedQString string
+		expectedOk      bool
+	}{
+		{"test", "", false},
+		{"\"test\"", "test", true},
+		{"\"test\"\"", "", false}, // We only handle the 2 quotes case.
+		{"\"asdf", "", false},     // No closing quote.
+		{"\"\"", "", true},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Test getQuotedString(%q)=>(%q,%t)",
+			tc.haystack, tc.expectedQString, tc.expectedOk),
+			func(t *testing.T) {
+				s, ok := getQuotedString(tc.haystack)
+				assert.Equal(t, s, tc.expectedQString)
+				assert.Equal(t, ok, tc.expectedOk)
+			})
+	}
 }
