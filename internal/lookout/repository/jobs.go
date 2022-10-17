@@ -257,13 +257,19 @@ func determineJobStateDuration(row *JobRow) string {
 		return ""
 	}
 	var timeStamp time.Time
-	if row.Finished.Valid {
+
+	switch {
+	case row.Finished.Valid:
 		timeStamp = row.Finished.Time
-	} else if row.Started.Valid {
+	case row.Started.Valid:
 		timeStamp = row.Started.Time
-	} else if row.Created.Valid {
+	case row.Created.Valid:
 		timeStamp = row.Created.Time
-	} else {
+	case row.Cancelled.Valid:
+		timeStamp = row.Cancelled.Time
+	case row.Submitted.Valid:
+		timeStamp = row.Submitted.Time
+	default:
 		return ""
 	}
 
