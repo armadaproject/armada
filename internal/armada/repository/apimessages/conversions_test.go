@@ -664,6 +664,50 @@ func TestConvertJobRunning(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
+func TestIgnoredEventDoesntDuplicate(t *testing.T) {
+	leaseExpired := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: jobIdProto,
+				RunId: runIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_LeaseExpired{
+							LeaseExpired: &armadaevents.LeaseExpired{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	cancel := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_CancelJobSet{
+			CancelJobSet: &armadaevents.CancelJobSet{},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_LeaseExpired{
+				LeaseExpired: &api.JobLeaseExpiredEvent{
+					JobId:    jobIdString,
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  baseTime,
+				},
+			},
+		},
+	}
+
+	apiEvents, err := FromEventSequence(toEventSeq(leaseExpired, cancel))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+}
+
 func TestConvertJobAssigned(t *testing.T) {
 	running := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
