@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
-
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -270,7 +268,7 @@ func createQueueCache(redisClient redis.UniversalClient, clock util.Clock) *Queu
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
 	schedulingInfoRepo := repository.NewRedisSchedulingInfoRepository(redisClient)
 
-	return NewQueueCache(clock, queueRepo, jobRepo, schedulingInfoRepo, common.ComputeResources{})
+	return NewQueueCache(clock, queueRepo, jobRepo, schedulingInfoRepo)
 }
 
 func addInactiveCluster(t *testing.T, r repository.SchedulingInfoRepository, clusterId string, pool string) *api.ClusterSchedulingInfoReport {

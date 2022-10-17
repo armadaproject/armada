@@ -83,10 +83,13 @@ type MetricConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
-	Metric        MetricConfiguration
-	Application   ApplicationConfiguration
-	ApiConnection client.ApiConnectionDetails
-	Client        ClientConfiguration
+	// NodeReservedResources config is used to factor in reserved resources on each node
+	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
+	NodeReservedResources common.ComputeResources
+	Metric                MetricConfiguration
+	Application           ApplicationConfiguration
+	ApiConnection         client.ApiConnectionDetails
+	Client                ClientConfiguration
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

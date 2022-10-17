@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/armada/cache"
@@ -164,7 +162,7 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 			MaxRetries: maxRetries,
 		},
 		mockJobRepository,
-		cache.NewQueueCache(&util.DefaultClock{}, fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository, common.ComputeResources{}),
+		cache.NewQueueCache(&util.DefaultClock{}, fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository),
 		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,

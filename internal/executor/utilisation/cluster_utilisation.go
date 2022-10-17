@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/sirupsen/logrus"
@@ -19,7 +21,7 @@ import (
 )
 
 type UtilisationService interface {
-	GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error)
+	GetAvailableClusterCapacity(reserved common.ComputeResources) (*ClusterAvailableCapacityReport, error)
 	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
 }
 
@@ -111,15 +113,15 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 	return (*r.AvailableCapacity)[resource]
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity(reserved common.ComputeResources) (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
@@ -138,6 +140,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		allocatable := common.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
+		// sub node reserved resources if defined,
+		// if nil, behaviour is same as subtracting 0
+		available.Sub(reserved)
 
 		nodePods := podsByNodes[n.Name]
 		allocated := getAllocatedResourcesByPriority(nodePods)

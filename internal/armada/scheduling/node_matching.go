@@ -39,11 +39,10 @@ func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
 func MatchSchedulingRequirementsOnAnyCluster(
 	job *api.Job,
 	allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport,
-	nodeReservedResources common.ComputeResources,
 ) (bool, error) {
 	var errs []error
 	for _, schedulingInfo := range allClusterSchedulingInfos {
-		if ok, err := MatchSchedulingRequirements(job, schedulingInfo, nodeReservedResources); ok {
+		if ok, err := MatchSchedulingRequirements(job, schedulingInfo); ok {
 			return true, nil
 		} else {
 			errs = append(errs, err)
@@ -62,7 +61,6 @@ func MatchSchedulingRequirementsOnAnyCluster(
 func MatchSchedulingRequirements(
 	job *api.Job,
 	schedulingInfo *api.ClusterSchedulingInfoReport,
-	nodeReservedResources common.ComputeResources,
 ) (bool, error) {
 	if !isLargeEnough(job, schedulingInfo.MinimumJobSize) {
 		err := &armadaerrors.ErrPodUnschedulable{}
@@ -71,7 +69,7 @@ func MatchSchedulingRequirements(
 	}
 	for i, podSpec := range job.GetAllPodSpecs() {
 		// TODO: make sure there are enough nodes available for all the job pods.
-		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes, nodeReservedResources); !ok {
+		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
 			if err != nil {
 				return false, err
 			}
@@ -90,7 +88,7 @@ func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
 // matchAnyNodeType returns true if the pod can be scheduled on at least one node type.
 // If not, an error is returned indicating why the pod can't be scheduled.
 // The error is of type *armadaerrors.ErrPodUnschedulable.
-func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType, nodeReservedResources common.ComputeResources) (bool, error) {
+func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, error) {
 	if len(nodeTypes) == 0 {
 		return false, errors.Errorf("no node types available")
 	}
@@ -99,9 +97,6 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType, nodeReserv
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
 		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat().DeepCopy()
-		// subtract the node reserved resources from the current node allocatable resources
-		// this is used to factor in resources reserved for daemonsets or any other purpose
-		nodeResources.Sub(nodeReservedResources.AsFloat())
 		ok, err := podMatchingContext.Matches(nodeType, nodeResources)
 		switch {
 		case ok:

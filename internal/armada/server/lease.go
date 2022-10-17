@@ -444,7 +444,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 		}
 
 		changed := addAvoidNodeAffinity(jobs[0], labels, func(jobsToValidate []*api.Job) error {
-			if ok, err := validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo, q.schedulingConfig.NodeReservedResources); !ok {
+			if ok, err := validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo); !ok {
 				if err != nil {
 					return errors.WithMessage(err, "can't schedule at least 1 job")
 				} else {

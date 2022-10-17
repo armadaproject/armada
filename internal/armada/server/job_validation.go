@@ -3,8 +3,6 @@ package server
 import (
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common"
-
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/pkg/api"
 )
@@ -15,11 +13,10 @@ import (
 func validateJobsCanBeScheduled(
 	jobs []*api.Job,
 	allClusterSchedulingInfo map[string]*api.ClusterSchedulingInfoReport,
-	nodeReservedResources common.ComputeResources,
 ) (bool, error) {
 	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
 	for i, job := range jobs {
-		if ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo, nodeReservedResources); !ok {
+		if ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo); !ok {
 			if err != nil {
 				return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
 			} else {

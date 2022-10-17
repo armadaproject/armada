@@ -140,7 +140,9 @@ func StartUpWithContext(
 		jobLeaseService,
 		clusterUtilisationService,
 		submitter,
-		etcdHealthMonitor)
+		etcdHealthMonitor,
+		config.NodeReservedResources,
+	)
 
 	jobManager := service.NewJobManager(
 		clusterContext,
