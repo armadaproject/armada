@@ -89,6 +89,16 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
           />
         )
       }
+      case "jobStateDuration": {
+        return (
+          <Column
+            key={i}
+            dataKey={col.accessor}
+            width={calculateColumnWidth(col.width, leftoverWidth, totalColumnWeight)}
+            label={col.name}
+          />
+        )
+      }
       case "queue":
       case "jobSet":
       case "owner": {
