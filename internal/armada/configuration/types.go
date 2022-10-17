@@ -142,7 +142,7 @@ type SchedulingConfig struct {
 	// If not set, no labels are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedNodeLabels []string
+	IndexedNodeLabels map[string]interface{}
 	// Taint keys that the scheduler creates indexes for efficient lookup of.
 	// Should include taints frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these taints
@@ -151,7 +151,7 @@ type SchedulingConfig struct {
 	// If not set, all taints are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedTaints                 []string
+	IndexedTaints                 map[string]interface{}
 	MinTerminationGracePeriod     time.Duration
 	MaxTerminationGracePeriod     time.Duration
 	DefaultTerminationGracePeriod time.Duration

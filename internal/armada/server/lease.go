@@ -440,7 +440,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Nodes to be considered by the scheduler.
 	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
 	for i, nodeInfo := range req.Nodes {
-		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(&nodeInfo, req.ClusterId, priorities)
+		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(
+			&nodeInfo,
+			req.ClusterId,
+			priorities,
+			q.schedulingConfig.IndexedTaints,
+			q.schedulingConfig.IndexedNodeLabels,
+		)
 	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
