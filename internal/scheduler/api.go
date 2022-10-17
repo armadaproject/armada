@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -28,7 +27,9 @@ type ExecutorApi struct {
 	api.UnimplementedAggregatedQueueServer
 	// Embed the Redis-backed event server.
 	// Provides methods for dual-publishing events etc.
-	*server.EventServer
+	//
+	// TODO: Can't import due to import cycle.
+	// *server.EventServer
 	Producer       pulsar.Producer
 	Db             *pgxpool.Pool
 	MaxJobsPerCall int32

@@ -18,8 +18,9 @@ import (
 func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, error) {
 	apiEvents := make([]*api.EventMessage, 0, len(es.Events))
 	var err error = nil
-	var convertedEvents []*api.EventMessage = nil
+
 	for _, event := range es.Events {
+		var convertedEvents []*api.EventMessage = nil
 		switch esEvent := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			convertedEvents, err = FromInternalSubmit(es.UserId, es.Groups, es.Queue, es.JobSetName, *event.Created, esEvent.SubmitJob)
@@ -51,13 +52,14 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalStandaloneIngressInfo(es.Queue, es.JobSetName, *event.Created, esEvent.StandaloneIngressInfo)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunPreempted)
-		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
-		case *armadaevents.EventSequence_Event_CancelJobSet:
-		case *armadaevents.EventSequence_Event_JobRunSucceeded:
+		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
+			*armadaevents.EventSequence_Event_CancelJobSet,
+			*armadaevents.EventSequence_Event_JobRunSucceeded:
 			// These events have no api analog right now, so we ignore
 			log.Debugf("Ignoring event")
 		default:
 			log.Warnf("Unknown event type: %T", esEvent)
+			convertedEvents = nil
 		}
 		if err != nil {
 			// TODO: would it be better to log a warning and continue- that way one bad event won't cause the stream to terminate?

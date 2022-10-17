@@ -62,10 +62,9 @@ type PulsarConfig struct {
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
-	JwtTokenPath                 string
-	JobsetEventsTopic            string
-	RedisFromPulsarSubscription  string
-	PulsarFromPulsarSubscription string
+	JwtTokenPath                string
+	JobsetEventsTopic           string
+	RedisFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType string
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
@@ -87,24 +86,57 @@ type PulsarConfig struct {
 type SchedulingConfig struct {
 	Preemption                                PreemptionConfig
 	UseProbabilisticSchedulingForAllResources bool
-	QueueLeaseBatchSize                       uint
-	MinimumResourceToSchedule                 common.ComputeResourcesFloat
-	MaximumLeasePayloadSizeBytes              int
-	MaximalClusterFractionToSchedule          map[string]float64
+	// Number of jobs to load from the database at a time.
+	QueueLeaseBatchSize uint
+	// Minimum resources to schedule per request from an executor.
+	// Applies to the old scheduler.
+	MinimumResourceToSchedule common.ComputeResourcesFloat
+	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
+	// Applies to the old scheduler. But is not necessary since we now stream job leases.
+	MaximumLeasePayloadSizeBytes int
+	// Fraction of resources that can be assigned in a single lease jobs call.
+	// Applies to both the old and new scheduler.
+	MaximalClusterFractionToSchedule map[string]float64
+	// Fraction of resources that can be assigned to any single queue,
+	// within a single lease jobs call.
+	// Applies to both the old and new scheduler.
 	MaximalResourceFractionToSchedulePerQueue map[string]float64
-	MaximalResourceFractionPerQueue           map[string]float64
-	MaximumJobsToSchedule                     int
-	Lease                                     LeaseSettings
-	DefaultJobLimits                          common.ComputeResources
-	DefaultJobTolerations                     []v1.Toleration
-	MaxRetries                                uint // Maximum number of retries before a Job is failed
-	ResourceScarcity                          map[string]float64
-	PoolResourceScarcity                      map[string]map[string]float64
-	MaxPodSpecSizeBytes                       uint
-	MinJobResources                           v1.ResourceList
-	MinTerminationGracePeriod                 time.Duration
-	MaxTerminationGracePeriod                 time.Duration
-	DefaultTerminationGracePeriod             time.Duration
+	// Fraction of resources that can be assigned to any single queue.
+	// Applies to both the old and new scheduler.
+	MaximalResourceFractionPerQueue map[string]float64
+	// Max number of jobs to scheduler per lease jobs call.
+	MaximumJobsToSchedule int
+	// Probability of using the new sheduler.
+	// Set to 0 to disable the new scheduler and to 1 to disable the old scheduler.
+	ProbabilityOfUsingNewScheduler float64
+	// The scheduler stores reports about scheduling decisions for each queue.
+	// These can be queried by users. To limit memory usage, old reports are deleted
+	// to keep the number of stored reports within this limit.
+	MaxQueueReportsToStore int
+	// The scheduler stores reports about scheduling decisions for each job.
+	// These can be queried by users. To limit memory usage, old reports are deleted
+	// to keep the number of stored reports within this limit.
+	MaxJobReportsToStore  int
+	Lease                 LeaseSettings
+	DefaultJobLimits      common.ComputeResources
+	DefaultJobTolerations []v1.Toleration
+	// Maximum number of times a job is retried before considered failed.
+	MaxRetries uint
+	// Weights used when computing fair share.
+	// Overrides dynamic scarcity calculation if provided.
+	// Applies to both the new and old scheduler.
+	ResourceScarcity map[string]float64
+	// Applies only to the old scheduler.
+	PoolResourceScarcity map[string]map[string]float64
+	MaxPodSpecSizeBytes  uint
+	MinJobResources      v1.ResourceList
+	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
+	// for which the scheduler creates indexes for efficient lookup.
+	// Applies only to the new scheduler.
+	IndexedResources              []string
+	MinTerminationGracePeriod     time.Duration
+	MaxTerminationGracePeriod     time.Duration
+	DefaultTerminationGracePeriod time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -113,6 +145,7 @@ type NewSchedulerConfig struct {
 	Enabled bool
 }
 
+// TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
 	// If true, Armada will:
 	// 1. Validate that submitted pods specify no or a valid priority class.

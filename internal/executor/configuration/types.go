@@ -3,6 +3,8 @@ package configuration
 import (
 	"time"
 
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/pkg/client"
@@ -90,6 +92,7 @@ type ExecutorConfiguration struct {
 	Application           ApplicationConfiguration
 	ApiConnection         client.ApiConnectionDetails
 	Client                ClientConfiguration
+	GRPC                  keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

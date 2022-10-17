@@ -37,6 +37,9 @@ func StreamServerInterceptor() grpc.StreamServerInterceptor {
 		if id, ok := requestid.FromContext(ctx); ok {
 			ctxlogrus.AddFields(ctx, logrus.Fields{requestid.MetadataKey: id})
 		}
+		// The logrus logger only logs at the end of the call.  As streaming calls may last a long time
+		// We also log here which will produce a log line at the start of the call
+		ctxlogrus.Extract(ctx).Infof("started streaming call")
 		err := handler(srv, stream)
 		if err != nil {
 			// %+v prints a stack trace for pkg/errors errors

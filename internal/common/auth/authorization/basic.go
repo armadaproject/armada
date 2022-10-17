@@ -7,6 +7,7 @@ import (
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
@@ -18,17 +19,26 @@ func NewBasicAuthService(users map[string]configuration.UserInfo) *BasicAuthServ
 	return &BasicAuthService{users: users}
 }
 
+func (authService *BasicAuthService) Name() string {
+	return "Basic"
+}
+
 func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	basicAuth, err := grpc_auth.AuthFromMD(ctx, "basic")
 	if err == nil {
 		payload, err := base64.StdEncoding.DecodeString(basicAuth)
 		if err != nil {
-			return nil, err
+			return nil, &armadaerrors.ErrInvalidCredentials{
+				AuthService: authService.Name(),
+				Message:     err.Error(),
+			}
 		}
 		pair := strings.SplitN(string(payload), ":", 2)
 		return authService.loginUser(pair[0], pair[1])
 	}
-	return nil, missingCredentials
+	return nil, &armadaerrors.ErrMissingCredentials{
+		AuthService: authService.Name(),
+	}
 }
 
 func (authService *BasicAuthService) loginUser(username string, password string) (Principal, error) {
@@ -36,5 +46,8 @@ func (authService *BasicAuthService) loginUser(username string, password string)
 	if ok && userInfo.Password == password {
 		return NewStaticPrincipal(username, userInfo.Groups), nil
 	}
-	return nil, invalidCredentials
+	return nil, &armadaerrors.ErrInvalidCredentials{
+		Username:    username,
+		AuthService: authService.Name(),
+	}
 }
