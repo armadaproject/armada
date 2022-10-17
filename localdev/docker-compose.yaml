@@ -1,5 +1,9 @@
 version: "3.8"
 
+networks:
+  kind:
+    external: true
+
 services:
   #
   # Infrastructure services needed for Armada
@@ -10,6 +14,8 @@ services:
     image: redis
     ports:
       - "6379:6379"
+    networks:
+      - kind
 
   postgres:
     container_name: postgres
@@ -18,6 +24,8 @@ services:
       - "POSTGRES_PASSWORD=psw"
     ports:
       - "5432:5432"
+    networks:
+      - kind
 
   pulsar:
     image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
@@ -29,6 +37,8 @@ services:
       - "0.0.0.0:6650:6650"
     depends_on:
       - redis
+    networks:
+      - kind
 
   stan:
     container_name: stan
@@ -39,6 +49,8 @@ services:
       - "8223:8223"
     depends_on:
       - redis
+    networks:
+      - kind
 
   #
   # The Armada server and affiliated services
@@ -46,11 +58,13 @@ services:
   armada-server:
     container_name: armada-server
     image: golang:1.18-buster
+    networks:
+      - kind
     ports:
       - "50051:50051"
       - "8080:8080"
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     depends_on:
       - redis
@@ -63,11 +77,13 @@ services:
   lookout:
     container_name: lookout
     image: golang:1.18-buster
+    networks:
+      - kind
     ports:
       - "9009:9009"
       - "8089:8089"
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     depends_on:
       - armada-server
@@ -78,38 +94,42 @@ services:
   executor:
     container_name: executor
     image: golang:1.18-buster
+    networks:
+      - kind
     ports:
       - "9001:9001"
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
-      - "~/.kube:/tmp/.kube"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/executor-start.sh"
     
   binoculars:
     container_name: binoculars
     image: golang:1.18-buster
+    networks:
+      - kind
     ports:
       - "8082:8082"
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
-      - "~/.kube:/tmp/.kube"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/binoculars-start.sh"
     
   jobservice:
     container_name: jobservice
     image: golang:1.18-buster
+    networks:
+      - kind
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/jobservice-start.sh"
@@ -117,11 +137,13 @@ services:
   lookout-ingester:
     container_name: lookout-ingester
     image: golang:1.18-buster
+    networks:
+      - kind
     depends_on:
       - armada-server
       - lookout
     volumes:
-      - "..:/app:ro"
+      - "..:/app:rw"
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"

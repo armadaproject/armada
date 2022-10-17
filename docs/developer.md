@@ -15,55 +15,27 @@ To follow this section it is assumed you have:
 
 There are two options for developing Armada locally. 
 
-##### Kind
-You can use a [kind](https://github.com/kubernetes-sigs/kind) Kubernetes clusters.
+##### Kind + Docker Compose
+You can use a [kind](https://github.com/kubernetes-sigs/kind) Kubernetes cluster with Docker Compose to run a development stack.
  - The advantage of this is it is more like a real kubernetes cluster
- - However it is a bit more effort to set it up and it can only emulate a cluster with as much resource as your computer has
+ - However it can only emulate a small cluster
  
 This is recommended if load doesn't matter or you are working on features that rely on integrating with kubernetes functionality
   
 ##### Fake-executor
 You can use fake-executor
-
  - It is easy to setup, as it is just a Go program that emulates a kubernetes cluster
  - It allows you emulate clusters much larger than your current machine
  - As the jobs aren't really running, it won't properly emulate a real kubernetes cluster
  
 This is recommended when working on features that are purely Armada specific or if you want to get a high load of jobs running through Armada components 
 
-#### Setup Kind development
+#### Setup Kind + Docker Compose development
 
-1. Get kind (Installation help [here](https://kind.sigs.k8s.io/docs/user/quick-start/))
+1. Start the "localdev" docker-compose environment
     ```bash
-    go install sigs.k8s.io/kind@v0.11.1
+    localdev/run.sh
     ``` 
-2. Create kind clusters (you can create any number of clusters)
-
-    As this step is using Docker, it may require root to run
-    
-    ```bash
-    kind create cluster --name demo-a --config ./example/kind-config.yaml
-    kind create cluster --name demo-b --config ./example/kind-config.yaml
-    ```
-3. Start Redis
-    ```bash
-    docker run -d -p 6379:6379 redis
-    ```
-    
-    The following steps are shown in a terminal, but for development is it recommended they are run in your IDE
-
-4. Start server in one terminal
-    ```bash
-    go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml
-    ```
-5. Start executor for demo-a in a new terminal
-    ```bash
-    ARMADA_APPLICATION_CLUSTERID=kind-demo-a ARMADA_METRIC_PORT=9001 go run ./cmd/executor/main.go
-    ```
-6. Start executor for demo-b in a new terminal
-    ```bash
-    ARMADA_APPLICATION_CLUSTERID=kind-demo-b ARMADA_METRIC_PORT=9002 go run ./cmd/executor/main.go
-    ```
 
 #### Setup Fake-executor development
 
@@ -89,68 +61,22 @@ This is recommended when working on features that are purely Armada specific or 
 
 #### Optional components
 
-##### NATS Streaming
-Armada can be set up to use NATS Streaming as message queue for events.
-To run NATS Streaming for development you can use docker:
-```bash
-docker run -d -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
-```
-
-For Armada configuration check end to end test setup:
-```bash
-go run ./cmd/armada/main.go --config ./e2e/setup/insecure-armada-auth-config.yaml --config ./e2e/setup/nats/armada-config.yaml
-```
-
 ##### Lookout - Armada UI
-Lookout requires Armada to be configured with NATS Streaming.
-To run Lookout, firstly build frontend:
+Lookout requires Postgres to be up and running. Additionally, the react app must be built.
 ```bash
 cd ./internal/lookout/ui
 yarn install
 yarn run openapi
 yarn run build
 ```
-Start NATS Streaming:
-```bash
-docker run -d -p 4223:4223 -p 8223:8223 nats-streaming -p 4223 -m 8223
-```
 
-Start a Postgres database:
-```bash
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres
-```
-Migrate database:
-```bash
-go run ./cmd/lookout/main.go --migrateDatabase
-```
-Then run go application:
-```bash
-go run ./cmd/lookout/main.go 
-```
+After this, the lookout UI should be accessible through your browser at `http://localhost:8089`
+
 For UI development you can also use the React development server.
 Note that the Lookout API will still have to be running for this to work.
 ```bash
 yarn run start
 ```
-
-#### Quick dev setup
-
-Optionally, you can get a `kind` cluster and redis, NATS and PostgreSQL containers up by running
-```bash
-./docs/dev/setup.sh
-```
-The script will print out commands to execute each of the three Armada components, `armada`, `armada-lookout`, and `armada-executor`.
-
-If you want to run Armada components using NATS Jetstream (as opposed to NATS streaming), you can run and copy the commands from the following command:
-```bash
-./docs/dev/setup.sh jetstream
-```
-
-When you're done, you can run
-```bash
-./docs/dev/teardown.sh
-```
-to tear down your development environment.
 
 #### Testing your setup
 
@@ -159,6 +85,11 @@ to tear down your development environment.
 go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
+```
+
+2. Run the end-to-end integration tests
+```bash
+make tests-e2e-no-setup
 ```
 
 For more details on submitting jobs to Armada, see [here](https://github.com/G-Research/armada/blob/master/docs/user.md).
@@ -183,6 +114,25 @@ make tests-e2e
 # optionally stop kubernetes cluster which was started by test
 make e2e-stop-cluster
 ```
+
+#### Debugging
+
+1. Stop the docker-compose service you want to debug and replace with debugging run (using delve here)
+```bash
+docker-compose -f localdev/docker-compose.yaml stop armada-server
+docker-compose -f localdev/docker-compose.yaml run --entrypoint bash  armada-server
+[+] Running 4/0
+ ⠿ Container postgres  Running                                                                                                                                                0.0s
+ ⠿ Container redis     Running                                                                                                                                                0.0s
+ ⠿ Container pulsar    Running                                                                                                                                                0.0s
+ ⠿ Container stan      Running                                                                                                                                                0.0s
+root@808012d9bdf0:/app# dlv debug ./cmd/armada/main.go -- --config ./localdev/config/armada/config.yaml
+Type 'help' for list of commands.
+(dlv) b validateArmadaConfig
+Breakpoint 1 set at 0x20b6010 for github.com/G-Research/armada/internal/armada.validateArmadaConfig() ./internal/armada/server.go:500
+(dlv) c
+```
+
 
 ## Code Generation
 
