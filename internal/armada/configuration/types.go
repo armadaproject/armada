@@ -62,10 +62,9 @@ type PulsarConfig struct {
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
-	JwtTokenPath                 string
-	JobsetEventsTopic            string
-	RedisFromPulsarSubscription  string
-	PulsarFromPulsarSubscription string
+	JwtTokenPath                string
+	JobsetEventsTopic           string
+	RedisFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType string
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"

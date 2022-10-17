@@ -2,15 +2,14 @@ package pulsarutils
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
@@ -38,59 +37,63 @@ func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.E
 // eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
 // before passing to this function.
 func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences []*armadaevents.EventSequence) error {
-	log := ctxlogrus.Extract(ctx)
-
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)
 
-	// Send each sequence async. Collect any errors via channels.
-	chs := make([]chan error, len(sequences))
-	for i := range chs {
-		chs[i] = make(chan error)
-	}
+	// First, serialise all payloads,
+	// to avoid a partial failure where some sequence fails to serialise
+	// after other sequences have already been sent.
+	payloads := make([][]byte, len(sequences))
 	for i, sequence := range sequences {
+		if sequence == nil {
+			return errors.Errorf("failed to send sequence %v", sequence)
+		}
 		payload, err := proto.Marshal(sequence)
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		payloads[i] = payload
+	}
 
-		ch := chs[i]
+	// Then, send all sequences concurrently (while respecting order),
+	// using Pulsar async send. Collect any errors via ch.
+	// ch must be buffered to avoid sending on ch blocking,
+	// which is not allowed in the callback.
+	ch := make(chan error, len(sequences))
+	var numSendCompleted uint32
+	for i := range sequences {
 		producer.SendAsync(
 			ctx,
 			&pulsar.ProducerMessage{
-				Payload: payload,
+				Payload: payloads[i],
 				Properties: map[string]string{
 					requestid.MetadataKey:                     requestId,
 					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
 				},
-				Key: sequence.JobSetName,
+				Key: sequences[i].JobSetName,
 			},
 			// Callback on send.
 			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 				ch <- err
-				close(ch)
+
+				// The final send to complete is responsible for closing the channel.
+				isFinalCallback := atomic.AddUint32(&numSendCompleted, 1) == uint32(len(sequences))
+				if isFinalCallback {
+					close(ch)
+				}
 			},
 		)
 	}
 
-	// Flush queued messages. We do not return the error from flush,
-	// since we collect the errors for the messages sent in this function below.
-	go func() {
-		err := producer.Flush()
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to flush messages")
-		}
-	}()
-
-	// Collect any errors experienced by the async flush/send and return.
+	// Wait for all asynd send call to complete, collect any errors and return.
 	var result *multierror.Error
-	for i := range sequences {
+	for range sequences {
 		select {
 		case <-ctx.Done():
 			result = multierror.Append(result, ctx.Err())
 			return result.ErrorOrNil()
-		case err := <-chs[i]:
+		case err := <-ch:
 			result = multierror.Append(result, err)
 		}
 	}
