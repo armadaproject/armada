@@ -2,16 +2,20 @@ package scheduler
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -28,7 +32,7 @@ type NodeDb struct {
 	indexedResources map[string]interface{}
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
-	totalResources map[string]*resource.Quantity
+	totalResources map[string]resource.Quantity
 	// Set of node types for which there exists at least 1 node in the db.
 	NodeTypes map[string]*schedulerobjects.NodeType
 	// Resources allocated by the scheduler to in-flight jobs,
@@ -42,6 +46,26 @@ type NodeDb struct {
 	JobsByNode map[string]map[uuid.UUID]interface{}
 	// Mutex to control access to AssignedByNode, NodesByJob, and JobsByNode.
 	mu sync.Mutex
+}
+
+func (nodeDb *NodeDb) String() string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Priorities:\t%v\n", nodeDb.priorities)
+	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
+	if len(nodeDb.NodeTypes) == 0 {
+		fmt.Fprint(w, "Node types:\tnone\n")
+	} else {
+		fmt.Fprint(w, "Node types:\n")
+		for _, nodeType := range nodeDb.NodeTypes {
+			fmt.Fprintf(w, "  %s\n", nodeType.Id)
+		}
+	}
+	nodeDb.mu.Lock()
+	fmt.Fprintf(w, "Number of in-flight jobs:\t%d\n", len(nodeDb.NodesByJob))
+	nodeDb.mu.Unlock()
+	w.Flush()
+	return sb.String()
 }
 
 func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
@@ -205,7 +229,8 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 		if !ok {
 			return string(t)
 		}
-		f := q.AsApproximateFloat64() / available.AsApproximateFloat64()
+
+		f := common.QuantityAsFloat64(q) / common.QuantityAsFloat64(available)
 		if f >= dominantResourceFraction {
 			dominantResourceType = string(t)
 			dominantResourceFraction = f
@@ -238,11 +263,11 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 	}
 	priorities = []int32(priorities)
 	slices.Sort(priorities)
-	totalResources := make(map[string]*resource.Quantity)
+	totalResources := make(map[string]resource.Quantity)
 	indexedResources := make(map[string]interface{})
 	for _, resourceType := range resourceTypes {
 		q := resource.MustParse("0")
-		totalResources[resourceType] = &q
+		totalResources[resourceType] = q
 		indexedResources[resourceType] = true
 	}
 	return &NodeDb{
@@ -267,13 +292,8 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 		if _, ok := nodeDb.AssignedByNode[node.Id]; !ok {
 			for t, q := range node.TotalResources.Resources {
 				available := nodeDb.totalResources[t]
-				if available == nil {
-					q := q.DeepCopy()
-					nodeDb.totalResources[t] = &q
-				} else {
-					available.Add(q)
-					nodeDb.totalResources[t] = available
-				}
+				available.Add(q)
+				nodeDb.totalResources[t] = available
 			}
 		}
 

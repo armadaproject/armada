@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -17,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
@@ -292,24 +294,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 }
 
 func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
-	return PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
-}
-
-// PriorityFromPodSpec returns the priority set in a pod spec.
-// If priority is set diectly, that value is returned.
-// Otherwise, it returns priorityByPriorityClassName[podSpec.PriorityClassName].
-// ok is false if no priority is set for this pod spec, in which case priority is 0.
-func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
-	if podSpec == nil {
-		return
-	}
-	if podSpec.Priority != nil {
-		priority = *podSpec.Priority
-		ok = true
-	} else if priorityByPriorityClassName != nil {
-		priority, ok = priorityByPriorityClassName[podSpec.PriorityClassName]
-	}
-	return
+	return schedulerobjects.PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
 }
 
 func uuidFromUlidString(ulid string) (uuid.UUID, error) {
@@ -325,7 +310,8 @@ func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl 
 	for resourceType, limit := range limits {
 		totalAmount := scheduler.TotalResources.Resources[resourceType]
 		amountUsedByQueue := rl.Resources[resourceType]
-		if amountUsedByQueue.AsApproximateFloat64()/totalAmount.AsApproximateFloat64() > limit {
+		// TODO: Use fixed-point division instead.
+		if common.QuantityAsFloat64(amountUsedByQueue)/common.QuantityAsFloat64(totalAmount) > limit {
 			return true, fmt.Sprintf("scheduling would exceed %s quota", resourceType)
 		}
 	}
@@ -360,7 +346,7 @@ func (scheduler *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uu
 
 	// Try to find a node for this pod.
 	// Store the report returned by the NodeDb.
-	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec)
+	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, scheduler.SchedulingConfig.Preemption.PriorityClasses)
 	report, err := scheduler.NodeDb.SelectNodeForPod(jobId, req)
 	if err != nil {
 		return nil, err
@@ -379,9 +365,6 @@ type LegacyScheduler struct {
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
 	// Used to request jobs from Redis and to mark jobs as leased.
-	// TODO: Remove. Not needed for updated implementation.
-	JobQueue scheduling.JobQueue
-	// Used to get gets.
 	JobRepository SchedulerJobRepository
 	// Minimum quantity allowed for jobs leased to this cluster.
 	MinimumJobSize map[string]resource.Quantity
@@ -391,6 +374,40 @@ type LegacyScheduler struct {
 	Rand *rand.Rand
 	// Store reports for each scheduling attempt.
 	SchedulingReportsRepository *SchedulingReportsRepository
+}
+
+func (sched *LegacyScheduler) String() string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
+	if len(sched.TotalResources.Resources) == 0 {
+		fmt.Fprint(w, "Total resources:\tnone\n")
+	} else {
+		fmt.Fprint(w, "Total resources:\n")
+		for t, q := range sched.TotalResources.Resources {
+			fmt.Fprintf(w, "  %s: %s\n", t, q.String())
+		}
+	}
+	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
+	if len(sched.PriorityFactorByQueue) == 0 {
+		fmt.Fprint(w, "Queues:\tnone\n")
+	} else {
+		fmt.Fprint(w, "Queues:\n")
+		for queue, priorityFactor := range sched.PriorityFactorByQueue {
+			fmt.Fprintf(w, "  %s: %f\n", queue, priorityFactor)
+		}
+	}
+	fmt.Fprintf(w, "Max cluster fraction to schedule:\t%v\n", sched.SchedulingConfig.MaximalClusterFractionToSchedule)
+	fmt.Fprintf(w, "Max overall fraction per queue:\t%v\n", sched.SchedulingConfig.MaximalResourceFractionPerQueue)
+	fmt.Fprintf(w, "Max overall fraction per queue to schedule:\t%v\n", sched.SchedulingConfig.MaximalResourceFractionToSchedulePerQueue)
+	if sched.NodeDb == nil {
+		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.NodeDb)
+	} else {
+		fmt.Fprint(w, "NodeDb:\n")
+		fmt.Fprint(w, indent.String("\t", sched.NodeDb.String()))
+	}
+	w.Flush()
+	return sb.String()
 }
 
 func NewLegacyScheduler(
@@ -596,7 +613,6 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 	usage := 0.0
 	for resourceName, quantity := range rl.Resources {
 		scarcity := resourceScarcity[resourceName] // TODO: Defaults to 0.
-		// TODO: Why do we have our own Float64 conversion instead of quantity.AsApproximateFloat64?
 		usage += common.QuantityAsFloat64(quantity) * scarcity
 	}
 	return usage

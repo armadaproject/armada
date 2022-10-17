@@ -25,6 +25,7 @@ from armada.operators.jobservice import JobServiceClient
 import logging
 
 from armada.operators.utils import airflow_error, search_for_job_complete
+from armada.jobservice import jobservice_pb2
 
 armada_logger = logging.getLogger("airflow.task")
 
@@ -71,6 +72,10 @@ class ArmadaOperator(BaseOperator):
 
         :return: None
         """
+        # Health Check
+        health = self.job_service.health()
+        if health.status != jobservice_pb2.HealthCheckResponse.SERVING:
+            armada_logger.warn("Armada Job Service is not health")
         # This allows us to use a unique id from airflow
         # and have all jobs in a dag correspond to same jobset
         job_set_id = context["run_id"]
