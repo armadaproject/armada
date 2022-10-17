@@ -2,6 +2,7 @@ package pulsarutils
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
@@ -40,42 +41,61 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)
 
-	// Send each sequence async. Collect any errors via ch.
-	ch := make(chan error, len(sequences))
-	defer close(ch)
-	for _, sequence := range sequences {
+	// First, serialise all payloads,
+	// to avoid a partial failure where some sequence fails to serialise
+	// after other sequences have already been sent.
+	payloads := make([][]byte, len(sequences))
+	for i, sequence := range sequences {
+		if sequence == nil {
+			return errors.Errorf("failed to send sequence %v", sequence)
+		}
 		payload, err := proto.Marshal(sequence)
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		payloads[i] = payload
+	}
 
+	// Then, send all sequences concurrently (while respecting order),
+	// using Pulsar async send. Collect any errors via ch.
+	// ch must be buffered to avoid sending on ch blocking,
+	// which is not allowed in the callback.
+	ch := make(chan error, len(sequences))
+	var numSendCompleted uint32
+	for i := range sequences {
 		producer.SendAsync(
 			ctx,
 			&pulsar.ProducerMessage{
-				Payload: payload,
+				Payload: payloads[i],
 				Properties: map[string]string{
 					requestid.MetadataKey:                     requestId,
 					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
 				},
-				Key: sequence.JobSetName,
+				Key: sequences[i].JobSetName,
 			},
 			// Callback on send.
 			func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 				ch <- err
+
+				// The final send to complete is responsible for closing the channel.
+				isFinalCallback := atomic.AddUint32(&numSendCompleted, 1) == uint32(len(sequences))
+				if isFinalCallback {
+					close(ch)
+				}
 			},
 		)
 	}
 
-	// Flush queued messages and wait until persisted.
-	err := producer.Flush()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Collect any errors experienced by the async send and return.
+	// Wait for all asynd send call to complete, collect any errors and return.
 	var result *multierror.Error
 	for range sequences {
-		result = multierror.Append(result, <-ch)
+		select {
+		case <-ctx.Done():
+			result = multierror.Append(result, ctx.Err())
+			return result.ErrorOrNil()
+		case err := <-ch:
+			result = multierror.Append(result, err)
+		}
 	}
 	return result.ErrorOrNil()
 }
