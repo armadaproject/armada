@@ -94,6 +94,10 @@ func TestQuantityIndexComparison(t *testing.T) {
 			A: resource.MustParse("1Gi"),
 			B: resource.MustParse("1000Mi"),
 		},
+		"5188205838208Ki 5188205838209Ki": {
+			A: resource.MustParse("5188205838208Ki"),
+			B: resource.MustParse("5188205838209Ki"),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -428,18 +432,25 @@ func testCpuNode(priorities []int32) *schedulerobjects.Node {
 }
 
 func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
+	taints := []v1.Taint{
+		{
+			Key:    "largeJobsOnly",
+			Value:  "true",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+	}
+	labels := map[string]string{
+		"largeJobsOnly": "true",
+	}
 	return &schedulerobjects.Node{
 		Id: uuid.NewString(),
 		NodeType: &schedulerobjects.NodeType{
-			Id: "taintedCpu",
-			Taints: []v1.Taint{
-				{
-					Key:    "largeJobsOnly",
-					Value:  "true",
-					Effect: v1.TaintEffectNoSchedule,
-				},
-			},
+			Id:     "taintedCpu",
+			Taints: taints,
+			Labels: labels,
 		},
+		Taints:     taints,
+		Labels:     labels,
 		NodeTypeId: "taintedCpu",
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
@@ -458,18 +469,25 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 }
 
 func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
+	taints := []v1.Taint{
+		{
+			Key:    "gpu",
+			Value:  "true",
+			Effect: v1.TaintEffectNoSchedule,
+		},
+	}
+	labels := map[string]string{
+		"gpu": "true",
+	}
 	return &schedulerobjects.Node{
 		Id: uuid.NewString(),
 		NodeType: &schedulerobjects.NodeType{
-			Id: "gpu",
-			Taints: []v1.Taint{
-				{
-					Key:    "gpu",
-					Value:  "true",
-					Effect: v1.TaintEffectNoSchedule,
-				},
-			},
+			Id:     "gpu",
+			Taints: taints,
+			Labels: labels,
 		},
+		Taints:     taints,
+		Labels:     labels,
 		NodeTypeId: "gpu",
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
