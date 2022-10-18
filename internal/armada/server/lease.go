@@ -497,6 +497,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Run the scheduler.
 	jobs, _, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+	if sched.SchedulingRoundReport != nil {
+		log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
+	}
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
