@@ -50,6 +50,16 @@ func StartsWith(field exp.IdentifierExpression, pattern string) goqu.Expression 
 	return field.Like(pattern + "%")
 }
 
+// Do a glob (sql like) search if the pattern contains any * characters,
+// otherwise do an exact match.
+func GlobSearchOrExact(field exp.IdentifierExpression, pattern string) goqu.Expression {
+	if strings.Contains(pattern, "*") {
+		return field.Like(
+			strings.Replace(pattern, "*", "%", -1))
+	}
+	return field.Eq(pattern)
+}
+
 func NewNullString(s string) sql.NullString {
 	if len(s) == 0 {
 		return sql.NullString{}
