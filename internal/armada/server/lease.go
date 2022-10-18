@@ -496,11 +496,11 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	// Run the scheduler.
-	jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+	jobs, _, err := sched.Schedule(ctx, aggregatedUsageByQueue)
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
-	if len(mostRecentSuccessfulJobSchedulingReportByQueue) > 0 {
+	if sched.SchedulingRoundReport != nil {
 		executorReport, ok := reportsByExecutor[req.ClusterId]
 		if !ok || executorReport.ResourcesByQueue == nil {
 			executorReport = &schedulerobjects.ClusterResourceUsageReport{
@@ -510,15 +510,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			reportsByExecutor[req.ClusterId] = executorReport
 		}
-		for queue, jobSchedulingReport := range mostRecentSuccessfulJobSchedulingReportByQueue {
-			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil {
-				queueClusterUsage.ResourcesByPriority = jobSchedulingReport.TotalQueueResourcesByPriority
+		for queue, resourcesByPriority := range sched.SchedulingRoundReport.ScheduledResourcesByQueueAndPriority {
+			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil && queueClusterUsage.ResourcesByPriority != nil {
+				schedulerobjects.QuantityByPriorityAndResourceType(queueClusterUsage.ResourcesByPriority).Add(resourcesByPriority)
 			} else {
 				queueClusterUsage = &schedulerobjects.QueueClusterResourceUsage{
 					Created:             q.clock.Now(),
 					Queue:               queue,
 					ExecutorId:          req.ClusterId,
-					ResourcesByPriority: jobSchedulingReport.TotalQueueResourcesByPriority,
+					ResourcesByPriority: resourcesByPriority,
 				}
 				executorReport.ResourcesByQueue[queue] = queueClusterUsage
 			}
