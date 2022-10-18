@@ -58,7 +58,7 @@ require (
 	github.com/oklog/ulid v1.3.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.11.1
+	github.com/prometheus/client_golang v1.13.0
 	github.com/rakyll/statik v0.1.7
 	github.com/renstrom/shortuuid v3.0.0+incompatible
 	github.com/sirupsen/logrus v1.9.0
@@ -70,7 +70,7 @@ require (
 	github.com/wlbr/templify v0.0.0-20210816202250-7b8044ca19e9
 	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/tools v0.1.12
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
@@ -189,8 +189,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.26.0 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/common v0.37.0 // indirect
+	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
