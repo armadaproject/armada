@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -376,11 +377,54 @@ func withMaxConsecutiveUnschedulableJobs(n uint, config configuration.Scheduling
 	return config
 }
 
+func withIndexedTaints(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	if config.IndexedTaints == nil {
+		config.IndexedTaints = make(map[string]interface{})
+	}
+	for _, key := range indexedTaints {
+		config.IndexedTaints[key] = ""
+	}
+	return config
+}
+
+func withIndexedNodeLabels(indexedLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	if config.IndexedNodeLabels == nil {
+		config.IndexedNodeLabels = make(map[string]interface{})
+	}
+	for _, key := range indexedLabels {
+		config.IndexedNodeLabels[key] = ""
+	}
+	return config
+}
+
 func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AvailableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkUsed(p, rs)
 	}
 	return nodes
+}
+
+func withLabels(labels map[string]string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+	for _, node := range nodes {
+		if node.Labels == nil {
+			node.Labels = maps.Clone(labels)
+		} else {
+			maps.Copy(node.Labels, labels)
+		}
+		if node.NodeType.Labels == nil {
+			node.NodeType.Labels = maps.Clone(labels)
+		} else {
+			maps.Copy(node.NodeType.Labels, labels)
+		}
+	}
+	return nodes
+}
+
+func withNodeSelector(selector map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+	for _, req := range reqs {
+		req.NodeSelector = maps.Clone(selector)
+	}
+	return reqs
 }
 
 func TestSchedule(t *testing.T) {
@@ -810,6 +854,64 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {1},
+			},
+		},
+		"taints and tolerations": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNTaintedCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
+			},
+		},
+		"node selector": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes: append(
+				testNCpuNode(1, testPriorities),
+				withLabels(map[string]string{"foo": "foo"}, testNCpuNode(1, testPriorities))...,
+			),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": withNodeSelector(map[string]string{"foo": "foo"}, testNLargeCpuJob(0, 2)),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
+		"taints and tolerations (indexed)": {
+			SchedulingConfig: withIndexedTaints([]string{"largeJobsOnly"}, testSchedulingConfig()),
+			Nodes:            testNTaintedCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
+			},
+		},
+		"node selector (indexed)": {
+			SchedulingConfig: withIndexedNodeLabels([]string{"foo"}, testSchedulingConfig()),
+			Nodes: append(
+				testNCpuNode(1, testPriorities),
+				withLabels(map[string]string{"foo": "foo"}, testNCpuNode(1, testPriorities))...,
+			),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": withNodeSelector(map[string]string{"foo": "foo"}, testNLargeCpuJob(0, 2)),
+			},
+			PriorityFactorsByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
 			},
 		},
 	}
