@@ -26,10 +26,9 @@ const (
 var m = newMetrics()
 
 type Metrics struct {
-	pulsarConnectionErrorsCounter  prometheus.Counter
-	dbErrorsCounter                *prometheus.CounterVec
-	pulsarMessageError             *prometheus.CounterVec
-	messageProcessingErrorsCounter prometheus.Counter
+	pulsarConnectionErrorsCounter prometheus.Counter
+	dbErrorsCounter               *prometheus.CounterVec
+	pulsarMessageError            *prometheus.CounterVec
 }
 
 func Get() *Metrics {
@@ -66,8 +65,4 @@ func (m *Metrics) RecordDBError(operation DBOperation) {
 
 func (m *Metrics) RecordPulsarMessageError(error PulsarMessageError) {
 	m.pulsarMessageError.With(map[string]string{"error": string(error)}).Inc()
-}
-
-func (m *Metrics) RecordMessageProcessingError() {
-	m.messageProcessingErrorsCounter.Inc()
 }
