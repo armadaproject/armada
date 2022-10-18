@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -391,7 +392,7 @@ func TestSchedule(t *testing.T) {
 		// Map from queue name to pod requirements for that queue.
 		ReqsByQueue map[string][]*schedulerobjects.PodRequirements
 		// Map from queue to the priority factor associated with that queue.
-		PriorityFactorsByQueue map[string]float64
+		PriorityFactorByQueue map[string]float64
 		// Initial resource usage for all queues.
 		InitialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
 		// Total resources across all clusters.
@@ -413,7 +414,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 1),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -426,7 +427,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 32),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -439,7 +440,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 33),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -452,7 +453,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNSmallCpuJob(0, 32), testNLargeCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -465,7 +466,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(1, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			// TODO: We could optimise this by un-leasing preempted jobs.
@@ -479,7 +480,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNLargeCpuJob(1, 1), testNSmallCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -492,7 +493,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 10)...), testNSmallCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -505,7 +506,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 5),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			DoNotCheckReports: true,
@@ -519,7 +520,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 5),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -533,7 +534,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 5),
 				"B": testNSmallCpuJob(0, 5),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 			},
@@ -549,7 +550,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 5),
 				"B": testNSmallCpuJob(0, 5),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 			},
@@ -570,7 +571,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 5),
 				"B": testNSmallCpuJob(0, 5),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 			},
@@ -592,7 +593,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 5),
 				"B": testNSmallCpuJob(0, 5),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 			},
@@ -624,7 +625,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 32),
 				"B": testNSmallCpuJob(0, 32),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 			},
@@ -647,7 +648,7 @@ func TestSchedule(t *testing.T) {
 				"B": testNSmallCpuJob(0, 32),
 				"C": testNSmallCpuJob(0, 32),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 				"C": 1,
@@ -674,7 +675,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 32),
 				"B": testNSmallCpuJob(0, 32),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 2,
 				"B": 1,
 			},
@@ -696,7 +697,7 @@ func TestSchedule(t *testing.T) {
 				"A": testNSmallCpuJob(0, 32),
 				"B": testNSmallCpuJob(0, 32),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
 			},
@@ -734,7 +735,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 1),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -755,7 +756,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNSmallCpuJob(0, 2),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -776,7 +777,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": testNLargeCpuJob(1, 1),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -789,7 +790,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -802,7 +803,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			MinimumJobSize: map[string]resource.Quantity{
@@ -843,7 +844,7 @@ func TestSchedule(t *testing.T) {
 				tc.TotalResources,
 				tc.Nodes,
 				jobRepository,
-				tc.PriorityFactorsByQueue,
+				tc.PriorityFactorByQueue,
 			)
 			if !assert.NoError(t, err) {
 				return
@@ -852,10 +853,12 @@ func TestSchedule(t *testing.T) {
 			scheduler.MinimumJobSize = tc.MinimumJobSize
 			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
-			jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
+			jobs, _, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
 				return
 			}
+
+			fmt.Println(scheduler.SchedulingRoundReport)
 
 			// Check that the right jobs got scheduled.
 			if tc.ExpectedIndicesByQueue != nil {
@@ -878,57 +881,137 @@ func TestSchedule(t *testing.T) {
 				}
 			}
 
+			// Check that a scheduling round report was created.
+			if !assert.NotNil(t, scheduler.SchedulingRoundReport) {
+				return
+			}
+
 			// Check that scheduling reports were generated.
 			// TODO: Check that reports correctly indicate success/not.
 			if !tc.DoNotCheckReports {
+				schedulingRoundReport := scheduler.SchedulingRoundReport
 
-				// Check that report.TotalQueueResources is set correctly.
-				for queue, expected := range usageByQueue(jobs) {
-					report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
-					if !assert.NotNil(t, report) {
-						continue
-					}
-					if !assert.True(t, ok) {
-						continue
-					}
-					if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
-						expected.Add(initialUsage.AggregateByResource())
-					}
-					actual := report.TotalQueueResources
-					assert.True(t, expected.Equal(actual))
+				// Check that started and finished it set.
+				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Started)
+				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Finished)
+
+				// Check that initial usage is correct.
+				assert.Equal(t, len(tc.InitialUsageByQueue), len(schedulingRoundReport.InitialResourcesByQueueAndPriority))
+				for queue, usage := range tc.InitialUsageByQueue {
+					assert.True(t, usage.Equal(schedulingRoundReport.InitialResourcesByQueueAndPriority[queue]))
 				}
 
-				// Check that report.TotalQueueResourcesByPriority is set correctly.
+				// Check that scheduling round report scheduled resources is set correctly.
 				for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
-					report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
-					if !assert.NotNil(t, report) {
+					actual, ok := schedulingRoundReport.ScheduledResourcesByQueueAndPriority[queue]
+					if !assert.NotNil(t, actual) {
 						continue
 					}
 					if !assert.True(t, ok) {
 						continue
 					}
-					if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
-						expected.Add(initialUsage)
-					}
-					actual := report.TotalQueueResourcesByPriority
 					assert.True(t, expected.Equal(actual))
 				}
 
-				// Check that there are reports in scheduler.SchedulingReportsRepository for all queues and jobs.
+				// Check that the scheduling round report contains reports for all queues and jobs.
+				assert.Equal(
+					t,
+					len(usageByQueue(jobs)),
+					len(scheduler.SchedulingRoundReport.SuccessfulJobSchedulingReportsByQueue),
+				)
+				leasedJobIds := make(map[uuid.UUID]interface{})
+				for _, job := range jobs {
+					jobId, err := uuidFromUlidString(job.Id)
+					if !assert.NoError(t, err) {
+						return
+					}
+					leasedJobIds[jobId] = true
+				}
+
 				for queue, jobs := range jobRepository.jobsByQueue {
-					queueReport, ok := scheduler.SchedulingReportsRepository.GetQueueSchedulingReport(queue)
-					assert.NotNil(t, queueReport)
-					assert.True(t, ok)
 					for _, job := range jobs {
-						jobUuid, err := uuidFromUlidString(job.Id)
+						jobId, err := uuidFromUlidString(job.Id)
 						if !assert.NoError(t, err) {
 							return
 						}
-						jobReport, ok := scheduler.SchedulingReportsRepository.GetJobSchedulingReport(jobUuid)
-						assert.NotNil(t, jobReport)
-						assert.True(t, ok)
+
+						var ok bool
+						var jobReports map[uuid.UUID]*JobSchedulingReport
+						if _, ok = leasedJobIds[jobId]; ok {
+							jobReports, ok = scheduler.SchedulingRoundReport.SuccessfulJobSchedulingReportsByQueue[queue]
+						} else {
+							jobReports, ok = scheduler.SchedulingRoundReport.UnsuccessfulJobSchedulingReportsByQueue[queue]
+						}
+						if !assert.NotNil(t, jobReports) {
+							continue
+						}
+						if !assert.True(t, ok) {
+							continue
+						}
+
+						jobReport, ok := jobReports[jobId]
+						if !assert.NotNil(t, jobReport) {
+							continue
+						}
+						if !assert.True(t, ok) {
+							continue
+						}
 					}
 				}
+
+				// Check that total resources is correct.
+				assert.True(t, schedulingRoundReport.TotalResources.Equal(tc.TotalResources))
+
+				// Check that we were given a termination reason.
+				assert.NotEmpty(t, schedulingRoundReport.TerminationReason)
+
+				// // Check that report.TotalQueueResources is set correctly.
+				// for queue, expected := range usageByQueue(jobs) {
+				// 	report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
+				// 	if !assert.NotNil(t, report) {
+				// 		continue
+				// 	}
+				// 	if !assert.True(t, ok) {
+				// 		continue
+				// 	}
+				// 	if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
+				// 		expected.Add(initialUsage.AggregateByResource())
+				// 	}
+				// 	actual := report.TotalQueueResources
+				// 	assert.True(t, expected.Equal(actual))
+				// }
+
+				// // Check that report.TotalQueueResourcesByPriority is set correctly.
+				// for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
+				// 	report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
+				// 	if !assert.NotNil(t, report) {
+				// 		continue
+				// 	}
+				// 	if !assert.True(t, ok) {
+				// 		continue
+				// 	}
+				// 	if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
+				// 		expected.Add(initialUsage)
+				// 	}
+				// 	actual := report.TotalQueueResourcesByPriority
+				// 	assert.True(t, expected.Equal(actual))
+				// }
+
+				// // Check that there are reports in scheduler.SchedulingReportsRepository for all queues and jobs.
+				// for queue, jobs := range jobRepository.jobsByQueue {
+				// 	queueReport, ok := scheduler.SchedulingReportsRepository.GetQueueSchedulingReport(queue)
+				// 	assert.NotNil(t, queueReport)
+				// 	assert.True(t, ok)
+				// 	for _, job := range jobs {
+				// 		jobUuid, err := uuidFromUlidString(job.Id)
+				// 		if !assert.NoError(t, err) {
+				// 			return
+				// 		}
+				// 		jobReport, ok := scheduler.SchedulingReportsRepository.GetJobSchedulingReport(jobUuid)
+				// 		assert.NotNil(t, jobReport)
+				// 		assert.True(t, ok)
+				// 	}
+				// }
 			}
 		})
 	}
@@ -1114,4 +1197,25 @@ func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs
 		}
 	}
 	return successfullyLeasedJobs, nil
+}
+
+func benchmarkQuantityComparison(b *testing.B, q1, q2 resource.Quantity) {
+	for i := 0; i < b.N; i++ {
+		q1.Cmp(q2)
+	}
+}
+
+func BenchmarkQuantityComparison(b *testing.B) {
+	benchmarkQuantityComparison(b, resource.MustParse("1"), resource.MustParse("2"))
+}
+
+func BenchmarkIntComparison(b *testing.B) {
+	result := 0
+	v1 := 1
+	v2 := 2
+	for i := 0; i < b.N; i++ {
+		if v1 == v2 {
+			result += 1
+		}
+	}
 }
