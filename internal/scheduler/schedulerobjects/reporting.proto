@@ -1,0 +1,30 @@
+syntax = 'proto3';
+package schedulerobjects;
+
+message Queue {
+    string name = 1;
+}
+
+message QueueReport {
+    string report = 1;
+}
+
+message JobId {
+    string id = 1;
+}
+
+message JobReport {
+    string report = 1;
+}
+
+service SchedulerReporting {
+    // Return the most recent report for a given queue.
+    // Returns not found if the scheduler has never considered this queue.
+    // Only a limited number of reports are stored.
+    rpc GetQueueReport (Queue) returns (QueueReport);
+    // Return the most recent scheduling report for a given job.
+    // Returns not found if the scheduler has never attempted to schedule this job.
+    // The total number of reports stored across all queues is limited, i.e.,
+    // the report for a scheduled job may have been deleted to make room for newer reports.
+    rpc GetJobReport (JobId) returns (JobReport);
+}

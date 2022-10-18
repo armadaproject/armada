@@ -141,6 +141,10 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	return s.serveEventsFromRepository(request, eventRepository, stream)
 }
 
+func (s *EventServer) Health(ctx context.Context, cont_ *types.Empty) (*api.HealthCheckResponse, error) {
+	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
 func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repository.EventRepository {
 	// User has explicitly said they want to use the new event store
 	if request.ForceNew {
@@ -237,10 +241,10 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 
 func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
 	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
-	var globalPermErr *ErrNoPermission
+	var globalPermErr *ErrUnauthorized
 	if errors.As(err, &globalPermErr) {
 		err = checkQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
-		var queuePermErr *ErrNoPermission
+		var queuePermErr *ErrUnauthorized
 		if errors.As(err, &queuePermErr) {
 			return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",
 				q.Name, jobSetId, MergePermissionErrors(globalPermErr, queuePermErr))

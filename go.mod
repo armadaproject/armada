@@ -21,7 +21,7 @@ require (
 	github.com/go-openapi/jsonreference v0.20.0
 	github.com/go-openapi/loads v0.21.1
 	github.com/go-openapi/runtime v0.24.1
-	github.com/go-openapi/spec v0.20.4
+	github.com/go-openapi/spec v0.20.7
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-swagger/go-swagger v0.29.0
 	github.com/gogo/protobuf v1.3.2
@@ -32,6 +32,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
+	github.com/hashicorp/go-memdb v1.3.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
@@ -42,7 +43,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report v1.0.0
-	github.com/jstemmer/go-junit-report/v2 v2.0.0-beta1
+	github.com/jstemmer/go-junit-report/v2 v2.0.0
 	github.com/kyleconroy/sqlc v1.13.0
 	github.com/lib/pq v1.10.6 // indirect
 	github.com/mattn/go-zglob v0.0.3
@@ -55,12 +56,13 @@ require (
 	github.com/nats-io/nats.go v1.16.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/oklog/ulid v1.3.1
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/rakyll/statik v0.1.7
 	github.com/renstrom/shortuuid v3.0.0+incompatible
-	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/cobra v1.4.0
+	github.com/sirupsen/logrus v1.9.0
+	github.com/spf13/cobra v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.10.1
 	github.com/stretchr/testify v1.8.0
@@ -86,7 +88,7 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/patrickmn/go-cache v2.1.0+incompatible
+require github.com/openconfig/goyang v1.1.0
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
@@ -142,7 +144,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/raft v1.3.9 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

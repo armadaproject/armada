@@ -215,6 +215,16 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
+PULSARTEST_BUILD_PACKAGE := github.com/G-Research/armada/internal/pulsartest/build
+define PULSARTEST_LDFLAGS
+-X '$(PULSARTEST_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
+-X '$(PULSARTEST_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
+-X '$(PULSARTEST_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
+-X '$(PULSARTEST_BUILD_PACKAGE).GoVersion=$(GO_VERSION_STRING)'
+endef
+build-pulsartest:
+	$(GO_CMD) $(gobuild) -ldflags="$(PULSARTEST_LDFLAGS)" -o ./bin/pulsartest cmd/pulsartest/main.go
+
 TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
 define TESTSUITE_LDFLAGS
 -X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
@@ -377,7 +387,7 @@ tests-e2e-teardown:
 	rmdir .kube || true
 
 .ONESHELL:
-setup-cluster: python
+setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
 	# We need an ingress controller to enable cluster ingress
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
@@ -458,7 +468,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 .ONESHELL:
-tests-e2e-python:
+tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 # Output test results in Junit format, e.g., to display in Jenkins.

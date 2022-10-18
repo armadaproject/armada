@@ -2,18 +2,13 @@ package authorization
 
 import (
 	"context"
+	"errors"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/util"
-)
-
-var (
-	missingCredentials = status.Errorf(codes.InvalidArgument, "missing credentials")
-	invalidCredentials = status.Errorf(codes.Unauthenticated, "invalid username/password")
 )
 
 // Name of the key used to store principals in contexts.
@@ -108,6 +103,7 @@ func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 // The gRPC server may be started with multiple AuthService to give several options for authentication.
 type AuthService interface {
 	Authenticate(ctx context.Context) (Principal, error)
+	Name() string
 }
 
 // CreateMiddlewareAuthFunction returns an authentication function that combines the given
@@ -118,24 +114,26 @@ type AuthService interface {
 //
 // If authentication succeeds, the username returned by the authentication service is added to the
 // request context for logging purposes.
-//
-// TODO Is this function correct? If an authentication service fails we may still wish to try the
-// remaining ones instead of returning immediately, which is what we do now.
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
 	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
 			principal, err := service.Authenticate(ctx)
-			if err == missingCredentials {
+
+			var missingCredsErr *armadaerrors.ErrMissingCredentials
+			if errors.As(err, &missingCredsErr) {
 				// try next auth service
 				continue
-			}
-			if err != nil {
+			} else if err != nil {
 				return nil, err
 			}
+
 			// record user name for request logging
 			grpc_ctxtags.Extract(ctx).Set("user", principal.GetName())
+			grpc_ctxtags.Extract(ctx).Set("authService", service.Name())
 			return WithPrincipal(ctx, principal), nil
 		}
-		return nil, status.Errorf(codes.Unauthenticated, "Request in not authenticated with any of the supported schemes.")
+		return nil, &armadaerrors.ErrUnauthenticated{
+			Message: "Request could not be authenticated with any of the supported schemes.",
+		}
 	}
 }

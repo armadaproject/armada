@@ -82,6 +82,11 @@ func NewSubmitServer(
 	}
 }
 
+func (server *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+	// For now, lets make the health check really simple.
+	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
+}
+
 func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	q, err := server.queueRepository.GetQueue(req.Name)
 	var expected *repository.ErrQueueNotFound
@@ -93,10 +98,10 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 	}
 
 	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
-	var globalPermErr *ErrNoPermission
+	var globalPermErr *ErrUnauthorized
 	if errors.As(err, &globalPermErr) {
 		err = checkQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
-		var queuePermErr *ErrNoPermission
+		var queuePermErr *ErrUnauthorized
 		if errors.As(err, &queuePermErr) {
 			return nil, status.Errorf(codes.PermissionDenied,
 				"[GetQueueInfo] error getting info for queue %s: %s", req.Name, MergePermissionErrors(globalPermErr, queuePermErr))
@@ -131,7 +136,7 @@ func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetReque
 
 func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-	var ep *ErrNoPermission
+	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -180,7 +185,7 @@ func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.Queue
 
 func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-	var ep *ErrNoPermission
+	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -224,7 +229,7 @@ func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.Queue
 
 func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.DeleteQueue)
-	var ep *ErrNoPermission
+	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -275,10 +280,10 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 	}
 
 	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
-	var globalPermErr *ErrNoPermission
+	var globalPermErr *ErrUnauthorized
 	if errors.As(err, &globalPermErr) {
 		err = checkQueuePermission(server.permissions, ctx, *q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
-		var queuePermErr *ErrNoPermission
+		var queuePermErr *ErrUnauthorized
 		if errors.As(err, &queuePermErr) {
 			return nil, status.Errorf(codes.PermissionDenied,
 				"[SubmitJobs] error submitting job in queue %s: %s", req.Queue, MergePermissionErrors(globalPermErr, queuePermErr))
@@ -454,7 +459,7 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 	}
 
 	result, err := server.cancelJobs(ctx, jobs)
-	var e *ErrNoPermission
+	var e *ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
 	} else if err != nil {
@@ -488,7 +493,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 		}
 
 		result, err := server.cancelJobs(ctx, jobs)
-		var e *ErrNoPermission
+		var e *ErrUnauthorized
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
 		} else if err != nil {
@@ -556,10 +561,10 @@ func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Jo
 		}
 
 		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
-		var globalPermErr *ErrNoPermission
+		var globalPermErr *ErrUnauthorized
 		if errors.As(err, &globalPermErr) {
 			err = checkQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
-			var queuePermErr *ErrNoPermission
+			var queuePermErr *ErrUnauthorized
 			if errors.As(err, &queuePermErr) {
 				return MergePermissionErrors(globalPermErr, queuePermErr)
 			} else if err != nil {
@@ -598,7 +603,7 @@ func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.J
 	}
 
 	err := server.checkReprioritizePerms(ctx, jobs)
-	var e *ErrNoPermission
+	var e *ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReprioritizeJobs] error: %s", e)
 	} else if err != nil {
@@ -679,10 +684,10 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 		}
 
 		err = checkPermission(server.permissions, ctx, permissions.ReprioritizeAnyJobs)
-		var globalPermErr *ErrNoPermission
+		var globalPermErr *ErrUnauthorized
 		if errors.As(err, &globalPermErr) {
 			err = checkQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
-			var queuePermErr *ErrNoPermission
+			var queuePermErr *ErrUnauthorized
 			if errors.As(err, &queuePermErr) {
 				return MergePermissionErrors(globalPermErr, queuePermErr)
 			} else if err != nil {
@@ -896,6 +901,19 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 	shouldDefaultPriorityClass := server.schedulingConfig.Preemption.Enabled && defaultPriorityClassDefined && noPriorityClassAttached
 	if shouldDefaultPriorityClass {
 		spec.PriorityClassName = defaultPriorityClass
+	}
+
+	// add missing TerminationGracePeriod if needed
+	server.applyTerminationGracePeriodDefault(spec)
+}
+
+// applyTerminationGracePeriodDefault will give the podspec a default if needed
+func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
+	specNeedsTerminationGracePeriod := spec.TerminationGracePeriodSeconds == nil
+	defaultTerminationGracePeriod := int64(server.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
+
+	if specNeedsTerminationGracePeriod {
+		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriod
 	}
 }
 

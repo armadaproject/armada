@@ -29,6 +29,7 @@ type LeaseService interface {
 		availableResource *common.ComputeResources,
 		nodes []api.NodeInfo,
 		leasedResourceByQueue map[string]common.ComputeResources,
+		leasedResourceByQueueAndPriority map[string]map[int32]common.ComputeResources,
 	) ([]*api.Job, error)
 	RenewJobLeases(jobs []*job.RunningJob) ([]*job.RunningJob, error)
 	ReportDone(jobIds []string) error
@@ -59,6 +60,7 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 	availableResource *common.ComputeResources,
 	nodes []api.NodeInfo,
 	leasedResourceByQueue map[string]common.ComputeResources,
+	leasedResourceByQueueAndPriority map[string]map[int32]common.ComputeResources,
 ) ([]*api.Job, error) {
 	leasedQueueReports := make([]*api.QueueLeasedReport, 0, len(leasedResourceByQueue))
 	for queueName, leasedResource := range leasedResourceByQueue {
@@ -66,6 +68,19 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 			Name:            queueName,
 			ResourcesLeased: leasedResource,
 		}
+
+		// If we have resources by queue and priority,
+		// add those to the request.
+		if len(leasedResourceByQueueAndPriority) > 0 {
+			resourcesLeasedByPriority := make(map[int32]api.ComputeResource)
+			for priority, allocated := range leasedResourceByQueueAndPriority[queueName] {
+				resourcesLeasedByPriority[priority] = api.ComputeResource{
+					Resources: allocated,
+				}
+			}
+			leasedQueueReport.ResourcesLeasedByPriority = resourcesLeasedByPriority
+		}
+
 		leasedQueueReports = append(leasedQueueReports, leasedQueueReport)
 	}
 	clusterLeasedReport := api.ClusterLeasedReport{
@@ -73,7 +88,6 @@ func (jobLeaseService *JobLeaseService) RequestJobLeases(
 		ReportTime: time.Now(),
 		Queues:     leasedQueueReports,
 	}
-
 	leaseRequest := &api.StreamingLeaseRequest{
 		ClusterId:           jobLeaseService.clusterContext.GetClusterId(),
 		Pool:                jobLeaseService.clusterContext.GetClusterPool(),
