@@ -97,7 +97,9 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
             dataKey={col.accessor}
             width={calculateColumnWidth(col.width, leftoverWidth, totalColumnWeight)}
             label={col.name}
-            headerRenderer={(headerProps) => <DefaultHeaderCell name={col.name} className="default-header-cell" />}
+            headerRenderer={(headerProps) => (
+              <DefaultHeaderCell name={col.name} className="default-header-cell" {...headerProps} />
+            )}
           />
         )
       }

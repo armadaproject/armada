@@ -7,7 +7,6 @@ import "./DefaultHeaderCell.css"
 type DefaultHeaderCellProps = {
   name: string
   className: string
-  dataKey: string
 } & TableHeaderProps
 
 export default function DefaultHeaderCell(props: DefaultHeaderCellProps) {
