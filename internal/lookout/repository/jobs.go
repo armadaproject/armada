@@ -202,7 +202,7 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
 				}
-				stateDuration = determineJobStateDuration(row)
+				stateDuration = determineJobStateDuration(JobState(state), row)
 				job, err := makeJobFromRow(row)
 				if err != nil {
 					return nil, err
@@ -252,25 +252,23 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 	})
 }
 
-func determineJobStateDuration(row *JobRow) string {
+func determineJobStateDuration(state JobState, row *JobRow) string {
 	if row == nil {
 		return ""
 	}
 	var timeStamp time.Time
 
-	switch {
-	case row.Finished.Valid:
+	switch state {
+	case JobSucceeded, JobFailed:
 		timeStamp = row.Finished.Time
-	case row.Started.Valid:
+	case JobRunning:
 		timeStamp = row.Started.Time
-	case row.Created.Valid:
+	case JobPending:
 		timeStamp = row.Created.Time
-	case row.Cancelled.Valid:
+	case JobCancelled:
 		timeStamp = row.Cancelled.Time
-	case row.Submitted.Valid:
+	case JobQueued, JobDuplicate:
 		timeStamp = row.Submitted.Time
-	default:
-		return ""
 	}
 
 	timeInState := time.Now().Sub(timeStamp)
