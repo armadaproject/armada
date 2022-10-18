@@ -136,8 +136,10 @@ export function updateArray<T>(array: T[], newValues: T[], start: number) {
 export function tryParseJson(json: string): Record<string, unknown> | undefined {
   try {
     return JSON.parse(json) as Record<string, unknown>
-  } catch (e) {
-    console.error(e.message)
+  } catch (e: unknown) {
+    if (e instanceof Error) {
+      console.error(e.message)
+    }
     return undefined
   }
 }
