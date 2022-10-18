@@ -15,6 +15,28 @@ import (
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
+func TestGetJobs_GetQueued(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		queuedTime := someTime.Add(time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, queuedTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(queuedTime)
+	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
+
 
 func TestGetJobs_GetPending(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
