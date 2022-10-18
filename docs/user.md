@@ -95,7 +95,11 @@ Jobs are submitted using either the `armadactl` command-line utility, with `arma
 Armada supports submitting preemptive jobs, i.e. jobs which can preempt other lower priority jobs when there aren't enough
 resources to run the preemptive job.
 
-To use priority and preemption:
+For scheduling preemptive jobs, Armada relies on the `kube-scheduler` component of Kubernetes for the actual preemption and scheduling the underlying pods.
+
+More info on preemption in Kubernetes can be found in the [official docs](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/).
+
+To use priority and preemption in Armada:
 1. Add one or more [PriorityClasses](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass).
 2. Create Armada jobs with [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#pod-priority) in the job's `podSpec` set to one of the existing PriorityClasses.
 
