@@ -1,0 +1,8 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: armada-example-priority-class
+value: 10
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false
+description: "Example priority class for preemptive Armada jobs."
