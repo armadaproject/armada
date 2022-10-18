@@ -2,6 +2,7 @@ package schedulerobjects
 
 import (
 	v1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/sirupsen/logrus"
 
@@ -51,6 +52,16 @@ func v1ResourceListFromComputeResources(resources common.ComputeResources) v1.Re
 	rv := make(v1.ResourceList)
 	for t, q := range resources {
 		rv[v1.ResourceName(t)] = q
+	}
+	return rv
+}
+
+func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
+	rv := ResourceList{
+		Resources: make(map[string]resource.Quantity),
+	}
+	for t, q := range rl {
+		rv.Resources[string(t)] = q
 	}
 	return rv
 }

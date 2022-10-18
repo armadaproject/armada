@@ -17,3 +17,6 @@ batchDuration: 500ms
 pulsarReceiveTimeout: 5s
 pulsarBackoffTime: 1s
 minMessageCompressionSize: 1024
+eventRetention:
+  expiryEnabled: true
+  retentionDuration: 336h # Specified as a Go duration
