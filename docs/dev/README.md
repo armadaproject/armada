@@ -14,3 +14,5 @@ We suggest using this if you want to integrate armada with an external service l
 
 1) Run `docs/dev/setup_local_host.sh`
 2) Run each of those commands in separate terminals
+
+Note: Currently due to End-to-End test rules on the current localdev setup, only the personal-anonymous user can by defualt have jobs created by anonymous user when using no authentication.
