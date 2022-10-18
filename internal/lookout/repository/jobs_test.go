@@ -36,6 +36,7 @@ func TestGetJobs_GetQueued(t *testing.T) {
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
+
 func TestGetJobs_GetPending(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
@@ -58,6 +59,7 @@ func TestGetJobs_GetPending(t *testing.T) {
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
+
 func TestGetJobs_GetRunning(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
