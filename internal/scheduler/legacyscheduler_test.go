@@ -863,7 +863,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -879,7 +879,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": withNodeSelector(map[string]string{"foo": "foo"}, testNLargeCpuJob(0, 2)),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -892,7 +892,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
@@ -908,7 +908,7 @@ func TestSchedule(t *testing.T) {
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": withNodeSelector(map[string]string{"foo": "foo"}, testNLargeCpuJob(0, 2)),
 			},
-			PriorityFactorsByQueue: map[string]float64{
+			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
