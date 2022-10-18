@@ -28,7 +28,7 @@ jobs:
 
       - name: Check TypeScript formatting
         run: |
-          npm ci && npm run fmt || exit 1
+          yarn install --frozen-lockfile && yarn run fmt || exit 1
           exit $(git status -s -uno | wc -l)
         working-directory: ./internal/lookout/ui
   ts-unit-tests:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          npm ci && npm run openapi && CI=true npm run test
+          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test
         working-directory: ./internal/lookout/ui
 
 
