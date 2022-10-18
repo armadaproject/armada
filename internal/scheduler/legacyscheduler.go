@@ -381,8 +381,6 @@ type LegacyScheduler struct {
 	PriorityFactorByQueue map[string]float64
 	// Random number generator, used to select queues
 	Rand *rand.Rand
-	// Store reports for each scheduling attempt.
-	SchedulingReportsRepository *SchedulingReportsRepository
 	// Report on the results of the most recent invocation of the scheduler.
 	SchedulingRoundReport *SchedulingRoundReport
 }
@@ -500,7 +498,6 @@ func (c *LegacyScheduler) Schedule(
 		if err != nil {
 			return nil, err
 		}
-		it.schedulingReportsRepository = c.SchedulingReportsRepository
 		iteratorsByQueue[queue] = it
 	}
 
@@ -573,9 +570,6 @@ func (c *LegacyScheduler) Schedule(
 				c.SchedulingConfig.MaximalClusterFractionToSchedule,
 			); exceeded {
 				report.UnschedulableReason = reason + " (overall per scheduling round limit)"
-				// if c.SchedulingReportsRepository != nil {
-				// 	c.SchedulingReportsRepository.Add(queue, report)
-				// }
 				if c.SchedulingRoundReport != nil {
 					c.SchedulingRoundReport.AddJobSchedulingReport(report)
 				}

@@ -481,7 +481,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err != nil {
 		return nil, err
 	}
-	sched.SchedulingReportsRepository = q.SchedulingReportsRepository
 	sched.MinimumJobSize = req.MinimumJobSize
 
 	// Log initial scheduler state.

@@ -951,7 +951,6 @@ func TestSchedule(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			scheduler.SchedulingReportsRepository = NewSchedulingReportsRepository(100, 100)
 			scheduler.MinimumJobSize = tc.MinimumJobSize
 			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
