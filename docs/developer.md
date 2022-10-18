@@ -65,9 +65,9 @@ This is recommended when working on features that are purely Armada specific or 
 Lookout requires Postgres to be up and running. Additionally, the react app must be built.
 ```bash
 cd ./internal/lookout/ui
-npm install
-npm run openapi
-npm run build
+yarn install
+yarn run openapi
+yarn run build
 ```
 
 After this, the lookout UI should be accessible through your browser at `http://localhost:8089`
@@ -75,7 +75,7 @@ After this, the lookout UI should be accessible through your browser at `http://
 For UI development you can also use the React development server.
 Note that the Lookout API will still have to be running for this to work.
 ```bash
-npm run start
+yarn run start
 ```
 
 #### Testing your setup
