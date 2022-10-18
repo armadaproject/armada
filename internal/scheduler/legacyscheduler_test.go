@@ -955,12 +955,10 @@ func TestSchedule(t *testing.T) {
 			scheduler.MinimumJobSize = tc.MinimumJobSize
 			scheduler.Rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
-			jobs, _, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
+			jobs, err := scheduler.Schedule(context.Background(), tc.InitialUsageByQueue)
 			if !assert.NoError(t, err) {
 				return
 			}
-
-			fmt.Println(scheduler.SchedulingRoundReport)
 
 			// Check that the right jobs got scheduled.
 			if tc.ExpectedIndicesByQueue != nil {
@@ -1029,7 +1027,6 @@ func TestSchedule(t *testing.T) {
 					}
 					leasedJobIds[jobId] = true
 				}
-
 				for queue, jobs := range jobRepository.jobsByQueue {
 					for _, job := range jobs {
 						jobId, err := uuidFromUlidString(job.Id)
@@ -1066,54 +1063,6 @@ func TestSchedule(t *testing.T) {
 
 				// Check that we were given a termination reason.
 				assert.NotEmpty(t, schedulingRoundReport.TerminationReason)
-
-				// // Check that report.TotalQueueResources is set correctly.
-				// for queue, expected := range usageByQueue(jobs) {
-				// 	report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
-				// 	if !assert.NotNil(t, report) {
-				// 		continue
-				// 	}
-				// 	if !assert.True(t, ok) {
-				// 		continue
-				// 	}
-				// 	if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
-				// 		expected.Add(initialUsage.AggregateByResource())
-				// 	}
-				// 	actual := report.TotalQueueResources
-				// 	assert.True(t, expected.Equal(actual))
-				// }
-
-				// // Check that report.TotalQueueResourcesByPriority is set correctly.
-				// for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
-				// 	report, ok := mostRecentSuccessfulJobSchedulingReportByQueue[queue]
-				// 	if !assert.NotNil(t, report) {
-				// 		continue
-				// 	}
-				// 	if !assert.True(t, ok) {
-				// 		continue
-				// 	}
-				// 	if initialUsage, ok := tc.InitialUsageByQueue[queue]; ok {
-				// 		expected.Add(initialUsage)
-				// 	}
-				// 	actual := report.TotalQueueResourcesByPriority
-				// 	assert.True(t, expected.Equal(actual))
-				// }
-
-				// // Check that there are reports in scheduler.SchedulingReportsRepository for all queues and jobs.
-				// for queue, jobs := range jobRepository.jobsByQueue {
-				// 	queueReport, ok := scheduler.SchedulingReportsRepository.GetQueueSchedulingReport(queue)
-				// 	assert.NotNil(t, queueReport)
-				// 	assert.True(t, ok)
-				// 	for _, job := range jobs {
-				// 		jobUuid, err := uuidFromUlidString(job.Id)
-				// 		if !assert.NoError(t, err) {
-				// 			return
-				// 		}
-				// 		jobReport, ok := scheduler.SchedulingReportsRepository.GetJobSchedulingReport(jobUuid)
-				// 		assert.NotNil(t, jobReport)
-				// 		assert.True(t, ok)
-				// 	}
-				// }
 			}
 		})
 	}

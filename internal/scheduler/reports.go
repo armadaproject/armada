@@ -181,6 +181,11 @@ func (schedulingRoundReport *SchedulingRoundReport) ClearJobSpecs() {
 			jobSchedulingReport.Job = nil
 		}
 	}
+	for _, jobSchedulingReports := range schedulingRoundReport.UnsuccessfulJobSchedulingReportsByQueue {
+		for _, jobSchedulingReport := range jobSchedulingReports {
+			jobSchedulingReport.Job = nil
+		}
+	}
 }
 
 func (repo *SchedulingReportsRepository) GetQueueReport(ctx context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {

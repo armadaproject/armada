@@ -190,13 +190,6 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 			return nil, err
 		}
 		if jobSchedulingReport.UnschedulableReason != "" {
-			// Store reports for unsuccessful attempts.
-			// Successful attempts are stored by the main scheduling loop.
-			// Zero out the job spec to reduce memory usage.
-			// jobSchedulingReport.Job = nil
-			// if it.schedulingReportsRepository != nil {
-			// 	it.schedulingReportsRepository.Add(job.Queue, jobSchedulingReport)
-			// }
 			if it.SchedulingRoundReport != nil {
 				it.SchedulingRoundReport.AddJobSchedulingReport(jobSchedulingReport)
 			}
@@ -479,12 +472,10 @@ func NewLegacyScheduler(
 }
 
 // Schedule is similar to distributeRemainder, but is built on NodeDb.
-//
-// TODO: Remove map[string]*JobSchedulingReport return value.
 func (c *LegacyScheduler) Schedule(
 	ctx context.Context,
 	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-) ([]*api.Job, map[string]*JobSchedulingReport, error) {
+) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 
 	// Initialise a report capturing the work done by the scheduler during this invocation.
@@ -507,7 +498,7 @@ func (c *LegacyScheduler) Schedule(
 	for queue := range c.PriorityFactorByQueue {
 		it, err := NewQueueCandidateJobsIterator(ctx, queue, initialUsageByQueue[queue].AggregateByResource(), initialUsageByQueue[queue], *c)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		it.schedulingReportsRepository = c.SchedulingReportsRepository
 		iteratorsByQueue[queue] = it
@@ -517,9 +508,6 @@ func (c *LegacyScheduler) Schedule(
 	roundResources := schedulerobjects.ResourceList{
 		Resources: make(map[string]resource.Quantity),
 	}
-
-	// TODO: Remove
-	mostRecentSuccessfulJobSchedulingReportByQueue := make(map[string]*JobSchedulingReport)
 
 	// Schedule jobs one at a time.
 	numJobsToLease := 0
@@ -565,7 +553,7 @@ func (c *LegacyScheduler) Schedule(
 		for {
 			report, err := it.Next()
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			if report == nil { // No more jobs to process for this queue.
 				delete(c.PriorityFactorByQueue, queue)
@@ -577,14 +565,8 @@ func (c *LegacyScheduler) Schedule(
 			//
 			// TODO: Account for resource usage separately by priority.
 			jobTotalResourceRequests := schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests)
-			// jobTotalResourceRequests := common.TotalJobResourceRequest(report.Job)
 			roundResourcesCopy := roundResources.DeepCopy()
 			roundResourcesCopy.Add(jobTotalResourceRequests)
-			// for resourceType, quantity := range jobTotalResourceRequests {
-			// 	q := roundResourcesCopy.Resources[resourceType]
-			// 	q.Add(quantity)
-			// 	roundResourcesCopy.Resources[resourceType] = q
-			// }
 			if exceeded, reason := c.exceedsResourceLimits(
 				ctx,
 				roundResourcesCopy,
@@ -608,14 +590,11 @@ func (c *LegacyScheduler) Schedule(
 			// TODO: Only repeat this process if the node in the report no longer works.
 			podReport, err := c.selectNodeForPod(ctx, report.JobId, report.Job)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			report.PodSchedulingReports = []*PodSchedulingReport{podReport}
 			if podReport.Node == nil {
 				report.UnschedulableReason = "pod does not fit on any node"
-				// if c.SchedulingReportsRepository != nil {
-				// 	c.SchedulingReportsRepository.Add(queue, report)
-				// }
 				if c.SchedulingRoundReport != nil {
 					c.SchedulingRoundReport.AddJobSchedulingReport(report)
 				}
@@ -629,13 +608,6 @@ func (c *LegacyScheduler) Schedule(
 			roundResources = roundResourcesCopy
 			// TODO: Replace with adding from req.
 			totalResourcesByQueue[queue] = report.TotalQueueResources
-			// mostRecentSuccessfulJobSchedulingReportByQueue[queue] = report
-			// if c.SchedulingReportsRepository != nil {
-			// 	// Zero out the job spec to reduce memory usage.
-			// 	report.Job = nil
-			// 	c.SchedulingReportsRepository.Add(queue, report)
-			// }
-			// TODO: Zero out job specs outside this function.
 			if c.SchedulingRoundReport != nil {
 				c.SchedulingRoundReport.AddJobSchedulingReport(report)
 			}
@@ -657,7 +629,7 @@ func (c *LegacyScheduler) Schedule(
 		}
 		jobs = append(jobs, successfullyLeasedJobs...)
 	}
-	return jobs, mostRecentSuccessfulJobSchedulingReportByQueue, nil
+	return jobs, nil
 }
 
 func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
