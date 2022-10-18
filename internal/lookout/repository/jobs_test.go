@@ -32,12 +32,10 @@ func TestGetJobs_GetQueued(t *testing.T) {
 		jobInfo := jobInfos[0]
 
 		timeInState := time.Now().Sub(queuedTime)
-	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
-
-
 func TestGetJobs_GetPending(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
@@ -56,12 +54,10 @@ func TestGetJobs_GetPending(t *testing.T) {
 		jobInfo := jobInfos[0]
 
 		timeInState := time.Now().Sub(pendingTime)
-	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
-
-
 func TestGetJobs_GetRunning(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
@@ -82,7 +78,7 @@ func TestGetJobs_GetRunning(t *testing.T) {
 		jobInfo := jobInfos[0]
 
 		timeInState := time.Now().Sub(runningTime)
-	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
@@ -126,7 +122,7 @@ func TestGetJobs_GetSucceededJob(t *testing.T) {
 		}, runInfo)
 
 		timeInState := time.Now().Sub(succeededTime)
-	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
@@ -171,7 +167,7 @@ func TestGetJobs_GetFailedJob(t *testing.T) {
 		}, jobInfo.Runs[0])
 
 		timeInState := time.Now().Sub(failedTime)
-	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
@@ -213,7 +209,7 @@ func TestGetJobs_GetCancelledJob(t *testing.T) {
 		}, jobInfo.Runs[0])
 
 		timeInState := time.Now().Sub(cancelledTime)
-	        expectedDuration := duration.ShortHumanDuration(timeInState)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
 		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
