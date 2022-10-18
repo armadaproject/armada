@@ -135,8 +135,6 @@ type QueueCandidateJobsIterator struct {
 	totalQueueResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this invocation of the scheduler.
 	roundQueueResources schedulerobjects.ResourceList
-	// Store reports for each scheduling attempt.
-	schedulingReportsRepository *SchedulingReportsRepository
 }
 
 func NewQueueCandidateJobsIterator(
