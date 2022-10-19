@@ -5,7 +5,9 @@ import (
 	"os/signal"
 	"sync"
 
+	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -52,7 +54,6 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	instructionChannels := make([]chan *model.InstructionSet, config.Paralellism)
 	consumers := make([]pulsar.Consumer, config.Paralellism)
 	for i := 0; i < config.Paralellism; i++ {
-
 		// Create a pulsar consumer
 		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
 			Topic:                       config.Pulsar.JobsetEventsTopic,
@@ -75,7 +76,8 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 			panic(err)
 		}
 
-		instructionChannels[i] = instructions.Convert(ctx, pulsarMsgs, 2*config.BatchSize, config.UserAnnotationPrefix, compressor)
+		instructionsService := instructions.New(metrics.Get())
+		instructionChannels[i] = instructionsService.Convert(ctx, pulsarMsgs, 2*config.BatchSize, config.UserAnnotationPrefix, compressor)
 		consumers[i] = consumer
 	}
 
@@ -87,19 +89,23 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	batchedInstructions := batch.Batch(instructions, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
 
 	// Insert the instructions into a db
-	acks := lookoutdb.ProcessUpdates(ctx, db, batchedInstructions, 5)
+	ldb := lookoutdb.New(db, metrics.Get())
+	acks := ldb.ProcessUpdates(ctx, db, batchedInstructions, 5)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	// Ack the messages- we pass a waitgroup here that will tell us when the pipeline has shutdown
+	// Ack the messages - we pass a waitgroup here that will tell us when the pipeline has shutdown
 	go pulsarutils.Ack(ctx, consumers, acks, &wg)
 
-	log.Info("Ingestion pipeline set up.  Running until shutdown event received")
+	shutdownMetricServer := common.ServeMetrics(config.Metrics.Port)
+	defer shutdownMetricServer()
+
+	log.Info("Ingestion pipeline set up. Running until shutdown event received")
 	// wait for a shutdown event
 	wg.Wait()
-	log.Info("Shutdown event received- closing")
+	log.Info("Shutdown event received - closing")
 }
 
 // mergeInstructions takes an array of channels and merges them into a single channel

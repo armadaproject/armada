@@ -8,11 +8,82 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
+
+func TestGetJobs_GetQueued(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		queuedTime := someTime.Add(time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, queuedTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(queuedTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
+
+func TestGetJobs_GetPending(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		pendingTime := someTime.Add(time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(pendingTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
+
+func TestGetJobs_GetRunning(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(runningTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
 
 func TestGetJobs_GetSucceededJob(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
@@ -51,6 +122,10 @@ func TestGetJobs_GetSucceededJob(t *testing.T) {
 			Started:   &runningTime,
 			Finished:  &succeededTime,
 		}, runInfo)
+
+		timeInState := time.Now().Sub(succeededTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
 
@@ -92,6 +167,10 @@ func TestGetJobs_GetFailedJob(t *testing.T) {
 			Finished:  &failedTime,
 			Error:     failureReason,
 		}, jobInfo.Runs[0])
+
+		timeInState := time.Now().Sub(failedTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
 
@@ -130,6 +209,10 @@ func TestGetJobs_GetCancelledJob(t *testing.T) {
 			Created:   &pendingTime,
 			Started:   &runningTime,
 		}, jobInfo.Runs[0])
+
+		timeInState := time.Now().Sub(cancelledTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
 
