@@ -392,6 +392,14 @@ func testNTaintedCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
+func testNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
+	rv := make([]*schedulerobjects.Node, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testGpuNode(priorities)
+	}
+	return rv
+}
+
 func testNTaintedtGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
@@ -463,6 +471,36 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
 				"memory": resource.MustParse("256Gi"),
+			},
+		),
+	}
+}
+
+func testGpuNode(priorities []int32) *schedulerobjects.Node {
+	labels := map[string]string{
+		"gpu": "true",
+	}
+	return &schedulerobjects.Node{
+		Id: uuid.NewString(),
+		NodeType: &schedulerobjects.NodeType{
+			Id:     "gpu",
+			Labels: labels,
+		},
+		Labels:     labels,
+		NodeTypeId: "gpu",
+		TotalResources: schedulerobjects.ResourceList{
+			Resources: map[string]resource.Quantity{
+				"cpu":    resource.MustParse("64"),
+				"memory": resource.MustParse("1024Gi"),
+				"gpu":    resource.MustParse("8"),
+			},
+		},
+		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+			priorities,
+			map[string]resource.Quantity{
+				"cpu":    resource.MustParse("64"),
+				"memory": resource.MustParse("1024Gi"),
+				"gpu":    resource.MustParse("8"),
 			},
 		),
 	}

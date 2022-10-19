@@ -1003,6 +1003,38 @@ func TestSchedule(t *testing.T) {
 				"A": {1},
 			},
 		},
+		"minimum job size gpu": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNGpuNode(2, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...), testNGPUJob(0, 1)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			MinimumJobSize: map[string]resource.Quantity{
+				"gpu": resource.MustParse("1"),
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {2},
+			},
+		},
+		"minimum job size two gpu": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNGpuNode(2, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...), testNGPUJob(0, 1)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			MinimumJobSize: map[string]resource.Quantity{
+				"gpu": resource.MustParse("2"),
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {},
+			},
+		},
 		"taints and tolerations": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNTaintedCpuNode(1, testPriorities),

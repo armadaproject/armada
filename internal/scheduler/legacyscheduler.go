@@ -332,14 +332,22 @@ func (scheduler *LegacyScheduler) jobIsLargeEnough(jobTotalResourceRequests comm
 	if len(scheduler.MinimumJobSize) == 0 {
 		return true, ""
 	}
-	for resourceType, quantity := range jobTotalResourceRequests {
-		if limit, ok := scheduler.MinimumJobSize[resourceType]; ok {
-			if limit.Cmp(quantity) == 1 {
+	if len(jobTotalResourceRequests) == 0 {
+		return true, ""
+	}
+	for resourceType, limit := range scheduler.MinimumJobSize {
+		if q, ok := jobTotalResourceRequests[resourceType]; ok {
+			if limit.Cmp(q) == 1 {
 				return false, fmt.Sprintf(
 					"job requests %s %s, but the minimum is %s",
-					quantity.String(), resourceType, limit.String(),
+					q.String(), resourceType, limit.String(),
 				)
 			}
+		} else {
+			return false, fmt.Sprintf(
+				"job requests 0 %s, but the minimum is %s",
+				resourceType, limit.String(),
+			)
 		}
 	}
 	return true, ""
