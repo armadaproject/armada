@@ -53,7 +53,6 @@ type JobRow struct {
 	JobSet    string
 	Priority  uint32
 	Submitted time.Time
-	JobJson   []byte
 	JobProto  []byte
 	State     int64
 	Duplicate bool
@@ -96,7 +95,6 @@ func defaultInstructionSet() *model.InstructionSet {
 			JobSet:    jobSetName,
 			Priority:  priority,
 			Submitted: baseTime,
-			JobJson:   []byte(jobJson),
 			JobProto:  []byte(jobProto),
 			State:     0,
 			Updated:   baseTime,
@@ -144,7 +142,6 @@ var expectedJobAfterSubmit = JobRow{
 	JobSet:    jobSetName,
 	Priority:  priority,
 	Submitted: baseTime,
-	JobJson:   []byte(jobJson),
 	JobProto:  []byte(jobProto),
 	State:     0,
 	Updated:   baseTime,
@@ -160,7 +157,6 @@ var expectedJobAfterUpdate = JobRow{
 	State:     updateState,
 	Updated:   updateTime,
 	Submitted: baseTime,
-	JobJson:   []byte(jobJson),
 	JobProto:  []byte(jobProto),
 	Duplicate: false,
 }
@@ -302,7 +298,6 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 			JobSet:    jobSetName,
 			Priority:  priority,
 			Submitted: baseTime,
-			JobJson:   []byte(jobJson),
 			JobProto:  []byte(jobProto),
 			State:     0,
 			Updated:   baseTime,
@@ -664,7 +659,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	job := JobRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled FROM job WHERE job_id = $1`,
+		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated,  orig_job_spec, cancelled FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
 		&job.JobId,
@@ -676,7 +671,6 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.State,
 		&job.Duplicate,
 		&job.Updated,
-		&job.JobJson,
 		&job.JobProto,
 		&job.Cancelled,
 	)

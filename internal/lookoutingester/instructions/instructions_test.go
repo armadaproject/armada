@@ -239,7 +239,6 @@ var expectedSubmit = model.CreateJobInstruction{
 	JobSet:    jobSetName,
 	Priority:  priority,
 	Submitted: baseTime,
-	JobJson:   expectedApiJobJson,
 	JobProto:  expectedApiJobProto,
 	State:     repository.JobQueuedOrdinal,
 	Updated:   baseTime,
@@ -566,7 +565,7 @@ func TestSubmitWithNullChar(t *testing.T) {
 	})
 	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	assert.Len(t, instructions.JobsToCreate, 1)
-	assert.NotContains(t, string(instructions.JobsToCreate[0].JobJson), "\\u0000")
+	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
 }
 
 func TestFailedWithNullCharInError(t *testing.T) {
