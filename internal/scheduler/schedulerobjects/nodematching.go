@@ -70,7 +70,7 @@ func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodReq
 	if !matches || err != nil {
 		return matches, reason, err
 	}
-	return podNodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetWellKnownLabels(), req)
+	return podNodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetIndexedLabels(), req)
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on this node.
@@ -119,7 +119,7 @@ func podTolerationRequirementsMet(nodeTaints []v1.Taint, req *PodRequirements) (
 	return true, nil, nil
 }
 
-func podNodeSelectorRequirementsMet(nodeLabels, unsetWellKnownLabels map[string]string, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func podNodeSelectorRequirementsMet(nodeLabels, unsetIndexedLabels map[string]string, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	for label, podValue := range req.NodeSelector {
 		// If the label value differs between nodeLabels and the pod,
 		// always return false.
@@ -132,13 +132,13 @@ func podNodeSelectorRequirementsMet(nodeLabels, unsetWellKnownLabels map[string]
 				}, nil
 			}
 		} else {
-			// If unsetWellKnownLabels is provided, return false only if
+			// If unsetIndexedLabels is provided, return false only if
 			// this label is explicitly marked as not set.
 			//
-			// If unsetWellKnownLabels is not provided,
+			// If unsetIndexedLabels is not provided,
 			// we assume that nodeLabels contains all labels and return false.
-			if unsetWellKnownLabels != nil {
-				if _, ok := unsetWellKnownLabels[label]; ok {
+			if unsetIndexedLabels != nil {
+				if _, ok := unsetIndexedLabels[label]; ok {
 					return false, &MissingLabel{Label: label}, nil
 				}
 			} else {

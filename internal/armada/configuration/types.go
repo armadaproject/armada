@@ -133,7 +133,25 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources              []string
+	IndexedResources []string
+	// Node labels that the scheduler creates indexes for efficient lookup of.
+	// Should include node labels frequently used for scheduling.
+	// Since the scheduler can efficiently sort out nodes for which these labels
+	// are not set correctly when looking for a node a pod can be scheduled on.
+	//
+	// If not set, no labels are indexed.
+	//
+	// Applies only to the new scheduler.
+	IndexedNodeLabels map[string]interface{}
+	// Taint keys that the scheduler creates indexes for efficient lookup of.
+	// Should include taints frequently used for scheduling.
+	// Since the scheduler can efficiently sort out nodes for which these taints
+	// are not set correctly when looking for a node a pod can be scheduled on.
+	//
+	// If not set, all taints are indexed.
+	//
+	// Applies only to the new scheduler.
+	IndexedTaints                 map[string]interface{}
 	MinTerminationGracePeriod     time.Duration
 	MaxTerminationGracePeriod     time.Duration
 	DefaultTerminationGracePeriod time.Duration

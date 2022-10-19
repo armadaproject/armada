@@ -83,9 +83,7 @@ export default function Overview(props: OverviewProps) {
                     <TableBody>
                       {props.queueInfos.map((q) => (
                         <TableRow key={q.queue}>
-                          <TableCell component="th" scope="row">
-                            {q.queue}
-                          </TableCell>
+                          <TableCell scope="row">{q.queue}</TableCell>
                           <TableCell align="right">{q.jobsQueued}</TableCell>
                           <TableCell align="right">{q.jobsPending}</TableCell>
                           <TableCell align="right">{q.jobsRunning}</TableCell>
