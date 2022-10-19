@@ -349,7 +349,7 @@ func TestGetJobs_FilterByQueue(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByQueueStartsWith(t *testing.T) {
+func TestGetJobs_FilterByQueueGlobSearchOrExact(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
@@ -368,7 +368,7 @@ func TestGetJobs_FilterByQueueStartsWith(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
-			Queue: "queue",
+			Queue: "queue*",
 			Take:  10,
 		})
 		assert.NoError(t, err)
@@ -376,6 +376,22 @@ func TestGetJobs_FilterByQueueStartsWith(t *testing.T) {
 		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
 		AssertJobsAreEquivalent(t, second.job, jobInfos[1].Job)
 		AssertJobsAreEquivalent(t, third.job, jobInfos[2].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue: "queue-1",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue: "queue-3",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, third.job, jobInfos[0].Job)
 	})
 }
 
@@ -1156,6 +1172,29 @@ func TestGetJobs_FilterByOwnerStartsWith(t *testing.T) {
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Owner: "other-user",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(jobInfos))
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user-a",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user-b",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, second.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user*",
 			Take:  10,
 		})
 		assert.NoError(t, err)

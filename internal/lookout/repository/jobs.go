@@ -105,7 +105,7 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	var filters []goqu.Expression
 
 	if opts.Queue != "" {
-		filters = append(filters, StartsWith(job_queue, opts.Queue))
+		filters = append(filters, GlobSearchOrExact(job_queue, opts.Queue))
 	}
 
 	if opts.JobId != "" {
@@ -113,7 +113,7 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	}
 
 	if opts.Owner != "" {
-		filters = append(filters, StartsWith(job_owner, opts.Owner))
+		filters = append(filters, GlobSearchOrExact(job_owner, opts.Owner))
 	}
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
