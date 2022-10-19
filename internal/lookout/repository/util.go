@@ -47,15 +47,20 @@ func recordsToInterfaces(records []goqu.Record) []interface{} {
 }
 
 func StartsWith(field exp.IdentifierExpression, pattern string) goqu.Expression {
-	return field.Like(pattern + "%")
+	return field.Like(pattern + SQLLikeWildcard)
 }
+
+const (
+	SearchWildcard  string = "*"
+	SQLLikeWildcard string = "%"
+)
 
 // Do a glob (sql like) search if the pattern contains any * characters,
 // otherwise do an exact match.
 func GlobSearchOrExact(field exp.IdentifierExpression, pattern string) goqu.Expression {
-	if strings.Contains(pattern, "*") {
+	if strings.Contains(pattern, SearchWildcard) {
 		return field.Like(
-			strings.Replace(pattern, "*", "%", -1))
+			strings.Replace(pattern, SearchWildcard, SQLLikeWildcard, -1))
 	}
 	return field.Eq(pattern)
 }
