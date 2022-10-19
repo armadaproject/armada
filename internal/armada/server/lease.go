@@ -440,7 +440,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Nodes to be considered by the scheduler.
 	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
 	for i, nodeInfo := range req.Nodes {
-		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(&nodeInfo, req.ClusterId, priorities)
+		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(
+			&nodeInfo,
+			req.ClusterId,
+			priorities,
+			q.schedulingConfig.IndexedTaints,
+			q.schedulingConfig.IndexedNodeLabels,
+		)
 	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
@@ -475,7 +481,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err != nil {
 		return nil, err
 	}
-	sched.SchedulingReportsRepository = q.SchedulingReportsRepository
 	sched.MinimumJobSize = req.MinimumJobSize
 
 	// Log initial scheduler state.
@@ -490,11 +495,29 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	// Run the scheduler.
-	jobs, mostRecentSuccessfulJobSchedulingReportByQueue, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+	jobs, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+
+	// Log and store scheduling reports.
+	if sched.SchedulingRoundReport != nil {
+		log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
+		if q.SchedulingReportsRepository != nil {
+			sched.SchedulingRoundReport.ClearJobSpecs()
+			for queue, jobReports := range sched.SchedulingRoundReport.SuccessfulJobSchedulingReportsByQueue {
+				for _, jobReport := range jobReports {
+					q.SchedulingReportsRepository.Add(queue, jobReport)
+				}
+			}
+			for queue, jobReports := range sched.SchedulingRoundReport.UnsuccessfulJobSchedulingReportsByQueue {
+				for _, jobReport := range jobReports {
+					q.SchedulingReportsRepository.Add(queue, jobReport)
+				}
+			}
+		}
+	}
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
-	if len(mostRecentSuccessfulJobSchedulingReportByQueue) > 0 {
+	if sched.SchedulingRoundReport != nil {
 		executorReport, ok := reportsByExecutor[req.ClusterId]
 		if !ok || executorReport.ResourcesByQueue == nil {
 			executorReport = &schedulerobjects.ClusterResourceUsageReport{
@@ -504,15 +527,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			reportsByExecutor[req.ClusterId] = executorReport
 		}
-		for queue, jobSchedulingReport := range mostRecentSuccessfulJobSchedulingReportByQueue {
-			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil {
-				queueClusterUsage.ResourcesByPriority = jobSchedulingReport.TotalQueueResourcesByPriority
+		for queue, resourcesByPriority := range sched.SchedulingRoundReport.ScheduledResourcesByQueueAndPriority {
+			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil && queueClusterUsage.ResourcesByPriority != nil {
+				schedulerobjects.QuantityByPriorityAndResourceType(queueClusterUsage.ResourcesByPriority).Add(resourcesByPriority)
 			} else {
 				queueClusterUsage = &schedulerobjects.QueueClusterResourceUsage{
 					Created:             q.clock.Now(),
 					Queue:               queue,
 					ExecutorId:          req.ClusterId,
-					ResourcesByPriority: jobSchedulingReport.TotalQueueResourcesByPriority,
+					ResourcesByPriority: resourcesByPriority,
 				}
 				executorReport.ResourcesByQueue[queue] = queueClusterUsage
 			}

@@ -135,8 +135,6 @@ type QueueCandidateJobsIterator struct {
 	totalQueueResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this invocation of the scheduler.
 	roundQueueResources schedulerobjects.ResourceList
-	// Store reports for each scheduling attempt.
-	schedulingReportsRepository *SchedulingReportsRepository
 }
 
 func NewQueueCandidateJobsIterator(
@@ -190,12 +188,8 @@ func (it *QueueCandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 			return nil, err
 		}
 		if jobSchedulingReport.UnschedulableReason != "" {
-			// Store reports for unsuccessful attempts.
-			// Successful attempts are stored by the main scheduling loop.
-			// Zero out the job spec to reduce memory usage.
-			jobSchedulingReport.Job = nil
-			if it.schedulingReportsRepository != nil {
-				it.schedulingReportsRepository.Add(job.Queue, jobSchedulingReport)
+			if it.SchedulingRoundReport != nil {
+				it.SchedulingRoundReport.AddJobSchedulingReport(jobSchedulingReport)
 			}
 			consecutiveUnschedulableJobs++
 			continue
@@ -217,6 +211,16 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		Job:        job,
 		ExecutorId: it.ExecutorId,
 	}
+
+	// Add the scheduling requirements for this job.
+	podSpec := podSpecFromJob(job)
+	if podSpec == nil {
+		return nil, errors.New("failed to get pod spec")
+	}
+	jobSchedulingReport.Req = schedulerobjects.PodRequirementsFromPodSpec(
+		podSpec,
+		it.SchedulingConfig.Preemption.PriorityClasses,
+	)
 
 	// Add the resource requests of this job to the total usage for this queue.
 	// We mutate copies of it.roundQueueResources and it.totalQueueResources.
@@ -278,7 +282,10 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 
 	// If a NodeDb is provided, try to find a node on which this job can be scheduled.
 	if it.NodeDb != nil {
-		podReport, err := it.selectNodeForPod(ctx, jobId, job)
+		podReport, err := it.NodeDb.SelectNodeForPod(jobId, jobSchedulingReport.Req)
+		if err != nil {
+			return nil, err
+		}
 		if err != nil {
 			jobSchedulingReport.UnschedulableReason = err.Error()
 			return nil, err
@@ -372,8 +379,8 @@ type LegacyScheduler struct {
 	PriorityFactorByQueue map[string]float64
 	// Random number generator, used to select queues
 	Rand *rand.Rand
-	// Store reports for each scheduling attempt.
-	SchedulingReportsRepository *SchedulingReportsRepository
+	// Report on the results of the most recent invocation of the scheduler.
+	SchedulingRoundReport *SchedulingRoundReport
 }
 
 func (sched *LegacyScheduler) String() string {
@@ -464,8 +471,17 @@ func NewLegacyScheduler(
 func (c *LegacyScheduler) Schedule(
 	ctx context.Context,
 	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-) ([]*api.Job, map[string]*JobSchedulingReport, error) {
+) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
+
+	// Initialise a report capturing the work done by the scheduler during this invocation.
+	c.SchedulingRoundReport = NewSchedulingRoundReport(c.TotalResources, c.PriorityFactorByQueue)
+	defer func() {
+		c.SchedulingRoundReport.Finished = time.Now()
+	}()
+	for queue, initialUsage := range initialUsageByQueue {
+		c.SchedulingRoundReport.InitialResourcesByQueueAndPriority[queue] = initialUsage.DeepCopy()
+	}
 
 	// Total resource usage across all priorities by queue.
 	totalResourcesByQueue := make(map[string]schedulerobjects.ResourceList)
@@ -478,9 +494,8 @@ func (c *LegacyScheduler) Schedule(
 	for queue := range c.PriorityFactorByQueue {
 		it, err := NewQueueCandidateJobsIterator(ctx, queue, initialUsageByQueue[queue].AggregateByResource(), initialUsageByQueue[queue], *c)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		it.schedulingReportsRepository = c.SchedulingReportsRepository
 		iteratorsByQueue[queue] = it
 	}
 
@@ -489,12 +504,30 @@ func (c *LegacyScheduler) Schedule(
 		Resources: make(map[string]resource.Quantity),
 	}
 
-	mostRecentSuccessfulJobSchedulingReportByQueue := make(map[string]*JobSchedulingReport)
-
 	// Schedule jobs one at a time.
 	numJobsToLease := 0
 	jobsToLeaseByQueue := make(map[string][]*api.Job)
-	for (c.SchedulingConfig.MaximumJobsToSchedule == 0 || numJobsToLease < c.SchedulingConfig.MaximumJobsToSchedule) && len(c.PriorityFactorByQueue) > 0 {
+	for {
+		if c.SchedulingConfig.MaximumJobsToSchedule != 0 && numJobsToLease == c.SchedulingConfig.MaximumJobsToSchedule {
+			if c.SchedulingRoundReport != nil {
+				c.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
+			}
+			break
+		}
+		if len(c.PriorityFactorByQueue) == 0 {
+			if c.SchedulingRoundReport != nil {
+				c.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
+			}
+			break
+		}
+		select {
+		case <-ctx.Done():
+			if c.SchedulingRoundReport != nil {
+				c.SchedulingRoundReport.TerminationReason = "deadline exceeded"
+			}
+			break
+		default:
+		}
 
 		// Select a queue to schedule job from.
 		// Queues with fewer resources allocated to them are selected with higher probability.
@@ -515,9 +548,9 @@ func (c *LegacyScheduler) Schedule(
 		for {
 			report, err := it.Next()
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
-			if report == nil { // We've processed all jobs for this queue.
+			if report == nil { // No more jobs to process for this queue.
 				delete(c.PriorityFactorByQueue, queue)
 				break
 			}
@@ -526,21 +559,17 @@ func (c *LegacyScheduler) Schedule(
 			// Add the resource requests of this job to the total usage for this queue.
 			//
 			// TODO: Account for resource usage separately by priority.
-			jobTotalResourceRequests := common.TotalJobResourceRequest(report.Job)
+			jobTotalResourceRequests := schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests)
 			roundResourcesCopy := roundResources.DeepCopy()
-			for resourceType, quantity := range jobTotalResourceRequests {
-				q := roundResourcesCopy.Resources[resourceType]
-				q.Add(quantity)
-				roundResourcesCopy.Resources[resourceType] = q
-			}
+			roundResourcesCopy.Add(jobTotalResourceRequests)
 			if exceeded, reason := c.exceedsResourceLimits(
 				ctx,
 				roundResourcesCopy,
 				c.SchedulingConfig.MaximalClusterFractionToSchedule,
 			); exceeded {
 				report.UnschedulableReason = reason + " (overall per scheduling round limit)"
-				if c.SchedulingReportsRepository != nil {
-					c.SchedulingReportsRepository.Add(queue, report)
+				if c.SchedulingRoundReport != nil {
+					c.SchedulingRoundReport.AddJobSchedulingReport(report)
 				}
 				continue
 			}
@@ -553,13 +582,13 @@ func (c *LegacyScheduler) Schedule(
 			// TODO: Only repeat this process if the node in the report no longer works.
 			podReport, err := c.selectNodeForPod(ctx, report.JobId, report.Job)
 			if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 			report.PodSchedulingReports = []*PodSchedulingReport{podReport}
 			if podReport.Node == nil {
 				report.UnschedulableReason = "pod does not fit on any node"
-				if c.SchedulingReportsRepository != nil {
-					c.SchedulingReportsRepository.Add(queue, report)
+				if c.SchedulingRoundReport != nil {
+					c.SchedulingRoundReport.AddJobSchedulingReport(report)
 				}
 				continue // Found no node for this job.
 			}
@@ -569,12 +598,10 @@ func (c *LegacyScheduler) Schedule(
 			jobsToLeaseByQueue[queue] = append(jobsToLeaseByQueue[queue], report.Job)
 			numJobsToLease++
 			roundResources = roundResourcesCopy
+			// TODO: Replace with adding from req.
 			totalResourcesByQueue[queue] = report.TotalQueueResources
-			mostRecentSuccessfulJobSchedulingReportByQueue[queue] = report
-			if c.SchedulingReportsRepository != nil {
-				// Zero out the job spec to reduce memory usage.
-				report.Job = nil
-				c.SchedulingReportsRepository.Add(queue, report)
+			if c.SchedulingRoundReport != nil {
+				c.SchedulingRoundReport.AddJobSchedulingReport(report)
 			}
 			break
 		}
@@ -594,7 +621,7 @@ func (c *LegacyScheduler) Schedule(
 		}
 		jobs = append(jobs, successfullyLeasedJobs...)
 	}
-	return jobs, mostRecentSuccessfulJobSchedulingReportByQueue, nil
+	return jobs, nil
 }
 
 func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
