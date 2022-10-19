@@ -365,6 +365,8 @@ type LegacyScheduler struct {
 	SchedulingConfig configuration.SchedulingConfig
 	// Executor for which we're currently scheduling jobs.
 	ExecutorId string
+	// Resource pool of this executor.
+	Pool string
 	// Total resources across all clusters.
 	// Used when computing resource limits.
 	TotalResources schedulerobjects.ResourceList
@@ -535,8 +537,7 @@ func (c *LegacyScheduler) Schedule(
 			c.PriorityFactorByQueue,
 			totalResourcesByQueue,
 			c.TotalResources,
-			// TODO: May want to use util.GetResourceScarcity for pool-specific values.
-			c.SchedulingConfig.ResourceScarcity,
+			c.SchedulingConfig.GetResourceScarcity(c.Pool),
 		)
 		queue, _ := pickQueueRandomly(weights, c.Rand)
 
