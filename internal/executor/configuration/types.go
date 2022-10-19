@@ -34,6 +34,9 @@ type ClientConfiguration struct {
 }
 
 type KubernetesConfiguration struct {
+	// NodeReservedResources config is used to factor in reserved resources on each node
+	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
+	NodeReservedResources common.ComputeResources
 	// Wether to impersonate users when creating Kubernetes objects.
 	ImpersonateUsers bool
 	// Max number of Kubernetes API queries per second
@@ -85,14 +88,11 @@ type MetricConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
-	// NodeReservedResources config is used to factor in reserved resources on each node
-	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
-	NodeReservedResources common.ComputeResources
-	Metric                MetricConfiguration
-	Application           ApplicationConfiguration
-	ApiConnection         client.ApiConnectionDetails
-	Client                ClientConfiguration
-	GRPC                  keepalive.ClientParameters
+	Metric        MetricConfiguration
+	Application   ApplicationConfiguration
+	ApiConnection client.ApiConnectionDetails
+	Client        ClientConfiguration
+	GRPC          keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

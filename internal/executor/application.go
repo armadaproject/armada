@@ -132,7 +132,9 @@ func StartUpWithContext(
 		queueUtilisationService,
 		nodeInfoService,
 		usageClient,
-		config.Kubernetes.TrackedNodeLabels)
+		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
@@ -141,7 +143,7 @@ func StartUpWithContext(
 		clusterUtilisationService,
 		submitter,
 		etcdHealthMonitor,
-		config.NodeReservedResources,
+		config.Kubernetes.NodeReservedResources,
 	)
 
 	jobManager := service.NewJobManager(

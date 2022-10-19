@@ -21,7 +21,7 @@ import (
 )
 
 type UtilisationService interface {
-	GetAvailableClusterCapacity(reserved common.ComputeResources) (*ClusterAvailableCapacityReport, error)
+	GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error)
 	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
 }
 
@@ -31,6 +31,7 @@ type ClusterUtilisationService struct {
 	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	nodeReservedResources   common.ComputeResources
 }
 
 func NewClusterUtilisationService(
@@ -39,6 +40,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	nodeReservedResources common.ComputeResources,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -46,6 +48,7 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
+		nodeReservedResources:   nodeReservedResources,
 	}
 }
 
@@ -113,7 +116,7 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 	return (*r.AvailableCapacity)[resource]
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity(reserved common.ComputeResources) (*ClusterAvailableCapacityReport, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
@@ -142,7 +145,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		available.Sub(nodesUsage[n.Name])
 		// sub node reserved resources if defined,
 		// if nil, behaviour is same as subtracting 0
-		available.Sub(reserved)
+		available.Sub(clusterUtilisationService.nodeReservedResources)
 
 		nodePods := podsByNodes[n.Name]
 		allocated := getAllocatedResourcesByPriority(nodePods)

@@ -57,7 +57,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(allocationService.reserved)
+	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
