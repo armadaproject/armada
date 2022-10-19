@@ -49,6 +49,8 @@ type LookoutConfiguration struct {
 type LookoutIngesterConfiguration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Metrics configuration
+	Metrics configuration.MetricsConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name

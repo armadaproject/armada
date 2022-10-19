@@ -10,6 +10,8 @@ postgres:
     dbname: postgres
     sslmode: disable
 
+metrics:
+  port: 9003
 
 pulsar:
   enabled: true

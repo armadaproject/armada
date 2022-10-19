@@ -233,6 +233,7 @@ type QueueManagementConfig struct {
 }
 
 type MetricsConfig struct {
+	Port            uint16
 	RefreshInterval time.Duration
 }
 
