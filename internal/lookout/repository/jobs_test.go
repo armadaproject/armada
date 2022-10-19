@@ -1092,6 +1092,29 @@ func TestGetJobs_FilterByOwnerStartsWith(t *testing.T) {
 			Take:  10,
 		})
 		assert.NoError(t, err)
+		assert.Equal(t, 0, len(jobInfos))
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user-a",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user-b",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, second.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user*",
+			Take:  10,
+		})
+		assert.NoError(t, err)
 		assert.Equal(t, 2, len(jobInfos))
 		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
 		AssertJobsAreEquivalent(t, second.job, jobInfos[1].Job)
