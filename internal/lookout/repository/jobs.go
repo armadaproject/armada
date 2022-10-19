@@ -83,7 +83,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			job_priority,
 			job_submitted,
 			job_cancelled,
-			job_job,
+			job_orig_job_spec,
 			job_state,
 			jobRun_runId,
 			jobRun_podNumber,
@@ -209,7 +209,7 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 					Cancelled: ParseNullTime(row.Cancelled),
 					JobState:  state,
 					Runs:      []*lookout.RunInfo{},
-					JobJson:   ParseNullString(row.JobJson),
+					JobJson:   ParseNullString(row.OrigJobSpec),
 				}
 			}
 
@@ -254,7 +254,7 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 	}
 
 	var jobFromJson api.Job
-	jobJson := ParseNullString(row.JobJson)
+	jobJson := ParseNullString(row.OrigJobSpec)
 	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
 	if err != nil {
 		log.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)

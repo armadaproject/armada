@@ -53,25 +53,25 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 		ds := tx.Insert(jobTable).
 			With("run_states", getRunStateCounts(tx, job.Id)).
 			Rows(goqu.Record{
-				"job_id":      job.Id,
-				"queue":       job.Queue,
-				"owner":       job.Owner,
-				"jobset":      job.JobSetId,
-				"priority":    job.Priority,
-				"submitted":   ToUTC(job.Created),
-				"job":         preprocessedJobJson,
-				"state":       JobStateToIntMap[JobQueued],
-				"job_updated": timestamp,
+				"job_id":        job.Id,
+				"queue":         job.Queue,
+				"owner":         job.Owner,
+				"jobset":        job.JobSetId,
+				"priority":      job.Priority,
+				"submitted":     ToUTC(job.Created),
+				"orig_job_spec": preprocessedJobJson,
+				"state":         JobStateToIntMap[JobQueued],
+				"job_updated":   timestamp,
 			}).
 			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-				"queue":       job.Queue,
-				"owner":       job.Owner,
-				"jobset":      job.JobSetId,
-				"priority":    job.Priority,
-				"submitted":   ToUTC(job.Created),
-				"job":         preprocessedJobJson,
-				"state":       determineJobState(tx),
-				"job_updated": timestamp,
+				"queue":         job.Queue,
+				"owner":         job.Owner,
+				"jobset":        job.JobSetId,
+				"priority":      job.Priority,
+				"submitted":     ToUTC(job.Created),
+				"orig_job_spec": preprocessedJobJson,
+				"state":         determineJobState(tx),
+				"job_updated":   timestamp,
 			}).Where(job_jobUpdated.Lt(timestamp)))
 
 		res, err := ds.Prepared(true).Executor().Exec()
@@ -120,17 +120,17 @@ func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) e
 
 	ds := r.db.Insert(jobTable).
 		Rows(goqu.Record{
-			"job_id":   event.JobId,
-			"queue":    event.Queue,
-			"jobset":   event.JobSetId,
-			"priority": event.NewPriority,
-			"job":      updatedJobJson,
+			"job_id":        event.JobId,
+			"queue":         event.Queue,
+			"jobset":        event.JobSetId,
+			"priority":      event.NewPriority,
+			"orig_job_spec": updatedJobJson,
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"queue":    event.Queue,
-			"jobset":   event.JobSetId,
-			"priority": event.NewPriority,
-			"job":      updatedJobJson,
+			"queue":         event.Queue,
+			"jobset":        event.JobSetId,
+			"priority":      event.NewPriority,
+			"orig_job_spec": updatedJobJson,
 		}))
 
 	_, err = ds.Prepared(true).Executor().Exec()
@@ -379,7 +379,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 
 func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
 	selectDs := r.db.From(jobTable).
-		Select(job_job).
+		Select(job_orig_job_spec).
 		Where(job_jobId.Eq(event.JobId))
 
 	jobsInQueueRows := make([]*JobRow, 0)
@@ -392,7 +392,7 @@ func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) 
 	}
 
 	var jobFromJson api.Job
-	jobJson := ParseNullString(jobsInQueueRows[0].JobJson)
+	jobJson := ParseNullString(jobsInQueueRows[0].OrigJobSpec)
 	err = json.Unmarshal([]byte(jobJson), &jobFromJson)
 	// We don't care about parsing errors, the JSON will not be updated
 	if err != nil {
