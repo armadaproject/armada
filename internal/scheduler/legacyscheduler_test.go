@@ -170,6 +170,152 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestQueueSelectionProbabilities(t *testing.T) {
+	tests := map[string]struct {
+		PriorityFactorByQueue         map[string]float64
+		AggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList
+		TotalResources                schedulerobjects.ResourceList
+		ResourceScarcity              map[string]float64
+		ExpectedByQueue               map[string]float64
+	}{
+		"one queues": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("1"),
+				},
+			},
+			ResourceScarcity: map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0,
+			},
+		},
+		"two queues with equal factors no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("1"),
+				},
+			},
+			ResourceScarcity: map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0 / 2.0,
+				"B": 1.0 / 2.0,
+			},
+		},
+		"three queues with equal factors no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("1"),
+				},
+			},
+			ResourceScarcity: map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0 / 3.0,
+				"B": 1.0 / 3.0,
+				"C": 1.0 / 3.0,
+			},
+		},
+		"two queues with unequal factors no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 2,
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("1"),
+				},
+			},
+			ResourceScarcity: map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 2.0 / 3.0,
+				"B": 1.0 / 3.0,
+			},
+		},
+		"two queues with one far above its share": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			AggregateResourceUsageByQueue: map[string]schedulerobjects.ResourceList{
+				"B": {
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("100000"),
+					},
+				},
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("100001"),
+				},
+			},
+			ResourceScarcity: map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0,
+				"B": 0.0,
+			},
+		},
+		"two queues using exactly using their share": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 2,
+			},
+			AggregateResourceUsageByQueue: map[string]schedulerobjects.ResourceList{
+				"A": {
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("2"),
+					},
+				},
+				"B": {
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("1"),
+					},
+				},
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu": resource.MustParse("3"),
+				},
+			},
+			ResourceScarcity: map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0 / 2.0,
+				"B": 1.0 / 2.0,
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			actualByQueue := queueSelectionProbabilities(
+				tc.PriorityFactorByQueue,
+				tc.AggregateResourceUsageByQueue,
+				tc.TotalResources,
+				tc.ResourceScarcity,
+			)
+			if !assert.Equal(t, len(tc.ExpectedByQueue), len(actualByQueue)) {
+				return
+			}
+			for queue, actual := range actualByQueue {
+				expected, ok := tc.ExpectedByQueue[queue]
+				if !assert.True(t, ok) {
+					continue
+				}
+				assert.InDelta(t, expected, actual, 1e-2)
+			}
+		})
+	}
+}
+
 func TestQueueCandidateJobsIterator(t *testing.T) {
 	tests := map[string]struct {
 		Reqs                  []*schedulerobjects.PodRequirements
@@ -720,8 +866,8 @@ func TestSchedule(t *testing.T) {
 				"B": testNSmallCpuJob(0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
-				"A": 2,
-				"B": 1,
+				"A": 1,
+				"B": 2,
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
@@ -756,12 +902,12 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("2")},
 					map[string]resource.Quantity{"cpu": resource.MustParse("4")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("24")},
 					map[string]resource.Quantity{"cpu": resource.MustParse("28")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
 				),
 			},
 		},
