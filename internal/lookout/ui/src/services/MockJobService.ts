@@ -108,6 +108,7 @@ function createJobs(queue: string, total: number): Job[] {
       jobId: uuidv4(),
       jobSet: uuidv4(),
       jobState: "Queued",
+      jobStateDuration: "5m",
       jobYaml: "",
       namespace: queue,
       owner: "anonymous",

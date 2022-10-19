@@ -62,6 +62,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
         jobSet: "",
         priority: 0,
         jobState: "",
+        jobStateDuration: "",
         queue: "",
         submissionTime: "",
         runs: [],
