@@ -31,6 +31,8 @@ type EventIngesterConfiguration struct {
 	UpdateTopic string
 	// Time after which events will be deleted from the db
 	EventRetentionPolicy EventRetentionPolicy
+	// List of Regexes which will identify fatal errors when inserting into redis
+	FatalInsertionErrors []string
 }
 
 type EventRetentionPolicy struct {

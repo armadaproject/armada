@@ -55,9 +55,10 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 
 		// Create a pulsar consumer
 		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: config.SubscriptionName,
-			Type:             pulsar.KeyShared,
+			Topic:                       config.Pulsar.JobsetEventsTopic,
+			SubscriptionName:            config.SubscriptionName,
+			Type:                        pulsar.KeyShared,
+			SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 		})
 		if err != nil {
 			log.Errorf("Error creating pulsar consumer %d", i)

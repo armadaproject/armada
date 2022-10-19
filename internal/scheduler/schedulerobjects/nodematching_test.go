@@ -357,36 +357,19 @@ func TestNodePodRequirementsMet(t *testing.T) {
 
 func TestNodeTypePodRequirementsMet(t *testing.T) {
 	tests := map[string]struct {
-		Taints          []v1.Taint
-		Labels          map[string]string
-		WellKnownLabels map[string]string
-		TaintsFilter    taintsFilterFunc
-		LabelsFilter    labelsFilterFunc
-		Req             *PodRequirements
-		ExpectSuccess   bool
+		Taints        []v1.Taint
+		Labels        map[string]string
+		IndexedTaints map[string]interface{}
+		IndexedLabels map[string]interface{}
+		Req           *PodRequirements
+		ExpectSuccess bool
 	}{
 		"nil taints and labels": {
 			Taints: nil,
 			Labels: nil,
 			Req: &PodRequirements{
-				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
-				Affinity: &v1.Affinity{
-					NodeAffinity: &v1.NodeAffinity{
-						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-							NodeSelectorTerms: []v1.NodeSelectorTerm{
-								{
-									MatchExpressions: []v1.NodeSelectorRequirement{
-										{
-											Key:      "bar",
-											Operator: v1.NodeSelectorOpIn,
-											Values:   []string{"bar"},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
+				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: true,
 		},
@@ -394,24 +377,8 @@ func TestNodeTypePodRequirementsMet(t *testing.T) {
 			Taints: make([]v1.Taint, 0),
 			Labels: make(map[string]string),
 			Req: &PodRequirements{
-				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
-				Affinity: &v1.Affinity{
-					NodeAffinity: &v1.NodeAffinity{
-						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-							NodeSelectorTerms: []v1.NodeSelectorTerm{
-								{
-									MatchExpressions: []v1.NodeSelectorRequirement{
-										{
-											Key:      "bar",
-											Operator: v1.NodeSelectorOpIn,
-											Values:   []string{"bar"},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
+				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
+				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: true,
 		},
@@ -429,17 +396,36 @@ func TestNodeTypePodRequirementsMet(t *testing.T) {
 			Req:           &PodRequirements{},
 			ExpectSuccess: false,
 		},
+		"untolerated non-indexed taint": {
+			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
+			Labels:        nil,
+			IndexedTaints: make(map[string]interface{}),
+			Req:           &PodRequirements{},
+			ExpectSuccess: true,
+		},
 		"matched node selector": {
-			Taints: nil,
-			Labels: map[string]string{"bar": "bar"},
+			Taints:        nil,
+			Labels:        map[string]string{"bar": "bar"},
+			IndexedLabels: map[string]interface{}{"bar": ""},
 			Req: &PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: true,
 		},
+		"unset indexed label": {
+			Taints:        nil,
+			Labels:        nil,
+			IndexedLabels: map[string]interface{}{"bar": ""},
+			Req: &PodRequirements{
+				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
+				NodeSelector: map[string]string{"bar": "bar"},
+			},
+			ExpectSuccess: false,
+		},
 		"different label value": {
-			Taints: nil,
-			Labels: map[string]string{"bar": "baz"},
+			Taints:        nil,
+			Labels:        map[string]string{"bar": "baz"},
+			IndexedLabels: map[string]interface{}{"bar": ""},
 			Req: &PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
@@ -453,46 +439,10 @@ func TestNodeTypePodRequirementsMet(t *testing.T) {
 			},
 			ExpectSuccess: true,
 		},
-		"missing well-known label": {
-			Taints:          nil,
-			Labels:          nil,
-			WellKnownLabels: map[string]string{"bar": "bar"},
-			Req: &PodRequirements{
-				NodeSelector: map[string]string{"bar": "bar"},
-			},
-			ExpectSuccess: false,
-		},
-		"labels filter": {
-			Taints:       nil,
-			Labels:       map[string]string{"bar": "baz"},
-			LabelsFilter: func(key, value string) bool { return key != "bar" },
-			Req: &PodRequirements{
-				NodeSelector: map[string]string{"bar": "bar"},
-			},
-			ExpectSuccess: true,
-		},
-		"labels filter with well-known labels": {
-			Taints:          nil,
-			Labels:          map[string]string{"bar": "bar"},
-			LabelsFilter:    func(key, value string) bool { return key != "bar" },
-			WellKnownLabels: map[string]string{"baz": "baz"},
-			Req: &PodRequirements{
-				NodeSelector: map[string]string{"baz": "baz"},
-			},
-			ExpectSuccess: false,
-		},
-		"taints filter": {
-			Taints:       []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
-			Labels:       nil,
-			TaintsFilter: func(t *v1.Taint) bool { return t.Key != "foo" },
-			Req: &PodRequirements{
-				NodeSelector: map[string]string{"bar": "bar"},
-			},
-			ExpectSuccess: true,
-		},
 		"tolerated taints and matched node selector": {
-			Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
-			Labels: map[string]string{"bar": "bar"},
+			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
+			Labels:        map[string]string{"bar": "bar"},
+			IndexedLabels: map[string]interface{}{"bar": ""},
 			Req: &PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
@@ -500,16 +450,18 @@ func TestNodeTypePodRequirementsMet(t *testing.T) {
 			ExpectSuccess: true,
 		},
 		"untolerated taints and matched node selector": {
-			Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
-			Labels: map[string]string{"bar": "bar"},
+			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
+			Labels:        map[string]string{"bar": "bar"},
+			IndexedLabels: map[string]interface{}{"bar": ""},
 			Req: &PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
 			ExpectSuccess: false,
 		},
 		"tolerated taints and different label value": {
-			Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
-			Labels: map[string]string{"bar": "baz"},
+			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
+			Labels:        map[string]string{"bar": "baz"},
+			IndexedLabels: map[string]interface{}{"bar": ""},
 			Req: &PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
@@ -517,13 +469,14 @@ func TestNodeTypePodRequirementsMet(t *testing.T) {
 			ExpectSuccess: false,
 		},
 		"tolerated taints and missing label": {
-			Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
-			Labels: nil,
+			Taints:        []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
+			Labels:        nil,
+			IndexedLabels: map[string]interface{}{"bar": ""},
 			Req: &PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
-			ExpectSuccess: true,
+			ExpectSuccess: false,
 		},
 	}
 	for name, tc := range tests {
@@ -531,9 +484,8 @@ func TestNodeTypePodRequirementsMet(t *testing.T) {
 			nodeType := NewNodeType(
 				tc.Taints,
 				tc.Labels,
-				tc.WellKnownLabels,
-				tc.TaintsFilter,
-				tc.LabelsFilter,
+				tc.IndexedTaints,
+				tc.IndexedLabels,
 			)
 			matches, reason, err := nodeType.PodRequirementsMet(tc.Req)
 			assert.NoError(t, err)
