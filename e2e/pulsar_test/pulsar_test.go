@@ -43,7 +43,7 @@ const (
 )
 
 // We setup kind to expose ingresses on this ULR.
-const ingressUrl = "http://localhost:5000"
+const ingressUrl = "http://localhost:5001"
 
 // Armada exposes all ingresses on this path.
 // Routing to the correct service is done using the hostname header.
@@ -120,7 +120,7 @@ func TestSubmitJobs(t *testing.T) {
 				return err
 			}
 
-			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			expected := armadaevents.ExpectedSequenceFromRequestItem(armadaQueueName, armadaUserId, userNamespace, req.JobSetId, jobId, reqi)
 			actual, err := filterSequenceByJobId(sequence, jobId)
 			if err != nil {
 				return err
@@ -611,7 +611,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 				return err
 			}
 
-			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			expected := armadaevents.ExpectedSequenceFromRequestItem(armadaQueueName, armadaUserId, userNamespace, req.JobSetId, jobId, reqi)
 			actual, err := filterSequenceByJobId(sequence, jobId)
 			if err != nil {
 				return err
@@ -720,119 +720,6 @@ func TestSubmitJobWithError(t *testing.T) {
 		return nil
 	})
 	assert.NoError(t, err)
-}
-
-// expectedSequenceFromJobRequestItem returns the expected event sequence for a particular job request and response.
-func expectedSequenceFromRequestItem(jobSetName string, jobId *armadaevents.Uuid, reqi *api.JobSubmitRequestItem) *armadaevents.EventSequence {
-	// Any objects created for the job in addition to the main object.
-	// We only check that the correct number of objects of each type is created.
-	// Later, we may wish to also check the fields of the objects.
-	objects := make([]*armadaevents.KubernetesObject, 0)
-
-	// Set of ports associated with a service in the submitted job.
-	// Because Armada automatically creates services for ingresses with no corresponding service,
-	// we need this to create the correct number of services.
-	servicePorts := make(map[uint32]bool)
-
-	// One object per service + compute servicePorts
-	if reqi.Services != nil {
-		for _, service := range reqi.Services {
-			objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_Service{}})
-			for _, port := range service.Ports {
-				servicePorts[port] = true
-			}
-		}
-	}
-
-	// Services and ingresses created for the job.
-	if reqi.Ingress != nil {
-		for _, ingress := range reqi.Ingress {
-			objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_Ingress{}})
-
-			// Armada automatically creates services as needed by ingresses
-			// (each ingress needs to point to a service).
-			for _, port := range ingress.Ports {
-				if _, ok := servicePorts[port]; !ok {
-					objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_Service{}})
-				}
-			}
-		}
-	}
-
-	// Count the total number of PodSpecs in the job and add one less than that to the additional objects
-	// (since one PodSpec is placed into the main object).
-	numPodSpecs := 0
-	if reqi.PodSpec != nil {
-		numPodSpecs++
-	}
-	if reqi.PodSpecs != nil {
-		numPodSpecs += len(reqi.PodSpecs)
-	}
-	for i := 0; i < numPodSpecs-1; i++ {
-		objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_PodSpec{
-			// The submit server should add some defaults to the submitted podspec.
-			PodSpec: &armadaevents.PodSpecWithAvoidList{},
-		}})
-	}
-
-	return &armadaevents.EventSequence{
-		Queue:      armadaQueueName,
-		JobSetName: jobSetName,
-		UserId:     armadaUserId,
-		Events: []*armadaevents.EventSequence_Event{
-			{Event: &armadaevents.EventSequence_Event_SubmitJob{
-				SubmitJob: &armadaevents.SubmitJob{
-					JobId:           jobId,
-					DeduplicationId: reqi.ClientId,
-					Priority:        uint32(reqi.Priority),
-					ObjectMeta: &armadaevents.ObjectMeta{
-						Namespace:    userNamespace,
-						Name:         "",
-						KubernetesId: "",
-						Annotations:  nil,
-						Labels:       nil,
-					},
-					MainObject:      &armadaevents.KubernetesMainObject{Object: &armadaevents.KubernetesMainObject_PodSpec{}},
-					Objects:         objects,
-					Lifetime:        0,
-					AtMostOnce:      false,
-					Preemptible:     false,
-					ConcurrencySafe: false,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunLeased{
-				JobRunLeased: &armadaevents.JobRunLeased{
-					RunId:      nil,
-					JobId:      jobId,
-					ExecutorId: "",
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunAssigned{
-				JobRunAssigned: &armadaevents.JobRunAssigned{
-					RunId: nil,
-					JobId: jobId,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunRunning{
-				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId:         nil,
-					JobId:         jobId,
-					ResourceInfos: nil,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
-				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: nil,
-					JobId: jobId,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobSucceeded{
-				JobSucceeded: &armadaevents.JobSucceeded{
-					JobId: jobId,
-				},
-			}},
-		},
-	}
 }
 
 func isSequenceTypef(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) (ok bool) {

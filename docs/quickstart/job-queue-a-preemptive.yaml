@@ -1,0 +1,23 @@
+queue: queue-a
+jobSetId: job-set-1
+jobs:
+  - priority: 1
+    podSpec:
+      priorityClassName: armada-example-priority-class
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - sleep $(( (RANDOM % 60) + 30 ))
+          resources:
+            limits:
+              memory: 100Mi
+              cpu: 100m
+            requests:
+              memory: 100Mi
+              cpu: 100m

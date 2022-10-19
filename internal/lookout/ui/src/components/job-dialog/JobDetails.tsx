@@ -4,6 +4,7 @@ import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableC
 import { ExpandMore } from "@material-ui/icons"
 
 import { Job } from "../../services/JobService"
+import ContainerDetails from "./ContainerDetails"
 import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
 import RunDetailsRows from "./RunDetailsRows"
@@ -46,7 +47,6 @@ export default function JobDetails(props: DetailsProps) {
 
   const lastRun = props.job.runs.length > 0 ? props.job.runs[props.job.runs.length - 1] : null
   const initRuns = props.job.runs.length > 1 ? props.job.runs.slice(0, -1).reverse() : null
-
   return (
     <div className="details-content">
       <TableContainer>
@@ -82,6 +82,8 @@ export default function JobDetails(props: DetailsProps) {
           onToggleExpand={toggleExpanded}
         />
       )}
+      <ContainerDetails jobYaml={props.job.jobYaml} />
+
       {props.job.jobYaml && (
         <div className="details-yaml-container">
           <Accordion>

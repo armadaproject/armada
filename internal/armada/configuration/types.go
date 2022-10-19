@@ -62,10 +62,9 @@ type PulsarConfig struct {
 	// Authentication type. For now only "JWT" auth is valid
 	AuthenticationType string
 	// Path to the JWT token (must exist). This must be set if AutheticationType is "JWT"
-	JwtTokenPath                 string
-	JobsetEventsTopic            string
-	RedisFromPulsarSubscription  string
-	PulsarFromPulsarSubscription string
+	JwtTokenPath                string
+	JobsetEventsTopic           string
+	RedisFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
 	CompressionType string
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
@@ -134,7 +133,25 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources              []string
+	IndexedResources []string
+	// Node labels that the scheduler creates indexes for efficient lookup of.
+	// Should include node labels frequently used for scheduling.
+	// Since the scheduler can efficiently sort out nodes for which these labels
+	// are not set correctly when looking for a node a pod can be scheduled on.
+	//
+	// If not set, no labels are indexed.
+	//
+	// Applies only to the new scheduler.
+	IndexedNodeLabels map[string]interface{}
+	// Taint keys that the scheduler creates indexes for efficient lookup of.
+	// Should include taints frequently used for scheduling.
+	// Since the scheduler can efficiently sort out nodes for which these taints
+	// are not set correctly when looking for a node a pod can be scheduled on.
+	//
+	// If not set, all taints are indexed.
+	//
+	// Applies only to the new scheduler.
+	IndexedTaints                 map[string]interface{}
 	MinTerminationGracePeriod     time.Duration
 	MaxTerminationGracePeriod     time.Duration
 	DefaultTerminationGracePeriod time.Duration

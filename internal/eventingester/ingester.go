@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"regexp"
 	"sync"
 
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
@@ -30,6 +31,16 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	log.Info("Event Ingester Starting")
 
+	fatalRegexes := make([]*regexp.Regexp, len(config.FatalInsertionErrors))
+	for i, str := range config.FatalInsertionErrors {
+		rgx, err := regexp.Compile(str)
+		if err != nil {
+			log.Errorf("Error compiling regex %s", str)
+			panic(err)
+		}
+		fatalRegexes[i] = rgx
+	}
+
 	rc := redis.NewUniversalClient(&config.Redis)
 	defer func() {
 		if err := rc.Close(); err != nil {
@@ -50,9 +61,10 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	// Create a pulsar consumer
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.SubscriptionName,
-		Type:             pulsar.KeyShared,
+		Topic:                       config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:            config.SubscriptionName,
+		Type:                        pulsar.KeyShared,
+		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {
 		log.Errorf("Error creating pulsar consumer")
@@ -88,7 +100,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	// Insert into database
 	maxSize := 4 * 1024 * 1024
 	maxRows := 500
-	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows)
+	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows, fatalRegexes)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}

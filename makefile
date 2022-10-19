@@ -215,6 +215,16 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
+PULSARTEST_BUILD_PACKAGE := github.com/G-Research/armada/internal/pulsartest/build
+define PULSARTEST_LDFLAGS
+-X '$(PULSARTEST_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
+-X '$(PULSARTEST_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
+-X '$(PULSARTEST_BUILD_PACKAGE).GitCommit=$(GIT_COMMIT)' \
+-X '$(PULSARTEST_BUILD_PACKAGE).GoVersion=$(GO_VERSION_STRING)'
+endef
+build-pulsartest:
+	$(GO_CMD) $(gobuild) -ldflags="$(PULSARTEST_LDFLAGS)" -o ./bin/pulsartest cmd/pulsartest/main.go
+
 TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
 define TESTSUITE_LDFLAGS
 -X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
@@ -289,12 +299,12 @@ build-docker-event-ingester:
 	docker build $(dockerFlags) -t armada-event-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
 
 build-docker-lookout: node-setup
-	$(NODE_CMD) npm ci
-	# The following line is equivalent to running "npm run openapi".
-	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
-	# "npm run openapi" would result in running a docker container in docker.
+	$(NODE_CMD) yarn install --immutable
+	# The following line is equivalent to running "yarn run openapi".
+	# We use this instead of "yarn run openapi" since if NODE_CMD is set to run npm in docker,
+	# "yarn run openapi" would result in running a docker container in docker.
 	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
-	$(NODE_CMD) npm run build
+	$(NODE_CMD) yarn run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
@@ -589,13 +599,13 @@ build-dev-fakeexecutor:
 	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
 
 build-dev-lookout: node-setup
-	$(NODE_CMD) npm ci
-	# The following line is equivalent to running "npm run openapi".
-	# We use this instead of "npm run openapi" since if NODE_CMD is set to run npm in docker,
-	# "npm run openapi" would result in running a docker container in docker.
+	$(NODE_CMD) yarn install --immutable
+	# The following line is equivalent to running "yarn run openapi".
+	# We use this instead of "yarn run openapi" since if NODE_CMD is set to run npm in docker,
+	# "yarn run openapi" would result in running a docker container in docker.
 	docker run --rm $(DOCKER_RUN_AS_USER) \
 		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
-	$(NODE_CMD) npm run build
+	$(NODE_CMD) yarn run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	mkdir -p ./.build/lookout/config
 	#cp -a ./docs/dev/config/lookout/stan.yaml ./.build/lookout/config/
