@@ -67,7 +67,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		}
 
 		// Receive Pulsar messages on a channel
-		pulsarMsgs := pulsarutils.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime, metrics.Get())
+		pulsarMsgs := pulsarutils.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
 
 		// Turn the messages into instructions
 		compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)

@@ -26,9 +26,8 @@ const (
 var m = newMetrics()
 
 type Metrics struct {
-	pulsarConnectionErrorsCounter prometheus.Counter
-	dbErrorsCounter               *prometheus.CounterVec
-	pulsarMessageError            *prometheus.CounterVec
+	dbErrorsCounter    *prometheus.CounterVec
+	pulsarMessageError *prometheus.CounterVec
 }
 
 func Get() *Metrics {
@@ -36,10 +35,6 @@ func Get() *Metrics {
 }
 
 func newMetrics() *Metrics {
-	pulsarConnectionErrorsCounterOpts := prometheus.CounterOpts{
-		Name: ArmadaLookoutIngesterMetricsPrefix + "pulsar_connection_errors",
-		Help: "Number of Pulsar connection errors",
-	}
 	dbErrorsCounterOpts := prometheus.CounterOpts{
 		Name: ArmadaLookoutIngesterMetricsPrefix + "db_errors",
 		Help: "Number of database errors",
@@ -49,14 +44,9 @@ func newMetrics() *Metrics {
 		Help: "Number of message deserialization errors",
 	}
 	return &Metrics{
-		pulsarConnectionErrorsCounter: promauto.NewCounter(pulsarConnectionErrorsCounterOpts),
-		dbErrorsCounter:               promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
-		pulsarMessageError:            promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
+		dbErrorsCounter:    promauto.NewCounterVec(dbErrorsCounterOpts, []string{"operation"}),
+		pulsarMessageError: promauto.NewCounterVec(pulsarMessageErrorOpts, []string{"error"}),
 	}
-}
-
-func (m *Metrics) RecordPulsarConnectionError() {
-	m.pulsarConnectionErrorsCounter.Inc()
 }
 
 func (m *Metrics) RecordDBError(operation DBOperation) {

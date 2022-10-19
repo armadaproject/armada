@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
@@ -43,7 +41,7 @@ func TestReceive(t *testing.T) {
 		},
 	}
 	context, cancel := ctx.WithCancel(ctx.Background())
-	outputChan := Receive(context, consumer, 1, 1, 10*time.Millisecond, 10*time.Millisecond, metrics.Get())
+	outputChan := Receive(context, consumer, 1, 1, 10*time.Millisecond, 10*time.Millisecond)
 	var receivedMsgs []*ConsumerMessage
 
 	wg := sync.WaitGroup{}

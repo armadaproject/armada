@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -79,7 +77,6 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		2*config.BatchSize,
 		config.PulsarReceiveTimeout,
 		config.PulsarBackoffTime,
-		metrics.Get(),
 	)
 
 	// Batch up messages
