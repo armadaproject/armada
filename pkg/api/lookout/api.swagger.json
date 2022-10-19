@@ -399,6 +399,9 @@
         "jobState": {
           "type": "string"
         },
+        "jobStateDuration": {
+          "type": "string"
+        },
         "runs": {
           "type": "array",
           "items": {

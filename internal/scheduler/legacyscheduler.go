@@ -332,14 +332,22 @@ func (scheduler *LegacyScheduler) jobIsLargeEnough(jobTotalResourceRequests comm
 	if len(scheduler.MinimumJobSize) == 0 {
 		return true, ""
 	}
-	for resourceType, quantity := range jobTotalResourceRequests {
-		if limit, ok := scheduler.MinimumJobSize[resourceType]; ok {
-			if limit.Cmp(quantity) == 1 {
+	if len(jobTotalResourceRequests) == 0 {
+		return true, ""
+	}
+	for resourceType, limit := range scheduler.MinimumJobSize {
+		if q, ok := jobTotalResourceRequests[resourceType]; ok {
+			if limit.Cmp(q) == 1 {
 				return false, fmt.Sprintf(
 					"job requests %s %s, but the minimum is %s",
-					quantity.String(), resourceType, limit.String(),
+					q.String(), resourceType, limit.String(),
 				)
 			}
+		} else {
+			return false, fmt.Sprintf(
+				"job requests 0 %s, but the minimum is %s",
+				resourceType, limit.String(),
+			)
 		}
 	}
 	return true, ""
@@ -365,6 +373,8 @@ type LegacyScheduler struct {
 	SchedulingConfig configuration.SchedulingConfig
 	// Executor for which we're currently scheduling jobs.
 	ExecutorId string
+	// Resource pool of this executor.
+	Pool string
 	// Total resources across all clusters.
 	// Used when computing resource limits.
 	TotalResources schedulerobjects.ResourceList
@@ -531,10 +541,11 @@ func (c *LegacyScheduler) Schedule(
 
 		// Select a queue to schedule job from.
 		// Queues with fewer resources allocated to them are selected with higher probability.
-		weights := WeightsFromAggregatedUsageByQueue(
-			c.SchedulingConfig.ResourceScarcity, // TODO: May want to use util.GetResourceScarcity for pool-specific values.
+		weights := queueSelectionProbabilities(
 			c.PriorityFactorByQueue,
 			totalResourcesByQueue,
+			c.TotalResources,
+			c.SchedulingConfig.GetResourceScarcity(c.Pool),
 		)
 		queue, _ := pickQueueRandomly(weights, c.Rand)
 
@@ -624,16 +635,44 @@ func (c *LegacyScheduler) Schedule(
 	return jobs, nil
 }
 
-func WeightsFromAggregatedUsageByQueue(resourceScarcity map[string]float64, priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList) map[string]float64 {
-	rv := make(map[string]float64)
-	for queue, priorityFactor := range priorityFactorByQueue {
-		if rl, ok := aggregateResourceUsageByQueue[queue]; ok {
-			rv[queue] = priorityFactor / (ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl) + 1)
-		} else {
-			rv[queue] = priorityFactor
+func queueSelectionProbabilities(priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList, totalResources schedulerobjects.ResourceList, resourceScarcity map[string]float64) map[string]float64 {
+	probabilityByQueue := make(map[string]float64)
+	priorityFactorsSum := 0.0
+	for _, priorityFactor := range priorityFactorByQueue {
+		if priorityFactor < 1 {
+			priorityFactor = 1
 		}
+		priorityFactorsSum += priorityFactor
 	}
-	return rv
+	total := ResourceListAsWeightedApproximateFloat64(resourceScarcity, totalResources)
+	if total == 0 {
+		// Avoid division by 0.
+		total = 1
+	}
+	weightsSum := 0.0
+	for queue, priorityFactor := range priorityFactorByQueue {
+		if priorityFactor < 1 {
+			priorityFactor = 1
+		}
+		expected := 1 - priorityFactor/priorityFactorsSum
+		if len(priorityFactorByQueue) == 1 {
+			expected = 1
+		}
+		rl := aggregateResourceUsageByQueue[queue]
+		usage := ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
+		if usage == 0 {
+			// Avoid division by 0.
+			usage = 1
+		}
+		actual := usage / total
+		weight := expected / actual
+		probabilityByQueue[queue] = weight
+		weightsSum += weight
+	}
+	for queue, weight := range probabilityByQueue {
+		probabilityByQueue[queue] = weight / weightsSum
+	}
+	return probabilityByQueue
 }
 
 func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float64, rl schedulerobjects.ResourceList) float64 {
@@ -648,26 +687,26 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 // pickQueueRandomly returns a queue randomly selected from the provided map.
 // The probability of returning a particular queue AQueue is shares[AQueue] / sharesSum,
 // where sharesSum is the sum of all values in the provided map.
-func pickQueueRandomly(shares map[string]float64, random *rand.Rand) (string, float64) {
-	if len(shares) == 0 {
+func pickQueueRandomly(weights map[string]float64, random *rand.Rand) (string, float64) {
+	if len(weights) == 0 {
 		return "", 0
 	}
 
 	// Generate a random number between 0 and sum.
 	sum := 0.0
-	for _, share := range shares {
+	for _, share := range weights {
 		sum += share
 	}
 	pick := sum * random.Float64()
-	current := 0.0
 
 	// Iterate over queues in deterministic order.
-	queues := maps.Keys(shares)
+	queues := maps.Keys(weights)
 	slices.Sort(queues)
 
 	// Select the queue as indicated by pick.
+	current := 0.0
 	for _, queue := range queues {
-		share := shares[queue]
+		share := weights[queue]
 		current += share
 		if current >= pick {
 			return queue, share / sum
@@ -676,7 +715,7 @@ func pickQueueRandomly(shares map[string]float64, random *rand.Rand) (string, fl
 	}
 	log.Error("Could not randomly pick a queue, this should not happen!")
 	queue := queues[len(queues)-1]
-	return queue, shares[queue] / sum
+	return queue, weights[queue] / sum
 }
 
 func podSpecFromJob(job *api.Job) *v1.PodSpec {
