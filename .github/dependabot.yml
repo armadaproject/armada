@@ -11,6 +11,14 @@ updates:
     schedule:
       interval: "daily"
 
+  # Enable version updates for yarn
+  - package-ecosystem: "yarn"
+    # Look for `package.json` and `lock` files in the `internal/lookout` directory
+    directory: "./internal/lookout"
+    # Check the yarn registry for updates every day (weekdays)
+    schedule:
+      interval: "daily"
+
   # Maintain dependencies for Golang
   - package-ecosystem: "gomod"
     directory: "/"

@@ -9,9 +9,8 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func NewNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {
-	// TODO: Pass in well-known labels from config.
-	nodeType := NewNodeTypeFromNodeInfo(nodeInfo, nil, nil, nil)
+func NewNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *Node {
+	nodeType := NewNodeTypeFromNodeInfo(nodeInfo, indexedTaints, indexedLabels)
 	availableByPriorityAndResource := NewAvailableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {
 		availableByPriorityAndResource.MarkUsed(p, ResourceList{Resources: rs.Resources})

@@ -1,6 +1,11 @@
 package schedulerobjects
 
-import resource "k8s.io/apimachinery/pkg/api/resource"
+import (
+	"fmt"
+	"strings"
+
+	resource "k8s.io/apimachinery/pkg/api/resource"
+)
 
 type QuantityByPriorityAndResourceType map[int32]ResourceList
 
@@ -10,6 +15,21 @@ func (a QuantityByPriorityAndResourceType) DeepCopy() QuantityByPriorityAndResou
 		rv[p] = rl.DeepCopy()
 	}
 	return rv
+}
+
+func (a QuantityByPriorityAndResourceType) String() string {
+	var sb strings.Builder
+	i := 0
+	sb.WriteString("{")
+	for p, rl := range a {
+		if i < len(a)-1 {
+			sb.WriteString(fmt.Sprintf("%d: %s, ", p, rl.CompactString()))
+		} else {
+			sb.WriteString(fmt.Sprintf("%d: %s", p, rl.CompactString()))
+		}
+	}
+	sb.WriteString("}")
+	return sb.String()
 }
 
 func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
@@ -119,6 +139,22 @@ func (a ResourceList) Equal(b ResourceList) bool {
 		}
 	}
 	return true
+}
+
+func (rl ResourceList) CompactString() string {
+	var sb strings.Builder
+	sb.WriteString("{")
+	i := 0
+	for t, q := range rl.Resources {
+		if i < len(rl.Resources)-1 {
+			sb.WriteString(fmt.Sprintf("%s: %s, ", t, q.String()))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s: %s", t, q.String()))
+		}
+		i++
+	}
+	sb.WriteString("}")
+	return sb.String()
 }
 
 // AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.

@@ -3,7 +3,7 @@
 OSTYPE=$(uname -s)
 COMPOSE_CMD='docker-compose'
 CLUSTER_NAME="demo-a"
-COMPOSE_FILE="./docs/dev/armada-compose.yaml"
+COMPOSE_FILE="./docs/dev/docker-compose.yaml"
 
 docker compose > /dev/null 2>&1
 if [ $? -eq 0 ] ; then
