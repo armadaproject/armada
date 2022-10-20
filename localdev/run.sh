@@ -1,17 +1,17 @@
 #! /bin/bash
+
 INFRA_SVCS="redis postgres pulsar stan"
 ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservice"
 
 # make the dir containing this file the CWD
-cd "$(dirname "$0")"
+cd "$(dirname "${0}")" || exit
 
 # start the kubernetes cluster if needed
 kind get clusters | grep armada-test &> /dev/null
 if [ $? -ne 0 ];
 then
-scripts/kind-start.sh
+    scripts/kind-start.sh
 fi
-
 
 # select arm64 image for pulsar if needed
 uname -a | grep "arm64" &> /dev/null
