@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -103,7 +105,7 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	var filters []goqu.Expression
 
 	if opts.Queue != "" {
-		filters = append(filters, StartsWith(job_queue, opts.Queue))
+		filters = append(filters, GlobSearchOrExact(job_queue, opts.Queue))
 	}
 
 	if opts.JobId != "" {
@@ -111,7 +113,7 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	}
 
 	if opts.Owner != "" {
-		filters = append(filters, StartsWith(job_owner, opts.Owner))
+		filters = append(filters, GlobSearchOrExact(job_owner, opts.Owner))
 	}
 
 	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
@@ -196,20 +198,22 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 		if row.JobId.Valid {
 			jobId := row.JobId.String
 			if _, ok := jobMap[jobId]; !ok {
-				state := ""
+				var state, stateDuration string
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
 				}
+				stateDuration = determineJobStateDuration(JobState(state), row)
 				job, err := makeJobFromRow(row)
 				if err != nil {
 					return nil, err
 				}
 				jobMap[jobId] = &lookout.JobInfo{
-					Job:       job,
-					Cancelled: ParseNullTime(row.Cancelled),
-					JobState:  state,
-					Runs:      []*lookout.RunInfo{},
-					JobJson:   ParseNullString(row.JobJson),
+					Job:              job,
+					Cancelled:        ParseNullTime(row.Cancelled),
+					JobState:         state,
+					JobStateDuration: stateDuration,
+					Runs:             []*lookout.RunInfo{},
+					JobJson:          ParseNullString(row.JobJson),
 				}
 			}
 
@@ -246,6 +250,29 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 			return jobInfos[i].Job.Id < jobInfos[j].Job.Id
 		}
 	})
+}
+
+func determineJobStateDuration(state JobState, row *JobRow) string {
+	if row == nil {
+		return ""
+	}
+	var timeStamp time.Time
+
+	switch state {
+	case JobSucceeded, JobFailed:
+		timeStamp = row.Finished.Time
+	case JobRunning:
+		timeStamp = row.Started.Time
+	case JobPending:
+		timeStamp = row.Created.Time
+	case JobCancelled:
+		timeStamp = row.Cancelled.Time
+	case JobQueued, JobDuplicate:
+		timeStamp = row.Submitted.Time
+	}
+
+	timeInState := time.Now().Sub(timeStamp)
+	return duration.ShortHumanDuration(timeInState)
 }
 
 func makeJobFromRow(row *JobRow) (*api.Job, error) {

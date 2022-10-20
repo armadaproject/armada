@@ -110,6 +110,16 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           width: 0.5,
         },
         {
+          id: "jobStateDuration",
+          name: "Time in State",
+          accessor: "jobStateDuration",
+          urlParamKey: "job_state_duration",
+          isDisabled: false,
+          filter: [],
+          defaultFilter: [],
+          width: 0.5,
+        },
+        {
           id: "queue",
           name: "Queue",
           accessor: "queue",
@@ -341,6 +351,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         case "queue":
         case "jobId":
         case "owner":
+        case "jobStateDuration":
         case "jobSet": {
           col.filter = ""
           break

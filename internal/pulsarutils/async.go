@@ -61,7 +61,6 @@ func Receive(
 
 		// Run until ctx is cancelled.
 		for {
-
 			// Periodic logging.
 			if time.Since(lastLogged) > logInterval {
 				log.WithFields(
@@ -83,7 +82,6 @@ func Receive(
 				close(out)
 				return
 			default:
-
 				// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
 				ctxWithTimeout, cancel := context.WithTimeout(ctx, receiveTimeout)
 				msg, err := consumer.Receive(ctxWithTimeout)

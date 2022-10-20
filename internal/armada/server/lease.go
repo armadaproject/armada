@@ -482,6 +482,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 	sched.MinimumJobSize = req.MinimumJobSize
+	sched.Pool = req.Pool
 
 	// Log initial scheduler state.
 	log.Info("LegacyScheduler:\n" + sched.String())
