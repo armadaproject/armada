@@ -38,7 +38,7 @@ func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
 }
 
 func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
-	jobJson, err := json.Marshal(job)
+	jobJson, err := job.Marshal()
 	if err != nil {
 		return err
 	}
@@ -48,7 +48,6 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 		return err
 	}
 
-	preprocessedJobJson := util.RemoveNullsFromJson(jobJson)
 	return tx.Wrap(func() error {
 		ds := tx.Insert(jobTable).
 			With("run_states", getRunStateCounts(tx, job.Id)).
@@ -59,7 +58,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 				"jobset":        job.JobSetId,
 				"priority":      job.Priority,
 				"submitted":     ToUTC(job.Created),
-				"orig_job_spec": preprocessedJobJson,
+				"orig_job_spec": jobJson,
 				"state":         JobStateToIntMap[JobQueued],
 				"job_updated":   timestamp,
 			}).
@@ -69,7 +68,7 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 				"jobset":        job.JobSetId,
 				"priority":      job.Priority,
 				"submitted":     ToUTC(job.Created),
-				"orig_job_spec": preprocessedJobJson,
+				"orig_job_spec": jobJson,
 				"state":         determineJobState(tx),
 				"job_updated":   timestamp,
 			}).Where(job_jobUpdated.Lt(timestamp)))

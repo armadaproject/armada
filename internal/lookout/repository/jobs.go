@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -253,11 +254,12 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		return nil, nil
 	}
 
-	var jobFromJson api.Job
-	jobJson := ParseNullString(row.OrigJobSpec)
-	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
+	var annotations map[string]string
+	jobSpec, err := makeApiJob([]byte(row.OrigJobSpec.String))
 	if err != nil {
-		log.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)
+		log.Warnf("unable to load orig job spec. %+v", err)
+	} else {
+		annotations = jobSpec.Annotations
 	}
 
 	return &api.Job{
@@ -267,8 +269,37 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		Owner:       ParseNullString(row.Owner),
 		Priority:    ParseNullFloat(row.Priority),
 		Created:     ParseNullTimeDefault(row.Submitted),
-		Annotations: jobFromJson.Annotations,
+		Annotations: annotations,
 	}, nil
+}
+
+func makeApiJob(origJobSpec []byte) (*api.Job, error) {
+	var jobFromJson api.Job
+	if len(origJobSpec) == 0 {
+		return nil, errors.New("no job spec provided")
+	}
+
+	log.Errorf("trying to convert %v", origJobSpec)
+	decompressor, err := compress.NewZlibDecompressor()
+	if err != nil {
+		log.Errorf("error making decompressor %v", err)
+		return nil, err
+	}
+	jobProto, err := decompressor.Decompress(origJobSpec)
+	if err != nil {
+		log.Errorf("error decompressing %v", err)
+		// possibly not compressed, so
+		// try to unmarshal input directly
+		jobProto = origJobSpec
+	}
+	err = jobFromJson.Unmarshal(jobProto)
+	if err != nil {
+		log.Errorf("error proto unmarshal %v", err)
+		return nil, err
+	}
+
+	log.Errorf("got job %v", jobFromJson)
+	return &jobFromJson, nil
 }
 
 func makeRunFromRow(row *JobRow) *lookout.RunInfo {

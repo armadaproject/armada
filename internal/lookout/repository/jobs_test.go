@@ -1,17 +1,15 @@
 package repository
 
 import (
-	"encoding/json"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 func TestGetJobs_GetSucceededJob(t *testing.T) {
@@ -204,10 +202,7 @@ func TestGetJobs_GetJobJson(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 
-		var job *api.Job
-		err = json.Unmarshal([]byte(jobInfos[0].JobJson), &job)
-		assert.NoError(t, err)
-		AssertJobsAreEquivalent(t, queued.job, job)
+		AssertJobsAreEquivalent(t, queued.job, jobInfos[0].Job)
 	})
 }
 
