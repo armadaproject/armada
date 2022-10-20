@@ -214,12 +214,12 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 					return nil, err
 				}
 				jobMap[jobId] = &lookout.JobInfo{
-nn					Job:       job,
-					Cancelled: ParseNullTime(row.Cancelled),
-					JobState:  state,
+					Job:              job,
+					Cancelled:        ParseNullTime(row.Cancelled),
+					JobState:         state,
 					JobStateDuration: stateDuration,
-					Runs:      []*lookout.RunInfo{},
-					JobJson:   string(jobJson),
+					Runs:             []*lookout.RunInfo{},
+					JobJson:          string(jobJson),
 				}
 			}
 

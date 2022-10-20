@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
@@ -229,7 +228,6 @@ var jobSucceeded = &armadaevents.EventSequence_Event{
 
 var (
 	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
-	expectedApiJobJson, _  = json.Marshal(expectedApiJob)
 	expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
 )
 

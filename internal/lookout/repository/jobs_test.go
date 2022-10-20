@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/duration"
 
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 func TestGetJobs_GetQueued(t *testing.T) {

@@ -232,7 +232,7 @@ func (l *DB) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJ
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobProto, i.State, i.Updated)
+			_, err := l.db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobProto, i.State, i.Updated)
 			if err != nil {
 				l.m.RecordDBError(metrics.DBOperationInsert)
 			}
