@@ -68,12 +68,12 @@ func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.Sche
 		exceedsBounds = (terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
 			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()))
 	}
-
 	if exceedsBounds {
-		return errors.Errorf("terminationGracePeriodSeconds of %v must be between %v and %v, or omitted",
+		return errors.Errorf("terminationGracePeriodSeconds of %v must be in [%d, %d]s, or omitted",
 			terminationGracePeriodSeconds,
-			config.MinTerminationGracePeriod.Seconds(),
-			config.MaxTerminationGracePeriod.Seconds())
+			int64(config.MinTerminationGracePeriod.Seconds()),
+			int64(config.MaxTerminationGracePeriod.Seconds()),
+		)
 	}
 	return nil
 }

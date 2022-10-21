@@ -64,9 +64,8 @@ func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 			DefaultPriorityClass: "high",
 			PriorityClasses:      map[string]int32{"high": 0},
 		},
-		DefaultTerminationGracePeriod: time.Duration(20 * time.Second),
-		MinTerminationGracePeriod:     time.Duration(30 * time.Second),
-		MaxTerminationGracePeriod:     time.Duration(300 * time.Second),
+		MinTerminationGracePeriod: time.Duration(30 * time.Second),
+		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
 	}
 
 	podspecWithinRange := &v1.PodSpec{
