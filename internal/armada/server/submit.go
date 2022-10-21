@@ -12,7 +12,6 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -883,32 +882,17 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 	}
 
-	// Add default tolerations.
-	// Tolerations are applied in the following order:
-	// - Global defaults.
-	// - Per-priority class defaults.
-	// - Tolerations explicitly set by the pod spec.
-	// Tolerations applied later override tolerations applied earlier.
-	podTolerations := make(map[string]v1.Toleration)
-	for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
-		podTolerations[defaultToleration.Key] = defaultToleration
+	// Apply default priority class.
+	if server.schedulingConfig.Preemption.Enabled && spec.PriorityClassName == "" {
+		spec.PriorityClassName = server.schedulingConfig.Preemption.DefaultPriorityClass
 	}
-	if server.schedulingConfig.DefaultJobTolerationsByPriorityClass != nil {
-		for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName] {
-			podTolerations[defaultToleration.Key] = defaultToleration
-		}
-	}
-	for _, podToleration := range spec.Tolerations {
-		podTolerations[podToleration.Key] = podToleration
-	}
-	spec.Tolerations = maps.Values(podTolerations)
 
-	defaultPriorityClass := server.schedulingConfig.Preemption.DefaultPriorityClass
-	defaultPriorityClassDefined := defaultPriorityClass != ""
-	noPriorityClassAttached := spec.PriorityClassName == ""
-	shouldDefaultPriorityClass := server.schedulingConfig.Preemption.Enabled && defaultPriorityClassDefined && noPriorityClassAttached
-	if shouldDefaultPriorityClass {
-		spec.PriorityClassName = defaultPriorityClass
+	// Add default tolerations.
+	spec.Tolerations = append(spec.Tolerations, server.schedulingConfig.DefaultJobTolerations...)
+	if server.schedulingConfig.DefaultJobTolerationsByPriorityClass != nil {
+		if tolerations, ok := server.schedulingConfig.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
+			spec.Tolerations = append(spec.Tolerations, tolerations...)
+		}
 	}
 
 	// add missing TerminationGracePeriod if needed
