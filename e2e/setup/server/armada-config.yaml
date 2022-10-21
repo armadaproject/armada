@@ -24,5 +24,4 @@ scheduling:
       effect: "NoSchedule"
   minTerminationGracePeriod: 0s
   maxTerminationGracePeriod: 30s
-  defaultTerminationGracePeriod: 0s
 defaultToLegacyEvents: true

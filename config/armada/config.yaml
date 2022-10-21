@@ -63,7 +63,6 @@ scheduling:
     memory: 1Mi
   minTerminationGracePeriod: 0s
   maxTerminationGracePeriod: 300s
-  defaultTerminationGracePeriod: 5s
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
