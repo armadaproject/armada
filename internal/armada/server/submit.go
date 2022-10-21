@@ -12,6 +12,7 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -882,18 +883,31 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 	}
 
-	// Each pod must have some default tolerations
-	// Here, we add any that are missing
+	// Add default tolerations.
+	// Tolerations are applied in the following order:
+	// - Global defaults.
+	// - Per-priority class defaults.
+	// - Tolerations explicitly set by the pod spec.
+	// Tolerations applied later override tolerations applied earlier.
 	podTolerations := make(map[string]v1.Toleration)
+	for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
+		podTolerations[defaultToleration.Key] = defaultToleration
+	}
+	if server.schedulingConfig.DefaultJobTolerationsByPriorityClass != nil {
+		for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName] {
+			podTolerations[defaultToleration.Key] = defaultToleration
+		}
+	}
 	for _, podToleration := range spec.Tolerations {
 		podTolerations[podToleration.Key] = podToleration
 	}
-	for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
-		podToleration, ok := podTolerations[defaultToleration.Key]
-		if !ok || !defaultToleration.MatchToleration(&podToleration) {
-			spec.Tolerations = append(spec.Tolerations, defaultToleration)
-		}
-	}
+	spec.Tolerations = maps.Values(podTolerations)
+	// for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
+	// 	podToleration, ok := podTolerations[defaultToleration.Key]
+	// 	if !ok || !defaultToleration.MatchToleration(&podToleration) {
+	// 		spec.Tolerations = append(spec.Tolerations, defaultToleration)
+	// 	}
+	// }
 
 	defaultPriorityClass := server.schedulingConfig.Preemption.DefaultPriorityClass
 	defaultPriorityClassDefined := defaultPriorityClass != ""
