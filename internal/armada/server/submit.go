@@ -882,25 +882,17 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 	}
 
-	// Each pod must have some default tolerations
-	// Here, we add any that are missing
-	podTolerations := make(map[string]v1.Toleration)
-	for _, podToleration := range spec.Tolerations {
-		podTolerations[podToleration.Key] = podToleration
-	}
-	for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
-		podToleration, ok := podTolerations[defaultToleration.Key]
-		if !ok || !defaultToleration.MatchToleration(&podToleration) {
-			spec.Tolerations = append(spec.Tolerations, defaultToleration)
-		}
+	// Apply default priority class.
+	if server.schedulingConfig.Preemption.Enabled && spec.PriorityClassName == "" {
+		spec.PriorityClassName = server.schedulingConfig.Preemption.DefaultPriorityClass
 	}
 
-	defaultPriorityClass := server.schedulingConfig.Preemption.DefaultPriorityClass
-	defaultPriorityClassDefined := defaultPriorityClass != ""
-	noPriorityClassAttached := spec.PriorityClassName == ""
-	shouldDefaultPriorityClass := server.schedulingConfig.Preemption.Enabled && defaultPriorityClassDefined && noPriorityClassAttached
-	if shouldDefaultPriorityClass {
-		spec.PriorityClassName = defaultPriorityClass
+	// Add default tolerations.
+	spec.Tolerations = append(spec.Tolerations, server.schedulingConfig.DefaultJobTolerations...)
+	if server.schedulingConfig.DefaultJobTolerationsByPriorityClass != nil {
+		if tolerations, ok := server.schedulingConfig.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
+			spec.Tolerations = append(spec.Tolerations, tolerations...)
+		}
 	}
 
 	server.applyTerminationGracePeriodDefault(spec)

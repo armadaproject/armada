@@ -116,10 +116,13 @@ type SchedulingConfig struct {
 	// The scheduler stores reports about scheduling decisions for each job.
 	// These can be queried by users. To limit memory usage, old reports are deleted
 	// to keep the number of stored reports within this limit.
-	MaxJobReportsToStore  int
-	Lease                 LeaseSettings
-	DefaultJobLimits      common.ComputeResources
+	MaxJobReportsToStore int
+	Lease                LeaseSettings
+	DefaultJobLimits     common.ComputeResources
+	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
+	// Set of tolerations added to all submitted pods of a given priority class.
+	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.
