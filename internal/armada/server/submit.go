@@ -919,9 +919,6 @@ func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec)
 		defaultTerminationGracePeriodSeconds := int64(
 			server.schedulingConfig.MinTerminationGracePeriod.Seconds(),
 		)
-		if defaultTerminationGracePeriodSeconds < 0 {
-			panic("MinTerminationGracePeriod is negative")
-		}
 		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriodSeconds
 	}
 }
