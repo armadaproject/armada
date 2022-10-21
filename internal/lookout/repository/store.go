@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -112,7 +110,7 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 }
 
 func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
-	updatedJobJson, err := r.getReprioritizedJobJson(event)
+	updatedJobProto, err := r.getReprioritizedJobProto(event)
 	if err != nil {
 		return err
 	}
@@ -123,13 +121,13 @@ func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) e
 			"queue":         event.Queue,
 			"jobset":        event.JobSetId,
 			"priority":      event.NewPriority,
-			"orig_job_spec": updatedJobJson,
+			"orig_job_spec": updatedJobProto,
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
 			"queue":         event.Queue,
 			"jobset":        event.JobSetId,
 			"priority":      event.NewPriority,
-			"orig_job_spec": updatedJobJson,
+			"orig_job_spec": updatedJobProto,
 		}))
 
 	_, err = ds.Prepared(true).Executor().Exec()
@@ -376,7 +374,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 	})
 }
 
-func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
+func (r *SQLJobStore) getReprioritizedJobProto(event *api.JobReprioritizedEvent) ([]byte, error) {
 	selectDs := r.db.From(jobTable).
 		Select(job_orig_job_spec).
 		Where(job_jobId.Eq(event.JobId))
@@ -384,26 +382,25 @@ func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) 
 	jobsInQueueRows := make([]*JobRow, 0)
 	err := selectDs.Prepared(true).ScanStructs(&jobsInQueueRows)
 	if err != nil {
-		return sql.NullString{}, err
+		return nil, err
 	}
 	if len(jobsInQueueRows) == 0 {
-		return sql.NullString{}, nil
+		return nil, nil
 	}
 
-	var jobFromJson api.Job
-	jobJson := ParseNullString(jobsInQueueRows[0].OrigJobSpec)
-	err = json.Unmarshal([]byte(jobJson), &jobFromJson)
-	// We don't care about parsing errors, the JSON will not be updated
+	var jobFromProto api.Job
+	jobProto := jobsInQueueRows[0].OrigJobSpec
+	err = jobFromProto.Unmarshal([]byte(jobProto.String))
 	if err != nil {
-		return sql.NullString{}, nil
+		return nil, err
 	}
 
-	jobFromJson.Priority = event.NewPriority
-	updatedJobJson, err := json.Marshal(jobFromJson)
+	jobFromProto.Priority = event.NewPriority
+	updatedJobProto, err := jobFromProto.Marshal()
 	if err != nil {
-		return sql.NullString{}, nil
+		return nil, nil
 	}
-	return NewNullString(string(updatedJobJson)), nil
+	return updatedJobProto, nil
 }
 
 func upsertJobRun(tx *goqu.TxDatabase, record goqu.Record) error {

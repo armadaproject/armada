@@ -288,7 +288,7 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 
 	jobSpec, err := makeApiJob([]byte(row.OrigJobSpec.String))
 	if err != nil {
-		log.Warnf("unable to load orig job spec. %+v", err)
+		log.Errorf("unable to unmarshall orig job spec. %+v", err)
 	}
 
 	return &api.Job{
