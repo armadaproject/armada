@@ -118,7 +118,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -227,7 +227,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -268,7 +268,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
       - run:
@@ -324,7 +324,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -343,7 +343,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
