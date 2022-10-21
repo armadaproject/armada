@@ -902,12 +902,6 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		podTolerations[podToleration.Key] = podToleration
 	}
 	spec.Tolerations = maps.Values(podTolerations)
-	// for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
-	// 	podToleration, ok := podTolerations[defaultToleration.Key]
-	// 	if !ok || !defaultToleration.MatchToleration(&podToleration) {
-	// 		spec.Tolerations = append(spec.Tolerations, defaultToleration)
-	// 	}
-	// }
 
 	defaultPriorityClass := server.schedulingConfig.Preemption.DefaultPriorityClass
 	defaultPriorityClassDefined := defaultPriorityClass != ""
