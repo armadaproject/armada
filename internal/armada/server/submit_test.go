@@ -1737,7 +1737,7 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 							Effect:   "NoSchedule",
 						},
 					},
-					TerminationGracePeriodSeconds: pointer.Int64(60),
+					TerminationGracePeriodSeconds: pointer.Int64(30),
 					PriorityClassName:             "high",
 				},
 			},
