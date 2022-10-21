@@ -170,22 +170,16 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestQueueSelectionProbabilities(t *testing.T) {
+func TestQueueSelectionWeights(t *testing.T) {
 	tests := map[string]struct {
 		PriorityFactorByQueue         map[string]float64
 		AggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList
-		TotalResources                schedulerobjects.ResourceList
 		ResourceScarcity              map[string]float64
 		ExpectedByQueue               map[string]float64
 	}{
 		"one queues": {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
@@ -196,11 +190,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
@@ -214,11 +203,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 				"B": 1,
 				"C": 1,
 			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
-			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
 				"A": 1.0 / 3.0,
@@ -230,11 +214,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 2,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
@@ -252,11 +231,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("100000"),
 					},
-				},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("100001"),
 				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
@@ -282,24 +256,42 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 					},
 				},
 			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("3"),
-				},
-			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
 				"A": 1.0 / 2.0,
 				"B": 1.0 / 2.0,
 			},
 		},
+		"two queues with no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			AggregateResourceUsageByQueue: make(map[string]schedulerobjects.ResourceList),
+			ResourceScarcity:              map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0 / 2.0,
+				"B": 1.0 / 2.0,
+			},
+		},
+		"two queues with unequal factors and no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 2,
+			},
+			AggregateResourceUsageByQueue: make(map[string]schedulerobjects.ResourceList),
+			ResourceScarcity:              map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 2.0 / 3.0,
+				"B": 1.0 / 3.0,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actualByQueue := queueSelectionProbabilities(
+			actualByQueue := queueSelectionWeights(
 				tc.PriorityFactorByQueue,
 				tc.AggregateResourceUsageByQueue,
-				tc.TotalResources,
 				tc.ResourceScarcity,
 			)
 			if !assert.Equal(t, len(tc.ExpectedByQueue), len(actualByQueue)) {
