@@ -176,9 +176,8 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 				  owner     varchar(512),
 				  jobset    varchar(1024),
 				  priority  double precision,
-	              submitted timestamp,
-				  job       jsonb,
-                  orig_job_spec bytea,
+	                          submitted timestamp,
+	                          orig_job_spec bytea,
 				  state     smallint,
 				  job_updated   timestamp
 				) ON COMMIT DROP;`, tmpTable))
@@ -191,7 +190,7 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "job", "orig_job_spec", "state", "job_updated"},
+				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "orig_job_spec", "state", "job_updated"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
@@ -200,7 +199,6 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 						instructions[i].JobSet,
 						instructions[i].Priority,
 						instructions[i].Submitted,
-						instructions[i].JobJson,
 						instructions[i].JobProto,
 						instructions[i].State,
 						instructions[i].Updated,
@@ -214,7 +212,7 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`
-					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated) SELECT * from %s
+					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, orig_job_spec, state, job_updated) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			if err != nil {
@@ -229,12 +227,12 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 
 // CreateJobsScalar will insert jobs one by one into the database
 func (l *DB) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJobInstruction) {
-	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, job, orig_job_spec, state, job_updated)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, orig_job_spec, state, job_updated)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobJson, i.JobProto, i.State, i.Updated)
+			_, err := l.db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobProto, i.State, i.Updated)
 			if err != nil {
 				l.m.RecordDBError(metrics.DBOperationInsert)
 			}

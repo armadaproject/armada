@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
@@ -229,7 +228,6 @@ var jobSucceeded = &armadaevents.EventSequence_Event{
 
 var (
 	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
-	expectedApiJobJson, _  = json.Marshal(expectedApiJob)
 	expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
 )
 
@@ -241,7 +239,6 @@ var expectedSubmit = model.CreateJobInstruction{
 	JobSet:    jobSetName,
 	Priority:  priority,
 	Submitted: baseTime,
-	JobJson:   expectedApiJobJson,
 	JobProto:  expectedApiJobProto,
 	State:     repository.JobQueuedOrdinal,
 	Updated:   baseTime,
@@ -579,7 +576,7 @@ func TestSubmitWithNullChar(t *testing.T) {
 	svc := New(metrics.Get())
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	assert.Len(t, instructions.JobsToCreate, 1)
-	assert.NotContains(t, string(instructions.JobsToCreate[0].JobJson), "\\u0000")
+	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
 }
 
 func TestFailedWithNullCharInError(t *testing.T) {

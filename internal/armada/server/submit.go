@@ -882,38 +882,36 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 	}
 
-	// Each pod must have some default tolerations
-	// Here, we add any that are missing
-	podTolerations := make(map[string]v1.Toleration)
-	for _, podToleration := range spec.Tolerations {
-		podTolerations[podToleration.Key] = podToleration
+	// Apply default priority class.
+	if server.schedulingConfig.Preemption.Enabled && spec.PriorityClassName == "" {
+		spec.PriorityClassName = server.schedulingConfig.Preemption.DefaultPriorityClass
 	}
-	for _, defaultToleration := range server.schedulingConfig.DefaultJobTolerations {
-		podToleration, ok := podTolerations[defaultToleration.Key]
-		if !ok || !defaultToleration.MatchToleration(&podToleration) {
-			spec.Tolerations = append(spec.Tolerations, defaultToleration)
+
+	// Add default tolerations.
+	spec.Tolerations = append(spec.Tolerations, server.schedulingConfig.DefaultJobTolerations...)
+	if server.schedulingConfig.DefaultJobTolerationsByPriorityClass != nil {
+		if tolerations, ok := server.schedulingConfig.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
+			spec.Tolerations = append(spec.Tolerations, tolerations...)
 		}
 	}
 
-	defaultPriorityClass := server.schedulingConfig.Preemption.DefaultPriorityClass
-	defaultPriorityClassDefined := defaultPriorityClass != ""
-	noPriorityClassAttached := spec.PriorityClassName == ""
-	shouldDefaultPriorityClass := server.schedulingConfig.Preemption.Enabled && defaultPriorityClassDefined && noPriorityClassAttached
-	if shouldDefaultPriorityClass {
-		spec.PriorityClassName = defaultPriorityClass
-	}
-
-	// add missing TerminationGracePeriod if needed
 	server.applyTerminationGracePeriodDefault(spec)
 }
 
-// applyTerminationGracePeriodDefault will give the podspec a default if needed
+// applyTerminationGracePeriodDefault sets the termination grace period
+// of the pod equal to the minimum if
+// - the pod does not explicitly set a termination period, or
+// - the pod explicitly sets a termination period of 0.
 func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
-	specNeedsTerminationGracePeriod := spec.TerminationGracePeriodSeconds == nil
-	defaultTerminationGracePeriod := int64(server.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
-
-	if specNeedsTerminationGracePeriod {
-		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriod
+	var podTerminationGracePeriodSeconds int64
+	if spec.TerminationGracePeriodSeconds != nil {
+		podTerminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
+	}
+	if podTerminationGracePeriodSeconds == 0 {
+		defaultTerminationGracePeriodSeconds := int64(
+			server.schedulingConfig.MinTerminationGracePeriod.Seconds(),
+		)
+		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriodSeconds
 	}
 }
 

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -12,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/duration"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -85,7 +87,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			job_priority,
 			job_submitted,
 			job_cancelled,
-			job_job,
+			job_orig_job_spec,
 			job_state,
 			jobRun_runId,
 			jobRun_podNumber,
@@ -207,13 +209,17 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 				if err != nil {
 					return nil, err
 				}
+				jobJson, err := json.Marshal(job)
+				if err != nil {
+					return nil, err
+				}
 				jobMap[jobId] = &lookout.JobInfo{
 					Job:              job,
 					Cancelled:        ParseNullTime(row.Cancelled),
 					JobState:         state,
 					JobStateDuration: stateDuration,
 					Runs:             []*lookout.RunInfo{},
-					JobJson:          ParseNullString(row.JobJson),
+					JobJson:          string(jobJson),
 				}
 			}
 
@@ -280,11 +286,9 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		return nil, nil
 	}
 
-	var jobFromJson api.Job
-	jobJson := ParseNullString(row.JobJson)
-	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
+	jobSpec, err := makeApiJob([]byte(row.OrigJobSpec.String))
 	if err != nil {
-		log.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)
+		log.Errorf("unable to unmarshall orig job spec. %+v", err)
 	}
 
 	return &api.Job{
@@ -294,8 +298,31 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		Owner:       ParseNullString(row.Owner),
 		Priority:    ParseNullFloat(row.Priority),
 		Created:     ParseNullTimeDefault(row.Submitted),
-		Annotations: jobFromJson.Annotations,
+		Annotations: jobSpec.GetAnnotations(),
 	}, nil
+}
+
+func makeApiJob(origJobSpec []byte) (*api.Job, error) {
+	var unmarshalledJob api.Job
+	if len(origJobSpec) == 0 {
+		return nil, errors.New("no job spec provided")
+	}
+
+	decompressor, err := compress.NewZlibDecompressor()
+	if err != nil {
+		return nil, err
+	}
+	jobProto, err := decompressor.Decompress(origJobSpec)
+	if err != nil {
+		// possibly not compressed, so
+		// try to unmarshal input directly also
+		jobProto = origJobSpec
+	}
+	err = unmarshalledJob.Unmarshal(jobProto)
+	if err != nil {
+		return nil, err
+	}
+	return &unmarshalledJob, nil
 }
 
 func makeRunFromRow(row *JobRow) *lookout.RunInfo {
