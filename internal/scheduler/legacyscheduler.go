@@ -608,8 +608,11 @@ func (c *LegacyScheduler) Schedule(
 			jobsToLeaseByQueue[queue] = append(jobsToLeaseByQueue[queue], report.Job)
 			numJobsToLease++
 			roundResources = roundResourcesCopy
-			// TODO: Replace with adding from req.
-			totalResourcesByQueue[queue] = report.TotalQueueResources
+
+			// Update resources consumed by this queue.
+			rl := totalResourcesByQueue[queue]
+			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
+			totalResourcesByQueue[queue] = rl
 			if c.SchedulingRoundReport != nil {
 				c.SchedulingRoundReport.AddJobSchedulingReport(report)
 			}
@@ -667,9 +670,19 @@ func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateRe
 		}
 		actual := usage / total
 		weight := expected / actual
+
+		// Amplify weights to push queues towards their fair share.
+		if weight < 1 {
+			weight /= float64(len(priorityFactorByQueue))
+		} else {
+			weight *= float64(len(priorityFactorByQueue))
+		}
+
 		weightsSum += weight
 		rv[queue] = weight
 	}
+
+	// Normalise
 	for queue, weight := range rv {
 		rv[queue] = weight / weightsSum
 	}

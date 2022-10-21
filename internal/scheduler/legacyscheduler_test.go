@@ -308,6 +308,26 @@ func TestQueueSelectionWeights(t *testing.T) {
 	}
 }
 
+func TestPickQueueRandomly(t *testing.T) {
+	weights := map[string]float64{
+		"A": 2,
+		"B": 1,
+	}
+	weightsSum := 3.0
+
+	n := 10000
+	results := make(map[string]float64)
+	for i := 0; i < n; i++ {
+		v, _ := pickQueueRandomly(weights, util.NewThreadsafeRand(int64(i)))
+		results[v]++
+	}
+	for queue, weight := range weights {
+		expected := weight / weightsSum
+		actual := results[queue] / float64(n)
+		assert.InDelta(t, expected, actual, 0.01)
+	}
+}
+
 func TestQueueCandidateJobsIterator(t *testing.T) {
 	tests := map[string]struct {
 		Reqs                  []*schedulerobjects.PodRequirements
@@ -852,10 +872,10 @@ func TestSchedule(t *testing.T) {
 		},
 		"weighted fairness two queues": {
 			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			Nodes:            testNCpuNode(30, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 32),
-				"B": testNSmallCpuJob(0, 32),
+				"A": testNSmallCpuJob(0, 960),
+				"B": testNSmallCpuJob(0, 960),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -863,12 +883,40 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("19")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("23")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("660")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("9")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("13")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("300")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("340")},
+				),
+			},
+		},
+		"weighted fairness three queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(30, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 960),
+				"B": testNSmallCpuJob(0, 960),
+				"C": testNSmallCpuJob(0, 960),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 2,
+				"C": 10,
+			},
+			ExpectedResourcesByQueue: map[string]resourceLimits{
+				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("580")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
+				),
+				"B": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("280")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("320")},
+				),
+				"C": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("40")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("80")},
 				),
 			},
 		},
@@ -894,12 +942,12 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("2")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("0")},
 					map[string]resource.Quantity{"cpu": resource.MustParse("4")},
 				),
 				"B": newResourceLimits(
 					map[string]resource.Quantity{"cpu": resource.MustParse("28")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 				),
 			},
 		},
