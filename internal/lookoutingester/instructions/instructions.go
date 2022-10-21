@@ -2,7 +2,6 @@ package instructions
 
 import (
 	"context"
-	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -165,7 +164,6 @@ func (s *Service) handleSubmitJob(
 
 	// Try and marshall the job Json. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the json won't be available in the ui
-	var jobJson []byte
 	var jobProto []byte
 	apiJob, err := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, event)
 	if err == nil {
@@ -179,13 +177,6 @@ func (s *Service) handleSubmitJob(
 		if err != nil {
 			logger.Warnf("Couldn't compress proto for job %s in jobset %s as json.  %+v", jobId, jobSet, err)
 		}
-
-		// TODO: Remove this when we have moved over to compressed proto
-		jobJson, err = json.Marshal(apiJob)
-		if err != nil {
-			logger.Warnf("Couldn't marshall job json %s in jobset %s as json.  %+v", jobId, jobSet, err)
-		}
-
 	} else {
 		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		logger.Warnf("Couldn't convert job event for job %s in jobset %s to api job.  %+v", jobId, jobSet, err)
@@ -198,7 +189,6 @@ func (s *Service) handleSubmitJob(
 		JobSet:    jobSet,
 		Priority:  event.Priority,
 		Submitted: ts,
-		JobJson:   util.RemoveNullsFromJson(jobJson),
 		JobProto:  jobProto,
 		State:     repository.JobQueuedOrdinal,
 		Updated:   ts,
