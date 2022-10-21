@@ -895,17 +895,23 @@ func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
 		}
 	}
 
-	// add missing TerminationGracePeriod if needed
 	server.applyTerminationGracePeriodDefault(spec)
 }
 
-// applyTerminationGracePeriodDefault will give the podspec a default if needed
+// applyTerminationGracePeriodDefault sets the termination grace period
+// of the pod equal to the minimum if
+// - the pod does not explicitly set a termination period, or
+// - the pod explicitly sets a termination period of 0.
 func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
-	specNeedsTerminationGracePeriod := spec.TerminationGracePeriodSeconds == nil
-	defaultTerminationGracePeriod := int64(server.schedulingConfig.DefaultTerminationGracePeriod.Seconds())
-
-	if specNeedsTerminationGracePeriod {
-		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriod
+	var podTerminationGracePeriodSeconds int64
+	if spec.TerminationGracePeriodSeconds != nil {
+		podTerminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
+	}
+	if podTerminationGracePeriodSeconds == 0 {
+		defaultTerminationGracePeriodSeconds := int64(
+			server.schedulingConfig.MinTerminationGracePeriod.Seconds(),
+		)
+		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriodSeconds
 	}
 }
 

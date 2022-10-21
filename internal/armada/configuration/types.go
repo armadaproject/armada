@@ -154,10 +154,27 @@ type SchedulingConfig struct {
 	// If not set, all taints are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedTaints                 map[string]interface{}
-	MinTerminationGracePeriod     time.Duration
-	MaxTerminationGracePeriod     time.Duration
-	DefaultTerminationGracePeriod time.Duration
+	IndexedTaints map[string]interface{}
+	// Kubernetes pods may specify a termination grace period.
+	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
+	// If a pod has not exited within its termination grace period,
+	// it is killed forcefully by Kubernetes sending it a SIGKILL.
+	//
+	// This is the minimum allowed termination grace period.
+	// It should normally be set to a positive value, e.g., 1 second.
+	// Since a zero grace period causes Kubernetes to force delete pods,
+	// which may causes issues where resources associated with the pod, e.g.,
+	// containers, are not cleaned up correctly.
+	//
+	// The grace period of pods that either
+	// - do not set a grace period, or
+	// - explicitly set a grace period of 0 seconds,
+	// is automatically set to MinTerminationGracePeriod.
+	MinTerminationGracePeriod time.Duration
+	// Max allowed grace period.
+	// Should normally not be set greater than single-digit minutes,
+	// since cancellation and preemption may need to wait for this amount of time.
+	MaxTerminationGracePeriod time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
