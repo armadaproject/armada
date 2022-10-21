@@ -541,10 +541,9 @@ func (c *LegacyScheduler) Schedule(
 
 		// Select a queue to schedule job from.
 		// Queues with fewer resources allocated to them are selected with higher probability.
-		weights := queueSelectionProbabilities(
+		weights := queueSelectionWeights(
 			c.PriorityFactorByQueue,
 			totalResourcesByQueue,
-			c.TotalResources,
 			c.SchedulingConfig.GetResourceScarcity(c.Pool),
 		)
 		queue, _ := pickQueueRandomly(weights, c.Rand)
@@ -609,8 +608,11 @@ func (c *LegacyScheduler) Schedule(
 			jobsToLeaseByQueue[queue] = append(jobsToLeaseByQueue[queue], report.Job)
 			numJobsToLease++
 			roundResources = roundResourcesCopy
-			// TODO: Replace with adding from req.
-			totalResourcesByQueue[queue] = report.TotalQueueResources
+
+			// Update resources consumed by this queue.
+			rl := totalResourcesByQueue[queue]
+			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
+			totalResourcesByQueue[queue] = rl
 			if c.SchedulingRoundReport != nil {
 				c.SchedulingRoundReport.AddJobSchedulingReport(report)
 			}
@@ -635,29 +637,31 @@ func (c *LegacyScheduler) Schedule(
 	return jobs, nil
 }
 
-func queueSelectionProbabilities(priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList, totalResources schedulerobjects.ResourceList, resourceScarcity map[string]float64) map[string]float64 {
-	probabilityByQueue := make(map[string]float64)
-	priorityFactorsSum := 0.0
-	for _, priorityFactor := range priorityFactorByQueue {
-		if priorityFactor < 1 {
-			priorityFactor = 1
-		}
-		priorityFactorsSum += priorityFactor
+func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList, resourceScarcity map[string]float64) map[string]float64 {
+	rv := make(map[string]float64)
+	total := 0.0
+	for _, rl := range aggregateResourceUsageByQueue {
+		total += ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
 	}
-	total := ResourceListAsWeightedApproximateFloat64(resourceScarcity, totalResources)
 	if total == 0 {
 		// Avoid division by 0.
 		total = 1
 	}
+	inversePriorityFactorsSum := 0.0
+	for _, priorityFactor := range priorityFactorByQueue {
+		if priorityFactor < 1 {
+			// Avoid division by 0.
+			priorityFactor = 1
+		}
+		inversePriorityFactorsSum += 1 / priorityFactor
+	}
 	weightsSum := 0.0
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if priorityFactor < 1 {
+			// Avoid division by 0.
 			priorityFactor = 1
 		}
-		expected := 1 - priorityFactor/priorityFactorsSum
-		if len(priorityFactorByQueue) == 1 {
-			expected = 1
-		}
+		expected := 1 / priorityFactor / inversePriorityFactorsSum
 		rl := aggregateResourceUsageByQueue[queue]
 		usage := ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
 		if usage == 0 {
@@ -666,13 +670,23 @@ func queueSelectionProbabilities(priorityFactorByQueue map[string]float64, aggre
 		}
 		actual := usage / total
 		weight := expected / actual
-		probabilityByQueue[queue] = weight
+
+		// Amplify weights to push queues towards their fair share.
+		if weight < 1 {
+			weight /= float64(len(priorityFactorByQueue))
+		} else {
+			weight *= float64(len(priorityFactorByQueue))
+		}
+
 		weightsSum += weight
+		rv[queue] = weight
 	}
-	for queue, weight := range probabilityByQueue {
-		probabilityByQueue[queue] = weight / weightsSum
+
+	// Normalise
+	for queue, weight := range rv {
+		rv[queue] = weight / weightsSum
 	}
-	return probabilityByQueue
+	return rv
 }
 
 func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float64, rl schedulerobjects.ResourceList) float64 {
