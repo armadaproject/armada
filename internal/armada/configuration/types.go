@@ -9,7 +9,6 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
-	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
@@ -253,7 +252,7 @@ type JetstreamConfig struct {
 
 type QueueManagementConfig struct {
 	AutoCreateQueues       bool
-	DefaultPriorityFactor  queue.PriorityFactor
+	DefaultPriorityFactor  float64
 	DefaultQueuedJobsLimit int
 }
 

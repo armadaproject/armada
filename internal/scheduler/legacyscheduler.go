@@ -300,7 +300,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	return jobSchedulingReport, nil
 }
 
-func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
+func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) (priority int32, ok bool) {
 	return schedulerobjects.PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
 }
 
@@ -437,7 +437,7 @@ func NewLegacyScheduler(
 ) (*LegacyScheduler, error) {
 	priorities := make([]int32, 0)
 	for _, priority := range schedulingConfig.Preemption.PriorityClasses {
-		priorities = append(priorities, priority)
+		priorities = append(priorities, priority.Priority)
 	}
 	if len(priorities) == 0 {
 		priorities = []int32{0}
