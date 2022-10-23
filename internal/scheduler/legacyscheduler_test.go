@@ -498,9 +498,9 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 }
 
 func testSchedulingConfig() configuration.SchedulingConfig {
-	priorityClasses := make(map[string]int32)
-	for _, priority := range testPriorities {
-		priorityClasses[fmt.Sprintf("%d", priority)] = priority
+	priorityClasses := make(map[string]configuration.PriorityClass)
+	for _, priority := range testPriorityClasses {
+		priorityClasses[fmt.Sprintf("%d", priority.Priority)] = priority
 	}
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
@@ -1358,7 +1358,7 @@ func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
 	return rv
 }
 
-func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]int32) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, job := range jobs {
 		m, ok := rv[job.Queue]
