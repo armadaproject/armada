@@ -41,11 +41,11 @@ export function getContainerInfoFromYaml(jobYaml: string): ContainerInfo | undef
 }
 
 function checkContainerFieldExists(yamlified: JobYaml): boolean {
-  return !yamlified.podSpec.containers
+  return !!yamlified.podSpec?.containers
 }
 
 function detailsFromPodSpec(yamlified: JobYaml): ContainerInfo | undefined {
-  if (checkContainerFieldExists(yamlified)) return
+  if (!checkContainerFieldExists(yamlified)) return
   const mapVal = yamlified.podSpec.containers.map((val) => {
     const container: ContainerString = {
       name: val.name,
