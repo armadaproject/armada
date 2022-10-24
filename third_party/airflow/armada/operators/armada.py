@@ -82,7 +82,7 @@ class ArmadaOperator(BaseOperator):
         job = self.armada_client.submit_jobs(
             queue=self.armada_queue,
             job_set_id=job_set_id,
-            job_request_items=self.job_request_items,
+            job_request_items=annotate_job_request_items(context, self.job_request_items),
         )
 
         try:
@@ -102,3 +102,24 @@ class ArmadaOperator(BaseOperator):
             "Armada Job finished with %s and message: %s", job_state, job_message
         )
         airflow_error(job_state, self.name, job_id)
+
+
+    def annotate_job_request_items(context, job_request_items):
+        """
+        Annotates the inbound job request items with the context task ID
+
+        :param context: The airflow context.
+
+        :param job_request_items: The job request items we plan to send to armada
+
+        :return: annotated job request items for armada
+        """
+        task_instance = context["ti"]
+        items_to_return = []
+        task_id = task_instance.task_id
+
+        for item in job_request_items:
+            item.annotations["armadaproject.io/taskId"] = task_id
+            items_to_return.append(item)
+
+        return items_to_return
