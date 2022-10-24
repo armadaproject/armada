@@ -343,9 +343,6 @@ func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) er
 
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
-
-	deletionGracePeriod := 5 * time.Minute
-
 	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
 			return
@@ -354,9 +351,11 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			// We've never tried to delete this pod before.  Delete using the grace period
 			c.doDelete(podToDelete, false)
 		} else {
+			// we've tried to delete this pod before. If we're after the kill period then force delete
+			// else it's a no-op
 			killTime := podToDelete.DeletionTimestamp.
 				Add(util.GetDeletionGracePeriodOrDefault(podToDelete)).
-				Add(deletionGracePeriod)
+				Add(c.killTimeout)
 			if c.clock.Now().After(killTime) {
 				log.Warnf("Pod %s/%s was requested deleted at %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
 				c.doDelete(podToDelete, true)

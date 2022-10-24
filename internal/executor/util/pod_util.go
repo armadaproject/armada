@@ -251,6 +251,8 @@ func IsReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
+// GetDeletionGracePeriodOrDefault returns the pod's DeletionGracePeriodSeconds seconds (if populated) or the K8s
+// default value of 30 seconds (if it isn't)
 func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
 	podGracePeriodSeconds := pod.GetDeletionGracePeriodSeconds()
 	if podGracePeriodSeconds == nil {
