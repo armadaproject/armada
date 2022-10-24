@@ -251,6 +251,15 @@ func IsReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
+func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
+	podGracePeriodSeconds := pod.GetDeletionGracePeriodSeconds()
+	if podGracePeriodSeconds == nil {
+		return 30 * time.Second
+	} else {
+		return time.Duration(*podGracePeriodSeconds) * time.Second
+	}
+}
+
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
 	if !IsInTerminalState(pod) ||
 		!IsReportedDone(pod) ||

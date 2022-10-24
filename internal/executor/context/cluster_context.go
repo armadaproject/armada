@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/clock"
+
+	"k8s.io/utils/pointer"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -82,6 +86,8 @@ type KubernetesClusterContext struct {
 	eventInformer            informer.EventInformer
 	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
+	killTimeout       time.Duration
+	clock             clock.Clock
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -97,6 +103,7 @@ func NewClusterContext(
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	killTimeout time.Duration,
 ) *KubernetesClusterContext {
 	kubernetesClient := kubernetesClientProvider.Client()
 
@@ -117,6 +124,8 @@ func NewClusterContext(
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 		etcdHealthMonitor:        etcdHealthMonitor,
+		killTimeout:              killTimeout,
+		clock:                    clock.RealClock{},
 	}
 
 	context.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -335,35 +344,55 @@ func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) er
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
 
-	// GracePeriodSeconds to nil yields to podspec setting
-	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
+	deletionGracePeriod := 5 * time.Minute
+
 	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
 			return
 		}
-		podId := util.ExtractPodKey(podToDelete)
-
-		var err error
-		if !util.IsMarkedForDeletion(podToDelete) {
-			updatedPod, annotationErr := c.markForDeletion(podToDelete)
-			err = annotationErr
-			if annotationErr == nil {
-				podToDelete = updatedPod
-				c.podsToDelete.Update(podId, podToDelete)
+		if podToDelete.DeletionTimestamp == nil {
+			// We've never tried to delete this pod before.  Delete using the grace period
+			c.doDelete(podToDelete, false)
+		} else {
+			killTime := podToDelete.DeletionTimestamp.
+				Add(util.GetDeletionGracePeriodOrDefault(podToDelete)).
+				Add(deletionGracePeriod)
+			if c.clock.Now().After(killTime) {
+				log.Warnf("Pod %s/%s was requested deleted at %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
+				c.doDelete(podToDelete, true)
+			} else {
+				log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", podToDelete.Namespace, podToDelete.Name)
 			}
 		}
-
-		if err == nil {
-			err = c.kubernetesClient.CoreV1().Pods(podToDelete.Namespace).Delete(context.Background(), podToDelete.Name, deleteOptions)
-		}
-
-		if err == nil || k8s_errors.IsNotFound(err) {
-			c.podsToDelete.Update(podId, nil)
-		} else {
-			log.Errorf("Failed to delete pod %s/%s because %s", podToDelete.Namespace, podToDelete.Name, err)
-			c.podsToDelete.Delete(podId)
-		}
 	})
+}
+
+func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
+	podId := util.ExtractPodKey(pod)
+	var err error
+	if !util.IsMarkedForDeletion(pod) {
+		updatedPod, annotationErr := c.markForDeletion(pod)
+		err = annotationErr
+		if annotationErr == nil {
+			pod = updatedPod
+			c.podsToDelete.Update(podId, pod)
+		}
+	}
+
+	if err == nil {
+		deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
+		if force {
+			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
+		}
+		err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, deleteOptions)
+	}
+
+	if err == nil || k8s_errors.IsNotFound(err) {
+		c.podsToDelete.Update(podId, nil)
+	} else {
+		log.Errorf("Failed to delete pod %s/%s because %s", pod.Namespace, pod.Name, err)
+		c.podsToDelete.Delete(podId)
+	}
 }
 
 func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {
