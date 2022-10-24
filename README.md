@@ -21,7 +21,7 @@ Armada is designed primarily for machine learning, AI, and data analytics worklo
 - Provide visibility for users and admins.
 - Ensure near-constant uptime.
 
-Armada is a [CNCF](https://www.cncf.io/) Sandbox project used in production at [G Research](https://www.gresearch.co.uk/).
+Armada is a [CNCF](https://www.cncf.io/) Sandbox project used in production at [G-Research](https://www.gresearch.co.uk/).
 
 For an overview of Armada, see [this video](https://www.youtube.com/watch?v=FT8pXYciD9A).
 
