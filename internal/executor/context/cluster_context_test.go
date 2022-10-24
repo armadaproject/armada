@@ -333,7 +333,7 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill(t *testing.T) {
 	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-310 * time.Second)}
 	client.Fake.ClearActions()
 
-	//submitPodsWithWait(t, clusterContext, pod)
+	// submitPodsWithWait(t, clusterContext, pod)
 	client.Fake.ClearActions()
 	clusterContext.DeletePods([]*v1.Pod{pod})
 	clusterContext.ProcessPodsToDelete()
