@@ -14,7 +14,7 @@ This guide assumes you have cloned this repository and are executing commands fr
 
 Armada schedules pods across Kubernetes clusters. Hence, for a local setup there needs to be at least one worker Kubernetes cluster available on the local machine, for which we use [kind](https://github.com/kubernetes-sigs/kind). Further, the Armada server, which is responsible for job submission and queuing, and an Armada executor must be running. The executor is responsible for interacting with the worker Kubernetes cluster.
 
-In addition, Armada relies on the following components for storagea and communication:
+In addition, Armada relies on the following components for storage and communication:
 
 - Pulsar: used for passing messages between components.
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
@@ -22,7 +22,7 @@ In addition, Armada relies on the following components for storagea and communic
 
 All of these components can be started and initialised with `make tests-e2e-setup`. Once setup, end-to-end tests can then be run with `make tests-e2e-no-setup`. Alternatively, setup and end-to-end tests can be performed with a single command `make tests-e2e`.
 
-Create queue and submit a job:
+Create a queue and submit a job:
 ```bash
 go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
@@ -36,6 +36,8 @@ For more details on submitting jobs to Armada, see [the user guide](https://gith
 kind load docker-image busybox:latest
 ```
 
+Armada uses proto files extensively. Code-generation based on these files is run via `make proto`.
+
 ## Lookout - Armada web UI
 
 Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built with:
@@ -46,18 +48,14 @@ yarn run openapi
 yarn run build
 ```
 
-Once completed, the lookout UI should be accessible through your browser at `http://localhost:8089`
+Once completed, the Lookout UI should be accessible through your browser at `http://localhost:8089`
 
 For UI development you can also use the React development server. Note that the Lookout API will still have to be running for this to work.
 ```bash
 yarn run start
 ```
 
-## Code Generation
-
-Armada uses proto files extensively. Code-generation based on these files is run via `make proto`.
-
-### Usage metrics
+## Usage metrics
 
 Some functionality the executor has is to report how much cpu/memory jobs are using.
 
@@ -69,7 +67,7 @@ metric:
 
 The metrics are calculated by getting values from metrics-server.
 
-When developing locally with Kind, you will also need to deploy metrics server to allow this to work.
+When developing locally with Kind, you will also need to deploy metrics-server to allow this to work.
 
 The simplest way to do this it to apply this to your kind cluster:
 
