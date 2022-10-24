@@ -6,6 +6,8 @@ import (
 	"net"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -66,7 +68,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	err := validateArmadaConfig(config)
+	err := validateCancelJobsBatchSizeConfig(config)
 	if err != nil {
 		return err
 	}
@@ -476,10 +478,48 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
 }
 
-// TODO Is this all validation that needs to be done?
-func validateArmadaConfig(config *configuration.ArmadaConfig) error {
+// TODO: Is this all validation that needs to be done?
+func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
 		return errors.WithStack(fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize))
 	}
+}
+
+func validateSchedulingConfig(config configuration.SchedulingConfig) error {
+	// validate that as priority increase, the limit decreases
+	type priorityClass struct {
+		name     string
+		priority int32
+		limits   map[string]float64
+	}
+	priorityClasses := make([]priorityClass, 0, len(config.Preemption.PriorityClasses))
+	for k, pc := range config.Preemption.PriorityClasses {
+		priorityClasses = append(priorityClasses, priorityClass{
+			name:     k,
+			priority: pc.Priority,
+			limits:   pc.MaximalResourceFractionPerQueue,
+		})
+	}
+
+	slices.SortFunc(priorityClasses, func(a priorityClass, b priorityClass) bool {
+		return a.priority > b.priority
+	})
+
+	var prevLimits map[string]float64 = nil
+	for i, pc := range priorityClasses {
+		if i != 0 {
+			for k, v := range prevLimits {
+				limit, ok := pc.limits[k]
+				if !ok {
+					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
+				}
+				if limit > v {
+					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
+				}
+			}
+		}
+		prevLimits = pc.limits
+	}
+
 	return nil
 }

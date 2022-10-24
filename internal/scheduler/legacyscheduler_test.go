@@ -521,6 +521,16 @@ func withPerQueueLimits(limits map[string]float64, config configuration.Scheduli
 	return config
 }
 
+func withPerPriorityLimits(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	for k, v := range config.Preemption.PriorityClasses {
+		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
+			Priority:                        v.Priority,
+			MaximalResourceFractionPerQueue: limits[v.Priority],
+		}
+	}
+	return config
+}
+
 func withPerQueueRoundLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalResourceFractionToSchedulePerQueue = limits
 	return config
@@ -818,6 +828,26 @@ func TestSchedule(t *testing.T) {
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1},
 				"B": {0},
+			},
+		},
+		"per priority per-queue limits": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 1.0},
+					1: {"cpu": 0.5},
+					2: {"cpu": 0.25},
+					3: {"cpu": 0.1},
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(3, 5), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1, 2, 5, 6, 7, 8, 9},
 			},
 		},
 		"fairness two queues": {
@@ -1283,6 +1313,10 @@ func TestSchedule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_exceedsPerPriorityResourceLimits(t *testing.T) {
+
 }
 
 func intRange(a, b int) []int {
