@@ -12,7 +12,7 @@ This guide assumes you have cloned this repository and are executing commands fr
 
 ## Running Armada locally
 
-Armada schedules pods across Kubernetes clusters. Hence, for a local setup there needs to be at least one worker Kubernetes cluster available on the local machine, for which we use [kind](https://github.com/kubernetes-sigs/kind). Further, the Armada server, which is responsible for job submission and queuing, and an Armada executormust be running. The executor is responsible for interacting with the worker Kubernetes cluster.
+Armada schedules pods across Kubernetes clusters. Hence, for a local setup there needs to be at least one worker Kubernetes cluster available on the local machine, for which we use [kind](https://github.com/kubernetes-sigs/kind). Further, the Armada server, which is responsible for job submission and queuing, and an Armada executor must be running. The executor is responsible for interacting with the worker Kubernetes cluster.
 
 In addition, Armada relies on the following components for storagea and communication:
 
@@ -38,7 +38,7 @@ kind load docker-image busybox:latest
 
 ## Lookout - Armada web UI
 
-Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is basedon react and is built with:
+Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built with:
 ```bash
 cd ./internal/lookout/ui
 yarn install
