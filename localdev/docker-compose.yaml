@@ -126,6 +126,8 @@ services:
     image: golang:1.18-buster
     networks:
       - kind
+    ports:
+      - "60003:60003"
     depends_on:
       - armada-server
     volumes:
