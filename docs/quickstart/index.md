@@ -32,6 +32,8 @@ To install Armada and all its dependencies you can use this script:
 $ docs/local/setup.sh
 ```
 
+Once completed, wait for all pods to be running via `kubectl get pod`
+
 Likewise you can remove the Armada components from your system: 
 
 ```
