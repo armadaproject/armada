@@ -52,6 +52,7 @@ type KubernetesConfiguration struct {
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
+	PodKillTimeout            time.Duration
 }
 
 type EtcdConfiguration struct {
