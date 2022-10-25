@@ -104,22 +104,21 @@ class ArmadaOperator(BaseOperator):
         airflow_error(job_state, self.name, job_id)
 
 
-    def annotate_job_request_items(context, job_request_items):
-        """
-        Annotates the inbound job request items with the context task ID
+def annotate_job_request_items(context, job_request_items):
+    """
+    Annotates the inbound job request items with the context task ID
 
-        :param context: The airflow context.
+    :param context: The airflow context.
 
-        :param job_request_items: The job request items we plan to send to armada
+    :param job_request_items: The job request items we plan to send to armada
 
-        :return: annotated job request items for armada
-        """
-        task_instance = context["ti"]
-        items_to_return = []
-        task_id = task_instance.task_id
+    :return: annotated job request items for armada
+    """
+    task_instance = context["ti"]
+    task_id = task_instance.task_id
 
-        for item in job_request_items:
+    for item_list in job_request_items:
+        for item in item_list:
             item.annotations["armadaproject.io/taskId"] = task_id
-            items_to_return.append(item)
 
-        return items_to_return
+    return job_request_items
