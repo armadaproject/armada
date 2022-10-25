@@ -5,6 +5,8 @@ hostnames:
 replicas: 3
 
 applicationConfig:
+  pulsar:
+    url: "pulsar://pulsar-broker.default.svc.cluster.local:6650"
   redis:
     masterName: "mymaster"
     addrs:
@@ -46,3 +48,7 @@ prometheus:
   enabled: true
 
 nodePort: 30000
+
+resources:
+  requests:
+    cpu: 100m

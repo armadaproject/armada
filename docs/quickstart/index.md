@@ -27,11 +27,16 @@ Armada is a resource intensive application due to the need to run multiple Kuber
 ### One-click Setup
 
 To install Armada and all its dependencies you can use this script: 
-[https://github.com/G-Research/armada/blob/master/docs/local/setup.sh](https://github.com/G-Research/armada/blob/master/docs/local/setup.sh)
+
+```
+$ docs/local/setup.sh
+```
 
 Likewise you can remove the Armada components from your system: 
-[https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh](https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh)
 
+```
+$ docs/local/destroy.sh
+```
 
 ## Usage
 Create queues, submit some jobs and monitor progress:
