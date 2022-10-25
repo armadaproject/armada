@@ -86,7 +86,7 @@ type KubernetesClusterContext struct {
 	eventInformer            informer.EventInformer
 	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
-	killTimeout       time.Duration
+	podKillTimeout    time.Duration
 	clock             clock.Clock
 }
 
@@ -124,7 +124,7 @@ func NewClusterContext(
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 		etcdHealthMonitor:        etcdHealthMonitor,
-		killTimeout:              killTimeout,
+		podKillTimeout:           killTimeout,
 		clock:                    clock.RealClock{},
 	}
 
@@ -355,9 +355,9 @@ func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 			// else it's a no-op
 			killTime := podToDelete.DeletionTimestamp.
 				Add(util.GetDeletionGracePeriodOrDefault(podToDelete)).
-				Add(c.killTimeout)
+				Add(c.podKillTimeout)
 			if c.clock.Now().After(killTime) {
-				log.Warnf("Pod %s/%s was requested deleted at %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
+				log.Infof("Pod %s/%s was requested deleted at %s, but is still present.  Force killing.", podToDelete.Namespace, podToDelete.Name, podToDelete.DeletionTimestamp)
 				c.doDelete(podToDelete, true)
 			} else {
 				log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", podToDelete.Namespace, podToDelete.Name)
