@@ -22,7 +22,7 @@ cd armada
 
 All commands are intended to be run from the root of the repository.
 
-Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
+Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 4 CPU cores and 16GB of RAM available.
 
 ### One-click Setup
 
