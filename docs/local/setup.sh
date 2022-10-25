@@ -44,7 +44,7 @@ helm install redis dandydev/redis-ha --version $CHART_VERSION_REDIS -f docs/quic
 
 # Install nats-streaming
 printf "\nStarting NATS ...\n"
-helm install nats nats/stan --wait
+helm install nats nats/stan --version $CHART_VERSION_NATS --wait
 
 # Install Apache Pulsar
 printf "\nStarting Pulsar ...\n"
