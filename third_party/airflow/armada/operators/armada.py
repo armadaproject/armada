@@ -82,7 +82,9 @@ class ArmadaOperator(BaseOperator):
         job = self.armada_client.submit_jobs(
             queue=self.armada_queue,
             job_set_id=job_set_id,
-            job_request_items=annotate_job_request_items(context, self.job_request_items),
+            job_request_items=annotate_job_request_items(
+                context, self.job_request_items
+            ),
         )
 
         try:
