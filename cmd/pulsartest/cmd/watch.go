@@ -7,14 +7,14 @@ import (
 	"github.com/G-Research/armada/internal/pulsartest"
 )
 
-func submitCmd() *cobra.Command {
+func watchCmd() *cobra.Command {
 	a := &pulsartest.App{}
 
 	cmd := &cobra.Command{
-		Use:   "submit ./path/to/events.yaml",
-		Short: "Submit events to Pulsar",
-		Long:  "Submit events to Pulsar from file.",
-		Args:  cobra.ExactArgs(1),
+		Use:   "watch",
+		Short: "Watch for Pulsar events",
+		Long:  "Watch for Pulsar events",
+		Args:  cobra.ExactArgs(0),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			url, err := cmd.Flags().GetString("url")
 			if err != nil {
@@ -47,12 +47,11 @@ func submitCmd() *cobra.Command {
 					JobsetEventsTopic:     jsTopic,
 				},
 			}
-			a, err = pulsartest.New(params, "submit")
+			a, err = pulsartest.New(params, "watch")
 			return err
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := args[0]
-			return a.Submit(path)
+			return a.Watch()
 		},
 	}
 
