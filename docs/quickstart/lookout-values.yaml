@@ -32,6 +32,4 @@ applicationConfig:
     daysToKeep: 42
     batchSize: 1000
 
-resources:
-  requests:
-    cpu: 100m
+dbPruneSchedule: "0 * * * *"

@@ -48,7 +48,3 @@ prometheus:
   enabled: true
 
 nodePort: 30000
-
-resources:
-  requests:
-    cpu: 100m
