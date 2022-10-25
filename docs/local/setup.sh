@@ -4,6 +4,7 @@ KIND_IMG="kindest/node:v1.21.10"
 CHART_VERSION_ARMADA="v0.3.20"
 CHART_VERSION_ARMADA_EXECUTOR_MONITORING="v0.1.9"
 CHART_VERSION_KUBE_PROMETHEUS_STACK="13.0.0"
+CHART_VERSION_NATS="0.13.0"
 CHART_VERSION_POSTGRES="11.9.12"
 CHART_VERSION_PULSAR="2.9.4"
 CHART_VERSION_REDIS="4.22.3"
@@ -20,6 +21,7 @@ printf "Registering required helm repositories ..."
 printf "\n*******************************************************\n"
 helm repo add dandydev https://dandydeveloper.github.io/charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add nats https://nats-io.github.io/k8s/helm/charts
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add gresearch https://g-research.github.io/charts
 helm repo add apache https://pulsar.apache.org/charts
@@ -39,6 +41,10 @@ kind export kubeconfig --name=quickstart-armada-server
 # Install Redis
 printf "\nStarting Redis ...\n"
 helm install redis dandydev/redis-ha --version $CHART_VERSION_REDIS -f docs/quickstart/redis-values.yaml
+
+# Install nats-streaming
+printf "\nStarting NATS ...\n"
+helm install nats nats/stan --wait
 
 # Install Apache Pulsar
 printf "\nStarting Pulsar ...\n"
