@@ -14,7 +14,6 @@ printf "Registering required helm repositories ..."
 printf "\n*******************************************************\n"
 helm repo add dandydev https://dandydeveloper.github.io/charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo add nats https://nats-io.github.io/k8s/helm/charts
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo add gresearch https://g-research.github.io/charts
 helm repo add apache https://pulsar.apache.org/charts
@@ -34,10 +33,6 @@ kind export kubeconfig --name=quickstart-armada-server
 # Install Redis
 printf "\nStarting Redis ...\n"
 helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
-
-# Install nats-streaming
-printf "\nStarting NATS ...\n"
-helm install nats nats/stan --wait
 
 # Install Apache Pulsar
 printf "\nStarting Pulsar ...\n"
