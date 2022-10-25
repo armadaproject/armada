@@ -1,6 +1,12 @@
 #!/bin/sh
 
 KIND_IMG="kindest/node:v1.21.10"
+CHART_VERSION_ARMADA="v0.3.20"
+CHART_VERSION_ARMADA_EXECUTOR_MONITORING="v0.1.9"
+CHART_VERSION_KUBE_PROMETHEUS_STACK="13.0.0"
+CHART_VERSION_POSTGRES="11.9.12"
+CHART_VERSION_PULSAR="2.9.4"
+CHART_VERSION_REDIS="4.22.3"
 
 printf "\n*******************************************************\n"
 printf "Running script which will deploy a local Armada cluster"
@@ -32,19 +38,19 @@ kind export kubeconfig --name=quickstart-armada-server
 
 # Install Redis
 printf "\nStarting Redis ...\n"
-helm install redis dandydev/redis-ha -f docs/quickstart/redis-values.yaml
+helm install redis dandydev/redis-ha --version $CHART_VERSION_REDIS -f docs/quickstart/redis-values.yaml
 
 # Install Apache Pulsar
 printf "\nStarting Pulsar ...\n"
-helm install pulsar apache/pulsar -f docs/quickstart/pulsar-dev-settings.yaml
+helm install pulsar apache/pulsar --version $CHART_VERSION_PULSAR -f docs/quickstart/pulsar-dev-settings.yaml
 
 # Install Prometheus
 printf "\nStarting Prometheus ...\n"
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/server-prometheus-values.yaml
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --version $CHART_VERSION_KUBE_PROMETHEUS_STACK -f docs/quickstart/server-prometheus-values.yaml
 
 # Install Armada server
 printf "\nStarting Armada server ...\n"
-helm install armada-server gresearch/armada -f ./docs/quickstart/server-values.yaml
+helm install armada-server gresearch/armada --version $CHART_VERSION_ARMADA -f ./docs/quickstart/server-values.yaml
 
 # Get server IP for executors
 SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -62,11 +68,11 @@ kind create cluster --name quickstart-armada-executor-0 --config ./docs/quicksta
 kind export kubeconfig --name=quickstart-armada-executor-0
 
 # Install Prometheus
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/executor-prometheus-values.yaml
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --version $CHART_VERSION_KUBE_PROMETHEUS_STACK -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
+helm install armada-executor gresearch/armada-executor --version $CHART_VERSION_ARMADA --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring --version $CHART_VERSION_ARMADA_EXECUTOR_MONITORING -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -84,11 +90,11 @@ kind create cluster --name quickstart-armada-executor-1 --config ./docs/quicksta
 kind export kubeconfig --name=quickstart-armada-executor-1
 
 # Install Prometheus
-helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -f docs/quickstart/executor-prometheus-values.yaml
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --version $CHART_VERSION_KUBE_PROMETHEUS_STACK -f docs/quickstart/executor-prometheus-values.yaml
 
 # Install executor
-helm install armada-executor gresearch/armada-executor --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
-helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring -f docs/quickstart/executor-cluster-monitoring-values.yaml
+helm install armada-executor gresearch/armada-executor --version $CHART_VERSION_ARMADA --set applicationConfig.apiConnection.armadaUrl="$SERVER_IP:30000" -f docs/quickstart/executor-values.yaml
+helm install armada-executor-cluster-monitoring gresearch/executor-cluster-monitoring --version $CHART_VERSION_ARMADA_EXECUTOR_MONITORING -f docs/quickstart/executor-cluster-monitoring-values.yaml
 
 # Get executor IP for Grafana
 EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
@@ -103,13 +109,13 @@ printf "\n*******************************************************\n"
 kind export kubeconfig --name=quickstart-armada-server
 
 # Install postgres
-helm install postgres bitnami/postgresql --wait --set auth.postgresPassword=psw
+helm install postgres bitnami/postgresql --version $CHART_VERSION_POSTGRES --wait --set auth.postgresPassword=psw
 
 # Run database migration
-helm install lookout-migration gresearch/armada-lookout-migration --wait -f docs/quickstart/lookout-values.yaml
+helm install lookout-migration gresearch/armada-lookout-migration --version $CHART_VERSION_ARMADA --wait -f docs/quickstart/lookout-values.yaml
 
 # Install Armada Lookout
-helm install lookout gresearch/armada-lookout -f docs/quickstart/lookout-values.yaml
+helm install lookout gresearch/armada-lookout --version $CHART_VERSION_ARMADA -f docs/quickstart/lookout-values.yaml
 #####################################################
 
 #####################################################
