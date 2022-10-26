@@ -69,6 +69,26 @@ Runs an Armada job and calls the job_service_client for polling.
     None
 
 
+
+### armada.operators.armada.annotate_job_request_items(context, job_request_items)
+Annotates the inbound job request items with the context task ID
+
+
+* **Parameters**
+
+    
+    * **context** – The airflow context.
+
+
+    * **job_request_items** – The job request items we plan to send to armada
+
+
+
+* **Returns**
+
+    annotated job request items for armada
+
+
 ## armada.operators.jobservice module
 
 
