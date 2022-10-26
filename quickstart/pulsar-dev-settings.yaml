@@ -48,3 +48,7 @@ images:
     repository: streamnative/apache-pulsar-grafana-dashboard-k8s
     tag: 0.0.15
     pullPolicy: IfNotPresent
+
+extraInitCommand: >
+  until bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ tenants list; do echo Waiting for broker... && sleep 1; done;
+  (bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ tenants create armada && bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ namespaces create armada/armada && bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ topics create-partitioned-topic persistent://armada/armada/events -p 2) || true;
