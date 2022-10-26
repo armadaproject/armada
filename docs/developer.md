@@ -37,7 +37,7 @@ jobs:
   - priority: 0
     namespace: personal-anonymous
     podSpec:
-``` 
+```
 
 For more details on submitting jobs to Armada, see [the user guide](https://github.com/G-Research/armada/blob/master/docs/user.md). Once you submit jobs, you should see pods appearing in your worker cluster(s).
 
