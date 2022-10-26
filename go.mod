@@ -54,7 +54,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.8.2
 	github.com/nats-io/nats-streaming-server v0.24.6
 	github.com/nats-io/nats.go v1.16.0
-	github.com/nats-io/stan.go v0.10.2
+	github.com/nats-io/stan.go v0.10.3
 	github.com/oklog/ulid v1.3.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
@@ -207,7 +207,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/sys v0.0.0-20220906135438-9e1f76180b77 // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
