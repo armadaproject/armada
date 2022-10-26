@@ -29,7 +29,7 @@ go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
 ```
 
-**Note** In the default setup you should submit jobs to the kubernetes `personal-anonymous` namespace. See this job-spec snippet:
+**Note:** In the default setup you should submit jobs to the kubernetes `personal-anonymous` namespace. See this job-spec snippet:
 ```yaml
 queue: test
 jobSetId: job-set-1
