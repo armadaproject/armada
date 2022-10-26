@@ -291,15 +291,8 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		log.Errorf("unable to unmarshall orig job spec. %+v", err)
 	}
 
-	return &api.Job{
-		Id:          ParseNullString(row.JobId),
-		JobSetId:    ParseNullString(row.JobSet),
-		Queue:       ParseNullString(row.Queue),
-		Owner:       ParseNullString(row.Owner),
-		Priority:    ParseNullFloat(row.Priority),
-		Created:     ParseNullTimeDefault(row.Submitted),
-		Annotations: jobSpec.GetAnnotations(),
-	}, nil
+	jobSpec.Priority = ParseNullFloat(row.Priority)
+	return jobSpec, nil
 }
 
 func makeApiJob(origJobSpec []byte) (*api.Job, error) {
