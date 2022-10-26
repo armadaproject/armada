@@ -41,7 +41,7 @@ var (
 
 const (
 	jobSetName       = "testJobset"
-	cpu              = 12 * 1000 * 1000 * 1000
+	cpu              = 12500
 	memory           = 2000 * 1024 * 1024 * 1024
 	ephemeralStorage = 3000 * 1024 * 1024 * 1024
 	gpu              = 8
@@ -85,16 +85,16 @@ var submit = &armadaevents.EventSequence_Event{
 									Args:    []string{"foo", "bar"},
 									Resources: v1.ResourceRequirements{
 										Limits: map[v1.ResourceName]resource.Quantity{
-											"cpu":               resource.MustParse("12"),
+											"cpu":               resource.MustParse("12500m"),
 											"memory":            resource.MustParse("2000Gi"),
 											"ephemeral-storage": resource.MustParse("3000Gi"),
-											"nivida.com/gpu":    resource.MustParse("8"),
+											"nvidia.com/gpu":    resource.MustParse("8"),
 										},
 										Requests: map[v1.ResourceName]resource.Quantity{
-											"cpu":               resource.MustParse("12"),
+											"cpu":               resource.MustParse("12500m"),
 											"memory":            resource.MustParse("2000Gi"),
 											"ephemeral-storage": resource.MustParse("3000Gi"),
-											"nivida.com/gpu":    resource.MustParse("8"),
+											"nvidia.com/gpu":    resource.MustParse("8"),
 										},
 									},
 								},
@@ -326,7 +326,6 @@ var expectedJobSucceeded = model.UpdateJobInstruction{
 	State:                     pointer.Int32(database.JobSucceededOrdinal),
 	LastTransitionTime:        &baseTime,
 	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-	LatestRunId:               pointer.String(runIdString),
 }
 
 var expectedJobCancelled = model.UpdateJobInstruction{
@@ -347,7 +346,6 @@ var expectedFailed = model.UpdateJobInstruction{
 	State:                     pointer.Int32(database.JobFailedOrdinal),
 	LastTransitionTime:        &baseTime,
 	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-	LatestRunId:               pointer.String(runIdString),
 }
 
 var expectedFailedRun = model.UpdateJobRunInstruction{
@@ -713,17 +711,21 @@ func TestAnnotations(t *testing.T) {
 	annotations := map[string]string{userAnnotationPrefix + "a": "b", "1": "2"}
 	expected := []*model.CreateUserAnnotationInstruction{
 		{
-			JobId: jobIdString,
-			Key:   "1",
-			Value: "2",
+			JobId:  jobIdString,
+			Key:    "1",
+			Value:  "2",
+			Queue:  queue,
+			Jobset: jobSetName,
 		},
 		{
-			JobId: jobIdString,
-			Key:   "a",
-			Value: "b",
+			JobId:  jobIdString,
+			Key:    "a",
+			Value:  "b",
+			Queue:  queue,
+			Jobset: jobSetName,
 		},
 	}
-	annotationInstructions := extractAnnotations(jobIdString, annotations, userAnnotationPrefix)
+	annotationInstructions := extractAnnotations(jobIdString, queue, jobSetName, annotations, userAnnotationPrefix)
 	assert.Equal(t, expected, annotationInstructions)
 }
 

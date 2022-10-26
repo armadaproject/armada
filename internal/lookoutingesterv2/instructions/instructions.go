@@ -38,10 +38,10 @@ type Service struct {
 }
 
 type jobResources struct {
-	Cpu              uint64
-	Memory           uint64
-	EphemeralStorage uint64
-	Gpu              uint32
+	Cpu              int64
+	Memory           int64
+	EphemeralStorage int64
+	Gpu              int64
 }
 
 func New(m *metrics.Metrics) *Service {
@@ -125,7 +125,7 @@ func (s *Service) ConvertMsg(
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
 			err = s.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			err = s.handleJobRunErrors(ts, event.GetJobRunErrors(), updateInstructions)
+			err = s.handleJobRunErrors(ts, messageLogger, event.GetJobRunErrors(), updateInstructions, compressor)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = s.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelJob:
@@ -184,26 +184,35 @@ func (s *Service) handleSubmitJob(
 		logger.Warnf("Couldn't convert job event for job %s in jobset %s to api job.  %+v", jobId, jobSet, err)
 	}
 
+	resources := getJobResources(apiJob)
+	priorityClass := getJobPriorityClass(apiJob)
+
 	job := model.CreateJobInstruction{
-		JobId:     jobId,
-		Queue:     queue,
-		Owner:     owner,
-		JobSet:    jobSet,
-		Priority:  event.Priority,
-		Submitted: ts,
-		JobProto:  jobProto,
-		State:     database.JobQueuedOrdinal,
-		Updated:   ts,
+		JobId:                     jobId,
+		Queue:                     queue,
+		Owner:                     owner,
+		JobSet:                    jobSet,
+		Cpu:                       resources.Cpu,
+		Memory:                    resources.Memory,
+		EphemeralStorage:          resources.EphemeralStorage,
+		Gpu:                       resources.Gpu,
+		Priority:                  event.Priority,
+		Submitted:                 ts,
+		LastTransitionTime:        ts,
+		LastTransitionTimeSeconds: ts.Unix(),
+		State:                     database.JobQueuedOrdinal,
+		JobProto:                  jobProto,
+		PriorityClass:             priorityClass,
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	annotationInstructions := extractAnnotations(jobId, event.GetObjectMeta().GetAnnotations(), userAnnotationPrefix)
+	annotationInstructions := extractAnnotations(jobId, queue, jobSet, event.GetObjectMeta().GetAnnotations(), userAnnotationPrefix)
 	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
 
 	return err
 }
 
-func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
+func extractAnnotations(jobId string, queue string, jobset string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
 	// This intermediate variable exists because we want our output to be deterministic
 	// Iteration over a map in go is non-deterministic, so we read everything into annotations
 	// and then sort it.
@@ -216,9 +225,11 @@ func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnno
 				k = k[len(userAnnotationPrefix):]
 			}
 			annotations = append(annotations, &model.CreateUserAnnotationInstruction{
-				JobId: jobId,
-				Key:   k,
-				Value: v,
+				JobId:  jobId,
+				Key:    k,
+				Value:  v,
+				Queue:  queue,
+				Jobset: jobset,
 			})
 		} else {
 			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
@@ -242,7 +253,6 @@ func (s *Service) handleReprioritiseJob(ts time.Time, event *armadaevents.Reprio
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:    jobId,
 		Priority: pointer.Int32(int32(event.Priority)),
-		Updated:  ts,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -258,7 +268,6 @@ func (s *Service) handleJobDuplicateDetected(ts time.Time, event *armadaevents.J
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:     jobId,
 		Duplicate: pointer.Bool(true),
-		Updated:   ts,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -272,10 +281,11 @@ func (s *Service) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob
 	}
 
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:     jobId,
-		State:     pointer.Int32(int32(database.JobCancelledOrdinal)),
-		Cancelled: &ts,
-		Updated:   ts,
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(database.JobCancelledOrdinal)),
+		Cancelled:                 &ts,
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -289,9 +299,10 @@ func (s *Service) handleJobSucceeded(ts time.Time, event *armadaevents.JobSuccee
 	}
 
 	jobUpdate := model.UpdateJobInstruction{
-		JobId:   jobId,
-		State:   pointer.Int32(int32(database.JobSucceededOrdinal)),
-		Updated: ts,
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(database.JobSucceededOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil
@@ -312,11 +323,13 @@ func (s *Service) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, u
 			break
 		}
 	}
+
 	if isTerminal {
 		jobUpdate := model.UpdateJobInstruction{
-			JobId:   jobId,
-			State:   pointer.Int32(int32(database.JobFailedOrdinal)),
-			Updated: ts,
+			JobId:                     jobId,
+			State:                     pointer.Int32(int32(database.JobFailedOrdinal)),
+			LastTransitionTime:        &ts,
+			LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 		}
 		update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	}
@@ -338,20 +351,22 @@ func (s *Service) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRu
 
 	// Update Job
 	job := model.UpdateJobInstruction{
-		JobId:   jobId,
-		State:   pointer.Int32(int32(database.JobRunningOrdinal)),
-		Updated: ts,
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(database.JobRunningOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		LatestRunId:               &runId,
 	}
 
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 
 	// Update Job Run
-	node, podNumber := getNode(event.ResourceInfos)
+	node := getNode(event.ResourceInfos)
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:     runId,
-		Started:   &ts,
-		Node:      &node,
-		PodNumber: pointer.Int32(int32(podNumber)),
+		RunId:       runId,
+		Node:        &node,
+		Started:     &ts,
+		JobRunState: pointer.Int32(database.JobRunRunningOrdinal),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
@@ -372,9 +387,11 @@ func (s *Service) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunA
 
 	// Update Job
 	job := model.UpdateJobInstruction{
-		JobId:   jobId,
-		State:   pointer.Int32(int32(database.JobPendingOrdinal)),
-		Updated: ts,
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(database.JobPendingOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		LatestRunId:               &runId,
 	}
 
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
@@ -384,10 +401,11 @@ func (s *Service) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunA
 	}
 	// Now create a job run
 	jobRun := model.CreateJobRunInstruction{
-		RunId:   runId,
-		JobId:   jobId,
-		Cluster: cluster,
-		Created: ts,
+		RunId:       runId,
+		JobId:       jobId,
+		Cluster:     cluster,
+		Pending:     ts,
+		JobRunState: database.JobRunPendingOrdinal,
 	}
 	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
 	return nil
@@ -401,15 +419,16 @@ func (s *Service) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRun
 	}
 
 	jobRun := model.UpdateJobRunInstruction{
-		RunId:     runId,
-		Succeeded: pointer.Bool(true),
-		Finished:  &ts,
+		RunId:       runId,
+		Finished:    &ts,
+		JobRunState: pointer.Int32(database.JobRunSucceededOrdinal),
+		ExitCode:    pointer.Int32(0),
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
-func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
+func (s *Service) handleJobRunErrors(ts time.Time, logger logrus.FieldLogger, event *armadaevents.JobRunErrors, update *model.InstructionSet, compressor compress.Compressor) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		s.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -441,9 +460,8 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 			}
 
 			jobRunUpdate := &model.UpdateJobRunInstruction{
-				RunId:     runId,
-				Succeeded: pointer.Bool(false),
-				Finished:  &ts,
+				RunId:    runId,
+				Finished: &ts,
 			}
 			if isLegacyEvent {
 				jobRunUpdate.Started = &ts
@@ -451,34 +469,34 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.Node = extractNodeName(reason.PodError)
+				jobRunUpdate.JobRunState = pointer.Int32(database.JobRunFailedOrdinal)
+				jobRunUpdate.Error = tryCompressError(jobId, reason.PodError.GetMessage(), compressor, logger)
+				var exitCode int32 = 0
 				for _, containerError := range reason.PodError.ContainerErrors {
-					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
-						RunId:         jobRunUpdate.RunId,
-						ExitCode:      containerError.ExitCode,
-						ContainerName: containerError.GetObjectMeta().GetName(),
-					})
+					if containerError.ExitCode != 0 {
+						exitCode = containerError.ExitCode
+						break
+					}
 				}
+				jobRunUpdate.ExitCode = pointer.Int32(exitCode)
 			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
+				jobRunUpdate.JobRunState = pointer.Int32(database.JobRunTerminatedOrdinal)
+				jobRunUpdate.Error = tryCompressError(jobId, reason.PodTerminated.GetMessage(), compressor, logger)
 			case *armadaevents.Error_PodUnschedulable:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 				jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
+				jobRunUpdate.JobRunState = pointer.Int32(database.JobRunUnableToScheduleOrdinal)
+				jobRunUpdate.Error = tryCompressError(jobId, reason.PodUnschedulable.GetMessage(), compressor, logger)
 			case *armadaevents.Error_PodLeaseReturned:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				jobRunUpdate.JobRunState = pointer.Int32(database.JobRunLeaseReturnedOrdinal)
+				jobRunUpdate.Error = tryCompressError(jobId, reason.PodLeaseReturned.GetMessage(), compressor, logger)
 			case *armadaevents.Error_LeaseExpired:
-				jobRunUpdate.Error = pointer.String("Lease Expired")
-				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				jobRunUpdate.JobRunState = pointer.Int32(database.JobRunLeaseExpiredOrdinal)
+				jobRunUpdate.Error = tryCompressError(jobId, "Lease expired", compressor, logger)
 			default:
-				jobRunUpdate.Error = pointer.String("Unknown error")
+				jobRunUpdate.JobRunState = pointer.Int32(database.JobRunFailedOrdinal)
+				jobRunUpdate.Error = tryCompressError(jobId, "Unknown error", compressor, logger)
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
@@ -486,6 +504,14 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 		}
 	}
 	return nil
+}
+
+func tryCompressError(jobId string, errorString string, compressor compress.Compressor, logger logrus.FieldLogger) []byte {
+	compressedError, err := compressor.Compress([]byte(util.RemoveNullsFromString(errorString)))
+	if err != nil {
+		logger.Warnf("Couldn't compress error for job %s as json.  %+v", jobId, err)
+	}
+	return compressedError
 }
 
 func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
@@ -502,23 +528,24 @@ func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
 	return nil
 }
 
-func getNode(resources []*armadaevents.KubernetesResourceInfo) (string, int) {
+func getNode(resources []*armadaevents.KubernetesResourceInfo) string {
 	for _, r := range resources {
 		node := r.GetPodInfo().GetNodeName()
 		if node != "" {
-			return node, int(r.GetPodInfo().GetPodNumber())
+			return node
 		}
 	}
-	return "UNKNOWN", -1
+	return "UNKNOWN"
 }
 
 func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
 	runId := uuid.New().String()
 	return &model.CreateJobRunInstruction{
-		RunId:   runId,
-		JobId:   jobId,
-		Cluster: "UNKNOWN",
-		Created: ts,
+		RunId:       runId,
+		JobId:       jobId,
+		Cluster:     "UNKNOWN",
+		Pending:     ts,
+		JobRunState: database.JobRunPendingOrdinal,
 	}
 }
 
@@ -530,13 +557,38 @@ func extractNodeName(x HasNodeName) *string {
 	return nil
 }
 
-func getJobResources(logger logrus.FieldLogger, job *api.Job) jobResources {
+func getJobResources(job *api.Job) jobResources {
 	resources := jobResources{}
 
+	podSpec := util.PodSpecFromJob(job)
+
+	for _, container := range podSpec.Containers {
+		resources.Cpu += getResource(container, v1.ResourceCPU, true)
+		resources.Memory += getResource(container, v1.ResourceMemory, false)
+		resources.EphemeralStorage += getResource(container, v1.ResourceEphemeralStorage, false)
+		resources.Gpu += getResource(container, "nvidia.com/gpu", false)
+	}
+
+	return resources
 }
 
-func getResource[T](podSpec *v1.PodSpec, resourceKey string) T {
-	
+func getResource(container v1.Container, resourceName v1.ResourceName, useMillis bool) int64 {
+	resource, ok := container.Resources.Requests[resourceName]
+	if !ok {
+		return 0
+	}
+	if useMillis {
+		return resource.MilliValue()
+	}
+	return resource.Value()
+}
+
+func getJobPriorityClass(job *api.Job) *string {
+	podSpec := util.PodSpecFromJob(job)
+	if podSpec.PriorityClassName != "" {
+		return pointer.String(podSpec.PriorityClassName)
+	}
+	return nil
 }
 
 // Put the requestId into a message-specific context and logger, which are passed on to sub-functions.

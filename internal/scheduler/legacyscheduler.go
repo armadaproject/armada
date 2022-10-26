@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/util"
 	"math/rand"
 	"strings"
 	"text/tabwriter"
@@ -16,7 +17,6 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
@@ -213,7 +213,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	}
 
 	// Add the scheduling requirements for this job.
-	podSpec := podSpecFromJob(job)
+	podSpec := util.PodSpecFromJob(job)
 	if podSpec == nil {
 		return nil, errors.New("failed to get pod spec")
 	}
@@ -301,7 +301,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 }
 
 func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
-	return schedulerobjects.PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
+	return schedulerobjects.PriorityFromPodSpec(util.PodSpecFromJob(job), priorityByPriorityClassName)
 }
 
 func uuidFromUlidString(ulid string) (uuid.UUID, error) {
@@ -354,7 +354,7 @@ func (scheduler *LegacyScheduler) jobIsLargeEnough(jobTotalResourceRequests comm
 }
 
 func (scheduler *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uuid.UUID, job *api.Job) (*PodSchedulingReport, error) {
-	podSpec := podSpecFromJob(job)
+	podSpec := util.PodSpecFromJob(job)
 	if podSpec == nil {
 		return nil, errors.New("failed to get pod spec")
 	}
@@ -730,16 +730,4 @@ func pickQueueRandomly(weights map[string]float64, random *rand.Rand) (string, f
 	log.Error("Could not randomly pick a queue, this should not happen!")
 	queue := queues[len(queues)-1]
 	return queue, weights[queue] / sum
-}
-
-func podSpecFromJob(job *api.Job) *v1.PodSpec {
-	if job.PodSpec != nil {
-		return job.PodSpec
-	}
-	for _, podSpec := range job.PodSpecs {
-		if podSpec != nil {
-			return podSpec
-		}
-	}
-	return nil
 }

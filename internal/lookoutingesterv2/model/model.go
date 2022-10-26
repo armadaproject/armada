@@ -15,7 +15,7 @@ type CreateJobInstruction struct {
 	Cpu                       int64
 	Memory                    int64
 	EphemeralStorage          int64
-	Gpu                       int32
+	Gpu                       int64
 	Priority                  uint32
 	Submitted                 time.Time
 	State                     int32
