@@ -5,6 +5,8 @@ hostnames:
 replicas: 3
 
 applicationConfig:
+  pulsar:
+    url: "pulsar://pulsar-broker.default.svc.cluster.local:6650"
   redis:
     masterName: "mymaster"
     addrs:
@@ -19,12 +21,6 @@ applicationConfig:
       - "redis-redis-ha-announce-1.default.svc.cluster.local:26379"
       - "redis-redis-ha-announce-2.default.svc.cluster.local:26379"
     poolSize: 1000
-  eventsNats:
-    servers:
-      - nats://nats.default.svc.cluster.local:4222
-    clusterID: nats
-    subject: ArmadaTest
-    queueGroup: ArmadaEventRedisProcessor
   auth:
     basicAuth:
       enableAuthentication: false
