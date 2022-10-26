@@ -16,23 +16,7 @@ func submitCmd() *cobra.Command {
 		Long:  "Submit events to Pulsar from file.",
 		Args:  cobra.ExactArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			url, err := cmd.Flags().GetString("url")
-			if err != nil {
-				return err
-			}
-			authEnabled, err := cmd.Flags().GetBool("authenticationEnabled")
-			if err != nil {
-				return err
-			}
-			authType, err := cmd.Flags().GetString("authenticationType")
-			if err != nil {
-				return err
-			}
-			jwtPath, err := cmd.Flags().GetString("jwtTokenPath")
-			if err != nil {
-				return err
-			}
-			jsTopic, err := cmd.Flags().GetString("jobsetEventsTopic")
+			flags, err := processCmdFlags(cmd.Flags())
 			if err != nil {
 				return err
 			}
@@ -40,11 +24,11 @@ func submitCmd() *cobra.Command {
 			params := pulsartest.Params{
 				Pulsar: configuration.PulsarConfig{
 					Enabled:               true,
-					URL:                   url,
-					AuthenticationEnabled: authEnabled,
-					AuthenticationType:    authType,
-					JwtTokenPath:          jwtPath,
-					JobsetEventsTopic:     jsTopic,
+					URL:                   flags.url,
+					AuthenticationEnabled: flags.authEnable,
+					AuthenticationType:    flags.authType,
+					JwtTokenPath:          flags.jwtPath,
+					JobsetEventsTopic:     flags.topic,
 				},
 			}
 			a, err = pulsartest.New(params, "submit")
