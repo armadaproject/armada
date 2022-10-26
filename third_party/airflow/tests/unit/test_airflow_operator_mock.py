@@ -71,6 +71,79 @@ def sleep_job():
         ],
     )
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def test_job_service_health():
+    health = tester_jobservice.health()
+    assert health.status == jobservice_pb2.HealthCheckResponse.SERVING
+
+
+def test_mock_success_job():
+
+    tester_client.submit_jobs(
+        queue="test",
+        job_set_id="test",
+        job_request_items=sleep_job(),
+    )
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=tester_jobservice,
+        armada_queue="test",
+        job_set_id="test",
+        airflow_task_name="test-mock",
+        job_id="test_succeeded",
+    )
+    assert job_state == JobState.SUCCEEDED
+    assert job_message == "Armada test-mock:test_succeeded succeeded"
+
+
+def test_mock_failed_job():
+
+    tester_client.submit_jobs(
+        queue="test",
+        job_set_id="test",
+        job_request_items=sleep_job(),
+    )
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=tester_jobservice,
+        armada_queue="test",
+        job_set_id="test",
+        airflow_task_name="test-mock",
+        job_id="test_failed",
+    )
+    assert job_state == JobState.FAILED
+    assert job_message.startswith("Armada test-mock:test_failed failed")
+
+
+def test_mock_cancelled_job():
+
+    tester_client.submit_jobs(
+        queue="test",
+        job_set_id="test",
+        job_request_items=sleep_job(),
+    )
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=tester_jobservice,
+        armada_queue="test",
+        job_set_id="test",
+        airflow_task_name="test-mock",
+        job_id="test_cancelled",
+    )
+    assert job_state == JobState.CANCELLED
+    assert job_message == "Armada test-mock:test_cancelled cancelled"
+
+
+def test_annotate_job_request_items():
+
+    no_auth_client = ArmadaClient(
+        channel=grpc.insecure_channel(target="127.0.0.1:50051")
+    )
+    job_service_client = JobServiceClient(
+        channel=grpc.insecure_channel(target="127.0.0.1:60003")
+    )
+
     job_request_items = sleep_job()
     task_id = "58896abbfr9"
     operator = ArmadaOperator(
@@ -86,4 +159,4 @@ def sleep_job():
     context = {"ti": task_instance}
 
     result = annotate_job_request_items(context, job_request_items)
-    assert result[0][0].annotations == {"armadaproject.io/taskId": task_id}
+    assert result[0].annotations == {"armadaproject.io/taskId": task_id}

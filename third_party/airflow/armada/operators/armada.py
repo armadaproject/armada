@@ -29,6 +29,8 @@ from armada.jobservice import jobservice_pb2
 
 armada_logger = logging.getLogger("airflow.task")
 
+ANNOTATION_TASK_ID = "armadaproject.io/taskId"
+
 
 class ArmadaOperator(BaseOperator):
     """
@@ -119,8 +121,7 @@ def annotate_job_request_items(context, job_request_items):
     task_instance = context["ti"]
     task_id = task_instance.task_id
 
-    for item_list in job_request_items:
-        for item in item_list:
-            item.annotations["armadaproject.io/taskId"] = task_id
+    for item in job_request_items:
+        item.annotations[ANNOTATION_TASK_ID] = task_id
 
     return job_request_items
