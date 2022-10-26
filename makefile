@@ -582,6 +582,10 @@ generate:
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 
+	$(GO_CMD) go run github.com/rakyll/statik \
+		-dest=internal/lookoutv2/schema/ -src=internal/lookoutv2/schema/ -include=\*.sql -ns=lookoutv2/sql -Z -f -m && \
+		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookoutv2/schema/statik
+
 armada-dev: build-dev-server build-dev-fakeexecutor build-dev-lookout build-dev-binoculars build-dev-jobservice
 
 build-dev-server:

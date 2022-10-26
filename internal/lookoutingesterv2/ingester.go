@@ -1,6 +1,7 @@
-package lookoutingester
+package lookoutingesterv2
 
 import (
+	"github.com/G-Research/armada/internal/common/database"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,13 +14,12 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookoutingester/batch"
-	"github.com/G-Research/armada/internal/lookoutingester/instructions"
-	"github.com/G-Research/armada/internal/lookoutingester/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/batch"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
@@ -81,11 +81,11 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	}
 
 	// Create a merged set of instructions from each stream.  Ordering within each stream is preserved
-	instructions := mergeInstructions(instructionChannels)
+	mergedInstructionsCh := mergeInstructions(instructionChannels)
 
 	// Batch up the updates.  This will release a batch of updates after batchSize or batchDuration has been reached
 	// (whichever happens first)
-	batchedInstructions := batch.Batch(instructions, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
+	batchedInstructions := batch.Batch(mergedInstructionsCh, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
 
 	// Insert the instructions into a db
 	ldb := lookoutdb.New(db, metrics.Get())

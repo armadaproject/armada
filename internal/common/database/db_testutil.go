@@ -11,7 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-func WithTestDb(migrations []migration, action func(db *pgxpool.Pool) error) error {
+func WithTestDb(migrations []Migration, action func(db *pgxpool.Pool) error) error {
 	ctx := context.Background()
 
 	// Connect and create a dedicated database for the test
