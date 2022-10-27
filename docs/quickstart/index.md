@@ -29,7 +29,7 @@ Armada is a resource intensive application due to the need to run multiple Kuber
 To install Armada and all its dependencies you can use this script: 
 
 ```
-$ docs/local/setup.sh
+docs/local/setup.sh
 ```
 
 Once completed, wait for all pods to be running via `kubectl get pod`
@@ -37,7 +37,7 @@ Once completed, wait for all pods to be running via `kubectl get pod`
 Likewise you can remove the Armada components from your system: 
 
 ```
-$ docs/local/destroy.sh
+docs/local/destroy.sh
 ```
 
 ## Usage
@@ -124,7 +124,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 Grafana:
 
-![Armada Grafana dashboard](./grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./img/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
@@ -137,4 +137,4 @@ kubectl port-forward svc/armada-lookout 8080:8080
 ```
 Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
 
-![Lookout UI](./lookout.png "Lookout UI")
+![Lookout UI](./img/lookout.png "Lookout UI")
