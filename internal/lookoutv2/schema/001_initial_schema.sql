@@ -1,47 +1,44 @@
-CREATE TABLE IF NOT EXISTS job
-(
-    job_id varchar(32) NOT NULL PRIMARY KEY,
-    queue varchar(512) NOT NULL,
-    owner varchar(512) NOT NULL,
-    jobset varchar(1024) NOT NULL,
-    cpu bigint NOT NULL,
-    memory bigint NOT NULL,
-    ephemeral_storage bigint NOT NULL,
-    gpu bigint NOT NULL,
-    priority double precision NOT NULL,
-    submitted timestamp NOT NULL,
-    cancelled timestamp NULL,
-    state smallint NOT NULL,
-    last_transition_time timestamp NOT NULL,
-    last_transition_time_seconds bigint NOT NULL,
-    job_spec bytea NOT NULL,
-    duplicate bool NOT NULL DEFAULT false,
-    priority_class varchar(63) NULL,
-    latest_run_id varchar(36) NULL
+CREATE TABLE IF NOT EXISTS job (
+    job_id                       varchar(32)      NOT NULL PRIMARY KEY,
+    queue                        varchar(512)     NOT NULL,
+    owner                        varchar(512)     NOT NULL,
+    jobset                       varchar(1024)    NOT NULL,
+    cpu                          bigint           NOT NULL,
+    memory                       bigint           NOT NULL,
+    ephemeral_storage            bigint           NOT NULL,
+    gpu                          bigint           NOT NULL,
+    priority                     double precision NOT NULL,
+    submitted                    timestamp        NOT NULL,
+    cancelled                    timestamp        NULL,
+    state                        smallint         NOT NULL,
+    last_transition_time         timestamp        NOT NULL,
+    last_transition_time_seconds bigint           NOT NULL,
+    job_spec                     bytea            NOT NULL,
+    duplicate                    bool             NOT NULL DEFAULT false,
+    priority_class               varchar(63)      NULL,
+    latest_run_id                varchar(36)      NULL
 );
 ALTER TABLE job ALTER COLUMN job_spec SET STORAGE EXTERNAL;
 
-CREATE TABLE IF NOT EXISTS job_run
-(
-    run_id varchar(36) NOT NULL PRIMARY KEY,
-    job_id varchar(32) NOT NULL,
-    cluster varchar(512) NOT NULL,
-    node varchar(512) NULL,
-    pending timestamp NOT NULL,
-    started timestamp NULL,
-    finished timestamp NULL,
-    job_run_state smallint NOT NULL,
-    error bytea NULL,
-    exit_code int NULL
+CREATE TABLE IF NOT EXISTS job_run (
+    run_id        varchar(36)  NOT NULL PRIMARY KEY,
+    job_id        varchar(32)  NOT NULL,
+    cluster       varchar(512) NOT NULL,
+    node          varchar(512) NULL,
+    pending       timestamp    NOT NULL,
+    started       timestamp    NULL,
+    finished      timestamp    NULL,
+    job_run_state smallint     NOT NULL,
+    error         bytea        NULL,
+    exit_code     int          NULL
 );
 ALTER TABLE job_run ALTER COLUMN error SET STORAGE EXTERNAL;
 
-CREATE TABLE IF NOT EXISTS user_annotation_lookup
-(
-    job_id varchar(32) NOT NULL,
-    key varchar(1024) NOT NULL,
-    value varchar(1024) NOT NULL,
-    queue varchar(512) NOT NULL,
+CREATE TABLE IF NOT EXISTS user_annotation_lookup (
+    job_id varchar(32)   NOT NULL,
+    key    varchar(1024) NOT NULL,
+    value  varchar(1024) NOT NULL,
+    queue  varchar(512)  NOT NULL,
     jobset varchar(1024) NOT NULL,
     PRIMARY KEY (job_id, key)
 );
