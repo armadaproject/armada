@@ -36,6 +36,7 @@ func New(db *pgxpool.Pool, m *metrics.Metrics, maxRetries int, maxBackoff int) *
 func (l *DB) ProcessUpdates(ctx context.Context, msgs chan *model.InstructionSet, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
 	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
+		fmt.Println("STARTED LOOP")
 		for msg := range msgs {
 			start := time.Now()
 			l.Update(ctx, msg)

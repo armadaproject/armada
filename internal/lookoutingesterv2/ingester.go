@@ -1,7 +1,7 @@
 package lookoutingesterv2
 
 import (
-	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
 	"os"
 	"os/signal"
 	"sync"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/lookout/configuration"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/batch"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
@@ -25,7 +25,7 @@ import (
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Lookout database accordingly.  This pipeline will run until a SIGTERM is received
-func Run(config *configuration.LookoutIngesterConfiguration) {
+func Run(config *configuration.LookoutIngesterV2Configuration) {
 	if !(config.Paralellism > 0) {
 		panic("Lookout ingester paralellism must be greater than 0")
 	}
