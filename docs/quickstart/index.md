@@ -29,7 +29,7 @@ Armada is a resource intensive application due to the need to run multiple Kuber
 To install Armada and all its dependencies you can use this script: 
 
 ```
-$ docs/local/setup.sh
+docs/local/setup.sh
 ```
 
 Once completed, wait for all pods to be running via `kubectl get pod`
@@ -37,7 +37,7 @@ Once completed, wait for all pods to be running via `kubectl get pod`
 Likewise you can remove the Armada components from your system: 
 
 ```
-$ docs/local/destroy.sh
+docs/local/destroy.sh
 ```
 
 ## Usage
