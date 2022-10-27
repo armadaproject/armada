@@ -4,7 +4,7 @@ hostnames:
   - test
 
 dbPruningEnabled: true
-dbPruneSchedule: '"@hourly"'
+dbPruneSchedule: "0 * * * *"
 
 prometheus:
   enabled: true
@@ -31,5 +31,3 @@ applicationConfig:
   prunerConfig:
     daysToKeep: 42
     batchSize: 1000
-
-
