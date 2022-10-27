@@ -801,5 +801,5 @@ func withLookoutDb(action func(db *pgxpool.Pool) error) error {
 	if err != nil {
 		return err
 	}
-	return database.WithTestDb(migrations, action)
+	return database.WithTestDb(migrations, nil, action)
 }
