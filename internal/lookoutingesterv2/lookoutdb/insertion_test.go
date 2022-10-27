@@ -3,6 +3,7 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
+	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 	"sort"
 	"testing"
 	"time"
@@ -11,28 +12,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookout/testutil"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 const (
-	jobIdString    = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString    = "123e4567-e89b-12d3-a456-426614174000"
-	jobSetName     = "testJobset"
-	executorId     = "testCluster"
-	nodeName       = "testNode"
-	queue          = "test-queue"
-	userId         = "testUser"
-	priority       = 3
-	updatePriority = 4
-	updateState    = 5
-	podNumber      = 6
-	jobJson        = `{"foo": "bar"}`
-	jobProto       = "hello world"
-	containerName  = "testContainer"
+	jobIdString      = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString      = "123e4567-e89b-12d3-a456-426614174000"
+	jobSetName       = "testJobset"
+	cpu              = 12500
+	memory           = 2000 * 1024 * 1024 * 1024
+	ephemeralStorage = 3000 * 1024 * 1024 * 1024
+	gpu              = 8
+	executorId       = "testCluster"
+	nodeName         = "testNode"
+	queue            = "test-queue"
+	userId           = "testUser"
+	priority         = 3
+	updatePriority   = 4
+	priorityClass    = "default"
+	updateState      = 5
+	podNumber        = 6
+	jobJson          = `{"foo": "bar"}`
+	jobProto         = "hello world"
+	containerName    = "testContainer"
 )
 
 var m = metrics.Get()
@@ -48,157 +53,168 @@ var (
 var invalidId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 type JobRow struct {
-	JobId     string
-	Queue     string
-	Owner     string
-	JobSet    string
-	Priority  uint32
-	Submitted time.Time
-	JobProto  []byte
-	State     int64
-	Duplicate bool
-	Updated   time.Time
-	Cancelled *time.Time
+	JobId                     string
+	Queue                     string
+	Owner                     string
+	JobSet                    string
+	Cpu                       int64
+	Memory                    int64
+	EphemeralStorage          int64
+	Gpu                       int64
+	Priority                  uint32
+	Submitted                 time.Time
+	Cancelled                 *time.Time
+	State                     int32
+	LastTransitionTime        time.Time
+	LastTransitionTimeSeconds int64
+	JobProto                  []byte
+	Duplicate                 bool
+	PriorityClass             string
+	LatestRunId               *string
 }
 
 type JobRunRow struct {
-	RunId            string
-	JobId            string
-	Cluster          string
-	Node             *string
-	Created          time.Time
-	Started          *time.Time
-	Finished         *time.Time
-	Succeeded        *bool
-	Error            *string
-	PodNumber        int
-	UnableToSchedule *bool
+	RunId       string
+	JobId       string
+	Cluster     string
+	Node        *string
+	Pending     time.Time
+	Started     *time.Time
+	Finished    *time.Time
+	JobRunState int32
+	Error       *string
+	ExitCode    *int32
 }
 
 type UserAnnotationRow struct {
-	JobId string
-	Key   string
-	Value string
-}
-
-type JobRunContainerRow struct {
-	RunId         string
-	ContainerName string
-	ExitCode      int
+	JobId  string
+	Key    string
+	Value  string
+	Queue  string
+	JobSet string
 }
 
 func defaultInstructionSet() *model.InstructionSet {
 	return &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{{
-			JobId:     jobIdString,
-			Queue:     queue,
-			Owner:     userId,
-			JobSet:    jobSetName,
-			Priority:  priority,
-			Submitted: baseTime,
-			JobProto:  []byte(jobProto),
-			State:     0,
-			Updated:   baseTime,
+			JobId:                     jobIdString,
+			Queue:                     queue,
+			Owner:                     userId,
+			JobSet:                    jobSetName,
+			Cpu:                       cpu,
+			Memory:                    memory,
+			EphemeralStorage:          ephemeralStorage,
+			Gpu:                       gpu,
+			Priority:                  priority,
+			Submitted:                 baseTime,
+			State:                     database.JobQueuedOrdinal,
+			LastTransitionTime:        baseTime,
+			LastTransitionTimeSeconds: baseTime.Unix(),
+			JobProto:                  []byte(jobProto),
+			PriorityClass:             pointer.String(priorityClass),
 		}},
 		JobsToUpdate: []*model.UpdateJobInstruction{{
-			JobId:    jobIdString,
-			Priority: pointer.Int32(updatePriority),
-			State:    pointer.Int32(updateState),
-			Updated:  updateTime,
+			JobId:                     jobIdString,
+			Priority:                  pointer.Int32(updatePriority),
+			State:                     pointer.Int32(database.JobFailedOrdinal),
+			LastTransitionTime:        &updateTime,
+			LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
 		}},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{{
-			RunId:   runIdString,
-			JobId:   jobIdString,
-			Cluster: executorId,
-			Created: updateTime,
+			RunId:       runIdString,
+			JobId:       jobIdString,
+			Cluster:     executorId,
+			Pending:     updateTime,
+			JobRunState: database.JobRunPendingOrdinal,
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:            runIdString,
-			Node:             pointer.String(nodeName),
-			Started:          &startTime,
-			Finished:         &finishedTime,
-			Succeeded:        pointer.Bool(true),
-			Error:            nil,
-			PodNumber:        pointer.Int32(podNumber),
-			UnableToSchedule: nil,
+			RunId:       runIdString,
+			Node:        pointer.String(nodeName),
+			Started:     &startTime,
+			Finished:    &finishedTime,
+			JobRunState: pointer.Int32(database.JobRunSucceededOrdinal),
+			ExitCode:    pointer.Int32(0),
 		}},
 		UserAnnotationsToCreate: []*model.CreateUserAnnotationInstruction{{
-			JobId: jobIdString,
-			Key:   "someKey",
-			Value: "someValue",
-		}},
-		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{{
-			RunId:         runIdString,
-			ContainerName: containerName,
-			ExitCode:      3,
+			JobId:  jobIdString,
+			Key:    "someKey",
+			Value:  "someValue",
+			Queue:  queue,
+			Jobset: jobSetName,
 		}},
 		MessageIds: []*pulsarutils.ConsumerMessageId{{MessageId: pulsarutils.NewMessageId(3), Index: 0, ConsumerId: 1}},
 	}
 }
 
 var expectedJobAfterSubmit = JobRow{
-	JobId:     jobIdString,
-	Queue:     queue,
-	Owner:     userId,
-	JobSet:    jobSetName,
-	Priority:  priority,
-	Submitted: baseTime,
-	JobProto:  []byte(jobProto),
-	State:     0,
-	Updated:   baseTime,
-	Duplicate: false,
+	JobId:                     jobIdString,
+	Queue:                     queue,
+	Owner:                     userId,
+	JobSet:                    jobSetName,
+	Cpu:                       cpu,
+	Memory:                    memory,
+	EphemeralStorage:          ephemeralStorage,
+	Gpu:                       gpu,
+	Priority:                  priority,
+	Submitted:                 baseTime,
+	State:                     database.JobQueuedOrdinal,
+	LastTransitionTime:        baseTime,
+	LastTransitionTimeSeconds: baseTime.Unix(),
+	JobProto:                  []byte(jobProto),
+	Duplicate:                 false,
+	PriorityClass:             priorityClass,
 }
 
 var expectedJobAfterUpdate = JobRow{
-	JobId:     jobIdString,
-	Queue:     queue,
-	Owner:     userId,
-	JobSet:    jobSetName,
-	Priority:  updatePriority,
-	State:     updateState,
-	Updated:   updateTime,
-	Submitted: baseTime,
-	JobProto:  []byte(jobProto),
-	Duplicate: false,
+	JobId:                     jobIdString,
+	Queue:                     queue,
+	Owner:                     userId,
+	JobSet:                    jobSetName,
+	Cpu:                       cpu,
+	Memory:                    memory,
+	EphemeralStorage:          ephemeralStorage,
+	Gpu:                       gpu,
+	Priority:                  updatePriority,
+	Submitted:                 baseTime,
+	State:                     database.JobFailedOrdinal,
+	LastTransitionTime:        updateTime,
+	LastTransitionTimeSeconds: updateTime.Unix(),
+	JobProto:                  []byte(jobProto),
+	Duplicate:                 false,
+	PriorityClass:             priorityClass,
 }
 
 var expectedJobRun = JobRunRow{
-	RunId:     runIdString,
-	JobId:     jobIdString,
-	Cluster:   executorId,
-	Created:   updateTime,
-	PodNumber: 0,
+	RunId:       runIdString,
+	JobId:       jobIdString,
+	Cluster:     executorId,
+	Pending:     updateTime,
+	JobRunState: database.JobRunPendingOrdinal,
 }
 
 var expectedJobRunAfterUpdate = JobRunRow{
-	RunId:            runIdString,
-	JobId:            jobIdString,
-	Cluster:          executorId,
-	Created:          updateTime,
-	Node:             pointer.String(nodeName),
-	Started:          &startTime,
-	Finished:         &finishedTime,
-	Succeeded:        pointer.Bool(true),
-	Error:            nil,
-	PodNumber:        podNumber,
-	UnableToSchedule: nil,
+	RunId:       runIdString,
+	JobId:       jobIdString,
+	Cluster:     executorId,
+	Node:        pointer.String(nodeName),
+	Pending:     updateTime,
+	Started:     &startTime,
+	Finished:    &finishedTime,
+	JobRunState: database.JobRunSucceededOrdinal,
+	ExitCode:    pointer.Int32(0),
 }
 
 var expectedUserAnnotation = UserAnnotationRow{
-	JobId: jobIdString,
-	Key:   "someKey",
-	Value: "someValue",
-}
-
-var expectedJobRunContainer = JobRunContainerRow{
-	RunId:         runIdString,
-	ContainerName: containerName,
-	ExitCode:      3,
+	JobId:  jobIdString,
+	Key:    "someKey",
+	Value:  "someValue",
+	Queue:  queue,
+	JobSet: jobSetName,
 }
 
 func TestCreateJobsBatch(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -226,8 +242,8 @@ func TestCreateJobsBatch(t *testing.T) {
 }
 
 func TestUpdateJobsBatch(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -261,8 +277,8 @@ func TestUpdateJobsBatch(t *testing.T) {
 }
 
 func TestUpdateJobsScalar(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -294,32 +310,42 @@ func TestUpdateJobsScalar(t *testing.T) {
 }
 
 func TestUpdateJobsWithCancelled(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
 		initial := []*model.CreateJobInstruction{{
-			JobId:     jobIdString,
-			Queue:     queue,
-			Owner:     userId,
-			JobSet:    jobSetName,
-			Priority:  priority,
-			Submitted: baseTime,
-			JobProto:  []byte(jobProto),
-			State:     0,
-			Updated:   baseTime,
+			JobId:                     jobIdString,
+			Queue:                     queue,
+			Owner:                     userId,
+			JobSet:                    jobSetName,
+			Cpu:                       cpu,
+			Memory:                    memory,
+			EphemeralStorage:          ephemeralStorage,
+			Gpu:                       gpu,
+			Priority:                  priority,
+			Submitted:                 baseTime,
+			State:                     database.JobQueuedOrdinal,
+			LastTransitionTime:        baseTime,
+			LastTransitionTimeSeconds: baseTime.Unix(),
+			JobProto:                  []byte(jobProto),
+			PriorityClass:             pointer.String(priorityClass),
 		}}
 
 		update1 := []*model.UpdateJobInstruction{{
-			JobId:   jobIdString,
-			State:   pointer.Int32(repository.JobCancelledOrdinal),
-			Updated: baseTime,
+			JobId:                     jobIdString,
+			State:                     pointer.Int32(database.JobCancelledOrdinal),
+			Cancelled:                 &baseTime,
+			LastTransitionTime:        &baseTime,
+			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
 		}}
 
 		update2 := []*model.UpdateJobInstruction{{
-			JobId:   jobIdString,
-			State:   pointer.Int32(repository.JobRunningOrdinal),
-			Updated: baseTime,
+			JobId:                     jobIdString,
+			State:                     pointer.Int32(database.JobRunningOrdinal),
+			LastTransitionTime:        &baseTime,
+			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			LatestRunId:               pointer.String(runIdString),
 		}}
 
-		ldb := New(db, m)
+		ldb := New(db, m, 2, 10)
 
 		// Insert
 		ldb.CreateJobs(ctx.Background(), initial)
@@ -332,7 +358,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 
 		// Assert the state is still cancelled
 		job := getJob(t, db, jobIdString)
-		assert.Equal(t, repository.JobCancelledOrdinal, int(job.State))
+		assert.Equal(t, database.JobCancelledOrdinal, int(job.State))
 
 		return nil
 	})
@@ -340,8 +366,8 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 }
 
 func TestCreateJobsScalar(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Simple create
 		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		job := getJob(t, db, jobIdString)
@@ -367,8 +393,8 @@ func TestCreateJobsScalar(t *testing.T) {
 }
 
 func TestCreateJobRunsBatch(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -400,8 +426,8 @@ func TestCreateJobRunsBatch(t *testing.T) {
 }
 
 func TestCreateJobRunsScalar(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -431,8 +457,8 @@ func TestCreateJobRunsScalar(t *testing.T) {
 }
 
 func TestUpdateJobRunsBatch(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -470,8 +496,8 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 }
 
 func TestUpdateJobRunsScalar(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -508,8 +534,8 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 }
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -541,21 +567,20 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 }
 
 func TestEmptyUpdate(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		ldb.Update(ctx.Background(), &model.InstructionSet{})
 		assertNoRows(t, ldb.db, "job")
 		assertNoRows(t, ldb.db, "job_run")
 		assertNoRows(t, ldb.db, "user_annotation_lookup")
-		assertNoRows(t, ldb.db, "job_run_container")
 		return nil
 	})
 	assert.NoError(t, err)
 }
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -585,19 +610,17 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		ldb := New(db, m, 2, 10)
 		// Do the update
 		ldb.Update(ctx.Background(), defaultInstructionSet())
 
 		job := getJob(t, ldb.db, jobIdString)
 		jobRun := getJobRun(t, ldb.db, runIdString)
 		annotation := getUserAnnotationLookup(t, ldb.db, jobIdString)
-		container := getJobRunContainer(t, ldb.db, runIdString)
 
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		assert.Equal(t, expectedJobRunAfterUpdate, jobRun)
-		assert.Equal(t, expectedJobRunContainer, container)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 		return nil
 	})
@@ -633,12 +656,12 @@ func TestConflateJobUpdates(T *testing.T) {
 func TestConflateJobUpdatesWithCancelled(T *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
-		{JobId: jobIdString, State: pointer.Int32(repository.JobRunningOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(database.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(database.JobRunningOrdinal)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(database.JobCancelledOrdinal)},
 	}
 	assert.Equal(T, expected, updates)
 }
@@ -674,20 +697,46 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	job := JobRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated,  orig_job_spec, cancelled FROM job WHERE job_id = $1`,
+		`SELECT
+    		job_id,
+    		queue,
+    		owner,
+    		jobset,
+    		cpu,
+    		memory,
+    		ephemeral_storage,
+    		gpu,
+    		priority,
+    		submitted,
+    		cancelled,
+    		state,
+    		last_transition_time,
+    		last_transition_time_seconds,
+    		job_spec,
+    		duplicate,
+			priority_class,
+			latest_run_id
+		FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
 		&job.JobId,
 		&job.Queue,
 		&job.Owner,
 		&job.JobSet,
+		&job.Cpu,
+		&job.Memory,
+		&job.EphemeralStorage,
+		&job.Gpu,
 		&job.Priority,
 		&job.Submitted,
-		&job.State,
-		&job.Duplicate,
-		&job.Updated,
-		&job.JobProto,
 		&job.Cancelled,
+		&job.State,
+		&job.LastTransitionTime,
+		&job.LastTransitionTimeSeconds,
+		&job.JobProto,
+		&job.Duplicate,
+		&job.PriorityClass,
+		&job.LatestRunId,
 	)
 	assert.Nil(t, err)
 	return job
@@ -697,51 +746,60 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 	run := JobRunRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT run_id, job_id, cluster, node, created, started, finished, succeeded, error, pod_number, unable_to_schedule FROM job_run WHERE run_id = $1`,
+		`SELECT
+			run_id,
+			job_id,
+			cluster,
+			node,
+			pending,
+			started,
+			finished,
+			job_run_state,
+			error,
+			exit_code
+		FROM job_run WHERE run_id = $1`,
 		runId)
 	err := r.Scan(
 		&run.RunId,
 		&run.JobId,
 		&run.Cluster,
 		&run.Node,
-		&run.Created,
+		&run.Pending,
 		&run.Started,
 		&run.Finished,
-		&run.Succeeded,
+		&run.JobRunState,
 		&run.Error,
-		&run.PodNumber,
-		&run.UnableToSchedule,
+		&run.ExitCode,
 	)
 	assert.Nil(t, err)
 	return run
-}
-
-func getJobRunContainer(t *testing.T, db *pgxpool.Pool, runId string) JobRunContainerRow {
-	container := JobRunContainerRow{}
-	r := db.QueryRow(
-		ctx.Background(),
-		`SELECT run_id, container_name, exit_code FROM job_run_container WHERE run_id = $1`,
-		runId)
-	err := r.Scan(&container.RunId, &container.ContainerName, &container.ExitCode)
-	assert.Nil(t, err)
-	return container
 }
 
 func getUserAnnotationLookup(t *testing.T, db *pgxpool.Pool, jobId string) UserAnnotationRow {
 	annotation := UserAnnotationRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT job_id, key, value  FROM user_annotation_lookup WHERE job_id = $1`,
+		`SELECT job_id, key, value, queue, jobset FROM user_annotation_lookup WHERE job_id = $1`,
 		jobId)
-	err := r.Scan(&annotation.JobId, &annotation.Key, &annotation.Value)
+	err := r.Scan(&annotation.JobId, &annotation.Key, &annotation.Value, &annotation.Queue, &annotation.JobSet)
 	assert.Nil(t, err)
 	return annotation
 }
 
 func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
+	t.Helper()
 	var count int
-	r := db.QueryRow(ctx.Background(), fmt.Sprintf("SELECT COUNT(*) FROM %s", table))
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
+	r := db.QueryRow(ctx.Background(), query)
 	err := r.Scan(&count)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, count)
+}
+
+func withLookoutDb(action func(db *pgxpool.Pool) error) error {
+	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
+	if err != nil {
+		return err
+	}
+	return database.WithTestDb(migrations, action)
 }

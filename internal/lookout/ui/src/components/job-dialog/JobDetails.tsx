@@ -82,8 +82,7 @@ export default function JobDetails(props: DetailsProps) {
           onToggleExpand={toggleExpanded}
         />
       )}
-      <ContainerDetails jobYaml={props.job.jobYaml} />
-
+      <ContainerDetails jobYaml={props.job.jobYaml} />f
       {props.job.jobYaml && (
         <div className="details-yaml-container">
           <Accordion>

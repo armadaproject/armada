@@ -88,8 +88,8 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	batchedInstructions := batch.Batch(mergedInstructionsCh, config.BatchSize, config.BatchDuration, 5, clock.RealClock{})
 
 	// Insert the instructions into a db
-	ldb := lookoutdb.New(db, metrics.Get())
-	acks := ldb.ProcessUpdates(ctx, db, batchedInstructions, 5)
+	ldb := lookoutdb.New(db, metrics.Get(), 10, 60)
+	acks := ldb.ProcessUpdates(ctx, batchedInstructions, 5)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := sync.WaitGroup{}

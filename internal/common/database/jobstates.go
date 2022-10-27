@@ -11,7 +11,6 @@ const (
 	JobSucceeded JobState = "SUCCEEDED"
 	JobFailed    JobState = "FAILED"
 	JobCancelled JobState = "CANCELLED"
-	JobDuplicate JobState = "DUPLICATE"
 
 	JobQueuedOrdinal    = 1
 	JobPendingOrdinal   = 2
@@ -19,7 +18,6 @@ const (
 	JobSucceededOrdinal = 4
 	JobFailedOrdinal    = 5
 	JobCancelledOrdinal = 6
-	JobDuplicateOrdinal = 7
 
 	JobRunPending          JobRunState = "RUN_PENDING"
 	JobRunRunning          JobRunState = "RUN_RUNNING"

@@ -56,7 +56,6 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 	lenJobRunsToCreate := 0
 	lenJobRunsToUpdate := 0
 	lenUserAnnotationsToCreate := 0
-	lenJobRunConaintersToCreate := 0
 
 	for _, instructionSet := range batch {
 		lenMessageIds += len(instructionSet.MessageIds)
@@ -65,7 +64,6 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 		lenJobRunsToCreate += len(instructionSet.JobRunsToCreate)
 		lenJobRunsToUpdate += len(instructionSet.JobRunsToUpdate)
 		lenUserAnnotationsToCreate += len(instructionSet.UserAnnotationsToCreate)
-		lenJobRunConaintersToCreate += len(instructionSet.JobRunContainersToCreate)
 	}
 	messageIds := make([]*pulsarutils.ConsumerMessageId, lenMessageIds)
 	jobsToCreate := make([]*model.CreateJobInstruction, lenJobsToCreate)
@@ -73,7 +71,6 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 	jobRunsToCreate := make([]*model.CreateJobRunInstruction, lenJobRunsToCreate)
 	jobRunsToUpdate := make([]*model.UpdateJobRunInstruction, lenJobRunsToUpdate)
 	userAnnotationsToCreate := make([]*model.CreateUserAnnotationInstruction, lenUserAnnotationsToCreate)
-	jobRunContainersToCreate := make([]*model.CreateJobRunContainerInstruction, lenJobRunConaintersToCreate)
 
 	messageIdIdx := 0
 	jobsToCreateIdx := 0
@@ -81,7 +78,6 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 	jobRunsToCreateIdx := 0
 	jobRunsToUpdateIdx := 0
 	userAnnotationsToCreateIdx := 0
-	jobRunContainersToCreateIdx := 0
 
 	for _, instructionSet := range batch {
 
@@ -114,20 +110,14 @@ func mergeInstructionSets(batch []*model.InstructionSet) *model.InstructionSet {
 			userAnnotationsToCreate[userAnnotationsToCreateIdx] = instruction
 			userAnnotationsToCreateIdx++
 		}
-
-		for _, instruction := range instructionSet.JobRunContainersToCreate {
-			jobRunContainersToCreate[jobRunContainersToCreateIdx] = instruction
-			jobRunContainersToCreateIdx++
-		}
 	}
 
 	return &model.InstructionSet{
-		JobsToCreate:             jobsToCreate,
-		JobsToUpdate:             jobsToUpdate,
-		JobRunsToCreate:          jobRunsToCreate,
-		JobRunsToUpdate:          jobRunsToUpdate,
-		UserAnnotationsToCreate:  userAnnotationsToCreate,
-		JobRunContainersToCreate: jobRunContainersToCreate,
-		MessageIds:               messageIds,
+		JobsToCreate:            jobsToCreate,
+		JobsToUpdate:            jobsToUpdate,
+		JobRunsToCreate:         jobRunsToCreate,
+		JobRunsToUpdate:         jobRunsToUpdate,
+		UserAnnotationsToCreate: userAnnotationsToCreate,
+		MessageIds:              messageIds,
 	}
 }

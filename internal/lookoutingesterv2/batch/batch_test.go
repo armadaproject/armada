@@ -55,13 +55,12 @@ func TestBatchByMaxItems(t *testing.T) {
 
 	wg.Wait()
 	expected := &model.InstructionSet{
-		JobsToCreate:             []*model.CreateJobInstruction{{JobId: "job1"}, {JobId: "job2"}},
-		MessageIds:               []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1), pulsarutils.NewConsumerMessageId(2)},
-		JobsToUpdate:             []*model.UpdateJobInstruction{},
-		JobRunsToCreate:          []*model.CreateJobRunInstruction{},
-		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{},
-		UserAnnotationsToCreate:  []*model.CreateUserAnnotationInstruction{},
-		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{},
+		JobsToCreate:            []*model.CreateJobInstruction{{JobId: "job1"}, {JobId: "job2"}},
+		MessageIds:              []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1), pulsarutils.NewConsumerMessageId(2)},
+		JobsToUpdate:            []*model.UpdateJobInstruction{},
+		JobRunsToCreate:         []*model.CreateJobRunInstruction{},
+		JobRunsToUpdate:         []*model.UpdateJobRunInstruction{},
+		UserAnnotationsToCreate: []*model.CreateUserAnnotationInstruction{},
 	}
 	assert.Equal(t, expected, received)
 }
@@ -90,13 +89,12 @@ func TestBatchByTime(t *testing.T) {
 	testClock.Step(2 * time.Second)
 	wg.Wait()
 	expected := &model.InstructionSet{
-		JobsToCreate:             []*model.CreateJobInstruction{{JobId: "job1"}},
-		MessageIds:               []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1)},
-		JobsToUpdate:             []*model.UpdateJobInstruction{},
-		JobRunsToCreate:          []*model.CreateJobRunInstruction{},
-		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{},
-		UserAnnotationsToCreate:  []*model.CreateUserAnnotationInstruction{},
-		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{},
+		JobsToCreate:            []*model.CreateJobInstruction{{JobId: "job1"}},
+		MessageIds:              []*pulsarutils.ConsumerMessageId{pulsarutils.NewConsumerMessageId(1)},
+		JobsToUpdate:            []*model.UpdateJobInstruction{},
+		JobRunsToCreate:         []*model.CreateJobRunInstruction{},
+		JobRunsToUpdate:         []*model.UpdateJobRunInstruction{},
+		UserAnnotationsToCreate: []*model.CreateUserAnnotationInstruction{},
 	}
 	assert.Equal(t, expected, received)
 }
