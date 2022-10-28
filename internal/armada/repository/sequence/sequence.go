@@ -93,7 +93,7 @@ func (e *ExternalSeqNo) PrevRedisId() string {
 	var seq *ExternalSeqNo
 	if e.Last {
 		seq = e
-	} else if e.SubSeq > 0 {
+	} else if e.Seq > 0 && e.SubSeq > 0 {
 		seq = &ExternalSeqNo{e.Time, e.Seq - 1, 0, true}
 	} else if e.Time > 0 {
 		seq = &ExternalSeqNo{e.Time - 1, math.MaxInt64, 0, true}
