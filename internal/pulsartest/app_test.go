@@ -16,6 +16,7 @@ func TestNew(t *testing.T) {
 	}
 	app, err := New(Params{Pulsar: pc}, "submit")
 	assert.NoError(t, err)
+	assert.NotNil(t, app)
 
 	// Completely empty config
 	pc = cfg.PulsarConfig{}
