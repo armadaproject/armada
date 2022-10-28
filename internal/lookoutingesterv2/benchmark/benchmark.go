@@ -1,4 +1,4 @@
-package main
+package benchmark
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
@@ -22,9 +21,7 @@ import (
 	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 )
 
-func withDbBenchmark(b *testing.B, action func(b *testing.B, db *pgxpool.Pool)) {
-	config := loadDefaultConfig()
-
+func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configuration, action func(b *testing.B, db *pgxpool.Pool)) {
 	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
 	if err != nil {
 		panic(err)
@@ -44,14 +41,14 @@ func withDbBenchmark(b *testing.B, action func(b *testing.B, db *pgxpool.Pool)) 
 	}
 }
 
-func benchmarkSubmissions1000(b *testing.B) {
+func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 1000
 	jobIds := makeUlids(n)
 	instructions := &model.InstructionSet{
 		JobsToCreate:            createJobInstructions(n, jobIds),
 		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
 	}
-	withDbBenchmark(b, func(b *testing.B, db *pgxpool.Pool) {
+	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
 		b.StartTimer()
 
@@ -61,14 +58,14 @@ func benchmarkSubmissions1000(b *testing.B) {
 	})
 }
 
-func benchmarkSubmissions10000(b *testing.B) {
+func benchmarkSubmissions10000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 10000
 	jobIds := makeUlids(n)
 	instructions := &model.InstructionSet{
 		JobsToCreate:            createJobInstructions(n, jobIds),
 		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
 	}
-	withDbBenchmark(b, func(b *testing.B, db *pgxpool.Pool) {
+	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
 		b.StartTimer()
 
@@ -78,7 +75,7 @@ func benchmarkSubmissions10000(b *testing.B) {
 	})
 }
 
-func benchmarkUpdates1000(b *testing.B) {
+func benchmarkUpdates1000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 1000
 	const updatesPerJob = 5
 	const runsPerJob = 3
@@ -98,7 +95,7 @@ func benchmarkUpdates1000(b *testing.B) {
 		JobRunsToUpdate: updateJobRunInstructions(updatesPerRun*runsPerJob*n, jobRunIds, percentErrorRunUpdates),
 	}
 
-	withDbBenchmark(b, func(b *testing.B, db *pgxpool.Pool) {
+	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
 		ldb.Update(context.TODO(), initialInstructions)
 		b.StartTimer()
@@ -109,7 +106,7 @@ func benchmarkUpdates1000(b *testing.B) {
 	})
 }
 
-func benchmarkUpdates10000(b *testing.B) {
+func benchmarkUpdates10000(b *testing.B, config configuration.LookoutIngesterV2Configuration) {
 	const n = 10000
 	const updatesPerJob = 5
 	const runsPerJob = 3
@@ -129,7 +126,7 @@ func benchmarkUpdates10000(b *testing.B) {
 		JobRunsToUpdate: updateJobRunInstructions(updatesPerRun*runsPerJob*n, jobRunIds, percentErrorRunUpdates),
 	}
 
-	withDbBenchmark(b, func(b *testing.B, db *pgxpool.Pool) {
+	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
 		ldb.Update(context.TODO(), initialInstructions)
 		b.StartTimer()
@@ -138,12 +135,6 @@ func benchmarkUpdates10000(b *testing.B) {
 
 		b.StopTimer()
 	})
-}
-
-func loadDefaultConfig() configuration.LookoutIngesterV2Configuration {
-	var config configuration.LookoutIngesterV2Configuration
-	common.LoadConfig(&config, "./config/lookoutingesterv2", []string{})
-	return config
 }
 
 func makeUlids(n int) []string {
@@ -270,13 +261,19 @@ func printBenchmarkResults(result testing.BenchmarkResult) {
 	)
 }
 
-// Run benchmarks for lookout ingester v2 database saving logic
-func main() {
+func apply(f func(b *testing.B, config configuration.LookoutIngesterV2Configuration), config configuration.LookoutIngesterV2Configuration) func(b *testing.B) {
+	return func(b *testing.B) {
+		f(b, config)
+	}
+}
+
+// RunBenchmark executes benchmarking functions defined above for LookoutIngesterV2 database saving logic
+func RunBenchmark(config configuration.LookoutIngesterV2Configuration) {
 	benchmarkFns := map[string]func(b *testing.B){
-		"benchmarkSubmissions1000":  benchmarkSubmissions1000,
-		"benchmarkSubmissions10000": benchmarkSubmissions10000,
-		"benchmarkUpdates1000":      benchmarkUpdates1000,
-		"benchmarkUpdates10000":     benchmarkUpdates10000,
+		"benchmarkSubmissions1000":  apply(benchmarkSubmissions1000, config),
+		"benchmarkSubmissions10000": apply(benchmarkSubmissions10000, config),
+		"benchmarkUpdates1000":      apply(benchmarkUpdates1000, config),
+		"benchmarkUpdates10000":     apply(benchmarkUpdates10000, config),
 	}
 
 	for benchmarkName, benchmarkFn := range benchmarkFns {
