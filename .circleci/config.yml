@@ -307,12 +307,12 @@ jobs:
             docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice:${RELEASE_TAG}
             docker push gresearchdev/armada-jobservice:${RELEASE_TAG}
             
-            docker pull gresearchdev/armada-lookout-ingester:${TAG}
-            docker tag gresearchdev/armada-lookout-ingester:${TAG} gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
+            docker pull gresearchdev/armada-lookout-ingester-dev:${TAG}
+            docker tag gresearchdev/armada-lookout-ingester-dev:${TAG} gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
             
-            docker pull gresearchdev/armada-event-ingester:${TAG}
-            docker tag gresearchdev/armada-event-ingester:${TAG} gresearchdev/armada-event-ingester:${RELEASE_TAG}
+            docker pull gresearchdev/armada-event-ingester-dev:${TAG}
+            docker tag gresearchdev/armada-event-ingester-dev:${TAG} gresearchdev/armada-event-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-event-ingester:${RELEASE_TAG}
 
   release-charts:

@@ -63,8 +63,12 @@ func (ec *EventClient) Health(ctx context.Context, empty *types.Empty) (*api.Hea
 
 // Close will close the api connection if established
 func (ec *EventClient) Close() {
+	ec.mux.Lock()
+	defer ec.mux.Unlock()
+
 	if ec.hasConn() {
-		ec.Close()
+		ec.conn.Close()
+		ec.conn = nil
 	}
 }
 
