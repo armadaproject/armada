@@ -164,7 +164,7 @@ func (r *SQLJobRepository) createUserAnnotationsFilter(annotations map[string]st
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	var filters []goqu.Expression
 	for _, jobSetId := range jobSetIds {
-		filter := StartsWith(job_jobset, jobSetId)
+		filter := GlobSearchOrExact(job_jobset, jobSetId)
 		filters = append(filters, filter)
 	}
 	return filters
