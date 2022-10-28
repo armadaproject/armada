@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
@@ -82,6 +83,7 @@ func benchmarkUpdates1000(b *testing.B) {
 	const updatesPerJob = 5
 	const runsPerJob = 3
 	const updatesPerRun = 5
+	const percentErrorRunUpdates = 0.05
 
 	jobIds := makeUlids(n)
 	jobRunIds := makeUuids(runsPerJob * n)
@@ -93,7 +95,7 @@ func benchmarkUpdates1000(b *testing.B) {
 	instructions := &model.InstructionSet{
 		JobsToUpdate:    updateJobInstructions(updatesPerJob*n, jobIds),
 		JobRunsToCreate: createJobRunInstructions(runsPerJob*n, jobRunIds),
-		JobRunsToUpdate: updateJobRunInstructions(updatesPerRun*runsPerJob*n, jobRunIds),
+		JobRunsToUpdate: updateJobRunInstructions(updatesPerRun*runsPerJob*n, jobRunIds, percentErrorRunUpdates),
 	}
 
 	withDbBenchmark(b, func(b *testing.B, db *pgxpool.Pool) {
@@ -112,6 +114,7 @@ func benchmarkUpdates10000(b *testing.B) {
 	const updatesPerJob = 5
 	const runsPerJob = 3
 	const updatesPerRun = 5
+	const percentErrorRunUpdates = 0.05
 
 	jobIds := makeUlids(n)
 	jobRunIds := makeUuids(runsPerJob * n)
@@ -123,7 +126,7 @@ func benchmarkUpdates10000(b *testing.B) {
 	instructions := &model.InstructionSet{
 		JobsToUpdate:    updateJobInstructions(updatesPerJob*n, jobIds),
 		JobRunsToCreate: createJobRunInstructions(runsPerJob*n, jobRunIds),
-		JobRunsToUpdate: updateJobRunInstructions(updatesPerRun*runsPerJob*n, jobRunIds),
+		JobRunsToUpdate: updateJobRunInstructions(updatesPerRun*runsPerJob*n, jobRunIds, percentErrorRunUpdates),
 	}
 
 	withDbBenchmark(b, func(b *testing.B, db *pgxpool.Pool) {
@@ -230,18 +233,25 @@ func updateJobInstructions(n int, jobIds []string) []*model.UpdateJobInstruction
 	return instructions
 }
 
-func updateJobRunInstructions(n int, jobRunIds []string) []*model.UpdateJobRunInstruction {
+func updateJobRunInstructions(n int, jobRunIds []string, percentError float64) []*model.UpdateJobRunInstruction {
 	instructions := make([]*model.UpdateJobRunInstruction, n)
 	errorBytes := make([]byte, 10000, 10000)
 	rand.Read(errorBytes)
+
+	totalErrors := int(math.Floor(float64(n) * percentError))
+
 	for i := 0; i < n; i++ {
+		var jobRunErr []byte
+		if i > (n - totalErrors) {
+			jobRunErr = errorBytes
+		}
 		instructions[i] = &model.UpdateJobRunInstruction{
 			RunId:       jobRunIds[i%len(jobRunIds)],
 			Node:        pointer.String(uuid.NewString()),
 			Started:     pointerTime(time.Now()),
 			Finished:    pointerTime(time.Now()),
 			JobRunState: pointer.Int32(int32(rand.Intn(10))),
-			Error:       errorBytes,
+			Error:       jobRunErr,
 			ExitCode:    pointer.Int32(rand.Int31()),
 		}
 	}
