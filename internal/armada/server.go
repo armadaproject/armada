@@ -492,7 +492,6 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 }
 
 func validatePreemptionConfig(config configuration.PreemptionConfig) error {
-
 	if !config.Enabled {
 		return nil
 	}
@@ -525,7 +524,7 @@ func validatePreemptionConfig(config configuration.PreemptionConfig) error {
 	})
 
 	var prevLimits map[string]float64 = nil
-	var prevPriorityName = ""
+	prevPriorityName := ""
 	for i, pc := range priorityClasses {
 		if i != 0 {
 			// check that the limit exists and that it is greater than the previous limit
@@ -541,7 +540,7 @@ func validatePreemptionConfig(config configuration.PreemptionConfig) error {
 			}
 
 			// Check that we don't have a limit for some new resource defined
-			for k, _ := range pc.limits {
+			for k := range pc.limits {
 				_, ok := prevLimits[k]
 				if !ok {
 					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, prevPriorityName))

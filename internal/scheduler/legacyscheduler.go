@@ -337,7 +337,6 @@ func (sched *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl sche
 
 // Check if scheduling this job would exceed per-priority-per-queue resource limits.
 func (sched *LegacyScheduler) exceedsPerPriorityResourceLimits(ctx context.Context, usageByPriority schedulerobjects.QuantityByPriorityAndResourceType, limits map[int32]map[string]float64) (bool, string) {
-
 	// Calculate cumulative usage at each priority
 	// This involves summing the usage at all higher priorities
 	cumulativeUsageByPriority := make(schedulerobjects.QuantityByPriorityAndResourceType, 0)

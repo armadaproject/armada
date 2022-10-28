@@ -1,9 +1,10 @@
 package schedulerobjects
 
 import (
-	"github.com/G-Research/armada/internal/armada/configuration"
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 
 	log "github.com/sirupsen/logrus"
 
@@ -72,7 +73,6 @@ func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 // Otherwise, it returns priorityByPriorityClassName[podSpec.PriorityClassName].
 // ok is false if no priority is set for this pod spec, in which case priority is 0.
 func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) (int32, bool) {
-
 	// If there's no podspec there's nothing we can do
 	if podSpec == nil {
 		return -1, false

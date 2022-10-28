@@ -1316,7 +1316,6 @@ func TestSchedule(t *testing.T) {
 }
 
 func Test_exceedsPerPriorityResourceLimits(t *testing.T) {
-
 }
 
 func intRange(a, b int) []int {
