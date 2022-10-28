@@ -115,7 +115,7 @@ func defaultInstructionSet() *model.InstructionSet {
 		}},
 		JobsToUpdate: []*model.UpdateJobInstruction{{
 			JobId:                     jobIdString,
-			Priority:                  pointer.Int32(updatePriority),
+			Priority:                  pointer.Int64(updatePriority),
 			State:                     pointer.Int32(database.JobFailedOrdinal),
 			LastTransitionTime:        &updateTime,
 			LastTransitionTimeSeconds: pointer.Int64(updateTime.Unix()),
@@ -634,13 +634,13 @@ func TestConflateJobUpdates(T *testing.T) {
 
 	// Non-Empty
 	updates = conflateJobUpdates([]*model.UpdateJobInstruction{
-		{JobId: jobIdString, Priority: pointer.Int32(3)},
+		{JobId: jobIdString, Priority: pointer.Int64(3)},
 		{JobId: jobIdString, State: pointer.Int32(2)},
 		{JobId: "someOtherJob", State: pointer.Int32(3)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
-		{JobId: jobIdString, Priority: pointer.Int32(3), State: pointer.Int32(2)},
+		{JobId: jobIdString, Priority: pointer.Int64(3), State: pointer.Int32(2)},
 		{JobId: "someOtherJob", State: pointer.Int32(3)},
 	}
 	sort.Slice(updates, func(i, j int) bool {

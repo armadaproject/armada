@@ -196,7 +196,7 @@ func (s *Service) handleSubmitJob(
 		Memory:                    resources.Memory,
 		EphemeralStorage:          resources.EphemeralStorage,
 		Gpu:                       resources.Gpu,
-		Priority:                  event.Priority,
+		Priority:                  int64(event.Priority),
 		Submitted:                 ts,
 		LastTransitionTime:        ts,
 		LastTransitionTimeSeconds: ts.Unix(),
@@ -252,7 +252,7 @@ func (s *Service) handleReprioritiseJob(ts time.Time, event *armadaevents.Reprio
 
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:    jobId,
-		Priority: pointer.Int32(int32(event.Priority)),
+		Priority: pointer.Int64(int64(event.Priority)),
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
 	return nil

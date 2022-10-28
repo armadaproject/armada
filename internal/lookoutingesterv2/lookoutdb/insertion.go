@@ -159,7 +159,7 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 				    memory                       bigint,
 				    ephemeral_storage            bigint,
 				    gpu                          bigint,
-					priority                     double precision,
+					priority                     bigint,
 					submitted                    timestamp,
 					state                        smallint,
 				    last_transition_time         timestamp,
@@ -306,7 +306,7 @@ func (l *DB) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJo
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s (
 					job_id                       varchar(32),
-					priority                     double precision,
+					priority                     bigint,
 					state                        smallint,
 					cancelled                    timestamp,
 				    last_transition_time         timestamp,

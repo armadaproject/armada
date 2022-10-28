@@ -338,7 +338,7 @@ var expectedJobCancelled = model.UpdateJobInstruction{
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
 	JobId:    jobIdString,
-	Priority: pointer.Int32(newPriority),
+	Priority: pointer.Int64(newPriority),
 }
 
 var expectedFailed = model.UpdateJobInstruction{

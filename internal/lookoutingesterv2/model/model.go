@@ -16,7 +16,7 @@ type CreateJobInstruction struct {
 	Memory                    int64
 	EphemeralStorage          int64
 	Gpu                       int64
-	Priority                  uint32
+	Priority                  int64
 	Submitted                 time.Time
 	State                     int32
 	LastTransitionTime        time.Time
@@ -28,7 +28,7 @@ type CreateJobInstruction struct {
 // UpdateJobInstruction is an instruction to update an existing row in the jobs table
 type UpdateJobInstruction struct {
 	JobId                     string
-	Priority                  *int32
+	Priority                  *int64
 	State                     *int32
 	Cancelled                 *time.Time
 	LastTransitionTime        *time.Time
