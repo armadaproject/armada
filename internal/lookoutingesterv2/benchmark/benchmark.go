@@ -262,7 +262,7 @@ func printBenchmarkResults(result testing.BenchmarkResult) {
 	)
 }
 
-// Run benchmarks for lookout ingestor v2 database saving logic
+// Run benchmarks for lookout ingester v2 database saving logic
 func main() {
 	benchmarkFns := map[string]func(b *testing.B){
 		"benchmarkSubmissions1000":  benchmarkSubmissions1000,
