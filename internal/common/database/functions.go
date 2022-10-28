@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 func UniqueTableName(table string) string {
