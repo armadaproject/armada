@@ -15,7 +15,7 @@ import (
 // WithTestDb spins up a Postgres database for testing
 // migrations: perform the list of migrations before entering the action callback
 // configOverride: optional PostgresConfig to specify which instance to connect to. Defaults to localhost
-// note: if an override is specified, the database will not be cleaned up after the test
+// note - if an override is specified, the database will not be cleaned up after the test
 // action: callback for client code
 func WithTestDb(migrations []Migration, configOverride *configuration.PostgresConfig, action func(db *pgxpool.Pool) error) error {
 	ctx := context.Background()
