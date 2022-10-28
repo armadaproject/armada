@@ -427,7 +427,7 @@ type LegacyScheduler struct {
 	// Minimum quantity allowed for jobs leased to this cluster.
 	MinimumJobSize map[string]resource.Quantity
 	// Limit (as a fraction of the cluster) of resource types at each priority
-	// This is cumulative i.e. faction at level x includes all previous levels
+	// This is cumulative i.e. fraction at level x includes all previous levels
 	CumulativePriorityLimits map[int32]map[string]float64
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactorByQueue map[string]float64
