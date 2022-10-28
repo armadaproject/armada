@@ -75,7 +75,7 @@ func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) (int32, bool) {
 	// If there's no podspec there's nothing we can do
 	if podSpec == nil {
-		return -1, false
+		return 0, false
 	}
 
 	// If a priority is directly specified, use that
@@ -90,5 +90,5 @@ func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[st
 	}
 
 	// Couldn't find anything
-	return -1, false
+	return 0, false
 }
