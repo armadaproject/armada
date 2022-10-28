@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"database/sql"
-	"github.com/G-Research/armada/internal/common/database"
+
 	_ "github.com/jackc/pgx/v4/stdlib"
+
+	"github.com/G-Research/armada/internal/common/database"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 )

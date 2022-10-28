@@ -3,8 +3,9 @@ package database
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/armada/configuration"
 	"strings"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"

@@ -3,11 +3,12 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/util"
 	"math/rand"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/util"
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"

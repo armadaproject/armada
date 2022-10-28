@@ -1,8 +1,9 @@
 package util
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/G-Research/armada/pkg/api"
-	"k8s.io/api/core/v1"
 )
 
 func PodSpecFromJob(job *api.Job) *v1.PodSpec {

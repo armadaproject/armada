@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"

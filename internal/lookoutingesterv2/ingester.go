@@ -1,10 +1,11 @@
 package lookoutingesterv2
 
 import (
-	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
 	"os"
 	"os/signal"
 	"sync"
+
+	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"

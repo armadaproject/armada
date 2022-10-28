@@ -3,10 +3,11 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"

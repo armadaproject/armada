@@ -2,11 +2,13 @@ package instructions
 
 import (
 	"context"
-	"github.com/G-Research/armada/pkg/api"
-	v1 "k8s.io/api/core/v1"
 	"sort"
 	"strings"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+
+	"github.com/G-Research/armada/pkg/api"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
