@@ -145,16 +145,6 @@ func TestPrevRedisId(t *testing.T) {
 	id = &ExternalSeqNo{
 		Time:   1,
 		Seq:    0,
-		SubSeq: 1,
-		Last:   false,
-	}
-
-	// does not lower than seq 0
-	assert.Equal(t, "1-0", id.PrevRedisId())
-
-	id = &ExternalSeqNo{
-		Time:   1,
-		Seq:    0,
 		SubSeq: 0,
 		Last:   false,
 	}
