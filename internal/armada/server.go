@@ -73,6 +73,11 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		return err
 	}
 
+	err = validatePreemptionConfig(config.Scheduling.Preemption)
+	if err != nil {
+		return err
+	}
+
 	// We support multiple simultaneous authentication services (e.g., username/password  OpenId).
 	// For each gRPC request, we try them all until one succeeds, at which point the process is
 	// short-circuited.
@@ -483,17 +488,31 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 	if config.CancelJobsBatchSize <= 0 {
 		return errors.WithStack(fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize))
 	}
+	return nil
 }
 
-func validateSchedulingConfig(config configuration.SchedulingConfig) error {
+func validatePreemptionConfig(config configuration.PreemptionConfig) error {
+
+	if !config.Enabled {
+		return nil
+	}
+
+	// validate that the default priority class is in the priority class map
+	if config.DefaultPriorityClass != "" {
+		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
+		if !ok {
+			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no cuch priority class has been configured", config.DefaultPriorityClass))
+		}
+	}
+
 	// validate that as priority increase, the limit decreases
 	type priorityClass struct {
 		name     string
 		priority int32
 		limits   map[string]float64
 	}
-	priorityClasses := make([]priorityClass, 0, len(config.Preemption.PriorityClasses))
-	for k, pc := range config.Preemption.PriorityClasses {
+	priorityClasses := make([]priorityClass, 0, len(config.PriorityClasses))
+	for k, pc := range config.PriorityClasses {
 		priorityClasses = append(priorityClasses, priorityClass{
 			name:     k,
 			priority: pc.Priority,
@@ -506,19 +525,31 @@ func validateSchedulingConfig(config configuration.SchedulingConfig) error {
 	})
 
 	var prevLimits map[string]float64 = nil
+	var prevPriorityName = ""
 	for i, pc := range priorityClasses {
 		if i != 0 {
+			// check that the limit exists and that it is greater than the previous limit
 			for k, v := range prevLimits {
 				limit, ok := pc.limits[k]
 				if !ok {
 					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
 				}
-				if limit > v {
-					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
+				if limit < v {
+					return errors.WithStack(
+						fmt.Errorf("invalid priority class configuration: Limit for resource %s at priority %s [%.3f] is lower than at priority %s [%.3f] ", k, pc.name, limit, prevPriorityName, v))
+				}
+			}
+
+			// Check that we don't have a limit for some new resource defined
+			for k, _ := range pc.limits {
+				_, ok := prevLimits[k]
+				if !ok {
+					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, prevPriorityName))
 				}
 			}
 		}
 		prevLimits = pc.limits
+		prevPriorityName = pc.name
 	}
 
 	return nil

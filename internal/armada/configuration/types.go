@@ -189,7 +189,7 @@ type PreemptionConfig struct {
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
-	// Map of priority class names to priority classes.
+	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
 	PriorityClasses map[string]PriorityClass
