@@ -1,4 +1,4 @@
-package pulsartest
+package pulsartest_client
 
 import (
 	"testing"
@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	cfg "github.com/G-Research/armada/internal/armada/configuration"
+	pt "github.com/G-Research/armada/internal/pulsartest"
 )
 
 func TestNew(t *testing.T) {
@@ -14,13 +15,13 @@ func TestNew(t *testing.T) {
 		URL:               "pulsar://localhost:6650",
 		JobsetEventsTopic: "persistent://armada/armada/events",
 	}
-	app, err := New(Params{Pulsar: pc}, "submit")
+	app, err := pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.NoError(t, err)
 	assert.NotNil(t, app)
 
 	// Completely empty config
 	pc = cfg.PulsarConfig{}
-	app, err = New(Params{Pulsar: pc}, "submit")
+	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
@@ -28,7 +29,7 @@ func TestNew(t *testing.T) {
 	pc = cfg.PulsarConfig{
 		URL: "pulsar://localhost:6650",
 	}
-	app, err = New(Params{Pulsar: pc}, "submit")
+	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
@@ -38,7 +39,7 @@ func TestNew(t *testing.T) {
 		CompressionType:   "nocompression",
 		JobsetEventsTopic: "persistent://armada/armada/events",
 	}
-	app, err = New(Params{Pulsar: pc}, "submit")
+	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
@@ -48,7 +49,7 @@ func TestNew(t *testing.T) {
 		CompressionLevel:  "veryCompressed",
 		JobsetEventsTopic: "persistent://armada/armada/events",
 	}
-	app, err = New(Params{Pulsar: pc}, "submit")
+	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
@@ -57,7 +58,7 @@ func TestNew(t *testing.T) {
 		URL:               "pulsar://localhost:6650",
 		JobsetEventsTopic: "persistent://armada/armada/events",
 	}
-	app, err = New(Params{Pulsar: pc}, "observe")
+	app, err = pt.New(pt.Params{Pulsar: pc}, "observe")
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
@@ -66,7 +67,7 @@ func TestNew(t *testing.T) {
 		URL:               "pulsar://localhost:6650",
 		JobsetEventsTopic: "persistent://armada/armada/nonesuch",
 	}
-	app, err = New(Params{Pulsar: pc}, "submit")
+	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.Error(t, err)
 	assert.Nil(t, app)
 }
