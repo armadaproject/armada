@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -80,7 +81,7 @@ func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, last
 	if err == redis.Nil {
 		return make([]*api.EventStreamMessage, 0), nil
 	} else if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.WithStack(fmt.Errorf("%s (fromId: %s, seqId: %s)", err, from, seqId))
 	}
 
 	messages := make([]*api.EventStreamMessage, 0, len(cmd[0].Messages))
