@@ -500,7 +500,7 @@ func validatePreemptionConfig(config configuration.PreemptionConfig) error {
 	if config.DefaultPriorityClass != "" {
 		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
 		if !ok {
-			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no cuch priority class has been configured", config.DefaultPriorityClass))
+			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no such priority class has been configured", config.DefaultPriorityClass))
 		}
 	}
 
