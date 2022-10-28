@@ -4,6 +4,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
+
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common"
@@ -21,7 +23,7 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	return nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 }
 
-func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]int32) *PodRequirements {
+func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) *PodRequirements {
 	priority, ok := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
 	if !ok {
 		log.Errorf("failed to get priority from priorityClassName %s", podSpec.PriorityClassName)
@@ -67,18 +69,26 @@ func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 }
 
 // PriorityFromPodSpec returns the priority set in a pod spec.
-// If priority is set diectly, that value is returned.
+// If priority is set directly, that value is returned.
 // Otherwise, it returns priorityByPriorityClassName[podSpec.PriorityClassName].
 // ok is false if no priority is set for this pod spec, in which case priority is 0.
-func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
+func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) (int32, bool) {
+	// If there's no podspec there's nothing we can do
 	if podSpec == nil {
-		return
+		return 0, false
 	}
+
+	// If a priority is directly specified, use that
 	if podSpec.Priority != nil {
-		priority = *podSpec.Priority
-		ok = true
-	} else if priorityByPriorityClassName != nil {
-		priority, ok = priorityByPriorityClassName[podSpec.PriorityClassName]
+		return *podSpec.Priority, true
 	}
-	return
+
+	// If we find a priority class use that
+	priorityClass, ok := priorityByPriorityClassName[podSpec.PriorityClassName]
+	if ok {
+		return priorityClass.Priority, true
+	}
+
+	// Couldn't find anything
+	return 0, false
 }
