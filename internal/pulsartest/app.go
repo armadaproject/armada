@@ -23,15 +23,6 @@ type Params struct {
 func New(params Params, cmdType string) (*App, error) {
 	serverId := uuid.New()
 
-	compressionType, err := pulsarutils.ParsePulsarCompressionType(params.Pulsar.CompressionType)
-	if err != nil {
-		return nil, err
-	}
-	compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(params.Pulsar.CompressionLevel)
-	if err != nil {
-		return nil, err
-	}
-
 	pulsarClient, err := pulsarutils.NewPulsarClient(&params.Pulsar)
 	if err != nil {
 		return nil, err
@@ -41,6 +32,15 @@ func New(params Params, cmdType string) (*App, error) {
 	var reader pulsar.Reader
 
 	if cmdType == "submit" {
+		compressionType, err := pulsarutils.ParsePulsarCompressionType(params.Pulsar.CompressionType)
+		if err != nil {
+			return nil, err
+		}
+		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(params.Pulsar.CompressionLevel)
+		if err != nil {
+			return nil, err
+		}
+
 		producerName := fmt.Sprintf("pulsartest-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
 			Name:             producerName,
