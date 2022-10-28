@@ -77,9 +77,6 @@ Watch individual queues:
 ./armadactl watch queue-b job-set-1
 ```
 
-Log in to the Grafana dashboard at [http://localhost:30001](http://localhost:30001) using the default credentials of `admin` / `prom-operator`.
-Navigate to the Armada Overview dashboard to get a view of jobs progressing through the system.
-
 Try submitting lots of jobs and see queues get built and processed:
 
 ```bash
@@ -128,13 +125,8 @@ Grafana:
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
-### Lookout Configuration
+### Observability
 
-Armada Lookout UI can be configured by doing the following:
+The Armada Lookout UI is available at [http://localhost:30002](http://localhost:30002) in a browser.
 
-```bash
-kubectl port-forward svc/armada-lookout 8080:8080 
-```
-Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
-
-![Lookout UI](./img/lookout.png "Lookout UI")
+Grafana is available at [http://localhost:30001](http://localhost:30001) in a browser using the default credentials of `admin` / `prom-operator`. Navigate to the "Armada Overview" dashboard to get a view of jobs progressing through the system.

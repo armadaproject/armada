@@ -31,3 +31,6 @@ applicationConfig:
   prunerConfig:
     daysToKeep: 42
     batchSize: 1000
+
+httpNodePort: 30002
+nodePort: 30003
