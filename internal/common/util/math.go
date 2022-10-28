@@ -12,13 +12,6 @@ func Min(a, b int) int {
 	return a
 }
 
-func MaxInt64(a, b int64) int64 {
-	if b > a {
-		return b
-	}
-	return a
-}
-
 func FormatBinarySI(q int64) string {
 	ti := math.Pow(2, 40)
 	gi := math.Pow(2, 30)

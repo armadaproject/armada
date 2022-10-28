@@ -5,8 +5,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-
-	"github.com/G-Research/armada/internal/common/util"
 )
 
 // ExternalSeqNo is a sequence number that we pass to end users
@@ -95,7 +93,7 @@ func (e *ExternalSeqNo) PrevRedisId() string {
 	var seq *ExternalSeqNo
 	if e.Last {
 		seq = e
-	} else if e.SubSeq > 0 {
+	} else if e.Seq > 0 && e.SubSeq > 0 {
 		seq = &ExternalSeqNo{e.Time, e.Seq - 1, 0, true}
 	} else if e.Time > 0 {
 		seq = &ExternalSeqNo{e.Time - 1, math.MaxInt64, 0, true}
@@ -106,7 +104,7 @@ func (e *ExternalSeqNo) PrevRedisId() string {
 }
 
 func (e *ExternalSeqNo) RedisString() string {
-	return fmt.Sprintf("%d-%d", util.MaxInt64(e.Time, 0), util.MaxInt64(e.Seq, 0))
+	return fmt.Sprintf("%d-%d", e.Time, e.Seq)
 }
 
 // IsAfter returns true if this ExternalSeqNo is after the other.
