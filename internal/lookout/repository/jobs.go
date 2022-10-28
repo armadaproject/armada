@@ -61,7 +61,6 @@ func (r *SQLJobRepository) queryJobs(ctx context.Context, opts *lookout.GetJobsR
 
 	jobsInQueueRows := make([]*JobRow, 0)
 	err := ds.Prepared(true).ScanStructsContext(ctx, &jobsInQueueRows)
-
 	if err != nil {
 		return nil, err
 	}
