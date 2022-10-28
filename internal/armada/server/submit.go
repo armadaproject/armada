@@ -726,7 +726,7 @@ func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName stri
 		)
 		q = queue.Queue{
 			Name:           queueName,
-			PriorityFactor: server.queueManagementConfig.DefaultPriorityFactor,
+			PriorityFactor: queue.PriorityFactor(server.queueManagementConfig.DefaultPriorityFactor),
 			Permissions: []queue.Permissions{
 				queue.NewPermissionsFromOwners([]string{principal.GetName()}, groupNames),
 			},

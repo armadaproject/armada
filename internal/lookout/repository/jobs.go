@@ -164,7 +164,7 @@ func (r *SQLJobRepository) createUserAnnotationsFilter(annotations map[string]st
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	var filters []goqu.Expression
 	for _, jobSetId := range jobSetIds {
-		filter := StartsWith(job_jobset, jobSetId)
+		filter := GlobSearchOrExact(job_jobset, jobSetId)
 		filters = append(filters, filter)
 	}
 	return filters
@@ -291,15 +291,8 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		log.Errorf("unable to unmarshall orig job spec. %+v", err)
 	}
 
-	return &api.Job{
-		Id:          ParseNullString(row.JobId),
-		JobSetId:    ParseNullString(row.JobSet),
-		Queue:       ParseNullString(row.Queue),
-		Owner:       ParseNullString(row.Owner),
-		Priority:    ParseNullFloat(row.Priority),
-		Created:     ParseNullTimeDefault(row.Submitted),
-		Annotations: jobSpec.GetAnnotations(),
-	}, nil
+	jobSpec.Priority = ParseNullFloat(row.Priority)
+	return jobSpec, nil
 }
 
 func makeApiJob(origJobSpec []byte) (*api.Job, error) {

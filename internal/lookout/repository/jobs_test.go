@@ -852,7 +852,7 @@ func TestGetJobs_FilterByMultipleJobSets(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
+func TestGetJobs_FilterJobSetsGlobSearchOrExact(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
@@ -891,7 +891,7 @@ func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
-			JobSetIds: []string{"job-se"},
+			JobSetIds: []string{"job-set-*"},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(jobInfos))
@@ -904,7 +904,7 @@ func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
+func TestGetJobs_FilterByMultipleJobSetsGlobSearch(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
@@ -944,7 +944,7 @@ func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
-			JobSetIds: []string{"hello", "world"},
+			JobSetIds: []string{"hello*", "world*"},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 5, len(jobInfos))
