@@ -237,9 +237,7 @@ func updateJobRunInstructions(n int, jobRunIds []string, percentError float64) [
 	instructions := make([]*model.UpdateJobRunInstruction, n)
 	errorBytes := make([]byte, 10000, 10000)
 	rand.Read(errorBytes)
-
 	totalErrors := int(math.Floor(float64(n) * percentError))
-
 	for i := 0; i < n; i++ {
 		var jobRunErr []byte
 		if i > (n - totalErrors) {
