@@ -12,13 +12,12 @@ import (
 const (
 	defaultMaxItems   = 3
 	defaultMaxTimeOut = 1 * time.Second
-	defaultBufferSize = 3
 )
 
 func TestBatch_MaxItems(t *testing.T) {
 	inputChan := make(chan int)
 	testClock := clock.NewFakeClock(time.Now())
-	outputChan := Batch[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultBufferSize, testClock)
+	outputChan := Batch[int](inputChan, defaultMaxItems, defaultMaxTimeOut, testClock)
 
 	// Post 3 items on the input channel without advancing the clock
 	// And we should get a single update on the output channel
@@ -49,7 +48,7 @@ func TestBatch_MaxItems(t *testing.T) {
 func TestBatch_Time(t *testing.T) {
 	inputChan := make(chan int)
 	testClock := clock.NewFakeClock(time.Now())
-	outputChan := Batch[int](inputChan, defaultMaxItems, defaultMaxTimeOut, defaultBufferSize, testClock)
+	outputChan := Batch[int](inputChan, defaultMaxItems, defaultMaxTimeOut, testClock)
 
 	// Post two messages on the input channel and advance clock
 	// And we should get a single update on the output channel
