@@ -1,7 +1,8 @@
 package instructions
 
 import (
-	"math/rand"
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
@@ -59,6 +59,7 @@ var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.00
 
 // Submit
 var submit = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_SubmitJob{
 		SubmitJob: &armadaevents.SubmitJob{
 			JobId:    jobIdProto,
@@ -99,6 +100,7 @@ var submit = &armadaevents.EventSequence_Event{
 
 // Assigned
 var assigned = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
 			RunId: runIdProto,
@@ -124,6 +126,7 @@ var assigned = &armadaevents.EventSequence_Event{
 
 // Running
 var running = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
 			RunId: runIdProto,
@@ -144,6 +147,7 @@ var running = &armadaevents.EventSequence_Event{
 
 // Succeeded
 var jobRunSucceeded = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
 			RunId: runIdProto,
@@ -154,6 +158,7 @@ var jobRunSucceeded = &armadaevents.EventSequence_Event{
 
 // Cancelled
 var jobCancelled = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
 			JobId: jobIdProto,
@@ -163,6 +168,7 @@ var jobCancelled = &armadaevents.EventSequence_Event{
 
 // Reprioritised
 var jobReprioritised = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 		ReprioritisedJob: &armadaevents.ReprioritisedJob{
 			JobId:    jobIdProto,
@@ -173,6 +179,7 @@ var jobReprioritised = &armadaevents.EventSequence_Event{
 
 // Job Run Failed
 var jobRunFailed = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: jobIdProto,
@@ -197,6 +204,7 @@ var jobRunFailed = &armadaevents.EventSequence_Event{
 
 // Job Lease Returned
 var jobLeaseReturned = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: jobIdProto,
@@ -219,6 +227,7 @@ var jobLeaseReturned = &armadaevents.EventSequence_Event{
 }
 
 var jobSucceeded = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
 	Event: &armadaevents.EventSequence_Event_JobSucceeded{
 		JobSucceeded: &armadaevents.JobSucceeded{
 			JobId: jobIdProto,
@@ -310,12 +319,12 @@ var expectedJobRunContainer = model.CreateJobRunContainerInstruction{
 
 // Single submit message
 func TestSubmit(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, submit)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(submit)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -324,15 +333,15 @@ func TestSubmit(t *testing.T) {
 // All in a single update
 // Single submit message
 func TestHappyPathSingleUpdate(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, submit, assigned, running, jobRunSucceeded, jobSucceeded)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(submit, assigned, running, jobRunSucceeded, jobSucceeded)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobsToCreate:    []*model.CreateJobInstruction{&expectedSubmit},
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedRunning, &expectedJobSucceeded},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:      msg.MessageIds,
 	}
 	// assert each field separately as can be tricky to see what doesn't match
 	assert.Equal(t, expected.JobsToCreate, instructions.JobsToCreate)
@@ -343,95 +352,93 @@ func TestHappyPathSingleUpdate(t *testing.T) {
 }
 
 func TestHappyPathMultiUpdate(t *testing.T) {
-	svc := New(metrics.Get())
-	compressor := &compress.NoOpCompressor{}
-
+	svc := SimpleInstructionConverter()
 	// Submit
-	msg1 := NewMsg(baseTime, submit)
-	instructions := svc.ConvertMsg(context.Background(), msg1, userAnnotationPrefix, compressor)
+	msg1 := NewMsg(submit)
+	instructions := svc.Convert(msg1)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg1.Message.ID(), 0, msg1.ConsumerId}},
+		MessageIds:   msg1.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 
 	// Leased
-	msg2 := NewMsg(baseTime, assigned)
-	instructions = svc.ConvertMsg(context.Background(), msg2, userAnnotationPrefix, compressor)
+	msg2 := NewMsg(assigned)
+	instructions = svc.Convert(msg2)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg2.Message.ID(), 0, msg2.ConsumerId}},
+		MessageIds:      msg2.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 
 	// Running
-	msg3 := NewMsg(baseTime, running)
-	instructions = svc.ConvertMsg(context.Background(), msg3, userAnnotationPrefix, compressor)
+	msg3 := NewMsg(running)
+	instructions = svc.Convert(msg3)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedRunning},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg3.Message.ID(), 0, msg3.ConsumerId}},
+		MessageIds:      msg3.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 
 	// Run Succeeded
-	msg4 := NewMsg(baseTime, jobRunSucceeded)
-	instructions = svc.ConvertMsg(context.Background(), msg4, userAnnotationPrefix, compressor)
+	msg4 := NewMsg(jobRunSucceeded)
+	instructions = svc.Convert(msg4)
 	expected = &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunSucceeded},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg4.Message.ID(), 0, msg4.ConsumerId}},
+		MessageIds:      msg4.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 
 	// Job Succeeded
-	msg5 := NewMsg(baseTime, jobSucceeded)
-	instructions = svc.ConvertMsg(context.Background(), msg5, userAnnotationPrefix, compressor)
+	msg5 := NewMsg(jobSucceeded)
+	instructions = svc.Convert(msg5)
 	expected = &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobSucceeded},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg5.Message.ID(), 0, msg5.ConsumerId}},
+		MessageIds:   msg5.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
 
 func TestCancelled(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, jobCancelled)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(jobCancelled)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
 
 func TestReprioritised(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, jobReprioritised)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(jobReprioritised)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
 
 func TestFailed(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, jobRunFailed)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(jobRunFailed)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{&expectedFailed},
 		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{&expectedJobRunContainer},
-		MessageIds:               []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:               msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
 
 func TestFailedWithMissingRunId(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, jobLeaseReturned)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(jobLeaseReturned)
+	instructions := svc.Convert(msg)
 	jobRun := instructions.JobRunsToCreate[0]
 	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
 	expected := &model.InstructionSet{
@@ -453,7 +460,7 @@ func TestFailedWithMissingRunId(t *testing.T) {
 				UnableToSchedule: pointer.Bool(true),
 			},
 		},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
@@ -462,6 +469,7 @@ func TestHandlePodTerminated(t *testing.T) {
 	terminatedMsg := "test pod terminated msg"
 
 	podTerminated := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -484,9 +492,9 @@ func TestHandlePodTerminated(t *testing.T) {
 		},
 	}
 
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, podTerminated)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(podTerminated)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:     runIdString,
@@ -495,7 +503,7 @@ func TestHandlePodTerminated(t *testing.T) {
 			Succeeded: pointer.Bool(false),
 			Error:     pointer.String(terminatedMsg),
 		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -504,6 +512,7 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	unschedulableMsg := "test pod unschedulable msg"
 
 	podUnschedulable := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -526,9 +535,9 @@ func TestHandlePodUnschedulable(t *testing.T) {
 		},
 	}
 
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, podUnschedulable)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(podUnschedulable)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:            runIdString,
@@ -538,13 +547,13 @@ func TestHandlePodUnschedulable(t *testing.T) {
 			UnableToSchedule: pointer.Bool(true),
 			Error:            pointer.String(unschedulableMsg),
 		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
 
 func TestSubmitWithNullChar(t *testing.T) {
-	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
+	msg := NewMsg(&armadaevents.EventSequence_Event{
 		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
@@ -573,14 +582,15 @@ func TestSubmitWithNullChar(t *testing.T) {
 		},
 	})
 
-	svc := New(metrics.Get())
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	instructions := svc.Convert(msg)
 	assert.Len(t, instructions.JobsToCreate, 1)
 	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
 }
 
 func TestFailedWithNullCharInError(t *testing.T) {
-	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
+	msg := NewMsg(&armadaevents.EventSequence_Event{
+		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -603,8 +613,8 @@ func TestFailedWithNullCharInError(t *testing.T) {
 		},
 	})
 
-	svc := New(metrics.Get())
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	instructions := svc.Convert(msg)
 	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
 		{
 			RunId:     runIdString,
@@ -620,30 +630,19 @@ func TestFailedWithNullCharInError(t *testing.T) {
 func TestInvalidEvent(t *testing.T) {
 	// This event is invalid as it doesn't have a job id or a run id
 	invalidEvent := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{},
 		},
 	}
 
 	// Check that the (valid) Submit is processed, but the invalid message is discarded
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, invalidEvent, submit)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(invalidEvent, submit)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-// This message is invalid as it has no payload
-// Assert that the update just contains the messageId, so we can ack it
-func TestInvalidMessage(t *testing.T) {
-	svc := New(metrics.Get())
-	msg := &pulsarutils.ConsumerMessage{Message: pulsarutils.EmptyPulsarMessage(3, time.Now()), ConsumerId: 3}
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds:   msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
@@ -673,14 +672,23 @@ func TestExtractNodeName(t *testing.T) {
 	assert.Equal(t, pointer.String(nodeName), extractNodeName(&podError))
 }
 
-func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *pulsarutils.ConsumerMessage {
+func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWithIds {
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,
 		JobSetName: jobSetName,
 		Events:     event,
 		UserId:     userId,
 	}
-	payload, _ := proto.Marshal(seq)
-	messageSeq := rand.Int()
-	return &pulsarutils.ConsumerMessage{Message: pulsarutils.NewPulsarMessage(messageSeq, publishTime, payload), ConsumerId: messageSeq}
+	return &ingest.EventSequencesWithIds{
+		EventSequences: []*armadaevents.EventSequence{seq},
+		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+	}
+}
+
+func SimpleInstructionConverter() *InstructionCenverter {
+	return &InstructionCenverter{
+		metrics:              metrics.Get(),
+		userAnnotationPrefix: userAnnotationPrefix,
+		compressor:           &compress.NoOpCompressor{},
+	}
 }

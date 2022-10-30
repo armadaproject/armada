@@ -3,6 +3,7 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"sort"
 	"testing"
 	"time"
@@ -135,7 +136,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			ContainerName: containerName,
 			ExitCode:      3,
 		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{MessageId: pulsarutils.NewMessageId(3), Index: 0, ConsumerId: 1}},
+		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(3), pulsarutils.NewMessageId(4)},
 	}
 }
 
@@ -201,7 +202,7 @@ var expectedJobRunContainer = JobRunContainerRow{
 
 func TestCreateJobsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -230,7 +231,7 @@ func TestCreateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -265,7 +266,7 @@ func TestUpdateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -322,7 +323,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 			Updated: baseTime,
 		}}
 
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 
 		// Insert
 		ldb.CreateJobs(ctx.Background(), initial)
@@ -344,7 +345,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 
 func TestCreateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Simple create
 		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		job := getJob(t, db, jobIdString)
@@ -371,7 +372,7 @@ func TestCreateJobsScalar(t *testing.T) {
 
 func TestCreateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -404,7 +405,7 @@ func TestCreateJobRunsBatch(t *testing.T) {
 
 func TestCreateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -435,7 +436,7 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 func TestUpdateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -474,7 +475,7 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 
 func TestUpdateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -512,7 +513,7 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -545,8 +546,8 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 
 func TestEmptyUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
-		ldb.Update(ctx.Background(), &model.InstructionSet{})
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
+		ldb.Store(&model.InstructionSet{})
 		assertNoRows(t, ldb.db, "job")
 		assertNoRows(t, ldb.db, "job_run")
 		assertNoRows(t, ldb.db, "user_annotation_lookup")
@@ -558,7 +559,7 @@ func TestEmptyUpdate(t *testing.T) {
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
@@ -589,9 +590,9 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := New(db, m)
+		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Do the update
-		ldb.Update(ctx.Background(), defaultInstructionSet())
+		ldb.Store(defaultInstructionSet())
 
 		job := getJob(t, ldb.db, jobIdString)
 		jobRun := getJobRun(t, ldb.db, runIdString)

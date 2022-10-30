@@ -1,9 +1,8 @@
 package model
 
 import (
+	"github.com/apache/pulsar-client-go/pulsar"
 	"time"
-
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 // CreateJobInstruction is an instruction to insert a new row into the jobs table
@@ -64,7 +63,7 @@ type UpdateJobRunInstruction struct {
 }
 
 // InstructionSet represents a set of instructions to apply to the database.  Each type of instruction is stored in its
-// own ordered list representign the order it was received.  We also store the original message ids corresponding to
+// own ordered list representing the order it was received.  We also store the original message ids corresponding to
 // these instructions so that when they are saved to the database, we can ACK the corresponding messages.
 type InstructionSet struct {
 	JobsToCreate             []*CreateJobInstruction
@@ -73,5 +72,9 @@ type InstructionSet struct {
 	JobRunsToUpdate          []*UpdateJobRunInstruction
 	UserAnnotationsToCreate  []*CreateUserAnnotationInstruction
 	JobRunContainersToCreate []*CreateJobRunContainerInstruction
-	MessageIds               []*pulsarutils.ConsumerMessageId
+	MessageIds               []pulsar.MessageID
+}
+
+func (i *InstructionSet) GetMessageIDs() []pulsar.MessageID {
+	return i.MessageIds
 }
