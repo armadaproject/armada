@@ -39,7 +39,7 @@ def sleep_pod(image: str):
             )
         ],
     )
-    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod, namespace="personal-anonymous")]
 
 
 def test_success_job():
