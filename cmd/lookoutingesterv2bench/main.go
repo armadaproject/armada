@@ -1,11 +1,12 @@
 package main
 
 import (
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/benchmark"
 	configuration "github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 const CustomConfigLocation string = "config"
