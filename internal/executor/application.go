@@ -63,6 +63,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		2*time.Minute,
 		kubernetesClientProvider,
 		etcdHealthMonitor,
+		config.Kubernetes.PodKillTimeout,
 	)
 
 	wg := &sync.WaitGroup{}

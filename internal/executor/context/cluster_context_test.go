@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/utils/pointer"
+
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -53,6 +57,7 @@ func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration)
 		minRepeatedDeletePeriod,
 		clientProvider,
 		fakeEtcdHealthMonitor,
+		5*time.Minute,
 	)
 
 	return clusterContext, clientProvider
@@ -306,6 +311,33 @@ func TestKubernetesClusterContext_ProcessPodsToDelete_CallPatchOnClient_WhenPods
 	assert.NoError(t, err)
 	_, exists := patch.MetaData.Annotations[domain.MarkedForDeletion]
 	assert.True(t, exists)
+}
+
+func TestKubernetesClusterContext_ProcessPodsToDelete_ForceKill(t *testing.T) {
+	clusterContext, client := setupTest()
+	testClock := clock.NewFakeClock(time.Now())
+
+	// create a pod with a deletion event 5 minutes in the past. This should be ignored
+	pod := createSubmittedBatchPod(t, clusterContext)
+	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-300 * time.Second)}
+	client.Fake.ClearActions()
+
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 0)
+
+	// create another pod with a deletion event 5 minutes and 10 seconds in the past. This should be force killed
+	pod = createSubmittedBatchPod(t, clusterContext)
+	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-310 * time.Second)}
+	client.Fake.ClearActions()
+
+	// submitPodsWithWait(t, clusterContext, pod)
+	client.Fake.ClearActions()
+	clusterContext.DeletePods([]*v1.Pod{pod})
+	clusterContext.ProcessPodsToDelete()
+	assert.Equal(t, len(client.Fake.Actions()), 2)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_PreventsRepeatedPatchCallsToClient_WhenPodAlreadyMarkedForDeletion(t *testing.T) {
