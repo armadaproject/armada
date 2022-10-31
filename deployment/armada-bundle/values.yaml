@@ -25,40 +25,10 @@ postgresql:
   auth:
     postgresPassword: psw
 
-armada-lookout-migration:
-  image:
-    tag: v0.3.29
-  ingressClass: nginx
-  clusterIssuer: dev-ca
-
-  prometheus:
-    enabled: true
-
-  applicationConfig:
-    nats:
-      servers:
-        - nats://nats.default.svc.cluster.local:4222
-      clusterId: nats
-      subject: ArmadaTest
-      queueGroup: ArmadaLookoutEventProcessor
-    postgres:
-      maxOpenConns: 100
-      maxIdleConns: 25
-      connMaxLifetime: 30m
-      connection:
-        host: postgresql.default.svc.cluster.local
-        port: 5432
-        user: postgres
-        password: psw
-        dbname: postgres
-    uiConfig:
-      armadaApiBaseUrl: "http://armada.default.svc.cluster.local:8080"
-    prunerConfig:
-      daysToKeep: 42
-      batchSize: 1000
-
 stan:
-  nameOverride: "nats"
+  stan:
+    clusterID: "test-cluster"
+  nameOverride: stan
 
 kube-prometheus-stack:
   alertmanager:
@@ -86,7 +56,7 @@ kube-prometheus-stack:
 armada:
   image:
     repository: gresearchdev/armada-server
-    tag: v0.3.29
+    tag: v0.3.36
   ingressClass: nginx
   ingress:
     labels:
@@ -97,8 +67,45 @@ armada:
   applicationConfig:
     grpcPort: 50051
     httpPort: 8080
-    pulsar: {}
-
+    auth:
+      basicAuth:
+        enableAuthentication: false
+      anonymousAuth: true
+      permissionGroupMapping:
+        submit_jobs: [ "everyone" ]
+        submit_any_jobs: [ "everyone" ]
+        create_queue: [ "everyone" ]
+        delete_queue: [ "everyone" ]
+        cancel_jobs: [ "everyone" ]
+        cancel_any_jobs: [ "everyone" ]
+        reprioritize_jobs: [ "everyone" ]
+        reprioritize_any_jobs: [ "everyone" ]
+        watch_events: [ "everyone" ]
+        watch_all_events: [ "everyone" ]
+        execute_jobs: [ "everyone" ]
+    redis:
+      masterName: "mymaster"
+      addrs:
+        - "redis-ha-announce-0.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-1.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-2.armada.svc.cluster.local:26379"
+    eventsRedis:
+      masterName: "mymaster"
+      addrs:
+        - "redis-ha-announce-0.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-1.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-2.armada.svc.cluster.local:26379"
+      poolSize: 1000
+    eventsNats:
+      timeout: 10s
+      clusterId: "test-cluster"
+      subject: "ArmadaTest"
+      QueueGroup: "ArmadaEventRedisProcessor"
+      servers:
+        - "nats://stan.armada.svc.cluster.local:4222"
+    pulsar:
+      enabled: true
+      URL: pulsar://pulsar-broker.armada.svc.cluster.local:6650
   prometheus:
     enabled: true
 
@@ -107,7 +114,7 @@ armada:
 armada-executor:
   image:
     repository: gresearchdev/armada-executor
-    tag: v0.3.29
+    tag: v0.3.36
   nodeSelector: nil
   applicationConfig:
     apiConnection:
@@ -132,7 +139,7 @@ executor-cluster-monitoring:
 armada-lookout:
   image:
     repository: gresearchdev/armada-lookout
-    tag: v0.3.29
+    tag: v0.3.36
   ingressClass: nginx
   ingress:
     labels:
@@ -143,8 +150,76 @@ armada-lookout:
   prometheus:
     enabled: true
 
-  applicationConfig: {}
+  applicationConfig:
+    disableEventProcessing: true
+    eventQueue: "ArmadaLookoutEventProcessor"
+    nats:
+      Servers:
+        - "nats://stan.armada.svc.cluster.local:4222"
+      ClusterID: "test-cluster"
+      Subject: "ArmadaTest"
+    postgres:
+      connection:
+        host: postgresql.armada.svc.cluster.local
+        port: 5432
+        user: postgres
+        password: psw
+        dbname: postgres
+
+armada-lookout-migration:
+  image:
+    tag: v0.3.36
+  ingressClass: nginx
+  clusterIssuer: letsencrypt-dev
+
+  prometheus:
+    enabled: true
+
+  applicationConfig:
+    postgres:
+      maxOpenConns: 100
+      maxIdleConns: 25
+      connMaxLifetime: 30m
+      connection:
+        host: postgresql.armada.svc.cluster.local
+        port: 5432
+        user: postgres
+        password: psw
+        dbname: postgres
+
+armada-lookout-ingester:
+  image:
+    repository: gresearchdev/armada-lookout-ingester-dev
+    tag: 88ea8f0b8124c7dbbb44f7c7315c0fca13655f18
+  applicationConfig:
+    postgres:
+      maxOpenConns: 100
+      maxIdleConns: 25
+      connMaxLifetime: 30m
+      connection:
+        host: postgresql.armada.svc.cluster.local
+        port: 5432
+        user: postgres
+        password: psw
+        dbname: postgres
+        sslmode: disable
+    pulsar:
+      enabled: true
+      URL: "pulsar://pulsar-broker.armada.svc.cluster.local:6650"
+      jobsetEventsTopic: "persistent://armada/armada/events"
 
 pulsar:
+  init:
+    enabled: false
+    brokerHost: pulsar-broker.armada.svc.cluster.local
+    protocol: http
+    adminPort: 8080
+    port: 6650
+  proxy:
+    service:
+      type: ClusterIP
+  grafana:
+    service:
+      type: ClusterIP
   initialize: true
   fullnameOverride: pulsar
