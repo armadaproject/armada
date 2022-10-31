@@ -16,20 +16,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import logging
+import os
+from typing import List
+
 from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
 
 from armada_client.client import ArmadaClient
+from armada_client.armada import submit_pb2
 from armada.operators.jobservice import JobServiceClient
-
-import logging
 
 from armada.operators.utils import airflow_error, search_for_job_complete
 from armada.jobservice import jobservice_pb2
 
+
 armada_logger = logging.getLogger("airflow.task")
 
-ANNOTATION_TASK_ID = "armadaproject.io/taskId"
+ANNOTATION_KEY_TASK_ID = "armadaproject.io/taskId"
 
 
 class ArmadaOperator(BaseOperator):
@@ -108,7 +112,9 @@ class ArmadaOperator(BaseOperator):
         airflow_error(job_state, self.name, job_id)
 
 
-def annotate_job_request_items(context, job_request_items):
+def annotate_job_request_items(
+    context, job_request_items: List[submit_pb2.JobSubmitRequestItem]
+) -> List[submit_pb2.JobSubmitRequestItem]:
     """
     Annotates the inbound job request items with the context task ID
 
@@ -122,6 +128,21 @@ def annotate_job_request_items(context, job_request_items):
     task_id = task_instance.task_id
 
     for item in job_request_items:
-        item.annotations[ANNOTATION_TASK_ID] = task_id
+        item.annotations[get_annotation_key_task_id()] = task_id
 
     return job_request_items
+
+
+def get_annotation_key_task_id() -> str:
+    """
+    Provides they annotation key for armada task id,
+    which can be specified in env var ANNOTATION_KEY_TASK_ID.
+    A default is provided if the env var is not defined
+
+    :return: string annotation key
+    """
+    env_var_name = "ANNOTATION_KEY_TASK_ID"
+    if env_var_name in os.environ:
+        return f"{os.environ.get(env_var_name)}"
+    else:
+        return ANNOTATION_KEY_TASK_ID

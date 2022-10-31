@@ -80,13 +80,37 @@ Annotates the inbound job request items with the context task ID
     * **context** – The airflow context.
 
 
-    * **job_request_items** – The job request items we plan to send to armada
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – The job request items we plan to send to armada
 
 
 
 * **Returns**
 
     annotated job request items for armada
+
+
+
+* **Return type**
+
+    *List*[*JobSubmitRequestItem*]
+
+
+
+### armada.operators.armada.get_annotation_key_task_id()
+Provides they annotation key for armada task id,
+which can be specified in env var ANNOTATION_KEY_TASK_ID.
+A default is provided if the env var is not defined
+
+
+* **Returns**
+
+    string annotation key
+
+
+
+* **Return type**
+
+    str
 
 
 ## armada.operators.jobservice module
