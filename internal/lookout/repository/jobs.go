@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -118,7 +119,10 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 		filters = append(filters, GlobSearchOrExact(job_owner, opts.Owner))
 	}
 
-	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+	nonEmptyJobSetIds := util.Filter(opts.JobSetIds, func(jobSet string) bool { return jobSet != "" })
+	if len(nonEmptyJobSetIds) > 0 {
+		filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+	}
 
 	if len(opts.UserAnnotations) > 0 {
 		filters = append(filters, r.createUserAnnotationsFilter(opts.UserAnnotations))
