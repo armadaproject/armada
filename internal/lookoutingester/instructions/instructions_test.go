@@ -500,6 +500,50 @@ func TestHandlePodTerminated(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
+func TestHandleJobLeaseReturned(t *testing.T) {
+	leaseReturnedMsg := "test pod returned msg"
+	leaseReturned := &armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: jobIdProto,
+				RunId: runIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_PodLeaseReturned{
+							PodLeaseReturned: &armadaevents.PodLeaseReturned{
+								Message: leaseReturnedMsg,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	svc := New(metrics.Get())
+	msg := NewMsg(baseTime, leaseReturned)
+	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+			RunId:            runIdString,
+			Finished:         &baseTime,
+			Succeeded:        pointer.Bool(false),
+			Error:            pointer.String(leaseReturnedMsg),
+			UnableToSchedule: pointer.Bool(true),
+		}},
+		JobsToUpdate: []*model.UpdateJobInstruction{
+			{
+				JobId:   jobIdString,
+				Updated: baseTime,
+				State:   pointer.Int32(repository.JobQueuedOrdinal),
+			},
+		},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+	}
+	assert.Equal(t, expected, instructions)
+}
+
 func TestHandlePodUnschedulable(t *testing.T) {
 	unschedulableMsg := "test pod unschedulable msg"
 
