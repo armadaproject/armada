@@ -1646,7 +1646,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		Preemption: configuration.PreemptionConfig{
 			Enabled:              true,
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]int32{"high": 0},
+			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, nil}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),

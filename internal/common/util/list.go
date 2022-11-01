@@ -35,3 +35,13 @@ func DeepCopyListUint32(list []uint32) []uint32 {
 	}
 	return result
 }
+
+func Filter[T any](list []T, predicate func(val T) bool) []T {
+	var out []T
+	for _, val := range list {
+		if predicate(val) {
+			out = append(out, val)
+		}
+	}
+	return out
+}

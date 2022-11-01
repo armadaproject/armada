@@ -20,13 +20,23 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with `make tests-e2e-setup`. Once setup, end-to-end tests can then be run with `make tests-e2e-no-setup`. Alternatively, setup and end-to-end tests can be performed with a single command `make tests-e2e`.
+All of these components can be started and initialised with `./localdev/run.sh` Once complete, you will have a fully functional local deployment of armada via docker.
 
 Create a queue and submit a job:
 ```bash
 go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
 go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
+```
+
+**Note:** In the default setup you should submit jobs to the kubernetes `personal-anonymous` namespace. See this job-spec snippet:
+```yaml
+queue: test
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
 ```
 
 For more details on submitting jobs to Armada, see [the user guide](https://github.com/G-Research/armada/blob/master/docs/user.md). Once you submit jobs, you should see pods appearing in your worker cluster(s).

@@ -62,7 +62,7 @@ func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 		Preemption: configuration.PreemptionConfig{
 			Enabled:              true,
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]int32{"high": 0},
+			PriorityClasses:      map[string]configuration.PriorityClass{"high": {Priority: 0}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
@@ -287,7 +287,7 @@ func minimalValidPodSpec() *v1.PodSpec {
 
 func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 	validPriorityClass := &v1.PodSpec{PriorityClassName: "some-priority-class"}
-	allowedPriorityClasses := map[string]int32{"some-priority-class": 10}
+	allowedPriorityClasses := map[string]configuration.PriorityClass{"some-priority-class": {Priority: 10}}
 	assert.NoError(
 		t,
 		ValidatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),

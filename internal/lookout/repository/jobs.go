@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -118,7 +119,10 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 		filters = append(filters, GlobSearchOrExact(job_owner, opts.Owner))
 	}
 
-	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+	nonEmptyJobSetIds := util.Filter(opts.JobSetIds, func(jobSet string) bool { return jobSet != "" })
+	if len(nonEmptyJobSetIds) > 0 {
+		filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+	}
 
 	if len(opts.UserAnnotations) > 0 {
 		filters = append(filters, r.createUserAnnotationsFilter(opts.UserAnnotations))
@@ -164,7 +168,7 @@ func (r *SQLJobRepository) createUserAnnotationsFilter(annotations map[string]st
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	var filters []goqu.Expression
 	for _, jobSetId := range jobSetIds {
-		filter := StartsWith(job_jobset, jobSetId)
+		filter := GlobSearchOrExact(job_jobset, jobSetId)
 		filters = append(filters, filter)
 	}
 	return filters
@@ -291,15 +295,8 @@ func makeJobFromRow(row *JobRow) (*api.Job, error) {
 		log.Errorf("unable to unmarshall orig job spec. %+v", err)
 	}
 
-	return &api.Job{
-		Id:          ParseNullString(row.JobId),
-		JobSetId:    ParseNullString(row.JobSet),
-		Queue:       ParseNullString(row.Queue),
-		Owner:       ParseNullString(row.Owner),
-		Priority:    ParseNullFloat(row.Priority),
-		Created:     ParseNullTimeDefault(row.Submitted),
-		Annotations: jobSpec.GetAnnotations(),
-	}, nil
+	jobSpec.Priority = ParseNullFloat(row.Priority)
+	return jobSpec, nil
 }
 
 func makeApiJob(origJobSpec []byte) (*api.Job, error) {
