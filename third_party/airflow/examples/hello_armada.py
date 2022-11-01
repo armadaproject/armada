@@ -45,7 +45,7 @@ def submit_sleep_job():
         ],
     )
 
-    return [submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod)]
+    return [submit_pb2.JobSubmitRequestItem(priority=1, pod_spec=pod, namespace="personal-anonymous")]
 
 
 """
