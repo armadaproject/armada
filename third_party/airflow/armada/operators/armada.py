@@ -115,6 +115,5 @@ class ArmadaOperator(BaseOperator):
         )
         airflow_error(job_state, self.name, job_id)
 
-
     def get_lookout_url(self, job_id: str) -> str:
         return self.lookout_url_template.replace("<job_id>", job_id)
