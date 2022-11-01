@@ -298,7 +298,7 @@ func makeJobFromRow(row *JobRow) (*api.Job, string, error) {
 		log.Errorf("Failed to unmarshal job with job id %s: %v", ParseNullString(row.JobId), err)
 	} else {
 		annotations = unmarshalledJob.Annotations
-		jobJson = unmarshalledJobToJson(unmarshalledJob)
+		jobJson = jobToJson(unmarshalledJob)
 	}
 
 	job := &api.Job{
@@ -315,7 +315,7 @@ func makeJobFromRow(row *JobRow) (*api.Job, string, error) {
 }
 
 // Convert *api.Job to JSON - returns empty string if it fails and logs the error
-func unmarshalledJobToJson(unmarshalledJob *api.Job) string {
+func jobToJson(unmarshalledJob *api.Job) string {
 	jobJson, err := json.Marshal(unmarshalledJob)
 	if err != nil {
 		log.Errorf("Failed to convert *api.Job to JSON for job id %s: %v", unmarshalledJob.Id, err)
