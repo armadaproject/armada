@@ -850,6 +850,37 @@ func TestSchedule(t *testing.T) {
 				"A": {0, 1, 2, 5, 6, 7, 8, 9},
 			},
 		},
+		"per priority  limits 2": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 0.9}, // 28 cpu
+					1: {"cpu": 0.9},
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 5), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+				"A": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("13"),
+						},
+					},
+					1: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("14"),
+						},
+					},
+				},
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
 		"fairness two queues": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
