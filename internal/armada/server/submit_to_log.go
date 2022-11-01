@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -13,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
@@ -22,6 +24,7 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/common/util"
 	commonvalidation "github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
@@ -31,10 +34,14 @@ import (
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
+const (
+	priorityAnnotationLabel = "armadaproject.io/priority"
+	queueAnnotationLabel    = "armadaproject.io/queue"
+	jobSetAnnotationLabel   = "armadaproject.io/jobset"
+)
+
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
-// TODO: Consider returning a list of message ids of the messages generated
-// TODO: Include job set as the message key for each message
 type PulsarSubmitServer struct {
 	api.UnimplementedSubmitServer
 	Producer        pulsar.Producer
@@ -46,6 +53,216 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
+}
+
+func (srv *PulsarSubmitServer) Apply(ctx context.Context, req *api.ApplyRequest) (*api.ApplyResponse, error) {
+	if len(req.Objects) == 0 {
+		return nil, nil
+	}
+
+	mainObject := req.Objects[0].GetPod()
+	if mainObject == nil {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Objects[0]",
+			Value:   req.Objects[0],
+			Message: "the main object must be a pod",
+		}
+	}
+	if len(mainObject.Annotations) == 0 {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Annotations",
+			Value:   mainObject.Annotations,
+			Message: "annotations missing on main object",
+		}
+	}
+
+	priority, err := strconv.ParseUint(mainObject.Annotations[priorityAnnotationLabel], 10, 32)
+	if err != nil {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    priorityAnnotationLabel,
+			Value:   mainObject.Annotations[priorityAnnotationLabel],
+			Message: err.Error(),
+		}
+	}
+	queueName := mainObject.Annotations[queueAnnotationLabel]
+	if queueName == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    queueAnnotationLabel,
+			Value:   mainObject.Annotations[queueAnnotationLabel],
+			Message: fmt.Sprintf("annotation %s must be set on main object", queueAnnotationLabel),
+		}
+	}
+	jobSet := mainObject.Annotations[jobSetAnnotationLabel]
+	if jobSet == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    jobSetAnnotationLabel,
+			Value:   mainObject.Annotations[jobSetAnnotationLabel],
+			Message: fmt.Sprintf("annotation %s must be set on the main object", jobSetAnnotationLabel),
+		}
+	}
+
+	userId, groups, err := srv.Authorize(ctx, queueName, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare an event sequence to be submitted to the log
+	jobIdString := util.NewULID()
+	jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdString)
+	if err != nil {
+		return nil, err
+	}
+
+	submitJob := &armadaevents.SubmitJob{
+		JobId:    jobId,
+		Priority: uint32(priority),
+		ObjectMeta: &armadaevents.ObjectMeta{
+			Namespace:   mainObject.Namespace,
+			Name:        mainObject.Name,
+			Annotations: mainObject.Annotations,
+			Labels:      mainObject.Labels,
+		},
+		MainObject: &armadaevents.KubernetesMainObject{
+			Object: &armadaevents.KubernetesMainObject_PodSpec{
+				PodSpec: &armadaevents.PodSpecWithAvoidList{
+					PodSpec: &mainObject.Spec,
+				},
+			},
+		},
+	}
+
+	auxilliaryObjects := req.Objects[1:len(req.Objects)]
+	for i, auxilliaryObject := range auxilliaryObjects {
+		switch o := auxilliaryObject.Object.(type) {
+		case *api.ApplyRequest_KubernetesObject_Pod:
+			if o.Pod == nil {
+				continue
+			}
+			if o.Pod.Namespace != mainObject.Namespace {
+				return nil, &armadaerrors.ErrInvalidArgument{
+					Name:    fmt.Sprintf("Objects[%d].Namespace", i),
+					Value:   o.Pod.Namespace,
+					Message: "all objects must be created in the same namespace",
+				}
+			}
+			o.Pod.OwnerReferences = append(o.Pod.OwnerReferences, v1.OwnerReference{
+				Kind: "Pod",
+				Name: mainObject.Name,
+			})
+			submitJob.Objects = append(submitJob.Objects, &armadaevents.KubernetesObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Namespace:   o.Pod.Namespace,
+					Name:        o.Pod.Name,
+					Annotations: o.Pod.Annotations,
+					Labels:      o.Pod.Labels,
+				},
+				Object: &armadaevents.KubernetesObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &o.Pod.Spec,
+					},
+				},
+			})
+		case *api.ApplyRequest_KubernetesObject_Ingress:
+			if o.Ingress == nil {
+				continue
+			}
+			if o.Ingress.Namespace != mainObject.Namespace {
+				return nil, &armadaerrors.ErrInvalidArgument{
+					Name:    fmt.Sprintf("Objects[%d].Namespace", i),
+					Value:   o.Ingress.Namespace,
+					Message: "all objects must be created in the same namespace",
+				}
+			}
+			o.Ingress.OwnerReferences = append(o.Ingress.OwnerReferences, v1.OwnerReference{
+				Kind: "Pod",
+				Name: mainObject.Name,
+			})
+			submitJob.Objects = append(submitJob.Objects, &armadaevents.KubernetesObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Namespace:   o.Ingress.Namespace,
+					Name:        o.Ingress.Name,
+					Annotations: o.Ingress.Annotations,
+					Labels:      o.Ingress.Labels,
+				},
+				Object: &armadaevents.KubernetesObject_Ingress{
+					Ingress: &o.Ingress.Spec,
+				},
+			})
+		case *api.ApplyRequest_KubernetesObject_Service:
+			if o.Service == nil {
+				continue
+			}
+			if o.Service.Namespace != mainObject.Namespace {
+				return nil, &armadaerrors.ErrInvalidArgument{
+					Name:    fmt.Sprintf("Objects[%d].Namespace", i),
+					Value:   o.Service.Namespace,
+					Message: "all objects must be created in the same namespace",
+				}
+			}
+			o.Service.OwnerReferences = append(o.Service.OwnerReferences, v1.OwnerReference{
+				Kind: "Pod",
+				Name: mainObject.Name,
+			})
+			submitJob.Objects = append(submitJob.Objects, &armadaevents.KubernetesObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Namespace:   o.Service.Namespace,
+					Name:        o.Service.Name,
+					Annotations: o.Service.Annotations,
+					Labels:      o.Service.Labels,
+				},
+				Object: &armadaevents.KubernetesObject_Service{
+					Service: &o.Service.Spec,
+				},
+			})
+		case *api.ApplyRequest_KubernetesObject_ConfigMap:
+			if o.ConfigMap == nil {
+				continue
+			}
+			if o.ConfigMap.Namespace != mainObject.Namespace {
+				return nil, &armadaerrors.ErrInvalidArgument{
+					Name:    fmt.Sprintf("Objects[%d].Namespace", i),
+					Value:   o.ConfigMap.Namespace,
+					Message: "all objects must be created in the same namespace",
+				}
+			}
+			o.ConfigMap.OwnerReferences = append(o.ConfigMap.OwnerReferences, v1.OwnerReference{
+				Kind: "Pod",
+				Name: mainObject.Name,
+			})
+			submitJob.Objects = append(submitJob.Objects, &armadaevents.KubernetesObject{
+				ObjectMeta: &armadaevents.ObjectMeta{
+					Namespace:   o.ConfigMap.Namespace,
+					Name:        o.ConfigMap.Name,
+					Annotations: o.ConfigMap.Annotations,
+					Labels:      o.ConfigMap.Labels,
+				},
+				Object: &armadaevents.KubernetesObject_ConfigMap{
+					ConfigMap: o.ConfigMap,
+				},
+			})
+		}
+	}
+
+	sequence := &armadaevents.EventSequence{
+		Queue:      queueName,
+		JobSetName: jobSet,
+		UserId:     userId,
+		Groups:     groups,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_SubmitJob{
+					SubmitJob: submitJob,
+				},
+			},
+		},
+	}
+
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.ApplyResponse{JobId: jobIdString}, nil
 }
 
 // TODO: Add input validation to make sure messages can be inserted to the database.
@@ -178,7 +395,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
-
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
@@ -521,36 +737,45 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	}, nil
 }
 
-// Authorize authorises a user request to submit a state transition message to the log.
-// User information used for authorization is extracted from the provided context.
-// Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
-// Returns the userId and groups extracted from the context.
 func (srv *PulsarSubmitServer) Authorize(
 	ctx context.Context,
 	queueName string,
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
 ) (userId string, groups []string, err error) {
-	principal := authorization.GetPrincipal(ctx)
-	userId = principal.GetName()
-	groups = principal.GetGroupNames()
-	q, err := srv.QueueRepository.GetQueue(queueName)
+	queue, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
 		return
 	}
-	if !srv.Permissions.UserHasPermission(ctx, anyPerm) {
-		if !principalHasQueuePermissions(principal, q, perm) {
+	return Authorize(ctx, queue, anyPerm, perm, srv.Permissions)
+}
+
+// Authorize authorises a user request to submit a state transition message to the log.
+// User information used for authorization is extracted from the provided context.
+// Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
+// Returns the userId and groups extracted from the context.
+func Authorize(
+	ctx context.Context,
+	queue queue.Queue,
+	anyPerm permission.Permission,
+	perm queue.PermissionVerb,
+	permissionChecker authorization.PermissionChecker,
+) (userId string, groups []string, err error) {
+	principal := authorization.GetPrincipal(ctx)
+	userId = principal.GetName()
+	groups = principal.GetGroupNames()
+	if !permissionChecker.UserHasPermission(ctx, anyPerm) {
+		if !principalHasQueuePermissions(principal, queue, perm) {
 			err = &armadaerrors.ErrUnauthorized{
 				Principal:  principal.GetName(),
 				Permission: string(perm),
-				Action:     string(perm) + " for queue " + q.Name,
+				Action:     string(perm) + " for queue " + queue.Name,
 				Message:    "",
 			}
 			err = errors.WithStack(err)
 			return
 		}
 	}
-
 	return
 }
 

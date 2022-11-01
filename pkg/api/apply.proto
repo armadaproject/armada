@@ -1,0 +1,54 @@
+syntax = 'proto3';
+
+package api;
+option csharp_namespace = "ArmadaProject.Io.Api";
+
+import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/networking/v1/generated.proto";
+import "google/api/annotations.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) = true;
+
+// Armada job submission request composed of several Kubernetes objects.
+// These objects make up a single Armada job;
+// all objects are guaranteed to be created in the same cluster at the same time.
+message ApplyRequest {
+    // Kubernetes objects that can be created as part of an Armada.
+    message KubernetesObject {
+        oneof object {
+            k8s.io.api.core.v1.Pod pod = 1;
+            k8s.io.api.networking.v1.Ingress ingress = 2;
+            k8s.io.api.core.v1.Service service = 3;
+            k8s.io.api.core.v1.ConfigMap configMap = 4;
+        }
+    }
+    // Objects to be created as part of this job.
+    // The first object, which must be a pod, is interpreted as the main object of the job.
+    // All objects are cleaned up if the main object exits for any reason.
+    //
+    // The owner references of all objects (except that of the main object)
+    // are automatically set to the main object.
+    // Hence, all objects must be in the same namespace -
+    // an error is returned if objects reference different namespaces.
+    //
+    // The following annotations must be set on the main object:
+    // armadaproject.io/priority: "<uint32 value expressing job priority>"
+    // armadaproject.io/queue: "<name of the queue this job is submitted to>"
+    // armadaproject.io/jobset: "<name of the job set this job is part of>"
+    repeated KubernetesObject objects = 1 [(gogoproto.nullable) = false];
+}
+
+message ApplyResponse {
+    string jobId = 1;
+}
+
+service Apply {
+    rpc Apply (ApplyRequest) returns (ApplyResponse) {
+        option (google.api.http) = {
+            post: "/v1/apply"
+            body: "*"
+        };
+    }    
+}
