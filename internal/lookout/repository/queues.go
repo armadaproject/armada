@@ -6,11 +6,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
-
-	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 type countsRow struct {
@@ -207,7 +206,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 		}
 		if row.Queue.Valid {
 			if queueInfo, ok := queueInfoMap[row.Queue.String]; queueInfo != nil && ok {
-				job, err := makeJobFromRow(&row)
+				job, jobJson, err := makeJobFromRow(&row)
 				if err != nil {
 					return err
 				}
@@ -216,6 +215,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 					Runs:      []*lookout.RunInfo{},
 					Cancelled: nil,
 					JobState:  string(JobQueued),
+					JobJson:   jobJson,
 				}
 				currentTime := r.clock.Now()
 				submissionTime := queueInfo.OldestQueuedJob.Job.Created
@@ -251,7 +251,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 				if queueInfo.LongestRunningJob != nil {
 					queueInfo.LongestRunningJob.Runs = append(queueInfo.LongestRunningJob.Runs, makeRunFromRow(&row))
 				} else {
-					job, err := makeJobFromRow(&row)
+					job, jobJson, err := makeJobFromRow(&row)
 					if err != nil {
 						return err
 					}
@@ -260,6 +260,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 						Runs:      []*lookout.RunInfo{makeRunFromRow(&row)},
 						Cancelled: nil,
 						JobState:  string(JobRunning),
+						JobJson:   jobJson,
 					}
 				}
 			}
