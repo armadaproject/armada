@@ -76,6 +76,7 @@ with DAG(
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=submit_sleep_container(image="busybox"),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     """
     This task is used to verify that if an Armada Job
@@ -88,6 +89,7 @@ with DAG(
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=submit_sleep_container(image="nonexistant"),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     good_armada = ArmadaOperator(
         task_id="good_armada",
@@ -96,6 +98,7 @@ with DAG(
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=submit_sleep_container(image="busybox"),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     """
     Airflow syntax to say

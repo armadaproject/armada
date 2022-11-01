@@ -42,6 +42,11 @@ class ArmadaOperator(BaseOperator):
     :param job_service_client: The JobServiceClient that is used for polling
     :param armada_queue: The queue name for Armada.
     :param job_request_items: A PodSpec that is used by Armada for submitting a job
+    :param lookout_url_template: A URL template to be used to provide users
+        a valid link to the related lookout job in this operator's log.
+        The format should be:
+        "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
+        be replaced with the actual job ID.
 
     :return: a job service client instance
     """
@@ -53,6 +58,7 @@ class ArmadaOperator(BaseOperator):
         job_service_client: JobServiceClient,
         armada_queue: str,
         job_request_items,
+        lookout_url_template: str,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -61,6 +67,7 @@ class ArmadaOperator(BaseOperator):
         self.job_service = job_service_client
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
+        self.lookout_url_template = lookout_url_template
 
     def execute(self, context) -> None:
         """
@@ -87,9 +94,14 @@ class ArmadaOperator(BaseOperator):
 
         try:
             job_id = job.job_response_items[0].job_id
-            armada_logger.info("Running Armada job %s with id %s", self.name, job_id)
         except Exception:
             raise AirflowException("Armada has issues submitting job")
+
+        armada_logger.info("Running Armada job %s with id %s", self.name, job_id)
+
+        lookout_url = self.get_lookout_url(job_id)
+        if len(lookout_url) > 0:
+            armada_logger.info("Lookout URL: %s", lookout_url)
 
         job_state, job_message = search_for_job_complete(
             job_service_client=self.job_service,
@@ -102,3 +114,7 @@ class ArmadaOperator(BaseOperator):
             "Armada Job finished with %s and message: %s", job_state, job_message
         )
         airflow_error(job_state, self.name, job_id)
+
+
+    def get_lookout_url(self, job_id: str) -> str:
+        return self.lookout_url_template.replace("<job_id>", job_id)
