@@ -6,10 +6,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api/lookout"
 	"github.com/doug-martin/goqu/v9"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
 type countsRow struct {
