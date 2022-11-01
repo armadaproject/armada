@@ -114,13 +114,12 @@ func matchAnyNodeTypeAllocation(
 	job *api.Job,
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
-	supportedPriorityClasses map[string]int32,
 ) (nodeTypeUsedResources, bool, error) {
 	newlyConsumed := nodeTypeUsedResources{}
 
 	for _, podSpec := range job.GetAllPodSpecs() {
 
-		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, supportedPriorityClasses)
+		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 
 		if !ok {
 			return nodeTypeUsedResources{}, false, err
@@ -137,7 +136,6 @@ func matchAnyNodeTypePodAllocation(
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources,
-	supportedPriorityClasses map[string]int32,
 ) (*nodeTypeAllocation, bool, error) {
 	if len(nodeAllocations) == 0 {
 		return nil, false, errors.Errorf("no nodes available")
@@ -152,19 +150,6 @@ func matchAnyNodeTypePodAllocation(
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
 		resources := available
-		if hasPriorityClass(podSpec) {
-			preemptible, err := getPreemptibleResources(
-				supportedPriorityClasses,
-				podSpec.PriorityClassName,
-				node.allocatedResources,
-			)
-			if err != nil {
-				return nil, false, err
-			}
-			// resources which can be allocated to prioritised jobs are Sum(preemptible resources, allocatable resources)
-			preemptible.Add(available)
-			resources = preemptible
-		}
 		ok, err := podMatchingContext.Matches(&node.nodeType, resources)
 		switch {
 		case ok:
@@ -176,26 +161,6 @@ func matchAnyNodeTypePodAllocation(
 		}
 	}
 	return nil, false, result
-}
-
-func getPreemptibleResources(
-	supportedPriorityClasses map[string]int32,
-	targetPriorityClass string,
-	allocatedResources map[int32]common.ComputeResourcesFloat,
-) (common.ComputeResourcesFloat, error) {
-	targetPriority, ok := supportedPriorityClasses[targetPriorityClass]
-	if !ok {
-		return nil, errors.Errorf("unsupported prirority class: %s", targetPriorityClass)
-	}
-	preemptibleResources := make(common.ComputeResourcesFloat)
-
-	for priority, resources := range allocatedResources {
-		if priority < targetPriority {
-			preemptibleResources.Add(resources)
-		}
-	}
-
-	return preemptibleResources, nil
 }
 
 // AggregateNodeTypeAllocations computes the total available resources for each node type.

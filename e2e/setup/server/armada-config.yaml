@@ -22,7 +22,6 @@ scheduling:
       operator: "Equal"
       value: "true"
       effect: "NoSchedule"
-  minTerminationGracePeriod: 0s
+  minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 30s
-  defaultTerminationGracePeriod: 0s
 defaultToLegacyEvents: true

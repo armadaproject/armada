@@ -61,7 +61,7 @@ Armada uses GH Discussions for long form communication and design discussions. T
 * [https://github.com/G-Research/armada/discussions](https://github.com/G-Research/armada/discussions)
 
 Real-time interactions between Armada developers and users occurs primarily in CNCF Slack. To join us there:
-* If you already have an account on CNCF Slack, join #armada on [https://cloud-native.slack.io](https://cloud-native.slack.io).
+* If you already have an account on CNCF Slack, join #armada on [https://cloud-native.slack.com](https://cloud-native.slack.com).
 * If you need an inviation to CNCF Slack, you can get one at [https://slack.cncf.io](https://slack.cncf.io).
 
 ## Security

@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -18,8 +20,9 @@ import (
 )
 
 var (
-	testPriorities []int32  = []int32{0, 1, 2, 3}
-	testResources  []string = []string{"cpu", "memory", "gpu"}
+	testPriorityClasses = []configuration.PriorityClass{{0, nil}, {1, nil}, {2, nil}, {3, nil}}
+	testPriorities      = []int32{0, 1, 2, 3}
+	testResources       = []string{"cpu", "memory", "gpu"}
 )
 
 func TestSchema(t *testing.T) {

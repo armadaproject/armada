@@ -170,22 +170,16 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestQueueSelectionProbabilities(t *testing.T) {
+func TestQueueSelectionWeights(t *testing.T) {
 	tests := map[string]struct {
 		PriorityFactorByQueue         map[string]float64
 		AggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList
-		TotalResources                schedulerobjects.ResourceList
 		ResourceScarcity              map[string]float64
 		ExpectedByQueue               map[string]float64
 	}{
 		"one queues": {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
@@ -196,11 +190,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
@@ -214,11 +203,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 				"B": 1,
 				"C": 1,
 			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
-			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
 				"A": 1.0 / 3.0,
@@ -230,11 +214,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 2,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("1"),
-				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
@@ -252,11 +231,6 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("100000"),
 					},
-				},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("100001"),
 				},
 			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
@@ -282,24 +256,42 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 					},
 				},
 			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu": resource.MustParse("3"),
-				},
-			},
 			ResourceScarcity: map[string]float64{"cpu": 1},
 			ExpectedByQueue: map[string]float64{
 				"A": 1.0 / 2.0,
 				"B": 1.0 / 2.0,
 			},
 		},
+		"two queues with no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			AggregateResourceUsageByQueue: make(map[string]schedulerobjects.ResourceList),
+			ResourceScarcity:              map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 1.0 / 2.0,
+				"B": 1.0 / 2.0,
+			},
+		},
+		"two queues with unequal factors and no usage": {
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 2,
+			},
+			AggregateResourceUsageByQueue: make(map[string]schedulerobjects.ResourceList),
+			ResourceScarcity:              map[string]float64{"cpu": 1},
+			ExpectedByQueue: map[string]float64{
+				"A": 2.0 / 3.0,
+				"B": 1.0 / 3.0,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			actualByQueue := queueSelectionProbabilities(
+			actualByQueue := queueSelectionWeights(
 				tc.PriorityFactorByQueue,
 				tc.AggregateResourceUsageByQueue,
-				tc.TotalResources,
 				tc.ResourceScarcity,
 			)
 			if !assert.Equal(t, len(tc.ExpectedByQueue), len(actualByQueue)) {
@@ -313,6 +305,26 @@ func TestQueueSelectionProbabilities(t *testing.T) {
 				assert.InDelta(t, expected, actual, 1e-2)
 			}
 		})
+	}
+}
+
+func TestPickQueueRandomly(t *testing.T) {
+	weights := map[string]float64{
+		"A": 2,
+		"B": 1,
+	}
+	weightsSum := 3.0
+
+	n := 10000
+	results := make(map[string]float64)
+	for i := 0; i < n; i++ {
+		v, _ := pickQueueRandomly(weights, util.NewThreadsafeRand(int64(i)))
+		results[v]++
+	}
+	for queue, weight := range weights {
+		expected := weight / weightsSum
+		actual := results[queue] / float64(n)
+		assert.InDelta(t, expected, actual, 0.01)
 	}
 }
 
@@ -486,9 +498,9 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 }
 
 func testSchedulingConfig() configuration.SchedulingConfig {
-	priorityClasses := make(map[string]int32)
-	for _, priority := range testPriorities {
-		priorityClasses[fmt.Sprintf("%d", priority)] = priority
+	priorityClasses := make(map[string]configuration.PriorityClass)
+	for _, priority := range testPriorityClasses {
+		priorityClasses[fmt.Sprintf("%d", priority.Priority)] = priority
 	}
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
@@ -506,6 +518,16 @@ func withRoundLimits(limits map[string]float64, config configuration.SchedulingC
 
 func withPerQueueLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalResourceFractionPerQueue = limits
+	return config
+}
+
+func withPerPriorityLimits(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	for k, v := range config.Preemption.PriorityClasses {
+		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
+			Priority:                        v.Priority,
+			MaximalResourceFractionPerQueue: limits[v.Priority],
+		}
+	}
 	return config
 }
 
@@ -808,6 +830,26 @@ func TestSchedule(t *testing.T) {
 				"B": {0},
 			},
 		},
+		"per priority per-queue limits": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 1.0},
+					1: {"cpu": 0.5},
+					2: {"cpu": 0.25},
+					3: {"cpu": 0.1},
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(3, 5), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1, 2, 5, 6, 7, 8, 9},
+			},
+		},
 		"fairness two queues": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
@@ -860,10 +902,10 @@ func TestSchedule(t *testing.T) {
 		},
 		"weighted fairness two queues": {
 			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			Nodes:            testNCpuNode(30, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 32),
-				"B": testNSmallCpuJob(0, 32),
+				"A": testNSmallCpuJob(0, 960),
+				"B": testNSmallCpuJob(0, 960),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -871,12 +913,40 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("19")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("23")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("660")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("9")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("13")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("300")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("340")},
+				),
+			},
+		},
+		"weighted fairness three queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(30, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": testNSmallCpuJob(0, 960),
+				"B": testNSmallCpuJob(0, 960),
+				"C": testNSmallCpuJob(0, 960),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 2,
+				"C": 10,
+			},
+			ExpectedResourcesByQueue: map[string]resourceLimits{
+				"A": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("580")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
+				),
+				"B": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("280")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("320")},
+				),
+				"C": newResourceLimits(
+					map[string]resource.Quantity{"cpu": resource.MustParse("40")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("80")},
 				),
 			},
 		},
@@ -902,12 +972,12 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("2")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("0")},
 					map[string]resource.Quantity{"cpu": resource.MustParse("4")},
 				),
 				"B": newResourceLimits(
 					map[string]resource.Quantity{"cpu": resource.MustParse("28")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 				),
 			},
 		},
@@ -1245,6 +1315,9 @@ func TestSchedule(t *testing.T) {
 	}
 }
 
+func Test_exceedsPerPriorityResourceLimits(t *testing.T) {
+}
+
 func intRange(a, b int) []int {
 	rv := make([]int, b-a+1)
 	for i := range rv {
@@ -1318,7 +1391,7 @@ func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
 	return rv
 }
 
-func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]int32) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, job := range jobs {
 		m, ok := rv[job.Queue]

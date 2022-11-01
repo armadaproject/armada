@@ -22,16 +22,23 @@ cd armada
 
 All commands are intended to be run from the root of the repository.
 
-Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
+Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 4 CPU cores and 16GB of RAM available.
 
 ### One-click Setup
 
 To install Armada and all its dependencies you can use this script: 
-[https://github.com/G-Research/armada/blob/master/docs/local/setup.sh](https://github.com/G-Research/armada/blob/master/docs/local/setup.sh)
+
+```
+docs/local/setup.sh
+```
+
+Once completed, wait for all pods to be running via `kubectl get pod`
 
 Likewise you can remove the Armada components from your system: 
-[https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh](https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh)
 
+```
+docs/local/destroy.sh
+```
 
 ## Usage
 Create queues, submit some jobs and monitor progress:
@@ -117,7 +124,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 Grafana:
 
-![Armada Grafana dashboard](./grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./img/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
@@ -130,4 +137,4 @@ kubectl port-forward svc/armada-lookout 8080:8080
 ```
 Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
 
-![Lookout UI](./lookout.png "Lookout UI")
+![Lookout UI](./img/lookout.png "Lookout UI")

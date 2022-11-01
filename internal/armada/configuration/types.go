@@ -9,7 +9,6 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
-	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
@@ -116,10 +115,13 @@ type SchedulingConfig struct {
 	// The scheduler stores reports about scheduling decisions for each job.
 	// These can be queried by users. To limit memory usage, old reports are deleted
 	// to keep the number of stored reports within this limit.
-	MaxJobReportsToStore  int
-	Lease                 LeaseSettings
-	DefaultJobLimits      common.ComputeResources
+	MaxJobReportsToStore int
+	Lease                LeaseSettings
+	DefaultJobLimits     common.ComputeResources
+	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
+	// Set of tolerations added to all submitted pods of a given priority class.
+	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.
@@ -151,10 +153,27 @@ type SchedulingConfig struct {
 	// If not set, all taints are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedTaints                 map[string]interface{}
-	MinTerminationGracePeriod     time.Duration
-	MaxTerminationGracePeriod     time.Duration
-	DefaultTerminationGracePeriod time.Duration
+	IndexedTaints map[string]interface{}
+	// Kubernetes pods may specify a termination grace period.
+	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
+	// If a pod has not exited within its termination grace period,
+	// it is killed forcefully by Kubernetes sending it a SIGKILL.
+	//
+	// This is the minimum allowed termination grace period.
+	// It should normally be set to a positive value, e.g., 1 second.
+	// Since a zero grace period causes Kubernetes to force delete pods,
+	// which may causes issues where resources associated with the pod, e.g.,
+	// containers, are not cleaned up correctly.
+	//
+	// The grace period of pods that either
+	// - do not set a grace period, or
+	// - explicitly set a grace period of 0 seconds,
+	// is automatically set to MinTerminationGracePeriod.
+	MinTerminationGracePeriod time.Duration
+	// Max allowed grace period.
+	// Should normally not be set greater than single-digit minutes,
+	// since cancellation and preemption may need to wait for this amount of time.
+	MaxTerminationGracePeriod time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -170,13 +189,18 @@ type PreemptionConfig struct {
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
-	// Map from priority class name to priority.
+	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]int32
+	PriorityClasses map[string]PriorityClass
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+}
+
+type PriorityClass struct {
+	Priority                        int32
+	MaximalResourceFractionPerQueue map[string]float64
 }
 
 type DatabaseRetentionPolicy struct {
@@ -228,7 +252,7 @@ type JetstreamConfig struct {
 
 type QueueManagementConfig struct {
 	AutoCreateQueues       bool
-	DefaultPriorityFactor  queue.PriorityFactor
+	DefaultPriorityFactor  float64
 	DefaultQueuedJobsLimit int
 }
 

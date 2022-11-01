@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
@@ -229,7 +228,6 @@ var jobSucceeded = &armadaevents.EventSequence_Event{
 
 var (
 	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
-	expectedApiJobJson, _  = json.Marshal(expectedApiJob)
 	expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
 )
 
@@ -241,7 +239,6 @@ var expectedSubmit = model.CreateJobInstruction{
 	JobSet:    jobSetName,
 	Priority:  priority,
 	Submitted: baseTime,
-	JobJson:   expectedApiJobJson,
 	JobProto:  expectedApiJobProto,
 	State:     repository.JobQueuedOrdinal,
 	Updated:   baseTime,
@@ -503,6 +500,50 @@ func TestHandlePodTerminated(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
+func TestHandleJobLeaseReturned(t *testing.T) {
+	leaseReturnedMsg := "test pod returned msg"
+	leaseReturned := &armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_JobRunErrors{
+			JobRunErrors: &armadaevents.JobRunErrors{
+				JobId: jobIdProto,
+				RunId: runIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_PodLeaseReturned{
+							PodLeaseReturned: &armadaevents.PodLeaseReturned{
+								Message: leaseReturnedMsg,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	svc := New(metrics.Get())
+	msg := NewMsg(baseTime, leaseReturned)
+	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+			RunId:            runIdString,
+			Finished:         &baseTime,
+			Succeeded:        pointer.Bool(false),
+			Error:            pointer.String(leaseReturnedMsg),
+			UnableToSchedule: pointer.Bool(true),
+		}},
+		JobsToUpdate: []*model.UpdateJobInstruction{
+			{
+				JobId:   jobIdString,
+				Updated: baseTime,
+				State:   pointer.Int32(repository.JobQueuedOrdinal),
+			},
+		},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+	}
+	assert.Equal(t, expected, instructions)
+}
+
 func TestHandlePodUnschedulable(t *testing.T) {
 	unschedulableMsg := "test pod unschedulable msg"
 
@@ -579,7 +620,7 @@ func TestSubmitWithNullChar(t *testing.T) {
 	svc := New(metrics.Get())
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	assert.Len(t, instructions.JobsToCreate, 1)
-	assert.NotContains(t, string(instructions.JobsToCreate[0].JobJson), "\\u0000")
+	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
 }
 
 func TestFailedWithNullCharInError(t *testing.T) {
