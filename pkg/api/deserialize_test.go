@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,10 +15,13 @@ func TestMarshalJsonIngressType(t *testing.T) {
 	}
 
 	for input, expected := range tests {
-		var ingressType IngressType
-		err := ingressType.UnmarshalJSON([]byte(input))
-		assert.NoError(t, err)
-		assert.Equal(t, expected, ingressType)
+		t.Run(fmt.Sprintf("TestMarshalJsonIngressType(%s)", input),
+			func(t *testing.T) {
+				var ingressType IngressType
+				err := ingressType.UnmarshalJSON([]byte(input))
+				assert.NoError(t, err)
+				assert.Equal(t, expected, ingressType)
+			})
 	}
 }
 
@@ -28,9 +32,12 @@ func TestMarshalJsonIngressType_InvalidEnumValues(t *testing.T) {
 	}
 
 	for _, input := range testInputs {
-		var ingressType IngressType
-		err := ingressType.UnmarshalJSON([]byte(input))
-		assert.Error(t, err)
+		t.Run(fmt.Sprintf("TestMarshalJsonIngressTypes_Invalid(%s)", input),
+			func(t *testing.T) {
+				var ingressType IngressType
+				err := ingressType.UnmarshalJSON([]byte(input))
+				assert.Error(t, err)
+			})
 	}
 }
 
@@ -43,10 +50,13 @@ func TestMarshalJsonServiceType(t *testing.T) {
 	}
 
 	for input, expected := range tests {
-		var serviceType ServiceType
-		err := serviceType.UnmarshalJSON([]byte(input))
-		assert.NoError(t, err)
-		assert.Equal(t, expected, serviceType)
+		t.Run(fmt.Sprintf("TestMarshalJsonServiceType(%s)", input),
+			func(t *testing.T) {
+				var serviceType ServiceType
+				err := serviceType.UnmarshalJSON([]byte(input))
+				assert.NoError(t, err)
+				assert.Equal(t, expected, serviceType)
+			})
 	}
 }
 
@@ -57,22 +67,49 @@ func TestMarshalJsonServiceType_InvalidEnumValues(t *testing.T) {
 	}
 
 	for _, input := range testInputs {
-		var serviceType ServiceType
-		err := serviceType.UnmarshalJSON([]byte(input))
-		assert.Error(t, err)
+		t.Run(fmt.Sprintf("TestMarshalJsonService_Invalid(%s)", input),
+			func(t *testing.T) {
+				var serviceType ServiceType
+				err := serviceType.UnmarshalJSON([]byte(input))
+				assert.Error(t, err)
+			})
 	}
 }
 
 func TestDeserializeJobState(t *testing.T) {
-	assert.NoError(t, testDeserializeJobStateString(t, "QUEUED"))
-	assert.NoError(t, testDeserializeJobStateString(t, "PENDING"))
-	assert.NoError(t, testDeserializeJobStateString(t, "RUNNING"))
+	testInputsStrings := []string{
+		"QUEUED",
+		"PENDING",
+		"RUNNING",
+	}
+
+	for _, input := range testInputsStrings {
+		t.Run(fmt.Sprintf("TestDeserializeJobStateString(%s)", input),
+			func(t *testing.T) {
+				assert.NoError(t, testDeserializeJobStateString(t, input))
+			})
+	}
 
 	assert.NoError(t, testDeserializeJobStateInt(t, 0))
 	assert.NoError(t, testDeserializeJobStateInt(t, 1))
 	assert.NoError(t, testDeserializeJobStateInt(t, 2))
 }
 
+func TestDeserializeJobStateInt(t *testing.T) {
+	testInputsStrings := []int{
+		0,
+		1,
+		2,
+	}
+
+	for _, input := range testInputsStrings {
+		t.Run(fmt.Sprintf("TestDeserializeJobStateString(%d)", input),
+			func(t *testing.T) {
+				assert.NoError(t, testDeserializeJobStateInt(t, input))
+			})
+	}
+
+}
 func TestDeserializeJobState_WhenInputInvalid(t *testing.T) {
 	assert.Error(t, testDeserializeJobStateString(t, "INVALID"))
 	assert.Error(t, testDeserializeJobStateInt(t, 3))
