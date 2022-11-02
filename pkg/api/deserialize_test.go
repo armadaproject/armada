@@ -62,6 +62,7 @@ func TestMarshalJsonServiceType_InvalidEnumValues(t *testing.T) {
 		assert.Error(t, err)
 	}
 }
+
 func TestDeserializeJobState(t *testing.T) {
 	assert.NoError(t, testDeserializeJobStateString(t, "QUEUED"))
 	assert.NoError(t, testDeserializeJobStateString(t, "PENDING"))
