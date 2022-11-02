@@ -115,17 +115,17 @@ func readEnvironmentLogLevel() log.Level {
 func readEnvironmentLogFormat() log.Formatter {
 	formatStr, ok := os.LookupEnv("LOG_FORMAT")
 	if !ok {
-		formatStr = "colorful"
+		formatStr = "colourful"
 	}
 	switch strings.ToLower(formatStr) {
 	case "json":
 		return &log.JSONFormatter{}
-	case "colorful":
+	case "colourful":
 		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
 	case "text":
 		return &log.TextFormatter{DisableColors: true, FullTimestamp: true}
 	default:
-		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colorful format", formatStr))
+		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
 		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
 	}
 }
