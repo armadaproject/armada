@@ -9,7 +9,7 @@ import (
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pulsartest",
-		Short: "pulsartest provides tools for generating Pulsar events.",
+		Short: "pulsartest provides tools for generating and observing Pulsar events.",
 	}
 
 	cmd.PersistentFlags().String("url", "pulsar://localhost:6650", "URL to connect to Pulsar on.")
@@ -21,6 +21,7 @@ func RootCmd() *cobra.Command {
 
 	cmd.AddCommand(
 		submitCmd(),
+		watchCmd(),
 	)
 
 	return cmd
