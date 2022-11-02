@@ -1,6 +1,9 @@
 package lookoutingester
 
 import (
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/lookout/configuration"
@@ -8,14 +11,11 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingester/instructions"
 	"github.com/G-Research/armada/internal/lookoutingester/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Lookout database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.LookoutIngesterConfiguration) {
-
 	log.Infof("Opening connection pool to postgres")
 	db, err := postgres.OpenPgxPool(config.Postgres)
 	if err != nil {

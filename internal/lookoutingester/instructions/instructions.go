@@ -1,10 +1,11 @@
 package instructions
 
 import (
-	"github.com/G-Research/armada/internal/common/ingest"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 

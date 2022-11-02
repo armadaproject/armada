@@ -1,8 +1,6 @@
 package ingest
 
 import (
-	"github.com/G-Research/armada/internal/common/util"
-	log "github.com/sirupsen/logrus"
 	"time"
 )
 

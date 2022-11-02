@@ -1,8 +1,9 @@
 package convert
 
 import (
-	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"

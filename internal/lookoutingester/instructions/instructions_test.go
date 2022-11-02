@@ -1,10 +1,12 @@
 package instructions
 
 import (
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"testing"
 	"time"
+
+	"github.com/apache/pulsar-client-go/pulsar"
+
+	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 

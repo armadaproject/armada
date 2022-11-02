@@ -33,16 +33,17 @@ func (c *mockConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
 
 func TestReceive(t *testing.T) {
 	msgTime := time.Now()
+	msgs := []pulsar.Message{
+		EmptyPulsarMessage(1, msgTime),
+		EmptyPulsarMessage(2, msgTime),
+		EmptyPulsarMessage(3, msgTime),
+	}
 	consumer := &mockConsumer{
-		msgs: []pulsar.Message{
-			EmptyPulsarMessage(1, msgTime),
-			EmptyPulsarMessage(2, msgTime),
-			EmptyPulsarMessage(3, msgTime),
-		},
+		msgs: msgs,
 	}
 	context, cancel := ctx.WithCancel(ctx.Background())
-	outputChan := Receive(context, consumer, 1, 1, 10*time.Millisecond, 10*time.Millisecond)
-	var receivedMsgs []*ConsumerMessage
+	outputChan := Receive(context, consumer, 10*time.Millisecond, 10*time.Millisecond)
+	var receivedMsgs []pulsar.Message
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -56,11 +57,7 @@ func TestReceive(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	assert.Equal(t, []*ConsumerMessage{
-		{EmptyPulsarMessage(1, msgTime), 1},
-		{EmptyPulsarMessage(2, msgTime), 1},
-		{EmptyPulsarMessage(3, msgTime), 1},
-	}, receivedMsgs)
+	assert.Equal(t, consumer.msgs, receivedMsgs)
 }
 
 func TestAcks(t *testing.T) {

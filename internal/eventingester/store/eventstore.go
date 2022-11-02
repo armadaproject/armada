@@ -1,12 +1,11 @@
 package store
 
 import (
+	"regexp"
+
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/eventingester/configuration"
 	"github.com/G-Research/armada/internal/eventingester/model"
-	"github.com/hashicorp/go-multierror"
-	log "github.com/sirupsen/logrus"
-	"regexp"
 
 	"github.com/go-redis/redis"
 )
@@ -64,7 +63,6 @@ func (repo *RedisEventStore) Store(update *model.BatchUpdate) error {
 }
 
 func (repo *RedisEventStore) doStore(update []*model.Event) error {
-
 	type eventData struct {
 		key  string
 		data []byte

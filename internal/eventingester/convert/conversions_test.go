@@ -1,11 +1,16 @@
 package convert
 
 import (
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/apache/pulsar-client-go/pulsar"
+
+	"github.com/apache/pulsar-client-go/pulsar"
+
+	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/stretchr/testify/assert"
 
@@ -88,7 +93,6 @@ func TestMultiple(t *testing.T) {
 }
 
 func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWithIds {
-
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,
 		JobSetName: jobset,

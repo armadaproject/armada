@@ -1,8 +1,11 @@
 package model
 
 import (
-	"github.com/apache/pulsar-client-go/pulsar"
 	"time"
+
+	"time"
+
+	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 // CreateJobInstruction is an instruction to insert a new row into the jobs table

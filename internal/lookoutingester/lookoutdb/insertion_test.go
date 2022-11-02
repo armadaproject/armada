@@ -3,12 +3,12 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
+	"github.com/apache/pulsar-client-go/pulsar"
 
 	"github.com/G-Research/armada/internal/lookout/repository"
 
@@ -38,8 +38,6 @@ const (
 	jobProto       = "hello world"
 	containerName  = "testContainer"
 )
-
-var m = metrics.Get()
 
 var (
 	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")

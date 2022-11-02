@@ -1,20 +1,27 @@
 package ingest
 
 import (
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"os"
+	"os/signal"
+	"sync"
+	"time"
+
+	"os"
+	"os/signal"
+	"sync"
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"k8s.io/apimachinery/pkg/util/clock"
-	"os"
-	"os/signal"
-	"sync"
-	"time"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 // Steps in ingestion are:
@@ -56,7 +63,8 @@ func NewDefaultIngester[T HasPulsarMessageIds](pulsarConfig configuration.Pulsar
 	pulsarbatchDuration time.Duration,
 	converter InstructionConverter[T],
 	sink Sink[T],
-	metricsConfig configuration.MetricsConfig) *DefaultIngester[T] {
+	metricsConfig configuration.MetricsConfig,
+) *DefaultIngester[T] {
 	return &DefaultIngester[T]{
 		pulsarConfig:           pulsarConfig,
 		metricsConfig:          metricsConfig,
@@ -69,7 +77,6 @@ func NewDefaultIngester[T HasPulsarMessageIds](pulsarConfig configuration.Pulsar
 }
 
 func (ingester *DefaultIngester[T]) Run() {
-
 	// create a context that will end on a sigterm
 	ctx := createContextWithShutdown()
 

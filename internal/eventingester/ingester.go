@@ -1,20 +1,21 @@
 package eventingester
 
 import (
+	"regexp"
+
+	"github.com/go-redis/redis"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/eventingester/configuration"
 	"github.com/G-Research/armada/internal/eventingester/convert"
 	"github.com/G-Research/armada/internal/eventingester/store"
-	"github.com/go-redis/redis"
-	log "github.com/sirupsen/logrus"
-	"regexp"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
-
 	log.Info("Event Ingester Starting")
 
 	fatalRegexes := make([]*regexp.Regexp, len(config.FatalInsertionErrors))

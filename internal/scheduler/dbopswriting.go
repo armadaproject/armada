@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"

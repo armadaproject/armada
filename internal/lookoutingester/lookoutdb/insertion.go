@@ -3,19 +3,23 @@ package lookoutdb
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/ingest"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/ingest"
+
+	"github.com/G-Research/armada/internal/common/ingest"
+
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 
-	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/lookout/repository"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
@@ -38,7 +42,6 @@ func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
 func (l *LookoutDb) Store(instructions *model.InstructionSet) error {
-
 	ctx := context.Background()
 
 	// We might have multiple updates for the same job or job run
