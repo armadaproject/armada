@@ -30,7 +30,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 
 	converter := instructions.NewInstructionConverter(metrics.Get(), config.UserAnnotationPrefix, compressor)
 
-	ingester := ingest.NewDefaultIngester(
+	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,
 		config.SubscriptionName,
 		config.BatchSize,

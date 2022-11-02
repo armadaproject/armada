@@ -19,30 +19,42 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// Steps in ingestion are:
-// Batch a bunch of pulsar messages
-// Convert a batch of pulsar messages to a batch of db instructions
-// insert the db instructions
-// ack the messagess
-
+// HasPulsarMessageIds should be implemented by structs that can store a batch of pulsar message ids
+// This is needed so we can pass message Ids down the pipeline and ack them at the end
 type HasPulsarMessageIds interface {
 	GetMessageIDs() []pulsar.MessageID
 }
 
+// InstructionConverter should be implemented by structs that can convert a batch of event sequences into an object
+// suitable for passing to the sink
 type InstructionConverter[T HasPulsarMessageIds] interface {
 	Convert(*EventSequencesWithIds) T
 }
 
+// Sink should be implemented by the struct responsible for putting the data in its final resting place, e.g. a
+// database.
 type Sink[T HasPulsarMessageIds] interface {
+	// Store should persist the sink.  The store is responsible for retrying failed attempts and should only return an error
+	// When it is satisfied that operation cannot be retries.
 	Store(T) error
 }
 
+// EventSequencesWithIds consists of a batch of Event Sequences along with the corresponding Pulsar Message Ids
 type EventSequencesWithIds struct {
 	EventSequences []*armadaevents.EventSequence
 	MessageIds     []pulsar.MessageID
 }
 
-type DefaultIngester[T HasPulsarMessageIds] struct {
+// IngestionPipeline is an application tha reads message from pulsar and inserts them into a sink. The pipeline will
+// handle the following automatically:
+//   * Receiving messages from pulsar
+//   * Splitting messages into batches for efficient processing
+//   * Unmarshalling into event sequences
+//   * Acking processed messages
+//   * Gracefully terminating on a SIGTERM
+// Callers must supply two structs, an InstructionConverter for converting event sequences into something that can be
+// exhausted and a Sink capable of exhausting these objects
+type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarConfig           configuration.PulsarConfig
 	metricsConfig          configuration.MetricsConfig
 	pulsarSubscriptionName string
@@ -52,15 +64,15 @@ type DefaultIngester[T HasPulsarMessageIds] struct {
 	sink                   Sink[T]
 }
 
-func NewDefaultIngester[T HasPulsarMessageIds](pulsarConfig configuration.PulsarConfig,
+func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.PulsarConfig,
 	pulsarSubscriptionName string,
 	pulsarbatchSize int,
 	pulsarbatchDuration time.Duration,
 	converter InstructionConverter[T],
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
-) *DefaultIngester[T] {
-	return &DefaultIngester[T]{
+) *IngestionPipeline[T] {
+	return &IngestionPipeline[T]{
 		pulsarConfig:           pulsarConfig,
 		metricsConfig:          metricsConfig,
 		pulsarSubscriptionName: pulsarSubscriptionName,
@@ -71,7 +83,8 @@ func NewDefaultIngester[T HasPulsarMessageIds](pulsarConfig configuration.Pulsar
 	}
 }
 
-func (ingester *DefaultIngester[T]) Run() {
+// Run will run the ingestion pipeline until a SIGTERM is received
+func (ingester *IngestionPipeline[T]) Run() {
 	// create a context that will end on a sigterm
 	ctx := createContextWithShutdown()
 
@@ -128,13 +141,15 @@ func (ingester *DefaultIngester[T]) Run() {
 	// Publish messages to sink then ACK on pulsar
 	go func() {
 		for msg := range instructions {
+			// The sink is responsible for retrying any messages so if we get a message here we know we can give up
+			// and just ACK the ids
 			err := ingester.sink.Store(msg)
 			log.WithError(err).Warn("Error inserting messages")
 			for _, msgId := range msg.GetMessageIDs() {
 				consumer.AckID(msgId)
 			}
-			wg.Add(1)
 		}
+		wg.Add(1)
 	}()
 
 	log.Info("Ingestion pipeline set up. Running until shutdown event received")
