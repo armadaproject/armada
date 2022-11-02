@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
 )
 
 func (x *IngressType) UnmarshalJSON(data []byte) error {
