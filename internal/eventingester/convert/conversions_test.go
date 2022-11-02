@@ -6,20 +6,12 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-
-	"github.com/G-Research/armada/internal/common/ingest"
-
-	"github.com/apache/pulsar-client-go/pulsar"
-
-	"github.com/G-Research/armada/internal/common/ingest"
-
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/compress"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
-
+	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )

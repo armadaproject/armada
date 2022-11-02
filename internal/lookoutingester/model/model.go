@@ -3,8 +3,6 @@ package model
 import (
 	"time"
 
-	"time"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 )
 

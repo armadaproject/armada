@@ -3,14 +3,13 @@ package store
 import (
 	"regexp"
 
+	"github.com/go-redis/redis"
 	"github.com/hashicorp/go-multierror"
-	"google.golang.org/appengine/log"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/eventingester/configuration"
 	"github.com/G-Research/armada/internal/eventingester/model"
-
-	"github.com/go-redis/redis"
 )
 
 const (
