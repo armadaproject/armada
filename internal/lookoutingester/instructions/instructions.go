@@ -447,6 +447,11 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 				jobRunUpdate.Started = &ts
 			}
 
+			// Both Error_PodLeaseReturned and Error_LeaseExpired have an implied reset of the job state to queued
+			// Ideally we would send an explicit queued message here, but until this change is made we correct the job
+			// state here
+			resetStateToQueued := false
+
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
@@ -472,14 +477,23 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				resetStateToQueued = true
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				resetStateToQueued = true
 			default:
 				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
+			if resetStateToQueued {
+				update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
+					JobId:   jobId,
+					State:   pointer.Int32(int32(repository.JobQueuedOrdinal)),
+					Updated: ts,
+				})
+			}
 			break
 		}
 	}

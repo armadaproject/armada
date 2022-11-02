@@ -36,7 +36,10 @@ func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
 // MatchSchedulingRequirementsOnAnyCluster returns true if the provided job can be scheduled.
 // If returning false, the reason for not being able to schedule the pod is indicated by the returned error,
 // which is of type *armadaerrors.ErrPodUnschedulable.
-func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport) (bool, error) {
+func MatchSchedulingRequirementsOnAnyCluster(
+	job *api.Job,
+	allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport,
+) (bool, error) {
 	var errs []error
 	for _, schedulingInfo := range allClusterSchedulingInfos {
 		if ok, err := MatchSchedulingRequirements(job, schedulingInfo); ok {
@@ -55,7 +58,10 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 	return false, armadaerrors.NewCombinedErrPodUnschedulable(errs...)
 }
 
-func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) (bool, error) {
+func MatchSchedulingRequirements(
+	job *api.Job,
+	schedulingInfo *api.ClusterSchedulingInfoReport,
+) (bool, error) {
 	if !isLargeEnough(job, schedulingInfo.MinimumJobSize) {
 		err := &armadaerrors.ErrPodUnschedulable{}
 		err = err.Add(fmt.Sprintf("pod resource requests too low; the minimum allowed is %v", schedulingInfo.MinimumJobSize), len(schedulingInfo.NodeTypes))
@@ -90,7 +96,7 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 	var result *armadaerrors.ErrPodUnschedulable
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
-		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
+		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat().DeepCopy()
 		ok, err := podMatchingContext.Matches(nodeType, nodeResources)
 		switch {
 		case ok:
@@ -108,13 +114,12 @@ func matchAnyNodeTypeAllocation(
 	job *api.Job,
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
-	supportedPriorityClasses map[string]int32,
 ) (nodeTypeUsedResources, bool, error) {
 	newlyConsumed := nodeTypeUsedResources{}
 
 	for _, podSpec := range job.GetAllPodSpecs() {
 
-		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed, supportedPriorityClasses)
+		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 
 		if !ok {
 			return nodeTypeUsedResources{}, false, err
@@ -131,7 +136,6 @@ func matchAnyNodeTypePodAllocation(
 	nodeAllocations []*nodeTypeAllocation,
 	alreadyConsumed nodeTypeUsedResources,
 	newlyConsumed nodeTypeUsedResources,
-	supportedPriorityClasses map[string]int32,
 ) (*nodeTypeAllocation, bool, error) {
 	if len(nodeAllocations) == 0 {
 		return nil, false, errors.Errorf("no nodes available")
@@ -146,19 +150,6 @@ func matchAnyNodeTypePodAllocation(
 		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
 		resources := available
-		if hasPriorityClass(podSpec) {
-			preemptible, err := getPreemptibleResources(
-				supportedPriorityClasses,
-				podSpec.PriorityClassName,
-				node.allocatedResources,
-			)
-			if err != nil {
-				return nil, false, err
-			}
-			// resources which can be allocated to prioritised jobs are Sum(preemptible resources, allocatable resources)
-			preemptible.Add(available)
-			resources = preemptible
-		}
 		ok, err := podMatchingContext.Matches(&node.nodeType, resources)
 		switch {
 		case ok:
@@ -170,26 +161,6 @@ func matchAnyNodeTypePodAllocation(
 		}
 	}
 	return nil, false, result
-}
-
-func getPreemptibleResources(
-	supportedPriorityClasses map[string]int32,
-	targetPriorityClass string,
-	allocatedResources map[int32]common.ComputeResourcesFloat,
-) (common.ComputeResourcesFloat, error) {
-	targetPriority, ok := supportedPriorityClasses[targetPriorityClass]
-	if !ok {
-		return nil, errors.Errorf("unsupported prirority class: %s", targetPriorityClass)
-	}
-	preemptibleResources := make(common.ComputeResourcesFloat)
-
-	for priority, resources := range allocatedResources {
-		if priority < targetPriority {
-			preemptibleResources.Add(resources)
-		}
-	}
-
-	return preemptibleResources, nil
 }
 
 // AggregateNodeTypeAllocations computes the total available resources for each node type.

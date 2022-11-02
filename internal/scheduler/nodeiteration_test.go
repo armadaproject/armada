@@ -14,15 +14,17 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
 var (
-	testPriorities []int32  = []int32{0, 1, 2, 3}
-	testResources  []string = []string{"cpu", "memory", "gpu"}
+	testPriorityClasses = []configuration.PriorityClass{{0, nil}, {1, nil}, {2, nil}, {3, nil}}
+	testPriorities      = []int32{0, 1, 2, 3}
+	testResources       = []string{"cpu", "memory", "gpu"}
 )
 
-func TestSchema(t *testing.T) {
+func TestNodeDbSchema(t *testing.T) {
 	err := nodeDbSchema(testPriorities, testResources).Validate()
 	assert.NoError(t, err)
 }
@@ -349,13 +351,13 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*schedulero
 			NodeTypeId: "foo", // All nodes have the same node type.
 			NodeType:   &schedulerobjects.NodeType{Id: "bar"},
 		}
-		availableByPriorityAndResource := schedulerobjects.NewAvailableByPriorityAndResourceType(priorities, nil)
+		availableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(priorities, nil)
 		for _, p := range priorities {
 			rs := make(map[string]resource.Quantity)
 			for _, r := range resources {
 				rs[r] = resource.MustParse(fmt.Sprintf("%d", rand.Intn(100)))
 			}
-			availableByPriorityAndResource.MarkAvailable(p, schedulerobjects.ResourceList{Resources: rs})
+			availableByPriorityAndResource.MarkAllocatable(p, schedulerobjects.ResourceList{Resources: rs})
 		}
 		rv[i].AvailableByPriorityAndResource = availableByPriorityAndResource
 	}
@@ -429,7 +431,7 @@ func testCpuNode(priorities []int32) *schedulerobjects.Node {
 				"memory": resource.MustParse("256Gi"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -466,7 +468,7 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 				"memory": resource.MustParse("256Gi"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -495,7 +497,7 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 				"gpu":    resource.MustParse("8"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("64"),
@@ -534,7 +536,7 @@ func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
 				"gpu":    resource.MustParse("8"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("64"),
@@ -567,7 +569,7 @@ func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
 // 				"gpu":    resource.MustParse("8"),
 // 			},
 // 		},
-// 		AvailableByPriorityAndResource: schedulerobjects.NewAvailableByPriorityAndResourceType(
+// 		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 // 			priorities,
 // 			map[string]resource.Quantity{
 // 				"cpu":    resource.MustParse("64"),

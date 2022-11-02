@@ -431,7 +431,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	priorities := make([]int32, 0)
 	if len(q.schedulingConfig.Preemption.PriorityClasses) > 0 {
 		for _, p := range q.schedulingConfig.Preemption.PriorityClasses {
-			priorities = append(priorities, p)
+			priorities = append(priorities, p.Priority)
 		}
 	} else {
 		priorities = append(priorities, 0)
@@ -686,7 +686,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	return &types.Empty{}, nil
 }
 
-func (q *AggregatedQueueServer) addAvoidNodeAffinity(jobId string, labels *api.OrderedStringMap, principalName string) error {
+func (q *AggregatedQueueServer) addAvoidNodeAffinity(
+	jobId string,
+	labels *api.OrderedStringMap,
+	principalName string,
+) error {
 	allClusterSchedulingInfo, err := q.schedulingInfoRepository.GetClusterSchedulingInfo()
 	if err != nil {
 		return fmt.Errorf("[AggregatedQueueServer.addAvoidNodeAffinity] error getting scheduling information: %w", err)

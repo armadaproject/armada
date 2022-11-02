@@ -89,7 +89,10 @@ func (c *QueueCache) Refresh() {
 	}
 }
 
-func (c *QueueCache) calculateQueuedJobMetrics(queue queue.Queue, clusterInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport) error {
+func (c *QueueCache) calculateQueuedJobMetrics(
+	queue queue.Queue,
+	clusterInfoByPool map[string]map[string]*api.ClusterSchedulingInfoReport,
+) error {
 	queuedJobIds, e := c.jobRepository.GetQueueJobIds(queue.Name)
 	if e != nil {
 		return fmt.Errorf("failed getting queued jobs - %s", e)

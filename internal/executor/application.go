@@ -63,6 +63,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		2*time.Minute,
 		kubernetesClientProvider,
 		etcdHealthMonitor,
+		config.Kubernetes.PodKillTimeout,
 	)
 
 	wg := &sync.WaitGroup{}
@@ -132,7 +133,9 @@ func StartUpWithContext(
 		queueUtilisationService,
 		nodeInfoService,
 		usageClient,
-		config.Kubernetes.TrackedNodeLabels)
+		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
@@ -140,7 +143,9 @@ func StartUpWithContext(
 		jobLeaseService,
 		clusterUtilisationService,
 		submitter,
-		etcdHealthMonitor)
+		etcdHealthMonitor,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	jobManager := service.NewJobManager(
 		clusterContext,

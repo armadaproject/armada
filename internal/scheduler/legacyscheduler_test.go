@@ -498,9 +498,9 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 }
 
 func testSchedulingConfig() configuration.SchedulingConfig {
-	priorityClasses := make(map[string]int32)
-	for _, priority := range testPriorities {
-		priorityClasses[fmt.Sprintf("%d", priority)] = priority
+	priorityClasses := make(map[string]configuration.PriorityClass)
+	for _, priority := range testPriorityClasses {
+		priorityClasses[fmt.Sprintf("%d", priority.Priority)] = priority
 	}
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
@@ -518,6 +518,16 @@ func withRoundLimits(limits map[string]float64, config configuration.SchedulingC
 
 func withPerQueueLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalResourceFractionPerQueue = limits
+	return config
+}
+
+func withPerPriorityLimits(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	for k, v := range config.Preemption.PriorityClasses {
+		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
+			Priority:                        v.Priority,
+			MaximalResourceFractionPerQueue: limits[v.Priority],
+		}
+	}
 	return config
 }
 
@@ -558,7 +568,7 @@ func withIndexedNodeLabels(indexedLabels []string, config configuration.Scheduli
 
 func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-		schedulerobjects.AvailableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkUsed(p, rs)
+		schedulerobjects.AllocatableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkAllocated(p, rs)
 	}
 	return nodes
 }
@@ -818,6 +828,26 @@ func TestSchedule(t *testing.T) {
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1},
 				"B": {0},
+			},
+		},
+		"per priority per-queue limits": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 1.0},
+					1: {"cpu": 0.5},
+					2: {"cpu": 0.25},
+					3: {"cpu": 0.1},
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(3, 5), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1, 2, 5, 6, 7, 8, 9},
 			},
 		},
 		"fairness two queues": {
@@ -1285,6 +1315,9 @@ func TestSchedule(t *testing.T) {
 	}
 }
 
+func Test_exceedsPerPriorityResourceLimits(t *testing.T) {
+}
+
 func intRange(a, b int) []int {
 	rv := make([]int, b-a+1)
 	for i := range rv {
@@ -1358,7 +1391,7 @@ func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
 	return rv
 }
 
-func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]int32) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, job := range jobs {
 		m, ok := rv[job.Queue]

@@ -126,6 +126,8 @@ services:
     image: golang:1.18-buster
     networks:
       - kind
+    ports:
+      - "60003:60003"
     depends_on:
       - armada-server
     volumes:
@@ -147,5 +149,17 @@ services:
       - "./volumes/go:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"
-      
+
+  event-ingester:
+    container_name: event-ingester
+    image: golang:1.18-buster
+    networks:
+      - kind
+    depends_on:
+      - armada-server
+    volumes:
+      - "..:/app:rw"
+      - "./volumes/go:/go:rw"
+    working_dir: "/app"
+    entrypoint: sh -c "localdev/scripts/event-ingester-start.sh"
 
