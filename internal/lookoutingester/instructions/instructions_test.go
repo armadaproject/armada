@@ -513,6 +513,7 @@ func TestHandlePodTerminated(t *testing.T) {
 func TestHandleJobLeaseReturned(t *testing.T) {
 	leaseReturnedMsg := "test pod returned msg"
 	leaseReturned := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
 				JobId: jobIdProto,
@@ -531,9 +532,9 @@ func TestHandleJobLeaseReturned(t *testing.T) {
 		},
 	}
 
-	svc := New(metrics.Get())
-	msg := NewMsg(baseTime, leaseReturned)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(leaseReturned)
+	instructions := svc.Convert(msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:            runIdString,
@@ -549,7 +550,7 @@ func TestHandleJobLeaseReturned(t *testing.T) {
 				State:   pointer.Int32(repository.JobQueuedOrdinal),
 			},
 		},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }

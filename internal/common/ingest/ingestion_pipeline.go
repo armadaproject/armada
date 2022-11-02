@@ -47,11 +47,12 @@ type EventSequencesWithIds struct {
 
 // IngestionPipeline is an application tha reads message from pulsar and inserts them into a sink. The pipeline will
 // handle the following automatically:
-//   * Receiving messages from pulsar
-//   * Splitting messages into batches for efficient processing
-//   * Unmarshalling into event sequences
-//   * Acking processed messages
-//   * Gracefully terminating on a SIGTERM
+//   - Receiving messages from pulsar
+//   - Splitting messages into batches for efficient processing
+//   - Unmarshalling into event sequences
+//   - Acking processed messages
+//   - Gracefully terminating on a SIGTERM
+//
 // Callers must supply two structs, an InstructionConverter for converting event sequences into something that can be
 // exhausted and a Sink capable of exhausting these objects
 type IngestionPipeline[T HasPulsarMessageIds] struct {
