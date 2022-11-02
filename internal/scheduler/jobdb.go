@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
