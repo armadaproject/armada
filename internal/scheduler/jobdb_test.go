@@ -28,21 +28,21 @@ func TestJobQueuePriorityClassIterator(t *testing.T) {
 			MinPriorityClassValue: 0,
 			MinPriority:           0,
 			Items:                 testJobItems1(),
-			ExpectedOrder:         intRange(0, 4),
+			ExpectedOrder:         intRange(0, 5),
 		},
 		"Queue B": {
 			Queue:                 "B",
 			MinPriorityClassValue: 0,
 			MinPriority:           0,
 			Items:                 testJobItems1(),
-			ExpectedOrder:         intRange(5, 11),
+			ExpectedOrder:         intRange(6, 12),
 		},
 		"Queue C": {
 			Queue:                 "C",
 			MinPriorityClassValue: 0,
 			MinPriority:           0,
 			Items:                 testJobItems1(),
-			ExpectedOrder:         intRange(12, 12),
+			ExpectedOrder:         intRange(13, 13),
 		},
 	}
 	for name, tc := range tests {
@@ -87,6 +87,7 @@ func testJobItems1() []*SchedulerJob {
 			Queue:                     "A",
 			NegatedPriorityClassValue: -1,
 			Priority:                  0,
+			Timestamp:                 10,
 			node:                      nil,
 			jobSchedulingInfo:         nil,
 		},
@@ -95,6 +96,14 @@ func testJobItems1() []*SchedulerJob {
 			Queue:                     "A",
 			NegatedPriorityClassValue: -1,
 			Priority:                  1,
+			Timestamp:                 0,
+		},
+		{
+			JobId:                     uuid.NewString(),
+			Queue:                     "A",
+			NegatedPriorityClassValue: -1,
+			Priority:                  1,
+			Timestamp:                 1,
 		},
 		{
 			JobId:                     uuid.NewString(),

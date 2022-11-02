@@ -12,8 +12,9 @@ import (
 
 // JobDb is the scheduler-internal system for storing job queues.
 // It allows for efficiently iterationg over jobs in a specified queue sorted
-// first by priority class value (greater to smaller) and
-// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority).
+// first by priority class value (greater to smaller),
+// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority),
+// and third by submission time.
 type JobDb struct {
 	// In-memory database. Stores *SchedulerJob.
 	// Used to efficiently iterate over jobs in sorted order.
@@ -34,6 +35,10 @@ type SchedulerJob struct {
 	NegatedPriorityClassValue int
 	// Per-queue priority of this job.
 	Priority uint32
+	// Logical timestamp indicating the order in which jobs are submitted.
+	// Jobs with identical queue, NegatedPriorityClassValue, and Priority
+	// are sorted by timestamp.
+	Timestamp int64
 	// Node to which this job has been assigned.
 	// Nil if this job has not yet been assigned.
 	node *schedulerobjects.Node
@@ -65,17 +70,17 @@ func (jobDb *JobDb) Upsert(jobs []*SchedulerJob) error {
 }
 
 // JobQueueIterator is an iterator over all jobs in a given queue.
-// Jobs are sorted first by PriorityClassValue and second by per-queue priority.
+// Jobs are sorted first by PriorityClassValue, second by per-queue priority, and third by submission time.
 type JobQueueIterator struct {
 	queue string
 	it    memdb.ResultIterator
 }
 
 func NewJobQueueIterator(txn *memdb.Txn, queue string) (*JobQueueIterator, error) {
-	indexName := "order"
 	minPriorityClassValue := -math.MaxInt
 	var minPriority uint32 = 0
-	it, err := txn.LowerBound("jobs", indexName, queue, minPriorityClassValue, minPriority)
+	minTimestamp := -math.MaxInt64
+	it, err := txn.LowerBound("jobs", "order", queue, minPriorityClassValue, minPriority, minTimestamp)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -125,6 +130,7 @@ func jobDbSchema() *memdb.DBSchema {
 				&memdb.StringFieldIndex{Field: "Queue"},
 				&memdb.IntFieldIndex{Field: "NegatedPriorityClassValue"},
 				&memdb.UintFieldIndex{Field: "Priority"},
+				&memdb.IntFieldIndex{Field: "Timestamp"},
 			},
 		},
 	}
