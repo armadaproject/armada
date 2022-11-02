@@ -83,6 +83,13 @@ func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
 	return rv
 }
 
+func (a *ResourceList) Get(resourceType string) resource.Quantity {
+	if a.Resources == nil {
+		return resource.Quantity{}
+	}
+	return a.Resources[resourceType]
+}
+
 func (a *ResourceList) Add(b ResourceList) {
 	if a.Resources == nil {
 		a.Resources = make(map[string]resource.Quantity)
@@ -157,13 +164,13 @@ func (rl ResourceList) CompactString() string {
 	return sb.String()
 }
 
-// AvailableByPriorityAndResourceType accounts for resources available to pods of a given priority.
-// E.g., AvailableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
-// where available resources = unused resources + resources assigned to lower-priority pods.
-type AvailableByPriorityAndResourceType QuantityByPriorityAndResourceType
+// AllocatableByPriorityAndResourceType accounts for resources that can be allocated to pods of a given priority.
+// E.g., AllocatableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
+// where alloctable resources = unused resources + resources allocated to lower-priority pods.
+type AllocatableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAvailableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AvailableByPriorityAndResourceType {
-	rv := make(AvailableByPriorityAndResourceType)
+func NewAllocatableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AllocatableByPriorityAndResourceType {
+	rv := make(AllocatableByPriorityAndResourceType)
 	for _, priority := range priorities {
 		m := make(map[string]resource.Quantity)
 		for t, q := range resources {
@@ -174,115 +181,76 @@ func NewAvailableByPriorityAndResourceType(priorities []int32, resources map[str
 	return rv
 }
 
-func (m AvailableByPriorityAndResourceType) DeepCopy() AvailableByPriorityAndResourceType {
-	rv := make(AvailableByPriorityAndResourceType)
+func (m AllocatableByPriorityAndResourceType) DeepCopy() AllocatableByPriorityAndResourceType {
+	rv := make(AllocatableByPriorityAndResourceType)
 	for priority, resourcesAtPriority := range m {
-		rv[priority] = ResourceList{Resources: make(map[string]resource.Quantity)}
-		for resourceType, quantity := range resourcesAtPriority.Resources {
-			m[priority].Resources[resourceType] = quantity.DeepCopy()
-		}
+		rv[priority] = resourcesAtPriority.DeepCopy()
 	}
 	return rv
 }
 
-// MarkUsed reduces the resources available to pods of priority p or lower.
-func (m AvailableByPriorityAndResourceType) MarkUsed(p int32, rs ResourceList) {
-	for priority, availableResourcesAtPriority := range m {
+// MarkAllocated indicates resources have been allocated to pods of priority p,
+// hence reducing the resources allocatable to pods of priority p or lower.
+func (m AllocatableByPriorityAndResourceType) MarkAllocated(p int32, rs ResourceList) {
+	for priority, allocatableResourcesAtPriority := range m {
 		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs.Resources {
-				q := availableResourcesAtPriority.Resources[usedResourceType]
-				if q.Cmp(usedResourceQuantity) == -1 {
-					q.Set(0)
-				} else {
-					q.Sub(usedResourceQuantity)
-				}
-				availableResourcesAtPriority.Resources[usedResourceType] = q
-			}
+			allocatableResourcesAtPriority.Sub(rs)
 		}
 	}
 }
 
-// MarkAvailable increases the resources available to pods of priority p or higher.
-func (m AvailableByPriorityAndResourceType) MarkAvailable(p int32, rs ResourceList) {
-	for priority, availableResourcesAtPriority := range m {
+// MarkAllocatable indicates resources have been released by pods of priority p,
+// thus increasing the resources allocatable to pods of priority p or lower.
+func (m AllocatableByPriorityAndResourceType) MarkAllocatable(p int32, rs ResourceList) {
+	for priority, allocatableResourcesAtPriority := range m {
 		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs.Resources {
-				q := availableResourcesAtPriority.Resources[usedResourceType]
-				q.Add(usedResourceQuantity)
-				availableResourcesAtPriority.Resources[usedResourceType] = q
-			}
+			allocatableResourcesAtPriority.Add(rs)
 		}
 	}
 }
 
-// AssignedByPriorityAndResourceType accounts for resources assigned to pods of a given priority or lower.
-// E.g., AssignedByPriorityAndResourceType[5]["cpu"] is the amount of CPU assigned to pods with priority 5 or lower.
-type AssignedByPriorityAndResourceType QuantityByPriorityAndResourceType
+// AllocatedByPriorityAndResourceType accounts for resources allocated to pods of a given priority or lower.
+// E.g., AllocatedByPriorityAndResourceType[5]["cpu"] is the amount of CPU allocated to pods with priority 5 or lower.
+type AllocatedByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAssignedByPriorityAndResourceType(priorities []int32) AssignedByPriorityAndResourceType {
-	rv := make(AssignedByPriorityAndResourceType)
+func NewAllocatedByPriorityAndResourceType(priorities []int32) AllocatedByPriorityAndResourceType {
+	rv := make(AllocatedByPriorityAndResourceType)
 	for _, priority := range priorities {
 		rv[priority] = ResourceList{Resources: make(map[string]resource.Quantity)}
 	}
 	return rv
 }
 
-// MarkUsed increases the resources assigned to pods of priority p or lower.
-func (m AssignedByPriorityAndResourceType) MarkUsed(p int32, rs ResourceList) {
-	for priority, assignedResourcesAtPriority := range m {
+// MarkAllocated increases the resources allocated to pods of priority p or lower.
+func (m AllocatedByPriorityAndResourceType) MarkAllocated(p int32, rs ResourceList) {
+	for priority, allocatedResourcesAtPriority := range m {
 		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs.Resources {
-				q := assignedResourcesAtPriority.Resources[usedResourceType]
-				q.Add(usedResourceQuantity)
-				assignedResourcesAtPriority.Resources[usedResourceType] = q
-			}
+			allocatedResourcesAtPriority.Add(rs)
 		}
 	}
 }
 
-// MarkAvailable reduces the resources assigned to pods of priority p or lower.
-func (m AssignedByPriorityAndResourceType) MarkAvailable(p int32, rs ResourceList) {
-	for priority, assignedResourcesAtPriority := range m {
+// MarkAllocatable reduces the resources allocated to pods of priority p or lower.
+func (m AllocatedByPriorityAndResourceType) MarkAllocatable(p int32, rs ResourceList) {
+	for priority, allocatedResourcesAtPriority := range m {
 		if priority <= p {
-			for usedResourceType, usedResourceQuantity := range rs.Resources {
-				q := assignedResourcesAtPriority.Resources[usedResourceType]
-				if q.Cmp(usedResourceQuantity) == -1 {
-					q.Set(0)
-				} else {
-					q.Sub(usedResourceQuantity)
-				}
-				assignedResourcesAtPriority.Resources[usedResourceType] = q
-			}
+			allocatedResourcesAtPriority.Sub(rs)
 		}
 	}
 }
 
-func (availableByPriorityAndResourceType AvailableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if availableByPriorityAndResourceType == nil {
-		return resource.MustParse("0")
+func (AllocatableByPriorityAndResourceType AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+	if AllocatableByPriorityAndResourceType == nil {
+		return resource.Quantity{}
 	}
-	quantityByResourceType, ok := availableByPriorityAndResourceType[priority]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	q, ok := quantityByResourceType.Resources[resourceType]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	return q
+	quantityByResourceType := AllocatableByPriorityAndResourceType[priority]
+	return quantityByResourceType.Get(resourceType)
 }
 
-func (assignedByPriorityAndResourceType AssignedByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+func (assignedByPriorityAndResourceType AllocatedByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
 	if assignedByPriorityAndResourceType == nil {
-		return resource.MustParse("0")
+		return resource.Quantity{}
 	}
-	quantityByResourceType, ok := assignedByPriorityAndResourceType[priority]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	q, ok := quantityByResourceType.Resources[resourceType]
-	if !ok {
-		return resource.MustParse("0")
-	}
-	return q
+	quantityByResourceType := assignedByPriorityAndResourceType[priority]
+	return quantityByResourceType.Get(resourceType)
 }
