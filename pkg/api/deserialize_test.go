@@ -34,12 +34,6 @@ func TestMarshalJsonIngressType_InvalidEnumValues(t *testing.T) {
 	}
 }
 
-func TestParallelAccessJsonIngressType(t *testing.T) {
-	var ingressTypeMainThread IngressType
-	var ingressTypeBackGroundThead IngressType
-	go ingressTypeBackGroundThead.UnmarshalJSON(([]byte("0")))
-	ingressTypeMainThread.UnmarshalJSON([]byte("0"))
-}
 func TestMarshalJsonServiceType(t *testing.T) {
 	tests := map[string]ServiceType{
 		"0":            ServiceType_NodePort,
