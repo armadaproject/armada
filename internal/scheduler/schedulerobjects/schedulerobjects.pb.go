@@ -40,8 +40,10 @@ type Node struct {
 	LastSeen time.Time `protobuf:"bytes,2,opt,name=LastSeen,proto3,stdtime" json:"LastSeen"`
 	// The node type captures scheduling requirements of the node;
 	// it's computed from the taints and labels associated with the node.
+	// This field is set automatically by the NodeDb on inserting the node.
 	NodeType *NodeType `protobuf:"bytes,3,opt,name=nodeType,proto3" json:"nodeType,omitempty"`
 	// We store the NodeType.id here to simplify indexing.
+	// This field is set automatically by the NodeDb on inserting the node.
 	NodeTypeId string `protobuf:"bytes,4,opt,name=NodeTypeId,proto3" json:"NodeTypeId,omitempty"`
 	// Kubernetes taints.
 	Taints []v1.Taint `protobuf:"bytes,5,rep,name=taints,proto3" json:"taints"`

@@ -466,7 +466,7 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 				TotalResources:   totalResources,
 			}
 			if tc.Nodes != nil {
-				nodeDb, err := NewNodeDb(testPriorities, testResources)
+				nodeDb, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 				if !assert.NoError(t, err) {
 					return
 				}
@@ -547,22 +547,12 @@ func withMaxConsecutiveUnschedulableJobs(n uint, config configuration.Scheduling
 }
 
 func withIndexedTaints(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	if config.IndexedTaints == nil {
-		config.IndexedTaints = make(map[string]interface{})
-	}
-	for _, key := range indexedTaints {
-		config.IndexedTaints[key] = ""
-	}
+	config.IndexedTaints = append(config.IndexedTaints, indexedTaints...)
 	return config
 }
 
-func withIndexedNodeLabels(indexedLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	if config.IndexedNodeLabels == nil {
-		config.IndexedNodeLabels = make(map[string]interface{})
-	}
-	for _, key := range indexedLabels {
-		config.IndexedNodeLabels[key] = ""
-	}
+func withIndexedNodeLabels(indexedNodeLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.IndexedNodeLabels = append(config.IndexedNodeLabels, indexedNodeLabels...)
 	return config
 }
 
@@ -579,11 +569,6 @@ func withLabels(labels map[string]string, nodes []*schedulerobjects.Node) []*sch
 			node.Labels = maps.Clone(labels)
 		} else {
 			maps.Copy(node.Labels, labels)
-		}
-		if node.NodeType.Labels == nil {
-			node.NodeType.Labels = maps.Clone(labels)
-		} else {
-			maps.Copy(node.NodeType.Labels, labels)
 		}
 	}
 	return nodes
