@@ -364,20 +364,6 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*schedulero
 	return rv
 }
 
-func testNodes3(numCpuNodes, numTaintedCpuNodes, numGpuNodes int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, 0)
-	for i := 0; i < numCpuNodes; i++ {
-		rv = append(rv, testCpuNode(priorities))
-	}
-	for i := 0; i < numTaintedCpuNodes; i++ {
-		rv = append(rv, testTaintedCpuNode(priorities))
-	}
-	for i := 0; i < numGpuNodes; i++ {
-		rv = append(rv, testTaintedGpuNode(priorities))
-	}
-	return rv
-}
-
 func testNCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {

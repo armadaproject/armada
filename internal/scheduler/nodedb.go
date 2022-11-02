@@ -260,8 +260,7 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 	totalResources := make(map[string]resource.Quantity)
 	indexedResources := make(map[string]interface{})
 	for _, resourceType := range resourceTypes {
-		q := resource.MustParse("0")
-		totalResources[resourceType] = q
+		totalResources[resourceType] = resource.Quantity{}
 		indexedResources[resourceType] = true
 	}
 	return &NodeDb{
