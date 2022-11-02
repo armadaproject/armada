@@ -1,8 +1,9 @@
 package validation
 
 import (
-	"errors"
-	"fmt"
+	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
@@ -10,20 +11,20 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
-func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingConfig) error {
-	maxAllowedSize := schedulingSpec.MaxPodSpecSizeBytes
-	minJobResources := schedulingSpec.MinJobResources
+func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {
+	maxAllowedSize := schedulingConfig.MaxPodSpecSizeBytes
+	minJobResources := schedulingConfig.MinJobResources
 
 	if spec == nil {
-		return fmt.Errorf("empty pod spec")
+		return errors.Errorf("empty pod spec")
 	}
 
 	if uint(spec.Size()) > maxAllowedSize {
-		return fmt.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), maxAllowedSize)
+		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), maxAllowedSize)
 	}
 
 	if len(spec.Containers) == 0 {
-		return fmt.Errorf("pod spec has no containers")
+		return errors.Errorf("pod spec has no containers")
 	}
 
 	err := validateAffinity(spec.Affinity)
@@ -31,12 +32,17 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingC
 		return err
 	}
 
+	err = validateTerminationGracePeriod(spec, schedulingConfig)
+	if err != nil {
+		return err
+	}
+
 	for _, container := range spec.Containers {
 		if len(container.Resources.Limits) == 0 {
-			return fmt.Errorf("container %v has no resource limits specified", container.Name)
+			return errors.Errorf("container %v has no resource limits specified", container.Name)
 		}
 		if len(container.Resources.Requests) == 0 {
-			return fmt.Errorf("container %v has no resource requests specified", container.Name)
+			return errors.Errorf("container %v has no resource requests specified", container.Name)
 		}
 		err = validateContainerResource(container.Resources.Limits, minJobResources, container.Name, "limit")
 		if err != nil {
@@ -47,10 +53,29 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingSpec *configuration.SchedulingC
 			return err
 		}
 		if !resourceListEquals(container.Resources.Requests, container.Resources.Limits) {
-			return fmt.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
+			return errors.Errorf("container %v does not have resource request and limit equal (this is currently not supported)", container.Name)
 		}
 	}
 	return validatePorts(spec)
+}
+
+func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.SchedulingConfig) error {
+	specHasTerminationGracePeriod := spec.TerminationGracePeriodSeconds != nil
+	var terminationGracePeriodSeconds int64
+	var exceedsBounds bool
+	if specHasTerminationGracePeriod {
+		terminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
+		exceedsBounds = (terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
+			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()))
+	}
+	if exceedsBounds {
+		return errors.Errorf("terminationGracePeriodSeconds of %v must be in [%d, %d]s, or omitted",
+			terminationGracePeriodSeconds,
+			int64(config.MinTerminationGracePeriod.Seconds()),
+			int64(config.MaxTerminationGracePeriod.Seconds()),
+		)
+	}
+	return nil
 }
 
 func validateContainerResource(
@@ -62,7 +87,14 @@ func validateContainerResource(
 	for rc, containerRsc := range resourceSpec {
 		serverRsc, nonEmpty := minJobResources[rc]
 		if nonEmpty && containerRsc.Value() < serverRsc.Value() {
-			return fmt.Errorf("[validateContainerResource] container %q %s %s (%s) below server minimum (%s)", containerName, rc, requestType, &containerRsc, &serverRsc)
+			return errors.Errorf(
+				"[validateContainerResource] container %q %s %s (%s) below server minimum (%s)",
+				containerName,
+				rc,
+				requestType,
+				&containerRsc,
+				&serverRsc,
+			)
 		}
 	}
 	return nil
@@ -100,7 +132,7 @@ func validateRequiredNodeAffinity(required *v1.NodeSelector) error {
 
 	_, err := nodeaffinity.NewNodeSelector(required)
 	if err != nil {
-		return fmt.Errorf("invalid RequiredDuringSchedulingIgnoredDuringExecution node affinity: %v", err)
+		return errors.Errorf("invalid RequiredDuringSchedulingIgnoredDuringExecution node affinity: %v", err)
 	}
 	return nil
 }
@@ -122,7 +154,7 @@ func validatePorts(podSpec *v1.PodSpec) error {
 	for index, container := range podSpec.Containers {
 		for _, port := range container.Ports {
 			if existingIndex, existing := existingPortSet[port.ContainerPort]; existing {
-				return fmt.Errorf(
+				return errors.Errorf(
 					"container port %d is exposed multiple times, specified in containers with indexes %d, %d. Should only be exposed once",
 					port.ContainerPort, existingIndex, index)
 			} else {
@@ -130,5 +162,27 @@ func validatePorts(podSpec *v1.PodSpec) error {
 			}
 		}
 	}
+	return nil
+}
+
+func ValidatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
+	priorityClassName := podSpec.PriorityClassName
+	if priorityClassName != "" {
+		if !preemptionEnabled {
+			return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PriorityClassName",
+				Value:   podSpec.PriorityClassName,
+				Message: "Preemption is disabled in Server config",
+			})
+		}
+		if _, exists := allowedPriorityClasses[priorityClassName]; !exists {
+			return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "PriorityClassName",
+				Value:   podSpec.PriorityClassName,
+				Message: "Specified Priority Class is not supported in Server config",
+			})
+		}
+	}
+
 	return nil
 }

@@ -2,9 +2,10 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type Event interface {
@@ -23,10 +24,11 @@ type KubernetesEvent interface {
 	GetPodNamespace() string
 }
 
-// customize oneof serialization
+// customise oneof serialisation
 func (message *EventMessage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(message.Events)
 }
+
 func (message *EventMessage) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, message.Events)
 }
@@ -71,8 +73,10 @@ func UnwrapEvent(message *EventMessage) (Event, error) {
 		return event.IngressInfo, nil
 	case *EventMessage_Updated:
 		return event.Updated, nil
+	case *EventMessage_Preempted:
+		return event.Preempted, nil
 	}
-	return nil, fmt.Errorf("unknown event type: %s", reflect.TypeOf(message.Events))
+	return nil, errors.Errorf("unknown event type: %s", reflect.TypeOf(message.Events))
 }
 
 func Wrap(event Event) (*EventMessage, error) {
@@ -191,6 +195,12 @@ func Wrap(event Event) (*EventMessage, error) {
 				Updated: typed,
 			},
 		}, nil
+	case *JobPreemptedEvent:
+		return &EventMessage{
+			Events: &EventMessage_Preempted{
+				Preempted: typed,
+			},
+		}, nil
 	}
-	return nil, fmt.Errorf("unknown event type: %s", reflect.TypeOf(event))
+	return nil, errors.Errorf("unknown event type: %s", reflect.TypeOf(event))
 }

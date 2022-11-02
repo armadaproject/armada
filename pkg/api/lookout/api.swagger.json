@@ -149,6 +149,10 @@
         "clientId": {
           "type": "string"
         },
+        "compressedQueueOwnershipUserGroups": {
+          "type": "string",
+          "format": "byte"
+        },
         "created": {
           "type": "string",
           "format": "date-time"
@@ -167,7 +171,6 @@
           "type": "string"
         },
         "k8sIngress": {
-          "description": "repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\ngithub.com.G-Research.armada.internal.events.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1Ingress"
@@ -218,6 +221,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "scheduler": {
+          "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
+          "type": "string"
         },
         "services": {
           "type": "array",
@@ -392,6 +399,9 @@
         "jobState": {
           "type": "string"
         },
+        "jobStateDuration": {
+          "type": "string"
+        },
         "runs": {
           "type": "array",
           "items": {
@@ -405,6 +415,10 @@
       "properties": {
         "jobSet": {
           "type": "string"
+        },
+        "jobsCancelled": {
+          "type": "integer",
+          "format": "int64"
         },
         "jobsFailed": {
           "type": "integer",

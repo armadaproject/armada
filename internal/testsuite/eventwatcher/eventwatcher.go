@@ -3,11 +3,13 @@ package eventwatcher
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
@@ -88,7 +90,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 }
 
 func (srv *EventWatcher) waitRetryBackoff(ctx context.Context, attempt uint) error {
-	var waitTime time.Duration = 0
+	var waitTime time.Duration
 	if attempt > 0 {
 		waitTime = srv.BackoffExponential * time.Duration(backoffutils.ExponentBase2(attempt))
 	}
@@ -114,16 +116,27 @@ type ErrUnexpectedEvent struct {
 }
 
 func (err *ErrUnexpectedEvent) Error() string {
+	baseMsg := fmt.Sprintf(
+		"unexpected event for job %s: expected event of type %T, but got %+v",
+		err.jobId, err.expected.Events, err.actual.Events,
+	)
 	if err.message == "" {
-		return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v", err.jobId, err.expected.Events, err.actual.Events)
+		return baseMsg
 	}
-	return fmt.Sprintf("unexpected event for job %s: expected event of type %T, but got %+v; %s", err.jobId, err.expected.Events, err.actual.Events, err.message)
+	return fmt.Sprintf("%s: %s", baseMsg, err.message)
 }
 
 // AssertEvents compares the events received for each job with the expected events.
-func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
+func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) (map[string]bool, error) {
 	if len(expected) == 0 {
-		return nil
+		return nil, nil
+	}
+
+	// terminatedByJobId indicates for which jobs we've received a terminal event.
+	// Initialise it by copying the jobIds map.
+	terminatedByJobId := make(map[string]bool)
+	for jobId, hasTerminated := range jobIds {
+		terminatedByJobId[jobId] = hasTerminated
 	}
 
 	// Track which events have been seen for each job
@@ -135,7 +148,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.Errorf("did not receive all events for at least one job")
+			return terminatedByJobId, errors.Errorf("did not receive all events for at least one job")
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
@@ -143,21 +156,29 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 				break // Unrecognised job id
 			}
 
+			// Record terminated jobs.
+			if isTerminalEvent(actual) {
+				terminatedByJobId[actualJobId] = true
+			}
+
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
+				if err := validateEvent(actual, expected[i]); err != nil {
+					return terminatedByJobId, err
+				}
 				i++
 				indexByJobId[actualJobId] = i
 			}
 			if i == len(expected) {
 				numDone++
 				if numDone == len(jobIds) {
-					return nil // We got all the expected events.
+					return terminatedByJobId, nil // We got all the expected events.
 				}
 			}
 
 			// Return an error if the job has exited without us seeing all expected events.
 			if isTerminalEvent(actual) && i < len(expected) {
-				return &ErrUnexpectedEvent{
+				return terminatedByJobId, &ErrUnexpectedEvent{
 					jobId:    actualJobId,
 					expected: expected[i],
 					actual:   actual,
@@ -174,6 +195,8 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 	case *api.EventMessage_Succeeded:
 		return true
 	case *api.EventMessage_Cancelled:
+		return true
+	case *api.EventMessage_DuplicateFound:
 		return true
 	}
 	return false
@@ -267,8 +290,13 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 
 func getFromIngress(ctx context.Context, host string) error {
 	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
+	ingressUseTls := strings.TrimSpace(strings.ToLower(os.Getenv("ARMADA_EXECUTOR_USE_TLS")))
 	if ingressUrl == "" {
-		ingressUrl = "http://" + host
+		if ingressUseTls != "" && ingressUseTls != "false" && ingressUseTls != "0" {
+			ingressUrl = "https://" + host
+		} else {
+			ingressUrl = "http://" + host
+		}
 	}
 
 	// The ingress info messages can't convey which port ingress are handled on (only the url).
@@ -282,7 +310,12 @@ func getFromIngress(ctx context.Context, host string) error {
 
 	// Make a get request to test that the ingress works.
 	// This assumes that whatever the ingress points to responds.
-	httpClient := &http.Client{}
+	// We don't care about certificate validity, just if connecting is possible.
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s:%s/", ingressUrl, ingressPort), http.NoBody)
 	if err != nil {
 		return err
@@ -303,6 +336,7 @@ func getFromIngress(ctx context.Context, host string) error {
 			}
 			return requestErr
 		default:
+			time.Sleep(time.Second)
 			httpRes, err := httpClient.Do(httpReq)
 			if err != nil {
 				requestErr = err

@@ -8,6 +8,8 @@ armadactl.yaml
 loadtest.yaml
 test_reports
 code_reports
+/jobservice
+jobservice.db
 
 # Binaries for programs and plugins
 *.exe
@@ -45,17 +47,26 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
+client/DotNet.gRPC/Armada.Client.Grpc/generated
 
 # python
 # Pycache, dist, poetry versions
 # and ignore protoc generated files
+*.egg-info/
 *.pyc
 client/python/dist
 .python-version
 *_pb2.py
+*_pb2.pyi
 *_pb2_grpc.py
-armada/
+client/python/armada_client/armada/
 .tox
-proto
+/proto
+proto-airflow
+client/python/build/
 client/python/docs/build/
+typings.py
+third_party/airflow/docs/build/
+third_party/airflow/build/
 build/ssl/certs/ca-certificates.crt
+localdev/volumes/go/pkg/

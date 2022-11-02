@@ -1,11 +1,14 @@
 syntax = 'proto3';
 
 package api;
+option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/empty.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "pkg/api/health.proto";
+
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
@@ -22,6 +25,9 @@ message JobSubmitRequestItem {
     repeated k8s.io.api.core.v1.PodSpec pod_specs = 7;
     repeated IngressConfig ingress = 9;
     repeated ServiceConfig services = 10;
+    // Indicates which scheduler should manage this job.
+    // If empty, the default scheduler is used.
+    string scheduler = 11;
 }
 
 message IngressConfig {
@@ -60,6 +66,25 @@ message JobCancelRequest {
     string job_id = 1;
     string job_set_id = 2;
     string queue = 3;
+}
+
+// swagger:model
+message JobSetCancelRequest {
+    string job_set_id = 1;
+    string queue = 2;
+    JobSetFilter filter = 3;
+}
+
+// swagger:model
+message JobSetFilter {
+    repeated JobState states = 1;
+}
+
+// swagger:model
+enum JobState {
+    QUEUED = 0;
+    PENDING = 1;
+    RUNNING = 2;
 }
 
 // swagger:model
@@ -173,6 +198,12 @@ service Submit {
             body: "*"
         };
     }
+    rpc CancelJobSet (JobSetCancelRequest) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/v1/jobset/cancel"
+            body: "*"
+        };
+    }
     rpc ReprioritizeJobs (JobReprioritizeRequest) returns (JobReprioritizeResponse) {
         option (google.api.http) = {
             post: "/v1/job/reprioritize"
@@ -218,4 +249,6 @@ service Submit {
             get: "/v1/queue/{name}/info"
         };
     }
+    rpc Health(google.protobuf.Empty) returns (HealthCheckResponse);
+
 }

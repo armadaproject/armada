@@ -27,12 +27,12 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 )
 
-// ErrNoPermission represents an error that occurs when a client tries to perform some action
+// ErrUnauthorized represents an error that occurs when a client tries to perform some action
 // through the gRPC API for which it does not have permissions.
 //
 // It may be necessary populate the Action field by recovering this error at the gRPC endpoint (using errors.As)
 // and updating the field in-place.
-type ErrNoPermission struct {
+type ErrUnauthorized struct {
 	// Principal that attempted the action
 	Principal string
 	// The missing permission
@@ -43,14 +43,14 @@ type ErrNoPermission struct {
 	Message string
 }
 
-func (err *ErrNoPermission) Error() (s string) {
+func (err *ErrUnauthorized) Error() (s string) {
 	if err.Action != "" {
 		s = fmt.Sprintf("%s lacks permission %s required for action %s", err.Principal, err.Permission, err.Action)
 	} else {
 		s = fmt.Sprintf("%s lacks permission %s", err.Principal, err.Permission)
 	}
 	if err.Message != "" {
-		s = s + fmt.Sprintf("; %s", err.Message)
+		s += fmt.Sprintf("; %s", err.Message)
 	}
 	return
 }
@@ -71,9 +71,8 @@ func (err *ErrAlreadyExists) Error() (s string) {
 	}
 	if err.Message != "" {
 		return s + fmt.Sprintf("; %s", err.Message)
-	} else {
-		return s
 	}
+	return s
 }
 
 // ErrNotFound is a generic error to be returned whenever some resource isn't found.
@@ -110,9 +109,8 @@ type ErrInvalidArgument struct {
 func (err *ErrInvalidArgument) Error() string {
 	if err.Message == "" {
 		return fmt.Sprintf("value %q is invalid for field %q", err.Value, err.Name)
-	} else {
-		return fmt.Sprintf("value %q is invalid for field %q; %s", err.Value, err.Name, err.Message)
 	}
+	return fmt.Sprintf("value %q is invalid for field %q: %s", err.Value, err.Name, err.Message)
 }
 
 // ErrMaxRetriesExceeded is an error that indicates we have retried an operation so many times that we have given up
@@ -136,7 +134,7 @@ func (e *ErrMaxRetriesExceeded) Unwrap() error {
 	return e.LastError
 }
 
-// ErrCreateResource indicates that some Kubernetes rresource could not be created.
+// ErrCreateResource indicates that some Kubernetes resource could not be created.
 // It's used in the executor.
 type ErrCreateResource struct {
 	// Resource attempting to create, e.g., pod or service.
@@ -156,9 +154,8 @@ func (err *ErrCreateResource) Error() string {
 }
 
 // retryablePostgresErrors represents set of postgres errors that can be retried. Fundamentally these are all
-//issues with postgres itself, with the network or with authentication
+// issues with postgres itself, with the network or with authentication
 var retryablePostgresErrors = map[string]bool{
-
 	// Connection issues
 	pgerrcode.ConnectionException:                           true,
 	pgerrcode.ConnectionDoesNotExist:                        true,
@@ -249,7 +246,6 @@ var retryablePostgresErrors = map[string]bool{
 // CodeFromError maps error types to gRPC return codes.
 // Uses errors.As to look through the chain of errors, as opposed to just considering the topmost error in the chain.
 func CodeFromError(err error) codes.Code {
-
 	// Check if the error is a gRPC status and, if so, return the embedded code.
 	// If the error is nil, this returns an OK status code.
 	if s, ok := status.FromError(err); ok {
@@ -314,7 +310,6 @@ var PULSAR_CONNECTION_ERRORS = []pulsar.Result{
 // For details, see
 // https://stackoverflow.com/questions/22761562/portable-way-to-detect-different-kinds-of-network-error
 func IsNetworkError(err error) bool {
-
 	// Return immediately on nil.
 	if err == nil {
 		return false
@@ -390,6 +385,40 @@ func IsNetworkError(err error) bool {
 	return false
 }
 
+// Add the action to the error if possible.
+func addAction(err error, action string) {
+	{
+		var e *ErrUnauthenticated
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrUnauthorized
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrInternalAuthServiceError
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrMissingCredentials
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+	{
+		var e *ErrInvalidCredentials
+		if errors.As(err, &e) {
+			e.Action = action
+		}
+	}
+}
+
 // UnaryServerInterceptor returns an interceptor that extracts the cause of an error chain
 // and returns it as a gRPC status error. It also limits the number of characters returned.
 //
@@ -408,6 +437,10 @@ func UnaryServerInterceptor(maxErrorSize uint) grpc.UnaryServerInterceptor {
 		// Otherwise, get the cause and convert to a gRPC status error
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
+
+		if info != nil {
+			addAction(err, info.FullMethod)
+		}
 
 		// If available, annotate the status with the request ID
 		var errorMessage string
@@ -442,6 +475,10 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 		cause := errors.Cause(err)
 		code := CodeFromError(cause)
 
+		if info != nil {
+			addAction(err, info.FullMethod)
+		}
+
 		// If available, annotate the status with the request ID
 		var errorMessage string
 		if id, ok := requestid.FromContext(stream.Context()); ok {
@@ -460,7 +497,6 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 }
 
 func IsRetryablePostgresError(err error) bool {
-
 	// Return immediately on nil.
 	if err == nil {
 		return false
@@ -473,6 +509,12 @@ func IsRetryablePostgresError(err error) bool {
 		_, ok := retryablePostgresErrors[err.Code]
 		return ok
 	}
+
+	// This is quite nasty: the connectError reported by pgx isn't exported so instead we use a string match
+	if strings.Contains(err.Error(), "failed to connect") {
+		return true
+	}
+
 	// Check to see if we have a wrapped network error
 	return IsNetworkError(cause)
 }
@@ -509,13 +551,13 @@ func (err *ErrPodUnschedulable) Error() string {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "can't schedule pod on any node type; ")
+	_, _ = fmt.Fprintf(&b, "can't schedule pod on any node type: ")
 	i := 0
 	for reason, count := range err.countFromReason {
-		fmt.Fprintf(&b, "%d node type(s) excluded because %s", count, reason)
+		_, _ = fmt.Fprintf(&b, "%d node type(s) excluded because %s", count, reason)
 		i++
 		if i < len(err.countFromReason) {
-			fmt.Fprintf(&b, ", ")
+			_, _ = fmt.Fprintf(&b, ", ")
 		}
 	}
 	return b.String()
@@ -553,4 +595,131 @@ func NewCombinedErrPodUnschedulable(errs ...error) *ErrPodUnschedulable {
 		return nil
 	}
 	return result
+}
+
+// ErrUnauthenticated represents an error that occurs when a client tries to
+// perform some action through the gRPC API for which it cannot authenticate.
+//
+// It may be necessary populate the Action field by recovering this error at
+// the gRPC endpoint (using errors.As) and updating the field in-place.
+type ErrUnauthenticated struct {
+	// The action/method that was trying to be performed.
+	Action string
+	// Optional message included with the error message
+	Message string
+}
+
+func (err *ErrUnauthenticated) GRPCStatus() *status.Status {
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrUnauthenticated) Error() (s string) {
+	s = "Request could not be authenticated"
+	if err.Action != "" {
+		s += fmt.Sprintf(" for action %q", err.Action)
+	}
+	if err.Message != "" {
+		s += fmt.Sprintf(": %s", err.Message)
+	}
+	return
+}
+
+// ErrInvalidCredentials is returned when a given set of credentials cannot
+// be authenticated by some authentication method/service.
+type ErrInvalidCredentials struct {
+	// The username half of the invalid credentials, if available.
+	Username string
+	// The authorization service which attempted to authenticate the user.
+	AuthService string
+	// Optional message included with the error message
+	Message string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrInvalidCredentials) GRPCStatus() *status.Status {
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrInvalidCredentials) Error() (s string) {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Invalid credentials presented",
+		err.Username,
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+// ErrMissingCredentials is returned when a given set of credentials are
+// missing either due to omission or they cannot otherwise be decoded.
+type ErrMissingCredentials struct {
+	// Optional message included with the error message.
+	Message string
+	// The authorization service used.
+	AuthService string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrMissingCredentials) GRPCStatus() *status.Status {
+	// return codes.InvalidArgument
+	return status.New(codes.Unauthenticated, err.Error())
+}
+
+func (err *ErrMissingCredentials) Error() (s string) {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Missing credentials",
+		"",
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+// ErrInternalAuthServiceError is returned when an auth service encounters
+// an internal error that is not directly related to the supplied input/
+// credentials.
+type ErrInternalAuthServiceError struct {
+	// Optional message included with the error message.
+	Message string
+	// The authorization service used.
+	AuthService string
+	// The action/method that was trying to be performed.
+	Action string
+}
+
+func (err *ErrInternalAuthServiceError) GRPCStatus() *status.Status {
+	// TODO(clif) Whats the right code to return here or should we give the
+	// auth service the opportunity to set it?
+	return status.New(codes.Unavailable, err.Error())
+}
+
+func (err *ErrInternalAuthServiceError) Error() string {
+	return craftFullErrorMessageForAuthRelatedErrors(
+		"Encountered an internal error",
+		"",
+		err.AuthService,
+		err.Action,
+		err.Message)
+}
+
+func craftFullErrorMessageForAuthRelatedErrors(mainMessage string,
+	username string,
+	authServiceName string,
+	action string,
+	auxMessage string,
+) (s string) {
+	s = mainMessage
+	if username != "" {
+		s += fmt.Sprintf(" for user %q", username)
+	}
+	if authServiceName != "" {
+		s += fmt.Sprintf(" via auth service %q", authServiceName)
+	}
+	if action != "" {
+		s += fmt.Sprintf(" while attempting %q", action)
+	}
+	if auxMessage != "" {
+		s += fmt.Sprintf(": %s", auxMessage)
+	}
+	return
 }

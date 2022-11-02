@@ -6,7 +6,9 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
 
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -15,9 +17,12 @@ type Usage struct {
 	CurrentUsagePerQueue map[string]float64
 }
 
-const clusterReportKey = "Cluster:Report"
-const clusterLeasedReportKey = "Cluster:Leased"
-const clusterPrioritiesPrefix = "Cluster:Priority:"
+const (
+	clusterReportKey             = "Cluster:Report"
+	clusterQueueResourceUsageKey = "Cluster:QueueResourceUsage"
+	clusterLeasedReportKey       = "Cluster:Leased"
+	clusterPrioritiesPrefix      = "Cluster:Priority:"
+)
 
 type UsageRepository interface {
 	GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error)
@@ -25,8 +30,11 @@ type UsageRepository interface {
 	GetClusterPriorities(clusterIds []string) (map[string]map[string]float64, error)
 	GetClusterLeasedReports() (map[string]*api.ClusterLeasedReport, error)
 
+	GetClusterQueueResourceUsage() (map[string]*schedulerobjects.ClusterResourceUsageReport, error)
+
 	UpdateCluster(report *api.ClusterUsageReport, priorities map[string]float64) error
 	UpdateClusterLeased(report *api.ClusterLeasedReport) error
+	UpdateClusterQueueResourceUsage(cluster string, resourceUsage *schedulerobjects.ClusterResourceUsageReport) error
 }
 
 type RedisUsageRepository struct {
@@ -157,6 +165,36 @@ func (r *RedisUsageRepository) UpdateClusterLeased(report *api.ClusterLeasedRepo
 	}
 
 	return err
+}
+
+func (r *RedisUsageRepository) GetClusterQueueResourceUsage() (map[string]*schedulerobjects.ClusterResourceUsageReport, error) {
+	result, err := r.db.HGetAll(clusterQueueResourceUsageKey).Result()
+	if err != nil {
+		return nil, fmt.Errorf("[RedisUsageRepository.GetClusterQueueResourceUsage] error reading from database: %s", err)
+	}
+	reports := make(map[string]*schedulerobjects.ClusterResourceUsageReport)
+
+	for k, v := range result {
+		report := &schedulerobjects.ClusterResourceUsageReport{}
+		err = proto.Unmarshal([]byte(v), report)
+		if err != nil {
+			return nil, fmt.Errorf("[RedisUsageRepository.GetClusterQueueResourceUsage] error unmarshalling: %s", err)
+		}
+		reports[k] = report
+	}
+	return reports, nil
+}
+
+func (r *RedisUsageRepository) UpdateClusterQueueResourceUsage(cluster string, resourceUsage *schedulerobjects.ClusterResourceUsageReport) error {
+	data, err := proto.Marshal(resourceUsage)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	cmd := r.db.HSet(clusterQueueResourceUsageKey, cluster, data)
+	if cmd.Err() != nil {
+		return errors.WithStack(cmd.Err())
+	}
+	return nil
 }
 
 func toFloat64Map(result map[string]string) (map[string]float64, error) {

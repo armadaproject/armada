@@ -1,0 +1,54 @@
+## deployed with emptyDir
+volumes:
+  persistence: false
+
+# disabled AntiAffinity
+affinity:
+  anti_affinity: false
+
+# disable auto recovery
+components:
+  autorecovery: false
+
+zookeeper:
+  replicaCount: 1
+
+bookkeeper:
+  replicaCount: 1
+  service:
+    spec:
+      publishNotReadyAddresses: true
+
+broker:
+  replicaCount: 1
+  configData:
+    ## Enable `autoSkipNonRecoverableData` since bookkeeper is running
+    ## without persistence
+    autoSkipNonRecoverableData: "true"
+    # storage settings
+    managedLedgerDefaultEnsembleSize: "1"
+    managedLedgerDefaultWriteQuorum: "1"
+    managedLedgerDefaultAckQuorum: "1"
+
+proxy:
+  replicaCount: 1
+
+grafana:
+  ingress:
+    enabled: true
+  resources:
+    requests:
+      memory: 512Mi
+
+images:
+  grafana:
+    #    repository: apachepulsar/pulsar-grafana
+    #tag: 2.9.2
+    #pullPolicy: IfNotPresent
+    repository: streamnative/apache-pulsar-grafana-dashboard-k8s
+    tag: 0.0.15
+    pullPolicy: IfNotPresent
+
+extraInitCommand: >
+  until bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ tenants list; do echo Waiting for broker... && sleep 1; done;
+  (bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ tenants create armada && bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ namespaces create armada/armada && bin/pulsar-admin --admin-url http://pulsar-broker.default.svc.cluster.local:8080/ topics create-partitioned-topic persistent://armada/armada/events -p 2) || true;

@@ -11,17 +11,22 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/pkg/client/auth/exec"
 	"github.com/G-Research/armada/pkg/client/auth/kerberos"
+	"github.com/G-Research/armada/pkg/client/auth/kubernetes"
 	"github.com/G-Research/armada/pkg/client/auth/oidc"
 )
 
 type ApiConnectionDetails struct {
 	ArmadaUrl     string
 	ArmadaRestUrl string
+	// Names of executor clusters as they appear in the local kubeconfig file.
+	// Used by the test suite to download logs from pods running tests.
+	ExecutorClusters []string
 	// After a duration of this time, if the client doesn't see any activity it
 	// pings the server to see if the transport is still alive.
 	// If set below 10s, a minimum value of 10s is used instead.
@@ -33,6 +38,7 @@ type ApiConnectionDetails struct {
 	GrpcKeepAliveTimeout time.Duration
 	// Authentication options.
 	BasicAuth                   common.LoginCredentials
+	KubernetesNativeAuth        kubernetes.NativeAuthDetails
 	OpenIdAuth                  oidc.PKCEDetails
 	OpenIdDeviceAuth            oidc.DeviceDetails
 	OpenIdPasswordAuth          oidc.ClientPasswordDetails
@@ -52,14 +58,14 @@ func CreateApiConnection(config *ApiConnectionDetails, additionalDialOptions ...
 func CreateApiConnectionWithCallOptions(
 	config *ApiConnectionDetails,
 	additionalDefaultCallOptions []grpc.CallOption,
-	additionalDialOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
-
+	additionalDialOptions ...grpc.DialOption,
+) (*grpc.ClientConn, error) {
 	retryOpts := []grpc_retry.CallOption{
 		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(1 * time.Second)),
 		grpc_retry.WithMax(5),
 	}
 
-	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true))
+	callOptions := append(additionalDefaultCallOptions, grpc.WaitForReady(true), grpc.UseCompressor(gzip.Name))
 	defaultCallOptions := grpc.WithDefaultCallOptions(callOptions...)
 	unuaryInterceptors := grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...))
 	streamInterceptors := grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...))
@@ -94,19 +100,16 @@ func CreateApiConnectionWithCallOptions(
 func perRpcCredentials(config *ApiConnectionDetails) (credentials.PerRPCCredentials, error) {
 	if config.BasicAuth.Username != "" {
 		return &config.BasicAuth, nil
-
+	} else if config.KubernetesNativeAuth.Enabled {
+		return kubernetes.AuthenticateKubernetesNative(config.KubernetesNativeAuth)
 	} else if config.OpenIdAuth.ProviderUrl != "" {
 		return oidc.AuthenticatePkce(config.OpenIdAuth)
-
 	} else if config.OpenIdDeviceAuth.ProviderUrl != "" {
 		return oidc.AuthenticateDevice(config.OpenIdDeviceAuth)
-
 	} else if config.OpenIdPasswordAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithPassword(config.OpenIdPasswordAuth)
-
 	} else if config.OpenIdClientCredentialsAuth.ProviderUrl != "" {
 		return oidc.AuthenticateWithClientCredentials(config.OpenIdClientCredentialsAuth)
-
 	} else if config.OpenIdKubernetesAuth.ProviderUrl != "" {
 		return oidc.AuthenticateKubernetes(config.OpenIdKubernetesAuth)
 	} else if config.KerberosAuth.Enabled {

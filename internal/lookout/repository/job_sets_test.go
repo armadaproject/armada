@@ -23,7 +23,7 @@ func TestGetJobSetInfos_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {
 			CreateJob("queue-2").
 			Pending(cluster, k8sId1)
 
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)
@@ -44,7 +44,7 @@ func TestGetJobSetInfos_GetsJobSetWithNoFinishedJobs(t *testing.T) {
 			CreateJobWithOpts(queue, util.NewULID(), "job-set", "user", recentTime, map[string]string{}).
 			Pending(cluster, k8sId1)
 
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)
@@ -77,7 +77,7 @@ func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 			Pending(cluster, k8sId2).
 			Failed(cluster, k8sId2, node, "some error")
 
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		jobSetInfos, err := jobRepo.GetJobSetInfos(ctx, &lookout.GetJobSetsRequest{Queue: queue})
 		assert.NoError(t, err)
@@ -97,7 +97,7 @@ func TestGetJobSetInfos_GetsJobSetWithOnlyFinishedJobs(t *testing.T) {
 func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, map[string]string{}).
@@ -143,6 +143,7 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 			JobsRunning:   1,
 			JobsSucceeded: 1,
 			JobsFailed:    1,
+			JobsCancelled: 1,
 			Submitted:     &someTime,
 		}, jobSetInfos[0])
 	})
@@ -151,7 +152,7 @@ func TestGetJobSetInfos_JobSetsCounts(t *testing.T) {
 func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		// Job set 1
 		NewJobSimulator(t, jobStore).
@@ -239,7 +240,7 @@ func TestGetJobSetInfos_MultipleJobSetsCounts(t *testing.T) {
 func TestGetJobSetInfos_StatsWithNoRunningOrQueuedJobs(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
 			CreateJob(queue).
@@ -263,7 +264,7 @@ func TestGetJobSetInfos_GetRunningStats(t *testing.T) {
 
 		currentTime := someTime.Add(20 * time.Minute)
 
-		jobRepo := NewSQLJobRepository(db, &DummyClock{currentTime})
+		jobRepo := NewSQLJobRepository(db, &util.DummyClock{currentTime})
 
 		for i := 0; i < 11; i++ {
 			k8sId := util.NewULID()
@@ -344,7 +345,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 		someTime := time.Now()
 		currentTime := someTime.Add(30 * time.Minute)
 
-		jobRepo := NewSQLJobRepository(db, &DummyClock{currentTime})
+		jobRepo := NewSQLJobRepository(db, &util.DummyClock{currentTime})
 
 		for i := 0; i < 11; i++ {
 			k8sId := util.NewULID()
@@ -411,7 +412,7 @@ func TestGetJobSetInfos_GetQueuedStats(t *testing.T) {
 func TestGetJobSetInfos_GetOnlyActiveJobSets(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithJobSet(queue, "job-set-1")
@@ -458,7 +459,7 @@ func TestGetJobSetInfos_GetOnlyActiveJobSets(t *testing.T) {
 func TestGetJobSetInfos_GetNewestFirst(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, nil)
@@ -493,7 +494,7 @@ func TestGetJobSetInfos_GetNewestFirst(t *testing.T) {
 func TestGetJobSetInfos_GetOldestFirst(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, &DefaultClock{})
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		NewJobSimulator(t, jobStore).
 			CreateJobWithOpts(queue, util.NewULID(), "job-set-1", "user", someTime, nil)

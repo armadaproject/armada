@@ -2,9 +2,12 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
+	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -79,14 +82,6 @@ type JobSimulator struct {
 	t        *testing.T
 	jobStore JobRecorder
 	job      *api.Job
-}
-
-type DummyClock struct {
-	t time.Time
-}
-
-func (c *DummyClock) Now() time.Time {
-	return c.t
 }
 
 func NewJobSimulator(t *testing.T, jobStore JobRecorder) *JobSimulator {
@@ -262,4 +257,24 @@ func (js *JobSimulator) Duplicate(originalJobId string) *JobSimulator {
 	}
 	assert.NoError(js.t, js.jobStore.RecordJobDuplicate(duplicateFoundEvent))
 	return js
+}
+
+func TestGlobSearchOrExact(t *testing.T) {
+	testCases := []struct {
+		field              exp.IdentifierExpression
+		pattern            string
+		expectedExpression goqu.Expression
+	}{
+		{job_queue, "test", job_queue.Eq("test")},
+		{job_queue, "test*", job_queue.Like("test%")},
+		{job_queue, "*test*", job_queue.Like("%test%")},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("TestGlobSearchOrExact(%q,%q)", tc.field, tc.pattern),
+			func(t *testing.T) {
+				result := GlobSearchOrExact(tc.field, tc.pattern)
+				assert.Equal(t, tc.expectedExpression, result)
+			})
+	}
 }

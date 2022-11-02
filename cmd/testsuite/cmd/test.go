@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
+
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
@@ -31,6 +33,7 @@ func testCmd(app *testsuite.App) *cobra.Command {
 
 	cmd.Flags().String("tests", "", "Test file pattern, e.g., './testcases/*.yaml'.")
 	cmd.Flags().String("junit", "", "Write a JUnit test report to this path.")
+	cmd.Flags().String("benchmark", "", "Write a benchmark test report to this path.")
 
 	return cmd
 }
@@ -64,6 +67,11 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.WithStack(err)
 		}
 
+		benchmarkPath, err := cmd.Flags().GetString("benchmark")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
 		// Create a context that is cancelled on SIGINT/SIGTERM.
 		// Ensures test jobs are cancelled on ctrl-C.
 		ctx, cancel := context.WithCancel(context.Background())
@@ -83,9 +91,9 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			Name: testFilesPattern,
 		}
 
-		numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
-
 		start := time.Now()
+
+		numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
 
 		fmt.Printf("\n======= SUMMARY =======\n")
 		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
@@ -102,6 +110,12 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		if junitPath != "" {
 			if err := writeJUnitReport(junitPath, testSuites); err != nil {
 				return errors.WithMessage(err, "error writing junit report")
+			}
+		}
+
+		if benchmarkPath != "" {
+			if err := writeBenchmarkReport(benchmarkPath, app.GetBenchmarkReport()); err != nil {
+				return errors.WithMessage(err, "error writing benchmark report")
 			}
 		}
 
@@ -144,6 +158,26 @@ func writeJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
 		return errors.WithStack(err)
 	}
 	if err = encoder.Flush(); err != nil {
+		return errors.WithStack(err)
+	}
+
+	return nil
+}
+
+func writeBenchmarkReport(benchmarkPath string, report *eventbenchmark.GlobalBenchmarkReport) error {
+	benchmarkFile, err := os.Create(benchmarkPath)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer benchmarkFile.Close()
+
+	data, err := report.Generate(eventbenchmark.YamlFormatter)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	_, err = benchmarkFile.Write(data)
+	if err != nil {
 		return errors.WithStack(err)
 	}
 

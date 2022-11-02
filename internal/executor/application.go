@@ -30,7 +30,6 @@ import (
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
-
 	err := validateConfig(config)
 	if err != nil {
 		log.Errorf("Invalid config: %s", err)
@@ -64,6 +63,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		2*time.Minute,
 		kubernetesClientProvider,
 		etcdHealthMonitor,
+		config.Kubernetes.PodKillTimeout,
 	)
 
 	wg := &sync.WaitGroup{}
@@ -75,8 +75,13 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
 }
 
-func StartUpWithContext(config configuration.ExecutorConfiguration, clusterContext executor_context.ClusterContext, etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor, taskManager *task.BackgroundTaskManager, wg *sync.WaitGroup) (func(), *sync.WaitGroup) {
-
+func StartUpWithContext(
+	config configuration.ExecutorConfiguration,
+	clusterContext executor_context.ClusterContext,
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	taskManager *task.BackgroundTaskManager,
+	wg *sync.WaitGroup,
+) (func(), *sync.WaitGroup) {
 	conn, err := createConnectionToApi(config)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)
@@ -113,7 +118,12 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		pendingPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry,
 		config.Application.UpdateConcurrencyLimit)
-	submitter := job.NewSubmitter(clusterContext, config.Kubernetes.PodDefaults, config.Application.SubmitConcurrencyLimit)
+	submitter := job.NewSubmitter(
+		clusterContext,
+		config.Kubernetes.PodDefaults,
+		config.Application.SubmitConcurrencyLimit,
+		config.Kubernetes.FatalPodSubmissionErrors,
+	)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
@@ -123,7 +133,9 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		queueUtilisationService,
 		nodeInfoService,
 		usageClient,
-		config.Kubernetes.TrackedNodeLabels)
+		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
@@ -131,7 +143,9 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 		jobLeaseService,
 		clusterUtilisationService,
 		submitter,
-		etcdHealthMonitor)
+		etcdHealthMonitor,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	jobManager := service.NewJobManager(
 		clusterContext,
@@ -158,7 +172,11 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 				queueUtilisationService,
 				eventReporter,
 				config.Task.UtilisationEventReportingInterval)
-			taskManager.Register(podUtilisationReporter.ReportUtilisationEvents, config.Task.UtilisationEventProcessingInterval, "pod_utilisation_event_reporting")
+			taskManager.Register(
+				podUtilisationReporter.ReportUtilisationEvents,
+				config.Task.UtilisationEventProcessingInterval,
+				"pod_utilisation_event_reporting",
+			)
 		}
 	}
 
@@ -175,10 +193,14 @@ func StartUpWithContext(config configuration.ExecutorConfiguration, clusterConte
 }
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
-	return client.CreateApiConnectionWithCallOptions(&config.ApiConnection,
+	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	return client.CreateApiConnectionWithCallOptions(
+		&config.ApiConnection,
 		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithKeepaliveParams(config.GRPC),
+	)
 }
 
 func validateConfig(config configuration.ExecutorConfiguration) error {

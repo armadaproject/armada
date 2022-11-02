@@ -1,3 +1,5 @@
+name: Go Tests
+
 on:
   push:
     branches-ignore:
@@ -9,19 +11,24 @@ on:
 jobs:
   go-lint:
     # TODO(JayF): Configure this to only run when golang code has changed
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        go: [ '1.16', '1.18' ]
+        go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
 
-      - name: make code-checks
-        run: make code-checks
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: "latest"
+          skip-pkg-cache: true
+          skip-build-cache: true
+          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=1 --max-issues-per-linter=0 --sort-results ./..."
 
-      # TODO(JayF): Consider moving this into its own step, that runs under a larger set of circumstances
+      # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
         run: |
@@ -30,12 +37,13 @@ jobs:
           git status -s -uno
           git --no-pager diff
           exit $(git status -s -uno | wc -l)
+
   go-unit-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        go: [ '1.16', '1.18' ]
+        go: [ '1.18' ]
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup

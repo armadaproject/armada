@@ -1,0 +1,25 @@
+image:
+  repository: gresearchdev/event-ingester-ingester
+  tag: LATEST
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 300m
+  requests:
+    memory: 512Mi
+    cpu: 200m
+additionalLabels: {}
+terminationGracePeriodSeconds: 30
+replicas: 1
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
+customServiceAccount: null
+serviceAccount: null
+
+applicationConfig:
+  pulsar:
+    authenticationEnabled: false
+  batchSize: 1048576  #1MB
+  batchMessages: 10000

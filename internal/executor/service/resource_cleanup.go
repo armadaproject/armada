@@ -18,7 +18,10 @@ type ResourceCleanupService struct {
 	kubernetesConfiguration configuration.KubernetesConfiguration
 }
 
-func NewResourceCleanupService(clusterContext clusterContext.ClusterContext, kubernetesConfiguration configuration.KubernetesConfiguration) *ResourceCleanupService {
+func NewResourceCleanupService(
+	clusterContext clusterContext.ClusterContext,
+	kubernetesConfiguration configuration.KubernetesConfiguration,
+) *ResourceCleanupService {
 	service := &ResourceCleanupService{
 		clusterContext:          clusterContext,
 		kubernetesConfiguration: kubernetesConfiguration,
@@ -93,7 +96,7 @@ func (r *ResourceCleanupService) CleanupResources() {
 	}
 
 	allTerminatedPods := util.FilterPods(pods, util.IsPodFinishedAndReported)
-	//Expired pods are ones who are older than configured retention period
+	// Expired pods are ones who are older than configured retention period
 	expiredTerminatedPods := util.FilterPods(allTerminatedPods, r.canPodBeRemoved)
 	nonExpiredTerminatedPods := util.RemovePodsFromList(allTerminatedPods, expiredTerminatedPods)
 
@@ -101,8 +104,8 @@ func (r *ResourceCleanupService) CleanupResources() {
 
 	if len(nonExpiredTerminatedPods) > r.kubernetesConfiguration.MaxTerminatedPods {
 		numberOfPodsToDelete := len(nonExpiredTerminatedPods) - r.kubernetesConfiguration.MaxTerminatedPods
-		//We get the oldest pods from queues that have the terminated pods
-		//This means each queue has a "share" of terminated pods
+		// We get the oldest pods from queues that have the terminated pods
+		// This means each queue has a "share" of terminated pods
 		// so one bad queue doesn't cause everyone to lose their terminated pod logs early
 		podsToDelete := getOldestPodsWithQueueFairShare(nonExpiredTerminatedPods, numberOfPodsToDelete)
 		r.clusterContext.DeletePods(podsToDelete)
@@ -156,7 +159,7 @@ func groupPodsByQueueAndSortByPodAge(pods []*v1.Pod) map[string][]*v1.Pod {
 			if errPod2 != nil {
 				return true
 			}
-			//Sort most recent time to oldest
+			// Sort most recent time to oldest
 			return pod1LastStateChange.After(pod2LastStateChange)
 		})
 	}

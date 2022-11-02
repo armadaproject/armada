@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package lookout;
+option csharp_namespace = "ArmadaProject.Io.Lookout";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
@@ -22,6 +23,7 @@ message JobInfo {
     google.protobuf.Timestamp cancelled = 3 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
     string job_state = 4;
     string job_json = 5;
+    string job_state_duration = 6;
 }
 
 message RunInfo {
@@ -61,11 +63,12 @@ message JobSetInfo {
     uint32 jobs_running = 5;
     uint32 jobs_succeeded = 6;
     uint32 jobs_failed = 7;
+    uint32 jobs_cancelled = 8;
 
-    DurationStats runningStats = 8;
-    DurationStats queuedStats = 9;
+    DurationStats runningStats = 9;
+    DurationStats queuedStats = 10;
 
-    google.protobuf.Timestamp submitted = 10 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
+    google.protobuf.Timestamp submitted = 11 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message DurationStats {

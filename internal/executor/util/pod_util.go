@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/G-Research/armada/internal/common"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -202,7 +205,7 @@ func LastStatusChange(pod *v1.Pod) (time.Time, error) {
 }
 
 func FindLastContainerStartTime(pod *v1.Pod) time.Time {
-	//Fallback to pod creation if there is no container
+	// Fallback to pod creation if there is no container
 	startTime := pod.CreationTimestamp.Time
 	for _, c := range pod.Status.ContainerStatuses {
 		if s := c.State.Running; s != nil {
@@ -218,7 +221,6 @@ func FindLastContainerStartTime(pod *v1.Pod) time.Time {
 func HasPodBeenInStateForLongerThanGivenDuration(pod *v1.Pod, duration time.Duration) bool {
 	deadline := time.Now().Add(-duration)
 	lastStatusChange, err := LastStatusChange(pod)
-
 	if err != nil {
 		log.Errorf("Problem determining last state change for pod %v: %v", pod.Name, err)
 		return false
@@ -249,6 +251,17 @@ func IsReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
+// GetDeletionGracePeriodOrDefault returns the pod's DeletionGracePeriodSeconds seconds (if populated) or the K8s
+// default value of 30 seconds (if it isn't)
+func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
+	podGracePeriodSeconds := pod.GetDeletionGracePeriodSeconds()
+	if podGracePeriodSeconds == nil {
+		return 30 * time.Second
+	} else {
+		return time.Duration(*podGracePeriodSeconds) * time.Second
+	}
+}
+
 func IsPodFinishedAndReported(pod *v1.Pod) bool {
 	if !IsInTerminalState(pod) ||
 		!IsReportedDone(pod) ||
@@ -262,6 +275,15 @@ func HasCurrentStateBeenReported(pod *v1.Pod) bool {
 	podPhase := pod.Status.Phase
 	_, annotationPresent := pod.Annotations[string(podPhase)]
 	return annotationPresent
+}
+
+func HasCurrentClusterEventBeenReported(clusterEvent *v1.Event) bool {
+	_, annotationPresent := clusterEvent.Annotations[domain.ClusterEventReported]
+	return annotationPresent
+}
+
+func IsArmadaJobPod(name string) bool {
+	return strings.HasPrefix(name, common.PodNamePrefix)
 }
 
 func CountPodsByPhase(pods []*v1.Pod) map[string]uint32 {

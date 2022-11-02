@@ -8,11 +8,11 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
 )
 
 func TestBasicAuthService(t *testing.T) {
-
 	service := NewBasicAuthService(map[string]configuration.UserInfo{
 		"root": {"toor", []string{}},
 	})
@@ -27,10 +27,12 @@ func TestBasicAuthService(t *testing.T) {
 		metadata.NewIncomingContext(context.Background(), basicPassword("root", "test")))
 
 	assert.NotNil(t, e)
-	assert.NotEqual(t, e, missingCredentials)
+	var invalidCredsErr *armadaerrors.ErrInvalidCredentials
+	assert.ErrorAs(t, e, &invalidCredsErr)
 
 	_, e = service.Authenticate(context.Background())
-	assert.Equal(t, e, missingCredentials)
+	var missingCredsErr *armadaerrors.ErrMissingCredentials
+	assert.ErrorAs(t, e, &missingCredsErr)
 }
 
 func basicPassword(user, password string) map[string][]string {

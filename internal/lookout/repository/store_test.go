@@ -2,18 +2,17 @@ package repository
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookout/testutil"
-
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/lookout/testutil"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -230,21 +229,45 @@ func Test_EmptyRunId(t *testing.T) {
 }
 
 func Test_UnableToSchedule(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+	t.Run("single job", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
-		err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
-			JobId:        util.NewULID(),
-			Queue:        queue,
-			Created:      time.Now(),
-			KubernetesId: util.NewULID(),
+			err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+				JobId:        util.NewULID(),
+				Queue:        queue,
+				Created:      time.Now(),
+				KubernetesId: util.NewULID(),
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, 1, selectInt(t, db,
+				"SELECT count(*) FROM job_run WHERE job_run.unable_to_schedule = TRUE"))
+			assert.Equal(t, 1, selectInt(t, db,
+				"SELECT count(*) FROM job_run WHERE job_run.finished IS NOT NULL"))
 		})
-		assert.NoError(t, err)
+	})
 
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job_run WHERE job_run.unable_to_schedule = TRUE"))
-		assert.Equal(t, 1, selectInt(t, db,
-			"SELECT count(*) FROM job_run WHERE job_run.finished IS NOT NULL"))
+	t.Run("null character in error message", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			expectedError := "Some error  please"
+			err := jobStore.RecordJobUnableToSchedule(&api.JobUnableToScheduleEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+				Reason:       "Some error \000 please",
+			})
+			assert.NoError(t, err)
+
+			nullString := selectNullString(t, db, "SELECT error FROM job_run")
+			assert.True(t, nullString.Valid)
+			assert.Equal(t, expectedError, nullString.String)
+		})
 	})
 }
 
@@ -287,6 +310,32 @@ func Test_Queued(t *testing.T) {
 
 			assert.Equal(t, JobStateToIntMap[JobPending], selectInt(t, db,
 				"SELECT state FROM job"))
+		})
+	})
+
+	t.Run("null character in pod spec", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			err := jobStore.RecordJob(&api.Job{
+				Id:      jobId,
+				Queue:   "queue",
+				Created: someTime,
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:    "test-container",
+								Image:   "test-image",
+								Command: []string{"/bin/bash"},
+								Args:    []string{"echo", "hello", "\000"},
+							},
+						},
+					},
+				},
+			}, someTime)
+			assert.NoError(t, err)
 		})
 	})
 }
@@ -567,39 +616,63 @@ func Test_Succeeded(t *testing.T) {
 }
 
 func Test_Failed(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobId := util.NewULID()
+	t.Run("multi-node job", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
 
-		err := jobStore.RecordJobFailed(&api.JobFailedEvent{
-			JobId:        jobId,
-			Queue:        "queue",
-			Created:      someTime,
-			KubernetesId: k8sId1,
-			PodNumber:    0,
+			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId2,
+				PodNumber:    1,
+			})
+			assert.NoError(t, err)
+
+			err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId3,
+				PodNumber:    2,
+			})
+			assert.NoError(t, err)
+
+			assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
+				"SELECT state FROM job"))
 		})
-		assert.NoError(t, err)
+	})
 
-		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
-			JobId:        jobId,
-			Queue:        "queue",
-			Created:      someTime,
-			KubernetesId: k8sId2,
-			PodNumber:    1,
+	t.Run("null character in error message", func(t *testing.T) {
+		withDatabase(t, func(db *goqu.Database) {
+			jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+			jobId := util.NewULID()
+
+			expectedError := "Some error  please"
+			err := jobStore.RecordJobFailed(&api.JobFailedEvent{
+				JobId:        jobId,
+				Queue:        "queue",
+				Created:      someTime,
+				KubernetesId: k8sId1,
+				PodNumber:    0,
+				Reason:       "Some error \000 please",
+			})
+			assert.NoError(t, err)
+
+			nullString := selectNullString(t, db, "SELECT error FROM job_run")
+			assert.True(t, nullString.Valid)
+			assert.Equal(t, expectedError, nullString.String)
 		})
-		assert.NoError(t, err)
-
-		err = jobStore.RecordJobSucceeded(&api.JobSucceededEvent{
-			JobId:        jobId,
-			Queue:        "queue",
-			Created:      someTime,
-			KubernetesId: k8sId3,
-			PodNumber:    2,
-		})
-		assert.NoError(t, err)
-
-		assert.Equal(t, JobStateToIntMap[JobFailed], selectInt(t, db,
-			"SELECT state FROM job"))
 	})
 }
 
@@ -685,7 +758,6 @@ func Test_DuplicateOutOfOrder(t *testing.T) {
 
 		assert.Equal(t, JobStateToIntMap[JobDuplicate], selectInt(t, db,
 			"SELECT state FROM job"))
-
 	})
 }
 
@@ -750,8 +822,9 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 				"SELECT priority FROM job"))
 
 			var job api.Job
-			jobJson := ParseNullString(selectNullString(t, db, "SELECT job FROM job"))
-			_ = json.Unmarshal([]byte(jobJson), &job)
+			jobProto := ParseNullString(selectNullString(t, db, "SELECT orig_job_spec FROM job"))
+			err = job.Unmarshal([]byte(jobProto))
+			assert.NoError(t, err)
 			assert.Equal(t, float64(123), job.Priority)
 		})
 	})
@@ -783,15 +856,14 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 
 			assert.Equal(t, float64(256), selectDouble(t, db,
 				"SELECT priority FROM job"))
-			assert.False(t, selectNullString(t, db,
-				"SELECT job FROM job").Valid)
+			assert.True(t, selectNullString(t, db,
+				"SELECT orig_job_spec FROM job").Valid)
 		})
 	})
 }
 
 func Test_JobUpdatedEvent(t *testing.T) {
 	t.Run("job exists", func(t *testing.T) {
-
 		newPriority := 123.0
 
 		oldAnnotations := map[string]string{userAnnotationPrefix + "a": "b", userAnnotationPrefix + "1": "2"}
@@ -851,7 +923,6 @@ func Test_JobUpdatedEvent(t *testing.T) {
 	})
 
 	t.Run("existing job has later timestamp than event", func(t *testing.T) {
-
 		oldPriority := 123.0
 		oldAnnotations := map[string]string{userAnnotationPrefix + "a": "b", userAnnotationPrefix + "1": "2"}
 
@@ -908,8 +979,8 @@ func getPriority(t *testing.T, db *goqu.Database, jobId string) float64 {
 
 func getJob(t *testing.T, db *goqu.Database, jobId string) *api.Job {
 	var job api.Job
-	jobJson := ParseNullString(selectNullString(t, db, fmt.Sprintf("SELECT job FROM job WHERE job_id = '%s'", jobId)))
-	err := json.Unmarshal([]byte(jobJson), &job)
+	jobProto := ParseNullString(selectNullString(t, db, fmt.Sprintf("SELECT orig_job_spec FROM job WHERE job_id = '%s'", jobId)))
+	err := job.Unmarshal([]byte(jobProto))
 	assert.Nil(t, err)
 	return &job
 }

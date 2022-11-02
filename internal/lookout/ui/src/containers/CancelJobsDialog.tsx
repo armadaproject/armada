@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
 import CancelJobs from "../components/jobs/cancel-jobs/CancelJobs"
 import CancelJobsOutcome from "../components/jobs/cancel-jobs/CancelJobsOutcome"
-import JobService, { CancelJobsResponse, Job } from "../services/JobService"
+import { JobService, CancelJobsResponse, Job } from "../services/JobService"
 import { ApiResult, RequestStatus } from "../utils"
 import { CANCELLABLE_JOB_STATES } from "./JobsContainer"
 

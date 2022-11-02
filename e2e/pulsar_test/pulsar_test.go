@@ -32,16 +32,18 @@ import (
 )
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
-const pulsarUrl = "pulsar://localhost:6650"
-const pulsarTopic = "persistent://armada/armada/events"
-const pulsarSubscription = "e2e-test"
-const armadaUrl = "localhost:50051"
-const armadaQueueName = "e2e-test-queue"
-const armadaUserId = "anonymous"
-const defaultPulsarTimeout = 30 * time.Second
+const (
+	pulsarUrl            = "pulsar://localhost:6650"
+	pulsarTopic          = "persistent://armada/armada/events"
+	pulsarSubscription   = "e2e-test"
+	armadaUrl            = "localhost:50051"
+	armadaQueueName      = "e2e-test-queue"
+	armadaUserId         = "anonymous"
+	defaultPulsarTimeout = 60 * time.Second
+)
 
 // We setup kind to expose ingresses on this ULR.
-const ingressUrl = "http://localhost:5000"
+const ingressUrl = "http://localhost:5001"
 
 // Armada exposes all ingresses on this path.
 // Routing to the correct service is done using the hostname header.
@@ -49,8 +51,6 @@ const ingressPath = "/"
 
 // Namespace created by the test setup. Used when submitting test jobs.
 const userNamespace = "personal-anonymous"
-
-const receiveEventTimeout = 30 * time.Second
 
 // The submit server should automatically add default tolerations.
 // These must be manually updated to match the default tolerations in the server config.
@@ -120,7 +120,7 @@ func TestSubmitJobs(t *testing.T) {
 				return err
 			}
 
-			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			expected := armadaevents.ExpectedSequenceFromRequestItem(armadaQueueName, armadaUserId, userNamespace, req.JobSetId, jobId, reqi)
 			actual, err := filterSequenceByJobId(sequence, jobId)
 			if err != nil {
 				return err
@@ -217,7 +217,6 @@ func TestDedup(t *testing.T) {
 // Test submitting several jobs, cancelling all of them, and checking that at least 1 is cancelled.
 func TestSubmitCancelJobs(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// The ingress job runs until canceled.
 		req := createJobSubmitRequestWithIngress()
 		numJobs := len(req.JobRequestItems)
@@ -286,7 +285,8 @@ func TestSubmitCancelJobs(t *testing.T) {
 				Events: []*armadaevents.EventSequence_Event{
 					{Event: &armadaevents.EventSequence_Event_CancelJob{}},
 					{Event: &armadaevents.EventSequence_Event_CancelledJob{}},
-				}}
+				},
+			}
 			if ok := isSequenceTypef(t, expected, actual, "Event sequence error; printing diff:\n%s", cmp.Diff(expected, actual)); !ok {
 				return nil
 			}
@@ -300,7 +300,6 @@ func TestSubmitCancelJobs(t *testing.T) {
 // Test cancelling a job set.
 func TestSubmitCancelJobSet(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Submit a few jobs that fail after a few seconds
 		numJobs := 2
 		req := createJobSubmitRequestWithError(numJobs)
@@ -341,7 +340,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 			UserId:     armadaUserId,
 			Events:     []*armadaevents.EventSequence_Event{},
 		}
-		for _, _ = range res.JobResponseItems {
+		for range res.JobResponseItems {
 			expected.Events = append(
 				expected.Events,
 				&armadaevents.EventSequence_Event{
@@ -355,7 +354,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 				Event: &armadaevents.EventSequence_Event_CancelJobSet{},
 			},
 		)
-		for _, _ = range res.JobResponseItems {
+		for range res.JobResponseItems {
 			expected.Events = append(
 				expected.Events,
 				&armadaevents.EventSequence_Event{
@@ -474,7 +473,6 @@ func TestIngress(t *testing.T) {
 
 func TestService(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Create a job running an nginx server accessible via a headless service.
 		req := createJobSubmitRequestWithService()
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
@@ -509,7 +507,8 @@ func TestService(t *testing.T) {
 		// Get the ip of the nginx pod via the k8s api.
 		podIndex := 0
 		endpointName := fmt.Sprintf("armada-%s-%d-headless", res.GetJobResponseItems()[0].JobId, podIndex)
-		out, err := exec.Command("kubectl", "get", "endpoints", endpointName, "--namespace", userNamespace, "-o", "jsonpath='{.subsets[0].addresses[0].ip}'").Output()
+		out, err := exec.Command("kubectl", "get", "endpoints", endpointName, "--namespace", userNamespace, "-o", "jsonpath='{.subsets[0].addresses[0].ip}'").
+			Output()
 		if !assert.NoError(t, err) {
 			t.FailNow()
 		}
@@ -612,7 +611,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 				return err
 			}
 
-			expected := expectedSequenceFromRequestItem(req.JobSetId, jobId, reqi)
+			expected := armadaevents.ExpectedSequenceFromRequestItem(armadaQueueName, armadaUserId, userNamespace, req.JobSetId, jobId, reqi)
 			actual, err := filterSequenceByJobId(sequence, jobId)
 			if err != nil {
 				return err
@@ -650,7 +649,6 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 
 func TestSubmitJobWithError(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
-
 		// Submit a few jobs that fail after a few seconds
 		numJobs := 1
 		req := createJobSubmitRequestWithError(numJobs)
@@ -724,125 +722,6 @@ func TestSubmitJobWithError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// expectedSequenceFromJobRequestItem returns the expected event sequence for a particular job request and response.
-func expectedSequenceFromRequestItem(jobSetName string, jobId *armadaevents.Uuid, reqi *api.JobSubmitRequestItem) *armadaevents.EventSequence {
-
-	// Any objects created for the job in addition to the main object.
-	// We only check that the correct number of objects of each type is created.
-	// Later, we may wish to also check the fields of the objects.
-	objects := make([]*armadaevents.KubernetesObject, 0)
-
-	// Set of ports associated with a service in the submitted job.
-	// Because Armada automatically creates services for ingresses with no corresponding service,
-	// we need this to create the correct number of services.
-	servicePorts := make(map[uint32]bool)
-
-	// One object per service + compute servicePorts
-	if reqi.Services != nil {
-		for _, service := range reqi.Services {
-			objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_Service{}})
-			for _, port := range service.Ports {
-				servicePorts[port] = true
-			}
-		}
-	}
-
-	// Services and ingresses created for the job.
-	if reqi.Ingress != nil {
-		for _, ingress := range reqi.Ingress {
-			objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_Ingress{}})
-
-			// Armada automatically creates services as needed by ingresses
-			// (each ingress needs to point to a service).
-			for _, port := range ingress.Ports {
-				if _, ok := servicePorts[port]; !ok {
-					objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_Service{}})
-				}
-			}
-		}
-	}
-
-	// Count the total number of PodSpecs in the job and add one less than that to the additional objects
-	// (since one PodSpec is placed into the main object).
-	numPodSpecs := 0
-	if reqi.PodSpec != nil {
-		numPodSpecs++
-	}
-	if reqi.PodSpecs != nil {
-		numPodSpecs += len(reqi.PodSpecs)
-	}
-	for i := 0; i < numPodSpecs-1; i++ {
-		objects = append(objects, &armadaevents.KubernetesObject{Object: &armadaevents.KubernetesObject_PodSpec{
-			// The submit server should add some defaults to the submitted podspec.
-			PodSpec: &armadaevents.PodSpecWithAvoidList{},
-		}})
-	}
-
-	return &armadaevents.EventSequence{
-		Queue:      armadaQueueName,
-		JobSetName: jobSetName,
-		UserId:     armadaUserId,
-		Events: []*armadaevents.EventSequence_Event{
-			{Event: &armadaevents.EventSequence_Event_SubmitJob{
-				SubmitJob: &armadaevents.SubmitJob{
-					JobId:           jobId,
-					DeduplicationId: reqi.ClientId,
-					Priority:        uint32(reqi.Priority),
-					ObjectMeta: &armadaevents.ObjectMeta{
-						Namespace:    userNamespace,
-						Name:         "",
-						KubernetesId: "",
-						Annotations:  nil,
-						Labels:       nil,
-					},
-					MainObject:      &armadaevents.KubernetesMainObject{Object: &armadaevents.KubernetesMainObject_PodSpec{}},
-					Objects:         objects,
-					Lifetime:        0,
-					AtMostOnce:      false,
-					Preemptible:     false,
-					ConcurrencySafe: false,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunLeased{
-				JobRunLeased: &armadaevents.JobRunLeased{
-					RunId:      nil,
-					JobId:      jobId,
-					ExecutorId: "",
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunAssigned{
-				JobRunAssigned: &armadaevents.JobRunAssigned{
-					RunId: nil,
-					JobId: jobId,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunRunning{
-				JobRunRunning: &armadaevents.JobRunRunning{
-					RunId:         nil,
-					JobId:         jobId,
-					ResourceInfos: nil,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
-				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: nil,
-					JobId: jobId,
-				},
-			}},
-			{Event: &armadaevents.EventSequence_Event_JobSucceeded{
-				JobSucceeded: &armadaevents.JobSucceeded{
-					JobId: jobId,
-				},
-			}},
-		},
-	}
-}
-
-// Compare the event types (but not the contents) of a sequence of events.
-func isSequenceType(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) (ok bool) {
-	return isSequenceTypef(t, expected, actual, "")
-}
-
 func isSequenceTypef(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence, msg string, args ...interface{}) (ok bool) {
 	defer func() {
 		if !ok && msg != "" {
@@ -859,13 +738,6 @@ func isSequenceTypef(t *testing.T, expected *armadaevents.EventSequence, actual 
 		}
 	}
 	return true
-}
-
-// Compare an expected sequence of events with the actual sequence.
-// Calls into the assert function to make comparison.
-// Returns true if the two sequences are equal and false otherwise.
-func isSequence(t *testing.T, expected *armadaevents.EventSequence, actual *armadaevents.EventSequence) bool {
-	return isSequencef(t, expected, actual, "")
 }
 
 // Like isSequence, but logs msg if a comparison fails.
@@ -978,7 +850,14 @@ func countObjectTypes(objects []*armadaevents.KubernetesObject) map[string]int {
 
 // receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
 // The events contained in the remaining messages are collected in a single sequence, which is returned.
-func receiveJobSetSequences(ctx context.Context, consumer pulsar.Consumer, queue string, jobSetName string, maxEvents int, timeout time.Duration) (sequences []*armadaevents.EventSequence, err error) {
+func receiveJobSetSequences(
+	ctx context.Context,
+	consumer pulsar.Consumer,
+	queue string,
+	jobSetName string,
+	maxEvents int,
+	timeout time.Duration,
+) (sequences []*armadaevents.EventSequence, err error) {
 	sequences = make([]*armadaevents.EventSequence, 0)
 	numEvents := 0
 	for numEvents < maxEvents {
@@ -1345,7 +1224,6 @@ func createJobSubmitRequestWithError(numJobs int) *api.JobSubmitRequest {
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
 func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
-
 	// Connection to the Armada API. To submit API requests.
 	conn, err := client.CreateApiConnection(&client.ApiConnectionDetails{ArmadaUrl: armadaUrl})
 	if err != nil {
@@ -1364,7 +1242,7 @@ func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, p
 
 	// Redirect Pulsar logs to a file since it's very verbose.
 	_ = os.Mkdir("../../.test", os.ModePerm)
-	f, err := os.OpenFile("../../.test/pulsar.log", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0666)
+	f, err := os.OpenFile("../../.test/pulsar.log", os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o666)
 	if err != nil {
 		return errors.WithStack(err)
 	}

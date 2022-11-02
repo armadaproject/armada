@@ -3,6 +3,8 @@ package configuration
 import (
 	"time"
 
+	"google.golang.org/grpc/keepalive"
+
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
 	"github.com/G-Research/armada/pkg/client"
@@ -49,6 +51,11 @@ type KubernetesConfiguration struct {
 	MinimumJobSize            common.ComputeResources
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
+	FatalPodSubmissionErrors  []string
+	// NodeReservedResources config is used to factor in reserved resources on each node
+	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
+	NodeReservedResources common.ComputeResources
+	PodKillTimeout        time.Duration
 }
 
 type EtcdConfiguration struct {
@@ -86,6 +93,7 @@ type ExecutorConfiguration struct {
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
 	Client        ClientConfiguration
+	GRPC          keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

@@ -10,14 +10,14 @@ import (
 	"github.com/G-Research/armada/pkg/client/queue"
 )
 
-// ErrNoPermission represents an error that occurs when a client tries to perform some action
+// ErrUnauthorized represents an error that occurs when a client tries to perform some action
 // through the gRPC API for which it does not have permissions.
 // Produces error messages of the form
 // "Tom" does not own the queue and have SubmitJobs permissions, "Tom" does not have SubmitAnyJobs permissions
 //
 // The caller of a function that may produce this error should capture is using errors.As and prepend
 // whatever action the principal was attempting.
-type ErrNoPermission struct {
+type ErrUnauthorized struct {
 	// Principal that attempted the action
 	Principal authorization.Principal
 	// Reasons that the principal was not allowed to perform the action
@@ -25,7 +25,7 @@ type ErrNoPermission struct {
 	Reasons []string
 }
 
-func (err *ErrNoPermission) Error() string {
+func (err *ErrUnauthorized) Error() string {
 	principalName := err.Principal.GetName()
 	reasons := make([]string, len(err.Reasons), len(err.Reasons))
 	for i, reason := range err.Reasons {
@@ -34,8 +34,8 @@ func (err *ErrNoPermission) Error() string {
 	return strings.Join(reasons, ", ")
 }
 
-func MergePermissionErrors(errs ...*ErrNoPermission) *ErrNoPermission {
-	var filtered []*ErrNoPermission
+func MergePermissionErrors(errs ...*ErrUnauthorized) *ErrUnauthorized {
+	var filtered []*ErrUnauthorized
 	for _, err := range errs {
 		if err != nil {
 			filtered = append(filtered, err)
@@ -46,7 +46,7 @@ func MergePermissionErrors(errs ...*ErrNoPermission) *ErrNoPermission {
 		return nil
 	}
 
-	merged := &ErrNoPermission{
+	merged := &ErrUnauthorized{
 		Principal: filtered[0].Principal,
 		Reasons:   []string{},
 	}
@@ -57,12 +57,12 @@ func MergePermissionErrors(errs ...*ErrNoPermission) *ErrNoPermission {
 }
 
 // checkPermission is a helper function called by the gRPC handlers to check if a client has the
-// permissions required to perform some action. The error returned is of type ErrNoPermission.
+// permissions required to perform some action. The error returned is of type ErrUnauthorized.
 // After recovering the error (using errors.As), the caller can obtain the name of the user and the
 // requested permission programatically via this error type.
 func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
-		return &ErrNoPermission{
+		return &ErrUnauthorized{
 			Principal: authorization.GetPrincipal(ctx),
 			Reasons: []string{
 				fmt.Sprintf("does not have permission %s", permission),
@@ -77,7 +77,8 @@ func checkQueuePermission(
 	ctx context.Context,
 	q queue.Queue,
 	globalPermission permission.Permission,
-	verb queue.PermissionVerb) error {
+	verb queue.PermissionVerb,
+) error {
 	err := checkPermission(p, ctx, globalPermission)
 	if err != nil {
 		return err
@@ -109,7 +110,7 @@ func checkQueuePermission(
 		}
 	}
 
-	return &ErrNoPermission{
+	return &ErrUnauthorized{
 		Principal: principal,
 		Reasons: []string{
 			fmt.Sprintf("does not have permission %s", verb),

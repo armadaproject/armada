@@ -54,41 +54,65 @@ Now, the job can be submitted to Armada using the `armadactl` command-line utili
 
 where `<jobspec.yaml>` is the path of the file containing the jobspec. Armada automatically handles creating and running the necessary containers.
 
-## Multi-node jobs
+## Preemptive jobs
 
-All containers part of the same podspec will be run on the same node (a physical or virtual machine), i.e., the amount of CPU and memory the above job could consume is limited by what the nodes that make up the clusters are equipped with. To overcome this limitation, jobs need to specify several podspecs, each of which may be scheduled on different nodes within a Kubernetes cluster. For example:
+Armada supports submitting preemptive jobs, i.e. jobs which can preempt other lower priority jobs when there aren't enough
+resources to run the preemptive job.
 
+For scheduling preemptive jobs, Armada relies on the `kube-scheduler` component of Kubernetes for the actual preemption and scheduling the underlying pods.
+
+More info on preemption in Kubernetes can be found in the [official docs](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/).
+
+To use priority and preemption in Armada:
+1. Add one or more [PriorityClasses](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#priorityclass).
+2. Create Armada jobs with [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/#pod-priority) in the job's `podSpec` set to one of the existing PriorityClasses.
+
+### Example
+
+* Create a Kubernetes PriorityClass:
 ```yaml
-queue: test
-jobSetId: set1
-jobs:
-  - priority: 0
-    podSpecs:
-      - terminationGracePeriodSeconds: 0
-        restartPolicy: Never
-        containers:
-          - name: sleep
-            imagePullPolicy: IfNotPresent
-            image: busybox:latest
-            args:
-              - sleep
-              - 60s
-            resources:
-              limits:
-                memory: 64Mi
-                cpu: 150m
-              requests:
-                memory: 64Mi
-                cpu: 150m
-      - terminationGracePeriodSeconds: 0
-        restartPolicy: Never
-        containers:
-          ...
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: armada-example-priority-class
+value: 10
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false
+description: "Example priority class for preemptive Armada jobs."
+```
+```bash
+$ kubectl apply -f ./docs/quickstart/priority-class-example.yaml
 ```
 
-All pods part of the same job will be run simultaneously and within a single Kubernetes cluster. If any of the pods that make up the job fails to start within a certain timeout (specified by the `stuckPodExpiry` parameter), the entire job is cancelled and all pods belonging to it removed. Armada may attempt to re-schedule jobs experiencing transient issues. Events relating to a multi-node job contain a `podNumber` identifier, corresponding to the index of pod in the `podSpecs` list that the event refers to.
-
-Jobs are submitted using either the `armadactl` command-line utility, with `armadactl submit <jobspec.yaml>`, or using the gRPC or REST API.
+* Apply an Armada job which references the PriorityClass in the field `priorityClassName`:
+```yaml
+queue: queue-a
+jobSetId: job-set-1
+jobs:
+  - priority: 1
+    podSpec:
+      priorityClassName: armada-example-priority-class
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleeper
+          image: alpine:latest
+          command:
+            - sh
+          args:
+            - -c
+            - sleep $(( (RANDOM % 60) + 10 ))
+          resources:
+            limits:
+              memory: 100Mi
+              cpu: 100m
+            requests:
+              memory: 100Mi
+              cpu: 100m
+```
+```bash
+$ armadactl submit ./docs/quickstart/job-queue-a-preemptive.yaml
+```
 
 ## Job options
 

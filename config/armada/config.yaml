@@ -1,10 +1,9 @@
-
 grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
 corsAllowedOrigins: []
 priorityHalfTime: 20m
-cancelJobsBatchSize: 200
+cancelJobsBatchSize: 1000
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -25,7 +24,24 @@ eventsRedis:
   password: ""
   db: 0
   poolSize: 1000
+eventsApiRedis:
+  addrs:
+    - "localhost:6379"
+  password: ""
+  db: 1
+  poolSize: 1000
+defaultToLegacyEvents: true
 scheduling:
+  preemption:
+    # if enabled, Armada will accept submitted jobs which have a priorityClassName field
+    # otherwise it will refuse the jobs on submit
+    enabled: false
+    # priorityClasses field is a map of priority class names to priority values
+    # defined priority classes should exist with the same priority in all executor clusters
+    priorityClasses: {}
+    # if preemption is enabled, Armada server will set the priorityClassName in the job's podSpec
+    # with the value of defaultPriorityClass, if the podSpec does not already reference a priority class
+    defaultPriorityClass: ""
   useProbabilisticSchedulingForAllResources: true
   queueLeaseBatchSize: 200
   maximumLeasePayloadSizeBytes: 7340032 # 1024 * 1024 * 7
@@ -36,6 +52,8 @@ scheduling:
     memory: 0.25
     cpu: 0.25
   maximumJobsToSchedule: 5000
+  maxQueueReportsToStore: 1000
+  MaxJobReportsToStore: 100000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
@@ -43,6 +61,8 @@ scheduling:
   maxPodSpecSizeBytes: 65535
   minJobResources:
     memory: 1Mi
+  minTerminationGracePeriod: 1s
+  maxTerminationGracePeriod: 300s
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
@@ -60,31 +80,14 @@ eventRetention:
   expiryEnabled: true
   retentionDuration: 336h # Specified as a Go duration
 metrics:
-  refreshInterval: 10s
+  refreshInterval: 30s
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"
   maxAllowedMessageSize: 4194304 # 4MB
   jobsetEventsTopic: "persistent://armada/armada/events"
   redisFromPulsarSubscription: "RedisFromPulsar"
-  pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
-eventapi:
-  enabled : false
-  queryConcurrency: 100
-  jobsetCacheSize:  10000
-  updateTopic:      sequence-updates
-  postgres:
-    maxOpenConns: 100
-    maxIdleConns: 25
-    connMaxLifetime: 30m
-    connection:
-      host: localhost
-      port: 5432
-      user: postgres
-      password: psw
-      dbname: postgres
-      sslmode: disable

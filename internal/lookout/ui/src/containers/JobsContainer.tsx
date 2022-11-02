@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid"
 
 import Jobs from "../components/jobs/Jobs"
 import IntervalService from "../services/IntervalService"
-import JobService, { GetJobsRequest, Job } from "../services/JobService"
+import { JobService, GetJobsRequest, Job } from "../services/JobService"
 import JobTableService from "../services/JobTableService"
 import JobsLocalStorageService from "../services/JobsLocalStorageService"
 import JobsQueryParamsService from "../services/JobsQueryParamsService"
@@ -34,12 +34,14 @@ export type JobsContainerState = {
   jobDialogIsOpen: boolean
   clickedJob?: Job
   getJobsRequestStatus: RequestStatus
+  abortController: AbortController
 }
 
 export type ColumnSpec<T> = {
   id: string
   name: string
   accessor: string
+  urlParamKey: string
   isDisabled: boolean
   filter: T
   defaultFilter: T
@@ -53,18 +55,20 @@ export function isColumnSpec<T>(obj: any): obj is ColumnSpec<T> {
 
   const columnSpec = obj as Record<string, unknown>
   return (
-    columnSpec.id != undefined &&
-    typeof columnSpec.id == "string" &&
-    columnSpec.name != undefined &&
-    typeof columnSpec.name == "string" &&
-    columnSpec.accessor != undefined &&
-    typeof columnSpec.accessor == "string" &&
-    columnSpec.isDisabled != undefined &&
-    typeof columnSpec.isDisabled == "boolean" &&
-    columnSpec.filter != undefined &&
-    columnSpec.defaultFilter != undefined &&
-    columnSpec.width != undefined &&
-    typeof columnSpec.width == "number"
+    columnSpec.id !== undefined &&
+    typeof columnSpec.id === "string" &&
+    columnSpec.name !== undefined &&
+    typeof columnSpec.name === "string" &&
+    columnSpec.accessor !== undefined &&
+    typeof columnSpec.accessor === "string" &&
+    columnSpec.urlParamKey !== undefined &&
+    typeof columnSpec.urlParamKey === "string" &&
+    columnSpec.isDisabled !== undefined &&
+    typeof columnSpec.isDisabled === "boolean" &&
+    columnSpec.filter !== undefined &&
+    columnSpec.defaultFilter !== undefined &&
+    columnSpec.width !== undefined &&
+    typeof columnSpec.width === "number"
   )
 }
 
@@ -99,6 +103,17 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           id: "jobState",
           name: "State",
           accessor: "jobState",
+          urlParamKey: "job_states",
+          isDisabled: false,
+          filter: [],
+          defaultFilter: [],
+          width: 0.5,
+        },
+        {
+          id: "jobStateDuration",
+          name: "Time in State",
+          accessor: "jobStateDuration",
+          urlParamKey: "job_state_duration",
           isDisabled: false,
           filter: [],
           defaultFilter: [],
@@ -108,6 +123,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           id: "queue",
           name: "Queue",
           accessor: "queue",
+          urlParamKey: "queue",
           isDisabled: false,
           filter: "",
           defaultFilter: "",
@@ -117,6 +133,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           id: "jobId",
           name: "Job Id",
           accessor: "jobId",
+          urlParamKey: "job_id",
           isDisabled: false,
           filter: "",
           defaultFilter: "",
@@ -126,6 +143,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           id: "owner",
           name: "Owner",
           accessor: "owner",
+          urlParamKey: "owner",
           isDisabled: false,
           filter: "",
           defaultFilter: "",
@@ -135,6 +153,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           id: "jobSet",
           name: "Job Set",
           accessor: "jobSet",
+          urlParamKey: "job_set",
           isDisabled: false,
           filter: "",
           defaultFilter: "",
@@ -144,6 +163,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           id: "submissionTime",
           name: "Submission Time",
           accessor: "submissionTime",
+          urlParamKey: "newest_first",
           isDisabled: false,
           filter: true,
           defaultFilter: true,
@@ -154,6 +174,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       cancelJobsIsOpen: false,
       reprioritizeJobsIsOpen: false,
       jobDialogIsOpen: false,
+      abortController: new AbortController(),
     }
 
     this.serveJobs = this.serveJobs.bind(this)
@@ -191,9 +212,6 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     this.localStorageService.updateState(newState)
     this.queryParamsService.updateState(newState)
 
-    this.localStorageService.saveState(newState)
-    this.queryParamsService.saveState(newState)
-
     await setStateAsync(this, {
       ...newState,
       jobs: this.jobTableService.getJobs(), // Can start loading
@@ -228,7 +246,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     if (shouldLoad) {
       const request = this.createGetJobsRequest()
-      await this.jobTableService.loadJobs(request, start, stop)
+      await this.jobTableService.loadJobs(request, start, stop, this.state.abortController.signal)
       await setStateAsync(this, {
         ...this.state,
         jobs: this.jobTableService.getJobs(),
@@ -278,6 +296,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       }
     }
 
+    this.localStorageService.saveState(newState)
     this.setFilters(newState)
   }
 
@@ -287,12 +306,14 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       id: uuidv4(),
       name: "",
       accessor: "",
+      urlParamKey: "",
       isDisabled: false,
       filter: "",
       defaultFilter: "",
       width: 1,
     }
     newState.annotationColumns.push(newCol)
+    this.localStorageService.saveState(newState)
     this.setFilters(newState)
   }
 
@@ -306,6 +327,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
     }
 
     newState.annotationColumns.splice(toRemove, 1)
+    this.localStorageService.saveState(newState)
     this.setFilters(newState)
   }
 
@@ -315,8 +337,10 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       if (col.id === columnId) {
         col.name = newKey
         col.accessor = newKey
+        col.urlParamKey = newKey
       }
     }
+    this.localStorageService.saveState(newState)
     this.setFilters(newState)
   }
 
@@ -327,6 +351,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
         case "queue":
         case "jobId":
         case "owner":
+        case "jobStateDuration":
         case "jobSet": {
           col.filter = ""
           break
@@ -450,10 +475,12 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   async toggleAutoRefresh(autoRefresh: boolean) {
-    await setStateAsync(this, {
+    const newState = {
       ...this.state,
       autoRefresh: autoRefresh,
-    })
+    }
+    await setStateAsync(this, newState)
+    this.localStorageService.saveState(newState)
     this.tryStartAutoRefreshService()
   }
 
@@ -484,20 +511,21 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
 
     for (const col of this.state.defaultColumns) {
       switch (col.id) {
+        // Queue, jobId, and owner are user input and if is possible to have user put in whitespace.
         case "queue": {
-          request.queue = col.filter as string
+          request.queue = (col.filter as string).trim()
           break
         }
         case "jobId": {
-          request.jobId = col.filter as string
+          request.jobId = (col.filter as string).trim()
           break
         }
         case "owner": {
-          request.owner = col.filter as string
+          request.owner = (col.filter as string).trim()
           break
         }
         case "jobSet": {
-          request.jobSets = [col.filter as string]
+          request.jobSets = [(col.filter as string).trim()]
           break
         }
         case "submissionTime": {
@@ -520,12 +548,13 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 
   private async setFilters(updatedState: JobsContainerState) {
-    this.localStorageService.saveState(updatedState)
+    this.state.abortController.abort()
     this.queryParamsService.saveState(updatedState)
     this.jobTableService.refresh()
     await setStateAsync(this, {
       ...updatedState,
       jobs: this.jobTableService.getJobs(),
+      abortController: new AbortController(),
     })
     this.resetCacheService.start()
   }

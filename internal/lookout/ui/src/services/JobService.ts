@@ -1,6 +1,6 @@
 import yaml from "js-yaml"
 
-import { SubmitApi } from "../openapi/armada"
+import { ApiJobState, SubmitApi } from "../openapi/armada"
 import {
   LookoutApi,
   LookoutDurationStats,
@@ -38,6 +38,7 @@ export type JobSet = {
   jobsRunning: number
   jobsSucceeded: number
   jobsFailed: number
+  jobsCancelled: number
   latestSubmissionTime: string
 
   runningStats?: DurationStats
@@ -80,6 +81,7 @@ export type Job = {
   submissionTime: string
   cancelledTime?: string
   jobState: string
+  jobStateDuration: string
   runs: Run[]
   jobYaml: string
   annotations: { [key: string]: string }
@@ -145,13 +147,29 @@ export const JOB_STATES_FOR_DISPLAY = ["Queued", "Pending", "Running", "Succeede
 
 export const UNKNOWN_CONTAINER = "Unknown Container"
 
-export default class JobService {
+export interface JobService {
+  getOverview(): Promise<QueueInfo[]>
+
+  getJobSets(getJobSetsRequest: GetJobSetsRequest): Promise<JobSet[]>
+
+  getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]>
+
+  cancelJobs(jobs: Job[]): Promise<CancelJobsResponse>
+
+  cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse>
+
+  reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse>
+
+  reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResponse>
+}
+
+export class LookoutJobService implements JobService {
   lookoutApi: LookoutApi
   submitApi: SubmitApi
   userAnnotationPrefix: string
 
-  constructor(lookoutAPi: LookoutApi, submitApi: SubmitApi, userAnnotationPrefix: string) {
-    this.lookoutApi = lookoutAPi
+  constructor(lookoutApi: LookoutApi, submitApi: SubmitApi, userAnnotationPrefix: string) {
+    this.lookoutApi = lookoutApi
     this.submitApi = submitApi
     this.userAnnotationPrefix = userAnnotationPrefix
   }
@@ -180,11 +198,11 @@ export default class JobService {
     return jobSetsFromApi.jobSetInfos.map(jobSetToViewModel)
   }
 
-  async getJobs(getJobsRequest: GetJobsRequest): Promise<Job[]> {
+  async getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
     const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
-    try {
-      const response = await this.lookoutApi.getJobs({
+    const response = await this.lookoutApi.getJobs(
+      {
         body: {
           queue: getJobsRequest.queue,
           take: getJobsRequest.take,
@@ -196,12 +214,11 @@ export default class JobService {
           owner: getJobsRequest.owner,
           userAnnotations: getJobsRequest.annotations,
         },
-      })
-      if (response.jobInfos) {
-        return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
-      }
-    } catch (e) {
-      console.error(await e.json())
+      },
+      { signal },
+    )
+    if (response.jobInfos) {
+      return response.jobInfos.map((jobInfo) => this.jobInfoToViewModel(jobInfo))
     }
     return []
   }
@@ -234,22 +251,20 @@ export default class JobService {
     return response
   }
 
-  async cancelJobSets(queue: string, jobSets: JobSet[]): Promise<CancelJobSetsResponse> {
+  async cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse> {
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
-        const apiResponse = await this.submitApi.cancelJobs({
+        await this.submitApi.cancelJobSet({
           body: {
             queue: queue,
             jobSetId: jobSet.jobSetId,
+            filter: {
+              states: states,
+            },
           },
         })
-
-        if (apiResponse.cancelledIds?.length) {
-          response.cancelledJobSets.push(jobSet)
-        } else {
-          response.failedJobSetCancellations.push({ jobSet: jobSet, error: "No job was cancelled" })
-        }
+        response.cancelledJobSets.push(jobSet)
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
@@ -357,7 +372,6 @@ export default class JobService {
   }
 
   private queueInfoToViewModel(queueInfo: LookoutQueueInfo): QueueInfo {
-    console.log(queueInfo)
     let oldestQueuedJob: Job | undefined
     let oldestQueuedDuration = "-"
     if (queueInfo.oldestQueuedJob) {
@@ -397,6 +411,7 @@ export default class JobService {
     const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
     const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
+    const jobStateDuration = jobInfo.jobStateDuration ?? "-"
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
     const runs = getRuns(jobInfo)
@@ -413,6 +428,7 @@ export default class JobService {
       submissionTime: submissionTime,
       cancelledTime: cancelledTime,
       jobState: jobState,
+      jobStateDuration: jobStateDuration,
       runs: runs,
       jobYaml: jobYaml,
       annotations: annotations,
@@ -445,6 +461,7 @@ function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
     jobsRunning: jobSet.jobsRunning ?? 0,
     jobsSucceeded: jobSet.jobsSucceeded ?? 0,
     jobsFailed: jobSet.jobsFailed ?? 0,
+    jobsCancelled: jobSet.jobsCancelled ?? 0,
     latestSubmissionTime: dateToString(jobSet.submitted ?? new Date()),
     runningStats: durationStatsToViewModel(jobSet.runningStats),
     queuedStats: durationStatsToViewModel(jobSet.queuedStats),

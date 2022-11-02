@@ -49,6 +49,8 @@ type LookoutConfiguration struct {
 type LookoutIngesterConfiguration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Metrics configuration
+	Metrics configuration.MetricsConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name
@@ -65,4 +67,7 @@ type LookoutIngesterConfiguration struct {
 	PulsarBackoffTime time.Duration
 	// Number of goroutines to be used for receiving messages and converting them to instructions
 	Paralellism int
+	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
+	// The annotation before storing in the db
+	UserAnnotationPrefix string
 }

@@ -1,8 +1,8 @@
 # Dockerfile for building .proto files.
 
-ARG GOLANG_VERSION=1.16
+ARG GOLANG_VERSION=1.18
 ARG GOGO_PROTOBUF_VERSION=1.3.2
-ARG GRPC_GATEWAY_VERSION=1.15.0
+ARG GRPC_GATEWAY_VERSION=1.16.0
 ARG GO_SWAGGER_VERSION=0.23.0
 ARG TEMPLIFY_VERSION=0.0.0-20190823200653-c12e62ca00c1
 
@@ -32,19 +32,19 @@ ENV GOPRIVATE=$GOPRIVATE
 ARG PROTOC_VERSION
 ARG PROTOC_SHA1
 ARG MAVEN_URL
+
 RUN curl -OLk ${MAVEN_URL}/com/google/protobuf/protoc/${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.exe && \
     mv protoc-${PROTOC_VERSION}-linux-x86_64.exe /usr/local/bin/protoc && \
     echo "${PROTOC_SHA1} /usr/local/bin/protoc" | sha1sum -c - && \
     chmod +x /usr/local/bin/protoc
 
 ARG GOGO_PROTOBUF_VERSION
-RUN GO111MODULE=on go get github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
+RUN go install github.com/gogo/protobuf/protoc-gen-gogofaster@v${GOGO_PROTOBUF_VERSION}
 
 ARG GRPC_GATEWAY_VERSION
-RUN GO111MODULE=on go get \
-   github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
-   github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
-
+RUN go install \
+  github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
+  github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
 
 ARG GOLANG_VERSION
 FROM --platform=linux/amd64 golang:${GOLANG_VERSION}-buster

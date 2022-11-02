@@ -34,14 +34,23 @@ var log = logrus.NewEntry(logrus.StandardLogger())
 
 // Receive returns a channel containing messages received from pulsar.  This channel will remain open until the
 // supplied context is closed.
-// consumerId: Internal Id of the consumer.  We use this so that when messages from different consumers are multiplexed, we know which messages originated form which consumers
+// consumerId: Internal Id of the consumer.  We use this so that when messages from different consumers are
+//
+//	multiplexed, we know which messages originated form which consumers
+//
 // bufferSize: sets the size of the buffer in the returned channel
 // receiveTimeout: sets how long the pulsar consumer will wait for a message before retrying
 // backoffTime: sets how long the consumer will wait before retrying if the pulsar consumer indicates an error receiving from pulsar.
-func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, bufferSize int, receiveTimeout time.Duration, backoffTime time.Duration) chan *ConsumerMessage {
+func Receive(
+	ctx context.Context,
+	consumer pulsar.Consumer,
+	consumerId int,
+	bufferSize int,
+	receiveTimeout time.Duration,
+	backoffTime time.Duration,
+) chan *ConsumerMessage {
 	out := make(chan *ConsumerMessage, bufferSize)
 	go func() {
-
 		// Periodically log the number of processed messages.
 		logInterval := 60 * time.Second
 		lastLogged := time.Now()
@@ -52,7 +61,6 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 
 		// Run until ctx is cancelled.
 		for {
-
 			// Periodic logging.
 			if time.Since(lastLogged) > logInterval {
 				log.WithFields(
@@ -74,14 +82,13 @@ func Receive(ctx context.Context, consumer pulsar.Consumer, consumerId int, buff
 				close(out)
 				return
 			default:
-
 				// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
 				ctxWithTimeout, cancel := context.WithTimeout(ctx, receiveTimeout)
 				msg, err := consumer.Receive(ctxWithTimeout)
 				if errors.Is(err, context.DeadlineExceeded) {
 					log.Debugf("No message received")
 					cancel()
-					break //expected
+					break // expected
 				}
 				cancel()
 				// If receiving fails, try again in the hope that the problem is transient.

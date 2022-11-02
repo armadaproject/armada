@@ -2,8 +2,11 @@ package instructions
 
 import (
 	"context"
-	"encoding/json"
+	"sort"
+	"strings"
 	"time"
+
+	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -16,6 +19,7 @@ import (
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -23,13 +27,31 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+type HasNodeName interface {
+	GetNodeName() string
+}
+
+type Service struct {
+	m *metrics.Metrics
+}
+
+func New(m *metrics.Metrics) *Service {
+	return &Service{m: m}
+}
+
 // Convert takes a channel containing incoming pulsar messages and returns a channel with the corresponding
 // InstructionSets.  Each pulsar message will generate exactly one InstructionSet.
-func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, bufferSize int, compressor compress.Compressor) chan *model.InstructionSet {
+func (s *Service) Convert(
+	ctx context.Context,
+	msgs chan *pulsarutils.ConsumerMessage,
+	bufferSize int,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+) chan *model.InstructionSet {
 	out := make(chan *model.InstructionSet, bufferSize)
 	go func() {
 		for msg := range msgs {
-			instructions := ConvertMsg(ctx, msg, compressor)
+			instructions := s.ConvertMsg(ctx, msg, userAnnotationPrefix, compressor)
 			out <- instructions
 		}
 		close(out)
@@ -42,8 +64,12 @@ func Convert(ctx context.Context, msgs chan *pulsarutils.ConsumerMessage, buffer
 // resulting InstructionSet will contain all events that could be parsed, along with the mesageId of the original message.
 // In the case that no events can be parsed (e.g. the message is not valid protobuf), an empty InstructionSet containing
 // only the messageId will be returned.
-func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compressor compress.Compressor) *model.InstructionSet {
-
+func (s *Service) ConvertMsg(
+	ctx context.Context,
+	msg *pulsarutils.ConsumerMessage,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+) *model.InstructionSet {
 	pulsarMsg := msg.Message
 
 	// Put the requestId into a message-specific context and logger,
@@ -61,7 +87,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 		},
 	}
 
-	// It's not a control message-no instructions needed
+	// It's not a control message - no instructions needed
 	if !armadaevents.IsControlMessage(msg.Message) {
 		return updateInstructions
 	}
@@ -69,6 +95,7 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 	// Try and unmarshall the proto-  if it fails there's not much we can do here.
 	sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, pulsarMsg.Payload())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorDeserialization)
 		messageLogger.Warnf("Could not unmarshall message %v", err)
 		return updateInstructions
 	}
@@ -80,49 +107,63 @@ func ConvertMsg(ctx context.Context, msg *pulsarutils.ConsumerMessage, compresso
 	for idx, event := range sequence.Events {
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			err = handleSubmitJob(messageLogger, queue, owner, jobset, ts, event.GetSubmitJob(), compressor, updateInstructions)
+			err = s.handleSubmitJob(messageLogger, queue, owner, jobset, ts, event.GetSubmitJob(), userAnnotationPrefix, compressor, updateInstructions)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
-			err = handleReprioritiseJob(ts, event.GetReprioritisedJob(), updateInstructions)
+			err = s.handleReprioritiseJob(ts, event.GetReprioritisedJob(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = handleCancelJob(ts, event.GetCancelledJob(), updateInstructions)
+			err = s.handleCancelJob(ts, event.GetCancelledJob(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
-			err = handleJobSucceeded(ts, event.GetJobSucceeded(), updateInstructions)
+			err = s.handleJobSucceeded(ts, event.GetJobSucceeded(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			err = handleJobErrors(ts, event.GetJobErrors(), updateInstructions)
+			err = s.handleJobErrors(ts, event.GetJobErrors(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			err = handleJobRunAssigned(ts, event.GetJobRunAssigned(), updateInstructions)
+			err = s.handleJobRunAssigned(ts, event.GetJobRunAssigned(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
-			err = handleJobRunRunning(ts, event.GetJobRunRunning(), updateInstructions)
+			err = s.handleJobRunRunning(ts, event.GetJobRunRunning(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
-			err = handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), updateInstructions)
+			err = s.handleJobRunSucceeded(ts, event.GetJobRunSucceeded(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			err = handleJobRunErrors(ts, event.GetJobRunErrors(), updateInstructions)
+			err = s.handleJobRunErrors(ts, event.GetJobRunErrors(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			err = handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
+			err = s.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
-			messageLogger.Debugf("Ignoring event")
+		case *armadaevents.EventSequence_Event_ResourceUtilisation:
+		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			messageLogger.Debugf("Ignoring event type %T", event)
 		default:
-			messageLogger.Warnf("Ignoring event")
+			messageLogger.Warnf("Ignoring unknown event type %T", event)
 		}
 		if err != nil {
+			s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 			messageLogger.Warnf("Could not convert event at index %d. %+v", idx, err)
 		}
 	}
 	return updateInstructions
 }
 
-func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet string, ts time.Time, event *armadaevents.SubmitJob, compressor compress.Compressor, update *model.InstructionSet) error {
+func (s *Service) handleSubmitJob(
+	logger *logrus.Entry,
+	queue string,
+	owner string,
+	jobSet string,
+	ts time.Time,
+	event *armadaevents.SubmitJob,
+	userAnnotationPrefix string,
+	compressor compress.Compressor,
+	update *model.InstructionSet,
+) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
 	// Try and marshall the job Json. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the json won't be available in the ui
-	var jobJson []byte
 	var jobProto []byte
 	apiJob, err := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, event)
 	if err == nil {
@@ -136,14 +177,8 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 		if err != nil {
 			logger.Warnf("Couldn't compress proto for job %s in jobset %s as json.  %+v", jobId, jobSet, err)
 		}
-
-		// TODO: Remove this when we have moved over to compressed proto
-		jobJson, err = json.Marshal(apiJob)
-		if err != nil {
-			logger.Warnf("Couldn't marshall job json %s in jobset %s as json.  %+v", jobId, jobSet, err)
-		}
-
 	} else {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		logger.Warnf("Couldn't convert job event for job %s in jobset %s to api job.  %+v", jobId, jobSet, err)
 	}
 
@@ -154,32 +189,51 @@ func handleSubmitJob(logger *logrus.Entry, queue string, owner string, jobSet st
 		JobSet:    jobSet,
 		Priority:  event.Priority,
 		Submitted: ts,
-		JobJson:   jobJson,
 		JobProto:  jobProto,
 		State:     repository.JobQueuedOrdinal,
 		Updated:   ts,
 	}
 	update.JobsToCreate = append(update.JobsToCreate, &job)
 
-	for k, v := range event.ObjectMeta.Annotations {
+	annotationInstructions := extractAnnotations(jobId, event.GetObjectMeta().GetAnnotations(), userAnnotationPrefix)
+	update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, annotationInstructions...)
+
+	return err
+}
+
+func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnnotationPrefix string) []*model.CreateUserAnnotationInstruction {
+	// This intermediate variable exists because we want our output to be deterministic
+	// Iteration over a map in go is non-deterministic, so we read everything into annotations
+	// and then sort it.
+	annotations := make([]*model.CreateUserAnnotationInstruction, 0, len(jobAnnotations))
+
+	for k, v := range jobAnnotations {
 		if k != "" {
-			update.UserAnnotationsToCreate = append(update.UserAnnotationsToCreate, &model.CreateUserAnnotationInstruction{
+			// The annotation will have a key with a prefix.  We want to strip the prefix before storing in the db
+			if strings.HasPrefix(k, userAnnotationPrefix) && len(k) > len(userAnnotationPrefix) {
+				k = k[len(userAnnotationPrefix):]
+			}
+			annotations = append(annotations, &model.CreateUserAnnotationInstruction{
 				JobId: jobId,
 				Key:   k,
 				Value: v,
 			})
 		} else {
-			logger.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
+			log.WithField("JobId", jobId).Warnf("Ignoring annotation with empty key")
 		}
 	}
 
-	return err
+	// sort to make output deterministic
+	sort.Slice(annotations, func(i, j int) bool {
+		return annotations[i].Key < annotations[j].Key
+	})
+	return annotations
 }
 
-func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
-
+func (s *Service) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -192,10 +246,10 @@ func handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, u
 	return nil
 }
 
-func handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
-
+func (s *Service) handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -208,10 +262,10 @@ func handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDe
 	return nil
 }
 
-func handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
-
+func (s *Service) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -225,10 +279,10 @@ func handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *mod
 	return nil
 }
 
-func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
-
+func (s *Service) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -241,13 +295,14 @@ func handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *
 	return nil
 }
 
-func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
+func (s *Service) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
-	var isTerminal = false
+	isTerminal := false
 
 	for _, e := range event.GetErrors() {
 		if e.Terminal {
@@ -266,16 +321,16 @@ func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.
 	return nil
 }
 
-func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
-
+func (s *Service) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.GetRunId())
-
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -300,14 +355,16 @@ func handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update
 	return nil
 }
 
-func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
+func (s *Service) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -334,10 +391,10 @@ func handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, upda
 	return nil
 }
 
-func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
-
+func (s *Service) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return errors.WithStack(err)
 	}
 
@@ -350,14 +407,16 @@ func handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, up
 	return nil
 }
 
-func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
+func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return errors.WithStack(err)
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
+		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return errors.WithStack(err)
 	}
 
@@ -368,23 +427,36 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 			// Certain legacy events mean we don't have a valid run id
 			// In this case we have to invent a fake run
 			// TODO: remove this when the legacy messages go away!
-			if runId == eventutil.LEGACY_RUN_ID {
+			isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
+			if isLegacyEvent {
 				jobRun := createFakeJobRun(jobId, ts)
 				runId = jobRun.RunId
+				objectMeta := extractMetaFromError(e)
+				if objectMeta != nil && objectMeta.ExecutorId != "" {
+					jobRun.Cluster = objectMeta.ExecutorId
+				}
 				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
 			}
 
 			jobRunUpdate := &model.UpdateJobRunInstruction{
 				RunId:     runId,
-				Started:   &ts,
 				Succeeded: pointer.Bool(false),
 				Finished:  &ts,
 			}
+			if isLegacyEvent {
+				jobRunUpdate.Started = &ts
+			}
+
+			// Both Error_PodLeaseReturned and Error_LeaseExpired have an implied reset of the job state to queued
+			// Ideally we would send an explicit queued message here, but until this change is made we correct the job
+			// state here
+			resetStateToQueued := false
 
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
-				truncatedMsg := truncate(reason.PodError.GetMessage(), 2048)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				jobRunUpdate.Node = extractNodeName(reason.PodError)
 				for _, containerError := range reason.PodError.ContainerErrors {
 					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
 						RunId:         jobRunUpdate.RunId,
@@ -393,23 +465,51 @@ func handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *
 					})
 				}
 			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := truncate(reason.PodTerminated.GetMessage(), 2048)
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
+				jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
 			case *armadaevents.Error_PodUnschedulable:
-				jobRunUpdate.Error = pointer.String("Pod Unschedulable")
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
 			case *armadaevents.Error_PodLeaseReturned:
-				jobRunUpdate.Error = pointer.String("Lease Returned")
+				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
+				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				resetStateToQueued = true
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				resetStateToQueued = true
 			default:
+				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
+			if resetStateToQueued {
+				update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
+					JobId:   jobId,
+					State:   pointer.Int32(int32(repository.JobQueuedOrdinal)),
+					Updated: ts,
+				})
+			}
 			break
 		}
+	}
+	return nil
+}
+
+func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
+	switch err := e.Reason.(type) {
+	case *armadaevents.Error_PodError:
+		return err.PodError.ObjectMeta
+	case *armadaevents.Error_PodTerminated:
+		return err.PodTerminated.ObjectMeta
+	case *armadaevents.Error_PodUnschedulable:
+		return err.PodUnschedulable.ObjectMeta
+	case *armadaevents.Error_PodLeaseReturned:
+		return err.PodLeaseReturned.ObjectMeta
 	}
 	return nil
 }
@@ -424,13 +524,6 @@ func getNode(resources []*armadaevents.KubernetesResourceInfo) (string, int) {
 	return "UNKNOWN", -1
 }
 
-func truncate(s string, max int) string {
-	if max > len(s) {
-		return s
-	}
-	return s[:max]
-}
-
 func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
 	runId := uuid.New().String()
 	return &model.CreateJobRunInstruction{
@@ -439,4 +532,12 @@ func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction
 		Cluster: "UNKNOWN",
 		Created: ts,
 	}
+}
+
+func extractNodeName(x HasNodeName) *string {
+	nodeName := x.GetNodeName()
+	if len(nodeName) > 0 {
+		return pointer.String(nodeName)
+	}
+	return nil
 }

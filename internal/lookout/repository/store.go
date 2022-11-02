@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -38,7 +36,7 @@ func NewSQLJobStore(db *goqu.Database, annotationPrefix string) *SQLJobStore {
 }
 
 func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
-	jobJson, err := json.Marshal(job)
+	jobMarshalled, err := job.Marshal()
 	if err != nil {
 		return err
 	}
@@ -52,25 +50,25 @@ func (r *SQLJobStore) RecordJob(job *api.Job, timestamp time.Time) error {
 		ds := tx.Insert(jobTable).
 			With("run_states", getRunStateCounts(tx, job.Id)).
 			Rows(goqu.Record{
-				"job_id":      job.Id,
-				"queue":       job.Queue,
-				"owner":       job.Owner,
-				"jobset":      job.JobSetId,
-				"priority":    job.Priority,
-				"submitted":   ToUTC(job.Created),
-				"job":         jobJson,
-				"state":       JobStateToIntMap[JobQueued],
-				"job_updated": timestamp,
+				"job_id":        job.Id,
+				"queue":         job.Queue,
+				"owner":         job.Owner,
+				"jobset":        job.JobSetId,
+				"priority":      job.Priority,
+				"submitted":     ToUTC(job.Created),
+				"orig_job_spec": jobMarshalled,
+				"state":         JobStateToIntMap[JobQueued],
+				"job_updated":   timestamp,
 			}).
 			OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-				"queue":       job.Queue,
-				"owner":       job.Owner,
-				"jobset":      job.JobSetId,
-				"priority":    job.Priority,
-				"submitted":   ToUTC(job.Created),
-				"job":         jobJson,
-				"state":       determineJobState(tx),
-				"job_updated": timestamp,
+				"queue":         job.Queue,
+				"owner":         job.Owner,
+				"jobset":        job.JobSetId,
+				"priority":      job.Priority,
+				"submitted":     ToUTC(job.Created),
+				"orig_job_spec": jobMarshalled,
+				"state":         determineJobState(tx),
+				"job_updated":   timestamp,
 			}).Where(job_jobUpdated.Lt(timestamp)))
 
 		res, err := ds.Prepared(true).Executor().Exec()
@@ -112,24 +110,24 @@ func (r *SQLJobStore) MarkCancelled(event *api.JobCancelledEvent) error {
 }
 
 func (r *SQLJobStore) RecordJobReprioritized(event *api.JobReprioritizedEvent) error {
-	updatedJobJson, err := r.getReprioritizedJobJson(event)
+	updatedJobProto, err := r.getReprioritizedJobProto(event)
 	if err != nil {
 		return err
 	}
 
 	ds := r.db.Insert(jobTable).
 		Rows(goqu.Record{
-			"job_id":   event.JobId,
-			"queue":    event.Queue,
-			"jobset":   event.JobSetId,
-			"priority": event.NewPriority,
-			"job":      updatedJobJson,
+			"job_id":        event.JobId,
+			"queue":         event.Queue,
+			"jobset":        event.JobSetId,
+			"priority":      event.NewPriority,
+			"orig_job_spec": updatedJobProto,
 		}).
 		OnConflict(goqu.DoUpdate("job_id", goqu.Record{
-			"queue":    event.Queue,
-			"jobset":   event.JobSetId,
-			"priority": event.NewPriority,
-			"job":      updatedJobJson,
+			"queue":         event.Queue,
+			"jobset":        event.JobSetId,
+			"priority":      event.NewPriority,
+			"orig_job_spec": updatedJobProto,
 		}))
 
 	_, err = ds.Prepared(true).Executor().Exec()
@@ -163,7 +161,6 @@ func (r *SQLJobStore) RecordJobDuplicate(event *api.JobDuplicateFoundEvent) erro
 }
 
 func (r *SQLJobStore) RecordJobPending(event *api.JobPendingEvent) error {
-
 	tx, err := r.db.Begin()
 	if err != nil {
 		return err
@@ -257,7 +254,6 @@ func (r *SQLJobStore) RecordJobSucceeded(event *api.JobSucceededEvent) error {
 	}
 
 	return tx.Wrap(func() error {
-
 		if err := upsertJobRun(tx, jobRunRecord); err != nil {
 			return err
 		}
@@ -293,7 +289,7 @@ func (r *SQLJobStore) RecordJobFailed(event *api.JobFailedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      truncateError(event.GetReason()),
+		"error":      util.Truncate(util.RemoveNullsFromString(event.GetReason()), util.MaxMessageLength),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -341,7 +337,7 @@ func (r *SQLJobStore) RecordJobUnableToSchedule(event *api.JobUnableToScheduleEv
 		"pod_number":         event.GetPodNumber(),
 		"finished":           ToUTC(event.GetCreated()),
 		"unable_to_schedule": true,
-		"error":              truncateError(event.GetReason()),
+		"error":              util.Truncate(util.RemoveNullsFromString(event.GetReason()), util.MaxMessageLength),
 	}
 	if event.GetNodeName() != "" {
 		jobRunRecord["node"] = event.GetNodeName()
@@ -365,7 +361,7 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 		"pod_number": event.GetPodNumber(),
 		"finished":   ToUTC(event.GetCreated()),
 		"succeeded":  false,
-		"error":      truncateError(event.GetReason()),
+		"error":      util.Truncate(util.RemoveNullsFromString(event.GetReason()), util.MaxMessageLength),
 	}
 
 	tx, err := r.db.Begin()
@@ -378,42 +374,33 @@ func (r *SQLJobStore) RecordJobTerminated(event *api.JobTerminatedEvent) error {
 	})
 }
 
-func (r *SQLJobStore) getReprioritizedJobJson(event *api.JobReprioritizedEvent) (sql.NullString, error) {
+func (r *SQLJobStore) getReprioritizedJobProto(event *api.JobReprioritizedEvent) ([]byte, error) {
 	selectDs := r.db.From(jobTable).
-		Select(job_job).
+		Select(job_orig_job_spec).
 		Where(job_jobId.Eq(event.JobId))
 
 	jobsInQueueRows := make([]*JobRow, 0)
 	err := selectDs.Prepared(true).ScanStructs(&jobsInQueueRows)
 	if err != nil {
-		return sql.NullString{}, err
+		return nil, err
 	}
 	if len(jobsInQueueRows) == 0 {
-		return sql.NullString{}, nil
+		return nil, nil
 	}
 
-	var jobFromJson api.Job
-	jobJson := ParseNullString(jobsInQueueRows[0].JobJson)
-	err = json.Unmarshal([]byte(jobJson), &jobFromJson)
-	// We don't care about parsing errors, the JSON will not be updated
+	var jobFromProto api.Job
+	jobProto := jobsInQueueRows[0].OrigJobSpec
+	err = jobFromProto.Unmarshal([]byte(jobProto.String))
 	if err != nil {
-		return sql.NullString{}, nil
+		return nil, err
 	}
 
-	jobFromJson.Priority = event.NewPriority
-	updatedJobJson, err := json.Marshal(jobFromJson)
+	jobFromProto.Priority = event.NewPriority
+	updatedJobProto, err := jobFromProto.Marshal()
 	if err != nil {
-		return sql.NullString{}, nil
+		return nil, nil
 	}
-	return NewNullString(string(updatedJobJson)), nil
-}
-
-func (r *SQLJobStore) getUpdatedJobJson(event *api.JobUpdatedEvent) (sql.NullString, error) {
-	updatedJobJson, err := json.Marshal(event.Job)
-	if err != nil {
-		return sql.NullString{}, nil
-	}
-	return NewNullString(string(updatedJobJson)), nil
+	return updatedJobProto, nil
 }
 
 func upsertJobRun(tx *goqu.TxDatabase, record goqu.Record) error {
@@ -512,8 +499,4 @@ func getRunStateCounts(tx *goqu.TxDatabase, jobId string) *goqu.SelectDataset {
 // Avoid interpolating states
 func stateAsLiteral(state JobState) exp.LiteralExpression {
 	return goqu.L(fmt.Sprintf("%d", JobStateToIntMap[state]))
-}
-
-func truncateError(err string) string {
-	return fmt.Sprintf("%.2048s", err)
 }

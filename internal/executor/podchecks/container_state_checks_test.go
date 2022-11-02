@@ -13,7 +13,6 @@ import (
 )
 
 func Test_getAction_WhenNoContainers_AndNoChecks_ReturnsWait(t *testing.T) {
-
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{})
 	assert.Nil(t, err)
 
@@ -23,7 +22,11 @@ func Test_getAction_WhenNoContainers_AndNoChecks_ReturnsWait(t *testing.T) {
 }
 
 func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *testing.T) {
-	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"}})
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{
+			{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"},
+		},
+	)
 	assert.Nil(t, err)
 
 	pod := basicPod()
@@ -35,7 +38,11 @@ func Test_getAction_WhenOneFailedContainer_WithMatchingFailCheck_ReturnsFail(t *
 }
 
 func Test_getAction_WhenOneFailedContainer_ButNotHitTimeout_ReturnsWait(t *testing.T) {
-	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"}})
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{
+			{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"},
+		},
+	)
 	assert.Nil(t, err)
 
 	pod := basicPod()
@@ -47,7 +54,11 @@ func Test_getAction_WhenOneFailedContainer_ButNotHitTimeout_ReturnsWait(t *testi
 }
 
 func Test_getAction_WhenOneFailedContainer_ButReasonDoesNotMatch_ReturnsWait(t *testing.T) {
-	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"}})
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{
+			{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"},
+		},
+	)
 	assert.Nil(t, err)
 
 	pod := basicPod()
@@ -59,7 +70,11 @@ func Test_getAction_WhenOneFailedContainer_ButReasonDoesNotMatch_ReturnsWait(t *
 }
 
 func Test_getAction_WhenOneFailedContainer_ButStateNotWaiting_ReturnsWait(t *testing.T) {
-	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"}})
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{
+			{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "InvalidImageName"},
+		},
+	)
 	assert.Nil(t, err)
 
 	pod := basicPod()
@@ -89,7 +104,6 @@ func Test_getAction_WhenTwoFailedContainers_AndTwoChecks_MostDrasticActionWins(t
 }
 
 func Test_getAction_WhenOneFailedContainer_FirstMatchingCheckIsNotTimedOut_ButLaterMatchingCheckIsTimedOut_Waits(t *testing.T) {
-
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{
 		{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute * 10, ReasonRegexp: "ImagePullBackOff"},
 		{Action: config.ActionRetry, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: ".*"},
@@ -106,7 +120,6 @@ func Test_getAction_WhenOneFailedContainer_FirstMatchingCheckIsNotTimedOut_ButLa
 }
 
 func Test_getAction_Inverse_Works(t *testing.T) {
-
 	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{
 		{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "ImagePullBackOff", Inverse: true},
 	})
@@ -126,13 +139,17 @@ func Test_getAction_Inverse_Works(t *testing.T) {
 }
 
 func Test_newContainerStateChecks_InvalidRegexp_ReturnsError(t *testing.T) {
-	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "["}})
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{{Action: config.ActionFail, State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: "["}},
+	)
 	assert.Nil(t, csc)
 	assert.NotNil(t, err)
 }
 
 func Test_newContainerStateChecks_InvalidAction_ReturnsError(t *testing.T) {
-	csc, err := newContainerStateChecks([]config.ContainerStatusCheck{{Action: "wrong", State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: ""}})
+	csc, err := newContainerStateChecks(
+		[]config.ContainerStatusCheck{{Action: "wrong", State: config.ContainerStateWaiting, GracePeriod: time.Minute, ReasonRegexp: ""}},
+	)
 	assert.Nil(t, csc)
 	assert.NotNil(t, err)
 }

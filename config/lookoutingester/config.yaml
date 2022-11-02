@@ -10,6 +10,8 @@ postgres:
     dbname: postgres
     sslmode: disable
 
+metrics:
+  port: 9003
 
 pulsar:
   enabled: true
@@ -22,4 +24,5 @@ batchSize: 10000
 batchDuration: 500ms
 pulsarReceiveTimeout: 5s
 pulsarBackoffTime: 1s
-MinJobSpecCompressionSize: 1024
+minJobSpecCompressionSize: 1024
+userAnnotationPrefix: "armadaproject.io/"

@@ -2,10 +2,12 @@ package validation
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
@@ -24,7 +26,6 @@ func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
 }
 
 func Test_ValidatePodSpec_checkForResources(t *testing.T) {
-
 	cpu := resource.MustParse("1")
 	cpu2 := resource.MustParse("2")
 	memory := resource.MustParse("512Mi")
@@ -54,6 +55,34 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 			},
 		}},
 	}, schedulingConfig))
+}
+
+func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
+	schedulingConfig := &configuration.SchedulingConfig{
+		Preemption: configuration.PreemptionConfig{
+			Enabled:              true,
+			DefaultPriorityClass: "high",
+			PriorityClasses:      map[string]configuration.PriorityClass{"high": {Priority: 0}},
+		},
+		MinTerminationGracePeriod: time.Duration(30 * time.Second),
+		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
+	}
+
+	podspecWithinRange := &v1.PodSpec{
+		TerminationGracePeriodSeconds: pointer.Int64(60),
+		PriorityClassName:             "high",
+	}
+	podspecOutsideRange := &v1.PodSpec{
+		TerminationGracePeriodSeconds: pointer.Int64(29),
+		PriorityClassName:             "high",
+	}
+	podspecNoSetting := &v1.PodSpec{
+		PriorityClassName: "high",
+	}
+
+	assert.Error(t, validateTerminationGracePeriod(podspecOutsideRange, schedulingConfig))
+	assert.NoError(t, validateTerminationGracePeriod(podspecWithinRange, schedulingConfig))
+	assert.NoError(t, validateTerminationGracePeriod(podspecNoSetting, schedulingConfig))
 }
 
 func Test_ValidatePodSpec_checkForPortConfiguration(t *testing.T) {
@@ -200,7 +229,7 @@ func Test_ValidatePodSpec_WhenExceedsMaxSize_Fails(t *testing.T) {
 	assert.Error(t, ValidatePodSpec(spec, schedulingConfig))
 }
 
-func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeedes(t *testing.T) {
+func Test_ValidatePodSpec_WhenResourcesAboveMinimum_Succeeds(t *testing.T) {
 	spec := minimalValidPodSpec()
 
 	schedulingConfig := &configuration.SchedulingConfig{
@@ -254,4 +283,31 @@ func minimalValidPodSpec() *v1.PodSpec {
 			},
 		},
 	}
+}
+
+func Test_ValidatePodSpecPriorityClass(t *testing.T) {
+	validPriorityClass := &v1.PodSpec{PriorityClassName: "some-priority-class"}
+	allowedPriorityClasses := map[string]configuration.PriorityClass{"some-priority-class": {Priority: 10}}
+	assert.NoError(
+		t,
+		ValidatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),
+		"validation should pass when specified priority class is configured to be allowed and preemption is enabled",
+	)
+
+	err := ValidatePodSpecPriorityClass(validPriorityClass, false, allowedPriorityClasses)
+	assert.Error(
+		t,
+		err,
+		"validation should fail if priority class is specified and disabled",
+	)
+	validateInvalidArgumentErrorMessage(t, err, "Preemption is disabled in Server config")
+
+	invalidPriorityClass := &v1.PodSpec{PriorityClassName: "some-other-priority-class"}
+	err = ValidatePodSpecPriorityClass(invalidPriorityClass, true, allowedPriorityClasses)
+	assert.Error(
+		t,
+		err,
+		"validation should fail if specified priority class is not configured to be allowed",
+	)
+	validateInvalidArgumentErrorMessage(t, err, "Specified Priority Class is not supported in Server config")
 }

@@ -227,6 +227,36 @@
         }
       }
     },
+    "/v1/jobset/cancel": {
+      "post": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "CancelJobSet",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiJobSetCancelRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/queue": {
       "post": {
         "tags": [
@@ -487,6 +517,9 @@
         "failed": {
           "$ref": "#/definitions/apiJobFailedEvent"
         },
+        "failedCompressed": {
+          "$ref": "#/definitions/apiJobFailedEventCompressed"
+        },
         "ingressInfo": {
           "$ref": "#/definitions/apiJobIngressInfoEvent"
         },
@@ -501,6 +534,9 @@
         },
         "pending": {
           "$ref": "#/definitions/apiJobPendingEvent"
+        },
+        "preempted": {
+          "$ref": "#/definitions/apiJobPreemptedEvent"
         },
         "queued": {
           "$ref": "#/definitions/apiJobQueuedEvent"
@@ -596,6 +632,10 @@
         "clientId": {
           "type": "string"
         },
+        "compressedQueueOwnershipUserGroups": {
+          "type": "string",
+          "format": "byte"
+        },
         "created": {
           "type": "string",
           "format": "date-time"
@@ -614,7 +654,6 @@
           "type": "string"
         },
         "k8sIngress": {
-          "description": "repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\ngithub.com.G-Research.armada.internal.events.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/v1Ingress"
@@ -665,6 +704,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "scheduler": {
+          "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
+          "type": "string"
         },
         "services": {
           "type": "array",
@@ -805,6 +848,16 @@
         },
         "reason": {
           "type": "string"
+        }
+      }
+    },
+    "apiJobFailedEventCompressed": {
+      "type": "object",
+      "title": "Only used internally by Armada",
+      "properties": {
+        "event": {
+          "type": "string",
+          "format": "byte"
         }
       }
     },
@@ -955,6 +1008,36 @@
         }
       }
     },
+    "apiJobPreemptedEvent": {
+      "type": "object",
+      "properties": {
+        "clusterId": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "jobId": {
+          "type": "string"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "preemptiveJobId": {
+          "type": "string"
+        },
+        "preemptiveRunId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        }
+      }
+    },
     "apiJobQueuedEvent": {
       "type": "object",
       "properties": {
@@ -1094,6 +1177,33 @@
         }
       }
     },
+    "apiJobSetCancelRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/apiJobSetFilter"
+        },
+        "jobSetId": {
+          "type": "string"
+        },
+        "queue": {
+          "type": "string"
+        }
+      }
+    },
+    "apiJobSetFilter": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiJobState"
+          }
+        }
+      }
+    },
     "apiJobSetInfo": {
       "type": "object",
       "properties": {
@@ -1117,7 +1227,10 @@
         "errorIfMissing": {
           "type": "boolean"
         },
-        "forceRedis": {
+        "forceLegacy": {
+          "type": "boolean"
+        },
+        "forceNew": {
           "type": "boolean"
         },
         "fromMessageId": {
@@ -1133,6 +1246,16 @@
           "type": "boolean"
         }
       }
+    },
+    "apiJobState": {
+      "type": "string",
+      "title": "swagger:model",
+      "default": "QUEUED",
+      "enum": [
+        "QUEUED",
+        "PENDING",
+        "RUNNING"
+      ]
     },
     "apiJobSubmitRequest": {
       "type": "object",
@@ -1197,6 +1320,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "scheduler": {
+          "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
+          "type": "string"
         },
         "services": {
           "type": "array",

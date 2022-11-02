@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/lookoutingester/metrics"
+
+	"github.com/G-Research/armada/internal/lookout/repository"
+
 	"github.com/G-Research/armada/internal/pulsarutils"
 
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -15,31 +19,33 @@ import (
 
 	"github.com/G-Research/armada/internal/lookout/testutil"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-const jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-const runIdString = "123e4567-e89b-12d3-a456-426614174000"
+const (
+	jobIdString    = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString    = "123e4567-e89b-12d3-a456-426614174000"
+	jobSetName     = "testJobset"
+	executorId     = "testCluster"
+	nodeName       = "testNode"
+	queue          = "test-queue"
+	userId         = "testUser"
+	priority       = 3
+	updatePriority = 4
+	updateState    = 5
+	podNumber      = 6
+	jobJson        = `{"foo": "bar"}`
+	jobProto       = "hello world"
+	containerName  = "testContainer"
+)
 
-var jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
+var m = metrics.Get()
 
-const jobSetName = "testJobset"
-const executorId = "testCluster"
-const nodeName = "testNode"
-const queue = "test-queue"
-const userId = "testUser"
-const priority = 3
-const updatePriority = 4
-const updateState = 5
-const podNumber = 6
-const jobJson = `{"foo": "bar"}`
-const jobProto = "hello world"
-const containerName = "testContainer"
-
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-var updateTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
-var startTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
-var finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+var (
+	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
+	startTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
+	finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+)
 
 // An invalid job id that exceeds th varchar count
 var invalidId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -51,7 +57,6 @@ type JobRow struct {
 	JobSet    string
 	Priority  uint32
 	Submitted time.Time
-	JobJson   []byte
 	JobProto  []byte
 	State     int64
 	Duplicate bool
@@ -94,7 +99,6 @@ func defaultInstructionSet() *model.InstructionSet {
 			JobSet:    jobSetName,
 			Priority:  priority,
 			Submitted: baseTime,
-			JobJson:   []byte(jobJson),
 			JobProto:  []byte(jobProto),
 			State:     0,
 			Updated:   baseTime,
@@ -131,7 +135,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			ContainerName: containerName,
 			ExitCode:      3,
 		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{pulsarutils.NewMessageId(3), 0, 1}},
+		MessageIds: []*pulsarutils.ConsumerMessageId{{MessageId: pulsarutils.NewMessageId(3), Index: 0, ConsumerId: 1}},
 	}
 }
 
@@ -142,7 +146,6 @@ var expectedJobAfterSubmit = JobRow{
 	JobSet:    jobSetName,
 	Priority:  priority,
 	Submitted: baseTime,
-	JobJson:   []byte(jobJson),
 	JobProto:  []byte(jobProto),
 	State:     0,
 	Updated:   baseTime,
@@ -158,7 +161,6 @@ var expectedJobAfterUpdate = JobRow{
 	State:     updateState,
 	Updated:   updateTime,
 	Submitted: baseTime,
-	JobJson:   []byte(jobJson),
 	JobProto:  []byte(jobProto),
 	Duplicate: false,
 }
@@ -199,14 +201,15 @@ var expectedJobRunContainer = JobRunContainerRow{
 
 func TestCreateJobsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		ldb := New(db, m)
 		// Insert
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and test that it's idempotent
-		err = CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
@@ -217,7 +220,7 @@ func TestCreateJobsBatch(t *testing.T) {
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
-		err = CreateJobsBatch(ctx.Background(), db, append(defaultInstructionSet().JobsToCreate, invalidJob))
+		err = ldb.CreateJobsBatch(ctx.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
 		assert.Error(t, err)
 		assertNoRows(t, db, "job")
 		return nil
@@ -227,30 +230,31 @@ func TestCreateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		ldb := New(db, m)
 		// Insert
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		err = UpdateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToUpdate)
+		err = ldb.UpdateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToUpdate)
 		assert.Nil(t, err)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
-		err = UpdateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToUpdate)
+		err = ldb.UpdateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToUpdate)
 		assert.Nil(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
-		// If a update is bad then we should return an error and no updates should happen
+		// If an update is bad then we should return an error and no updates should happen
 		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
-		err = CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		invalidUpdate := &model.UpdateJobInstruction{
 			JobId: invalidId,
 		}
-		err = UpdateJobsBatch(ctx.Background(), db, append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
+		err = ldb.UpdateJobsBatch(ctx.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
 		assert.Error(t, err)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
@@ -261,29 +265,30 @@ func TestUpdateJobsBatch(t *testing.T) {
 
 func TestUpdateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		ldb := New(db, m)
 		// Insert
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		UpdateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToUpdate)
+		ldb.UpdateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToUpdate)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// Insert again and test that it's idempotent
-		UpdateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToUpdate)
+		ldb.UpdateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToUpdate)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 
 		// If a update is bad then we should return an error and no updates should happen
 		_, err = db.Exec(ctx.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
-		err = CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err = ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 		invalidUpdate := &model.UpdateJobInstruction{
 			JobId: invalidId,
 		}
-		UpdateJobsScalar(ctx.Background(), db, append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
+		ldb.UpdateJobsScalar(ctx.Background(), append(defaultInstructionSet().JobsToUpdate, invalidUpdate))
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		return nil
@@ -291,26 +296,72 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUpdateJobsWithCancelled(t *testing.T) {
+	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		initial := []*model.CreateJobInstruction{{
+			JobId:     jobIdString,
+			Queue:     queue,
+			Owner:     userId,
+			JobSet:    jobSetName,
+			Priority:  priority,
+			Submitted: baseTime,
+			JobProto:  []byte(jobProto),
+			State:     0,
+			Updated:   baseTime,
+		}}
+
+		update1 := []*model.UpdateJobInstruction{{
+			JobId:   jobIdString,
+			State:   pointer.Int32(repository.JobCancelledOrdinal),
+			Updated: baseTime,
+		}}
+
+		update2 := []*model.UpdateJobInstruction{{
+			JobId:   jobIdString,
+			State:   pointer.Int32(repository.JobRunningOrdinal),
+			Updated: baseTime,
+		}}
+
+		ldb := New(db, m)
+
+		// Insert
+		ldb.CreateJobs(ctx.Background(), initial)
+
+		// Cancel the job
+		ldb.UpdateJobs(ctx.Background(), update1)
+
+		// Update the job - this should be discarded
+		ldb.UpdateJobs(ctx.Background(), update2)
+
+		// Assert the state is still cancelled
+		job := getJob(t, db, jobIdString)
+		assert.Equal(t, repository.JobCancelledOrdinal, int(job.State))
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestCreateJobsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
+		ldb := New(db, m)
 		// Simple create
-		CreateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// Insert again and check for idempotency
-		CreateJobsScalar(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 
 		// If a row is bad then we should update only the good rows
-		_, err := db.Exec(ctx.Background(), "DELETE FROM job")
+		_, err := ldb.db.Exec(ctx.Background(), "DELETE FROM job")
 		assert.NoError(t, err)
 		invalidJob := &model.CreateJobInstruction{
 			JobId: invalidId,
 		}
-		CreateJobsScalar(ctx.Background(), db, append(defaultInstructionSet().JobsToCreate, invalidJob))
+		ldb.CreateJobsScalar(ctx.Background(), append(defaultInstructionSet().JobsToCreate, invalidJob))
 		job = getJob(t, db, jobIdString)
 		assert.Equal(t, expectedJobAfterSubmit, job)
 		return nil
@@ -320,30 +371,30 @@ func TestCreateJobsScalar(t *testing.T) {
 
 func TestCreateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
-		// Need to make sure we have a job so we can satisfy PK
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		ldb := New(db, m)
+		// Need to make sure we have a job, so we can satisfy PK
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		err = CreateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 		job := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
-		err = CreateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// If a row is bad then we should return an error and no updates should happen
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job_run")
+		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM job_run")
 		assert.NoError(t, err)
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
-		err = CreateJobRunsBatch(ctx.Background(), db, append(defaultInstructionSet().JobRunsToCreate, invalidRun))
+		err = ldb.CreateJobRunsBatch(ctx.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
 		assert.Error(t, err)
 		assertNoRows(t, db, "job_run")
 		return nil
@@ -353,18 +404,18 @@ func TestCreateJobRunsBatch(t *testing.T) {
 
 func TestCreateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
-		// Need to make sure we have a job so we can satisfy PK
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		ldb := New(db, m)
+		// Need to make sure we have a job, so we can satisfy PK
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		CreateJobRunsScalar(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		ldb.CreateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		job := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
 		// Insert again and test that it's idempotent
-		CreateJobRunsScalar(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		ldb.CreateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 
@@ -374,7 +425,7 @@ func TestCreateJobRunsScalar(t *testing.T) {
 		invalidRun := &model.CreateJobRunInstruction{
 			RunId: invalidId,
 		}
-		CreateJobRunsScalar(ctx.Background(), db, append(defaultInstructionSet().JobRunsToCreate, invalidRun))
+		ldb.CreateJobRunsScalar(ctx.Background(), append(defaultInstructionSet().JobRunsToCreate, invalidRun))
 		job = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, job)
 		return nil
@@ -384,22 +435,22 @@ func TestCreateJobRunsScalar(t *testing.T) {
 
 func TestUpdateJobRunsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
+		ldb := New(db, m)
 		// Need to make sure we have a job and run
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
-		err = CreateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		err = UpdateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToUpdate)
+		err = ldb.UpdateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
-		err = UpdateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToUpdate)
+		err = ldb.UpdateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
@@ -410,9 +461,9 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 		invalidRun := &model.UpdateJobRunInstruction{
 			RunId: invalidId,
 		}
-		err = CreateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		err = UpdateJobRunsBatch(ctx.Background(), db, append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
+		err = ldb.UpdateJobRunsBatch(ctx.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
 		assert.Error(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRun, run)
@@ -423,36 +474,36 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 
 func TestUpdateJobRunsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
+		ldb := New(db, m)
 		// Need to make sure we have a job and run
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
-		err = CreateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
 
 		// Update
-		UpdateJobRunsScalar(ctx.Background(), db, defaultInstructionSet().JobRunsToUpdate)
+		ldb.UpdateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run := getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// Update again and test that it's idempotent
-		UpdateJobRunsScalar(ctx.Background(), db, defaultInstructionSet().JobRunsToUpdate)
+		ldb.UpdateJobRunsScalar(ctx.Background(), defaultInstructionSet().JobRunsToUpdate)
 		assert.Nil(t, err)
 		run = getJobRun(t, db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 
 		// If a row is bad then we should update the rows we can
-		_, err = db.Exec(ctx.Background(), "DELETE FROM job_run;")
+		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM job_run;")
 		assert.Nil(t, err)
 		invalidRun := &model.UpdateJobRunInstruction{
 			RunId: invalidId,
 		}
-		err = CreateJobRunsBatch(ctx.Background(), db, defaultInstructionSet().JobRunsToCreate)
+		err = ldb.CreateJobRunsBatch(ctx.Background(), defaultInstructionSet().JobRunsToCreate)
 		assert.Nil(t, err)
-		UpdateJobRunsScalar(ctx.Background(), db, append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
-		run = getJobRun(t, db, runIdString)
+		ldb.UpdateJobRunsScalar(ctx.Background(), append(defaultInstructionSet().JobRunsToUpdate, invalidRun))
+		run = getJobRun(t, ldb.db, runIdString)
 		assert.Equal(t, expectedJobRunAfterUpdate, run)
 		return nil
 	})
@@ -461,32 +512,32 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
+		ldb := New(db, m)
 		// Need to make sure we have a job
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		err = CreateUserAnnotationsBatch(ctx.Background(), db, defaultInstructionSet().UserAnnotationsToCreate)
+		err = ldb.CreateUserAnnotationsBatch(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		assert.Nil(t, err)
 		annotation := getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// Insert again and test that it's idempotent
-		err = CreateUserAnnotationsBatch(ctx.Background(), db, defaultInstructionSet().UserAnnotationsToCreate)
+		err = ldb.CreateUserAnnotationsBatch(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		assert.Nil(t, err)
 		annotation = getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// If a row is bad then we should return an error and no updates should happen
-		_, err = db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
 		assert.NoError(t, err)
 		invalidAnnotation := &model.CreateUserAnnotationInstruction{
 			JobId: invalidId,
 		}
-		err = CreateUserAnnotationsBatch(ctx.Background(), db, append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
+		err = ldb.CreateUserAnnotationsBatch(ctx.Background(), append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
 		assert.Error(t, err)
-		assertNoRows(t, db, "user_annotation_lookup")
+		assertNoRows(t, ldb.db, "user_annotation_lookup")
 		return nil
 	})
 	assert.NoError(t, err)
@@ -494,11 +545,12 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 
 func TestEmptyUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		Update(ctx.Background(), db, &model.InstructionSet{})
-		assertNoRows(t, db, "job")
-		assertNoRows(t, db, "job_run")
-		assertNoRows(t, db, "user_annotation_lookup")
-		assertNoRows(t, db, "job_run_container")
+		ldb := New(db, m)
+		ldb.Update(ctx.Background(), &model.InstructionSet{})
+		assertNoRows(t, ldb.db, "job")
+		assertNoRows(t, ldb.db, "job_run")
+		assertNoRows(t, ldb.db, "user_annotation_lookup")
+		assertNoRows(t, ldb.db, "job_run_container")
 		return nil
 	})
 	assert.NoError(t, err)
@@ -506,29 +558,29 @@ func TestEmptyUpdate(t *testing.T) {
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-
+		ldb := New(db, m)
 		// Need to make sure we have a job
-		err := CreateJobsBatch(ctx.Background(), db, defaultInstructionSet().JobsToCreate)
+		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
 		assert.Nil(t, err)
 
 		// Insert
-		CreateUserAnnotationsScalar(ctx.Background(), db, defaultInstructionSet().UserAnnotationsToCreate)
+		ldb.CreateUserAnnotationsScalar(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		annotation := getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// Insert again and test that it's idempotent
-		CreateUserAnnotationsScalar(ctx.Background(), db, defaultInstructionSet().UserAnnotationsToCreate)
+		ldb.CreateUserAnnotationsScalar(ctx.Background(), defaultInstructionSet().UserAnnotationsToCreate)
 		annotation = getUserAnnotationLookup(t, db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 
 		// If a row is bad then we should update the rows we can
-		_, err = db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
+		_, err = ldb.db.Exec(ctx.Background(), "DELETE FROM user_annotation_lookup")
 		assert.NoError(t, err)
 		invalidAnnotation := &model.CreateUserAnnotationInstruction{
 			JobId: invalidId,
 		}
-		CreateUserAnnotationsScalar(ctx.Background(), db, append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
-		annotation = getUserAnnotationLookup(t, db, jobIdString)
+		ldb.CreateUserAnnotationsScalar(ctx.Background(), append(defaultInstructionSet().UserAnnotationsToCreate, invalidAnnotation))
+		annotation = getUserAnnotationLookup(t, ldb.db, jobIdString)
 		assert.Equal(t, expectedUserAnnotation, annotation)
 		return nil
 	})
@@ -537,13 +589,14 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+		ldb := New(db, m)
 		// Do the update
-		Update(ctx.Background(), db, defaultInstructionSet())
+		ldb.Update(ctx.Background(), defaultInstructionSet())
 
-		job := getJob(t, db, jobIdString)
-		jobRun := getJobRun(t, db, runIdString)
-		annotation := getUserAnnotationLookup(t, db, jobIdString)
-		container := getJobRunContainer(t, db, runIdString)
+		job := getJob(t, ldb.db, jobIdString)
+		jobRun := getJobRun(t, ldb.db, runIdString)
+		annotation := getUserAnnotationLookup(t, ldb.db, jobIdString)
+		container := getJobRunContainer(t, ldb.db, runIdString)
 
 		assert.Equal(t, expectedJobAfterUpdate, job)
 		assert.Equal(t, expectedJobRunAfterUpdate, jobRun)
@@ -555,7 +608,6 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestConflateJobUpdates(T *testing.T) {
-
 	// Empty
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{})
 	assert.Equal(T, []*model.UpdateJobInstruction{}, updates)
@@ -581,8 +633,20 @@ func TestConflateJobUpdates(T *testing.T) {
 	assert.Equal(T, expected, updates)
 }
 
-func TestConflateJobRunUpdates(T *testing.T) {
+func TestConflateJobUpdatesWithCancelled(T *testing.T) {
+	// Updates after the cancelled shouldn't be processed
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: jobIdString, State: pointer.Int32(repository.JobRunningOrdinal)},
+	})
 
+	expected := []*model.UpdateJobInstruction{
+		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+	}
+	assert.Equal(T, expected, updates)
+}
+
+func TestConflateJobRunUpdates(T *testing.T) {
 	// Empty
 	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{})
 	assert.Equal(T, []*model.UpdateJobRunInstruction{}, updates)
@@ -613,9 +677,21 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 	job := JobRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated, job, orig_job_spec, cancelled FROM job WHERE job_id = $1`,
+		`SELECT job_id, queue, owner, jobset, priority, submitted, state, duplicate, job_updated,  orig_job_spec, cancelled FROM job WHERE job_id = $1`,
 		jobId)
-	err := r.Scan(&job.JobId, &job.Queue, &job.Owner, &job.JobSet, &job.Priority, &job.Submitted, &job.State, &job.Duplicate, &job.Updated, &job.JobJson, &job.JobProto, &job.Cancelled)
+	err := r.Scan(
+		&job.JobId,
+		&job.Queue,
+		&job.Owner,
+		&job.JobSet,
+		&job.Priority,
+		&job.Submitted,
+		&job.State,
+		&job.Duplicate,
+		&job.Updated,
+		&job.JobProto,
+		&job.Cancelled,
+	)
 	assert.Nil(t, err)
 	return job
 }
@@ -626,7 +702,19 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		ctx.Background(),
 		`SELECT run_id, job_id, cluster, node, created, started, finished, succeeded, error, pod_number, unable_to_schedule FROM job_run WHERE run_id = $1`,
 		runId)
-	err := r.Scan(&run.RunId, &run.JobId, &run.Cluster, &run.Node, &run.Created, &run.Started, &run.Finished, &run.Succeeded, &run.Error, &run.PodNumber, &run.UnableToSchedule)
+	err := r.Scan(
+		&run.RunId,
+		&run.JobId,
+		&run.Cluster,
+		&run.Node,
+		&run.Created,
+		&run.Started,
+		&run.Finished,
+		&run.Succeeded,
+		&run.Error,
+		&run.PodNumber,
+		&run.UnableToSchedule,
+	)
 	assert.Nil(t, err)
 	return run
 }

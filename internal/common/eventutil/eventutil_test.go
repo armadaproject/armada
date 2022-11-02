@@ -199,6 +199,48 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 	}
 }
 
+func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
+	testEvent := api.JobPreemptedEvent{
+		JobId:           "01gddx8ezywph2tbwfcvgpe5nn",
+		JobSetId:        "test-set-a",
+		Queue:           "queue-a",
+		Created:         time.Now(),
+		ClusterId:       "test-cluster",
+		RunId:           "dde7325b-f1e9-43e6-8b38-f7a0ade07123",
+		PreemptiveJobId: "01gddx9rjds05t37zd83379t9z",
+		PreemptiveRunId: "db1da934-7366-449e-aed7-562e80730a35",
+	}
+	testEventMessage := api.EventMessage{Events: &api.EventMessage_Preempted{Preempted: &testEvent}}
+
+	expectedPreemptedJobId, err := armadaevents.ProtoUuidFromUlidString(testEvent.JobId)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, expectedPreemptedJobId)
+	expectedPreemptedRunId, err := armadaevents.ProtoUuidFromUuidString(testEvent.RunId)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, expectedPreemptedRunId)
+
+	expectedPreemptiveJobId, err := armadaevents.ProtoUuidFromUlidString(testEvent.PreemptiveJobId)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, expectedPreemptiveJobId)
+	expectedPreemptiveRunId, err := armadaevents.ProtoUuidFromUuidString(testEvent.PreemptiveRunId)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, expectedPreemptiveRunId)
+
+	converted, err := EventSequenceFromApiEvent(&testEventMessage)
+
+	assert.NoError(t, err)
+	assert.Len(t, converted.Events, 1)
+	assert.IsType(t, converted.Events[0].Event, &armadaevents.EventSequence_Event_JobRunPreempted{})
+
+	evtSeqPreempted := converted.Events[0].Event.(*armadaevents.EventSequence_Event_JobRunPreempted)
+	assert.Equal(t, converted.JobSetName, testEvent.JobSetId)
+	assert.Equal(t, converted.Queue, testEvent.Queue)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptedJobId, expectedPreemptedJobId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptedRunId, expectedPreemptedRunId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptiveJobId, expectedPreemptiveJobId)
+	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptiveRunId, expectedPreemptiveRunId)
+}
+
 func TestConvertJobSinglePodSpec(t *testing.T) {
 	expected := testJob(false)
 
@@ -373,7 +415,6 @@ func testContainer(name string) v1.Container {
 }
 
 func TestCompactSequences_Basic(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -431,7 +472,6 @@ func TestCompactSequences_Basic(t *testing.T) {
 }
 
 func TestCompactSequences_JobSetOrder(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -535,7 +575,6 @@ func TestCompactSequences_JobSetOrder(t *testing.T) {
 }
 
 func TestCompactSequences_Groups(t *testing.T) {
-
 	sequences := []*armadaevents.EventSequence{
 		{
 			Queue:      "queue1",
@@ -644,14 +683,18 @@ func TestLimitSequenceByteSize(t *testing.T) {
 		})
 	}
 
-	actual, err := LimitSequenceByteSize(sequence, 1000)
+	actual, err := LimitSequenceByteSize(sequence, 1000, true)
 	if !assert.NoError(t, err) {
 		return
 	}
 	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
 
-	_, err = LimitSequenceByteSize(sequence, 1)
+	_, err = LimitSequenceByteSize(sequence, 1, true)
 	assert.Error(t, err)
+
+	_, err = LimitSequenceByteSize(sequence, 1, false)
+	assert.NoError(t, err)
+	assert.Equal(t, []*armadaevents.EventSequence{sequence}, actual)
 
 	expected := make([]*armadaevents.EventSequence, numEvents)
 	for i := 0; i < numEvents; i++ {
@@ -671,7 +714,7 @@ func TestLimitSequenceByteSize(t *testing.T) {
 			},
 		}
 	}
-	actual, err = LimitSequenceByteSize(sequence, 60)
+	actual, err = LimitSequenceByteSize(sequence, 60, true)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -706,7 +749,7 @@ func TestLimitSequencesByteSize(t *testing.T) {
 		sequences = append(sequences, sequence)
 	}
 
-	actual, err := LimitSequencesByteSize(sequences, 60)
+	actual, err := LimitSequencesByteSize(sequences, 60, true)
 	if !assert.NoError(t, err) {
 		return
 	}

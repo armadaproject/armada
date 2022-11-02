@@ -142,13 +142,18 @@ func connectionDetails() *client.ApiConnectionDetails {
 	return connectionDetails
 }
 
-func submitJobsAndWatch(t *testing.T, submitClient api.SubmitClient, eventsClient api.EventClient, jobRequest *api.JobSubmitRequest) (map[domain.JobStatus]bool, []api.Event) {
+func submitJobsAndWatch(
+	t *testing.T,
+	submitClient api.SubmitClient,
+	eventsClient api.EventClient,
+	jobRequest *api.JobSubmitRequest,
+) (map[domain.JobStatus]bool, []api.Event) {
 	_, err := client.SubmitJobs(submitClient, jobRequest)
 	assert.NoError(t, err)
 	statusEvents := make(map[domain.JobStatus]bool)
 	timeout, _ := context.WithTimeout(context.Background(), 60*time.Second)
 	allEvents := []api.Event{}
-	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, false, timeout, func(state *domain.WatchContext, e api.Event) bool {
+	client.WatchJobSet(eventsClient, jobRequest.Queue, jobRequest.JobSetId, true, false, false, false, timeout, func(state *domain.WatchContext, e api.Event) bool {
 		allEvents = append(allEvents, e)
 		currentStatus := state.GetJobInfo(e.GetJobId()).Status
 		statusEvents[currentStatus] = true
@@ -205,15 +210,16 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 			{
 				Namespace: namespace,
 				PodSpec: &v1.PodSpec{
-					Containers: []v1.Container{{
-						Name:  "container1",
-						Image: "alpine:3.10",
-						Args:  []string{"sleep", "5s"},
-						Resources: v1.ResourceRequirements{
-							Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
-							Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+					Containers: []v1.Container{
+						{
+							Name:  "container1",
+							Image: "alpine:3.10",
+							Args:  []string{"sleep", "5s"},
+							Resources: v1.ResourceRequirements{
+								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
+								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
+							},
 						},
-					},
 					},
 				},
 				Priority: 1,

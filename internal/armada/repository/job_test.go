@@ -34,7 +34,6 @@ func TestJobAddDifferentQueuesCanHaveSameClientId(t *testing.T) {
 
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		leasedAgain, e := r.TryLeaseJobs("cluster2", "queue1", []*api.Job{job})
@@ -278,7 +277,6 @@ func TestDeleteWithSomeMissingJobs(t *testing.T) {
 
 func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
-
 		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
 
 		result, err := r.DeleteJobs([]*api.Job{job})
@@ -306,6 +304,44 @@ func TestGetActiveJobIds(t *testing.T) {
 		ids, e := r.GetActiveJobIds("queue1", "set1")
 		assert.Nil(t, e)
 		assert.Equal(t, 2, len(ids))
+	})
+}
+
+func TestGetJobSetJobIds(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		queuedJob := addTestJob(t, r, "queue1")
+		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
+
+		// Gives all on when no filter provided
+		ids, e := r.GetJobSetJobIds("queue1", "set1", nil)
+		assert.Nil(t, e)
+		assert.Equal(t, 2, len(ids))
+
+		// Gives all on when filter includes all options
+		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
+			IncludeQueued: true,
+			IncludeLeased: true,
+		})
+		assert.Nil(t, e)
+		assert.Equal(t, 2, len(ids))
+
+		// Gives only queued when queued filter provided
+		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
+			IncludeQueued: true,
+			IncludeLeased: false,
+		})
+		assert.Nil(t, e)
+		assert.Equal(t, 1, len(ids))
+		assert.Equal(t, ids[0], queuedJob.Id)
+
+		// Gives only leased when leased filter provided
+		ids, e = r.GetJobSetJobIds("queue1", "set1", &JobSetFilter{
+			IncludeQueued: false,
+			IncludeLeased: true,
+		})
+		assert.Nil(t, e)
+		assert.Equal(t, 1, len(ids))
+		assert.Equal(t, ids[0], leasedJob.Id)
 	})
 }
 
@@ -595,25 +631,6 @@ func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 	})
 }
 
-func TestIterateQueueJobs(t *testing.T) {
-	withRepository(func(r *RedisJobRepository) {
-		addedJobs := []*api.Job{}
-		for i := 0; i < 10; i++ {
-			addedJobs = append(addedJobs, addTestJob(t, r, "q1"))
-		}
-
-		iteratedJobs := []*api.Job{}
-		err := r.IterateQueueJobs("q1", func(j *api.Job) {
-			iteratedJobs = append(iteratedJobs, j)
-		})
-
-		assert.Nil(t, err)
-		for i, j := range addedJobs {
-			assert.Equal(t, j.Id, iteratedJobs[i].Id)
-		}
-	})
-}
-
 func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
@@ -762,9 +779,25 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 	})
 }
 
+func TestUpdateJobs_AlreadyProcessed(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		queue := "test-queue"
+		jobId := util.NewULID()
+		submit1 := addTestJobInner(t, r, jobId, queue, "", 1, v1.ResourceRequirements{}, nil)
+		assert.NoError(t, submit1.Error)
+		assert.False(t, submit1.AlreadyProcessed)
+		assert.Equal(t, jobId, submit1.JobId)
+
+		submit2 := addTestJobInner(t, r, jobId, queue, "", 1, v1.ResourceRequirements{}, nil)
+		assert.NoError(t, submit2.Error)
+		assert.True(t, submit2.AlreadyProcessed)
+	})
+}
+
 func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_SameBatch(t *testing.T) {
 	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 10)
 }
+
 func TestUpdateJobs_WhenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed_DifferentBatch(t *testing.T) {
 	whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t, 1)
 }
@@ -820,17 +853,30 @@ func addTestJobWithClientId(t *testing.T, r *RedisJobRepository, queue string, c
 	cpu := resource.MustParse("1")
 	memory := resource.MustParse("512Mi")
 
-	return addTestJobInner(t, r, queue, clientId, 1, v1.ResourceRequirements{
+	result := addTestJobInner(t, r, "", queue, clientId, 1, v1.ResourceRequirements{
 		Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
 		Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 	}, []v1.Toleration{})
+	result.SubmittedJob.Id = result.JobId // Update job ids for tests to be able to test the duplicate d
+	return result.SubmittedJob
 }
 
-func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId string, priority float64, requirements v1.ResourceRequirements, tolerations []v1.Toleration) *api.Job {
-
+func addTestJobInner(
+	t *testing.T,
+	r *RedisJobRepository,
+	id string,
+	queue string,
+	clientId string,
+	priority float64,
+	requirements v1.ResourceRequirements,
+	tolerations []v1.Toleration,
+) *SubmitJobResult {
+	if id == "" {
+		id = util.NewULID()
+	}
 	jobs := make([]*api.Job, 0, 1)
 	j := &api.Job{
-		Id:       util.NewULID(),
+		Id:       id,
 		ClientId: clientId,
 		Queue:    queue,
 		JobSetId: "set1",
@@ -851,11 +897,10 @@ func addTestJobInner(t *testing.T, r *RedisJobRepository, queue string, clientId
 
 	results, e := r.AddJobs(jobs)
 	assert.Nil(t, e)
-	for i, result := range results {
+	for _, result := range results {
 		assert.Empty(t, result.Error)
-		jobs[i].Id = result.JobId // Update job ids for tests to be able to test the duplicate detection
 	}
-	return jobs[0]
+	return results[0]
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
@@ -863,7 +908,8 @@ func withRepository(action func(r *RedisJobRepository)) {
 }
 
 func withRepositoryUsingJobDefaults(
-	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository)) {
+	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository),
+) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()

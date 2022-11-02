@@ -238,6 +238,36 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/jobset/cancel\": {\n" +
+		"      \"post\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"CancelJobSet\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"name\": \"body\",\n" +
+		"            \"in\": \"body\",\n" +
+		"            \"required\": true,\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/apiJobSetCancelRequest\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.\",\n" +
+		"            \"schema\": {}\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/queue\": {\n" +
 		"      \"post\": {\n" +
 		"        \"tags\": [\n" +
@@ -498,6 +528,9 @@ func SwaggerJsonTemplate() string {
 		"        \"failed\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobFailedEvent\"\n" +
 		"        },\n" +
+		"        \"failedCompressed\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobFailedEventCompressed\"\n" +
+		"        },\n" +
 		"        \"ingressInfo\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobIngressInfoEvent\"\n" +
 		"        },\n" +
@@ -512,6 +545,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"pending\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobPendingEvent\"\n" +
+		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobPreemptedEvent\"\n" +
 		"        },\n" +
 		"        \"queued\": {\n" +
 		"          \"$ref\": \"#/definitions/apiJobQueuedEvent\"\n" +
@@ -607,6 +643,10 @@ func SwaggerJsonTemplate() string {
 		"        \"clientId\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"compressedQueueOwnershipUserGroups\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"byte\"\n" +
+		"        },\n" +
 		"        \"created\": {\n" +
 		"          \"type\": \"string\",\n" +
 		"          \"format\": \"date-time\"\n" +
@@ -625,7 +665,6 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"k8sIngress\": {\n" +
-		"          \"description\": \"repeated github.com.G-Research.armada.internal.events.KubernetesObject objects = 17;\\ngithub.com.G-Research.armada.internal.events.\",\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/v1Ingress\"\n" +
@@ -676,6 +715,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +
@@ -816,6 +859,16 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobFailedEventCompressed\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Only used internally by Armada\",\n" +
+		"      \"properties\": {\n" +
+		"        \"event\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"byte\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
@@ -966,6 +1019,36 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobPreemptedEvent\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"clusterId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"created\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
+		"        \"jobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveJobId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"preemptiveRunId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobQueuedEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1105,6 +1188,33 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobSetCancelRequest\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"filter\": {\n" +
+		"          \"$ref\": \"#/definitions/apiJobSetFilter\"\n" +
+		"        },\n" +
+		"        \"jobSetId\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiJobSetFilter\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"properties\": {\n" +
+		"        \"states\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobState\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobSetInfo\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1128,7 +1238,10 @@ func SwaggerJsonTemplate() string {
 		"        \"errorIfMissing\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
-		"        \"forceRedis\": {\n" +
+		"        \"forceLegacy\": {\n" +
+		"          \"type\": \"boolean\"\n" +
+		"        },\n" +
+		"        \"forceNew\": {\n" +
 		"          \"type\": \"boolean\"\n" +
 		"        },\n" +
 		"        \"fromMessageId\": {\n" +
@@ -1144,6 +1257,16 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"apiJobState\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"swagger:model\",\n" +
+		"      \"default\": \"QUEUED\",\n" +
+		"      \"enum\": [\n" +
+		"        \"QUEUED\",\n" +
+		"        \"PENDING\",\n" +
+		"        \"RUNNING\"\n" +
+		"      ]\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -1208,6 +1331,10 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
+		"        },\n" +
+		"        \"scheduler\": {\n" +
+		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
+		"          \"type\": \"string\"\n" +
 		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +

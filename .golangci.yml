@@ -1,0 +1,30 @@
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  print-issued-lines: true
+  format: github-actions
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    - lll
+    - gofumpt
+    - unused
+    - goimports
+    - ineffassign
+    - misspell
+
+linters-settings:
+  lll:
+    line-length: 261
+  misspell:
+    locale: UK
+    ignore-words:
+      - analyze
+      - serialize
+  goimports:
+    local-prefixes: github.com/G-Research/armada
+
