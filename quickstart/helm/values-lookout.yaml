@@ -1,0 +1,33 @@
+ingressClass: nginx
+clusterIssuer: dummy-value
+hostnames:
+  - test
+
+dbPruningEnabled: true
+dbPruneSchedule: "0 * * * *"
+
+prometheus:
+  enabled: true
+
+applicationConfig:
+  nats:
+    servers:
+      - nats://nats.default.svc.cluster.local:4222
+    clusterId: nats
+    subject: ArmadaTest
+    queueGroup: ArmadaLookoutEventProcessor
+  postgres:
+    maxOpenConns: 100
+    maxIdleConns: 25
+    connMaxLifetime: 30m
+    connection:
+      host: postgres-postgresql.default.svc.cluster.local
+      port: 5432
+      user: postgres
+      password: psw
+      dbname: postgres
+  uiConfig:
+    armadaApiBaseUrl: "http://armada.default.svc.cluster.local:8080"
+  prunerConfig:
+    daysToKeep: 42
+    batchSize: 1000

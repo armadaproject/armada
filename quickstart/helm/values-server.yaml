@@ -1,0 +1,44 @@
+ingressClass: "nginx"
+clusterIssuer: "dummy-value"
+hostnames:
+  - "dummy-value"
+replicas: 3
+
+applicationConfig:
+  pulsar:
+    url: "pulsar://pulsar-broker.default.svc.cluster.local:6650"
+  redis:
+    masterName: "mymaster"
+    addrs:
+      - "redis-redis-ha-announce-0.default.svc.cluster.local:26379"
+      - "redis-redis-ha-announce-1.default.svc.cluster.local:26379"
+      - "redis-redis-ha-announce-2.default.svc.cluster.local:26379"
+    poolSize: 1000
+  eventsRedis:
+    masterName: "mymaster"
+    addrs:
+      - "redis-redis-ha-announce-0.default.svc.cluster.local:26379"
+      - "redis-redis-ha-announce-1.default.svc.cluster.local:26379"
+      - "redis-redis-ha-announce-2.default.svc.cluster.local:26379"
+    poolSize: 1000
+  auth:
+    basicAuth:
+      enableAuthentication: false
+    anonymousAuth: true
+    permissionGroupMapping:
+      submit_jobs: ["everyone"]
+      submit_any_jobs: ["everyone"]
+      create_queue: ["everyone"]
+      delete_queue: ["everyone"]
+      cancel_jobs: ["everyone"]
+      cancel_any_jobs: ["everyone"]
+      reprioritize_jobs: ["everyone"]
+      reprioritize_any_jobs: ["everyone"]
+      watch_events: ["everyone"]
+      watch_all_events: ["everyone"]
+      execute_jobs: ["everyone"]
+
+prometheus:
+  enabled: true
+
+nodePort: 30000

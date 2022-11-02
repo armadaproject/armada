@@ -1,0 +1,11 @@
+applicationConfig:
+  apiConnection:
+    ## Please note that this setting is insecure
+    ## Do not use this setting in a production environment
+    ## This should only be used for the quickstart and local testing
+    forceNoTls: true 
+  kubernetes:
+    minimumPodAge: 0s
+
+prometheus:
+  enabled: true 
