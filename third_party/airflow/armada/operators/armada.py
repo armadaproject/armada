@@ -99,7 +99,7 @@ class ArmadaOperator(BaseOperator):
 
         armada_logger.info("Running Armada job %s with id %s", self.name, job_id)
 
-        lookout_url = self.get_lookout_url(job_id)
+        lookout_url = self._get_lookout_url(job_id)
         if len(lookout_url) > 0:
             armada_logger.info("Lookout URL: %s", lookout_url)
 
@@ -115,5 +115,5 @@ class ArmadaOperator(BaseOperator):
         )
         airflow_error(job_state, self.name, job_id)
 
-    def get_lookout_url(self, job_id: str) -> str:
+    def _get_lookout_url(self, job_id: str) -> str:
         return self.lookout_url_template.replace("<job_id>", job_id)
