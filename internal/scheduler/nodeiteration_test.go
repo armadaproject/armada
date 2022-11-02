@@ -24,7 +24,7 @@ var (
 	testResources       = []string{"cpu", "memory", "gpu"}
 )
 
-func TestSchema(t *testing.T) {
+func TestNodeDbSchema(t *testing.T) {
 	err := nodeDbSchema(testPriorities, testResources).Validate()
 	assert.NoError(t, err)
 }
