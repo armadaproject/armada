@@ -36,7 +36,10 @@ func extractNodeTypes(allocations []*nodeTypeAllocation) []*api.NodeType {
 // MatchSchedulingRequirementsOnAnyCluster returns true if the provided job can be scheduled.
 // If returning false, the reason for not being able to schedule the pod is indicated by the returned error,
 // which is of type *armadaerrors.ErrPodUnschedulable.
-func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport) (bool, error) {
+func MatchSchedulingRequirementsOnAnyCluster(
+	job *api.Job,
+	allClusterSchedulingInfos map[string]*api.ClusterSchedulingInfoReport,
+) (bool, error) {
 	var errs []error
 	for _, schedulingInfo := range allClusterSchedulingInfos {
 		if ok, err := MatchSchedulingRequirements(job, schedulingInfo); ok {
@@ -55,7 +58,10 @@ func MatchSchedulingRequirementsOnAnyCluster(job *api.Job, allClusterSchedulingI
 	return false, armadaerrors.NewCombinedErrPodUnschedulable(errs...)
 }
 
-func MatchSchedulingRequirements(job *api.Job, schedulingInfo *api.ClusterSchedulingInfoReport) (bool, error) {
+func MatchSchedulingRequirements(
+	job *api.Job,
+	schedulingInfo *api.ClusterSchedulingInfoReport,
+) (bool, error) {
 	if !isLargeEnough(job, schedulingInfo.MinimumJobSize) {
 		err := &armadaerrors.ErrPodUnschedulable{}
 		err = err.Add(fmt.Sprintf("pod resource requests too low; the minimum allowed is %v", schedulingInfo.MinimumJobSize), len(schedulingInfo.NodeTypes))
@@ -90,7 +96,7 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 	var result *armadaerrors.ErrPodUnschedulable
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
-		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat()
+		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat().DeepCopy()
 		ok, err := podMatchingContext.Matches(nodeType, nodeResources)
 		switch {
 		case ok:
