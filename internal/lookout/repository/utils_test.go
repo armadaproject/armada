@@ -278,3 +278,28 @@ func TestGlobSearchOrExact(t *testing.T) {
 			})
 	}
 }
+
+func SaveJobWithNullObj(db *goqu.Database, jobId, queue, jobSet string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	return tx.Wrap(func() error {
+		ds := tx.Insert(jobTable).
+			Rows(goqu.Record{
+				"job_id": jobId,
+				"queue":  queue,
+				"jobset": jobSet,
+				"state":  JobStateToIntMap[JobQueued],
+			}).
+			OnConflict(goqu.DoNothing())
+
+		_, err := ds.Prepared(true).Executor().Exec()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
