@@ -7,7 +7,7 @@ import (
 	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
-func TestAvailableByPriorityAndResourceType(t *testing.T) {
+func TestAllocatableByPriorityAndResourceType(t *testing.T) {
 	tests := map[string]struct {
 		Priorities     []int32
 		UsedAtPriority int32
@@ -40,10 +40,10 @@ func TestAvailableByPriorityAndResourceType(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			m := NewAvailableByPriorityAndResourceType(tc.Priorities, tc.Resources)
+			m := NewAllocatableByPriorityAndResourceType(tc.Priorities, tc.Resources)
 			assert.Equal(t, len(tc.Priorities), len(m))
 
-			m.MarkUsed(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
+			m.MarkAllocated(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
 			for resourceType, quantity := range tc.Resources {
 				for _, p := range tc.Priorities {
 					actual := m.Get(p, resourceType)
@@ -56,7 +56,7 @@ func TestAvailableByPriorityAndResourceType(t *testing.T) {
 				}
 			}
 
-			m.MarkAvailable(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
+			m.MarkAllocatable(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
 			for resourceType, quantity := range tc.Resources {
 				for _, p := range tc.Priorities {
 					actual := m.Get(p, resourceType)
@@ -100,10 +100,10 @@ func TestAssignedByPriorityAndResourceType(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			m := NewAssignedByPriorityAndResourceType(tc.Priorities)
+			m := NewAllocatedByPriorityAndResourceType(tc.Priorities)
 			assert.Equal(t, len(tc.Priorities), len(m))
 
-			m.MarkUsed(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
+			m.MarkAllocated(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
 			for resourceType, quantity := range tc.Resources {
 				for _, p := range tc.Priorities {
 					actual := m.Get(p, resourceType)
@@ -116,7 +116,7 @@ func TestAssignedByPriorityAndResourceType(t *testing.T) {
 				}
 			}
 
-			m.MarkAvailable(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
+			m.MarkAllocatable(tc.UsedAtPriority, ResourceList{Resources: tc.Resources})
 			for resourceType := range tc.Resources {
 				for _, p := range tc.Priorities {
 					actual := m.Get(p, resourceType)
