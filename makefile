@@ -465,6 +465,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
 	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
 	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GO_TEST_CMD) go test -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
 
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 .ONESHELL:

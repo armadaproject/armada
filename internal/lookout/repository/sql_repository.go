@@ -89,7 +89,7 @@ type JobRow struct {
 	Priority    sql.NullFloat64 `db:"priority"`
 	Submitted   sql.NullTime    `db:"submitted"`
 	Cancelled   sql.NullTime    `db:"cancelled"`
-	OrigJobSpec sql.NullString  `db:"orig_job_spec"`
+	OrigJobSpec []byte          `db:"orig_job_spec"`
 	State       sql.NullInt64   `db:"state"`
 	RunId       sql.NullString  `db:"run_id"`
 	PodNumber   sql.NullInt64   `db:"pod_number"`
