@@ -63,6 +63,7 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		2*time.Minute,
 		kubernetesClientProvider,
 		etcdHealthMonitor,
+		config.Kubernetes.PodKillTimeout,
 	)
 
 	wg := &sync.WaitGroup{}
@@ -132,7 +133,9 @@ func StartUpWithContext(
 		queueUtilisationService,
 		nodeInfoService,
 		usageClient,
-		config.Kubernetes.TrackedNodeLabels)
+		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
@@ -140,7 +143,9 @@ func StartUpWithContext(
 		jobLeaseService,
 		clusterUtilisationService,
 		submitter,
-		etcdHealthMonitor)
+		etcdHealthMonitor,
+		config.Kubernetes.NodeReservedResources,
+	)
 
 	jobManager := service.NewJobManager(
 		clusterContext,
@@ -189,10 +194,13 @@ func StartUpWithContext(
 
 func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.ClientConn, error) {
 	grpc_prometheus.EnableClientHandlingTimeHistogram()
-	return client.CreateApiConnectionWithCallOptions(&config.ApiConnection,
+	return client.CreateApiConnectionWithCallOptions(
+		&config.ApiConnection,
 		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
 		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor))
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithKeepaliveParams(config.GRPC),
+	)
 }
 
 func validateConfig(config configuration.ExecutorConfiguration) error {

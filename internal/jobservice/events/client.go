@@ -7,6 +7,8 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/gogo/protobuf/types"
+
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -14,6 +16,7 @@ import (
 // JobEventReader is the interface for retrieving job set event messages
 type JobEventReader interface {
 	GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error)
+	Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error)
 	Close()
 }
 
@@ -39,6 +42,7 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 		return nil, err
 	}
 	eventClient := api.NewEventClient(ec.conn)
+
 	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
 	if err != nil {
 		return nil, err
@@ -46,10 +50,25 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 	return stream.Recv()
 }
 
+func (ec *EventClient) Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
+	err := ec.ensureApiConnection()
+	if err != nil {
+		return nil, err
+	}
+	eventClient := api.NewEventClient(ec.conn)
+
+	health, err := eventClient.Health(ctx, empty)
+	return health, err
+}
+
 // Close will close the api connection if established
 func (ec *EventClient) Close() {
+	ec.mux.Lock()
+	defer ec.mux.Unlock()
+
 	if ec.hasConn() {
-		ec.Close()
+		ec.conn.Close()
+		ec.conn = nil
 	}
 }
 
@@ -72,5 +91,6 @@ func (ec *EventClient) ensureApiConnection() error {
 		return connErr
 	}
 	ec.conn = conn
+
 	return nil
 }

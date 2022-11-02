@@ -112,6 +112,10 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		return nil, err
 	}
 
+	if e == nil || e.MainObject == nil || e.MainObject.Object == nil {
+		return nil, errors.Errorf("SubmitJob or one of its member pointers is nil")
+	}
+
 	// We only support PodSpecs as main object.
 	mainObject, ok := e.MainObject.Object.(*armadaevents.KubernetesMainObject_PodSpec)
 	if !ok {
@@ -876,6 +880,31 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runId,
+					JobId: jobId,
+					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								Namespace:    m.Succeeded.PodNamespace,
+								Name:         m.Succeeded.PodName,
+								KubernetesId: m.Succeeded.KubernetesId,
+								// TODO: These should be included.
+								Annotations: nil,
+								Labels:      nil,
+							},
+							Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+								PodInfo: &armadaevents.PodInfo{
+									NodeName:  m.Succeeded.NodeName,
+									PodNumber: m.Succeeded.PodNumber,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_JobSucceeded{
+				JobSucceeded: &armadaevents.JobSucceeded{
 					JobId: jobId,
 					ResourceInfos: []*armadaevents.KubernetesResourceInfo{
 						{

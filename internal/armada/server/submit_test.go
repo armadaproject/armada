@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/permissions"
@@ -26,6 +28,14 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
+
+func TestSubmitServer_HealthCheck(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
+		health, err := s.Health(context.Background(), &types.Empty{})
+		assert.NoError(t, err)
+		assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
+	})
+}
 
 func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events repository.EventRepository) {
@@ -283,10 +293,12 @@ func TestSubmitServer_SubmitJob_ApplyDefaults(t *testing.T) {
 				Effect:   v1.TaintEffectNoSchedule,
 			},
 		}
+		expectedTerminationGracePeriodSeconds := int64(s.schedulingConfig.MinTerminationGracePeriod.Seconds())
 
 		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Requests)
 		assert.Equal(t, expectedResources, retrievedJob[0].PodSpec.Containers[0].Resources.Limits)
 		assert.Equal(t, expectedTolerations, retrievedJob[0].PodSpec.Tolerations)
+		assert.Equal(t, expectedTerminationGracePeriodSeconds, *retrievedJob[0].PodSpec.TerminationGracePeriodSeconds)
 	})
 }
 
@@ -1631,6 +1643,13 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 			"memory": resource.MustParse("1Gi"),
 		},
 		MaxPodSpecSizeBytes: 65535,
+		Preemption: configuration.PreemptionConfig{
+			Enabled:              true,
+			DefaultPriorityClass: "high",
+			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, nil}},
+		},
+		MinTerminationGracePeriod: time.Duration(30 * time.Second),
+		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
 	}
 
 	server := NewSubmitServer(
@@ -1718,6 +1737,8 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 							Effect:   "NoSchedule",
 						},
 					},
+					TerminationGracePeriodSeconds: pointer.Int64(30),
+					PriorityClassName:             "high",
 				},
 			},
 			Owner:                              "test",

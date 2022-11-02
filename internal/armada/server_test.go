@@ -180,6 +180,112 @@ func TestCancelJobSet(t *testing.T) {
 	})
 }
 
+func TestValidatePreemeptionConfig_AllOk(t *testing.T) {
+	config := configuration.PreemptionConfig{
+		Enabled: true,
+		PriorityClasses: map[string]configuration.PriorityClass{
+			"pc1": {
+				Priority: 1,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 1.0,
+				},
+			},
+			"pc2": {
+				Priority: 2,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 0.1,
+				},
+			},
+		},
+		DefaultPriorityClass: "pc1",
+	}
+	assert.NoError(t, validatePreemptionConfig(config))
+}
+
+func TestValidatePreemeptionConfig_Failures(t *testing.T) {
+	invalidPriorityClass := configuration.PreemptionConfig{
+		Enabled: true,
+		PriorityClasses: map[string]configuration.PriorityClass{
+			"pc1": {
+				Priority: 1,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 1.0,
+				},
+			},
+			"pc2": {
+				Priority: 2,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 0.1,
+				},
+			},
+		},
+		DefaultPriorityClass: "this doesn't exist",
+	}
+	assert.Error(t, validatePreemptionConfig(invalidPriorityClass))
+
+	invalidFesourceFraction := configuration.PreemptionConfig{
+		Enabled: true,
+		PriorityClasses: map[string]configuration.PriorityClass{
+			"pc1": {
+				Priority: 1,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 0.1,
+				},
+			},
+			"pc2": {
+				Priority: 2,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 0.3,
+				},
+			},
+		},
+		DefaultPriorityClass: "pc1",
+	}
+	assert.Error(t, validatePreemptionConfig(invalidFesourceFraction))
+
+	extraResourceType1 := configuration.PreemptionConfig{
+		Enabled: true,
+		PriorityClasses: map[string]configuration.PriorityClass{
+			"pc1": {
+				Priority: 1,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 1.0,
+					"gpu": 0.3,
+				},
+			},
+			"pc2": {
+				Priority: 2,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 0.1,
+				},
+			},
+		},
+		DefaultPriorityClass: "pc1",
+	}
+	assert.Error(t, validatePreemptionConfig(extraResourceType1))
+
+	extraResourceType2 := configuration.PreemptionConfig{
+		Enabled: true,
+		PriorityClasses: map[string]configuration.PriorityClass{
+			"pc1": {
+				Priority: 1,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 1.0,
+				},
+			},
+			"pc2": {
+				Priority: 2,
+				MaximalResourceFractionPerQueue: map[string]float64{
+					"cpu": 0.1,
+					"gpu": 0.3,
+				},
+			},
+		},
+		DefaultPriorityClass: "pc1",
+	}
+	assert.Error(t, validatePreemptionConfig(extraResourceType2))
+}
+
 func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
 	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{

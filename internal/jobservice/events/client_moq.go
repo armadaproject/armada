@@ -5,9 +5,9 @@ package events
 
 import (
 	"context"
-	"sync"
-
 	"github.com/G-Research/armada/pkg/api"
+	"github.com/gogo/protobuf/types"
+	"sync"
 )
 
 // Ensure, that JobEventReaderMock does implement JobEventReader.
@@ -26,6 +26,9 @@ var _ JobEventReader = &JobEventReaderMock{}
 // 			GetJobEventMessageFunc: func(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
 // 				panic("mock out the GetJobEventMessage method")
 // 			},
+// 			HealthFunc: func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
+// 				panic("mock out the Health method")
+// 			},
 // 		}
 //
 // 		// use mockedJobEventReader in code that requires JobEventReader
@@ -39,6 +42,9 @@ type JobEventReaderMock struct {
 	// GetJobEventMessageFunc mocks the GetJobEventMessage method.
 	GetJobEventMessageFunc func(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error)
 
+	// HealthFunc mocks the Health method.
+	HealthFunc func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error)
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// Close holds details about calls to the Close method.
@@ -51,9 +57,17 @@ type JobEventReaderMock struct {
 			// JobReq is the jobReq argument value.
 			JobReq *api.JobSetRequest
 		}
+		// Health holds details about calls to the Health method.
+		Health []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Empty is the empty argument value.
+			Empty *types.Empty
+		}
 	}
 	lockClose              sync.RWMutex
 	lockGetJobEventMessage sync.RWMutex
+	lockHealth             sync.RWMutex
 }
 
 // Close calls CloseFunc.
@@ -114,5 +128,40 @@ func (mock *JobEventReaderMock) GetJobEventMessageCalls() []struct {
 	mock.lockGetJobEventMessage.RLock()
 	calls = mock.calls.GetJobEventMessage
 	mock.lockGetJobEventMessage.RUnlock()
+	return calls
+}
+
+// Health calls HealthFunc.
+func (mock *JobEventReaderMock) Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
+	if mock.HealthFunc == nil {
+		panic("JobEventReaderMock.HealthFunc: method is nil but JobEventReader.Health was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		Empty *types.Empty
+	}{
+		Ctx:   ctx,
+		Empty: empty,
+	}
+	mock.lockHealth.Lock()
+	mock.calls.Health = append(mock.calls.Health, callInfo)
+	mock.lockHealth.Unlock()
+	return mock.HealthFunc(ctx, empty)
+}
+
+// HealthCalls gets all the calls that were made to Health.
+// Check the length with:
+//     len(mockedJobEventReader.HealthCalls())
+func (mock *JobEventReaderMock) HealthCalls() []struct {
+	Ctx   context.Context
+	Empty *types.Empty
+} {
+	var calls []struct {
+		Ctx   context.Context
+		Empty *types.Empty
+	}
+	mock.lockHealth.RLock()
+	calls = mock.calls.Health
+	mock.lockHealth.RUnlock()
 	return calls
 }

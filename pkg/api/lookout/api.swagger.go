@@ -410,6 +410,9 @@ func SwaggerJsonTemplate() string {
 		"        \"jobState\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"jobStateDuration\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"runs\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +

@@ -81,6 +81,7 @@ export type Job = {
   submissionTime: string
   cancelledTime?: string
   jobState: string
+  jobStateDuration: string
   runs: Run[]
   jobYaml: string
   annotations: { [key: string]: string }
@@ -411,6 +412,7 @@ export class LookoutJobService implements JobService {
     const submissionTime = dateToString(jobInfo.job?.created ?? new Date())
     const cancelledTime = jobInfo.cancelled ? dateToString(jobInfo.cancelled) : undefined
     const jobState = JOB_STATE_MAP.get(jobInfo.jobState ?? "") ?? "Unknown"
+    const jobStateDuration = jobInfo.jobStateDuration ?? "-"
     const jobFromJson = jobInfo.jobJson ? (JSON.parse(jobInfo.jobJson) as ApiJob) : undefined
     const jobYaml = jobInfo.jobJson ? jobJsonToYaml(jobFromJson) : ""
     const runs = getRuns(jobInfo)
@@ -427,6 +429,7 @@ export class LookoutJobService implements JobService {
       submissionTime: submissionTime,
       cancelledTime: cancelledTime,
       jobState: jobState,
+      jobStateDuration: jobStateDuration,
       runs: runs,
       jobYaml: jobYaml,
       annotations: annotations,

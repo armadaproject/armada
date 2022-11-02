@@ -12,6 +12,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
@@ -345,6 +346,14 @@ type fakeUsageRepository struct{}
 
 func (repo *fakeUsageRepository) GetClusterUsageReports() (map[string]*api.ClusterUsageReport, error) {
 	return map[string]*api.ClusterUsageReport{}, nil
+}
+
+func (repo *fakeUsageRepository) GetClusterQueueResourceUsage() (map[string]*schedulerobjects.ClusterResourceUsageReport, error) {
+	return nil, nil
+}
+
+func (repo *fakeUsageRepository) UpdateClusterQueueResourceUsage(cluster string, resourceUsage *schedulerobjects.ClusterResourceUsageReport) error {
+	return nil
 }
 
 func (repo *fakeUsageRepository) GetClusterPriority(clusterId string) (map[string]float64, error) {

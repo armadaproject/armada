@@ -6,6 +6,8 @@ import (
 	"net"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -35,6 +37,7 @@ import (
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler"
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -65,7 +68,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// we add all services to a slice and start them together at the end of this function.
 	var services []func() error
 
-	err := validateArmadaConfig(config)
+	err := validateCancelJobsBatchSizeConfig(config)
+	if err != nil {
+		return err
+	}
+
+	err = validatePreemptionConfig(config.Scheduling.Preemption)
 	if err != nil {
 		return err
 	}
@@ -317,40 +325,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return submitFromLog.Run(ctx)
 		})
 
-		// Service that reads from Pulsar and submits messages back into Pulsar.
-		// E.g., needed to automatically publish JobSucceeded after a JobRunSucceeded.
-		consumer, err = pulsarClient.Subscribe(pulsar.ConsumerOptions{
-			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: config.Pulsar.PulsarFromPulsarSubscription,
-			Type:             pulsar.KeyShared,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		defer consumer.Close()
-
-		// Create a new producer for this service.
-		p2pPulsarProducer := fmt.Sprintf("armada-pulsar-to-pulsar-%s", serverId)
-		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             p2pPulsarProducer,
-			CompressionType:  pulsarCompressionType,
-			CompressionLevel: pulsarCompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		})
-		if err != nil {
-			return errors.Wrapf(err, "error creating pulsar producer %s", p2pPulsarProducer)
-		}
-		defer producer.Close()
-
-		pulsarFromPulsar := server.PulsarFromPulsar{
-			Consumer: consumer,
-			Producer: producer,
-		}
-		services = append(services, func() error {
-			return pulsarFromPulsar.Run(ctx)
-		})
-
 		// Service that reads from Pulsar and logs events.
 		if config.Pulsar.EventsPrinter {
 			eventsPrinter := server.EventsPrinter{
@@ -437,6 +411,13 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
+	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
+		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
+			config.Scheduling.MaxQueueReportsToStore,
+			config.Scheduling.MaxJobReportsToStore,
+		)
+	}
+
 	eventServer := server.NewEventServer(
 		permissions,
 		eventRepository,
@@ -459,6 +440,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
+	if aggregatedQueueServer.SchedulingReportsRepository != nil {
+		schedulerobjects.RegisterSchedulerReportingServer(
+			grpcServer,
+			aggregatedQueueServer.SchedulingReportsRepository,
+		)
+	}
 
 	// If the new Pulsar-driven scheduler is provided, run that.
 	// Otherwise run the legacy scheduler.
@@ -496,10 +483,73 @@ func createRedisClient(config *redis.UniversalOptions) redis.UniversalClient {
 	return redis.NewUniversalClient(config)
 }
 
-// TODO Is this all validation that needs to be done?
-func validateArmadaConfig(config *configuration.ArmadaConfig) error {
+// TODO: Is this all validation that needs to be done?
+func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error {
 	if config.CancelJobsBatchSize <= 0 {
 		return errors.WithStack(fmt.Errorf("cancel jobs batch should be greater than 0: is %d", config.CancelJobsBatchSize))
 	}
+	return nil
+}
+
+func validatePreemptionConfig(config configuration.PreemptionConfig) error {
+	if !config.Enabled {
+		return nil
+	}
+
+	// validate that the default priority class is in the priority class map
+	if config.DefaultPriorityClass != "" {
+		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
+		if !ok {
+			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no such priority class has been configured", config.DefaultPriorityClass))
+		}
+	}
+
+	// validate that as priority increase, the limit decreases
+	type priorityClass struct {
+		name     string
+		priority int32
+		limits   map[string]float64
+	}
+	priorityClasses := make([]priorityClass, 0, len(config.PriorityClasses))
+	for k, pc := range config.PriorityClasses {
+		priorityClasses = append(priorityClasses, priorityClass{
+			name:     k,
+			priority: pc.Priority,
+			limits:   pc.MaximalResourceFractionPerQueue,
+		})
+	}
+
+	slices.SortFunc(priorityClasses, func(a priorityClass, b priorityClass) bool {
+		return a.priority > b.priority
+	})
+
+	var prevLimits map[string]float64 = nil
+	prevPriorityName := ""
+	for i, pc := range priorityClasses {
+		if i != 0 {
+			// check that the limit exists and that it is greater than the previous limit
+			for k, v := range prevLimits {
+				limit, ok := pc.limits[k]
+				if !ok {
+					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
+				}
+				if limit < v {
+					return errors.WithStack(
+						fmt.Errorf("invalid priority class configuration: Limit for resource %s at priority %s [%.3f] is lower than at priority %s [%.3f] ", k, pc.name, limit, prevPriorityName, v))
+				}
+			}
+
+			// Check that we don't have a limit for some new resource defined
+			for k := range pc.limits {
+				_, ok := prevLimits[k]
+				if !ok {
+					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, prevPriorityName))
+				}
+			}
+		}
+		prevLimits = pc.limits
+		prevPriorityName = pc.name
+	}
+
 	return nil
 }

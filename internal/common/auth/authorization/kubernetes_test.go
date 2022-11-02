@@ -127,7 +127,7 @@ func createKubernetesAuthPayload(token string, ca string) string {
 	return "KubernetesAuth " + base64.RawURLEncoding.EncodeToString([]byte(body))
 }
 
-func TestAuthenticate(t *testing.T) {
+func TestAuthenticateKubernetes(t *testing.T) {
 	// Setup KID mapping directory
 	tempdir, err := os.MkdirTemp("", "kid-mapping")
 	defer os.Remove(tempdir)

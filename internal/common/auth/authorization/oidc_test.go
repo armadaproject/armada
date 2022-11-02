@@ -12,6 +12,8 @@ import (
 	"github.com/coreos/go-oidc"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 )
 
 func TestOpenIdAuthService(t *testing.T) {
@@ -39,12 +41,13 @@ func TestOpenIdAuthService(t *testing.T) {
 	assert.True(t, principal.IsInGroup("test"))
 
 	_, e = service.Authenticate(context.Background())
-	assert.Equal(t, missingCredentials, e)
+	var missingCredsErr *armadaerrors.ErrMissingCredentials
+	assert.ErrorAs(t, e, &missingCredsErr)
 
 	keySet.err = errors.New("wrong signature")
 	_, e = service.Authenticate(ctx)
 	assert.NotNil(t, e)
-	assert.NotEqual(t, missingCredentials, e)
+	assert.NotErrorIs(t, e, missingCredsErr)
 }
 
 type fakeKeySet struct {

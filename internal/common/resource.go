@@ -165,6 +165,10 @@ func (a ComputeResources) AsFloat() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
+// QuantityAsFloat64 returns a float64 representation of a quantity.
+// We need our own function because q.AsApproximateFloat64 sometimes returns surprising results.
+// For example, resource.MustParse("5188205838208Ki").AsApproximateFloat64 returns 0.004291583283300088,
+// whereas this function returns 5.312722778324993e+15.
 func QuantityAsFloat64(q resource.Quantity) float64 {
 	dec := q.AsDec()
 	unscaled := dec.UnscaledBig()
@@ -295,6 +299,20 @@ func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 
 	for _, initContainer := range podSpec.InitContainers {
 		containerResource := FromResourceList(initContainer.Resources.Requests)
+		totalResources.Max(containerResource)
+	}
+	return totalResources
+}
+
+func TotalPodResourceLimit(podSpec *v1.PodSpec) ComputeResources {
+	totalResources := make(ComputeResources)
+	for _, container := range podSpec.Containers {
+		containerResource := FromResourceList(container.Resources.Limits)
+		totalResources.Add(containerResource)
+	}
+
+	for _, initContainer := range podSpec.InitContainers {
+		containerResource := FromResourceList(initContainer.Resources.Limits)
 		totalResources.Max(containerResource)
 	}
 	return totalResources

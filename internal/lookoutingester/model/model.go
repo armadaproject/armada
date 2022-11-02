@@ -14,7 +14,6 @@ type CreateJobInstruction struct {
 	JobSet    string
 	Priority  uint32
 	Submitted time.Time
-	JobJson   []byte
 	JobProto  []byte
 	State     int64
 	Updated   time.Time

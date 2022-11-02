@@ -133,7 +133,13 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 }
 
 func (eventReporter *JobEventReporter) reportStatusUpdate(old *v1.Pod, new *v1.Pod) {
+	// Don't report status if the pod phase didn't change
 	if old.Status.Phase == new.Status.Phase {
+		return
+	}
+	// Don't report status change for pods Armada is deleting
+	// This prevents reporting JobFailed when we delete a pod - for example due to cancellation
+	if util.IsMarkedForDeletion(new) {
 		return
 	}
 	eventReporter.reportCurrentStatus(new)

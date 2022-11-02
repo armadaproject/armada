@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -23,6 +24,19 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
 )
+
+func TestEventServer_Health(t *testing.T) {
+	withEventServer(
+		t,
+		configuration.EventRetentionPolicy{ExpiryEnabled: false},
+		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
+		func(s *EventServer) {
+			health, err := s.Health(context.Background(), &types.Empty{})
+			assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
+			assert.NoError(t, err)
+		},
+	)
+}
 
 func TestEventServer_ReportUsage(t *testing.T) {
 	withEventServer(

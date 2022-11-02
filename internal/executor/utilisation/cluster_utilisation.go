@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/sirupsen/logrus"
@@ -29,6 +31,7 @@ type ClusterUtilisationService struct {
 	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	nodeReservedResources   common.ComputeResources
 }
 
 func NewClusterUtilisationService(
@@ -37,6 +40,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	nodeReservedResources common.ComputeResources,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -44,6 +48,7 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
+		nodeReservedResources:   nodeReservedResources,
 	}
 }
 
@@ -114,12 +119,12 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
@@ -138,6 +143,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		allocatable := common.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
+		// sub node reserved resources if defined,
+		// if nil, behaviour is same as subtracting 0
+		available.Sub(clusterUtilisationService.nodeReservedResources)
 
 		nodePods := podsByNodes[n.Name]
 		allocated := getAllocatedResourcesByPriority(nodePods)
@@ -154,7 +162,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}
 
 	return &ClusterAvailableCapacityReport{
-		AvailableCapacity: &availableResource,
+		AvailableCapacity: &availableResource, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
 }
@@ -388,4 +396,38 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	}
 
 	return utilisationByQueue
+}
+
+func GetAllocationByQueueAndPriority(pods []*v1.Pod) map[string]map[int32]common.ComputeResources {
+	rv := make(map[string]map[int32]common.ComputeResources)
+	for _, pod := range pods {
+
+		// Get the name of the queue this pod originated from,
+		// ignoring pods for which we can't find the queue.
+		queue, present := pod.Labels[domain.Queue]
+		if !present {
+			log.Errorf("Pod %s found not belonging to a queue, not reporting its allocation", pod.Name)
+			continue
+		}
+
+		// Get the priority of this pod.
+		var priority int32
+		if pod.Spec.Priority != nil {
+			priority = *pod.Spec.Priority
+		}
+
+		// Get total pod resource usage and add it to the aggregate.
+		podAllocatedResourece := common.CalculateTotalResourceRequest([]*v1.Pod{pod})
+		allocatedByPriority, ok := rv[queue]
+		if !ok {
+			allocatedByPriority = make(map[int32]common.ComputeResources)
+			rv[queue] = allocatedByPriority
+		}
+		if allocated, ok := allocatedByPriority[priority]; ok {
+			allocated.Add(podAllocatedResourece)
+		} else {
+			allocatedByPriority[priority] = podAllocatedResourece
+		}
+	}
+	return rv
 }
