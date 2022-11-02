@@ -433,8 +433,9 @@ func TestReprioritised(t *testing.T) {
 }
 
 func TestPreempted(t *testing.T) {
+	svc := New(metrics.Get())
 	msg := NewMsg(baseTime, jobPreempted)
-	instructions := ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunPreempted},
 		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},

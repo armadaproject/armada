@@ -481,7 +481,7 @@ func (l *DB) UpdateJobRunsScalar(ctx context.Context, instructions []*model.Upda
 				WHERE run_id = $9`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
+			_, err := l.db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
 			if err != nil {
 				l.m.RecordDBError(metrics.DBOperationUpdate)
 			}
