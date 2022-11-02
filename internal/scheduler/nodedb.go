@@ -37,7 +37,7 @@ type NodeDb struct {
 	NodeTypes map[string]*schedulerobjects.NodeType
 	// Resources allocated by the scheduler to in-flight jobs,
 	// i.e., jobs for which resource usage is not yet reported by the executor.
-	AssignedByNode map[string]schedulerobjects.AssignedByPriorityAndResourceType
+	AssignedByNode map[string]schedulerobjects.AllocatedByPriorityAndResourceType
 	// Map from job id to the set of nodes on which that job has been assigned resources.
 	// Used to clear AssignedByNode once jobs start running.
 	NodesByJob map[uuid.UUID]map[string]interface{}
@@ -174,10 +174,10 @@ func (nodeDb *NodeDb) BindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRe
 		rs.Resources[string(resource)] = quantity
 	}
 	if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
-		assigned.MarkUsed(req.Priority, rs)
+		assigned.MarkAllocated(req.Priority, rs)
 	} else {
-		assigned = schedulerobjects.NewAssignedByPriorityAndResourceType(nodeDb.priorities)
-		assigned.MarkUsed(req.Priority, rs)
+		assigned = schedulerobjects.NewAllocatedByPriorityAndResourceType(nodeDb.priorities)
+		assigned.MarkAllocated(req.Priority, rs)
 		nodeDb.AssignedByNode[node.Id] = assigned
 	}
 
@@ -278,7 +278,7 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 		Db:               db,
 		NodesByJob:       make(map[uuid.UUID]map[string]interface{}),
 		JobsByNode:       make(map[string]map[uuid.UUID]interface{}),
-		AssignedByNode:   make(map[string]schedulerobjects.AssignedByPriorityAndResourceType),
+		AssignedByNode:   make(map[string]schedulerobjects.AllocatedByPriorityAndResourceType),
 	}, nil
 }
 

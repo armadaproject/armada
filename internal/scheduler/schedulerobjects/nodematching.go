@@ -79,7 +79,7 @@ func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodReq
 // - 1: Pod can be scheduled without preempting any running pods.
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
-func (node *Node) PodRequirementsMet(req *PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
+func (node *Node) PodRequirementsMet(req *PodRequirements, assignedResources AllocatedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
 	matches, reason, err := podTolerationRequirementsMet(node.GetTaints(), req)
 	if !matches || err != nil {
 		return matches, 0, reason, err
@@ -171,7 +171,7 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 	return true, nil, nil
 }
 
-func podResourceRequirementsMet(priority int32, availableResources AvailableByPriorityAndResourceType, assignedResources AssignedByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func podResourceRequirementsMet(priority int32, availableResources AllocatableByPriorityAndResourceType, assignedResources AllocatedByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	available := resource.Quantity{}
 	for resource, required := range req.ResourceRequirements.Requests {
 		q := availableResources.Get(req.Priority, string(resource))
