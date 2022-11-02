@@ -1,4 +1,4 @@
-{{- if .Values.pulsar.init.enabled }}
+{{- if .Values.pulsar.armadaInit.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -7,23 +7,23 @@ spec:
   template:
     spec:
       initContainers:
-        - name: wait
+        - name: wait-for-pulsar
           image: alpine:3.16
           command:
             - /bin/sh
             - -c
             - |
-              echo "Waiting for Pulsar... ({{ .Values.pulsar.init.brokerHost }}:{{ .Values.pulsar.init.port }})"
+              echo "Waiting for Pulsar... ({{ .Values.pulsar.armadaInit.brokerHost }}:{{ .Values.pulsar.armadaInit.port }})"
 
-              while ! nc -z {{ .Values.pulsar.init.brokerHost }} {{ .Values.pulsar.init.port }}; do
+              while ! nc -z {{ .Values.pulsar.armadaInit.brokerHost }} {{ .Values.pulsar.armadaInit.port }}; do
                 sleep 1
               done
 
               echo "Pulsar started!"
       containers:
-        - name: init
-          image: apachepulsar/pulsar:2.10.2
-          {{- $pulsarAdminUrl := printf "%s://%s:%s" .Values.pulsar.init.protocol .Values.pulsar.init.brokerHost (toString .Values.pulsar.init.adminPort) }}
+        - name: init-pulsar
+          image: {{ .Values.pulsar.armadaInit.image.repository }}:{{ .Values.pulsar.armadaInit.image.repository }}
+          {{- $pulsarAdminUrl := printf "%s://%s:%s" .Values.pulsar.armadaInit.protocol .Values.pulsar.armadaInit.brokerHost (toString .Values.pulsar.armadaInit.adminPort) }}
           command:
             - sh
             - -c

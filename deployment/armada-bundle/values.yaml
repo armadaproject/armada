@@ -209,8 +209,11 @@ armada-lookout-ingester:
       jobsetEventsTopic: "persistent://armada/armada/events"
 
 pulsar:
-  init:
+  armadaInit:
     enabled: false
+    image:
+      repository: apachepulsar/pulsar
+      tag: 2.10.2
     brokerHost: pulsar-broker.armada.svc.cluster.local
     protocol: http
     adminPort: 8080
