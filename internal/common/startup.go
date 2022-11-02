@@ -97,7 +97,7 @@ func ConfigureCommandLineLogging() {
 
 func ConfigureLogging() {
 	log.SetLevel(readEnvironmentLogLevel())
-	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
+	log.SetFormatter(readEnvironmentLogFormat())
 	log.SetOutput(os.Stdout)
 }
 
@@ -110,6 +110,24 @@ func readEnvironmentLogLevel() log.Level {
 		}
 	}
 	return log.InfoLevel
+}
+
+func readEnvironmentLogFormat() log.Formatter {
+	formatStr, ok := os.LookupEnv("LOG_FORMAT")
+	if !ok {
+		formatStr = "colorful"
+	}
+	switch strings.ToLower(formatStr) {
+	case "json":
+		return &log.JSONFormatter{}
+	case "colorful":
+		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
+	case "text":
+		return &log.TextFormatter{DisableColors: true, FullTimestamp: true}
+	default:
+		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colorful format", formatStr))
+		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
+	}
 }
 
 func ServeMetrics(port uint16) (shutdown func()) {
