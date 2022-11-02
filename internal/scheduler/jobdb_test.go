@@ -87,6 +87,8 @@ func testJobItems1() []*SchedulerJob {
 			Queue:                     "A",
 			NegatedPriorityClassValue: -1,
 			Priority:                  0,
+			node:                      nil,
+			jobSchedulingInfo:         nil,
 		},
 		{
 			JobId:                     uuid.NewString(),
