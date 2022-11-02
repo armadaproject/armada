@@ -10,7 +10,9 @@ import (
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
-// It allows for efficiently sorting
+// It allows for efficiently iterationg over jobs in a specified queue sorted
+// first by priority class value (greater to smaller) and
+// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority).
 type JobDb struct {
 	// In-memory database. Stores *SchedulerJob.
 	// Used to efficiently iterate over jobs in sorted order.
