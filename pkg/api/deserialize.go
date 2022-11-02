@@ -8,11 +8,8 @@ import (
 
 func (x *IngressType) UnmarshalJSON(data []byte) error {
 	var s int32
-	var m sync.Mutex
 	e := json.Unmarshal(data, &s)
 	if e == nil {
-		m.Lock()
-		defer m.Unlock()
 		_, present := IngressType_name[s]
 		if !present {
 			return fmt.Errorf("no IngressType of type %d", s)
@@ -35,12 +32,8 @@ func (x *IngressType) UnmarshalJSON(data []byte) error {
 
 func (x *ServiceType) UnmarshalJSON(data []byte) error {
 	var s int32
-	var m sync.Mutex
 	e := json.Unmarshal(data, &s)
 	if e == nil {
-		m.Lock()
-		defer m.Unlock()
-
 		_, present := ServiceType_name[s]
 		if !present {
 			return fmt.Errorf("no ServiceType of type %d", s)
@@ -63,11 +56,8 @@ func (x *ServiceType) UnmarshalJSON(data []byte) error {
 
 func (x *JobState) UnmarshalJSON(data []byte) error {
 	var s int32
-	var m sync.Mutex
 	e := json.Unmarshal(data, &s)
 	if e == nil {
-		m.Lock()
-		defer m.Unlock()
 
 		_, present := JobState_name[s]
 		if !present {
