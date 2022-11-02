@@ -37,7 +37,7 @@ type NodeDb struct {
 	NodeTypes map[string]*schedulerobjects.NodeType
 	// Resources allocated by the scheduler to in-flight jobs,
 	// i.e., jobs for which resource usage is not yet reported by the executor.
-	AssignedByNode map[string]schedulerobjects.AllocatedByPriorityAndResourceType
+	inFlightResourcesByNode map[string]schedulerobjects.AllocatedByPriorityAndResourceType
 	// Map from job id to the set of nodes on which that job has been assigned resources.
 	// Used to clear AssignedByNode once jobs start running.
 	NodesByJob map[uuid.UUID]map[string]interface{}
@@ -132,7 +132,7 @@ func (nodeDb *NodeDb) SelectNodeForPod(jobId uuid.UUID, req *schedulerobjects.Po
 		}
 		// TODO: Use the score when selecting a node.
 		nodeDb.mu.Lock()
-		matches, score, reason, err := node.PodRequirementsMet(req, nodeDb.AssignedByNode[node.Id])
+		matches, score, reason, err := node.PodRequirementsMet(req, nodeDb.inFlightResourcesByNode[node.Id])
 		nodeDb.mu.Unlock()
 		if err != nil {
 			return nil, err
@@ -173,31 +173,25 @@ func (nodeDb *NodeDb) BindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRe
 	for resource, quantity := range req.ResourceRequirements.Requests {
 		rs.Resources[string(resource)] = quantity
 	}
-	if assigned, ok := nodeDb.AssignedByNode[node.Id]; ok {
+	if assigned, ok := nodeDb.inFlightResourcesByNode[node.Id]; ok {
 		assigned.MarkAllocated(req.Priority, rs)
 	} else {
 		assigned = schedulerobjects.NewAllocatedByPriorityAndResourceType(nodeDb.priorities)
 		assigned.MarkAllocated(req.Priority, rs)
-		nodeDb.AssignedByNode[node.Id] = assigned
+		nodeDb.inFlightResourcesByNode[node.Id] = assigned
 	}
 
 	return nil
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
-// a given pod could be scheduled on, i.e., all node types with
-// matching node selectors and no untolerated taints.
-//
-// TODO: Update docstring.
+// a given pod could potentially be scheduled on.
 func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
 	return NodeTypesMatchingPod(nodeDb.NodeTypes, req)
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
-// a given pod could be scheduled on, i.e., all node types with
-// matching node selectors and no untolerated taints.
-//
-// TODO: Update docstring.
+// a given pod could potentially be scheduled on.
 func NodeTypesMatchingPod(nodeTypes map[string]*schedulerobjects.NodeType, req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
 	selectedNodeTypes := make([]*schedulerobjects.NodeType, 0)
 	numNodeTypesExcludedByReason := make(map[string]int)
@@ -250,7 +244,7 @@ func (nodeDb *NodeDb) MarkJobRunning(jobId uuid.UUID) {
 	for nodeId := range nodeDb.NodesByJob[jobId] {
 		delete(nodeDb.JobsByNode[nodeId], jobId)
 		if len(nodeDb.JobsByNode[nodeId]) == 0 {
-			delete(nodeDb.AssignedByNode, nodeId)
+			delete(nodeDb.inFlightResourcesByNode, nodeId)
 		}
 	}
 	delete(nodeDb.NodesByJob, jobId)
@@ -271,14 +265,14 @@ func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
 		indexedResources[resourceType] = true
 	}
 	return &NodeDb{
-		priorities:       priorities,
-		indexedResources: indexedResources,
-		NodeTypes:        make(map[string]*schedulerobjects.NodeType),
-		totalResources:   totalResources,
-		Db:               db,
-		NodesByJob:       make(map[uuid.UUID]map[string]interface{}),
-		JobsByNode:       make(map[string]map[uuid.UUID]interface{}),
-		AssignedByNode:   make(map[string]schedulerobjects.AllocatedByPriorityAndResourceType),
+		priorities:              priorities,
+		indexedResources:        indexedResources,
+		NodeTypes:               make(map[string]*schedulerobjects.NodeType),
+		totalResources:          totalResources,
+		Db:                      db,
+		NodesByJob:              make(map[uuid.UUID]map[string]interface{}),
+		JobsByNode:              make(map[string]map[uuid.UUID]interface{}),
+		inFlightResourcesByNode: make(map[string]schedulerobjects.AllocatedByPriorityAndResourceType),
 	}, nil
 }
 
@@ -289,7 +283,7 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 	for _, node := range nodes {
 
 		// If this is a new node, increase the overall resource count.
-		if _, ok := nodeDb.AssignedByNode[node.Id]; !ok {
+		if _, ok := nodeDb.inFlightResourcesByNode[node.Id]; !ok {
 			for t, q := range node.TotalResources.Resources {
 				available := nodeDb.totalResources[t]
 				available.Add(q)
