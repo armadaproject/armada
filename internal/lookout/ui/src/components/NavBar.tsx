@@ -47,7 +47,7 @@ function NavBar(props: RouteComponentProps) {
   const currentLocation = props.location.pathname
   const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
   return (
-    <AppBar position="static">
+    <AppBar position="sticky">
       <Toolbar className="toolbar">
         <a href="/" className="title">
           <img className="logo" src={process.env.PUBLIC_URL + "./Armada-white-rectangle.png"} alt={""} />
