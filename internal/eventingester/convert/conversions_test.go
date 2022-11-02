@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/apache/pulsar-client-go/pulsar"
+
+	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 

@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 	"github.com/apache/pulsar-client-go/pulsar"
+
+	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 
 	"github.com/G-Research/armada/internal/lookout/repository"
 

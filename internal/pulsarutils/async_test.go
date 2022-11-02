@@ -57,7 +57,7 @@ func TestReceive(t *testing.T) {
 		}
 	}()
 	wg.Wait()
-	assert.Equal(t, consumer.msgs, receivedMsgs)
+	assert.Equal(t, msgs, receivedMsgs)
 }
 
 func TestAcks(t *testing.T) {

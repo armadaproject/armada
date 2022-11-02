@@ -6,11 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"os"
-	"os/signal"
-	"sync"
-	"time"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
