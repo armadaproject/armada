@@ -125,9 +125,9 @@ func (s *Service) ConvertMsg(
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			err = s.handleJobRunErrors(ts, event.GetJobRunErrors(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
-			err = handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
+			err = s.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), updateInstructions)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			err = handleJobRunPreempted(ts, event.GetJobRunPreempted(), updateInstructions)
+			err = s.handleJobRunPreempted(ts, event.GetJobRunPreempted(), updateInstructions)
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
@@ -296,7 +296,7 @@ func (s *Service) handleJobSucceeded(ts time.Time, event *armadaevents.JobSuccee
 	return nil
 }
 
-func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+func (s *Service) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.PreemptedRunId)
 	if err != nil {
 		return err
@@ -311,7 +311,7 @@ func handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, up
 	return nil
 }
 
-func handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
+func (s *Service) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
