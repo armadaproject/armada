@@ -107,7 +107,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: [],
           defaultFilter: [],
-          width: 0.5,
+          width: 200,
         },
         {
           id: "jobStateDuration",
@@ -117,7 +117,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: [],
           defaultFilter: [],
-          width: 0.5,
+          width: 200,
         },
         {
           id: "queue",
@@ -127,7 +127,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: 1,
+          width: 200,
         },
         {
           id: "jobId",
@@ -137,7 +137,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: 1,
+          width: 280,
         },
         {
           id: "owner",
@@ -147,7 +147,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: 1,
+          width: 140,
         },
         {
           id: "jobSet",
@@ -157,7 +157,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: 1,
+          width: 120,
         },
         {
           id: "submissionTime",
@@ -167,7 +167,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: true,
           defaultFilter: true,
-          width: 1,
+          width: 260,
         },
       ],
       annotationColumns: [],

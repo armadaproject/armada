@@ -84,6 +84,9 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
 
   render() {
     const rowCount = this.props.jobs.length
+    const tableWidth = Object.values(this.props.defaultColumns).reduce((prevValue, currentValue) => {
+      return currentValue.isDisabled ? prevValue : prevValue + currentValue.width
+    }, 0)
     return (
       <div className="jobs">
         <div className="job-table-header-container">
@@ -123,61 +126,69 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                     .concat(this.props.annotationColumns)
                     .filter((col) => !col.isDisabled)
                   return (
-                    <Table
-                      gridStyle={{ overflowY: "scroll" }}
-                      onRowsRendered={onRowsRendered}
-                      ref={registerChild}
-                      rowCount={rowCount}
-                      rowHeight={40}
-                      rowGetter={this.rowGetter}
-                      rowRenderer={(tableRowProps) => {
-                        if (tableRowProps.rowData.jobId === "Loading") {
-                          return <LoadingRow {...tableRowProps} />
-                        }
-
-                        let selected = false
-                        if (this.props.selectedJobs.has(tableRowProps.rowData.jobId)) {
-                          selected = true
-                        }
-                        return (
-                          <CheckboxRow
-                            isChecked={selected}
-                            onChangeChecked={(selected) => {
-                              this.props.onInteract()
-                              this.props.onSelectJob(tableRowProps.index, selected)
-                            }}
-                            onChangeCheckedShift={(selected) => {
-                              this.props.onInteract()
-                              this.props.onShiftSelect(tableRowProps.index, selected)
-                            }}
-                            tableKey={tableRowProps.key}
-                            {...tableRowProps}
-                          />
-                        )
+                    <div
+                      style={{
+                        width: tableWidth,
+                        height: height,
+                        overflowX: "auto",
                       }}
-                      headerRowRenderer={(tableHeaderRowProps) => {
-                        const jobsAreSelected = this.props.selectedJobs.size > 0
-                        return (
-                          <CheckboxHeaderRow
-                            checked={jobsAreSelected}
-                            disabled={!jobsAreSelected}
-                            onClick={() => this.props.onDeselectAllClick()}
-                            {...tableHeaderRowProps}
-                          />
-                        )
-                      }}
-                      headerHeight={60}
-                      height={height - 1}
-                      width={width}
-                      onScroll={this.props.onInteract}
                     >
-                      {createJobTableColumns({
-                        columns: enabledColumns,
-                        totalWidth: width,
-                        onChangeColumnValue: this.props.onChangeColumnValue,
-                        onJobIdClick: this.props.onJobIdClick,
-                      })}
-                    </Table>
+                      <Table
+                        gridStyle={{ overflowY: "scroll" }}
+                        onRowsRendered={onRowsRendered}
+                        ref={registerChild}
+                        rowCount={rowCount}
+                        rowHeight={40}
+                        rowGetter={this.rowGetter}
+                        rowRenderer={(tableRowProps) => {
+                          if (tableRowProps.rowData.jobId === "Loading") {
+                            return <LoadingRow {...tableRowProps} />
+                          }
+
+                          let selected = false
+                          if (this.props.selectedJobs.has(tableRowProps.rowData.jobId)) {
+                            selected = true
+                          }
+                          return (
+                            <CheckboxRow
+                              isChecked={selected}
+                              onChangeChecked={(selected) => {
+                                this.props.onInteract()
+                                this.props.onSelectJob(tableRowProps.index, selected)
+                              }}
+                              onChangeCheckedShift={(selected) => {
+                                this.props.onInteract()
+                                this.props.onShiftSelect(tableRowProps.index, selected)
+                              }}
+                              tableKey={tableRowProps.key}
+                              {...tableRowProps}
+                            />
+                          )
+                        }}
+                        headerRowRenderer={(tableHeaderRowProps) => {
+                          const jobsAreSelected = this.props.selectedJobs.size > 0
+                          return (
+                            <CheckboxHeaderRow
+                              checked={jobsAreSelected}
+                              disabled={!jobsAreSelected}
+                              onClick={() => this.props.onDeselectAllClick()}
+                              {...tableHeaderRowProps}
+                            />
+                          )
+                        }}
+                        headerHeight={60}
+                        height={height - 1}
+                        width={tableWidth}
+                        onScroll={this.props.onInteract}
+                      >
+                        {createJobTableColumns({
+                          columns: enabledColumns,
+                          totalWidth: width,
+                          onChangeColumnValue: this.props.onChangeColumnValue,
+                          onJobIdClick: this.props.onJobIdClick,
+                        })}
+                      </Table>
+                    </div>
                   )
                 }}
               </AutoSizer>
