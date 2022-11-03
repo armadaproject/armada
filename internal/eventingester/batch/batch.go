@@ -10,7 +10,7 @@ import (
 
 // Batch batches up events from a channel.  Batches are created whenever maxItems InstructionSets have been
 // received or maxTimeout has elapsed since the last batch was created (whichever occurs first).
-// This function has a lot in common with lookoutingester.batch.  Hopefully when generics become available we can
+// This function has a lot in common with lookoutingester.batch. Hopefully when generics become available we can
 // factor out most of the common code
 func Batch(values <-chan *pulsarutils.ConsumerMessage, maxItems int,
 	maxTimeout time.Duration, bufferSize int, clock clock.Clock,
