@@ -3,12 +3,14 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -470,7 +472,11 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 				if !assert.NoError(t, err) {
 					return
 				}
-				err = nodeDb.Upsert(tc.Nodes)
+
+				// Insert in random order.
+				nodes := slices.Clone(tc.Nodes)
+				rand.Shuffle(len(nodes), func(i, j int) { nodes[i], nodes[j] = nodes[j], nodes[i] })
+				err = nodeDb.Upsert(nodes)
 				if !assert.NoError(t, err) {
 					return
 				}
