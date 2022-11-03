@@ -317,7 +317,7 @@ func testNodeItems1() []*schedulerobjects.Node {
 			Id:         "node1",
 			NodeTypeId: "foo",
 			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
 				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
@@ -327,7 +327,7 @@ func testNodeItems1() []*schedulerobjects.Node {
 			Id:         "node2",
 			NodeTypeId: "foo",
 			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
 				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
@@ -337,7 +337,7 @@ func testNodeItems1() []*schedulerobjects.Node {
 			Id:         "node3",
 			NodeTypeId: "bar",
 			NodeType:   &schedulerobjects.NodeType{Id: "bar"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
 				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
@@ -363,7 +363,7 @@ func testNodeItems2(priorities []int32, resources []string, n int) []*schedulero
 			}
 			availableByPriorityAndResource.MarkAllocatable(p, schedulerobjects.ResourceList{Resources: rs})
 		}
-		rv[i].AvailableByPriorityAndResource = availableByPriorityAndResource
+		rv[i].AllocatableByPriorityAndResource = availableByPriorityAndResource
 	}
 	return rv
 }
@@ -431,7 +431,7 @@ func testCpuNode(priorities []int32) *schedulerobjects.Node {
 				"memory": resource.MustParse("256Gi"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -462,7 +462,7 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 				"memory": resource.MustParse("256Gi"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -486,7 +486,7 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 				"gpu":    resource.MustParse("8"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("64"),
@@ -519,7 +519,7 @@ func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
 				"gpu":    resource.MustParse("8"),
 			},
 		},
-		AvailableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
 			map[string]resource.Quantity{
 				"cpu":    resource.MustParse("64"),

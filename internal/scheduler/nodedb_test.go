@@ -325,7 +325,7 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 			Taints: []v1.Taint{
 				{Key: "fish", Value: "chips", Effect: v1.TaintEffectNoSchedule},
 			},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -383,7 +383,7 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 		{
 			Id:     "labelled-1",
 			Labels: map[string]string{"foo": "bar"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
@@ -441,7 +441,7 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 		{
 			Id:     "labelled-1",
 			Labels: map[string]string{"foo": "bar"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),

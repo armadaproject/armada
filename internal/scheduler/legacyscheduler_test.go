@@ -564,7 +564,7 @@ func withIndexedNodeLabels(indexedNodeLabels []string, config configuration.Sche
 
 func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-		schedulerobjects.AllocatableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkAllocated(p, rs)
+		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rs)
 	}
 	return nodes
 }

@@ -10,23 +10,23 @@ import (
 )
 
 func NewNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {
-	availableByPriorityAndResource := NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
+	allocatableByPriorityAndResource := NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {
-		availableByPriorityAndResource.MarkAllocated(p, ResourceList{Resources: rs.Resources})
+		allocatableByPriorityAndResource.MarkAllocated(p, ResourceList{Resources: rs.Resources})
 	}
 	return &Node{
-		Id:                             fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
-		LastSeen:                       time.Now(),
-		Taints:                         nodeInfo.GetTaints(),
-		Labels:                         nodeInfo.GetLabels(),
-		TotalResources:                 ResourceList{Resources: nodeInfo.TotalResources},
-		AvailableByPriorityAndResource: availableByPriorityAndResource,
+		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		LastSeen:                         time.Now(),
+		Taints:                           nodeInfo.GetTaints(),
+		Labels:                           nodeInfo.GetLabels(),
+		TotalResources:                   ResourceList{Resources: nodeInfo.TotalResources},
+		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 	}
 }
 
 func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
-	if node.AvailableByPriorityAndResource == nil {
+	if node.AllocatableByPriorityAndResource == nil {
 		return resource.Quantity{}
 	}
-	return AllocatableByPriorityAndResourceType(node.AvailableByPriorityAndResource).Get(priority, resourceType)
+	return AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(priority, resourceType)
 }
