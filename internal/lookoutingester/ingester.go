@@ -48,6 +48,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		panic(err)
 	}
 
+	m := metrics.Get()
 	// Receive messages and convert them to instructions in parallel
 	log.Infof("Creating %d subscriptions to pulsar topic %s", config.Paralellism, config.Pulsar.JobsetEventsTopic)
 	instructionChannels := make([]chan *model.InstructionSet, config.Paralellism)
@@ -66,7 +67,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		}
 
 		// Receive Pulsar messages on a channel
-		pulsarMsgs := pulsarutils.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
+		pulsarMsgs := pulsarutils.Receive(ctx, consumer, i, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime, m)
 
 		// Turn the messages into instructions
 		compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)
@@ -75,7 +76,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 			panic(err)
 		}
 
-		instructionsService := instructions.New(metrics.Get())
+		instructionsService := instructions.New(m)
 		instructionChannels[i] = instructionsService.Convert(ctx, pulsarMsgs, 2*config.BatchSize, config.UserAnnotationPrefix, compressor)
 		consumers[i] = consumer
 	}
