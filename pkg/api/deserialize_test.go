@@ -89,10 +89,6 @@ func TestDeserializeJobState(t *testing.T) {
 				assert.NoError(t, testDeserializeJobStateString(t, input))
 			})
 	}
-
-	assert.NoError(t, testDeserializeJobStateInt(t, 0))
-	assert.NoError(t, testDeserializeJobStateInt(t, 1))
-	assert.NoError(t, testDeserializeJobStateInt(t, 2))
 }
 
 func TestDeserializeJobStateInt(t *testing.T) {
