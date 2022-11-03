@@ -1,28 +1,29 @@
 numBatches: 1
 batchSize: 1
-queue: e2e-test-queue
+queue: queue-b
 jobs:
   - priority: 0
-    scheduler: pulsar
     namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
+      priorityClassName: armada-default
       containers:
         - name: sleep
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10            
+          image: alpine:3.10
           args:
-            - "ls"
+            - "sleep"
+            - "120"
           resources:
             limits:
               memory: 10Mi
-              cpu: 100m
+              cpu: 30
             requests:
               memory: 10Mi
-              cpu: 100m
+              cpu: 30
 ---
-timeout: "100s"
+timeout: "130s"
 expectedEvents:
   - submitted:
   - succeeded:
