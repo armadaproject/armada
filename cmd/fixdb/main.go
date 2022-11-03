@@ -33,7 +33,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close(context.Background())
-	oneWeekAgo := time.Now().Add(-1 * 25 * time.Hour)
+	oneWeekAgo := time.Now().Add(-7 * 24 * time.Hour)
 	var numFixed = 0
 	for{
 		rows, err := db.Query(context.Background(), "SELECT job_id, job from job where  job.orig_job_spec is null and  submitted >= $1 LIMIT 1", oneWeekAgo)
