@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/G-Research/armada/cmd/armadactl/cmd"
 	"github.com/G-Research/armada/internal/common"
 )
@@ -9,7 +11,8 @@ import (
 func main() {
 	common.ConfigureCommandLineLogging()
 	root := cmd.RootCmd()
-	// root.execute returns an error, but we can ignore this as the error will already be
-	// printed to stderr by cobra
-	root.Execute()
+	if err := root.Execute(); err != nil {
+		// We don't need to log the error here because cobra has already done this for us
+		os.Exit(1)
+	}
 }
