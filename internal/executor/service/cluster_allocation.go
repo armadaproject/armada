@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 
+	"github.com/G-Research/armada/internal/common"
+
 	"github.com/G-Research/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
@@ -25,6 +27,7 @@ type ClusterAllocationService struct {
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
 	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
+	reserved           common.ComputeResources
 }
 
 func NewClusterAllocationService(
@@ -34,6 +37,7 @@ func NewClusterAllocationService(
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	reserved common.ComputeResources,
 ) *ClusterAllocationService {
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
@@ -42,6 +46,7 @@ func NewClusterAllocationService(
 		clusterContext:     clusterContext,
 		submitter:          submitter,
 		etcdHealthMonitor:  etcdHealthMonitor,
+		reserved:           reserved,
 	}
 }
 
