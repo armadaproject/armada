@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
+	commonmetrics "github.com/G-Research/armada/internal/common/ingester/metrics"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -32,10 +32,10 @@ type HasNodeName interface {
 }
 
 type Service struct {
-	m *metrics.Metrics
+	m *commonmetrics.Metrics
 }
 
-func New(m *metrics.Metrics) *Service {
+func New(m *commonmetrics.Metrics) *Service {
 	return &Service{m: m}
 }
 
@@ -95,7 +95,7 @@ func (s *Service) ConvertMsg(
 	// Try and unmarshall the proto-  if it fails there's not much we can do here.
 	sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, pulsarMsg.Payload())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorDeserialization)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
 		messageLogger.Warnf("Could not unmarshall message %v", err)
 		return updateInstructions
 	}
@@ -138,7 +138,7 @@ func (s *Service) ConvertMsg(
 			messageLogger.Warnf("Ignoring unknown event type %T", event)
 		}
 		if err != nil {
-			s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+			s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 			messageLogger.Warnf("Could not convert event at index %d. %+v", idx, err)
 		}
 	}
@@ -158,7 +158,7 @@ func (s *Service) handleSubmitJob(
 ) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -178,7 +178,7 @@ func (s *Service) handleSubmitJob(
 			logger.Warnf("Couldn't compress proto for job %s in jobset %s as json.  %+v", jobId, jobSet, err)
 		}
 	} else {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		logger.Warnf("Couldn't convert job event for job %s in jobset %s to api job.  %+v", jobId, jobSet, err)
 	}
 
@@ -233,7 +233,7 @@ func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnno
 func (s *Service) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -249,7 +249,7 @@ func (s *Service) handleReprioritiseJob(ts time.Time, event *armadaevents.Reprio
 func (s *Service) handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -265,7 +265,7 @@ func (s *Service) handleJobDuplicateDetected(ts time.Time, event *armadaevents.J
 func (s *Service) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -282,7 +282,7 @@ func (s *Service) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob
 func (s *Service) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -298,7 +298,7 @@ func (s *Service) handleJobSucceeded(ts time.Time, event *armadaevents.JobSuccee
 func (s *Service) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -324,13 +324,13 @@ func (s *Service) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, u
 func (s *Service) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.GetRunId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -358,13 +358,13 @@ func (s *Service) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRu
 func (s *Service) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
@@ -394,7 +394,7 @@ func (s *Service) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunA
 func (s *Service) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return errors.WithStack(err)
 	}
 
@@ -410,13 +410,13 @@ func (s *Service) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRun
 func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return errors.WithStack(err)
 	}
 
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
-		s.m.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		s.m.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		return errors.WithStack(err)
 	}
 
@@ -447,6 +447,11 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 				jobRunUpdate.Started = &ts
 			}
 
+			// Both Error_PodLeaseReturned and Error_LeaseExpired have an implied reset of the job state to queued
+			// Ideally we would send an explicit queued message here, but until this change is made we correct the job
+			// state here
+			resetStateToQueued := false
+
 			switch reason := e.Reason.(type) {
 			case *armadaevents.Error_PodError:
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
@@ -472,14 +477,23 @@ func (s *Service) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErr
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				resetStateToQueued = true
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+				resetStateToQueued = true
 			default:
 				jobRunUpdate.Error = pointer.String("Unknown error")
 				log.Debugf("Ignoring event %T", reason)
 			}
 			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
+			if resetStateToQueued {
+				update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
+					JobId:   jobId,
+					State:   pointer.Int32(int32(repository.JobQueuedOrdinal)),
+					Updated: ts,
+				})
+			}
 			break
 		}
 	}
