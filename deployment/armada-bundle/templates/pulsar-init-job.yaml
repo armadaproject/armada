@@ -22,7 +22,7 @@ spec:
               echo "Pulsar started!"
       containers:
         - name: init-pulsar
-          image: {{ .Values.pulsar.armadaInit.image.repository }}:{{ .Values.pulsar.armadaInit.image.repository }}
+          image: {{ .Values.pulsar.armadaInit.image.repository }}:{{ .Values.pulsar.armadaInit.image.tag }}
           {{- $pulsarAdminUrl := printf "%s://%s:%s" .Values.pulsar.armadaInit.protocol .Values.pulsar.armadaInit.brokerHost (toString .Values.pulsar.armadaInit.adminPort) }}
           command:
             - sh
