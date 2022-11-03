@@ -389,20 +389,32 @@ tests-e2e-teardown:
 .ONESHELL:
 setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
-	# We need an ingress controller to enable cluster ingress
+
+	# Load images necessary for tests.
+	docker pull "alpine:3.10" # used for e2e tests
+	docker pull "nginx:1.21.6" # used for e2e tests (ingress)
+	docker pull "registry.k8s.io/ingress-nginx/controller:v1.4.0"
+	docker pull "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343"
+	kind load docker-image "alpine:3.10" --name armada-test
+	kind load docker-image "nginx:1.21.6" --name armada-test
+	kind load docker-image "registry.k8s.io/ingress-nginx/controller:v1.4.0" --name armada-test
+	kind load docker-image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343" --name armada-test
+
+	# Ingress controller needed for cluster ingress.
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
+
+	# Priority classes.
+	kubectl apply -f e2e/setup/priorityclasses.yaml --context kind-armada-test
+
 	# Wait until the ingress controller is ready
 	echo "Waiting for ingress controller to become ready"
-	sleep 60 # calling wait immediately can result in "no matching resources found"
+	sleep 10 # calling wait immediately can result in "no matching resources found"
 	kubectl wait --namespace ingress-nginx \
 		--for=condition=ready pod \
 		--selector=app.kubernetes.io/component=controller \
 		--timeout=90s \
 		--context kind-armada-test
-	docker pull "alpine:3.10" # ensure alpine, which is used by tests, is available
-	docker pull "nginx:1.21.6" # ensure nginx, which is used by tests, is available
-	kind load docker-image "alpine:3.10" --name armada-test # needed to make alpine available to kind
-	kind load docker-image "nginx:1.21.6" --name armada-test # needed to make nginx available to kind
+
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
@@ -430,9 +442,11 @@ tests-e2e-setup: setup-cluster
 
 	# Create test queue if it doesn't already exist
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
+	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-a || true
+	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
 .ONESHELL:
-tests-e2e-no-setup: dotnet-setup
+tests-e2e-no-setup:
 	function printApplicationLogs {
 		echo -e "\nexecutor logs:"
 		docker logs executor
