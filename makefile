@@ -444,7 +444,7 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
 .ONESHELL:
-tests-e2e-no-setup: dotnet-setup
+tests-e2e-no-setup:
 	function printApplicationLogs {
 		echo -e "\nexecutor logs:"
 		docker logs executor
