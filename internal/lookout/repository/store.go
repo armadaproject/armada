@@ -390,7 +390,7 @@ func (r *SQLJobStore) getReprioritizedJobProto(event *api.JobReprioritizedEvent)
 
 	var jobFromProto api.Job
 	jobProto := jobsInQueueRows[0].OrigJobSpec
-	err = jobFromProto.Unmarshal([]byte(jobProto.String))
+	err = jobFromProto.Unmarshal(jobProto)
 	if err != nil {
 		return nil, err
 	}
