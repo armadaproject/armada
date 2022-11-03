@@ -489,12 +489,17 @@ func NewLegacyScheduler(
 		priorities = []int32{0}
 	}
 
-	resources := schedulingConfig.IndexedResources
-	if len(resources) == 0 {
-		resources = []string{"cpu", "memory"}
+	indexedResources := schedulingConfig.IndexedResources
+	if len(indexedResources) == 0 {
+		indexedResources = []string{"cpu", "memory"}
 	}
 
-	nodeDb, err := NewNodeDb(priorities, resources)
+	nodeDb, err := NewNodeDb(
+		priorities,
+		indexedResources,
+		schedulingConfig.IndexedTaints,
+		schedulingConfig.IndexedNodeLabels,
+	)
 	if err != nil {
 		return nil, err
 	}
