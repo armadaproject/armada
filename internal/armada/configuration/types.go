@@ -144,7 +144,7 @@ type SchedulingConfig struct {
 	// If not set, no labels are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedNodeLabels map[string]interface{}
+	IndexedNodeLabels []string
 	// Taint keys that the scheduler creates indexes for efficient lookup of.
 	// Should include taints frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these taints
@@ -153,7 +153,7 @@ type SchedulingConfig struct {
 	// If not set, all taints are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedTaints map[string]interface{}
+	IndexedTaints []string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,
