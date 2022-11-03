@@ -4,6 +4,7 @@ import { Column } from "react-virtualized"
 
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
+import DefaultHeaderCell from "../DefaultHeaderCell"
 import LinkCell from "../LinkCell"
 import SortableHeaderCell from "../SortableHeaderCell"
 import JobStateCell from "./JobStateCell"
@@ -78,6 +79,19 @@ export default function createJobTableColumns(props: JobTableColumnsProps) {
                 onChange={(newValue) => props.onChangeColumnValue(col.id, newValue)}
                 {...headerProps}
               />
+            )}
+          />
+        )
+      }
+      case "jobStateDuration": {
+        return (
+          <Column
+            key={i}
+            dataKey={col.accessor}
+            width={col.width}
+            label={col.name}
+            headerRenderer={(headerProps) => (
+              <DefaultHeaderCell name={col.name} className="default-header-cell" {...headerProps} />
             )}
           />
         )
