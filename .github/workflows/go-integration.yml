@@ -30,7 +30,7 @@ jobs:
           INTEGRATION_ENABLED: true
       - run: make junit-report
       - name: Upload junit report
-        uses: actions/upload-artifact@v3.1.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: junit.xml
           path: test_reports/junit.xml
@@ -52,8 +52,12 @@ jobs:
           tar -czf docker-images.tar.gz docker-images/*
 
       - name: Upload docker image tarball to artifacts
-        uses: actions/upload-artifact@v3.1.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: docker-images
           path: docker-images.tar.gz
           if-no-files-found: error
+  invoke-image-push:
+    name: Push Docker Image artifacts to Docker Hub
+    needs: go-integration-tests
+    uses: ./.github/workflows/upload-docker-images.yml
