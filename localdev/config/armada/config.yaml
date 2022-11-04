@@ -1,3 +1,16 @@
+grpcPort: 50051
+httpPort: 8080
+metricsPort: 9000
+priorityHalfTime: 20m
+cancelJobsBatchSize: 1000
+grpc:
+  keepaliveParams:
+    maxConnectionIdle: 5m
+    time: 2h
+    timeout: 20s
+  keepaliveEnforcementPolicy:
+    minTime: 10s
+    permitWithoutStream: false
 corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
 auth:
   basicAuth:
@@ -25,8 +38,9 @@ eventapi:
   postgres:
     connection:
       host: "postgres"
+defaultToLegacyEvents: true
 pulsar:
-  enabled: true
+  enabled: false
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "persistent://armada/armada/events"
   redisFromPulsarSubscription: "RedisFromPulsar"
@@ -54,4 +68,25 @@ eventsNats:
   ClusterID: "test-cluster"
   Subject: "ArmadaTest"
   QueueGroup: "ArmadaEventRedisProcessor"
-    
+scheduling:
+  probabilityOfUsingNewScheduler: 1
+  preemption:
+    enabled: true
+    priorityClasses:
+      armada-default:
+        priority: 1000
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+      "": # Treat missing PC the same as armada-default.
+        priority: 1000
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+      armada-preemptible:
+        priority: 900
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+    # Default to empty PC to not require PCs be set up in worker clusters.
+    defaultPriorityClass: ""
