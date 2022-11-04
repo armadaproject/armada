@@ -15,6 +15,7 @@ jobs:
           #path: docker-images.zip
       - name: Unzip docker-images artifacts
         run: |
+          find . -type f -name 'docker-images.zip' -print
           unzip docker-images.zip
           tar xf docker-images.tar.gz
           rm docker-images.tar.gz
