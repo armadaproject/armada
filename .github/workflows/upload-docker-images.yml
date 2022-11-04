@@ -13,8 +13,9 @@ jobs:
         with:
           name: docker-images
           path: docker-images.zip
-      - name: Un-tar docker-images artifacts
+      - name: Unzip docker-images artifacts
         run: |
+          unzip docker-images.zip
           tar xf docker-images.tar.gz
           rm docker-images.tar.gz
       - name: Upload images to docker
