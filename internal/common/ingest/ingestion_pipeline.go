@@ -47,7 +47,7 @@ type EventSequencesWithIds struct {
 // IngestionPipeline is an pipeline that reads message from pulsar and inserts them into a sink. The pipeline will
 // handle the following automatically:
 //   - Receiving messages from pulsar
-//   - Splitting messages into batches for efficient processing
+//   - Combining messages into batches for efficient processing
 //   - Unmarshalling into event sequences
 //   - Acking processed messages
 //
