@@ -10,15 +10,13 @@ import (
 
 // WithRetry executes the supplied action until it either completes successfully or it returns false, indicating that
 // the error is fatal
-func WithRetry(action func() (error, bool), maxBackoff int) error {
+func WithRetry(action func() (bool, error), maxBackoff int) error {
 	backOff := 1
 	for {
-		err, retry := action()
-
+		retry, err := action()
 		if err == nil {
 			return nil
 		}
-
 		if retry {
 			backOff = util.Min(2*backOff, maxBackoff)
 			log.WithError(err).Warnf("Retryable error encountered, will wait for %d seconds before retrying", backOff)

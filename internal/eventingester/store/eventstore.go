@@ -46,7 +46,7 @@ func (repo *RedisEventStore) Store(update *model.BatchUpdate) error {
 		newRows := currentRows + 1
 		if newSize > repo.maxSize || newRows > repo.maxRows {
 			err := repo.doStore(batch)
-			multierror.Append(result, err)
+			result = multierror.Append(result, err)
 			batch = make([]*model.Event, 0, repo.maxRows)
 			currentSize = 0
 			currentRows = 0
@@ -58,7 +58,7 @@ func (repo *RedisEventStore) Store(update *model.BatchUpdate) error {
 		// If this is the last element we need to flush
 		if i == len(update.Events)-1 {
 			err := repo.doStore(batch)
-			multierror.Append(result, err)
+			result = multierror.Append(result, err)
 		}
 	}
 	return result.ErrorOrNil()
@@ -94,12 +94,12 @@ func (repo *RedisEventStore) doStore(update []*model.Event) error {
 		}
 	}
 
-	return ingest.WithRetry(func() (error, bool) {
+	return ingest.WithRetry(func() (bool, error) {
 		_, err := pipe.Exec()
 		if err == nil {
-			return nil, false
+			return false, nil
 		} else {
-			return err, repo.isRetryableRedisError(err)
+			return repo.isRetryableRedisError(err), err
 		}
 	}, repo.maxRetryBackoffSeconds)
 }
