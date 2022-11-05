@@ -1,6 +1,7 @@
 package lookoutingester
 
 import (
+	"github.com/G-Research/armada/internal/common/app"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -40,5 +41,5 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		lookoutDb,
 		config.Metrics,
 		metrics)
-	ingester.Run()
+	ingester.Run(app.CreateContextWithShutdown())
 }

@@ -1,8 +1,6 @@
 package ingest
 
 import (
-	"os"
-	"os/signal"
 	"sync"
 	"time"
 
@@ -52,7 +50,6 @@ type EventSequencesWithIds struct {
 //   - Splitting messages into batches for efficient processing
 //   - Unmarshalling into event sequences
 //   - Acking processed messages
-//   - Gracefully terminating on a SIGTERM
 //
 // Callers must supply two structs, an InstructionConverter for converting event sequences into something that can be
 // exhausted and a Sink capable of exhausting these objects
@@ -88,10 +85,8 @@ func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.Puls
 	}
 }
 
-// Run will run the ingestion pipeline until a SIGTERM is received
-func (ingester *IngestionPipeline[T]) Run() {
-	// create a context that will end on a sigterm
-	ctx := createContextWithShutdown()
+// Run will run the ingestion pipeline until the supplied context is shut down
+func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 
 	shutdownMetricServer := common.ServeMetrics(ingester.metricsConfig.Port)
 	defer shutdownMetricServer()
@@ -161,21 +156,6 @@ func (ingester *IngestionPipeline[T]) Run() {
 	// wait for a shutdown event
 	wg.Wait()
 	log.Info("Shutdown event received - closing")
-}
-
-// createContextWithShutdown returns a context that will report done when a SIGTERM is received
-func createContextWithShutdown() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		select {
-		case <-c:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	return ctx
 }
 
 func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metrics) *EventSequencesWithIds {

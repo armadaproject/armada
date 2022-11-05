@@ -3,6 +3,8 @@ package eventingester
 import (
 	"regexp"
 
+	"github.com/G-Research/armada/internal/common/app"
+
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
 
@@ -49,5 +51,5 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	ingester := ingest.
 		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)
-	ingester.Run()
+	ingester.Run(app.CreateContextWithShutdown())
 }
