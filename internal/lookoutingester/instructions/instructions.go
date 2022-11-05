@@ -7,12 +7,13 @@ import (
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 
-	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/pointer"
+
+	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"

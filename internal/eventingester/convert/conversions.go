@@ -1,8 +1,9 @@
 package convert
 
 import (
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
 
 	"github.com/G-Research/armada/internal/common/ingest"
 
