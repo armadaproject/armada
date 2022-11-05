@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -16,7 +18,6 @@ import (
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 )
 

@@ -17,18 +17,19 @@ import (
 // Lookout database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.LookoutIngesterConfiguration) {
 	log.Infof("Opening connection pool to postgres")
+	metrics := metrics.Get()
 	db, err := postgres.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	lookoutDb := lookoutdb.NewLookoutDb(db, metrics.Get())
+	lookoutDb := lookoutdb.NewLookoutDb(db, metrics)
 
 	compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error creating compressor"))
 	}
 
-	converter := instructions.NewInstructionConverter(metrics.Get(), config.UserAnnotationPrefix, compressor)
+	converter := instructions.NewInstructionConverter(metrics, config.UserAnnotationPrefix, compressor)
 
 	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,
@@ -37,6 +38,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		config.BatchDuration,
 		converter,
 		lookoutDb,
-		config.Metrics)
+		config.Metrics,
+		metrics)
 	ingester.Run()
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/eventutil"
+	commonmetrics "github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
@@ -45,7 +46,7 @@ type EventSequencesWithIds struct {
 	MessageIds     []pulsar.MessageID
 }
 
-// IngestionPipeline is an application tha reads message from pulsar and inserts them into a sink. The pipeline will
+// IngestionPipeline is an pipeline that reads message from pulsar and inserts them into a sink. The pipeline will
 // handle the following automatically:
 //   - Receiving messages from pulsar
 //   - Splitting messages into batches for efficient processing
@@ -58,6 +59,7 @@ type EventSequencesWithIds struct {
 type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarConfig           configuration.PulsarConfig
 	metricsConfig          configuration.MetricsConfig
+	metrics                *commonmetrics.Metrics
 	pulsarSubscriptionName string
 	pulsarbatchSize        int
 	pulsarbatchDuration    time.Duration
@@ -72,10 +74,12 @@ func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.Puls
 	converter InstructionConverter[T],
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
+	metrics *commonmetrics.Metrics,
 ) *IngestionPipeline[T] {
 	return &IngestionPipeline[T]{
 		pulsarConfig:           pulsarConfig,
 		metricsConfig:          metricsConfig,
+		metrics:                metrics,
 		pulsarSubscriptionName: pulsarSubscriptionName,
 		pulsarbatchSize:        pulsarbatchSize,
 		pulsarbatchDuration:    pulsarbatchDuration,
@@ -114,7 +118,7 @@ func (ingester *IngestionPipeline[T]) Run() {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error creating pulsar consumer"))
 	}
-	pulsarMsgs := pulsarutils.Receive(ctx, consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime)
+	pulsarMsgs := pulsarutils.Receive(ctx, consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
 
 	// Batch up messages
 	batchedMsgs := Batch(pulsarMsgs, ingester.pulsarbatchSize, ingester.pulsarbatchDuration, clock.RealClock{})
@@ -123,7 +127,7 @@ func (ingester *IngestionPipeline[T]) Run() {
 	eventSequences := make(chan *EventSequencesWithIds)
 	go func() {
 		for msg := range batchedMsgs {
-			converted := unmarshalEventSequences(msg)
+			converted := unmarshalEventSequences(msg, ingester.metrics)
 			eventSequences <- converted
 		}
 		close(eventSequences)
@@ -174,7 +178,7 @@ func createContextWithShutdown() context.Context {
 	return ctx
 }
 
-func unmarshalEventSequences(batch []pulsar.Message) *EventSequencesWithIds {
+func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
 	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
 	messageIds := make([]pulsar.MessageID, len(batch))
 	for i, msg := range batch {
@@ -191,6 +195,7 @@ func unmarshalEventSequences(batch []pulsar.Message) *EventSequencesWithIds {
 		// Try and unmarshall the proto
 		es, err := eventutil.UnmarshalEventSequence(context.Background(), msg.Payload())
 		if err != nil {
+			metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
 			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", msg.ID())
 			continue
 		}

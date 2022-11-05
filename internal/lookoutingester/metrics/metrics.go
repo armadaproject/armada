@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"github.com/G-Research/armada/internal/common/ingester/metrics"
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
 )
 
 var m = metrics.NewMetrics(metrics.ArmadaLookoutIngesterMetricsPrefix)

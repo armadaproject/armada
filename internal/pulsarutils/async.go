@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	commonmetrics "github.com/G-Research/armada/internal/common/ingester/metrics"
+	commonmetrics "github.com/G-Research/armada/internal/common/ingest/metrics"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
@@ -39,7 +39,7 @@ func Receive(
 	consumer pulsar.Consumer,
 	receiveTimeout time.Duration,
 	backoffTime time.Duration,
-	m *commonmetrics.Metrics
+	m *commonmetrics.Metrics,
 ) chan pulsar.Message {
 	out := make(chan pulsar.Message)
 	go func() {

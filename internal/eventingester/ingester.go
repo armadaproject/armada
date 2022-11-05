@@ -10,6 +10,7 @@ import (
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/eventingester/configuration"
 	"github.com/G-Research/armada/internal/eventingester/convert"
+	"github.com/G-Research/armada/internal/eventingester/metrics"
 	"github.com/G-Research/armada/internal/eventingester/store"
 )
 
@@ -17,6 +18,8 @@ import (
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
 	log.Info("Event Ingester Starting")
+
+	metrics := metrics.Get()
 
 	fatalRegexes := make([]*regexp.Regexp, len(config.FatalInsertionErrors))
 	for i, str := range config.FatalInsertionErrors {
@@ -42,8 +45,9 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := convert.NewEventConverter(compressor, config.BatchSize)
+	converter := convert.NewEventConverter(compressor, config.BatchSize, metrics)
 
-	ingester := ingest.NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics)
+	ingester := ingest.
+		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)
 	ingester.Run()
 }
