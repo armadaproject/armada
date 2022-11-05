@@ -97,13 +97,13 @@ func (node *Node) PodRequirementsMet(req *PodRequirements, inFlightResources All
 
 	// Check if the pod can be scheduled without preemption,
 	// by checking if resource requirements are met at priority 0.
-	matches, reason, err = podResourceRequirementsMet(0, node.AvailableByPriorityAndResource, inFlightResources, req)
+	matches, reason, err = podResourceRequirementsMet(0, node.AllocatableByPriorityAndResource, inFlightResources, req)
 	if matches || err != nil {
 		return matches, 1, reason, err
 	}
 
 	// Check if the pod can be scheduled with preemption.
-	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AvailableByPriorityAndResource, inFlightResources, req)
+	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AllocatableByPriorityAndResource, inFlightResources, req)
 	return matches, 0, reason, err
 }
 

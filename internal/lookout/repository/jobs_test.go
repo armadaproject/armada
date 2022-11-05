@@ -1665,3 +1665,24 @@ func TestGetJobs_RemovesDuplicateJobsByDefault(t *testing.T) {
 		AssertJobsAreEquivalent(t, duplicate.job, jobInfos[0].Job)
 	})
 }
+
+func TestGetJobs_DoesntErrorIfJobSpecIsNull(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		jobId := util.NewULID()
+		err := SaveJobWithNullObj(db, jobId, queue, "job-set-1")
+		assert.NoError(t, err)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			JobId: jobId,
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		assert.Equal(t, jobId, jobInfos[0].Job.Id)
+		assert.Equal(t, queue, jobInfos[0].Job.Queue)
+		assert.Equal(t, "job-set-1", jobInfos[0].Job.JobSetId)
+		assert.Equal(t, "", jobInfos[0].JobJson)
+	})
+}

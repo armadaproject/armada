@@ -5,6 +5,8 @@ import (
 
 	"github.com/G-Research/armada/internal/common/ingest"
 
+	commonmetrics "github.com/G-Research/armada/internal/common/ingester/metrics"
+
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
@@ -17,12 +19,14 @@ import (
 type EventConverter struct {
 	Compressor          compress.Compressor
 	MaxMessageBatchSize int
+	metrics             *commonmetrics.Metrics
 }
 
-func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize int) ingest.InstructionConverter[*model.BatchUpdate] {
+func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize int, metrics *commonmetrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate] {
 	return &EventConverter{
 		Compressor:          compressor,
 		MaxMessageBatchSize: maxMessageBatchSize,
+		metrics:             metrics,
 	}
 }
 
@@ -48,11 +52,13 @@ func (ec *EventConverter) Convert(sequencesWithIds *ingest.EventSequencesWithIds
 
 		bytes, err := proto.Marshal(es)
 		if err != nil {
+			ec.metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 			log.WithError(err).Warnf("Could not marshall proto for msg")
 			continue
 		}
 		compressedBytes, err := ec.Compressor.Compress(bytes)
 		if err != nil {
+			ec.metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 			log.WithError(err).Warnf("Could not compress event")
 			continue
 		}

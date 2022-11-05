@@ -444,8 +444,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			&nodeInfo,
 			req.ClusterId,
 			priorities,
-			q.schedulingConfig.IndexedTaints,
-			q.schedulingConfig.IndexedNodeLabels,
 		)
 	}
 

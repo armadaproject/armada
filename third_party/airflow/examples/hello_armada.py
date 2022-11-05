@@ -91,6 +91,7 @@ with DAG(
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
     """
     Airflow dag syntax for running op and then armada.

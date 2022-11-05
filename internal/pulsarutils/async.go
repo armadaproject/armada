@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	commonmetrics "github.com/G-Research/armada/internal/common/ingester/metrics"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 
@@ -37,6 +39,7 @@ func Receive(
 	consumer pulsar.Consumer,
 	receiveTimeout time.Duration,
 	backoffTime time.Duration,
+	m *commonmetrics.Metrics
 ) chan pulsar.Message {
 	out := make(chan pulsar.Message)
 	go func() {
@@ -83,6 +86,7 @@ func Receive(
 				// If receiving fails, try again in the hope that the problem is transient.
 				// We don't need to distinguish between errors here, since any error means this function can't proceed.
 				if err != nil {
+					m.RecordPulsarConnectionError()
 					logging.
 						WithStacktrace(log, err).
 						WithField("lastMessageId", lastMessageId).
