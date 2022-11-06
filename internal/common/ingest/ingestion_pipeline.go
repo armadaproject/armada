@@ -122,7 +122,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 			case <-ctx.Done():
 				time.Sleep(2 * ingester.pulsarbatchDuration)
 				cancel()
-				wg.Add(1)
+				wg.Done()
 			}
 		}
 	}()
@@ -165,7 +165,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 				consumer.AckID(msgId)
 			}
 		}
-		wg.Add(1)
+		wg.Done()
 	}()
 
 	log.Info("Ingestion pipeline set up. Running until shutdown event received")
