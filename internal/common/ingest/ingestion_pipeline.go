@@ -85,7 +85,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.Puls
 }
 
 // Run will run the ingestion pipeline until the supplied context is shut down
-func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
+func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	shutdownMetricServer := common.ServeMetrics(ingester.metricsConfig.Port)
 	defer shutdownMetricServer()
 
@@ -96,7 +96,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 	// Subscribe to Pulsar and receive messages
 	pulsarClient, err := pulsarutils.NewPulsarClient(&ingester.pulsarConfig)
 	if err != nil {
-		panic(errors.WithMessage(err, "Error creating pulsar client"))
+		return errors.WithMessage(err, "Error creating pulsar client")
 	}
 	defer pulsarClient.Close()
 
@@ -106,11 +106,10 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 		Type:                        pulsar.KeyShared,
 		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
-	defer consumer.Close()
-
 	if err != nil {
-		panic(errors.WithMessage(err, "Error creating pulsar consumer"))
+		return errors.WithMessage(err, "Error creating pulsar consumer")
 	}
+	defer consumer.Close()
 	pulsarMsgs := pulsarutils.Receive(ctx, consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
 
 	// Setup a context that n seconds after ctx
@@ -172,6 +171,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 	// wait for a shutdown event
 	wg.Wait()
 	log.Info("Shutdown event received - closing")
+	return nil
 }
 
 func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metrics) *EventSequencesWithIds {

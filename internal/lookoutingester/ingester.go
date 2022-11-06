@@ -42,5 +42,9 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		lookoutDb,
 		config.Metrics,
 		metrics)
-	ingester.Run(app.CreateContextWithShutdown())
+
+	err = ingester.Run(app.CreateContextWithShutdown())
+	if err != nil {
+		panic(errors.WithMessage(err, "Error running ingestion pipeline"))
+	}
 }
