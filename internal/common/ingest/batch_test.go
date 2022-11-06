@@ -1,9 +1,10 @@
 package ingest
 
 import (
-	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -15,62 +16,47 @@ const (
 )
 
 func TestBatch_MaxItems(t *testing.T) {
-	inputChan := make(chan int)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
-	outputChan := Batch[int](inputChan, defaultMaxItems, defaultMaxTimeOut, testClock)
-
-	// Post 3 items on the input channel without advancing the clock
-	// And we should get a single update on the output channel
-	inputChan <- 1
-	inputChan <- 2
-	inputChan <- 3
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	var received []int = nil
+	inputChan := make(chan int)
+	output := make([][]int, 0)
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, func(a []int) { output = append(output, a) })
+	batcher.clock = testClock
 
 	go func() {
-		for e := range outputChan {
-			received = e
-			close(inputChan)
-			wg.Done()
-		}
+		// Post 3 items on the input channel without advancing the clock
+		// And we should get a single update on the output channel
+		inputChan <- 1
+		inputChan <- 2
+		inputChan <- 3
+		inputChan <- 4
+		inputChan <- 5
+		inputChan <- 6
+		cancel()
 	}()
-
-	wg.Wait()
-	expected := []int{
-		1, 2, 3,
-	}
-	assert.Equal(t, expected, received)
+	batcher.Run(ctx)
+	assert.Equal(t, [][]int{{1, 2, 3}, {4, 5, 6}}, output)
 }
 
 func TestBatch_Time(t *testing.T) {
-	inputChan := make(chan int)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
-	outputChan := Batch[int](inputChan, defaultMaxItems, defaultMaxTimeOut, testClock)
-
-	// Post two messages on the input channel and advance clock
-	// And we should get a single update on the output channel
-	inputChan <- 1
-	inputChan <- 2
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
-	var received []int = nil
+	inputChan := make(chan int)
+	output := make([][]int, 0)
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, func(a []int) { output = append(output, a) })
+	batcher.clock = testClock
 
 	go func() {
-		for e := range outputChan {
-			received = e
-			close(inputChan)
-			wg.Done()
-		}
+		// Post 3 items on the input channel without advancing the clock
+		// And we should get a single update on the output channel
+		inputChan <- 1
+		inputChan <- 2
+		testClock.Step(2 * time.Second)
+		inputChan <- 3
+		inputChan <- 4
+		testClock.Step(2 * time.Second)
+		cancel()
 	}()
-	testClock.Step(2 * time.Second)
-	wg.Wait()
-	expected := []int{
-		1, 2,
-	}
-	assert.Equal(t, expected, received)
+	batcher.Run(ctx)
+	assert.Equal(t, [][]int{{1, 2}, {3, 4}}, output)
 }

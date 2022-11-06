@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
@@ -87,7 +86,6 @@ func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.Puls
 
 // Run will run the ingestion pipeline until the supplied context is shut down
 func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
-
 	shutdownMetricServer := common.ServeMetrics(ingester.metricsConfig.Port)
 	defer shutdownMetricServer()
 
@@ -115,8 +113,26 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) {
 	}
 	pulsarMsgs := pulsarutils.Receive(ctx, consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
 
+	// Setup a context that n seconds after ctx
+	// This gives the rest of the pipeline a chance to flush pending messages
+	pipelineShutdownContext, cancel := context.WithCancel(context.Background())
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				time.Sleep(2 * ingester.pulsarbatchDuration)
+				cancel()
+				wg.Add(1)
+			}
+		}
+	}()
+
 	// Batch up messages
-	batchedMsgs := Batch(pulsarMsgs, ingester.pulsarbatchSize, ingester.pulsarbatchDuration, clock.RealClock{})
+	batchedMsgs := make(chan []pulsar.Message)
+	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarbatchSize, ingester.pulsarbatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
+	go func() {
+		batcher.Run(pipelineShutdownContext)
+	}()
 
 	// Convert to event sequences
 	eventSequences := make(chan *EventSequencesWithIds)
