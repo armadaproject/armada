@@ -3,10 +3,10 @@ package scheduleringester
 import (
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/eventingester/metrics"
 	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/scheduleringester/configuration"
 	"github.com/G-Research/armada/internal/scheduleringester/instructions"
+	"github.com/G-Research/armada/internal/scheduleringester/metrics"
 	"github.com/G-Research/armada/internal/scheduleringester/schedulerdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
