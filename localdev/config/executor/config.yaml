@@ -36,7 +36,7 @@ kubernetes:
   stuckTerminatingPodExpiry: 1m
   podDefaults:
     ingress:
-      hostnameSuffix: "svc"
+      hostnameSuffix: "localhost"
       certNameSuffix: "ingress-tls-certificate"
   # Instantly fail jobs when the pod submission error matches the regexes below
   fatalPodSubmissionErrors:

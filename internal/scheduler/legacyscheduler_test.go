@@ -3,12 +3,14 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -466,11 +468,15 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 				TotalResources:   totalResources,
 			}
 			if tc.Nodes != nil {
-				nodeDb, err := NewNodeDb(testPriorities, testResources)
+				nodeDb, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 				if !assert.NoError(t, err) {
 					return
 				}
-				err = nodeDb.Upsert(tc.Nodes)
+
+				// Insert in random order.
+				nodes := slices.Clone(tc.Nodes)
+				rand.Shuffle(len(nodes), func(i, j int) { nodes[i], nodes[j] = nodes[j], nodes[i] })
+				err = nodeDb.Upsert(nodes)
 				if !assert.NoError(t, err) {
 					return
 				}
@@ -547,28 +553,18 @@ func withMaxConsecutiveUnschedulableJobs(n uint, config configuration.Scheduling
 }
 
 func withIndexedTaints(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	if config.IndexedTaints == nil {
-		config.IndexedTaints = make(map[string]interface{})
-	}
-	for _, key := range indexedTaints {
-		config.IndexedTaints[key] = ""
-	}
+	config.IndexedTaints = append(config.IndexedTaints, indexedTaints...)
 	return config
 }
 
-func withIndexedNodeLabels(indexedLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	if config.IndexedNodeLabels == nil {
-		config.IndexedNodeLabels = make(map[string]interface{})
-	}
-	for _, key := range indexedLabels {
-		config.IndexedNodeLabels[key] = ""
-	}
+func withIndexedNodeLabels(indexedNodeLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.IndexedNodeLabels = append(config.IndexedNodeLabels, indexedNodeLabels...)
 	return config
 }
 
 func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-		schedulerobjects.AllocatableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkAllocated(p, rs)
+		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rs)
 	}
 	return nodes
 }
@@ -579,11 +575,6 @@ func withLabels(labels map[string]string, nodes []*schedulerobjects.Node) []*sch
 			node.Labels = maps.Clone(labels)
 		} else {
 			maps.Copy(node.Labels, labels)
-		}
-		if node.NodeType.Labels == nil {
-			node.NodeType.Labels = maps.Clone(labels)
-		} else {
-			maps.Copy(node.NodeType.Labels, labels)
 		}
 	}
 	return nodes

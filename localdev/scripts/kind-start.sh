@@ -17,5 +17,8 @@ kind load docker-image "alpine:3.10" --name armada-test # needed to make alpine 
 kind load docker-image "nginx:1.21.6" --name armada-test # needed to make nginx available to kind
 mkdir -p .kube
 kind get kubeconfig --internal --name armada-test > ./.kube/config
+
+# cluster config
 kubectl apply -f ../e2e/setup/namespace-with-anonymous-user.yaml --context kind-armada-test
+kubectl apply -f ../e2e/setup/priorityclasses.yaml --context kind-armada-test
 
