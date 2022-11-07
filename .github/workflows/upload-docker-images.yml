@@ -46,7 +46,7 @@ jobs:
             "armada-jobservice"
           )
           for image in "${IMAGES_TO_UPLOAD[@]}"; do
-              remote="gresearchdev/${image}-dev:${TAG}"
+              remote="gresearch/${image}-dev:${TAG}"
               docker load -i $image.tar.gz
               docker tag $image $remote
               docker push $remote
