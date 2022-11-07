@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -323,7 +324,7 @@ var expectedJobRunContainer = model.CreateJobRunContainerInstruction{
 func TestSubmit(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(submit)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
 		MessageIds:   msg.MessageIds,
@@ -337,7 +338,7 @@ func TestSubmit(t *testing.T) {
 func TestHappyPathSingleUpdate(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(submit, assigned, running, jobRunSucceeded, jobSucceeded)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToCreate:    []*model.CreateJobInstruction{&expectedSubmit},
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedRunning, &expectedJobSucceeded},
@@ -357,7 +358,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	// Submit
 	msg1 := NewMsg(submit)
-	instructions := svc.Convert(msg1)
+	instructions := svc.Convert(context.Background(), msg1)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
 		MessageIds:   msg1.MessageIds,
@@ -366,7 +367,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 
 	// Leased
 	msg2 := NewMsg(assigned)
-	instructions = svc.Convert(msg2)
+	instructions = svc.Convert(context.Background(), msg2)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased},
 		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
@@ -376,7 +377,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 
 	// Running
 	msg3 := NewMsg(running)
-	instructions = svc.Convert(msg3)
+	instructions = svc.Convert(context.Background(), msg3)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedRunning},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun},
@@ -386,7 +387,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 
 	// Run Succeeded
 	msg4 := NewMsg(jobRunSucceeded)
-	instructions = svc.Convert(msg4)
+	instructions = svc.Convert(context.Background(), msg4)
 	expected = &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunSucceeded},
 		MessageIds:      msg4.MessageIds,
@@ -395,7 +396,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 
 	// Job Succeeded
 	msg5 := NewMsg(jobSucceeded)
-	instructions = svc.Convert(msg5)
+	instructions = svc.Convert(context.Background(), msg5)
 	expected = &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobSucceeded},
 		MessageIds:   msg5.MessageIds,
@@ -406,7 +407,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 func TestCancelled(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(jobCancelled)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
 		MessageIds:   msg.MessageIds,
@@ -417,7 +418,7 @@ func TestCancelled(t *testing.T) {
 func TestReprioritised(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(jobReprioritised)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 		MessageIds:   msg.MessageIds,
@@ -428,7 +429,7 @@ func TestReprioritised(t *testing.T) {
 func TestFailed(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(jobRunFailed)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{&expectedFailed},
 		JobRunContainersToCreate: []*model.CreateJobRunContainerInstruction{&expectedJobRunContainer},
@@ -440,7 +441,7 @@ func TestFailed(t *testing.T) {
 func TestFailedWithMissingRunId(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(jobLeaseReturned)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	jobRun := instructions.JobRunsToCreate[0]
 	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
 	expected := &model.InstructionSet{
@@ -496,7 +497,7 @@ func TestHandlePodTerminated(t *testing.T) {
 
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(podTerminated)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:     runIdString,
@@ -534,7 +535,7 @@ func TestHandleJobLeaseReturned(t *testing.T) {
 
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(leaseReturned)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:            runIdString,
@@ -584,7 +585,7 @@ func TestHandlePodUnschedulable(t *testing.T) {
 
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(podUnschedulable)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
 			RunId:            runIdString,
@@ -630,7 +631,7 @@ func TestSubmitWithNullChar(t *testing.T) {
 	})
 
 	svc := SimpleInstructionConverter()
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	assert.Len(t, instructions.JobsToCreate, 1)
 	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
 }
@@ -661,7 +662,7 @@ func TestFailedWithNullCharInError(t *testing.T) {
 	})
 
 	svc := SimpleInstructionConverter()
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
 		{
 			RunId:     runIdString,
@@ -686,7 +687,7 @@ func TestInvalidEvent(t *testing.T) {
 	// Check that the (valid) Submit is processed, but the invalid message is discarded
 	svc := SimpleInstructionConverter()
 	msg := NewMsg(invalidEvent, submit)
-	instructions := svc.Convert(msg)
+	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
 		MessageIds:   msg.MessageIds,

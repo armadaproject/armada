@@ -4,8 +4,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/app"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/app"
 
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"

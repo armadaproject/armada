@@ -37,9 +37,7 @@ func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model
 // * Job Run Updates, New Job Containers
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
-func (l *LookoutDb) Store(instructions *model.InstructionSet) error {
-	ctx := context.Background()
-
+func (l *LookoutDb) Store(ctx context.Context, instructions *model.InstructionSet) error {
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
 	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)

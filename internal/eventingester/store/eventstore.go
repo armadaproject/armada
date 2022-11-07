@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"regexp"
 	"time"
 
@@ -38,7 +39,7 @@ func NewRedisEventStore(db redis.UniversalClient, eventRetention configuration.E
 	}
 }
 
-func (repo *RedisEventStore) Store(update *model.BatchUpdate) error {
+func (repo *RedisEventStore) Store(ctx context.Context, update *model.BatchUpdate) error {
 	if len(update.Events) == 0 {
 		return nil
 	}

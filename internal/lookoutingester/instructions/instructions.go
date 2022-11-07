@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"sort"
 	"strings"
 	"time"
@@ -41,7 +42,7 @@ func NewInstructionConverter(metrics *metrics.Metrics, userAnnotationPrefix stri
 	}
 }
 
-func (c *InstructionConverter) Convert(sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}

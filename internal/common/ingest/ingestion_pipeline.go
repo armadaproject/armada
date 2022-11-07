@@ -26,7 +26,7 @@ type HasPulsarMessageIds interface {
 // InstructionConverter should be implemented by structs that can convert a batch of event sequences into an object
 // suitable for passing to the sink
 type InstructionConverter[T HasPulsarMessageIds] interface {
-	Convert(*EventSequencesWithIds) T
+	Convert(ctx context.Context, msg *EventSequencesWithIds) T
 }
 
 // Sink should be implemented by the struct responsible for putting the data in its final resting place, e.g. a
@@ -34,7 +34,7 @@ type InstructionConverter[T HasPulsarMessageIds] interface {
 type Sink[T HasPulsarMessageIds] interface {
 	// Store should persist the sink.  The store is responsible for retrying failed attempts and should only return an error
 	// When it is satisfied that operation cannot be retries.
-	Store(T) error
+	Store(ctx context.Context, msg T) error
 }
 
 // EventSequencesWithIds consists of a batch of Event Sequences along with the corresponding Pulsar Message Ids
@@ -147,7 +147,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	instructions := make(chan T)
 	go func() {
 		for msg := range eventSequences {
-			converted := ingester.converter.Convert(msg)
+			converted := ingester.converter.Convert(pipelineShutdownContext, msg)
 			instructions <- converted
 		}
 		close(instructions)
@@ -158,7 +158,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 		for msg := range instructions {
 			// The sink is responsible for retrying any messages so if we get a message here we know we can give up
 			// and just ACK the ids
-			err := ingester.sink.Store(msg)
+			err := ingester.sink.Store(pipelineShutdownContext, msg)
 			log.WithError(err).Warn("Error inserting messages")
 			for _, msgId := range msg.GetMessageIDs() {
 				consumer.AckID(msgId)
