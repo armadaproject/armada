@@ -440,6 +440,10 @@ tests-e2e-setup: setup-cluster
 		-e ARMADA_APICONNECTION_ARMADAURL="server:50051" \
 		-e ARMADA_APICONNECTION_FORCENOTLS=true \
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
+	docker run -d --name lookout-ingester-migrate  --network=kind -v ${PWD}/e2e:/e2e \
+		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
+	sleep 3
+	docker logs lookout-ingester-migrate
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
 
@@ -470,7 +474,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester
+		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
