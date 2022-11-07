@@ -27,21 +27,21 @@ type HasNodeName interface {
 	GetNodeName() string
 }
 
-type InstructionCenverter struct {
+type InstructionConverter struct {
 	metrics              *metrics.Metrics
 	userAnnotationPrefix string
 	compressor           compress.Compressor
 }
 
 func NewInstructionConverter(metrics *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor) ingest.InstructionConverter[*model.InstructionSet] {
-	return &InstructionCenverter{
+	return &InstructionConverter{
 		metrics:              metrics,
 		userAnnotationPrefix: userAnnotationPrefix,
 		compressor:           compressor,
 	}
 }
 
-func (c *InstructionCenverter) Convert(sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}
@@ -52,7 +52,7 @@ func (c *InstructionCenverter) Convert(sequencesWithIds *ingest.EventSequencesWi
 	return updateInstructions
 }
 
-func (c *InstructionCenverter) convertSequence(es *armadaevents.EventSequence, update *model.InstructionSet) {
+func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, update *model.InstructionSet) {
 	queue := es.Queue
 	jobset := es.JobSetName
 	owner := es.UserId
@@ -97,7 +97,7 @@ func (c *InstructionCenverter) convertSequence(es *armadaevents.EventSequence, u
 	}
 }
 
-func (c *InstructionCenverter) handleSubmitJob(
+func (c *InstructionConverter) handleSubmitJob(
 	queue string,
 	owner string,
 	jobSet string,
@@ -179,7 +179,7 @@ func extractAnnotations(jobId string, jobAnnotations map[string]string, userAnno
 	return annotations
 }
 
-func (c *InstructionCenverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleReprioritiseJob(ts time.Time, event *armadaevents.ReprioritisedJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -195,7 +195,7 @@ func (c *InstructionCenverter) handleReprioritiseJob(ts time.Time, event *armada
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *armadaevents.JobDuplicateDetected, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -211,7 +211,7 @@ func (c *InstructionCenverter) handleJobDuplicateDetected(ts time.Time, event *a
 	return nil
 }
 
-func (c *InstructionCenverter) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -228,7 +228,7 @@ func (c *InstructionCenverter) handleCancelJob(ts time.Time, event *armadaevents
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaevents.JobSucceeded, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -244,7 +244,7 @@ func (c *InstructionCenverter) handleJobSucceeded(ts time.Time, event *armadaeve
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobErrors(ts time.Time, event *armadaevents.JobErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -270,7 +270,7 @@ func (c *InstructionCenverter) handleJobErrors(ts time.Time, event *armadaevents
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaevents.JobRunRunning, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -304,7 +304,7 @@ func (c *InstructionCenverter) handleJobRunRunning(ts time.Time, event *armadaev
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -340,7 +340,7 @@ func (c *InstructionCenverter) handleJobRunAssigned(ts time.Time, event *armadae
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunSucceeded(ts time.Time, event *armadaevents.JobRunSucceeded, update *model.InstructionSet) error {
 	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -356,7 +356,7 @@ func (c *InstructionCenverter) handleJobRunSucceeded(ts time.Time, event *armada
 	return nil
 }
 
-func (c *InstructionCenverter) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaevents.JobRunErrors, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)

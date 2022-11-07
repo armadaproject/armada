@@ -2,6 +2,7 @@ package eventingester
 
 import (
 	"regexp"
+	"time"
 
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/pkg/errors"
@@ -40,7 +41,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 			log.WithError(err).Error("failed to close events Redis client")
 		}
 	}()
-	eventDb := store.NewRedisEventStore(rc, config.EventRetentionPolicy, fatalRegexes)
+	eventDb := store.NewRedisEventStore(rc, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
 
 	// Turn the messages into event rows
 	compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)

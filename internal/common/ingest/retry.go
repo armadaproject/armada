@@ -4,26 +4,31 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/G-Research/armada/internal/common/util"
 )
 
 // WithRetry executes the supplied action until it either completes successfully or it returns false, indicating that
 // the error is fatal
-func WithRetry(action func() (bool, error), maxBackoff int) error {
-	backOff := 1
+func WithRetry(action func() (bool, error), intialBackoff time.Duration, maxBackOff time.Duration) error {
+	backOff := intialBackoff
 	for {
 		retry, err := action()
 		if err == nil {
 			return nil
 		}
 		if retry {
-			backOff = util.Min(2*backOff, maxBackoff)
+			backOff = min(2*backOff, maxBackOff)
 			log.WithError(err).Warnf("Retryable error encountered, will wait for %d seconds before retrying", backOff)
-			time.Sleep(time.Duration(backOff) * time.Second)
+			time.Sleep(backOff)
 		} else {
 			// Non retryable error
 			return err
 		}
 	}
+}
+
+func min(d1 time.Duration, d2 time.Duration) time.Duration {
+	if d1.Nanoseconds() < d2.Nanoseconds() {
+		return d1
+	}
+	return d2
 }

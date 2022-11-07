@@ -732,8 +732,8 @@ func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWi
 	}
 }
 
-func SimpleInstructionConverter() *InstructionCenverter {
-	return &InstructionCenverter{
+func SimpleInstructionConverter() *InstructionConverter {
+	return &InstructionConverter{
 		metrics:              metrics.Get(),
 		userAnnotationPrefix: userAnnotationPrefix,
 		compressor:           &compress.NoOpCompressor{},

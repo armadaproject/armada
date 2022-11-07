@@ -2,6 +2,7 @@ package store
 
 import (
 	"regexp"
+	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/hashicorp/go-multierror"
@@ -18,16 +19,23 @@ const (
 )
 
 type RedisEventStore struct {
-	db                     redis.UniversalClient
-	eventRetention         configuration.EventRetentionPolicy
-	maxRetryBackoffSeconds int
-	maxRows                int
-	maxSize                int
-	fatalErrors            []*regexp.Regexp
+	db                 redis.UniversalClient
+	eventRetention     configuration.EventRetentionPolicy
+	intialRetryBackoff time.Duration
+	maxRetryBackoff    time.Duration
+	maxRows            int
+	maxSize            int
+	fatalErrors        []*regexp.Regexp
 }
 
-func NewRedisEventStore(db redis.UniversalClient, eventRetention configuration.EventRetentionPolicy, fatalErrors []*regexp.Regexp) ingest.Sink[*model.BatchUpdate] {
-	return &RedisEventStore{db: db, eventRetention: eventRetention, fatalErrors: fatalErrors}
+func NewRedisEventStore(db redis.UniversalClient, eventRetention configuration.EventRetentionPolicy, fatalErrors []*regexp.Regexp, intialRetryBackoff time.Duration, maxRetryBackoff time.Duration) ingest.Sink[*model.BatchUpdate] {
+	return &RedisEventStore{
+		db:                 db,
+		eventRetention:     eventRetention,
+		fatalErrors:        fatalErrors,
+		intialRetryBackoff: intialRetryBackoff,
+		maxRetryBackoff:    maxRetryBackoff,
+	}
 }
 
 func (repo *RedisEventStore) Store(update *model.BatchUpdate) error {
@@ -101,7 +109,7 @@ func (repo *RedisEventStore) doStore(update []*model.Event) error {
 		} else {
 			return repo.isRetryableRedisError(err), err
 		}
-	}, repo.maxRetryBackoffSeconds)
+	}, repo.intialRetryBackoff, repo.maxRetryBackoff)
 }
 
 // IsRetryableRedisError returns true if the error doesn't match the list of nonRetryableErrors
