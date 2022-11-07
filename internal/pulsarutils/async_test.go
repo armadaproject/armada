@@ -6,10 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/ingester/metrics"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/net/context"
 )
+
+var m = metrics.NewMetrics("test_pulsarutils_")
 
 type mockConsumer struct {
 	pulsar.Consumer
@@ -41,7 +45,7 @@ func TestReceive(t *testing.T) {
 		},
 	}
 	context, cancel := ctx.WithCancel(ctx.Background())
-	outputChan := Receive(context, consumer, 1, 1, 10*time.Millisecond, 10*time.Millisecond)
+	outputChan := Receive(context, consumer, 1, 1, 10*time.Millisecond, 10*time.Millisecond, m)
 	var receivedMsgs []*ConsumerMessage
 
 	wg := sync.WaitGroup{}

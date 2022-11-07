@@ -12,7 +12,7 @@ func TestNodePodRequirementsMet(t *testing.T) {
 	tests := map[string]struct {
 		Taints             []v1.Taint
 		Labels             map[string]string
-		AvailableResources AvailableByPriorityAndResourceType
+		AvailableResources AllocatableByPriorityAndResourceType
 		Req                *PodRequirements
 		ExpectSuccess      bool
 	}{
@@ -247,7 +247,7 @@ func TestNodePodRequirementsMet(t *testing.T) {
 		"sufficient cpu": {
 			Taints: nil,
 			Labels: nil,
-			AvailableResources: AvailableByPriorityAndResourceType{
+			AvailableResources: AllocatableByPriorityAndResourceType{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("1"),
@@ -267,7 +267,7 @@ func TestNodePodRequirementsMet(t *testing.T) {
 		"insufficient cpu": {
 			Taints: nil,
 			Labels: nil,
-			AvailableResources: AvailableByPriorityAndResourceType{
+			AvailableResources: AllocatableByPriorityAndResourceType{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("0"),
@@ -287,7 +287,7 @@ func TestNodePodRequirementsMet(t *testing.T) {
 		"sufficient cpu at priority": {
 			Taints: nil,
 			Labels: nil,
-			AvailableResources: AvailableByPriorityAndResourceType{
+			AvailableResources: AllocatableByPriorityAndResourceType{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("0"),
@@ -312,7 +312,7 @@ func TestNodePodRequirementsMet(t *testing.T) {
 		"insufficient cpu at priority": {
 			Taints: nil,
 			Labels: nil,
-			AvailableResources: AvailableByPriorityAndResourceType{
+			AvailableResources: AllocatableByPriorityAndResourceType{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("0"),
@@ -338,9 +338,9 @@ func TestNodePodRequirementsMet(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			node := &Node{
-				Taints:                         tc.Taints,
-				Labels:                         tc.Labels,
-				AvailableByPriorityAndResource: tc.AvailableResources,
+				Taints:                           tc.Taints,
+				Labels:                           tc.Labels,
+				AllocatableByPriorityAndResource: tc.AvailableResources,
 			}
 			matches, _, reason, err := node.PodRequirementsMet(tc.Req, nil)
 			assert.NoError(t, err)

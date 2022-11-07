@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/eventingester/metrics"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/compress"
@@ -27,6 +29,7 @@ const (
 var (
 	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
 	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+	m             = metrics.Get()
 )
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
@@ -56,7 +59,7 @@ func TestSingle(t *testing.T) {
 	msg := NewMsg(baseTime, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
+	converter := NewMessageRowConverter(compressor, 1024, m)
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
@@ -86,7 +89,7 @@ func TestSingleWithMissingCreated(t *testing.T) {
 	msg := NewMsg(baseTime, suceededMissingCreated)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
+	converter := NewMessageRowConverter(compressor, 1024, m)
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
@@ -102,7 +105,7 @@ func TestMultiple(t *testing.T) {
 	msg := NewMsg(baseTime, cancelled, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
+	converter := NewMessageRowConverter(compressor, 1024, m)
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
@@ -122,7 +125,7 @@ func TestMultipleMessages(t *testing.T) {
 	msg2 := NewMsg(baseTime, jobRunSucceeded)
 	compressor, err := compress.NewZlibCompressor(0)
 	assert.NoError(t, err)
-	converter := MessageRowConverter{Compressor: compressor, MaxMessageBatchSize: 1024}
+	converter := NewMessageRowConverter(compressor, 1024, m)
 	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg1, msg2})
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
