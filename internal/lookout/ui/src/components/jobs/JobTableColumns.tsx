@@ -15,7 +15,6 @@ import "./JobTableColumns.css"
 
 type JobTableColumnsProps = {
   columns: ColumnSpec<string | boolean | string[]>[]
-  totalWidth: number
   onChangeColumnValue: (id: string, val: string | boolean | string[]) => void
   onJobIdClick: (jobIndex: number) => void
 }

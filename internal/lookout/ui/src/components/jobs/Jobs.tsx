@@ -84,9 +84,12 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
 
   render() {
     const rowCount = this.props.jobs.length
-    const tableWidth = Object.values(this.props.defaultColumns).reduce((prevValue, currentValue) => {
-      return currentValue.isDisabled ? prevValue : prevValue + currentValue.width
-    }, 0)
+    const tableWidth = this.props.defaultColumns
+      .concat(this.props.annotationColumns)
+      .filter((col) => !col.isDisabled)
+      .map((col) => col.width)
+      .reduce((a, b) => a + b, 0)
+
     return (
       <div className="jobs">
         <div className="job-table-header-container">
@@ -128,7 +131,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                   return (
                     <div
                       style={{
-                        width: tableWidth,
+                        width: width,
                         height: height,
                         overflowX: "auto",
                       }}
@@ -183,7 +186,6 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
                       >
                         {createJobTableColumns({
                           columns: enabledColumns,
-                          totalWidth: width,
                           onChangeColumnValue: this.props.onChangeColumnValue,
                           onJobIdClick: this.props.onJobIdClick,
                         })}

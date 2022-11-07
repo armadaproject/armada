@@ -33,6 +33,16 @@ export function convertToLocalStorageState(loadedData: Record<string, unknown>):
   state.defaultColumns = loadedData.defaultColumns as ColumnSpec<string | boolean | string[]>[]
   state.annotationColumns = loadedData.annotationColumns as ColumnSpec<string>[]
 
+  // If the total column width is less than 100, then it is likely that the loaded data is using the old column format.
+  // Clear the local storage in this case to avoid rendering problems.
+  const totalWidth = (state.defaultColumns ?? [])
+    .concat(state.annotationColumns ?? [])
+    .map((col) => col.width)
+    .reduce((a, b) => a + b, 0)
+  if (totalWidth < 100) {
+    return [state, false]
+  }
+
   return [state, true]
 }
 

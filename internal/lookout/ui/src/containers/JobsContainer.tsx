@@ -157,7 +157,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
           isDisabled: false,
           filter: "",
           defaultFilter: "",
-          width: 120,
+          width: 600,
         },
         {
           id: "submissionTime",
@@ -310,7 +310,7 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
       isDisabled: false,
       filter: "",
       defaultFilter: "",
-      width: 1,
+      width: 500,
     }
     newState.annotationColumns.push(newCol)
     this.localStorageService.saveState(newState)
