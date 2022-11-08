@@ -1661,27 +1661,6 @@ func TestGetJobs_DoesntErrorIfJobSpecIsNull(t *testing.T) {
 	})
 }
 
-func TestGetJobs_TimeInStateSingleRun(t *testing.T) {
-	withDatabase(t, func(db *goqu.Database) {
-		clock := &util.DummyClock{T: someTime.Add(3 * time.Second)}
-		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
-		jobRepo := NewSQLJobRepository(db, clock)
-
-		job := NewJobSimulator(t, jobStore).
-			CreateJobWithId(queue, "correct").
-			Pending(cluster, k8sId1).
-			RunningAtTime(cluster, k8sId1, node, someTime)
-
-		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
-			Take: 10,
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(jobInfos))
-		AssertJobsAreEquivalent(t, job.job, jobInfos[0].Job)
-		assert.Equal(t, "3s", jobInfos[0].JobStateDuration)
-	})
-}
-
 func TestGetJobs_TimeInStateMultipleRuns(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		clock := &util.DummyClock{T: someTime.Add(9 * time.Second)}
