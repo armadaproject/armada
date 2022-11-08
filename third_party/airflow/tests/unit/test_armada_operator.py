@@ -13,6 +13,7 @@ get_lookout_url_test_cases = [
         "https://lookout.armada.domain/jobs?job_id=test_id",
     ),
     ("", "test_id", ""),
+    (None, "test_id", ""),
 ]
 
 

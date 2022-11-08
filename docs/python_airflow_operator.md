@@ -39,7 +39,7 @@ Airflow operators inherit from BaseOperator.
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
 
 
-    * **lookout_url_template** (*str*) – A URL template to be used to provide users
+    * **lookout_url_template** (*Optional**[**str**]*) – A URL template to be used to provide users
     a valid link to the related lookout job in this operator’s log.
     The format should be:
     “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will

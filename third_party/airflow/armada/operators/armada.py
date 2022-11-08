@@ -23,6 +23,7 @@ from armada_client.client import ArmadaClient
 from armada.operators.jobservice import JobServiceClient
 
 import logging
+from typing import Optional
 
 from armada.operators.utils import airflow_error, search_for_job_complete
 from armada.jobservice import jobservice_pb2
@@ -58,7 +59,7 @@ class ArmadaOperator(BaseOperator):
         job_service_client: JobServiceClient,
         armada_queue: str,
         job_request_items,
-        lookout_url_template: str = "",
+        lookout_url_template: Optional[str] = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -116,4 +117,6 @@ class ArmadaOperator(BaseOperator):
         airflow_error(job_state, self.name, job_id)
 
     def _get_lookout_url(self, job_id: str) -> str:
+        if self.lookout_url_template is None:
+            return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
