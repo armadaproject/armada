@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
+	"github.com/G-Research/armada/internal/common/ingester/metrics"
 
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/pulsarutils"

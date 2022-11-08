@@ -3,6 +3,8 @@ package convert
 import (
 	"context"
 
+	commonmetrics "github.com/G-Research/armada/internal/common/ingester/metrics"
+
 	"github.com/gogo/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 
@@ -17,6 +19,15 @@ import (
 type MessageRowConverter struct {
 	Compressor          compress.Compressor
 	MaxMessageBatchSize int
+	metrics             *commonmetrics.Metrics
+}
+
+func NewMessageRowConverter(compressor compress.Compressor, maxMessageBatchSize int, metrics *commonmetrics.Metrics) *MessageRowConverter {
+	return &MessageRowConverter{
+		Compressor:          compressor,
+		MaxMessageBatchSize: maxMessageBatchSize,
+		metrics:             metrics,
+	}
 }
 
 // Convert takes a channel of pulsar message batches and outputs a channel of batched events that we store in Redis
@@ -52,6 +63,7 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 		// Try and unmarshall the proto
 		es, err := eventutil.UnmarshalEventSequence(ctx, msg.Message.Payload())
 		if err != nil {
+			rc.metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
 			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", pulsarMsg.ID())
 			continue
 		}
@@ -73,6 +85,7 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 	sequences = eventutil.CompactEventSequences(sequences)
 	sequences, err := eventutil.LimitSequencesByteSize(sequences, rc.MaxMessageBatchSize, false)
 	if err != nil {
+		rc.metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 		log.WithError(err).Errorf("Failed to compact sequences")
 		return &model.BatchUpdate{
 			MessageIds: messageIds,
@@ -89,11 +102,13 @@ func (rc *MessageRowConverter) ConvertBatch(ctx context.Context, batch []*pulsar
 
 		bytes, err := proto.Marshal(es)
 		if err != nil {
+			rc.metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 			log.WithError(err).Warnf("Could not marshall proto for msg %s", batch[i].Message.ID())
 			continue
 		}
 		compressedBytes, err := rc.Compressor.Compress(bytes)
 		if err != nil {
+			rc.metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorProcessing)
 			log.WithError(err).Warnf("Could not compress event for msg %s", batch[i].Message.ID())
 			continue
 		}
