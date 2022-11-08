@@ -31,16 +31,28 @@ auth:
 redis:
   addrs:
     - "redis:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
 eventsRedis:
   addrs:
     - "redis:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
+eventsApiRedis:
+  addrs:
+    - "redis:6379"
+  password: ""
+  db: 1
+  poolSize: 1000
 eventapi:
   postgres:
     connection:
       host: "postgres"
 defaultToLegacyEvents: true
 pulsar:
-  enabled: false
+  enabled: true
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "persistent://armada/armada/events"
   redisFromPulsarSubscription: "RedisFromPulsar"
