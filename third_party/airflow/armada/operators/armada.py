@@ -58,7 +58,7 @@ class ArmadaOperator(BaseOperator):
         job_service_client: JobServiceClient,
         armada_queue: str,
         job_request_items,
-        lookout_url_template: str,
+        lookout_url_template: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
