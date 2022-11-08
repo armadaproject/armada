@@ -70,7 +70,7 @@ func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodReq
 	if !matches || err != nil {
 		return matches, reason, err
 	}
-	return podNodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetWellKnownLabels(), req)
+	return podNodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetIndexedLabels(), req)
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on this node.
@@ -79,7 +79,7 @@ func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodReq
 // - 1: Pod can be scheduled without preempting any running pods.
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
-func (node *Node) PodRequirementsMet(req *PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
+func (node *Node) PodRequirementsMet(req *PodRequirements, inFlightResources AllocatedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
 	matches, reason, err := podTolerationRequirementsMet(node.GetTaints(), req)
 	if !matches || err != nil {
 		return matches, 0, reason, err
@@ -97,13 +97,13 @@ func (node *Node) PodRequirementsMet(req *PodRequirements, assignedResources Ass
 
 	// Check if the pod can be scheduled without preemption,
 	// by checking if resource requirements are met at priority 0.
-	matches, reason, err = podResourceRequirementsMet(0, node.AvailableByPriorityAndResource, assignedResources, req)
+	matches, reason, err = podResourceRequirementsMet(0, node.AllocatableByPriorityAndResource, inFlightResources, req)
 	if matches || err != nil {
 		return matches, 1, reason, err
 	}
 
 	// Check if the pod can be scheduled with preemption.
-	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AvailableByPriorityAndResource, assignedResources, req)
+	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AllocatableByPriorityAndResource, inFlightResources, req)
 	return matches, 0, reason, err
 }
 
@@ -119,7 +119,7 @@ func podTolerationRequirementsMet(nodeTaints []v1.Taint, req *PodRequirements) (
 	return true, nil, nil
 }
 
-func podNodeSelectorRequirementsMet(nodeLabels, unsetWellKnownLabels map[string]string, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func podNodeSelectorRequirementsMet(nodeLabels, unsetIndexedLabels map[string]string, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	for label, podValue := range req.NodeSelector {
 		// If the label value differs between nodeLabels and the pod,
 		// always return false.
@@ -132,13 +132,13 @@ func podNodeSelectorRequirementsMet(nodeLabels, unsetWellKnownLabels map[string]
 				}, nil
 			}
 		} else {
-			// If unsetWellKnownLabels is provided, return false only if
+			// If unsetIndexedLabels is provided, return false only if
 			// this label is explicitly marked as not set.
 			//
-			// If unsetWellKnownLabels is not provided,
+			// If unsetIndexedLabels is not provided,
 			// we assume that nodeLabels contains all labels and return false.
-			if unsetWellKnownLabels != nil {
-				if _, ok := unsetWellKnownLabels[label]; ok {
+			if unsetIndexedLabels != nil {
+				if _, ok := unsetIndexedLabels[label]; ok {
 					return false, &MissingLabel{Label: label}, nil
 				}
 			} else {
@@ -171,12 +171,12 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 	return true, nil, nil
 }
 
-func podResourceRequirementsMet(priority int32, availableResources AvailableByPriorityAndResourceType, assignedResources AssignedByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func podResourceRequirementsMet(priority int32, allocatableResources AllocatableByPriorityAndResourceType, inFlightResources AllocatedByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	available := resource.Quantity{}
 	for resource, required := range req.ResourceRequirements.Requests {
-		q := availableResources.Get(req.Priority, string(resource))
+		q := allocatableResources.Get(req.Priority, string(resource))
 		q.DeepCopyInto(&available)
-		available.Sub(assignedResources.Get(req.Priority, string(resource)))
+		available.Sub(inFlightResources.Get(req.Priority, string(resource)))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
 				Resource:  string(resource),

@@ -3,8 +3,10 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
+	"regexp"
 	"time"
+
+	commonmetrics "github.com/G-Research/armada/internal/common/ingester/metrics"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -17,13 +19,20 @@ import (
 
 // InsertEvents takes a channel of armada events and inserts them into the event db
 // the events are republished to an output channel for further processing (e.g. Ackking)
-func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpdate, bufferSize int,
-	maxSize int, maxRows int,
+func InsertEvents(
+	ctx context.Context,
+	db EventStore,
+	msgs chan *model.BatchUpdate,
+	bufferSize int,
+	maxSize int,
+	maxRows int,
+	fatalErrors []*regexp.Regexp,
+	metrics *commonmetrics.Metrics,
 ) chan []*pulsarutils.ConsumerMessageId {
 	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
 	go func() {
 		for msg := range msgs {
-			insert(db, msg.Events, maxSize, maxRows)
+			insert(db, msg.Events, maxSize, maxRows, fatalErrors, metrics)
 			out <- msg.MessageIds
 		}
 		close(out)
@@ -31,7 +40,7 @@ func InsertEvents(ctx context.Context, db EventStore, msgs chan *model.BatchUpda
 	return out
 }
 
-func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
+func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int, fatalErrors []*regexp.Regexp, metrics *commonmetrics.Metrics) {
 	if len(rows) == 0 {
 		return
 	}
@@ -45,7 +54,7 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 		newSize := currentSize + len(event.Event)
 		newRows := currentRows + 1
 		if newSize > maxSize || newRows > maxRows {
-			doInsert(db, batch)
+			doInsert(db, batch, fatalErrors, metrics)
 			batch = make([]*model.Event, 0, maxRows)
 			currentSize = 0
 			currentRows = 0
@@ -56,17 +65,18 @@ func insert(db EventStore, rows []*model.Event, maxSize int, maxRows int) {
 
 		// If this is the last element we need to flush
 		if i == len(rows)-1 {
-			doInsert(db, batch)
+			doInsert(db, batch, fatalErrors, metrics)
 		}
 	}
 }
 
-func doInsert(db EventStore, rows []*model.Event) {
+func doInsert(db EventStore, rows []*model.Event, fatalErrors []*regexp.Regexp, metrics *commonmetrics.Metrics) {
 	start := time.Now()
 	err := WithRetry(func() error {
 		return db.ReportEvents(rows)
-	})
+	}, fatalErrors)
 	if err != nil {
+		metrics.RecordDBError(commonmetrics.DBOperationInsert)
 		log.WithError(err).Warnf("Error inserting rows")
 	} else {
 		taken := time.Now().Sub(start).Milliseconds()
@@ -74,7 +84,7 @@ func doInsert(db EventStore, rows []*model.Event) {
 	}
 }
 
-func WithRetry(executeDb func() error) error {
+func WithRetry(executeDb func() error, nonRetryableErrors []*regexp.Regexp) error {
 	// TODO: arguably this should come from config
 	backOff := 1
 	const maxBackoff = 60
@@ -88,7 +98,7 @@ func WithRetry(executeDb func() error) error {
 			return nil
 		}
 
-		if armadaerrors.IsNetworkError(err) || IsRetryableRedisError(err) {
+		if armadaerrors.IsNetworkError(err) || IsRetryableRedisError(err, nonRetryableErrors) {
 			backOff = util.Min(2*backOff, maxBackoff)
 			numRetries++
 			log.WithError(err).Warnf("Retryable error encountered inserting to Redis, will wait for %d seconds before retrying", backOff)
@@ -106,26 +116,17 @@ func WithRetry(executeDb func() error) error {
 	}))
 }
 
-// IsRetryableRedisError is largely taken from https://github.com/go-redis/redis/blob/master/error.go#L28
-func IsRetryableRedisError(err error) bool {
+// IsRetryableRedisError returns true if the error doesn't match the list of nonRetryableErrors
+func IsRetryableRedisError(err error, nonRetryableErrors []*regexp.Regexp) bool {
 	if err == nil {
-		return false
+		return true
 	}
 	s := err.Error()
-	if s == "ERR max number of clients reached" {
-		return true
+	for _, r := range nonRetryableErrors {
+		if r.MatchString(s) {
+			log.Infof("Error %s matched regex %s and so will be considered fatal", s, r)
+			return false
+		}
 	}
-	if strings.HasPrefix(s, "LOADING ") {
-		return true
-	}
-	if strings.HasPrefix(s, "READONLY ") {
-		return true
-	}
-	if strings.HasPrefix(s, "CLUSTERDOWN ") {
-		return true
-	}
-	if strings.HasPrefix(s, "TRYAGAIN ") {
-		return true
-	}
-	return false
+	return true
 }

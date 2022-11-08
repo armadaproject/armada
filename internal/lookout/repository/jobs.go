@@ -3,13 +3,18 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/duration"
 
+	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
@@ -83,7 +88,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			job_priority,
 			job_submitted,
 			job_cancelled,
-			job_job,
+			job_orig_job_spec,
 			job_state,
 			jobRun_runId,
 			jobRun_podNumber,
@@ -103,7 +108,7 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	var filters []goqu.Expression
 
 	if opts.Queue != "" {
-		filters = append(filters, StartsWith(job_queue, opts.Queue))
+		filters = append(filters, GlobSearchOrExact(job_queue, opts.Queue))
 	}
 
 	if opts.JobId != "" {
@@ -111,10 +116,13 @@ func (r *SQLJobRepository) createWhereFilters(opts *lookout.GetJobsRequest) []go
 	}
 
 	if opts.Owner != "" {
-		filters = append(filters, StartsWith(job_owner, opts.Owner))
+		filters = append(filters, GlobSearchOrExact(job_owner, opts.Owner))
 	}
 
-	filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+	nonEmptyJobSetIds := util.Filter(opts.JobSetIds, func(jobSet string) bool { return jobSet != "" })
+	if len(nonEmptyJobSetIds) > 0 {
+		filters = append(filters, goqu.Or(createJobSetFilters(opts.JobSetIds)...))
+	}
 
 	if len(opts.UserAnnotations) > 0 {
 		filters = append(filters, r.createUserAnnotationsFilter(opts.UserAnnotations))
@@ -160,7 +168,7 @@ func (r *SQLJobRepository) createUserAnnotationsFilter(annotations map[string]st
 func createJobSetFilters(jobSetIds []string) []goqu.Expression {
 	var filters []goqu.Expression
 	for _, jobSetId := range jobSetIds {
-		filter := StartsWith(job_jobset, jobSetId)
+		filter := GlobSearchOrExact(job_jobset, jobSetId)
 		filters = append(filters, filter)
 	}
 	return filters
@@ -196,20 +204,26 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 		if row.JobId.Valid {
 			jobId := row.JobId.String
 			if _, ok := jobMap[jobId]; !ok {
-				state := ""
+				var state, stateDuration string
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
 				}
-				job, err := makeJobFromRow(row)
+				stateDuration = determineJobStateDuration(JobState(state), row)
+
+				job, jobJson, err := makeJobFromRow(row)
 				if err != nil {
 					return nil, err
 				}
-				jobMap[jobId] = &lookout.JobInfo{
-					Job:       job,
-					Cancelled: ParseNullTime(row.Cancelled),
-					JobState:  state,
-					Runs:      []*lookout.RunInfo{},
-					JobJson:   ParseNullString(row.JobJson),
+
+				if job != nil {
+					jobMap[jobId] = &lookout.JobInfo{
+						Job:              job,
+						Cancelled:        ParseNullTime(row.Cancelled),
+						JobState:         state,
+						JobStateDuration: stateDuration,
+						Runs:             []*lookout.RunInfo{},
+						JobJson:          jobJson,
+					}
 				}
 			}
 
@@ -248,27 +262,89 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 	})
 }
 
-func makeJobFromRow(row *JobRow) (*api.Job, error) {
+func determineJobStateDuration(state JobState, row *JobRow) string {
 	if row == nil {
-		return nil, nil
+		return ""
+	}
+	var timeStamp time.Time
+
+	switch state {
+	case JobSucceeded, JobFailed:
+		timeStamp = row.Finished.Time
+	case JobRunning:
+		timeStamp = row.Started.Time
+	case JobPending:
+		timeStamp = row.Created.Time
+	case JobCancelled:
+		timeStamp = row.Cancelled.Time
+	case JobQueued, JobDuplicate:
+		timeStamp = row.Submitted.Time
 	}
 
-	var jobFromJson api.Job
-	jobJson := ParseNullString(row.JobJson)
-	err := json.Unmarshal([]byte(jobJson), &jobFromJson)
+	timeInState := time.Now().Sub(timeStamp)
+	return duration.ShortHumanDuration(timeInState)
+}
+
+// Returns api Job object, Job JSON, and any fatal error
+func makeJobFromRow(row *JobRow) (*api.Job, string, error) {
+	if row == nil {
+		return nil, "", nil
+	}
+
+	var annotations map[string]string
+	jobJson := ""
+	unmarshalledJob, err := unmarshalJob(row.OrigJobSpec)
 	if err != nil {
-		log.Errorf("error while parsing job %s json: %v", ParseNullString(row.JobId), err)
+		log.Errorf("Failed to unmarshal job with job id %s: %v", ParseNullString(row.JobId), err)
+	} else {
+		annotations = unmarshalledJob.Annotations
+		jobJson = jobToJson(unmarshalledJob)
 	}
 
-	return &api.Job{
+	job := &api.Job{
 		Id:          ParseNullString(row.JobId),
 		JobSetId:    ParseNullString(row.JobSet),
 		Queue:       ParseNullString(row.Queue),
 		Owner:       ParseNullString(row.Owner),
 		Priority:    ParseNullFloat(row.Priority),
 		Created:     ParseNullTimeDefault(row.Submitted),
-		Annotations: jobFromJson.Annotations,
-	}, nil
+		Annotations: annotations,
+	}
+
+	return job, jobJson, nil
+}
+
+// Convert *api.Job to JSON - returns empty string if it fails and logs the error
+func jobToJson(unmarshalledJob *api.Job) string {
+	jobJson, err := json.Marshal(unmarshalledJob)
+	if err != nil {
+		log.Errorf("Failed to convert *api.Job to JSON for job id %s: %v", unmarshalledJob.Id, err)
+		return ""
+	}
+	return string(jobJson)
+}
+
+func unmarshalJob(origJobSpec []byte) (*api.Job, error) {
+	var unmarshalledJob api.Job
+	if len(origJobSpec) == 0 {
+		return nil, errors.New("empty job spec provided")
+	}
+
+	decompressor, err := compress.NewZlibDecompressor()
+	if err != nil {
+		return nil, err
+	}
+	jobProto, err := decompressor.Decompress(origJobSpec)
+	if err != nil {
+		// possibly not compressed, so
+		// try to unmarshal input directly also
+		jobProto = origJobSpec
+	}
+	err = unmarshalledJob.Unmarshal(jobProto)
+	if err != nil {
+		return nil, err
+	}
+	return &unmarshalledJob, nil
 }
 
 func makeRunFromRow(row *JobRow) *lookout.RunInfo {

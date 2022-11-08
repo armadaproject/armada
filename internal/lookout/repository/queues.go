@@ -102,7 +102,7 @@ func (r *SQLJobRepository) getQueuesSql() (rowsSql, error) {
 			job_owner,
 			job_priority,
 			job_submitted,
-			job_job,
+			job_orig_job_spec,
 			jobRun_created,
 			jobRun_started,
 			jobRun_finished).
@@ -121,7 +121,7 @@ func (r *SQLJobRepository) getQueuesSql() (rowsSql, error) {
 			job_owner,
 			job_priority,
 			job_submitted,
-			job_job,
+			job_orig_job_spec,
 			jobRun_started).
 		Distinct(job_queue).
 		Where(job_state.Eq(JobStateToIntMap[JobRunning])).
@@ -138,7 +138,7 @@ func (r *SQLJobRepository) getQueuesSql() (rowsSql, error) {
 			goqu.I("longest_running_sub.owner"),
 			goqu.I("longest_running_sub.priority"),
 			goqu.I("longest_running_sub.submitted"),
-			goqu.I("longest_running_sub.job"),
+			goqu.I("longest_running_sub.orig_job_spec"),
 			jobRun_runId,
 			jobRun_cluster,
 			jobRun_node,
@@ -198,7 +198,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 			&row.Owner,
 			&row.Priority,
 			&row.Submitted,
-			&row.JobJson,
+			&row.OrigJobSpec,
 			&row.Created,
 			&row.Started,
 			&row.Finished)
@@ -207,7 +207,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 		}
 		if row.Queue.Valid {
 			if queueInfo, ok := queueInfoMap[row.Queue.String]; queueInfo != nil && ok {
-				job, err := makeJobFromRow(&row)
+				job, jobJson, err := makeJobFromRow(&row)
 				if err != nil {
 					return err
 				}
@@ -216,6 +216,7 @@ func (r *SQLJobRepository) setOldestQueuedJob(rows *sql.Rows, queueInfoMap map[s
 					Runs:      []*lookout.RunInfo{},
 					Cancelled: nil,
 					JobState:  string(JobQueued),
+					JobJson:   jobJson,
 				}
 				currentTime := r.clock.Now()
 				submissionTime := queueInfo.OldestQueuedJob.Job.Created
@@ -236,7 +237,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 			&row.Owner,
 			&row.Priority,
 			&row.Submitted,
-			&row.JobJson,
+			&row.OrigJobSpec,
 			&row.RunId,
 			&row.Cluster,
 			&row.Node,
@@ -251,7 +252,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 				if queueInfo.LongestRunningJob != nil {
 					queueInfo.LongestRunningJob.Runs = append(queueInfo.LongestRunningJob.Runs, makeRunFromRow(&row))
 				} else {
-					job, err := makeJobFromRow(&row)
+					job, jobJson, err := makeJobFromRow(&row)
 					if err != nil {
 						return err
 					}
@@ -260,6 +261,7 @@ func (r *SQLJobRepository) setLongestRunningJob(rows *sql.Rows, queueInfoMap map
 						Runs:      []*lookout.RunInfo{makeRunFromRow(&row)},
 						Cancelled: nil,
 						JobState:  string(JobRunning),
+						JobJson:   jobJson,
 					}
 				}
 			}

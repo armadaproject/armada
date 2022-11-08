@@ -52,6 +52,10 @@ type KubernetesConfiguration struct {
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
+	// NodeReservedResources config is used to factor in reserved resources on each node
+	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
+	NodeReservedResources common.ComputeResources
+	PodKillTimeout        time.Duration
 }
 
 type EtcdConfiguration struct {

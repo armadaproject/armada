@@ -68,12 +68,12 @@ func validateTerminationGracePeriod(spec *v1.PodSpec, config *configuration.Sche
 		exceedsBounds = (terminationGracePeriodSeconds < int64(config.MinTerminationGracePeriod.Seconds()) ||
 			terminationGracePeriodSeconds > int64(config.MaxTerminationGracePeriod.Seconds()))
 	}
-
 	if exceedsBounds {
-		return errors.Errorf("terminationGracePeriodSeconds of %v must be between %v and %v, or omitted",
+		return errors.Errorf("terminationGracePeriodSeconds of %v must be in [%d, %d]s, or omitted",
 			terminationGracePeriodSeconds,
-			config.MinTerminationGracePeriod.Seconds(),
-			config.MaxTerminationGracePeriod.Seconds())
+			int64(config.MinTerminationGracePeriod.Seconds()),
+			int64(config.MaxTerminationGracePeriod.Seconds()),
+		)
 	}
 	return nil
 }
@@ -165,7 +165,7 @@ func validatePorts(podSpec *v1.PodSpec) error {
 	return nil
 }
 
-func ValidatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]int32) error {
+func ValidatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
 	priorityClassName := podSpec.PriorityClassName
 	if priorityClassName != "" {
 		if !preemptionEnabled {

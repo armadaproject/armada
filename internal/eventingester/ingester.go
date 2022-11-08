@@ -4,7 +4,10 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"regexp"
 	"sync"
+
+	"github.com/G-Research/armada/internal/eventingester/metrics"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
@@ -28,6 +31,16 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	log.Info("Event Ingester Starting")
 
+	fatalRegexes := make([]*regexp.Regexp, len(config.FatalInsertionErrors))
+	for i, str := range config.FatalInsertionErrors {
+		rgx, err := regexp.Compile(str)
+		if err != nil {
+			log.Errorf("Error compiling regex %s", str)
+			panic(err)
+		}
+		fatalRegexes[i] = rgx
+	}
+
 	rc := redis.NewUniversalClient(&config.Redis)
 	defer func() {
 		if err := rc.Close(); err != nil {
@@ -48,17 +61,27 @@ func Run(config *configuration.EventIngesterConfiguration) {
 
 	// Create a pulsar consumer
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.SubscriptionName,
-		Type:             pulsar.KeyShared,
+		Topic:                       config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:            config.SubscriptionName,
+		Type:                        pulsar.KeyShared,
+		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {
 		log.Errorf("Error creating pulsar consumer")
 		panic(err)
 	}
 
+	m := metrics.Get()
 	// Receive Pulsar messages on a channel
-	pulsarMsgs := pulsarutils.Receive(ctx, consumer, 0, 2*config.BatchSize, config.PulsarReceiveTimeout, config.PulsarBackoffTime)
+	pulsarMsgs := pulsarutils.Receive(
+		ctx,
+		consumer,
+		0,
+		2*config.BatchSize,
+		config.PulsarReceiveTimeout,
+		config.PulsarBackoffTime,
+		m,
+	)
 
 	// Batch up messages
 	batchedMsgs := batch.Batch(pulsarMsgs, config.BatchMessages, config.BatchDuration, 5, clock.RealClock{})
@@ -69,16 +92,14 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := &convert.MessageRowConverter{
-		Compressor:          compressor,
-		MaxMessageBatchSize: config.BatchSize,
-	}
+
+	converter := convert.NewMessageRowConverter(compressor, config.BatchMessages, m)
 	events := convert.Convert(ctx, batchedMsgs, 5, converter)
 
 	// Insert into database
 	maxSize := 4 * 1024 * 1024
 	maxRows := 500
-	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows)
+	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows, fatalRegexes, m)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}

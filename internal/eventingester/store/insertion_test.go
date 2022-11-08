@@ -2,7 +2,10 @@ package store
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
+
+	"github.com/G-Research/armada/internal/eventingester/metrics"
 
 	"github.com/stretchr/testify/assert"
 
@@ -17,6 +20,12 @@ type MockEventStore struct {
 const (
 	maxSize   = 1024
 	maxEvents = 500
+)
+
+var (
+	fatalError, _ = regexp.Compile("TOO LARGE")
+	fatalErrors   = []*regexp.Regexp{fatalError}
+	m             = metrics.Get()
 )
 
 // If Errors contains errors then MockEventStore will pop the first error and return it
@@ -39,22 +48,22 @@ func (es *MockEventStore) Reset() {
 func TestHappyPath(t *testing.T) {
 	events := []*model.Event{{Queue: "queue1"}, {Queue: "queue2"}}
 	es := &MockEventStore{}
-	insert(es, events, maxSize, maxEvents)
+	insert(es, events, maxSize, maxEvents, fatalErrors, m)
 	assert.Equal(t, [][]*model.Event{events}, es.StoredEvents)
 }
 
 func TestRetryableError(t *testing.T) {
 	events := []*model.Event{{Queue: "queue1"}, {Queue: "queue2"}}
 	es := &MockEventStore{Errors: []error{fmt.Errorf("CLUSTERDOWN ")}}
-	insert(es, events, maxSize, maxEvents)
+	insert(es, events, maxSize, maxEvents, fatalErrors, m)
 	assert.Equal(t, [][]*model.Event{events}, es.StoredEvents)
 	assert.Equal(t, 0, len(es.Errors))
 }
 
 func TestNonRetryableError(t *testing.T) {
 	events := []*model.Event{{Queue: "queue1"}, {Queue: "queue2"}}
-	es := &MockEventStore{Errors: []error{fmt.Errorf("some random error")}}
-	insert(es, events, maxSize, maxEvents)
+	es := &MockEventStore{Errors: []error{fmt.Errorf("TOO LARGE TO fit")}}
+	insert(es, events, maxSize, maxEvents, fatalErrors, m)
 	assert.Equal(t, 0, len(es.StoredEvents))
 	assert.Equal(t, 0, len(es.Errors))
 }
@@ -64,16 +73,16 @@ func TestSplit(t *testing.T) {
 	es := &MockEventStore{}
 
 	// No splitting
-	insert(es, events, maxSize, maxEvents)
+	insert(es, events, maxSize, maxEvents, fatalErrors, m)
 	assert.Equal(t, [][]*model.Event{events}, es.StoredEvents)
 	es.Reset()
 
 	// Split by size
-	insert(es, events, 1, maxEvents)
+	insert(es, events, 1, maxEvents, fatalErrors, m)
 	assert.Equal(t, [][]*model.Event{{events[0]}, {events[1]}}, es.StoredEvents)
 	es.Reset()
 
 	// split by rows
-	insert(es, events, maxSize, 1)
+	insert(es, events, maxSize, 1, fatalErrors, m)
 	assert.Equal(t, [][]*model.Event{{events[0]}, {events[1]}}, es.StoredEvents)
 }

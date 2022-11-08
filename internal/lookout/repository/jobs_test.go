@@ -1,18 +1,87 @@
 package repository
 
 import (
-	"encoding/json"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
+
+func TestGetJobs_GetQueued(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		queuedTime := someTime.Add(time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, queuedTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(queuedTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
+
+func TestGetJobs_GetPending(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		pendingTime := someTime.Add(time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(pendingTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
+
+func TestGetJobs_GetRunning(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		pendingTime := someTime.Add(time.Second)
+		runningTime := someTime.Add(2 * time.Second)
+
+		_ = NewJobSimulator(t, jobStore).
+			CreateJobAtTime(queue, someTime).
+			PendingAtTime(cluster, k8sId1, pendingTime).
+			RunningAtTime(cluster, k8sId1, node, runningTime)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{Take: 10})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+
+		jobInfo := jobInfos[0]
+
+		timeInState := time.Now().Sub(runningTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
+	})
+}
 
 func TestGetJobs_GetSucceededJob(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
@@ -51,6 +120,10 @@ func TestGetJobs_GetSucceededJob(t *testing.T) {
 			Started:   &runningTime,
 			Finished:  &succeededTime,
 		}, runInfo)
+
+		timeInState := time.Now().Sub(succeededTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
 
@@ -92,6 +165,10 @@ func TestGetJobs_GetFailedJob(t *testing.T) {
 			Finished:  &failedTime,
 			Error:     failureReason,
 		}, jobInfo.Runs[0])
+
+		timeInState := time.Now().Sub(failedTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
 
@@ -130,6 +207,10 @@ func TestGetJobs_GetCancelledJob(t *testing.T) {
 			Created:   &pendingTime,
 			Started:   &runningTime,
 		}, jobInfo.Runs[0])
+
+		timeInState := time.Now().Sub(cancelledTime)
+		expectedDuration := duration.ShortHumanDuration(timeInState)
+		assert.Equal(t, expectedDuration, jobInfo.JobStateDuration)
 	})
 }
 
@@ -204,10 +285,7 @@ func TestGetJobs_GetJobJson(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 
-		var job *api.Job
-		err = json.Unmarshal([]byte(jobInfos[0].JobJson), &job)
-		assert.NoError(t, err)
-		AssertJobsAreEquivalent(t, queued.job, job)
+		AssertJobsAreEquivalent(t, queued.job, jobInfos[0].Job)
 	})
 }
 
@@ -266,7 +344,34 @@ func TestGetJobs_FilterByQueue(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByQueueStartsWith(t *testing.T) {
+func TestGetJobs_FilterByNoQueueReturnsAll(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+
+		NewJobSimulator(t, jobStore).
+			CreateJob("queue-1")
+
+		NewJobSimulator(t, jobStore).
+			CreateJob("queue-2").
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore).
+			CreateJob("queue-3").
+			Pending(cluster, k8sId2).
+			Running(cluster, k8sId2, node)
+
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue: "",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 3, len(jobInfos))
+	})
+}
+
+func TestGetJobs_FilterByQueueGlobSearchOrExact(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 
@@ -285,7 +390,7 @@ func TestGetJobs_FilterByQueueStartsWith(t *testing.T) {
 		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
-			Queue: "queue",
+			Queue: "queue*",
 			Take:  10,
 		})
 		assert.NoError(t, err)
@@ -293,6 +398,22 @@ func TestGetJobs_FilterByQueueStartsWith(t *testing.T) {
 		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
 		AssertJobsAreEquivalent(t, second.job, jobInfos[1].Job)
 		AssertJobsAreEquivalent(t, third.job, jobInfos[2].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue: "queue-1",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Queue: "queue-3",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, third.job, jobInfos[0].Job)
 	})
 }
 
@@ -758,7 +879,7 @@ func TestGetJobs_FilterByMultipleJobSets(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
+func TestGetJobs_FilterJobSetsGlobSearchOrExact(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
@@ -797,7 +918,7 @@ func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
-			JobSetIds: []string{"job-se"},
+			JobSetIds: []string{"job-set-*"},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(jobInfos))
@@ -810,7 +931,7 @@ func TestGetJobs_FilterByJobSetStartingWith(t *testing.T) {
 	})
 }
 
-func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
+func TestGetJobs_FilterByMultipleJobSetsGlobSearch(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
 		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
@@ -850,7 +971,7 @@ func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Take:      10,
-			JobSetIds: []string{"hello", "world"},
+			JobSetIds: []string{"hello*", "world*"},
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 5, len(jobInfos))
@@ -859,6 +980,52 @@ func TestGetJobs_FilterByMultipleJobSetStartingWith(t *testing.T) {
 		AssertJobsAreEquivalent(t, job3.job, jobInfos[2].Job)
 		AssertJobsAreEquivalent(t, job4.job, jobInfos[3].Job)
 		AssertJobsAreEquivalent(t, job5.job, jobInfos[4].Job)
+	})
+}
+
+func TestGetJobs_FilterEmptyJobSetsReturnsAll(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		jobSet1 := "job-set-1"
+		jobSet2 := "job-set-2"
+		jobSet3 := "job-set-3"
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, jobSet1)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, jobSet1).
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, jobSet2).
+			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, jobSet2).
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, jobSet3).
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, jobSet3).
+			Cancelled()
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Take:      10,
+			JobSetIds: []string{""},
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 6, len(jobInfos))
 	})
 }
 
@@ -991,6 +1158,48 @@ func TestGetJobs_FilterByJobIdWithWrongJobSet(t *testing.T) {
 	})
 }
 
+func TestGetJobs_FilterByNoOwnerReturnsAll(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		NewJobSimulator(t, jobStore).
+			CreateJob(queue)
+
+		NewJobSimulator(t, jobStore).
+			CreateJob(queue).
+			Pending(cluster, k8sId1)
+
+		NewJobSimulator(t, jobStore).
+			CreateJob(queue).
+			Pending(cluster, k8sId2).
+			UnableToSchedule(cluster, k8sId2, node).
+			Pending(cluster, k8sId3).
+			Running(cluster, k8sId3, node)
+
+		NewJobSimulator(t, jobStore).
+			CreateJob(queue).
+			Pending(cluster, k8sId4).
+			Running(cluster, k8sId4, node).
+			Succeeded(cluster, k8sId4, node)
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithOwner(queue, "other-user").
+			Failed(cluster, k8sId5, node, "Something bad")
+
+		NewJobSimulator(t, jobStore).
+			CreateJob(queue).
+			Cancelled()
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 6, len(jobInfos))
+	})
+}
+
 func TestGetJobs_FilterByOwner(t *testing.T) {
 	withDatabase(t, func(db *goqu.Database) {
 		jobStore := NewSQLJobStore(db, userAnnotationPrefix)
@@ -1073,6 +1282,29 @@ func TestGetJobs_FilterByOwnerStartsWith(t *testing.T) {
 
 		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
 			Owner: "other-user",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(jobInfos))
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user-a",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, first.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user-b",
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		AssertJobsAreEquivalent(t, second.job, jobInfos[0].Job)
+
+		jobInfos, err = jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			Owner: "other-user*",
 			Take:  10,
 		})
 		assert.NoError(t, err)
@@ -1431,5 +1663,26 @@ func TestGetJobs_RemovesDuplicateJobsByDefault(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, duplicate.job, jobInfos[0].Job)
+	})
+}
+
+func TestGetJobs_DoesntErrorIfJobSpecIsNull(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		jobId := util.NewULID()
+		err := SaveJobWithNullObj(db, jobId, queue, "job-set-1")
+		assert.NoError(t, err)
+
+		jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+			JobId: jobId,
+			Take:  10,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(jobInfos))
+		assert.Equal(t, jobId, jobInfos[0].Job.Id)
+		assert.Equal(t, queue, jobInfos[0].Job.Queue)
+		assert.Equal(t, "job-set-1", jobInfos[0].Job.JobSetId)
+		assert.Equal(t, "", jobInfos[0].JobJson)
 	})
 }

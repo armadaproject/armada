@@ -50,7 +50,8 @@ var DefaultNodeSpec = []*NodeSpec{
 type FakeClusterContext struct {
 	clusterId             string
 	pool                  string
-	handlers              []*cache.ResourceEventHandlerFuncs
+	podEventHandlers      []*cache.ResourceEventHandlerFuncs
+	clusterEventHandlers  []*cache.ResourceEventHandlerFuncs
 	rwLock                sync.RWMutex
 	pods                  map[string]*v1.Pod
 	events                map[string]*v1.Event
@@ -76,11 +77,11 @@ func (*FakeClusterContext) Stop() {
 }
 
 func (c *FakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
+	c.podEventHandlers = append(c.podEventHandlers, &handler)
 }
 
 func (c *FakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
+	c.clusterEventHandlers = append(c.clusterEventHandlers, &handler)
 }
 
 func (c *FakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
@@ -117,7 +118,7 @@ func (c *FakeClusterContext) GetPodEvents(pod *v1.Pod) ([]*v1.Event, error) {
 func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 	saved := c.savePod(pod)
 
-	for _, h := range c.handlers {
+	for _, h := range c.podEventHandlers {
 		if h.AddFunc != nil {
 			h.AddFunc(pod)
 		}
@@ -210,7 +211,7 @@ func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, stat
 
 	newPod := saved.DeepCopy()
 	c.rwLock.Unlock()
-	for _, h := range c.handlers {
+	for _, h := range c.podEventHandlers {
 		if h.UpdateFunc != nil {
 			h.UpdateFunc(oldPod, newPod)
 		}
