@@ -263,42 +263,37 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 }
 
 func (r *SQLJobRepository) updateTimeInState(jobInfo *lookout.JobInfo) {
-	var timeStamp time.Time
+	var timeStamp *time.Time
 
 	state := JobState(jobInfo.JobState)
 	switch state {
 	case JobSucceeded, JobFailed:
-		possibleTime := findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Finished })
-		if possibleTime == nil {
+		timeStamp = findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Finished })
+		if timeStamp == nil {
 			log.Warnf("No finished timestamp found for job with id %s", jobInfo.Job.Id)
-		} else {
-			timeStamp = *possibleTime
 		}
 	case JobRunning:
-		possibleTime := findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Started })
-		if possibleTime == nil {
+		timeStamp = findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Started })
+		if timeStamp == nil {
 			log.Warnf("No running timestamp found for job with id %s", jobInfo.Job.Id)
-		} else {
-			timeStamp = *possibleTime
 		}
 	case JobPending:
-		possibleTime := findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Created })
-		if possibleTime == nil {
+		timeStamp = findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Created })
+		if timeStamp == nil {
 			log.Warnf("No pending timestamp found for job with id %s", jobInfo.Job.Id)
-		} else {
-			timeStamp = *possibleTime
 		}
 	case JobCancelled:
-		if jobInfo.Cancelled == nil {
+		timeStamp = jobInfo.Cancelled
+		if timeStamp == nil {
 			log.Warnf("No cancelled timestamp found for job with id %s", jobInfo.Job.Id)
-		} else {
-			timeStamp = *jobInfo.Cancelled
 		}
 	case JobQueued, JobDuplicate:
-		timeStamp = jobInfo.Job.Created
+		timeStamp = &jobInfo.Job.Created
 	}
 
-	jobInfo.JobStateDuration = duration.ShortHumanDuration(r.clock.Now().Sub(timeStamp))
+	if timeStamp != nil {
+		jobInfo.JobStateDuration = duration.ShortHumanDuration(r.clock.Now().Sub(*timeStamp))
+	}
 }
 
 // Find latest non-nil value in the runs, given some accessor
