@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template='', \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
