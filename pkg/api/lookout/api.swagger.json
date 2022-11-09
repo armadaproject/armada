@@ -514,6 +514,10 @@
           "type": "integer",
           "format": "int32"
         },
+        "preempted": {
+          "type": "string",
+          "format": "date-time"
+        },
         "runState": {
           "type": "string"
         },

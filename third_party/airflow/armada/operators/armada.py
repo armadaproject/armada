@@ -18,7 +18,7 @@
 
 import logging
 import os
-from typing import List
+from typing import List, Optional
 
 from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
@@ -64,7 +64,7 @@ class ArmadaOperator(BaseOperator):
         job_service_client: JobServiceClient,
         armada_queue: str,
         job_request_items,
-        lookout_url_template: str,
+        lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -124,6 +124,8 @@ class ArmadaOperator(BaseOperator):
         airflow_error(job_state, self.name, job_id)
 
     def _get_lookout_url(self, job_id: str) -> str:
+        if self.lookout_url_template is None:
+            return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
 
 
