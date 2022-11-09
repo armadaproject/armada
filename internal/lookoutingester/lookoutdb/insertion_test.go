@@ -41,10 +41,11 @@ const (
 var m = metrics.Get()
 
 var (
-	baseTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	updateTime, _   = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
-	startTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
-	finishedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+	baseTime, _      = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	updateTime, _    = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:06.000Z")
+	startTime, _     = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:07.000Z")
+	finishedTime, _  = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:08.000Z")
+	preemptedTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:09.000Z")
 )
 
 // An invalid job id that exceeds th varchar count
@@ -72,6 +73,7 @@ type JobRunRow struct {
 	Created          time.Time
 	Started          *time.Time
 	Finished         *time.Time
+	Preempted        *time.Time
 	Succeeded        *bool
 	Error            *string
 	PodNumber        int
@@ -121,6 +123,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			Started:          &startTime,
 			Finished:         &finishedTime,
 			Succeeded:        pointer.Bool(true),
+			Preempted:        &preemptedTime,
 			Error:            nil,
 			PodNumber:        pointer.Int32(podNumber),
 			UnableToSchedule: nil,
@@ -185,6 +188,7 @@ var expectedJobRunAfterUpdate = JobRunRow{
 	Error:            nil,
 	PodNumber:        podNumber,
 	UnableToSchedule: nil,
+	Preempted:        &preemptedTime,
 }
 
 var expectedUserAnnotation = UserAnnotationRow{
@@ -700,7 +704,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 	run := JobRunRow{}
 	r := db.QueryRow(
 		ctx.Background(),
-		`SELECT run_id, job_id, cluster, node, created, started, finished, succeeded, error, pod_number, unable_to_schedule FROM job_run WHERE run_id = $1`,
+		`SELECT run_id, job_id, cluster, node, created, started, finished, succeeded, error, pod_number, unable_to_schedule, preempted FROM job_run WHERE run_id = $1`,
 		runId)
 	err := r.Scan(
 		&run.RunId,
@@ -714,6 +718,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.Error,
 		&run.PodNumber,
 		&run.UnableToSchedule,
+		&run.Preempted,
 	)
 	assert.Nil(t, err)
 	return run
