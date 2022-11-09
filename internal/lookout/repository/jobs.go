@@ -97,6 +97,7 @@ func (r *SQLJobRepository) createJobsDataset(opts *lookout.GetJobsRequest) *goqu
 			jobRun_created,
 			jobRun_started,
 			jobRun_finished,
+			jobRun_preempted,
 			jobRun_succeeded,
 			jobRun_error).
 		Where(job_jobId.In(subDs))
@@ -384,6 +385,7 @@ func makeRunFromRow(row *JobRow) *lookout.RunInfo {
 		Created:   ParseNullTime(row.Created), // Pod created (Pending)
 		Started:   ParseNullTime(row.Started), // Pod Running
 		Finished:  ParseNullTime(row.Finished),
+		Preempted: ParseNullTime(row.Preempted),
 	}
 }
 

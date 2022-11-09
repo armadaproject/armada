@@ -81,6 +81,16 @@ eventsNats:
   Subject: "ArmadaTest"
   QueueGroup: "ArmadaEventRedisProcessor"
 scheduling:
+  queueLeaseBatchSize: 1000
+  maximalResourceFractionToSchedulePerQueue:
+    memory: 0.99
+    cpu: 0.99
+  maximalResourceFractionPerQueue:
+    memory: 0.99
+    cpu: 0.99
+  maximalClusterFractionToSchedule:
+    memory: 0.99
+    cpu: 0.99
   probabilityOfUsingNewScheduler: 1
   preemption:
     enabled: true
@@ -102,3 +112,16 @@ scheduling:
           cpu: 0.99
     # Default to empty PC to not require PCs be set up in worker clusters.
     defaultPriorityClass: ""
+  maxQueueReportsToStore: 1000
+  MaxJobReportsToStore: 100000
+  defaultJobLimits:
+    cpu: 1
+    memory: 1Gi
+    ephemeral-storage: 8Gi
+  defaultJobTolerations:
+    - key: "example.com/default_toleration"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  minTerminationGracePeriod: 1s
+  maxTerminationGracePeriod: 30s

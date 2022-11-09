@@ -171,6 +171,15 @@ var jobReprioritised = &armadaevents.EventSequence_Event{
 	},
 }
 
+// Preempted
+var jobPreempted = &armadaevents.EventSequence_Event{
+	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+		JobRunPreempted: &armadaevents.JobRunPreempted{
+			PreemptedRunId: runIdProto,
+		},
+	},
+}
+
 // Job Run Failed
 var jobRunFailed = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
@@ -295,6 +304,13 @@ var expectedJobReprioritised = model.UpdateJobInstruction{
 	Updated:  baseTime,
 }
 
+var expectedJobRunPreempted = model.UpdateJobRunInstruction{
+	RunId:     runIdString,
+	Finished:  &baseTime,
+	Succeeded: pointer.Bool(false),
+	Preempted: &baseTime,
+}
+
 var expectedFailed = model.UpdateJobRunInstruction{
 	RunId:     runIdString,
 	Node:      pointer.String(nodeName),
@@ -412,6 +428,17 @@ func TestReprioritised(t *testing.T) {
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+func TestPreempted(t *testing.T) {
+	svc := New(metrics.Get())
+	msg := NewMsg(baseTime, jobPreempted)
+	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunPreempted},
+		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
 	assert.Equal(t, expected, instructions)
 }
