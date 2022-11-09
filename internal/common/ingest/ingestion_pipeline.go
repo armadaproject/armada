@@ -159,7 +159,9 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 			// The sink is responsible for retrying any messages so if we get a message here we know we can give up
 			// and just ACK the ids
 			err := ingester.sink.Store(pipelineShutdownContext, msg)
-			log.WithError(err).Warn("Error inserting messages")
+			if err != nil {
+				log.WithError(err).Warn("Error inserting messages")
+			}
 			for _, msgId := range msg.GetMessageIDs() {
 				consumer.AckID(msgId)
 			}
