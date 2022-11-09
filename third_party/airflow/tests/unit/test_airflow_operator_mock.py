@@ -1,3 +1,4 @@
+from airflow import DAG
 from airflow.models.taskinstance import TaskInstance
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
@@ -9,6 +10,7 @@ import grpc
 from concurrent import futures
 from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
 
+import pendulum
 import pytest
 from armada.operators.armada import ArmadaOperator, annotate_job_request_items
 from armada.operators.jobservice import JobServiceClient
@@ -153,10 +155,22 @@ def test_annotate_job_request_items():
         job_service_client=job_service_client,
         armada_client=no_auth_client,
         job_request_items=job_request_items,
+        lookout_url_template="http://127.0.0.1:8089",
     )
 
     task_instance = TaskInstance(operator)
-    context = {"ti": task_instance}
+    dag = DAG(
+        dag_id="hello_armada",
+        start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
+        schedule_interval="@daily",
+        catchup=False,
+        default_args={"retries": 2},
+    )
+    context = {"ti": task_instance, "dag": dag, "run_id": "some-run-id"}
 
     result = annotate_job_request_items(context, job_request_items)
-    assert result[0].annotations == {"armadaproject.io/taskId": task_id}
+    assert result[0].annotations == {
+        "armadaproject.io/taskId": task_id,
+        "armadaproject.io/taskRunId": "some-run-id",
+        "armadaproject.io/dagId": "hello_armada",
+    }

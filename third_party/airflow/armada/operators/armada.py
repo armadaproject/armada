@@ -33,7 +33,7 @@ from armada.jobservice import jobservice_pb2
 
 armada_logger = logging.getLogger("airflow.task")
 
-ANNOTATION_KEY_TASK_ID = "armadaproject.io/taskId"
+ANNOTATION_KEY_PREFIX = "armadaproject.io/"
 
 
 class ArmadaOperator(BaseOperator):
@@ -123,41 +123,45 @@ class ArmadaOperator(BaseOperator):
         )
         airflow_error(job_state, self.name, job_id)
 
+    def _get_lookout_url(self, job_id: str) -> str:
+        return self.lookout_url_template.replace("<job_id>", job_id)
+
 
 def annotate_job_request_items(
     context, job_request_items: List[submit_pb2.JobSubmitRequestItem]
 ) -> List[submit_pb2.JobSubmitRequestItem]:
     """
-    Annotates the inbound job request items with the context task ID
+    Annotates the inbound job request items with Airflow context elements
 
     :param context: The airflow context.
 
-    :param job_request_items: The job request items we plan to send to armada
+    :param job_request_items: The job request items to be sent to armada
 
     :return: annotated job request items for armada
     """
     task_instance = context["ti"]
     task_id = task_instance.task_id
+    run_id = context["run_id"]
+    dag_id = context["dag"].dag_id
 
     for item in job_request_items:
-        item.annotations[get_annotation_key_task_id()] = task_id
+        item.annotations[get_annotation_key_prefix() + "taskId"] = task_id
+        item.annotations[get_annotation_key_prefix() + "taskRunId"] = run_id
+        item.annotations[get_annotation_key_prefix() + "dagId"] = dag_id
 
     return job_request_items
 
-    def _get_lookout_url(self, job_id: str) -> str:
-        return self.lookout_url_template.replace("<job_id>", job_id)
 
-
-def get_annotation_key_task_id() -> str:
+def get_annotation_key_prefix() -> str:
     """
-    Provides they annotation key for armada task id,
-    which can be specified in env var ANNOTATION_KEY_TASK_ID.
+    Provides the annotation key perfix,
+    which can be specified in env var ANNOTATION_KEY_PREFIX.
     A default is provided if the env var is not defined
 
-    :return: string annotation key
+    :return: string annotation key prefix
     """
-    env_var_name = "ANNOTATION_KEY_TASK_ID"
+    env_var_name = "ANNOTATION_KEY_PREFIX"
     if env_var_name in os.environ:
         return f"{os.environ.get(env_var_name)}"
     else:
-        return ANNOTATION_KEY_TASK_ID
+        return ANNOTATION_KEY_PREFIX
