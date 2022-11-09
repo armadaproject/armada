@@ -4,7 +4,11 @@ networks:
   kind:
     external: true
 
+    
 volumes:
+  # shared gopath volume for armada services
+  # with this, modules do not need to be redundantly downloaded
+  # and persist through restarts
   gopath:
 
 services:
