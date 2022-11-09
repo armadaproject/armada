@@ -147,6 +147,7 @@ def annotate_job_request_items(
     def _get_lookout_url(self, job_id: str) -> str:
         return self.lookout_url_template.replace("<job_id>", job_id)
 
+
 def get_annotation_key_task_id() -> str:
     """
     Provides they annotation key for armada task id,
