@@ -78,7 +78,7 @@ Runs an Armada job and calls the job_service_client for polling.
 
 
 ### armada.operators.armada.annotate_job_request_items(context, job_request_items)
-Annotates the inbound job request items with the context task ID
+Annotates the inbound job request items with Airflow context elements
 
 
 * **Parameters**
@@ -87,7 +87,7 @@ Annotates the inbound job request items with the context task ID
     * **context** – The airflow context.
 
 
-    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – The job request items we plan to send to armada
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – The job request items to be sent to armada
 
 
 
@@ -103,15 +103,15 @@ Annotates the inbound job request items with the context task ID
 
 
 
-### armada.operators.armada.get_annotation_key_task_id()
-Provides they annotation key for armada task id,
-which can be specified in env var ANNOTATION_KEY_TASK_ID.
+### armada.operators.armada.get_annotation_key_prefix()
+Provides the annotation key perfix,
+which can be specified in env var ANNOTATION_KEY_PREFIX.
 A default is provided if the env var is not defined
 
 
 * **Returns**
 
-    string annotation key
+    string annotation key prefix
 
 
 
