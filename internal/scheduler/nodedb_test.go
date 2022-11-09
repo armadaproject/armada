@@ -14,7 +14,7 @@ import (
 )
 
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(testPriorities, testResources)
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 	if err != nil {
 		return nil, err
 	}
@@ -25,13 +25,13 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	return db, nil
 }
 
-// testNodeItems1 has max of 1Gb and 7cpu available, so check that such jobs requesting less than this
+// testNodeItems1() has max of 1Gb and 7cpu available, so check that such jobs requesting less than this
 // can be scheduled
 func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
 	for i := 1; i < 7; i++ {
 		testName := fmt.Sprintf("cpu %d", i)
 		t.Run(testName, func(t *testing.T) {
-			db, err := createNodeDb(testNodeItems1)
+			db, err := createNodeDb(testNodeItems1())
 			assert.NoError(t, err)
 			report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
 				Priority: 0,
@@ -48,10 +48,10 @@ func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
 	}
 }
 
-// testNodeItems1 has max of 1Gb and 7cpu available, so check that such jobs requesting more than this
+// testNodeItems1() has max of 1Gb and 7cpu available, so check that such jobs requesting more than this
 // cant be scheduled
 func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1)
+	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
 
 	invalidResources := []v1.ResourceList{
@@ -73,7 +73,7 @@ func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
 // Test that some resource we don't know about causes an error:
 // TODO:  Is returning an error here correct?
 func TestSelectNodeForPod_InvalidResource(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1)
+	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
 
 	report, err := db.SelectAndBindNodeToPod(uuid.New(), &schedulerobjects.PodRequirements{
@@ -86,9 +86,9 @@ func TestSelectNodeForPod_InvalidResource(t *testing.T) {
 	assert.Nil(t, report.Node)
 }
 
-// Fill up all the priority zero space on testNodeItems1
+// Fill up all the priority zero space on testNodeItems1()
 func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1)
+	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
 
 	requirements := []*schedulerobjects.PodRequirements{
@@ -122,7 +122,7 @@ func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
 
 // Check that each job that is scheduled reduces the available resource for the next
 func TestSelectNodeForPod_RunningTotal(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1)
+	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
 
 	// First job can be scheduled
@@ -188,7 +188,7 @@ func TestSelectNodeForPod_RunningTotal(t *testing.T) {
 
 // Check that each job that is scheduled reduces the available resource for the next: including memory
 func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1)
+	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
 
 	// First job can be scheduled
@@ -254,7 +254,7 @@ func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
 
 // Check that all jobs scheduled at priority 2 can get the correct cpus
 func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1)
+	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
 
 	// First job can be scheduled
@@ -321,15 +321,11 @@ func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
 func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 	nodes := []*schedulerobjects.Node{
 		{
-			Id:         "tainted-1",
-			NodeTypeId: "tainted",
-			NodeType: &schedulerobjects.NodeType{
-				Id: "tainted",
-				Taints: []v1.Taint{
-					{Key: "fish", Value: "chips", Effect: v1.TaintEffectNoSchedule},
-				},
+			Id: "tainted-1",
+			Taints: []v1.Taint{
+				{Key: "fish", Value: "chips", Effect: v1.TaintEffectNoSchedule},
 			},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -385,15 +381,9 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 	nodes := []*schedulerobjects.Node{
 		{
-			Id:         "labelled-1",
-			NodeTypeId: "labelled",
-			NodeType: &schedulerobjects.NodeType{
-				Id:     "labelled",
-				Labels: map[string]string{"foo": "bar"},
-			},
-			// TODO: why do I have to add the labels here but not the taints
+			Id:     "labelled-1",
 			Labels: map[string]string{"foo": "bar"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
@@ -449,15 +439,9 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 	nodes := []*schedulerobjects.Node{
 		{
-			Id:         "labelled-1",
-			NodeTypeId: "labelled",
-			NodeType: &schedulerobjects.NodeType{
-				Id:     "labelled",
-				Labels: map[string]string{"foo": "bar"},
-			},
-			// TODO: why do I have to add the labels here but not the taints
+			Id:     "labelled-1",
 			Labels: map[string]string{"foo": "bar"},
-			AvailableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
+			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("2"),
@@ -542,9 +526,8 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 	assert.NotNil(t, report.Node)
 }
 
-// Benchmarking
 func benchmarkUpsert(numNodes int, b *testing.B) {
-	db, err := NewNodeDb(testPriorities, testResources)
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 	if !assert.NoError(b, err) {
 		return
 	}
@@ -567,7 +550,7 @@ func benchmarkSelectAndBindNodeToPod(
 	numSmallCpuJobsToSchedule, numLargeCpuJobsToSchedule, numGpuJobsToSchedule int,
 	b *testing.B,
 ) {
-	db, err := NewNodeDb(testPriorities, testResources)
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 	if !assert.NoError(b, err) {
 		return
 	}

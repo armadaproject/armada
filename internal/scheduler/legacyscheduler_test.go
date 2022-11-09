@@ -3,12 +3,14 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -466,11 +468,15 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 				TotalResources:   totalResources,
 			}
 			if tc.Nodes != nil {
-				nodeDb, err := NewNodeDb(testPriorities, testResources)
+				nodeDb, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 				if !assert.NoError(t, err) {
 					return
 				}
-				err = nodeDb.Upsert(tc.Nodes)
+
+				// Insert in random order.
+				nodes := slices.Clone(tc.Nodes)
+				rand.Shuffle(len(nodes), func(i, j int) { nodes[i], nodes[j] = nodes[j], nodes[i] })
+				err = nodeDb.Upsert(nodes)
 				if !assert.NoError(t, err) {
 					return
 				}
@@ -498,9 +504,9 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 }
 
 func testSchedulingConfig() configuration.SchedulingConfig {
-	priorityClasses := make(map[string]int32)
-	for _, priority := range testPriorities {
-		priorityClasses[fmt.Sprintf("%d", priority)] = priority
+	priorityClasses := make(map[string]configuration.PriorityClass)
+	for _, priority := range testPriorityClasses {
+		priorityClasses[fmt.Sprintf("%d", priority.Priority)] = priority
 	}
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
@@ -521,6 +527,16 @@ func withPerQueueLimits(limits map[string]float64, config configuration.Scheduli
 	return config
 }
 
+func withPerPriorityLimits(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	for k, v := range config.Preemption.PriorityClasses {
+		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
+			Priority:                        v.Priority,
+			MaximalResourceFractionPerQueue: limits[v.Priority],
+		}
+	}
+	return config
+}
+
 func withPerQueueRoundLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalResourceFractionToSchedulePerQueue = limits
 	return config
@@ -537,28 +553,18 @@ func withMaxConsecutiveUnschedulableJobs(n uint, config configuration.Scheduling
 }
 
 func withIndexedTaints(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	if config.IndexedTaints == nil {
-		config.IndexedTaints = make(map[string]interface{})
-	}
-	for _, key := range indexedTaints {
-		config.IndexedTaints[key] = ""
-	}
+	config.IndexedTaints = append(config.IndexedTaints, indexedTaints...)
 	return config
 }
 
-func withIndexedNodeLabels(indexedLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	if config.IndexedNodeLabels == nil {
-		config.IndexedNodeLabels = make(map[string]interface{})
-	}
-	for _, key := range indexedLabels {
-		config.IndexedNodeLabels[key] = ""
-	}
+func withIndexedNodeLabels(indexedNodeLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.IndexedNodeLabels = append(config.IndexedNodeLabels, indexedNodeLabels...)
 	return config
 }
 
 func withUsedResources(p int32, rs schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
-		schedulerobjects.AvailableByPriorityAndResourceType(node.AvailableByPriorityAndResource).MarkUsed(p, rs)
+		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rs)
 	}
 	return nodes
 }
@@ -569,11 +575,6 @@ func withLabels(labels map[string]string, nodes []*schedulerobjects.Node) []*sch
 			node.Labels = maps.Clone(labels)
 		} else {
 			maps.Copy(node.Labels, labels)
-		}
-		if node.NodeType.Labels == nil {
-			node.NodeType.Labels = maps.Clone(labels)
-		} else {
-			maps.Copy(node.NodeType.Labels, labels)
 		}
 	}
 	return nodes
@@ -818,6 +819,26 @@ func TestSchedule(t *testing.T) {
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1},
 				"B": {0},
+			},
+		},
+		"per priority per-queue limits": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 1.0},
+					1: {"cpu": 0.5},
+					2: {"cpu": 0.25},
+					3: {"cpu": 0.1},
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(3, 5), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0, 1, 2, 5, 6, 7, 8, 9},
 			},
 		},
 		"fairness two queues": {
@@ -1285,6 +1306,9 @@ func TestSchedule(t *testing.T) {
 	}
 }
 
+func Test_exceedsPerPriorityResourceLimits(t *testing.T) {
+}
+
 func intRange(a, b int) []int {
 	rv := make([]int, b-a+1)
 	for i := range rv {
@@ -1358,7 +1382,7 @@ func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
 	return rv
 }
 
-func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]int32) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, job := range jobs {
 		m, ok := rv[job.Queue]

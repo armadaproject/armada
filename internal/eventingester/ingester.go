@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/G-Research/armada/internal/eventingester/metrics"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -69,6 +71,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		panic(err)
 	}
 
+	m := metrics.Get()
 	// Receive Pulsar messages on a channel
 	pulsarMsgs := pulsarutils.Receive(
 		ctx,
@@ -77,6 +80,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		2*config.BatchSize,
 		config.PulsarReceiveTimeout,
 		config.PulsarBackoffTime,
+		m,
 	)
 
 	// Batch up messages
@@ -88,16 +92,14 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := &convert.MessageRowConverter{
-		Compressor:          compressor,
-		MaxMessageBatchSize: config.BatchSize,
-	}
+
+	converter := convert.NewMessageRowConverter(compressor, config.BatchMessages, m)
 	events := convert.Convert(ctx, batchedMsgs, 5, converter)
 
 	// Insert into database
 	maxSize := 4 * 1024 * 1024
 	maxRows := 500
-	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows, fatalRegexes)
+	inserted := store.InsertEvents(ctx, eventDb, events, 5, maxSize, maxRows, fatalRegexes, m)
 
 	// Waitgroup that wil fire when the pipeline has been torn down
 	wg := &sync.WaitGroup{}

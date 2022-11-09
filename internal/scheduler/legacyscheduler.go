@@ -129,7 +129,7 @@ type QueueCandidateJobsIterator struct {
 	err error
 	// Iterator over all jobs in this queue.
 	jobsIterator JobsIterator
-	// Total resources assigned to this queue across all clusters.
+	// Total resources assigned to this queue across all clusters, by priority
 	totalQueueResources schedulerobjects.ResourceList
 	// Total resources assigned to this queue across all clusters by priority.
 	totalQueueResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
@@ -270,6 +270,16 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		return jobSchedulingReport, nil
 	}
 
+	// check total per-queue, per priority resource limit
+	if exceeded, reason := it.exceedsPerPriorityResourceLimits(
+		ctx,
+		totalQueueResourcesByPriority,
+		it.LegacyScheduler.CumulativePriorityLimits,
+	); exceeded {
+		jobSchedulingReport.UnschedulableReason = reason + " (total limit for this queue)"
+		return jobSchedulingReport, nil
+	}
+
 	// Check per-round resource limits for this queue.
 	if exceeded, reason := it.exceedsResourceLimits(
 		ctx,
@@ -300,7 +310,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	return jobSchedulingReport, nil
 }
 
-func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]int32) (priority int32, ok bool) {
+func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) (priority int32, ok bool) {
 	return schedulerobjects.PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
 }
 
@@ -313,9 +323,9 @@ func uuidFromUlidString(ulid string) (uuid.UUID, error) {
 }
 
 // Check if scheduling this job would exceed per-queue resource limits.
-func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
+func (sched *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
 	for resourceType, limit := range limits {
-		totalAmount := scheduler.TotalResources.Resources[resourceType]
+		totalAmount := sched.TotalResources.Resources[resourceType]
 		amountUsedByQueue := rl.Resources[resourceType]
 		// TODO: Use fixed-point division instead.
 		if common.QuantityAsFloat64(amountUsedByQueue)/common.QuantityAsFloat64(totalAmount) > limit {
@@ -325,17 +335,48 @@ func (scheduler *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl 
 	return false, ""
 }
 
+// Check if scheduling this job would exceed per-priority-per-queue resource limits.
+func (sched *LegacyScheduler) exceedsPerPriorityResourceLimits(ctx context.Context, usageByPriority schedulerobjects.QuantityByPriorityAndResourceType, limits map[int32]map[string]float64) (bool, string) {
+	// Calculate cumulative usage at each priority
+	// This involves summing the usage at all higher priorities
+	cumulativeUsageByPriority := make(schedulerobjects.QuantityByPriorityAndResourceType, 0)
+	priorities := maps.Keys(limits)
+	slices.Sort(priorities)
+	total := schedulerobjects.ResourceList{}
+	for i := len(priorities) - 1; i >= 0; i-- {
+		priority := priorities[i]
+		usageAtPriority, ok := usageByPriority[priority]
+		if ok {
+			total.Add(usageAtPriority)
+		}
+		cumulativeUsageByPriority[priority] = total.DeepCopy()
+	}
+
+	for priority, priorityLimits := range limits {
+		rl, ok := cumulativeUsageByPriority[priority]
+		if ok {
+			limitExceeded, msg := sched.exceedsResourceLimits(ctx, rl, priorityLimits)
+			if limitExceeded {
+				return true, fmt.Sprintf("%s at priority %d", msg, priority)
+			}
+		} else {
+			log.Warnf("Job scheduled at priority %d but there are no per-priority limits set up for this class.  Skipping per periority limit check", priority)
+		}
+	}
+	return false, ""
+}
+
 // Check that this job is at least equal to the minimum job size.
-func (scheduler *LegacyScheduler) jobIsLargeEnough(jobTotalResourceRequests common.ComputeResources) (bool, string) {
+func (sched *LegacyScheduler) jobIsLargeEnough(jobTotalResourceRequests common.ComputeResources) (bool, string) {
 	// TODO: These per-job checks could be expressed as filter functions, e.g., of type
 	// jobsFilterFunc func(*api.Job) bool
-	if len(scheduler.MinimumJobSize) == 0 {
+	if len(sched.MinimumJobSize) == 0 {
 		return true, ""
 	}
 	if len(jobTotalResourceRequests) == 0 {
 		return true, ""
 	}
-	for resourceType, limit := range scheduler.MinimumJobSize {
+	for resourceType, limit := range sched.MinimumJobSize {
 		if q, ok := jobTotalResourceRequests[resourceType]; ok {
 			if limit.Cmp(q) == 1 {
 				return false, fmt.Sprintf(
@@ -353,7 +394,7 @@ func (scheduler *LegacyScheduler) jobIsLargeEnough(jobTotalResourceRequests comm
 	return true, ""
 }
 
-func (scheduler *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uuid.UUID, job *api.Job) (*PodSchedulingReport, error) {
+func (sched *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uuid.UUID, job *api.Job) (*PodSchedulingReport, error) {
 	podSpec := podSpecFromJob(job)
 	if podSpec == nil {
 		return nil, errors.New("failed to get pod spec")
@@ -361,8 +402,8 @@ func (scheduler *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uu
 
 	// Try to find a node for this pod.
 	// Store the report returned by the NodeDb.
-	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, scheduler.SchedulingConfig.Preemption.PriorityClasses)
-	report, err := scheduler.NodeDb.SelectNodeForPod(jobId, req)
+	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, sched.SchedulingConfig.Preemption.PriorityClasses)
+	report, err := sched.NodeDb.SelectNodeForPod(jobId, req)
 	if err != nil {
 		return nil, err
 	}
@@ -385,6 +426,9 @@ type LegacyScheduler struct {
 	JobRepository SchedulerJobRepository
 	// Minimum quantity allowed for jobs leased to this cluster.
 	MinimumJobSize map[string]resource.Quantity
+	// Limit (as a fraction of the cluster) of resource types at each priority
+	// This is cumulative i.e. fraction at level x includes all previous levels
+	CumulativePriorityLimits map[int32]map[string]float64
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactorByQueue map[string]float64
 	// Random number generator, used to select queues
@@ -436,19 +480,26 @@ func NewLegacyScheduler(
 	priorityFactorByQueue map[string]float64,
 ) (*LegacyScheduler, error) {
 	priorities := make([]int32, 0)
+	cumulativePriorityLimits := make(map[int32]map[string]float64, 0)
 	for _, priority := range schedulingConfig.Preemption.PriorityClasses {
-		priorities = append(priorities, priority)
+		priorities = append(priorities, priority.Priority)
+		cumulativePriorityLimits[priority.Priority] = priority.MaximalResourceFractionPerQueue
 	}
 	if len(priorities) == 0 {
 		priorities = []int32{0}
 	}
 
-	resources := schedulingConfig.IndexedResources
-	if len(resources) == 0 {
-		resources = []string{"cpu", "memory"}
+	indexedResources := schedulingConfig.IndexedResources
+	if len(indexedResources) == 0 {
+		indexedResources = []string{"cpu", "memory"}
 	}
 
-	nodeDb, err := NewNodeDb(priorities, resources)
+	nodeDb, err := NewNodeDb(
+		priorities,
+		indexedResources,
+		schedulingConfig.IndexedTaints,
+		schedulingConfig.IndexedNodeLabels,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -467,30 +518,31 @@ func NewLegacyScheduler(
 	}
 
 	return &LegacyScheduler{
-		SchedulingConfig:      schedulingConfig,
-		ExecutorId:            executorId,
-		TotalResources:        totalResources,
-		NodeDb:                nodeDb,
-		JobRepository:         jobRepository,
-		PriorityFactorByQueue: priorityFactorByQueue,
-		Rand:                  rand.New(rand.NewSource(rand.Int63())),
+		SchedulingConfig:         schedulingConfig,
+		ExecutorId:               executorId,
+		TotalResources:           totalResources,
+		NodeDb:                   nodeDb,
+		JobRepository:            jobRepository,
+		PriorityFactorByQueue:    priorityFactorByQueue,
+		CumulativePriorityLimits: cumulativePriorityLimits,
+		Rand:                     rand.New(rand.NewSource(rand.Int63())),
 	}, nil
 }
 
 // Schedule is similar to distributeRemainder, but is built on NodeDb.
-func (c *LegacyScheduler) Schedule(
+func (sched *LegacyScheduler) Schedule(
 	ctx context.Context,
 	initialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 
 	// Initialise a report capturing the work done by the scheduler during this invocation.
-	c.SchedulingRoundReport = NewSchedulingRoundReport(c.TotalResources, c.PriorityFactorByQueue)
+	sched.SchedulingRoundReport = NewSchedulingRoundReport(sched.TotalResources, sched.PriorityFactorByQueue)
 	defer func() {
-		c.SchedulingRoundReport.Finished = time.Now()
+		sched.SchedulingRoundReport.Finished = time.Now()
 	}()
 	for queue, initialUsage := range initialUsageByQueue {
-		c.SchedulingRoundReport.InitialResourcesByQueueAndPriority[queue] = initialUsage.DeepCopy()
+		sched.SchedulingRoundReport.InitialResourcesByQueueAndPriority[queue] = initialUsage.DeepCopy()
 	}
 
 	// Total resource usage across all priorities by queue.
@@ -501,8 +553,8 @@ func (c *LegacyScheduler) Schedule(
 
 	// Iterator over (potentially) schedulable jobs for each queue.
 	iteratorsByQueue := make(map[string]*QueueCandidateJobsIterator)
-	for queue := range c.PriorityFactorByQueue {
-		it, err := NewQueueCandidateJobsIterator(ctx, queue, initialUsageByQueue[queue].AggregateByResource(), initialUsageByQueue[queue], *c)
+	for queue := range sched.PriorityFactorByQueue {
+		it, err := NewQueueCandidateJobsIterator(ctx, queue, initialUsageByQueue[queue].AggregateByResource(), initialUsageByQueue[queue], *sched)
 		if err != nil {
 			return nil, err
 		}
@@ -518,22 +570,22 @@ func (c *LegacyScheduler) Schedule(
 	numJobsToLease := 0
 	jobsToLeaseByQueue := make(map[string][]*api.Job)
 	for {
-		if c.SchedulingConfig.MaximumJobsToSchedule != 0 && numJobsToLease == c.SchedulingConfig.MaximumJobsToSchedule {
-			if c.SchedulingRoundReport != nil {
-				c.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
+		if sched.SchedulingConfig.MaximumJobsToSchedule != 0 && numJobsToLease == sched.SchedulingConfig.MaximumJobsToSchedule {
+			if sched.SchedulingRoundReport != nil {
+				sched.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
 			}
 			break
 		}
-		if len(c.PriorityFactorByQueue) == 0 {
-			if c.SchedulingRoundReport != nil {
-				c.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
+		if len(sched.PriorityFactorByQueue) == 0 {
+			if sched.SchedulingRoundReport != nil {
+				sched.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
 			}
 			break
 		}
 		select {
 		case <-ctx.Done():
-			if c.SchedulingRoundReport != nil {
-				c.SchedulingRoundReport.TerminationReason = "deadline exceeded"
+			if sched.SchedulingRoundReport != nil {
+				sched.SchedulingRoundReport.TerminationReason = "deadline exceeded"
 			}
 			break
 		default:
@@ -542,17 +594,17 @@ func (c *LegacyScheduler) Schedule(
 		// Select a queue to schedule job from.
 		// Queues with fewer resources allocated to them are selected with higher probability.
 		weights := queueSelectionWeights(
-			c.PriorityFactorByQueue,
+			sched.PriorityFactorByQueue,
 			totalResourcesByQueue,
-			c.SchedulingConfig.GetResourceScarcity(c.Pool),
+			sched.SchedulingConfig.GetResourceScarcity(sched.Pool),
 		)
-		queue, _ := pickQueueRandomly(weights, c.Rand)
+		queue, _ := pickQueueRandomly(weights, sched.Rand)
 
 		// Schedule one job from this queue.
 		it, ok := iteratorsByQueue[queue]
 		if !ok {
 			log.Errorf("iterator missing for queue %s", queue)
-			delete(c.PriorityFactorByQueue, queue)
+			delete(sched.PriorityFactorByQueue, queue)
 			continue
 		}
 		for {
@@ -561,7 +613,7 @@ func (c *LegacyScheduler) Schedule(
 				return nil, err
 			}
 			if report == nil { // No more jobs to process for this queue.
-				delete(c.PriorityFactorByQueue, queue)
+				delete(sched.PriorityFactorByQueue, queue)
 				break
 			}
 
@@ -572,14 +624,14 @@ func (c *LegacyScheduler) Schedule(
 			jobTotalResourceRequests := schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests)
 			roundResourcesCopy := roundResources.DeepCopy()
 			roundResourcesCopy.Add(jobTotalResourceRequests)
-			if exceeded, reason := c.exceedsResourceLimits(
+			if exceeded, reason := sched.exceedsResourceLimits(
 				ctx,
 				roundResourcesCopy,
-				c.SchedulingConfig.MaximalClusterFractionToSchedule,
+				sched.SchedulingConfig.MaximalClusterFractionToSchedule,
 			); exceeded {
 				report.UnschedulableReason = reason + " (overall per scheduling round limit)"
-				if c.SchedulingRoundReport != nil {
-					c.SchedulingRoundReport.AddJobSchedulingReport(report)
+				if sched.SchedulingRoundReport != nil {
+					sched.SchedulingRoundReport.AddJobSchedulingReport(report)
 				}
 				continue
 			}
@@ -590,15 +642,15 @@ func (c *LegacyScheduler) Schedule(
 			// if other jobs were scheduled onto that node in the interim.
 			//
 			// TODO: Only repeat this process if the node in the report no longer works.
-			podReport, err := c.selectNodeForPod(ctx, report.JobId, report.Job)
+			podReport, err := sched.selectNodeForPod(ctx, report.JobId, report.Job)
 			if err != nil {
 				return nil, err
 			}
 			report.PodSchedulingReports = []*PodSchedulingReport{podReport}
 			if podReport.Node == nil {
 				report.UnschedulableReason = "pod does not fit on any node"
-				if c.SchedulingRoundReport != nil {
-					c.SchedulingRoundReport.AddJobSchedulingReport(report)
+				if sched.SchedulingRoundReport != nil {
+					sched.SchedulingRoundReport.AddJobSchedulingReport(report)
 				}
 				continue // Found no node for this job.
 			}
@@ -613,8 +665,8 @@ func (c *LegacyScheduler) Schedule(
 			rl := totalResourcesByQueue[queue]
 			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
 			totalResourcesByQueue[queue] = rl
-			if c.SchedulingRoundReport != nil {
-				c.SchedulingRoundReport.AddJobSchedulingReport(report)
+			if sched.SchedulingRoundReport != nil {
+				sched.SchedulingRoundReport.AddJobSchedulingReport(report)
 			}
 			break
 		}
@@ -628,7 +680,7 @@ func (c *LegacyScheduler) Schedule(
 		// For example, jobs concurrently leased to another executor are skipped.
 		//
 		// TODO: Reports generated above will be incorrect if creating the lease fails.
-		successfullyLeasedJobs, err := c.JobRepository.TryLeaseJobs(c.ExecutorId, queue, jobsToLease)
+		successfullyLeasedJobs, err := sched.JobRepository.TryLeaseJobs(sched.ExecutorId, queue, jobsToLease)
 		if err != nil {
 			logging.WithStacktrace(log, err).Error("failed to lease jobs")
 		}

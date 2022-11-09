@@ -9,7 +9,6 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
-	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type ArmadaConfig struct {
@@ -145,7 +144,7 @@ type SchedulingConfig struct {
 	// If not set, no labels are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedNodeLabels map[string]interface{}
+	IndexedNodeLabels []string
 	// Taint keys that the scheduler creates indexes for efficient lookup of.
 	// Should include taints frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these taints
@@ -154,7 +153,7 @@ type SchedulingConfig struct {
 	// If not set, all taints are indexed.
 	//
 	// Applies only to the new scheduler.
-	IndexedTaints map[string]interface{}
+	IndexedTaints []string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,
@@ -190,13 +189,18 @@ type PreemptionConfig struct {
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
-	// Map from priority class name to priority.
+	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]int32
+	PriorityClasses map[string]PriorityClass
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+}
+
+type PriorityClass struct {
+	Priority                        int32
+	MaximalResourceFractionPerQueue map[string]float64
 }
 
 type DatabaseRetentionPolicy struct {
@@ -248,7 +252,7 @@ type JetstreamConfig struct {
 
 type QueueManagementConfig struct {
 	AutoCreateQueues       bool
-	DefaultPriorityFactor  queue.PriorityFactor
+	DefaultPriorityFactor  float64
 	DefaultQueuedJobsLimit int
 }
 
