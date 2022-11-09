@@ -29,7 +29,7 @@ func (r *SQLJobRepository) GetJobs(ctx context.Context, opts *lookout.GetJobsReq
 		return nil, err
 	}
 
-	result, err := rowsToJobs(rows)
+	result, err := r.rowsToJobs(rows)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func createJobOrdering(newestFirst bool) exp.OrderedExpression {
 	return job_jobId.Asc()
 }
 
-func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
+func (r *SQLJobRepository) rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 	jobMap := make(map[string]*lookout.JobInfo)
 
 	for _, row := range rows {
@@ -209,7 +209,6 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 				if row.State.Valid {
 					state = string(IntToJobStateMap[int(row.State.Int64)])
 				}
-				stateDuration = determineJobStateDuration(JobState(state), row)
 
 				job, jobJson, err := makeJobFromRow(row)
 				if err != nil {
@@ -238,6 +237,7 @@ func rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error) {
 
 	for _, jobInfo := range jobMap {
 		updateRunStates(jobInfo)
+		r.updateTimeInState(jobInfo)
 	}
 
 	return jobMapToSlice(jobMap), nil
@@ -263,27 +263,50 @@ func sortJobsByJobId(jobInfos []*lookout.JobInfo, descending bool) {
 	})
 }
 
-func determineJobStateDuration(state JobState, row *JobRow) string {
-	if row == nil {
-		return ""
-	}
-	var timeStamp time.Time
+func (r *SQLJobRepository) updateTimeInState(jobInfo *lookout.JobInfo) {
+	var timeStamp *time.Time
 
+	state := JobState(jobInfo.JobState)
 	switch state {
 	case JobSucceeded, JobFailed:
-		timeStamp = row.Finished.Time
+		timeStamp = findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Finished })
+		if timeStamp == nil {
+			log.Warnf("No finished timestamp found for job with id %s", jobInfo.Job.Id)
+		}
 	case JobRunning:
-		timeStamp = row.Started.Time
+		timeStamp = findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Started })
+		if timeStamp == nil {
+			log.Warnf("No running timestamp found for job with id %s", jobInfo.Job.Id)
+		}
 	case JobPending:
-		timeStamp = row.Created.Time
+		timeStamp = findLatest(jobInfo.Runs, func(run *lookout.RunInfo) *time.Time { return run.Created })
+		if timeStamp == nil {
+			log.Warnf("No pending timestamp found for job with id %s", jobInfo.Job.Id)
+		}
 	case JobCancelled:
-		timeStamp = row.Cancelled.Time
+		timeStamp = jobInfo.Cancelled
+		if timeStamp == nil {
+			log.Warnf("No cancelled timestamp found for job with id %s", jobInfo.Job.Id)
+		}
 	case JobQueued, JobDuplicate:
-		timeStamp = row.Submitted.Time
+		timeStamp = &jobInfo.Job.Created
 	}
 
-	timeInState := time.Now().Sub(timeStamp)
-	return duration.ShortHumanDuration(timeInState)
+	if timeStamp != nil {
+		jobInfo.JobStateDuration = duration.ShortHumanDuration(r.clock.Now().Sub(*timeStamp))
+	}
+}
+
+// Find latest non-nil value in the runs, given some accessor
+// Note that this assumes that the runs are ordered from earliest to latest
+func findLatest[T any](runs []*lookout.RunInfo, accessor func(run *lookout.RunInfo) *T) *T {
+	for i := len(runs) - 1; i >= 0; i-- {
+		val := accessor(runs[i])
+		if val != nil {
+			return val
+		}
+	}
+	return nil
 }
 
 // Returns api Job object, Job JSON, and any fatal error
