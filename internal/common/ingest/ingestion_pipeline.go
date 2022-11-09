@@ -57,13 +57,15 @@ type IngestionPipeline[T HasPulsarMessageIds] struct {
 	metricsConfig          configuration.MetricsConfig
 	metrics                *commonmetrics.Metrics
 	pulsarSubscriptionName string
-	pulsarbatchSize        int
-	pulsarbatchDuration    time.Duration
+	pulsarBatchSize        int
+	pulsarBatchDuration    time.Duration
 	converter              InstructionConverter[T]
 	sink                   Sink[T]
+	consumer               pulsar.Consumer
 }
 
-func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.PulsarConfig,
+func NewIngestionPipeline[T HasPulsarMessageIds](
+	pulsarConfig configuration.PulsarConfig,
 	pulsarSubscriptionName string,
 	pulsarbatchSize int,
 	pulsarbatchDuration time.Duration,
@@ -71,16 +73,18 @@ func NewIngestionPipeline[T HasPulsarMessageIds](pulsarConfig configuration.Puls
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
 	metrics *commonmetrics.Metrics,
+	consumer pulsar.Consumer,
 ) *IngestionPipeline[T] {
 	return &IngestionPipeline[T]{
 		pulsarConfig:           pulsarConfig,
 		metricsConfig:          metricsConfig,
 		metrics:                metrics,
 		pulsarSubscriptionName: pulsarSubscriptionName,
-		pulsarbatchSize:        pulsarbatchSize,
-		pulsarbatchDuration:    pulsarbatchDuration,
+		pulsarBatchSize:        pulsarbatchSize,
+		pulsarBatchDuration:    pulsarbatchDuration,
 		converter:              converter,
 		sink:                   sink,
+		consumer:               consumer,
 	}
 }
 
@@ -93,24 +97,15 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	// Subscribe to Pulsar and receive messages
-	pulsarClient, err := pulsarutils.NewPulsarClient(&ingester.pulsarConfig)
-	if err != nil {
-		return errors.WithMessage(err, "Error creating pulsar client")
+	if ingester.consumer == nil {
+		consumer, closePulsar, err := ingester.subscribe()
+		if err != nil {
+			return err
+		}
+		ingester.consumer = consumer
+		defer closePulsar()
 	}
-	defer pulsarClient.Close()
-
-	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:                       ingester.pulsarConfig.JobsetEventsTopic,
-		SubscriptionName:            ingester.pulsarSubscriptionName,
-		Type:                        pulsar.KeyShared,
-		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
-	})
-	if err != nil {
-		return errors.WithMessage(err, "Error creating pulsar consumer")
-	}
-	defer consumer.Close()
-	pulsarMsgs := pulsarutils.Receive(ctx, consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
+	pulsarMsgs := pulsarutils.Receive(ctx, ingester.consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
 
 	// Setup a context that n seconds after ctx
 	// This gives the rest of the pipeline a chance to flush pending messages
@@ -119,7 +114,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 		for {
 			select {
 			case <-ctx.Done():
-				time.Sleep(2 * ingester.pulsarbatchDuration)
+				time.Sleep(2 * ingester.pulsarBatchDuration)
 				cancel()
 				wg.Done()
 			}
@@ -128,7 +123,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 
 	// Batch up messages
 	batchedMsgs := make(chan []pulsar.Message)
-	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarbatchSize, ingester.pulsarbatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
+	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
 	go func() {
 		batcher.Run(pipelineShutdownContext)
 	}()
@@ -163,7 +158,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 				log.WithError(err).Warn("Error inserting messages")
 			}
 			for _, msgId := range msg.GetMessageIDs() {
-				consumer.AckID(msgId)
+				ingester.consumer.AckID(msgId)
 			}
 		}
 		wg.Done()
@@ -174,6 +169,29 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	wg.Wait()
 	log.Info("Shutdown event received - closing")
 	return nil
+}
+
+func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
+	// Subscribe to Pulsar and receive messages
+	pulsarClient, err := pulsarutils.NewPulsarClient(&ingester.pulsarConfig)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "Error creating pulsar client")
+	}
+
+	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		Topic:                       ingester.pulsarConfig.JobsetEventsTopic,
+		SubscriptionName:            ingester.pulsarSubscriptionName,
+		Type:                        pulsar.KeyShared,
+		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
+	})
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "Error creating pulsar consumer")
+	}
+
+	return consumer, func() {
+		consumer.Close()
+		pulsarClient.Close()
+	}, nil
 }
 
 func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metrics) *EventSequencesWithIds {

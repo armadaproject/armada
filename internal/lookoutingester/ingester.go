@@ -41,7 +41,8 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		converter,
 		lookoutDb,
 		config.Metrics,
-		metrics)
+		metrics,
+		nil)
 
 	err = ingester.Run(app.CreateContextWithShutdown())
 	if err != nil {
