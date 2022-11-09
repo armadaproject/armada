@@ -126,3 +126,6 @@ For client credentials, you can use the following config for the executor and ot
 ```
 
 If you want to interact with Armada, you will have to use one of our client APIs.  The armadactl is not setup to work with OIDC at this time.
+
+Note: Currently due to End-to-End test rules on the current localdev setup, only the personal-anonymous user can by default have jobs created by anonymous user when using no authentication.
+

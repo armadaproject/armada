@@ -14,3 +14,4 @@ We suggest using this if you want to integrate armada with an external service l
 
 1) Run `docs/dev/setup_local_host.sh`
 2) Run each of those commands in separate terminals
+
