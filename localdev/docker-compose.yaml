@@ -4,6 +4,13 @@ networks:
   kind:
     external: true
 
+    
+volumes:
+  # shared gopath volume for armada services
+  # with this, modules do not need to be redundantly downloaded
+  # and persist through restarts
+  gopath:
+
 services:
   #
   # Infrastructure services needed for Armada
@@ -65,7 +72,7 @@ services:
       - "8080:8080"
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     depends_on:
       - redis
       - postgres
@@ -73,7 +80,7 @@ services:
       - stan
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/armada-start.sh"
-    
+
   lookout:
     container_name: lookout
     image: golang:1.18-buster
@@ -84,13 +91,13 @@ services:
       - "8089:8089"
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     depends_on:
       - armada-server
       - postgres
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-start.sh"
-    
+
   executor:
     container_name: executor
     image: golang:1.18-buster
@@ -102,10 +109,10 @@ services:
       - armada-server
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/executor-start.sh"
-    
+
   binoculars:
     container_name: binoculars
     image: golang:1.18-buster
@@ -117,10 +124,10 @@ services:
       - armada-server
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/binoculars-start.sh"
-    
+
   jobservice:
     container_name: jobservice
     image: golang:1.18-buster
@@ -132,7 +139,7 @@ services:
       - armada-server
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/jobservice-start.sh"
 
@@ -146,7 +153,7 @@ services:
       - lookout
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"
 
@@ -159,7 +166,6 @@ services:
       - armada-server
     volumes:
       - "..:/app:rw"
-      - "./volumes/go:/go:rw"
+      - "gopath:/go:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/event-ingester-start.sh"
-
