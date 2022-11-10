@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 	_ "github.com/lib/pq"
@@ -16,33 +17,84 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func TestLookoutIngesterUpdatesPostgres(t *testing.T) {
+var defaultWaits struct {
+	PollWait     time.Duration
+	ExpiresAfter time.Duration
+}
+
+func init() {
+	pollWait, _ := time.ParseDuration("1s")
+	expiresAfter, _ := time.ParseDuration("1m")
+
+	defaultWaits.PollWait = pollWait
+	defaultWaits.ExpiresAfter = expiresAfter
+}
+
+func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
 		jobRequest := createJobRequest("personal-anonymous")
 
-		// createQueue
 		createQueue(submitClient, jobRequest, t)
 
-		// Submit job
 		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
 		assert.NoError(t, err)
 		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
-
-		// wait for rows to show up in psql db. to some limit.
-		// jobRows, err := awaitJobEntries()
-		db, err := openPgDbTestConnection()
-		assert.NoError(t, err)
 
 		jobId := submitResponse.JobResponseItems[0].JobId
 		errStr := submitResponse.JobResponseItems[0].Error
 		assert.Empty(t, errStr)
 		assert.NotEmpty(t, jobId)
 
-		pJob, err := awaitJobEntry(t, db, jobId)
-		assert.NotNil(t, pJob)
+		db, err := openPgDbTestConnection()
 		assert.NoError(t, err)
+
+		pJobRun, err := awaitJobRunEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter)
+		assert.NoError(t, err)
+		assert.NotNil(t, pJobRun)
+		assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
+
+		pJob, err := awaitJobEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter, repository.JobSucceededOrdinal)
+		assert.NoError(t, err)
+		assert.NotNil(t, pJob)
 		assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
+	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
+		submitClient := api.NewSubmitClient(connection)
+		jobRequest := createJobRequest("personal-anonymous")
+		jobRequest.JobRequestItems[0].PodSpec.Containers[0].Image = "https://wrongimagename/"
+
+		createQueue(submitClient, jobRequest, t)
+
+		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
+		assert.NoError(t, err)
+		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
+
+		jobId := submitResponse.JobResponseItems[0].JobId
+		errStr := submitResponse.JobResponseItems[0].Error
+		assert.Empty(t, errStr)
+		assert.NotEmpty(t, jobId)
+
+		db, err := openPgDbTestConnection()
+		assert.NoError(t, err)
+
+		pJobRun, err := awaitJobRunEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter)
+		assert.NoError(t, err)
+		assert.NotNil(t, pJobRun)
+		assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
+		assert.Equal(t, pJobRun.Succeeded, false)
+
+		pJob, err := awaitJobEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter, repository.JobFailedOrdinal)
+		assert.NoError(t, err)
+		assert.NotNil(t, pJob)
+		assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
+		assert.Equal(t, repository.JobFailedOrdinal, pJob.State)
 
 		return nil
 	})
@@ -54,27 +106,49 @@ type PartialJob struct {
 	State int
 }
 
-func awaitJobEntry(t *testing.T, db *sql.DB, jobId string) (*PartialJob, error) {
-	oneMinute, err := time.ParseDuration("1m")
-	assert.NoError(t, err)
-	oneSecond, err := time.ParseDuration("1s")
-	assert.NoError(t, err)
-
-	timeout := time.Now().Add(oneMinute)
+func awaitJobEntry(db *sql.DB, jobId string, pollWait time.Duration, expiresAfter time.Duration, expectedState int) (*PartialJob, error) {
+	timeout := time.Now().Add(expiresAfter)
 	pJob := &PartialJob{}
 
 	for {
-		row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1", jobId)
-		if err = row.Scan(&pJob.JobId, &pJob.State); err != nil {
+		row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1 AND state = $2", jobId, expectedState)
+		if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
 			if err == sql.ErrNoRows && time.Now().After(timeout) {
-				return nil, fmt.Errorf("Timed out waiting for job to appear in postgres")
+				return nil, fmt.Errorf("Timed out waiting for job to appear in postgres in the expected state")
 			} else if err == sql.ErrNoRows {
-				time.Sleep(oneSecond)
+				time.Sleep(pollWait)
 				continue
 			}
 			return nil, err
 		}
 		return pJob, nil
+	}
+}
+
+type PartialJobRun struct {
+	RunId     string
+	JobId     string
+	Cluster   string
+	Succeeded bool
+	PodNumber int
+}
+
+func awaitJobRunEntry(db *sql.DB, jobId string, pollWait time.Duration, expiresAfter time.Duration) (*PartialJobRun, error) {
+	timeout := time.Now().Add(expiresAfter)
+	pJobRun := &PartialJobRun{}
+
+	for {
+		row := db.QueryRow("SELECT run_id,job_id,cluster,succeeded,pod_number FROM job_run WHERE job_id = $1 AND finished IS NOT NULL", jobId)
+		if err := row.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber); err != nil {
+			if err == sql.ErrNoRows && time.Now().After(timeout) {
+				return nil, fmt.Errorf("Timed out waiting for job run to appear in postgres")
+			} else if err == sql.ErrNoRows {
+				time.Sleep(pollWait)
+				continue
+			}
+			return nil, err
+		}
+		return pJobRun, nil
 	}
 }
 
