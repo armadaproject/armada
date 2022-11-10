@@ -279,20 +279,20 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 }
 
 func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages] {
-	return NewIngestionPipeline[*simpleMessages](
-		configuration.PulsarConfig{
+	return &IngestionPipeline[*simpleMessages]{
+		pulsarConfig: configuration.PulsarConfig{
 			ReceiveTimeout: 10 * time.Second,
 			BackoffTime:    time.Second,
 		},
-		"subscription",
-		batchSize,
-		batchDuration,
-		converter,
-		sink,
-		configuration.MetricsConfig{},
-		testMetrics,
-		consumer,
-	)
+		pulsarSubscriptionName: "subscription",
+		pulsarBatchDuration:    batchDuration,
+		pulsarBatchSize:        batchSize,
+		converter:              converter,
+		sink:                   sink,
+		metricsConfig:          configuration.MetricsConfig{},
+		metrics:                testMetrics,
+		consumer:               consumer,
+	}
 }
 
 func marshal(t *testing.T, eventSequence *armadaevents.EventSequence) []byte {

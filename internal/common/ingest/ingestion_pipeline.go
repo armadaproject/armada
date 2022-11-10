@@ -61,7 +61,7 @@ type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarBatchDuration    time.Duration
 	converter              InstructionConverter[T]
 	sink                   Sink[T]
-	consumer               pulsar.Consumer
+	consumer               pulsar.Consumer // for test purposes only
 }
 
 func NewIngestionPipeline[T HasPulsarMessageIds](
@@ -73,7 +73,6 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
 	metrics *commonmetrics.Metrics,
-	consumer pulsar.Consumer,
 ) *IngestionPipeline[T] {
 	return &IngestionPipeline[T]{
 		pulsarConfig:           pulsarConfig,
@@ -84,7 +83,6 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 		pulsarBatchDuration:    pulsarBatchDuration,
 		converter:              converter,
 		sink:                   sink,
-		consumer:               consumer,
 	}
 }
 
