@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+	jobIdString   = "01f3j0g1md4qx7z5qb148qnh4r"
+	runIdString   = "123e4567-e89b-12d3-a456-426614174000"
+	batchSize     = 3
+	batchDuration = 5 * time.Second
 )
 
 var (
@@ -243,8 +245,11 @@ func TestRun_HappyPath_SingleMessage(t *testing.T) {
 
 	pipeline := testPipeline(mockConsumer, converter, sink)
 
+	start := time.Now()
 	err := pipeline.Run(ctx)
 	assert.NoError(t, err)
+	elapsed := time.Since(start)
+	assert.LessOrEqual(t, elapsed, batchDuration*2)
 
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
@@ -263,8 +268,11 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 
 	pipeline := testPipeline(mockConsumer, converter, sink)
 
+	start := time.Now()
 	err := pipeline.Run(ctx)
 	assert.NoError(t, err)
+	elapsed := time.Since(start)
+	assert.LessOrEqual(t, elapsed, batchDuration*2)
 
 	mockConsumer.assertDidAck(messages)
 	sink.assertDidProcess(messages)
@@ -277,8 +285,8 @@ func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simp
 			BackoffTime:    time.Second,
 		},
 		"subscription",
-		10,
-		1*time.Second,
+		batchSize,
+		batchDuration,
 		converter,
 		sink,
 		configuration.MetricsConfig{},

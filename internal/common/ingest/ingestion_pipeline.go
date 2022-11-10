@@ -115,6 +115,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				time.Sleep(2 * ingester.pulsarBatchDuration)
+				log.Infof("Waited for %v: forcing cancel", 2*ingester.pulsarBatchDuration)
 				cancel()
 			}
 		}
