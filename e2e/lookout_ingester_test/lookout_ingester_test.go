@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/lookout/repository"
+	"github.com/G-Research/armada/pkg/api"
+	"github.com/G-Research/armada/pkg/client"
 )
 
 var defaultWaits struct {
