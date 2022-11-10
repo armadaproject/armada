@@ -115,14 +115,16 @@ type mockPulsarConsumer struct {
 	acked      map[pulsar.MessageID]bool
 	received   int
 	cancelFn   func()
+	t          *testing.T
 	pulsar.Consumer
 }
 
-func newMockPulsarConsumer(messages []pulsar.Message, cancelFn func()) *mockPulsarConsumer {
+func newMockPulsarConsumer(t *testing.T, messages []pulsar.Message, cancelFn func()) *mockPulsarConsumer {
 	return &mockPulsarConsumer{
 		messages: messages,
 		acked:    make(map[pulsar.MessageID]bool),
 		cancelFn: cancelFn,
+		t:        t,
 	}
 }
 
@@ -148,17 +150,13 @@ func (p *mockPulsarConsumer) AckID(messageId pulsar.MessageID) {
 	}
 }
 
-func (p *mockPulsarConsumer) didAck(messages []pulsar.Message) bool {
-	if len(messages) != len(p.acked) {
-		return false
-	}
+func (p *mockPulsarConsumer) assertDidAck(messages []pulsar.Message) {
+	p.t.Helper()
+	assert.Len(p.t, p.acked, len(messages))
 	for _, msg := range messages {
 		_, ok := p.acked[msg.ID()]
-		if !ok {
-			return false
-		}
+		assert.True(p.t, ok)
 	}
-	return true
 }
 
 func (p *mockPulsarConsumer) Close() {
@@ -182,16 +180,17 @@ func (s *simpleMessages) GetMessageIDs() []pulsar.MessageID {
 	return messageIds
 }
 
-type simpleConverter struct{}
+type simpleConverter struct {
+	t *testing.T
+}
 
-func newSimpleConverter() InstructionConverter[*simpleMessages] {
-	return &simpleConverter{}
+func newSimpleConverter(t *testing.T) InstructionConverter[*simpleMessages] {
+	return &simpleConverter{t}
 }
 
 func (s *simpleConverter) Convert(ctx context.Context, msg *EventSequencesWithIds) *simpleMessages {
-	if len(msg.EventSequences) != len(msg.MessageIds) {
-		panic("non matching number of event sequences to message ids")
-	}
+	s.t.Helper()
+	assert.Len(s.t, msg.EventSequences, len(msg.MessageIds))
 	var converted []*simpleMessage
 	for i, sequence := range msg.EventSequences {
 		converted = append(converted, &simpleMessage{
@@ -206,11 +205,13 @@ func (s *simpleConverter) Convert(ctx context.Context, msg *EventSequencesWithId
 
 type simpleSink struct {
 	simpleMessages map[pulsar.MessageID]*simpleMessage
+	t              *testing.T
 }
 
-func newSimpleSink() *simpleSink {
+func newSimpleSink(t *testing.T) *simpleSink {
 	return &simpleSink{
 		simpleMessages: make(map[pulsar.MessageID]*simpleMessage),
+		t:              t,
 	}
 }
 
@@ -221,17 +222,14 @@ func (s *simpleSink) Store(ctx context.Context, msg *simpleMessages) error {
 	return nil
 }
 
-func (s *simpleSink) didProcess(messages []pulsar.Message) bool {
-	if len(s.simpleMessages) != len(messages) {
-		return false
-	}
+func (s *simpleSink) assertDidProcess(messages []pulsar.Message) {
+	s.t.Helper()
+	assert.Len(s.t, s.simpleMessages, len(messages))
 	for _, msg := range messages {
 		simpleMessage, ok := s.simpleMessages[msg.ID()]
-		if !ok || simpleMessage.size == 0 {
-			return false
-		}
+		assert.True(s.t, ok)
+		assert.Greater(s.t, simpleMessage.size, 0)
 	}
-	return true
 }
 
 func TestRun_HappyPath_SingleMessage(t *testing.T) {
@@ -239,17 +237,17 @@ func TestRun_HappyPath_SingleMessage(t *testing.T) {
 	messages := []pulsar.Message{
 		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
 	}
-	mockConsumer := newMockPulsarConsumer(messages, cancel)
-	converter := newSimpleConverter()
-	sink := newSimpleSink()
+	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
+	converter := newSimpleConverter(t)
+	sink := newSimpleSink(t)
 
 	pipeline := testPipeline(mockConsumer, converter, sink)
 
 	err := pipeline.Run(ctx)
 	assert.NoError(t, err)
 
-	assert.True(t, mockConsumer.didAck(messages))
-	assert.True(t, sink.didProcess(messages))
+	mockConsumer.assertDidAck(messages)
+	sink.assertDidProcess(messages)
 }
 
 func TestRun_HappyPath_MultipleMessages(t *testing.T) {
@@ -259,17 +257,17 @@ func TestRun_HappyPath_MultipleMessages(t *testing.T) {
 		pulsarutils.NewPulsarMessage(2, baseTime.Add(1*time.Second), marshal(t, pendingAndRunning)),
 		pulsarutils.NewPulsarMessage(3, baseTime.Add(2*time.Second), marshal(t, failed)),
 	}
-	mockConsumer := newMockPulsarConsumer(messages, cancel)
-	converter := newSimpleConverter()
-	sink := newSimpleSink()
+	mockConsumer := newMockPulsarConsumer(t, messages, cancel)
+	converter := newSimpleConverter(t)
+	sink := newSimpleSink(t)
 
 	pipeline := testPipeline(mockConsumer, converter, sink)
 
 	err := pipeline.Run(ctx)
 	assert.NoError(t, err)
 
-	assert.True(t, mockConsumer.didAck(messages))
-	assert.True(t, sink.didProcess(messages))
+	mockConsumer.assertDidAck(messages)
+	sink.assertDidProcess(messages)
 }
 
 func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simpleMessages], sink Sink[*simpleMessages]) *IngestionPipeline[*simpleMessages] {
