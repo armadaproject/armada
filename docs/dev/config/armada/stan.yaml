@@ -1,6 +1,0 @@
-eventsNats:
-  Servers:
-    - "nats://stan:4223"
-  ClusterID: "test-cluster"
-  Subject: "ArmadaTest"
-  QueueGroup: "ArmadaEventRedisProcessor"
