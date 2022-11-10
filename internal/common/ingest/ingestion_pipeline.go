@@ -116,7 +116,6 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				time.Sleep(2 * ingester.pulsarBatchDuration)
 				cancel()
-				wg.Done()
 			}
 		}
 	}()
@@ -126,6 +125,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
 	go func() {
 		batcher.Run(pipelineShutdownContext)
+		close(batchedMsgs)
 	}()
 
 	// Convert to event sequences
@@ -157,8 +157,14 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 			if err != nil {
 				log.WithError(err).Warn("Error inserting messages")
 			}
-			for _, msgId := range msg.GetMessageIDs() {
-				ingester.consumer.AckID(msgId)
+
+			if errors.Is(err, context.DeadlineExceeded) {
+				// This occurs when we're shutting down- it's a signal to stop processing immediately
+				break
+			} else {
+				for _, msgId := range msg.GetMessageIDs() {
+					ingester.consumer.AckID(msgId)
+				}
 			}
 		}
 		wg.Done()
