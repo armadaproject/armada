@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -34,7 +35,7 @@ func (b *Batcher[T]) Run(ctx context.Context) {
 		for appendToBatch := true; appendToBatch; {
 			select {
 			case <-ctx.Done():
-				println("context is done!")
+				log.Info("Batcher: context is done")
 				// context is finished
 				return
 			case value, ok := <-b.input:

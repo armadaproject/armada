@@ -115,6 +115,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				time.Sleep(2 * ingester.pulsarBatchDuration)
+				log.Infof("Waited for %v: forcing cancel", 2*ingester.pulsarBatchDuration)
 				cancel()
 				wg.Done()
 			}
@@ -126,6 +127,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
 	go func() {
 		batcher.Run(pipelineShutdownContext)
+		close(batchedMsgs)
 	}()
 
 	// Convert to event sequences
