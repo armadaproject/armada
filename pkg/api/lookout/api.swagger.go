@@ -525,6 +525,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"integer\",\n" +
 		"          \"format\": \"int32\"\n" +
 		"        },\n" +
+		"        \"preempted\": {\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"date-time\"\n" +
+		"        },\n" +
 		"        \"runState\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +

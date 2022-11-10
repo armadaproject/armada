@@ -392,6 +392,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*mode
 			      node               varchar(512),
 			      started            timestamp,
 			      finished           timestamp,
+			      preempted          timestamp,
 			      succeeded          boolean,
 			      error              varchar(2048),
 			      pod_number         integer,
@@ -406,13 +407,14 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"run_id", "node", "started", "finished", "succeeded", "error", "pod_number", "unable_to_schedule"},
+				[]string{"run_id", "node", "started", "finished", "preempted", "succeeded", "error", "pod_number", "unable_to_schedule"},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].RunId,
 						instructions[i].Node,
 						instructions[i].Started,
 						instructions[i].Finished,
+						instructions[i].Preempted,
 						instructions[i].Succeeded,
 						instructions[i].Error,
 						instructions[i].PodNumber,
@@ -432,6 +434,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*mode
 		                  started = coalesce(tmp.started, job_run.started),
 		                  finished = coalesce(tmp.finished, job_run.finished),
 		                  succeeded = coalesce(tmp.succeeded, job_run.succeeded),
+		                  preempted = coalesce(tmp.preempted, job_run.preempted),
 		                  error = coalesce(tmp.error, job_run.error),
 		                  pod_number = coalesce(tmp.pod_number, job_run.pod_number),
 		                  unable_to_schedule = coalesce(tmp.unable_to_schedule, job_run.unable_to_schedule)
@@ -454,13 +457,14 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx context.Context, instructions []*mod
 				  started = coalesce($2, started),
 				  finished = coalesce($3, finished),
 				  succeeded = coalesce($4, succeeded),
-				  error = coalesce($5, error),
-				  pod_number = coalesce($6, pod_number),
-				  unable_to_schedule = coalesce($7, unable_to_schedule)
-				WHERE run_id = $8`
+				  preempted = coalesce($5, preempted),
+				  error = coalesce($6, error),
+				  pod_number = coalesce($7, pod_number),
+				  unable_to_schedule = coalesce($8, unable_to_schedule)
+				WHERE run_id = $9`
 	for _, i := range instructions {
 		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
+			_, err := l.db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}

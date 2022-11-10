@@ -80,13 +80,14 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, u
 			err = c.handleJobRunErrors(*event.Created, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = c.handleJobDuplicateDetected(*event.Created, event.GetJobDuplicateDetected(), update)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			err = c.handleJobRunPreempted(*event.Created, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_CancelJob,
 			*armadaevents.EventSequence_Event_JobRunLeased,
 			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
-			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-			*armadaevents.EventSequence_Event_JobRunPreempted:
+			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			log.Debugf("Ignoring event type %T", event)
 		default:
 			log.Warnf("Ignoring unknown event type %T", event)
@@ -242,6 +243,21 @@ func (c *InstructionConverter) handleJobSucceeded(ts time.Time, event *armadaeve
 		Updated: ts,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func (s *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.PreemptedRunId)
+	if err != nil {
+		return err
+	}
+	jobRunUpdate := model.UpdateJobRunInstruction{
+		RunId:     runId,
+		Preempted: &ts,
+		Finished:  &ts,
+		Succeeded: pointer.Bool(false),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRunUpdate)
 	return nil
 }
 

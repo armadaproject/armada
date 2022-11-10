@@ -180,6 +180,16 @@ var jobReprioritised = &armadaevents.EventSequence_Event{
 	},
 }
 
+// Preempted
+var jobPreempted = &armadaevents.EventSequence_Event{
+	Created: &baseTime,
+	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+		JobRunPreempted: &armadaevents.JobRunPreempted{
+			PreemptedRunId: runIdProto,
+		},
+	},
+}
+
 // Job Run Failed
 var jobRunFailed = &armadaevents.EventSequence_Event{
 	Created: &baseTime,
@@ -307,6 +317,13 @@ var expectedJobReprioritised = model.UpdateJobInstruction{
 	Updated:  baseTime,
 }
 
+var expectedJobRunPreempted = model.UpdateJobRunInstruction{
+	RunId:     runIdString,
+	Finished:  &baseTime,
+	Succeeded: pointer.Bool(false),
+	Preempted: &baseTime,
+}
+
 var expectedFailed = model.UpdateJobRunInstruction{
 	RunId:     runIdString,
 	Node:      pointer.String(nodeName),
@@ -422,6 +439,17 @@ func TestReprioritised(t *testing.T) {
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
 		MessageIds:   msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+func TestPreempted(t *testing.T) {
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(jobPreempted)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunPreempted},
+		MessageIds:      msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
