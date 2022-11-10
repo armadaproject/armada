@@ -45,7 +45,7 @@ require (
 	github.com/jstemmer/go-junit-report v1.0.0
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
 	github.com/kyleconroy/sqlc v1.13.0
-	github.com/lib/pq v1.10.6 // indirect
+	github.com/lib/pq v1.10.6
 	github.com/mattn/go-zglob v0.0.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/gox v1.0.1
