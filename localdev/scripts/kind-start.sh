@@ -14,9 +14,6 @@ kind load docker-image "nginx:1.21.6" --name armada-test
 kind load docker-image "registry.k8s.io/ingress-nginx/controller:v1.4.0" --name armada-test
 kind load docker-image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343" --name armada-test
 
-# Ensures that kubectl can access the cluster
-kind export kubeconfig --internal --name armada-test
-
 # We need an ingress controller to enable cluster ingress
 kubectl apply -f ../e2e/setup/ingress-nginx.yaml --context kind-armada-test
 
