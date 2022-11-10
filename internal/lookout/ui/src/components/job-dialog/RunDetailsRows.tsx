@@ -22,6 +22,7 @@ export default function RunDetailsRows(props: RunDetailsRowsProps) {
       {props.run.podCreationTime && <DetailRow name="Scheduled on cluster" value={props.run.podCreationTime} />}
       {props.run.podStartTime && <DetailRow name="Job started" value={props.run.podStartTime} />}
       {props.run.finishTime && <DetailRow name="Finished" value={props.run.finishTime} />}
+      {props.run.preemptedTime && <DetailRow name="Preempted" value={props.run.preemptedTime} />}
       {props.run.error && <DetailRow name="Error" value={props.run.error} className="error-message" />}
     </>
   )
