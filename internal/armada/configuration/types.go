@@ -80,6 +80,10 @@ type PulsarConfig struct {
 	EventsPrinter             bool
 	// Maximum allowed message size in bytes
 	MaxAllowedMessageSize uint
+	// Timeout when polling pulsar for messages
+	ReceiveTimeout time.Duration
+	// Backoff from polling when Pulsar returns an error
+	BackoffTime time.Duration
 }
 
 type SchedulingConfig struct {
