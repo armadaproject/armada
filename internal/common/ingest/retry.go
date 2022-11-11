@@ -26,6 +26,7 @@ func WithRetry(action func() (bool, error), intialBackoff time.Duration, maxBack
 	}
 }
 
+// min returns the minimum of two durations
 func min(d1 time.Duration, d2 time.Duration) time.Duration {
 	if d1.Nanoseconds() < d2.Nanoseconds() {
 		return d1
