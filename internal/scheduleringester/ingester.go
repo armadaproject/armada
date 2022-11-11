@@ -1,6 +1,8 @@
 package scheduleringester
 
 import (
+	"time"
+
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/lookout/postgres"
@@ -21,7 +23,7 @@ func Run(config *configuration.SchedulerIngesterConfiguration) {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	schedulerDb := schedulerdb.NewSchedulerDb(db, metrics)
+	schedulerDb := schedulerdb.NewSchedulerDb(db, metrics, 100*time.Millisecond, 60*time.Second)
 
 	converter := instructions.NewInstructionConverter(metrics)
 

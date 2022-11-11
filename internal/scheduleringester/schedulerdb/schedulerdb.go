@@ -21,23 +21,24 @@ import (
 // SchedulerDb writes DbOperations into postgres.
 type SchedulerDb struct {
 	// Connection to the postgres database.
-	db         *pgxpool.Pool
-	metrics    *metrics.Metrics
-	maxBackOff time.Duration
+	db             *pgxpool.Pool
+	metrics        *metrics.Metrics
+	initialBackOff time.Duration
+	maxBackOff     time.Duration
 }
 
-func NewSchedulerDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model.DbOperationsWithMessageIds] {
-	return &SchedulerDb{db: db, metrics: metrics}
+func NewSchedulerDb(db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff time.Duration, maxBackOff time.Duration) ingest.Sink[*model.DbOperationsWithMessageIds] {
+	return &SchedulerDb{db: db, metrics: metrics, initialBackOff: initialBackOff, maxBackOff: maxBackOff}
 }
 
-func (s *SchedulerDb) Store(instructions *model.DbOperationsWithMessageIds) error {
+func (s *SchedulerDb) Store(ctx context.Context, instructions *model.DbOperationsWithMessageIds) error {
 	var result *multierror.Error = nil
 	for _, dbOp := range instructions.Ops {
 		err := ingest.WithRetry(func() (bool, error) {
-			err := s.WriteDbOp(context.Background(), dbOp)
+			err := s.WriteDbOp(ctx, dbOp)
 			shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
 			return shouldRetry, err
-		}, 100)
+		}, s.initialBackOff, s.maxBackOff)
 		multierror.Append(result, err)
 	}
 	return result.ErrorOrNil()

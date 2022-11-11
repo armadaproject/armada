@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/internal/scheduler"
@@ -22,7 +23,7 @@ func NewInstructionConverter(metrics *metrics.Metrics) ingest.InstructionConvert
 	}
 }
 
-func (c *InstructionCenverter) Convert(sequencesWithIds *ingest.EventSequencesWithIds) *model.DbOperationsWithMessageIds {
+func (c *InstructionCenverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.DbOperationsWithMessageIds {
 	var operations = make([]model.DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
 		for _, op := range c.convertSequence(es) {
