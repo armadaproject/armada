@@ -5,7 +5,14 @@ networks:
     external: true
 
 volumes:
+  # shared gopath volume for armada services
+  # with this, modules do not need to be redundantly downloaded
+  # and persist through restarts
   gopath:
+  # shared gocache volume for armada services
+  # with this, build artifacts do not need to be redundantly downloaded
+  # and persist through restarts
+  go-cache:
 
 services:
   #
@@ -69,6 +76,7 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     depends_on:
       - redis
       - postgres
@@ -88,6 +96,7 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     depends_on:
       - armada-server
       - postgres
@@ -106,6 +115,7 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/executor-start.sh"
 
@@ -121,6 +131,7 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/binoculars-start.sh"
 
@@ -136,6 +147,7 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/jobservice-start.sh"
 
@@ -150,6 +162,7 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"
 
@@ -163,5 +176,6 @@ services:
     volumes:
       - "..:/app:rw"
       - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/event-ingester-start.sh"
