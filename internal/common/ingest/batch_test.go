@@ -24,18 +24,20 @@ func TestBatch_MaxItems(t *testing.T) {
 	batcher.clock = testClock
 
 	go func() {
-		// Post 3 items on the input channel without advancing the clock
-		// And we should get a single update on the output channel
-		inputChan <- 1
-		inputChan <- 2
-		inputChan <- 3
-		inputChan <- 4
-		inputChan <- 5
-		inputChan <- 6
-		cancel()
+		batcher.Run(ctx)
 	}()
-	batcher.Run(ctx)
+
+	// Post 3 items on the input channel without advancing the clock
+	// And we should get a single update on the output channel
+	inputChan <- 1
+	inputChan <- 2
+	inputChan <- 3
+	inputChan <- 4
+	inputChan <- 5
+	inputChan <- 6
+	time.Sleep(1 * time.Second)
 	assert.Equal(t, [][]int{{1, 2, 3}, {4, 5, 6}}, output)
+	cancel()
 }
 
 func TestBatch_Time(t *testing.T) {
@@ -47,16 +49,15 @@ func TestBatch_Time(t *testing.T) {
 	batcher.clock = testClock
 
 	go func() {
-		// Post 3 items on the input channel without advancing the clock
-		// And we should get a single update on the output channel
-		inputChan <- 1
-		inputChan <- 2
-		testClock.Step(2 * time.Second)
-		inputChan <- 3
-		inputChan <- 4
-		testClock.Step(2 * time.Second)
-		cancel()
+		batcher.Run(ctx)
 	}()
-	batcher.Run(ctx)
+	inputChan <- 1
+	inputChan <- 2
+	testClock.Step(2 * time.Second)
+	inputChan <- 3
+	inputChan <- 4
+	testClock.Step(2 * time.Second)
+	time.Sleep(1 * time.Second)
 	assert.Equal(t, [][]int{{1, 2}, {3, 4}}, output)
+	cancel()
 }

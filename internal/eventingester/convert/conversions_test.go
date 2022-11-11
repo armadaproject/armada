@@ -1,6 +1,7 @@
 package convert
 
 import (
+	"context"
 	"math/rand"
 	"testing"
 	"time"
@@ -54,7 +55,7 @@ var cancelled = &armadaevents.EventSequence_Event{
 func TestSingle(t *testing.T) {
 	msg := NewMsg(jobRunSucceeded)
 	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(msg)
+	batchUpdate := converter.Convert(context.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
 	}
@@ -71,7 +72,7 @@ func TestSingle(t *testing.T) {
 func TestMultiple(t *testing.T) {
 	msg := NewMsg(cancelled, jobRunSucceeded)
 	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(msg)
+	batchUpdate := converter.Convert(context.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
 	}

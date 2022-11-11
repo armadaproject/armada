@@ -31,16 +31,28 @@ auth:
 redis:
   addrs:
     - "redis:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
 eventsRedis:
   addrs:
     - "redis:6379"
+  password: ""
+  db: 0
+  poolSize: 1000
+eventsApiRedis:
+  addrs:
+    - "redis:6379"
+  password: ""
+  db: 1
+  poolSize: 1000
 eventapi:
   postgres:
     connection:
       host: "postgres"
 defaultToLegacyEvents: true
 pulsar:
-  enabled: false
+  enabled: true
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "persistent://armada/armada/events"
   redisFromPulsarSubscription: "RedisFromPulsar"
@@ -69,6 +81,16 @@ eventsNats:
   Subject: "ArmadaTest"
   QueueGroup: "ArmadaEventRedisProcessor"
 scheduling:
+  queueLeaseBatchSize: 1000
+  maximalResourceFractionToSchedulePerQueue:
+    memory: 0.99
+    cpu: 0.99
+  maximalResourceFractionPerQueue:
+    memory: 0.99
+    cpu: 0.99
+  maximalClusterFractionToSchedule:
+    memory: 0.99
+    cpu: 0.99
   probabilityOfUsingNewScheduler: 1
   preemption:
     enabled: true
@@ -90,3 +112,16 @@ scheduling:
           cpu: 0.99
     # Default to empty PC to not require PCs be set up in worker clusters.
     defaultPriorityClass: ""
+  maxQueueReportsToStore: 1000
+  MaxJobReportsToStore: 100000
+  defaultJobLimits:
+    cpu: 1
+    memory: 1Gi
+    ephemeral-storage: 8Gi
+  defaultJobTolerations:
+    - key: "example.com/default_toleration"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  minTerminationGracePeriod: 1s
+  maxTerminationGracePeriod: 30s

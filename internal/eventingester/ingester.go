@@ -2,9 +2,11 @@ package eventingester
 
 import (
 	"regexp"
+	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/app"
-	"github.com/pkg/errors"
 
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +42,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 			log.WithError(err).Error("failed to close events Redis client")
 		}
 	}()
-	eventDb := store.NewRedisEventStore(rc, config.EventRetentionPolicy, fatalRegexes)
+	eventDb := store.NewRedisEventStore(rc, config.EventRetentionPolicy, fatalRegexes, 100*time.Millisecond, 60*time.Second)
 
 	// Turn the messages into event rows
 	compressor, err := compress.NewZlibCompressor(config.MinMessageCompressionSize)
@@ -53,6 +55,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	ingester := ingest.
 		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)
 	err = ingester.Run(app.CreateContextWithShutdown())
+
 	if err != nil {
 		panic(errors.WithMessage(err, "Error running ingestion pipeline"))
 	}

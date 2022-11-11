@@ -1,6 +1,8 @@
 package convert
 
 import (
+	"context"
+
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
@@ -30,7 +32,7 @@ func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize int, 
 	}
 }
 
-func (ec *EventConverter) Convert(sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
+func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
 	// Remove all groups as they are potentially quite large
 	for _, es := range sequencesWithIds.EventSequences {
 		es.Groups = nil

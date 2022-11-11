@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestReportEvents(t *testing.T) {
 			},
 		}
 
-		err := r.Store(update)
+		err := r.Store(context.Background(), update)
 		assert.NoError(t, err)
 
 		read1, err := ReadEvent(r.db, "testQueue", "testJobset")
