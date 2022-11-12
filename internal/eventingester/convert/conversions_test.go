@@ -6,15 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/eventingester/metrics"
-
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/common/compress"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
-
+	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
@@ -29,7 +27,6 @@ const (
 var (
 	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
 	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-	m             = metrics.Get()
 )
 
 var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
@@ -56,61 +53,30 @@ var cancelled = &armadaevents.EventSequence_Event{
 }
 
 func TestSingle(t *testing.T) {
-	msg := NewMsg(baseTime, jobRunSucceeded)
-	compressor, err := compress.NewZlibCompressor(0)
-	assert.NoError(t, err)
-	converter := NewMessageRowConverter(compressor, 1024, m)
-	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
+	msg := NewMsg(jobRunSucceeded)
+	converter := simpleEventConverter()
+	batchUpdate := converter.Convert(context.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
 	}
-	assert.Equal(t, []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}}, batchUpdate.MessageIds)
+	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
 	assert.Equal(t, 1, len(batchUpdate.Events))
 	event := batchUpdate.Events[0]
 	assert.Equal(t, queue, event.Queue)
 	assert.Equal(t, jobset, event.Jobset)
-	es, err := extractEventSeq(event.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
-}
-
-func TestSingleWithMissingCreated(t *testing.T) {
-	// Succeeded
-	suceededMissingCreated := &armadaevents.EventSequence_Event{
-		// No created time
-		Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
-			JobRunSucceeded: &armadaevents.JobRunSucceeded{
-				RunId: runIdProto,
-				JobId: jobIdProto,
-			},
-		},
-	}
-
-	msg := NewMsg(baseTime, suceededMissingCreated)
-	compressor, err := compress.NewZlibCompressor(0)
-	assert.NoError(t, err)
-	converter := NewMessageRowConverter(compressor, 1024, m)
-	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
-	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
-	}
-	assert.Equal(t, []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}}, batchUpdate.MessageIds)
-	event := batchUpdate.Events[0]
 	es, err := extractEventSeq(event.Event)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedSequence.Events, es.Events)
 }
 
 func TestMultiple(t *testing.T) {
-	msg := NewMsg(baseTime, cancelled, jobRunSucceeded)
-	compressor, err := compress.NewZlibCompressor(0)
-	assert.NoError(t, err)
-	converter := NewMessageRowConverter(compressor, 1024, m)
-	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg})
+	msg := NewMsg(cancelled, jobRunSucceeded)
+	converter := simpleEventConverter()
+	batchUpdate := converter.Convert(context.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
 	}
-	assert.Equal(t, []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}}, batchUpdate.MessageIds)
+	assert.Equal(t, msg.MessageIds, batchUpdate.MessageIds)
 	assert.Equal(t, 1, len(batchUpdate.Events))
 	event := batchUpdate.Events[0]
 	assert.Equal(t, queue, event.Queue)
@@ -120,38 +86,24 @@ func TestMultiple(t *testing.T) {
 	assert.Equal(t, expectedSequence.Events, es.Events)
 }
 
-func TestMultipleMessages(t *testing.T) {
-	msg1 := NewMsg(baseTime, cancelled)
-	msg2 := NewMsg(baseTime, jobRunSucceeded)
-	compressor, err := compress.NewZlibCompressor(0)
-	assert.NoError(t, err)
-	converter := NewMessageRowConverter(compressor, 1024, m)
-	batchUpdate := converter.ConvertBatch(context.Background(), []*pulsarutils.ConsumerMessage{msg1, msg2})
-	expectedSequence := armadaevents.EventSequence{
-		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
-	}
-	assert.Equal(t, []*pulsarutils.ConsumerMessageId{
-		{msg1.Message.ID(), 0, msg1.ConsumerId},
-		{msg2.Message.ID(), 0, msg2.ConsumerId},
-	}, batchUpdate.MessageIds)
-	assert.Equal(t, 1, len(batchUpdate.Events))
-	event := batchUpdate.Events[0]
-	assert.Equal(t, queue, event.Queue)
-	assert.Equal(t, jobset, event.Jobset)
-	es, err := extractEventSeq(event.Event)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSequence.Events, es.Events)
-}
-
-func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *pulsarutils.ConsumerMessage {
+func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWithIds {
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,
 		JobSetName: jobset,
 		Events:     event,
 	}
-	payload, _ := proto.Marshal(seq)
-	messageSeq := rand.Int()
-	return &pulsarutils.ConsumerMessage{Message: pulsarutils.NewPulsarMessage(messageSeq, publishTime, payload), ConsumerId: messageSeq}
+	return &ingest.EventSequencesWithIds{
+		EventSequences: []*armadaevents.EventSequence{seq},
+		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(rand.Int())},
+	}
+}
+
+func simpleEventConverter() *EventConverter {
+	compressor, _ := compress.NewZlibCompressor(0)
+	return &EventConverter{
+		Compressor:          compressor,
+		MaxMessageBatchSize: 1024,
+	}
 }
 
 func extractEventSeq(b []byte) (*armadaevents.EventSequence, error) {

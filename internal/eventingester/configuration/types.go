@@ -11,6 +11,8 @@ import (
 type EventIngesterConfiguration struct {
 	// Database configuration
 	Redis redis.UniversalOptions
+	// Metrics configuration
+	Metrics configuration.MetricsConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Pulsar subscription name
