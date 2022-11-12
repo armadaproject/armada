@@ -234,6 +234,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	jobSchedulingReport.RoundQueueResources = roundQueueResources
 	jobSchedulingReport.TotalQueueResources = totalQueueResources
 	jobSchedulingReport.TotalQueueResourcesByPriority = totalQueueResourcesByPriority
+	jobPriority, _ := PriorityFromJob(job, it.SchedulingConfig.Preemption.PriorityClasses)
 	for resourceType, quantity := range jobTotalResourceRequests {
 		q := totalQueueResources.Resources[resourceType]
 		q.Add(quantity)
@@ -243,15 +244,14 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		q.Add(quantity)
 		roundQueueResources.Resources[resourceType] = q
 
-		priority, _ := PriorityFromJob(job, it.SchedulingConfig.Preemption.PriorityClasses)
-		rl := totalQueueResourcesByPriority[priority]
+		rl := totalQueueResourcesByPriority[jobPriority]
 		if rl.Resources == nil {
 			rl.Resources = make(map[string]resource.Quantity)
 		}
 		q = rl.Resources[resourceType]
 		q.Add(quantity)
 		rl.Resources[resourceType] = q
-		totalQueueResourcesByPriority[priority] = rl
+		totalQueueResourcesByPriority[jobPriority] = rl
 	}
 
 	// Check that the job is large enough for this executor.
@@ -273,6 +273,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	// check total per-queue, per priority resource limit
 	if exceeded, reason := it.exceedsPerPriorityResourceLimits(
 		ctx,
+		jobPriority,
 		totalQueueResourcesByPriority,
 		it.LegacyScheduler.CumulativePriorityLimits,
 	); exceeded {
@@ -336,7 +337,7 @@ func (sched *LegacyScheduler) exceedsResourceLimits(ctx context.Context, rl sche
 }
 
 // Check if scheduling this job would exceed per-priority-per-queue resource limits.
-func (sched *LegacyScheduler) exceedsPerPriorityResourceLimits(ctx context.Context, usageByPriority schedulerobjects.QuantityByPriorityAndResourceType, limits map[int32]map[string]float64) (bool, string) {
+func (sched *LegacyScheduler) exceedsPerPriorityResourceLimits(ctx context.Context, jobPriority int32, usageByPriority schedulerobjects.QuantityByPriorityAndResourceType, limits map[int32]map[string]float64) (bool, string) {
 	// Calculate cumulative usage at each priority
 	// This involves summing the usage at all higher priorities
 	cumulativeUsageByPriority := make(schedulerobjects.QuantityByPriorityAndResourceType, 0)
@@ -353,14 +354,14 @@ func (sched *LegacyScheduler) exceedsPerPriorityResourceLimits(ctx context.Conte
 	}
 
 	for priority, priorityLimits := range limits {
-		rl, ok := cumulativeUsageByPriority[priority]
-		if ok {
-			limitExceeded, msg := sched.exceedsResourceLimits(ctx, rl, priorityLimits)
-			if limitExceeded {
-				return true, fmt.Sprintf("%s at priority %d", msg, priority)
+		if priority <= jobPriority {
+			rl, ok := cumulativeUsageByPriority[priority]
+			if ok {
+				limitExceeded, msg := sched.exceedsResourceLimits(ctx, rl, priorityLimits)
+				if limitExceeded {
+					return true, fmt.Sprintf("%s at priority %d", msg, priority)
+				}
 			}
-		} else {
-			log.Warnf("Job scheduled at priority %d but there are no per-priority limits set up for this class.  Skipping per periority limit check", priority)
 		}
 	}
 	return false, ""
