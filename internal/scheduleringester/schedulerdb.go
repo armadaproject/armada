@@ -52,7 +52,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := scheduler.Upsert(ctx, s.db, "jobs", scheduler.JobsSchema(), records)
+		err := Upsert(ctx, s.db, "jobs", scheduler.JobsSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := scheduler.Upsert(ctx, s.db, "runs", scheduler.RunsSchema(), records)
+		err := Upsert(ctx, s.db, "runs", scheduler.RunsSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := scheduler.Upsert(ctx, s.db, "job_run_assignments", scheduler.JobRunAssignmentSchema(), records)
+		err := Upsert(ctx, s.db, "job_run_assignments", scheduler.JobRunAssignmentSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -160,7 +160,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := scheduler.Upsert(ctx, s.db, "job_errors", scheduler.JobErrorsSchema(), records)
+		err := Upsert(ctx, s.db, "job_errors", scheduler.JobErrorsSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -171,7 +171,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := scheduler.Upsert(ctx, s.db, "job_run_errors", scheduler.JobRunErrorsSchema(), records)
+		err := Upsert(ctx, s.db, "job_run_errors", scheduler.JobRunErrorsSchema(), records)
 		if err != nil {
 			return err
 		}

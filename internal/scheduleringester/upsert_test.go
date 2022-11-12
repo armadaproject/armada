@@ -1,8 +1,9 @@
-package scheduler
+package scheduleringester
 
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/scheduler"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func TestNamesValuesFromRecordPointer(t *testing.T) {
 	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message}, values)
 }
 
-func withSetup(action func(queries *Queries, db *pgxpool.Pool) error) error {
+func withSetup(action func(queries *scheduler.Queries, db *pgxpool.Pool) error) error {
 	ctx := context.Background()
 
 	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
@@ -102,16 +103,16 @@ func withSetup(action func(queries *Queries, db *pgxpool.Pool) error) error {
 		return err
 	}
 
-	return action(New(db), db)
+	return action(scheduler.New(db), db)
 }
 
 func TestUpsert(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
+	err := withSetup(func(queries *scheduler.Queries, db *pgxpool.Pool) error {
 		// Insert rows, read them back, and compare.
 		expected := makeRecords(10)
-		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
+		err := Upsert(ctx, db, "nodeinfo", scheduler.NodeInfoSchema(), interfacesFromSlice(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -126,7 +127,7 @@ func TestUpsert(t *testing.T) {
 
 		// Change one record, upsert, read back, and compare.
 		expected[0].Executor = "foo"
-		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
+		err = Upsert(ctx, db, "nodeinfo", scheduler.NodeInfoSchema(), interfacesFromSlice(expected))
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -146,14 +147,14 @@ func TestUpsert(t *testing.T) {
 func TestConcurrency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
+	err := withSetup(func(queries *scheduler.Queries, db *pgxpool.Pool) error {
 		// Each thread inserts non-overlapping rows, reads them back, and compares.
 		for i := 0; i < 100; i++ {
 			i := i
 			expected := makeRecords(10)
 			executor := fmt.Sprintf("executor-%d", i)
 			setExecutor(expected, executor)
-			err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), interfacesFromSlice(expected))
+			err := Upsert(ctx, db, "nodeinfo", scheduler.NodeInfoSchema(), interfacesFromSlice(expected))
 			if !assert.NoError(t, err) {
 				return nil
 			}
@@ -162,7 +163,7 @@ func TestConcurrency(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return nil
 			}
-			actual := make([]Nodeinfo, 0)
+			actual := make([]scheduler.Nodeinfo, 0)
 			for _, v := range vs {
 				if v.Executor == executor {
 					actual = append(actual, v)
@@ -178,9 +179,9 @@ func TestConcurrency(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func assertNodeInfoEqual(t *testing.T, expected, actual []Nodeinfo) bool {
-	es := make(map[string]*Nodeinfo)
-	as := make(map[string]*Nodeinfo)
+func assertNodeInfoEqual(t *testing.T, expected, actual []scheduler.Nodeinfo) bool {
+	es := make(map[string]*scheduler.Nodeinfo)
+	as := make(map[string]*scheduler.Nodeinfo)
 	for _, nodeinfo := range expected {
 		v := &nodeinfo
 		v.Serial = 0
@@ -197,10 +198,10 @@ func assertNodeInfoEqual(t *testing.T, expected, actual []Nodeinfo) bool {
 }
 
 // makeRecords is a utility functions that returns n randomly generated records for insertion.
-func makeRecords(n int) []Nodeinfo {
-	vs := make([]Nodeinfo, n)
+func makeRecords(n int) []scheduler.Nodeinfo {
+	vs := make([]scheduler.Nodeinfo, n)
 	for i := 0; i < n; i++ {
-		vs[i] = Nodeinfo{
+		vs[i] = scheduler.Nodeinfo{
 			ExecutorNodeName: uuid.NewString(),
 			NodeName:         uuid.NewString(),
 			Executor:         uuid.NewString(),
@@ -210,7 +211,7 @@ func makeRecords(n int) []Nodeinfo {
 	return vs
 }
 
-func setExecutor(runs []Nodeinfo, executor string) {
+func setExecutor(runs []scheduler.Nodeinfo, executor string) {
 	for i := range runs {
 		runs[i].Executor = executor
 	}
@@ -227,25 +228,25 @@ func interfacesFromSlice[T any](vs []T) []interface{} {
 func TestAutoIncrement(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := withSetup(func(queries *Queries, db *pgxpool.Pool) error {
+	err := withSetup(func(queries *scheduler.Queries, db *pgxpool.Pool) error {
 		// Insert two rows. These should automatically get auto-incrementing serial numbers.
 		var records []interface{}
 		records = append(
 			records,
-			Nodeinfo{
+			scheduler.Nodeinfo{
 				ExecutorNodeName: "Efoo",
 				NodeName:         "foo",
 				Executor:         "E",
 				Message:          make([]byte, 0),
 			},
-			Nodeinfo{
+			scheduler.Nodeinfo{
 				ExecutorNodeName: "Ebar",
 				NodeName:         "bar",
 				Executor:         "E",
 				Message:          []byte{1},
 			},
 		)
-		err := Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		err := Upsert(ctx, db, "nodeinfo", scheduler.NodeInfoSchema(), records)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -263,14 +264,14 @@ func TestAutoIncrement(t *testing.T) {
 		// Update one of the records.
 		// Should automatically set the serial of the row to 3.
 		records = make([]interface{}, 0)
-		records = append(records, Nodeinfo{
+		records = append(records, scheduler.Nodeinfo{
 			ExecutorNodeName: "Ebar",
 			NodeName:         "bar",
 			Executor:         "E",
 			Message:          []byte{1},
 		})
 
-		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		err = Upsert(ctx, db, "nodeinfo", scheduler.NodeInfoSchema(), records)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -288,14 +289,14 @@ func TestAutoIncrement(t *testing.T) {
 		// Update one of the records.
 		// Should automatically set the serial of the row to 3.
 		records = make([]interface{}, 0)
-		records = append(records, Nodeinfo{
+		records = append(records, scheduler.Nodeinfo{
 			ExecutorNodeName: "Ebaz",
 			NodeName:         "baz",
 			Executor:         "E",
 			Message:          []byte{2},
 		})
 
-		err = Upsert(ctx, db, "nodeinfo", NodeInfoSchema(), records)
+		err = Upsert(ctx, db, "nodeinfo", scheduler.NodeInfoSchema(), records)
 		if !assert.NoError(t, err) {
 			return nil
 		}
