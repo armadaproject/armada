@@ -1,16 +1,29 @@
-package scheduler
+package scheduleringester
 
 import (
+	"github.com/G-Research/armada/internal/scheduler"
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 )
 
+// DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
+// messages that were consumed to produce it.
+type DbOperationsWithMessageIds struct {
+	Ops        []DbOperation
+	MessageIds []pulsar.MessageID
+}
+
+func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
+	return d.MessageIds
+}
+
 // DbOperation captures a generic batch database operation.
 //
 // There are 5 types of operations:
-// - Insert jobs (i.e., add new jobs to the db).
-// - Insert runs (i.e., add new runs to the db).
-// - Job set operations (i.e., modify all jobs and runs in the db part of a given job set).
+// - Insert jobs (i.e., add new jobs to the schedulerdb).
+// - Insert runs (i.e., add new runs to the schedulerdb).
+// - Job set operations (i.e., modify all jobs and runs in the schedulerdb part of a given job set).
 // - Job operations (i.e., modify particular jobs).
 // - Job run operations (i.e., modify particular runs).
 //
@@ -68,12 +81,11 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-// Db operations (implements DbOperation).
-type InsertJobs map[uuid.UUID]*Job
+type InsertJobs map[uuid.UUID]*scheduler.Job
 
 type (
-	InsertRuns             map[uuid.UUID]*Run
-	InsertRunAssignments   map[uuid.UUID]*JobRunAssignment
+	InsertRuns             map[uuid.UUID]*scheduler.Run
+	InsertRunAssignments   map[uuid.UUID]*scheduler.JobRunAssignment
 	UpdateJobSetPriorities map[string]int64
 	MarkJobSetsCancelled   map[string]bool
 	MarkJobsCancelled      map[uuid.UUID]bool
@@ -83,8 +95,8 @@ type (
 	MarkRunsSucceeded      map[uuid.UUID]bool
 	MarkRunsFailed         map[uuid.UUID]bool
 	MarkRunsRunning        map[uuid.UUID]bool
-	InsertJobErrors        map[int32]*JobError
-	InsertJobRunErrors     map[int32]*JobRunError
+	InsertJobErrors        map[int32]*scheduler.JobError
+	InsertJobRunErrors     map[int32]*scheduler.JobRunError
 )
 
 type JobSetOperation interface {
@@ -207,7 +219,7 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a InsertRunAssignments) CanBeAppliedBefore(b DbOperation) bool {
 	// Inserting assignments before a run is defined is ok.
-	// We only require that assignments are written to the db before the run is marked as running.
+	// We only require that assignments are written to the schedulerdb before the run is marked as running.
 	return true
 }
 
@@ -251,13 +263,13 @@ func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a InsertJobErrors) CanBeAppliedBefore(b DbOperation) bool {
 	// Inserting errors before a job has been marked as failed is ok.
-	// We only require that errors are written to the db before the job is marked as failed.
+	// We only require that errors are written to the schedulerdb before the job is marked as failed.
 	return true
 }
 
 func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
 	// Inserting errors before a run has been marked as failed is ok.
-	// We only require that errors are written to the db before the run is marked as failed.
+	// We only require that errors are written to the schedulerdb before the run is marked as failed.
 	return true
 }
 

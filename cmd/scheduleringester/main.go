@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/scheduleringester/configuration"
 )
 
 const CustomConfigLocation string = "config"
@@ -24,7 +23,7 @@ func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
-	var config configuration.SchedulerIngesterConfiguration
+	var config scheduleringester.Configuration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 
 	common.LoadConfig(&config, "./config/scheduleringester", userSpecifiedConfigs)

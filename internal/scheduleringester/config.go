@@ -1,4 +1,4 @@
-package configuration
+package scheduleringester
 
 import (
 	"time"
@@ -6,7 +6,7 @@ import (
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
-type SchedulerIngesterConfiguration struct {
+type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
 	// Metrics configuration

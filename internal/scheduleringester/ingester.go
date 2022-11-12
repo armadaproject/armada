@@ -1,31 +1,40 @@
 package scheduleringester
 
 import (
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/G-Research/armada/pkg/armadaevents"
 	"time"
 
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/G-Research/armada/internal/scheduleringester/configuration"
-	"github.com/G-Research/armada/internal/scheduleringester/instructions"
-	"github.com/G-Research/armada/internal/scheduleringester/metrics"
-	"github.com/G-Research/armada/internal/scheduleringester/schedulerdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
-// Schedulerdb database accordingly.  This pipeline will run until a SIGTERM is received
-func Run(config *configuration.SchedulerIngesterConfiguration) {
+// Scheduler database accordingly.  This pipeline will run until a SIGTERM is received
+func Run(config *Configuration) {
+
+	metrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
+
 	log.Infof("Opening connection pool to postgres")
-	metrics := metrics.Get()
 	db, err := postgres.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	schedulerDb := schedulerdb.NewSchedulerDb(db, metrics, 100*time.Millisecond, 60*time.Second)
+	schedulerDb := NewSchedulerDb(db, metrics, 100*time.Millisecond, 60*time.Second)
 
-	converter := instructions.NewInstructionConverter(metrics)
+	// Discard submit job messages not intended for this scheduler.
+	submitJobFilter := func(event *armadaevents.EventSequence_Event) bool {
+		// Discard if a SubmitJob event that doesn't target this scheduler.
+		if e := event.GetSubmitJob(); e != nil && e.Scheduler != "pulsar" {
+			return false
+		}
+		return true
+	}
+
+	converter := NewInstructionConverter(metrics, submitJobFilter)
 
 	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,
