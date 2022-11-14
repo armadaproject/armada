@@ -104,6 +104,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 		defer closePulsar()
 	}
 	pulsarMsgs := pulsarutils.Receive(ctx, ingester.consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
+
 	// Setup a context that n seconds after ctx
 	// This gives the rest of the pipeline a chance to flush pending messages
 	pipelineShutdownContext, cancel := context.WithCancel(context.Background())
@@ -120,7 +121,6 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 
 	// Batch up messages
 	batchedMsgs := make(chan []pulsar.Message)
-
 	batcher := NewBatcher[pulsar.Message](pulsarMsgs, ingester.pulsarBatchSize, ingester.pulsarBatchDuration, func(b []pulsar.Message) { batchedMsgs <- b })
 	go func() {
 		batcher.Run(pipelineShutdownContext)
