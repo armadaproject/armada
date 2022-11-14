@@ -28,12 +28,29 @@ type NodeDb struct {
 	// Allowed pod priorities in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
-	priorities       []int32
+	priorities []int32
+	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
+	// for which indexes are created to enable efficient lookup.
 	indexedResources map[string]interface{}
+	// Taint keys that to create indexes for.
+	// Should include taints frequently used for scheduling.
+	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
+	// by a pod when looking for a node a pod can be scheduled on.
+	//
+	// If not set, all taints are indexed.
+	indexedTaints map[string]interface{}
+	// Node labels to create indexes for.
+	// Should include node labels frequently used for scheduling.
+	// Since the NodeDb can efficiently sort out nodes for which these labels
+	// do not match pod node selectors when looking for a node a pod can be scheduled on.
+	//
+	// If not set, no labels are indexed.
+	indexedNodeLabels map[string]interface{}
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources map[string]resource.Quantity
-	// Set of node types for which there exists at least 1 node in the db.
+	// Set of node types. Populated automatically as nodes are inserted.
+	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
 	NodeTypes map[string]*schedulerobjects.NodeType
 	// Resources allocated by the scheduler to in-flight jobs,
 	// i.e., jobs for which resource usage is not yet reported by the executor.
@@ -48,11 +65,41 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
+func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
+	db, err := memdb.NewMemDB(nodeDbSchema(priorities, indexedResources))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	priorities = slices.Clone(priorities)
+	slices.Sort(priorities) // To enable binary search.
+	mapFromSlice := func(vs []string) map[string]interface{} {
+		rv := make(map[string]interface{})
+		for _, v := range vs {
+			rv[v] = true
+		}
+		return rv
+	}
+	return &NodeDb{
+		priorities:              priorities,
+		indexedResources:        mapFromSlice(indexedResources),
+		indexedTaints:           mapFromSlice(indexedTaints),
+		indexedNodeLabels:       mapFromSlice(indexedNodeLabels),
+		NodeTypes:               make(map[string]*schedulerobjects.NodeType),
+		totalResources:          make(map[string]resource.Quantity),
+		Db:                      db,
+		NodesByJob:              make(map[uuid.UUID]map[string]interface{}),
+		JobsByNode:              make(map[string]map[uuid.UUID]interface{}),
+		inFlightResourcesByNode: make(map[string]schedulerobjects.AllocatedByPriorityAndResourceType),
+	}, nil
+}
+
 func (nodeDb *NodeDb) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Priorities:\t%v\n", nodeDb.priorities)
 	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
+	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
+	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
 	if len(nodeDb.NodeTypes) == 0 {
 		fmt.Fprint(w, "Node types:\tnone\n")
 	} else {
@@ -250,36 +297,25 @@ func (nodeDb *NodeDb) MarkJobRunning(jobId uuid.UUID) {
 	delete(nodeDb.NodesByJob, jobId)
 }
 
-func NewNodeDb(priorities []int32, resourceTypes []string) (*NodeDb, error) {
-	db, err := memdb.NewMemDB(nodeDbSchema(priorities, resourceTypes))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	priorities = []int32(priorities)
-	slices.Sort(priorities)
-	totalResources := make(map[string]resource.Quantity)
-	indexedResources := make(map[string]interface{})
-	for _, resourceType := range resourceTypes {
-		totalResources[resourceType] = resource.Quantity{}
-		indexedResources[resourceType] = true
-	}
-	return &NodeDb{
-		priorities:              priorities,
-		indexedResources:        indexedResources,
-		NodeTypes:               make(map[string]*schedulerobjects.NodeType),
-		totalResources:          totalResources,
-		Db:                      db,
-		NodesByJob:              make(map[uuid.UUID]map[string]interface{}),
-		JobsByNode:              make(map[string]map[uuid.UUID]interface{}),
-		inFlightResourcesByNode: make(map[string]schedulerobjects.AllocatedByPriorityAndResourceType),
-	}, nil
-}
-
-// Upsert will update the node db with the given nodes.
+// Upsert nodes.
 func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
+
+		// Compute the node type of the node
+		// and update the node with the node accordingly.
+		nodeType := schedulerobjects.NewNodeType(
+			node.GetTaints(),
+			node.GetLabels(),
+			nodeDb.indexedTaints,
+			nodeDb.indexedNodeLabels,
+		)
+		node.NodeTypeId = nodeType.Id
+		node.NodeType = nodeType
+
+		// Record all unique node types.
+		nodeDb.NodeTypes[nodeType.Id] = nodeType
 
 		// If this is a new node, increase the overall resource count.
 		if _, ok := nodeDb.inFlightResourcesByNode[node.Id]; !ok {
@@ -296,12 +332,6 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 		}
 	}
 	txn.Commit()
-
-	// Record all known node types.
-	for _, node := range nodes {
-		nodeDb.NodeTypes[node.NodeType.Id] = node.NodeType
-	}
-
 	return nil
 }
 

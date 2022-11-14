@@ -389,20 +389,32 @@ tests-e2e-teardown:
 .ONESHELL:
 setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
-	# We need an ingress controller to enable cluster ingress
+
+	# Load images necessary for tests.
+	docker pull "alpine:3.10" # used for e2e tests
+	docker pull "nginx:1.21.6" # used for e2e tests (ingress)
+	docker pull "registry.k8s.io/ingress-nginx/controller:v1.4.0"
+	docker pull "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343"
+	kind load docker-image "alpine:3.10" --name armada-test
+	kind load docker-image "nginx:1.21.6" --name armada-test
+	kind load docker-image "registry.k8s.io/ingress-nginx/controller:v1.4.0" --name armada-test
+	kind load docker-image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343" --name armada-test
+
+	# Ingress controller needed for cluster ingress.
 	kubectl apply -f e2e/setup/ingress-nginx.yaml --context kind-armada-test
+
+	# Priority classes.
+	kubectl apply -f e2e/setup/priorityclasses.yaml --context kind-armada-test
+
 	# Wait until the ingress controller is ready
 	echo "Waiting for ingress controller to become ready"
-	sleep 60 # calling wait immediately can result in "no matching resources found"
+	sleep 10 # calling wait immediately can result in "no matching resources found"
 	kubectl wait --namespace ingress-nginx \
 		--for=condition=ready pod \
 		--selector=app.kubernetes.io/component=controller \
 		--timeout=90s \
 		--context kind-armada-test
-	docker pull "alpine:3.10" # ensure alpine, which is used by tests, is available
-	docker pull "nginx:1.21.6" # ensure nginx, which is used by tests, is available
-	kind load docker-image "alpine:3.10" --name armada-test # needed to make alpine available to kind
-	kind load docker-image "nginx:1.21.6" --name armada-test # needed to make nginx available to kind
+
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
@@ -430,9 +442,11 @@ tests-e2e-setup: setup-cluster
 
 	# Create test queue if it doesn't already exist
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
+	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-a || true
+	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
 .ONESHELL:
-tests-e2e-no-setup: dotnet-setup
+tests-e2e-no-setup:
 	function printApplicationLogs {
 		echo -e "\nexecutor logs:"
 		docker logs executor
@@ -582,52 +596,3 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
-
-armada-dev: build-dev-server build-dev-fakeexecutor build-dev-lookout build-dev-binoculars build-dev-jobservice
-
-build-dev-server:
-	mkdir -p .build/server/config
-	$(GO_CMD) $(gobuildlinux) -o ./.build/server/server cmd/armada/main.go
-	cp -a ./config/armada/config.yaml ./.build/server/config/
-	cp -a ./docs/dev/config/armada/base.yaml ./.build/server/config/
-	cp -a ./docs/dev/config/armada/stan.yaml ./.build/server/config/
-	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
-
-build-dev-fakeexecutor:
-	mkdir -p .build/fakeexecutor/config
-	$(GO_CMD) $(gobuildlinux) -o ./.build/fakeexecutor/fakeexecutor cmd/fakeexecutor/main.go
-	cp -a ./docs/dev/config/executor/* ./.build/fakeexecutor/config/
-	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
-
-build-dev-lookout: node-setup
-	$(NODE_CMD) yarn install --immutable
-	# The following line is equivalent to running "yarn run openapi".
-	# We use this instead of "yarn run openapi" since if NODE_CMD is set to run npm in docker,
-	# "yarn run openapi" would result in running a docker container in docker.
-	docker run --rm $(DOCKER_RUN_AS_USER) \
-		-v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
-	$(NODE_CMD) yarn run build
-	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
-	mkdir -p ./.build/lookout/config
-	#cp -a ./docs/dev/config/lookout/stan.yaml ./.build/lookout/config/
-	mv ./config/lookout/config.yaml ./config/lookout/config.yaml.orig
-	cp -a ./docs/dev/config/lookout/stan.yaml ./config/lookout/
-	cp -a ./docs/dev/config/lookout/config.yaml ./config/lookout/
-	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
-	mv ./config/lookout/config.yaml.orig ./config/lookout/config.yaml
-	rm ./config/lookout/stan.yaml
-
-build-dev-binoculars:
-	mkdir -p .build/binoculars/config
-	$(GO_CMD) $(gobuildlinux) -o ./.build/binoculars/binoculars cmd/binoculars/main.go
-	cp -a ./config/binoculars/config.yaml ./.build/binoculars/config/
-	cp -a ./docs/dev/config/binoculars/base.yaml ./.build/binoculars/config/
-	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
-
-build-dev-jobservice:
-	mkdir -p .build/jobservice
-	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
-	cp -a ./docs/dev/config/jobservice ./.build/jobservice/config
-	docker build --build-arg APP_UID=$(shell id -u) --build-arg APP_GID=$(shell id -g) \
-		$(dockerFlags) -t armada-jobservice -f ./docs/dev/build/jobservice/Dockerfile ./.build/jobservice
-

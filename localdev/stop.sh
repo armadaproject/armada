@@ -11,4 +11,4 @@ read -ra cluster_name_line <<< "$(grep "^name:" ../e2e/setup/kind.yaml)"
 cluster_name=${cluster_name_line[1]}
 
 # stop the k8s cluster.
-kind delete cluster -n "$cluster_name"
+kind delete cluster --name "$cluster_name"

@@ -38,6 +38,7 @@ message RunInfo {
     int32 pod_number = 9;
     string run_state = 10;
     bool unable_to_schedule = 11;
+    google.protobuf.Timestamp preempted = 12 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message QueueInfo {
