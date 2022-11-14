@@ -9,10 +9,16 @@ license = { text = "Apache Software License" }
 authors = [{ name = "G-Research Open Source Software", email = "armada@armadaproject.io" }]
 
 [project.optional-dependencies]
-format = ["black>=22.3.0", "flake8>=4.0.1", "pylint>=2.13.8", "mypy<0.990" ]
+format = ["black>=22.3.0", "flake8>=4.0.1", "pylint>=2.13.8", "mypy<0.990,>0.880" ]
 docs = ["sphinx", "sphinx-jekyll-builder", "sphinx-toolbox==3.2.0b1"]
-test = ["pytest>=7.1.2"]
+test = ["pytest>=7.1.2", "coverage>=6.5.0"]
 
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.coverage.run]
+omit = [
+    "*_pb2.py",
+    "*_pb2_grpc.py",
+]
