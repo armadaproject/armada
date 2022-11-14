@@ -98,7 +98,7 @@ func TestBatch_Time_WithIntialQuiet(t *testing.T) {
 		batcher.Run(ctx)
 	}()
 
-	// intial quiet period
+	// initial quiet period
 	testClock.Step(5 * time.Second)
 
 	inputChan <- 1
