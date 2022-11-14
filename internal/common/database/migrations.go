@@ -13,13 +13,21 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type migration struct {
+type Migration struct {
 	id   int
 	name string
 	sql  string
 }
 
-func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []migration) error {
+func NewMigration(id int, name string, sql string) Migration {
+	return Migration{
+		id:   id,
+		name: name,
+		sql:  sql,
+	}
+}
+
+func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migration) error {
 	log.Info("Updating postgres...")
 	version, err := readVersion(ctx, db)
 	if err != nil {
@@ -70,7 +78,7 @@ func setVersion(ctx context.Context, db pgxtype.Querier, version int) error {
 	return err
 }
 
-func GetMigrations(namespace string) ([]migration, error) {
+func GetMigrations(namespace string) ([]Migration, error) {
 	vfs, err := fs.NewWithNamespace(namespace)
 	if err != nil {
 		return nil, err
@@ -88,7 +96,7 @@ func GetMigrations(namespace string) ([]migration, error) {
 
 	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
 
-	migrations := []migration{}
+	migrations := []Migration{}
 	for _, f := range files {
 		file, err := vfs.Open("/" + f.Name())
 		if err != nil {
@@ -103,7 +111,7 @@ func GetMigrations(namespace string) ([]migration, error) {
 		if err != nil {
 			return nil, err
 		}
-		migrations = append(migrations, migration{
+		migrations = append(migrations, Migration{
 			id:   id,
 			name: f.Name(),
 			sql:  buf.String(),

@@ -2,9 +2,8 @@ package scheduleringester
 
 import (
 	"context"
-	"fmt"
 	"github.com/G-Research/armada/internal/scheduler"
-	"github.com/G-Research/armada/internal/scheduler/sql"
+	"github.com/G-Research/armada/internal/scheduler/testutil"
 	"testing"
 	"time"
 
@@ -212,7 +211,7 @@ func TestWriteOps(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := withSetup(func(_ *scheduler.Queries, db *pgxpool.Pool) error {
+			err := testutil.WithSchedulerDb(func(_ *scheduler.Queries, db *pgxpool.Pool) error {
 				schedulerDb := &SchedulerDb{db: db}
 				serials := make(map[string]int64)
 				for _, op := range tc.Ops {
@@ -559,36 +558,4 @@ func max[E constraints.Ordered](a, b E) E {
 		return a
 	}
 	return b
-}
-
-func withSetup(action func(queries *scheduler.Queries, db *pgxpool.Pool) error) error {
-	ctx := context.Background()
-
-	connectionString := "host=localhost port=5432 user=postgres password=psw sslmode=disable"
-	db, err := pgxpool.Connect(ctx, connectionString)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	err = db.Ping(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Drop all existing tables.
-	for _, table := range []string{"queues", "jobs", "runs", "job_run_assignments", "job_errors", "job_run_errors", "pulsar", "nodeinfo", "leaderelection"} {
-		_, err = db.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
-		if err != nil {
-			return err
-		}
-	}
-
-	// Setup fresh tables.
-	_, err = db.Exec(ctx, sql.SchemaTemplate())
-	if err != nil {
-		return err
-	}
-
-	return action(scheduler.New(db), db)
 }
