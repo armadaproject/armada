@@ -1,10 +1,11 @@
 package scheduleringester
 
 import (
-	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -81,11 +82,11 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-type InsertJobs map[uuid.UUID]*scheduler.Job
+type InsertJobs map[uuid.UUID]*sqlc.Job
 
 type (
-	InsertRuns             map[uuid.UUID]*scheduler.Run
-	InsertRunAssignments   map[uuid.UUID]*scheduler.JobRunAssignment
+	InsertRuns             map[uuid.UUID]*sqlc.Run
+	InsertRunAssignments   map[uuid.UUID]*sqlc.JobRunAssignment
 	UpdateJobSetPriorities map[string]int64
 	MarkJobSetsCancelled   map[string]bool
 	MarkJobsCancelled      map[uuid.UUID]bool
@@ -95,8 +96,8 @@ type (
 	MarkRunsSucceeded      map[uuid.UUID]bool
 	MarkRunsFailed         map[uuid.UUID]bool
 	MarkRunsRunning        map[uuid.UUID]bool
-	InsertJobErrors        map[int32]*scheduler.JobError
-	InsertJobRunErrors     map[int32]*scheduler.JobRunError
+	InsertJobErrors        map[int32]*sqlc.JobError
+	InsertJobRunErrors     map[int32]*sqlc.JobRunError
 )
 
 type JobSetOperation interface {

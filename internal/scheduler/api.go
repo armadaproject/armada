@@ -3,10 +3,15 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/database"
 	"io"
 	"sync/atomic"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
+
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
@@ -53,10 +58,10 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	}
 
 	// Get leases assigned to this executor.
-	queries := New(srv.Db)
+	queries := sqlc.New(srv.Db)
 	runs, err := queries.SelectNewRunsForExecutorWithLimit(
 		stream.Context(),
-		SelectNewRunsForExecutorWithLimitParams{
+		sqlc.SelectNewRunsForExecutorWithLimitParams{
 			Executor: req.GetClusterId(),
 			Limit:    srv.MaxJobsPerCall,
 		},
@@ -149,7 +154,7 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	defer func() {
 		if len(ackedJobIds) > 0 {
 			// Use the background context to run even if the stream context is cancelled.
-			err := queries.MarkRunsAsSentByExecutorAndJobId(context.Background(), MarkRunsAsSentByExecutorAndJobIdParams{
+			err := queries.MarkRunsAsSentByExecutorAndJobId(context.Background(), sqlc.MarkRunsAsSentByExecutorAndJobIdParams{
 				Executor: req.GetClusterId(),
 				JobIds:   ackedJobIds,
 			})
@@ -209,7 +214,7 @@ func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorNam
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		records = append(records, Nodeinfo{
+		records = append(records, sqlc.Nodeinfo{
 			ExecutorNodeName: fmt.Sprintf("%s-%s", executorName, nodeInfo.GetName()),
 			NodeName:         nodeInfo.GetName(),
 			Executor:         executorName,
@@ -238,8 +243,8 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 		jobIds[i] = armadaevents.UuidFromProtoUuid(protoUuid)
 	}
 
-	queries := New(srv.Db)
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, SelectRunsFromExecutorAndJobsParams{
+	queries := sqlc.New(srv.Db)
+	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, sqlc.SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
 		JobIds:   jobIds,
 	})
@@ -270,7 +275,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 	log := ctxlogrus.Extract(ctx)
 	log.Infof("executor %s returned %s", req.ClusterId, req.JobId)
 
-	queries := New(srv.Db)
+	queries := sqlc.New(srv.Db)
 
 	protoUuid, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
 	if err != nil {
@@ -283,7 +288,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 		return nil, errors.WithStack(err)
 	}
 
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, SelectRunsFromExecutorAndJobsParams{
+	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, sqlc.SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
 		JobIds:   []uuid.UUID{jobId},
 	})
@@ -335,7 +340,7 @@ func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.I
 	log := ctxlogrus.Extract(ctx)
 	log.Infof("jobs %v reported done", req.Ids)
 
-	queries := New(srv.Db)
+	queries := sqlc.New(srv.Db)
 
 	jobIds := make([]uuid.UUID, len(req.Ids))
 	for i, s := range req.Ids {

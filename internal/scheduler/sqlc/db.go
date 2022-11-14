@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.13.0
 
-package scheduler
+package sqlc
 
 import (
 	"context"

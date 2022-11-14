@@ -2,19 +2,23 @@ package scheduleringester
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/database"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
+
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 
 	"github.com/G-Research/armada/internal/scheduler"
 
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
 )
 
 // SchedulerDb writes DbOperations into postgres.
@@ -44,7 +48,7 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 }
 
 func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
-	queries := scheduler.New(s.db)
+	queries := sqlc.New(s.db)
 	switch o := op.(type) {
 	case InsertJobs:
 		records := make([]any, len(o))
@@ -83,7 +87,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		for jobSet, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
-				scheduler.UpdateJobPriorityByJobSetParams{
+				sqlc.UpdateJobPriorityByJobSetParams{
 					JobSet:   jobSet,
 					Priority: priority,
 				},
@@ -128,7 +132,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		// TODO: This will be slow if there's a large number of ids.
 		// Could be addressed by using a separate table for priority + upsert.
 		for jobId, priority := range o {
-			err := queries.UpdateJobPriorityById(ctx, scheduler.UpdateJobPriorityByIdParams{
+			err := queries.UpdateJobPriorityById(ctx, sqlc.UpdateJobPriorityByIdParams{
 				JobID:    jobId,
 				Priority: priority,
 			})

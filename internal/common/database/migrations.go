@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/jackc/pgtype/pgxtype"
-
 	"github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 )

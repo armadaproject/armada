@@ -4,14 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/scheduler"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 type eventSequenceCommon struct {
@@ -27,7 +29,8 @@ type InstructionConverter struct {
 }
 
 func NewInstructionConverter(metrics *metrics.Metrics,
-	filter func(event *armadaevents.EventSequence_Event) bool) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
+	filter func(event *armadaevents.EventSequence_Event) bool,
+) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
 	return &InstructionConverter{
 		metrics:     metrics,
 		eventFilter: filter,
@@ -35,7 +38,7 @@ func NewInstructionConverter(metrics *metrics.Metrics,
 }
 
 func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
-	var operations = make([]DbOperation, 0)
+	operations := make([]DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
 		for _, op := range c.convertSequence(es) {
 			operations = AppendDbOperation(operations, op)
@@ -48,7 +51,6 @@ func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *inge
 }
 
 func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) []DbOperation {
-
 	meta := eventSequenceCommon{
 		queue:  es.Queue,
 		jobset: es.JobSetName,
@@ -56,7 +58,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 		groups: es.Groups,
 	}
 
-	var operations = make([]DbOperation, 0, len(es.Events))
+	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
 		if c.eventFilter(event) {
 			var err error = nil
@@ -110,7 +112,6 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 }
 
 func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta eventSequenceCommon) ([]DbOperation, error) {
-
 	// Store the job submit message so that it can be sent to an executor.
 	submitJobBytes, err := proto.Marshal(job)
 	if err != nil {
@@ -129,7 +130,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 	}
 
 	jobId := armadaevents.UuidFromProtoUuid(job.JobId)
-	return []DbOperation{InsertJobs{jobId: &scheduler.Job{
+	return []DbOperation{InsertJobs{jobId: &sqlc.Job{
 		JobID:          jobId,
 		JobSet:         meta.jobset,
 		UserID:         meta.user,
@@ -143,7 +144,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 
 func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, meta eventSequenceCommon) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunLeased.GetRunId())
-	return []DbOperation{InsertRuns{runId: &scheduler.Run{
+	return []DbOperation{InsertRuns{runId: &sqlc.Run{
 		RunID:    runId,
 		JobID:    armadaevents.UuidFromProtoUuid(jobRunLeased.GetJobId()),
 		JobSet:   meta.jobset,
@@ -157,7 +158,7 @@ func (c *InstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal JobRunAssigned")
 	}
-	return []DbOperation{InsertRunAssignments{runId: &scheduler.JobRunAssignment{
+	return []DbOperation{InsertRunAssignments{runId: &sqlc.JobRunAssignment{
 		RunID:      runId,
 		Assignment: bytes,
 	}}}, nil
@@ -197,7 +198,7 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 		// which isn't entirely correct since it deduplicates identical error message.
 		hash := sha256.Sum256(append(bytes, append(jobIdBytes, runIdBytes...)...))
 		key := int32(binary.BigEndian.Uint32(hash[:]))
-		insertJobRunErrors[key] = &scheduler.JobRunError{
+		insertJobRunErrors[key] = &sqlc.JobRunError{
 			ID:       key,
 			RunID:    armadaevents.UuidFromProtoUuid(runId),
 			Error:    bytes,
@@ -241,7 +242,7 @@ func (c *InstructionConverter) handleJobErrors(jobErrors *armadaevents.JobErrors
 		// which isn't entirely correct since it deduplicates identical error message.
 		hash := sha256.Sum256(append(bytes, jobIdBytes...))
 		key := int32(binary.BigEndian.Uint32(hash[:]))
-		insertJobErrors[key] = &scheduler.JobError{
+		insertJobErrors[key] = &sqlc.JobError{
 			ID:       key,
 			JobID:    armadaevents.UuidFromProtoUuid(jobId),
 			Error:    bytes,

@@ -2,22 +2,18 @@ package scheduleringester
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
-	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/gogo/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"testing"
 )
 
 var m = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
 
 func TestConvertSequence(t *testing.T) {
-
 	tests := map[string]struct {
 		events   []*armadaevents.EventSequence_Event
 		filter   func(event *armadaevents.EventSequence_Event) bool
@@ -25,7 +21,7 @@ func TestConvertSequence(t *testing.T) {
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobIdUuid: &scheduler.Job{
+			expected: []DbOperation{InsertJobs{f.JobIdUuid: &sqlc.Job{
 				JobID:         f.JobIdUuid,
 				JobSet:        f.JobSetName,
 				UserID:        f.UserId,
@@ -64,14 +60,14 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run assigned": {
 			events: []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &scheduler.JobRunAssignment{
+			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &sqlc.JobRunAssignment{
 				RunID:      f.RunIdUuid,
 				Assignment: mustMarshall(f.Assigned.GetJobRunAssigned()),
 			}}},
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
-			expected: []DbOperation{InsertRuns{f.RunIdUuid: &scheduler.Run{
+			expected: []DbOperation{InsertRuns{f.RunIdUuid: &sqlc.Run{
 				RunID:    f.RunIdUuid,
 				JobID:    f.JobIdUuid,
 				JobSet:   f.JobSetName,

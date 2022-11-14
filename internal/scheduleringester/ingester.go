@@ -1,21 +1,22 @@
 package scheduleringester
 
 import (
+	"time"
+
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"time"
+
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Scheduler database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *Configuration) {
-
 	metrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
 
 	log.Infof("Opening connection pool to postgres")
