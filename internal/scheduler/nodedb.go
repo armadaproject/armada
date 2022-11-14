@@ -133,7 +133,6 @@ func (nodeDb *NodeDb) SelectNodeForPod(jobId uuid.UUID, req *schedulerobjects.Po
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
 func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -194,7 +193,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, jobId uuid.UUID, r
 }
 
 func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, jobId uuid.UUID, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
-
 	// DeepCopy the node.
 	// TODO: Use more efficient deepcopy.
 	buffer, err := node.Marshal()
