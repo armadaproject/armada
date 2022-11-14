@@ -16,6 +16,7 @@ type Batcher[T any] struct {
 	maxTimeout time.Duration
 	clock      clock.Clock
 	callback   func([]T)
+	buffer     []T
 }
 
 func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, callback func([]T)) *Batcher[T] {
@@ -30,7 +31,7 @@ func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, cal
 
 func (b *Batcher[T]) Run(ctx context.Context) {
 	for {
-		var batch []T
+		b.buffer = []T{}
 		expire := b.clock.After(b.maxTimeout)
 		for appendToBatch := true; appendToBatch; {
 			select {
@@ -44,15 +45,15 @@ func (b *Batcher[T]) Run(ctx context.Context) {
 					return
 				}
 
-				batch = append(batch, value)
-				if len(batch) == b.maxItems {
-					b.callback(batch)
+				b.buffer = append(b.buffer, value)
+				if len(b.buffer) == b.maxItems {
+					b.callback(b.buffer)
 					appendToBatch = false
 				}
 
 			case <-expire:
-				if len(batch) > 0 {
-					b.callback(batch)
+				if len(b.buffer) > 0 {
+					b.callback(b.buffer)
 					appendToBatch = false
 				}
 			}
