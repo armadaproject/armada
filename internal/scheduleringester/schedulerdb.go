@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/common/database"
 	"time"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
@@ -52,7 +53,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, s.db, "jobs", scheduler.JobsSchema(), records)
+		err := database.Upsert(ctx, s.db, "jobs", scheduler.JobsSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -63,7 +64,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, s.db, "runs", scheduler.RunsSchema(), records)
+		err := database.Upsert(ctx, s.db, "runs", scheduler.RunsSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -74,7 +75,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, s.db, "job_run_assignments", scheduler.JobRunAssignmentSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_run_assignments", scheduler.JobRunAssignmentSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -160,7 +161,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, s.db, "job_errors", scheduler.JobErrorsSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_errors", scheduler.JobErrorsSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -171,7 +172,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, s.db, "job_run_errors", scheduler.JobRunErrorsSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_run_errors", scheduler.JobRunErrorsSchema(), records)
 		if err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/database"
 	"io"
 	"sync/atomic"
 	"time"
@@ -215,7 +216,7 @@ func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorNam
 			Message:          message,
 		})
 	}
-	return Upsert(ctx, srv.Db, "nodeinfo", NodeInfoSchema(), records)
+	return database.Upsert(ctx, srv.Db, "nodeinfo", NodeInfoSchema(), records)
 }
 
 func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {

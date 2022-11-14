@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/database"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,7 +92,7 @@ func (srv *LeaderElection) tryBecomeLeader(ctx context.Context) (bool, error) {
 		ID:       srv.Id,
 		IsLeader: false,
 	}
-	err := Upsert(ctx, srv.Db, "leaderelection", LeaderelectionSchema(), records)
+	err := database.Upsert(ctx, srv.Db, "leaderelection", LeaderelectionSchema(), records)
 	if err != nil {
 		return false, err
 	}
@@ -169,7 +170,7 @@ func (srv *LeaderElection) takeLeadership(ctx context.Context, tx pgx.Tx, leader
 
 	// This updates last_modified of the replica that is no longer the leader.
 	// That's fine, since this instance is taking over leadership anyway.
-	return CopyProtocolUpsert(ctx, tx, "leaderelection", LeaderelectionSchema(), records)
+	return database.CopyProtocolUpsert(ctx, tx, "leaderelection", LeaderelectionSchema(), records)
 }
 
 type ErrLostLeadership struct {
@@ -225,6 +226,6 @@ func (srv *LeaderElection) stayLeaderIteration(ctx context.Context) error {
 			ID:       srv.Id,
 			IsLeader: true,
 		}
-		return CopyProtocolUpsert(ctx, tx, "leaderelection", LeaderelectionSchema(), records)
+		return database.CopyProtocolUpsert(ctx, tx, "leaderelection", LeaderelectionSchema(), records)
 	})
 }

@@ -2,24 +2,21 @@ package instructions
 
 import (
 	"context"
-	"testing"
-	"time"
-
 	"github.com/apache/pulsar-client-go/pulsar"
+	"testing"
 
 	"github.com/G-Research/armada/internal/common/ingest"
 
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
+	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -27,320 +24,99 @@ import (
 )
 
 // Mock Pulsar Message with implementations only for the functions we care about
-
-//
-// Standard Set of events for common tests
-//
-
-const (
-	jobIdString          = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString          = "123e4567-e89b-12d3-a456-426614174000"
-	userAnnotationPrefix = "test_prefix/"
-)
-
 var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-)
-
-const (
-	jobSetName       = "testJobset"
-	executorId       = "testCluster"
-	nodeName         = "testNode"
-	podName          = "test-pod"
-	queue            = "test-queue"
-	userId           = "testUser"
-	namespace        = "test-ns"
-	priority         = 3
-	newPriority      = 4
-	podNumber        = 6
-	errMsg           = "sample error message"
-	leaseReturnedMsg = "lease returned error message"
-)
-
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-
-// Submit
-var submit = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_SubmitJob{
-		SubmitJob: &armadaevents.SubmitJob{
-			JobId:    jobIdProto,
-			Priority: priority,
-			ObjectMeta: &armadaevents.ObjectMeta{
-				Namespace: namespace,
-				Name:      "test-job",
-			},
-			MainObject: &armadaevents.KubernetesMainObject{
-				Object: &armadaevents.KubernetesMainObject_PodSpec{
-					PodSpec: &armadaevents.PodSpecWithAvoidList{
-						PodSpec: &v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:    "container1",
-									Image:   "alpine:latest",
-									Command: []string{"myprogram.sh"},
-									Args:    []string{"foo", "bar"},
-									Resources: v1.ResourceRequirements{
-										Limits: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-										Requests: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// Assigned
-var assigned = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
-		JobRunAssigned: &armadaevents.JobRunAssigned{
-			RunId: runIdProto,
-			JobId: jobIdProto,
-			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
-				{
-					ObjectMeta: &armadaevents.ObjectMeta{
-						KubernetesId: runIdString,
-						Name:         podName,
-						Namespace:    namespace,
-						ExecutorId:   executorId,
-					},
-					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
-						PodInfo: &armadaevents.PodInfo{
-							PodNumber: podNumber,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// Running
-var running = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobRunRunning{
-		JobRunRunning: &armadaevents.JobRunRunning{
-			RunId: runIdProto,
-			JobId: jobIdProto,
-			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
-				{
-					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
-						PodInfo: &armadaevents.PodInfo{
-							NodeName:  nodeName,
-							PodNumber: podNumber,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// Succeeded
-var jobRunSucceeded = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
-		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunId: runIdProto,
-			JobId: jobIdProto,
-		},
-	},
-}
-
-// Cancelled
-var jobCancelled = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_CancelledJob{
-		CancelledJob: &armadaevents.CancelledJob{
-			JobId: jobIdProto,
-		},
-	},
-}
-
-// Reprioritised
-var jobReprioritised = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
-		ReprioritisedJob: &armadaevents.ReprioritisedJob{
-			JobId:    jobIdProto,
-			Priority: newPriority,
-		},
-	},
-}
-
-// Preempted
-var jobPreempted = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-		JobRunPreempted: &armadaevents.JobRunPreempted{
-			PreemptedRunId: runIdProto,
-		},
-	},
-}
-
-// Job Run Failed
-var jobRunFailed = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId: jobIdProto,
-			RunId: runIdProto,
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: true,
-					Reason: &armadaevents.Error_PodError{
-						PodError: &armadaevents.PodError{
-							Message:  errMsg,
-							NodeName: nodeName,
-							ContainerErrors: []*armadaevents.ContainerError{
-								{ExitCode: 1},
-							},
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// Job Lease Returned
-var jobLeaseReturned = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId: jobIdProto,
-			RunId: eventutil.LegacyJobRunId(),
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: true,
-					Reason: &armadaevents.Error_PodLeaseReturned{
-						PodLeaseReturned: &armadaevents.PodLeaseReturned{
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId: executorId,
-							},
-							Message: leaseReturnedMsg,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-var jobSucceeded = &armadaevents.EventSequence_Event{
-	Created: &baseTime,
-	Event: &armadaevents.EventSequence_Event_JobSucceeded{
-		JobSucceeded: &armadaevents.JobSucceeded{
-			JobId: jobIdProto,
-		},
-	},
-}
-
-var (
-	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
+	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(f.UserId, []string{}, f.Queue, f.JobSetName, f.BaseTime, f.Submit.GetSubmitJob())
 	expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
 )
 
 // Standard Set of expected rows for common tests
 var expectedSubmit = model.CreateJobInstruction{
-	JobId:     jobIdString,
-	Queue:     queue,
-	Owner:     userId,
-	JobSet:    jobSetName,
-	Priority:  priority,
-	Submitted: baseTime,
+	JobId:     f.JobIdString,
+	Queue:     f.Queue,
+	Owner:     f.UserId,
+	JobSet:    f.JobSetName,
+	Priority:  f.Priority,
+	Submitted: f.BaseTime,
 	JobProto:  expectedApiJobProto,
 	State:     repository.JobQueuedOrdinal,
-	Updated:   baseTime,
+	Updated:   f.BaseTime,
 }
 
 var expectedLeased = model.UpdateJobInstruction{
-	JobId:   jobIdString,
+	JobId:   f.JobIdString,
 	State:   pointer.Int32(repository.JobPendingOrdinal),
-	Updated: baseTime,
+	Updated: f.BaseTime,
 }
 
 var expectedRunning = model.UpdateJobInstruction{
-	JobId:   jobIdString,
+	JobId:   f.JobIdString,
 	State:   pointer.Int32(repository.JobRunningOrdinal),
-	Updated: baseTime,
+	Updated: f.BaseTime,
 }
 
 var expectedLeasedRun = model.CreateJobRunInstruction{
-	RunId:   runIdString,
-	JobId:   jobIdString,
-	Cluster: executorId,
-	Created: baseTime,
+	RunId:   f.RunIdString,
+	JobId:   f.JobIdString,
+	Cluster: f.ExecutorId,
+	Created: f.BaseTime,
 }
 
 var expectedRunningRun = model.UpdateJobRunInstruction{
-	RunId:     runIdString,
-	Node:      pointer.String(nodeName),
-	Started:   &baseTime,
-	PodNumber: pointer.Int32(podNumber),
+	RunId:     f.RunIdString,
+	Node:      pointer.String(f.NodeName),
+	Started:   &f.BaseTime,
+	PodNumber: pointer.Int32(f.PodNumber),
 }
 
 var expectedJobRunSucceeded = model.UpdateJobRunInstruction{
-	RunId:     runIdString,
-	Finished:  &baseTime,
+	RunId:     f.RunIdString,
+	Finished:  &f.BaseTime,
 	Succeeded: pointer.Bool(true),
 }
 
 var expectedJobSucceeded = model.UpdateJobInstruction{
-	JobId:   jobIdString,
+	JobId:   f.JobIdString,
 	State:   pointer.Int32(repository.JobSucceededOrdinal),
-	Updated: baseTime,
+	Updated: f.BaseTime,
 }
 
 var expectedJobCancelled = model.UpdateJobInstruction{
-	JobId:     jobIdString,
-	Cancelled: &baseTime,
-	Updated:   baseTime,
+	JobId:     f.JobIdString,
+	Cancelled: &f.BaseTime,
+	Updated:   f.BaseTime,
 	State:     pointer.Int32(repository.JobCancelledOrdinal),
 }
 
 var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    jobIdString,
-	Priority: pointer.Int32(newPriority),
-	Updated:  baseTime,
+	JobId:    f.JobIdString,
+	Priority: pointer.Int32(f.NewPriority),
+	Updated:  f.BaseTime,
 }
 
 var expectedJobRunPreempted = model.UpdateJobRunInstruction{
-	RunId:     runIdString,
-	Finished:  &baseTime,
+	RunId:     f.RunIdString,
+	Finished:  &f.BaseTime,
 	Succeeded: pointer.Bool(false),
-	Preempted: &baseTime,
+	Preempted: &f.BaseTime,
 }
 
 var expectedFailed = model.UpdateJobRunInstruction{
-	RunId:     runIdString,
-	Node:      pointer.String(nodeName),
-	Finished:  &baseTime,
+	RunId:     f.RunIdString,
+	Node:      pointer.String(f.NodeName),
+	Finished:  &f.BaseTime,
 	Succeeded: pointer.Bool(false),
-	Error:     pointer.String(errMsg),
+	Error:     pointer.String(f.ErrMsg),
 }
 
 var expectedJobRunContainer = model.CreateJobRunContainerInstruction{
-	RunId:    runIdString,
+	RunId:    f.RunIdString,
 	ExitCode: 1,
 }
 
 // Single submit message
 func TestSubmit(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(submit)
+	msg := NewMsg(f.Submit)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
@@ -354,7 +130,7 @@ func TestSubmit(t *testing.T) {
 // Single submit message
 func TestHappyPathSingleUpdate(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(submit, assigned, running, jobRunSucceeded, jobSucceeded)
+	msg := NewMsg(f.Submit, f.Assigned, f.Running, f.JobRunSucceeded, f.JobSucceeded)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToCreate:    []*model.CreateJobInstruction{&expectedSubmit},
@@ -374,7 +150,7 @@ func TestHappyPathSingleUpdate(t *testing.T) {
 func TestHappyPathMultiUpdate(t *testing.T) {
 	svc := SimpleInstructionConverter()
 	// Submit
-	msg1 := NewMsg(submit)
+	msg1 := NewMsg(f.Submit)
 	instructions := svc.Convert(context.Background(), msg1)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
@@ -383,7 +159,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 
 	// Leased
-	msg2 := NewMsg(assigned)
+	msg2 := NewMsg(f.Assigned)
 	instructions = svc.Convert(context.Background(), msg2)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased},
@@ -393,7 +169,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 
 	// Running
-	msg3 := NewMsg(running)
+	msg3 := NewMsg(f.Running)
 	instructions = svc.Convert(context.Background(), msg3)
 	expected = &model.InstructionSet{
 		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedRunning},
@@ -403,7 +179,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 
 	// Run Succeeded
-	msg4 := NewMsg(jobRunSucceeded)
+	msg4 := NewMsg(f.JobRunSucceeded)
 	instructions = svc.Convert(context.Background(), msg4)
 	expected = &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunSucceeded},
@@ -412,7 +188,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 
 	// Job Succeeded
-	msg5 := NewMsg(jobSucceeded)
+	msg5 := NewMsg(f.JobSucceeded)
 	instructions = svc.Convert(context.Background(), msg5)
 	expected = &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobSucceeded},
@@ -423,7 +199,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 
 func TestCancelled(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(jobCancelled)
+	msg := NewMsg(f.JobCancelled)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
@@ -434,7 +210,7 @@ func TestCancelled(t *testing.T) {
 
 func TestReprioritised(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(jobReprioritised)
+	msg := NewMsg(f.JobReprioritised)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
@@ -445,7 +221,7 @@ func TestReprioritised(t *testing.T) {
 
 func TestPreempted(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(jobPreempted)
+	msg := NewMsg(f.JobPreempted)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunPreempted},
@@ -456,7 +232,7 @@ func TestPreempted(t *testing.T) {
 
 func TestFailed(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(jobRunFailed)
+	msg := NewMsg(f.JobRunFailed)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate:          []*model.UpdateJobRunInstruction{&expectedFailed},
@@ -468,26 +244,26 @@ func TestFailed(t *testing.T) {
 
 func TestFailedWithMissingRunId(t *testing.T) {
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(jobLeaseReturned)
+	msg := NewMsg(f.JobLeaseReturned)
 	instructions := svc.Convert(context.Background(), msg)
 	jobRun := instructions.JobRunsToCreate[0]
 	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
 	expected := &model.InstructionSet{
 		JobRunsToCreate: []*model.CreateJobRunInstruction{
 			{
-				JobId:   jobIdString,
+				JobId:   f.JobIdString,
 				RunId:   jobRun.RunId,
-				Cluster: executorId,
-				Created: baseTime,
+				Cluster: f.ExecutorId,
+				Created: f.BaseTime,
 			},
 		},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{
 			{
 				RunId:            jobRun.RunId,
-				Started:          &baseTime,
-				Finished:         &baseTime,
+				Started:          &f.BaseTime,
+				Finished:         &f.BaseTime,
 				Succeeded:        pointer.Bool(false),
-				Error:            pointer.String(leaseReturnedMsg),
+				Error:            pointer.String(f.LeaseReturnedMsg),
 				UnableToSchedule: pointer.Bool(true),
 			},
 		},
@@ -500,19 +276,19 @@ func TestHandlePodTerminated(t *testing.T) {
 	terminatedMsg := "test pod terminated msg"
 
 	podTerminated := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: &f.BaseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobId: f.JobIdProto,
+				RunId: f.RunIdProto,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
-								NodeName: nodeName,
+								NodeName: f.NodeName,
 								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: executorId,
+									ExecutorId: f.ExecutorId,
 								},
 								Message: terminatedMsg,
 							},
@@ -528,9 +304,9 @@ func TestHandlePodTerminated(t *testing.T) {
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:     runIdString,
-			Node:      pointer.String(nodeName),
-			Finished:  &baseTime,
+			RunId:     f.RunIdString,
+			Node:      pointer.String(f.NodeName),
+			Finished:  &f.BaseTime,
 			Succeeded: pointer.Bool(false),
 			Error:     pointer.String(terminatedMsg),
 		}},
@@ -540,42 +316,21 @@ func TestHandlePodTerminated(t *testing.T) {
 }
 
 func TestHandleJobLeaseReturned(t *testing.T) {
-	leaseReturnedMsg := "test pod returned msg"
-	leaseReturned := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: true,
-						Reason: &armadaevents.Error_PodLeaseReturned{
-							PodLeaseReturned: &armadaevents.PodLeaseReturned{
-								Message: leaseReturnedMsg,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(leaseReturned)
+	msg := NewMsg(f.LeaseReturned)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:            runIdString,
-			Finished:         &baseTime,
+			RunId:            f.RunIdString,
+			Finished:         &f.BaseTime,
 			Succeeded:        pointer.Bool(false),
-			Error:            pointer.String(leaseReturnedMsg),
+			Error:            pointer.String(f.LeaseReturnedMsg),
 			UnableToSchedule: pointer.Bool(true),
 		}},
 		JobsToUpdate: []*model.UpdateJobInstruction{
 			{
-				JobId:   jobIdString,
-				Updated: baseTime,
+				JobId:   f.JobIdString,
+				Updated: f.BaseTime,
 				State:   pointer.Int32(repository.JobQueuedOrdinal),
 			},
 		},
@@ -588,19 +343,19 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	unschedulableMsg := "test pod unschedulable msg"
 
 	podUnschedulable := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: &f.BaseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobId: f.JobIdProto,
+				RunId: f.RunIdProto,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
-								NodeName: nodeName,
+								NodeName: f.NodeName,
 								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: executorId,
+									ExecutorId: f.ExecutorId,
 								},
 								Message: unschedulableMsg,
 							},
@@ -616,9 +371,9 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:            runIdString,
-			Node:             pointer.String(nodeName),
-			Finished:         &baseTime,
+			RunId:            f.RunIdString,
+			Node:             pointer.String(f.NodeName),
+			Finished:         &f.BaseTime,
 			Succeeded:        pointer.Bool(false),
 			UnableToSchedule: pointer.Bool(true),
 			Error:            pointer.String(unschedulableMsg),
@@ -630,14 +385,14 @@ func TestHandlePodUnschedulable(t *testing.T) {
 
 func TestSubmitWithNullChar(t *testing.T) {
 	msg := NewMsg(&armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: &f.BaseTime,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobId:           jobIdProto,
+				JobId:           f.JobIdProto,
 				DeduplicationId: "",
 				Priority:        0,
 				ObjectMeta: &armadaevents.ObjectMeta{
-					Namespace: namespace,
+					Namespace: f.Namespace,
 				},
 				MainObject: &armadaevents.KubernetesMainObject{
 					Object: &armadaevents.KubernetesMainObject_PodSpec{
@@ -666,18 +421,18 @@ func TestSubmitWithNullChar(t *testing.T) {
 
 func TestFailedWithNullCharInError(t *testing.T) {
 	msg := NewMsg(&armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: &f.BaseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunErrors{
 			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
+				JobId: f.JobIdProto,
+				RunId: f.RunIdProto,
 				Errors: []*armadaevents.Error{
 					{
 						Terminal: true,
 						Reason: &armadaevents.Error_PodError{
 							PodError: &armadaevents.PodError{
 								Message:  "error message with null char \000",
-								NodeName: nodeName,
+								NodeName: f.NodeName,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{ExitCode: 1},
 								},
@@ -693,10 +448,10 @@ func TestFailedWithNullCharInError(t *testing.T) {
 	instructions := svc.Convert(context.Background(), msg)
 	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
 		{
-			RunId:     runIdString,
-			Finished:  &baseTime,
+			RunId:     f.RunIdString,
+			Finished:  &f.BaseTime,
 			Succeeded: pointer.Bool(false),
-			Node:      pointer.String(nodeName),
+			Node:      pointer.String(f.NodeName),
 			Error:     pointer.String("error message with null char "),
 		},
 	}
@@ -706,7 +461,7 @@ func TestFailedWithNullCharInError(t *testing.T) {
 func TestInvalidEvent(t *testing.T) {
 	// This event is invalid as it doesn't have a job id or a run id
 	invalidEvent := &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+		Created: &f.BaseTime,
 		Event: &armadaevents.EventSequence_Event_JobRunRunning{
 			JobRunRunning: &armadaevents.JobRunRunning{},
 		},
@@ -714,7 +469,7 @@ func TestInvalidEvent(t *testing.T) {
 
 	// Check that the (valid) Submit is processed, but the invalid message is discarded
 	svc := SimpleInstructionConverter()
-	msg := NewMsg(invalidEvent, submit)
+	msg := NewMsg(invalidEvent, f.Submit)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
@@ -724,39 +479,33 @@ func TestInvalidEvent(t *testing.T) {
 }
 
 func TestAnnotations(t *testing.T) {
-	annotations := map[string]string{userAnnotationPrefix + "a": "b", "1": "2"}
+	annotations := map[string]string{f.UserAnnotationPrefix + "a": "b", "1": "2"}
 	expected := []*model.CreateUserAnnotationInstruction{
 		{
-			JobId: jobIdString,
+			JobId: f.JobIdString,
 			Key:   "1",
 			Value: "2",
 		},
 		{
-			JobId: jobIdString,
+			JobId: f.JobIdString,
 			Key:   "a",
 			Value: "b",
 		},
 	}
-	annotationInstructions := extractAnnotations(jobIdString, annotations, userAnnotationPrefix)
+	annotationInstructions := extractAnnotations(f.JobIdString, annotations, f.UserAnnotationPrefix)
 	assert.Equal(t, expected, annotationInstructions)
 }
 
 func TestExtractNodeName(t *testing.T) {
 	podError := armadaevents.PodError{}
 	assert.Nil(t, extractNodeName(&podError))
-	podError.NodeName = nodeName
-	assert.Equal(t, pointer.String(nodeName), extractNodeName(&podError))
+	podError.NodeName = f.NodeName
+	assert.Equal(t, pointer.String(f.NodeName), extractNodeName(&podError))
 }
 
 func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWithIds {
-	seq := &armadaevents.EventSequence{
-		Queue:      queue,
-		JobSetName: jobSetName,
-		Events:     event,
-		UserId:     userId,
-	}
 	return &ingest.EventSequencesWithIds{
-		EventSequences: []*armadaevents.EventSequence{seq},
+		EventSequences: []*armadaevents.EventSequence{f.NewEventSequence(event...)},
 		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 }
@@ -764,7 +513,7 @@ func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWi
 func SimpleInstructionConverter() *InstructionConverter {
 	return &InstructionConverter{
 		metrics:              metrics.Get(),
-		userAnnotationPrefix: userAnnotationPrefix,
+		userAnnotationPrefix: f.UserAnnotationPrefix,
 		compressor:           &compress.NoOpCompressor{},
 	}
 }
