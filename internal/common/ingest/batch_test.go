@@ -77,29 +77,27 @@ func TestBatch_Time(t *testing.T) {
 		batcher.Run(ctx)
 	}()
 
-	ticker := time.NewTicker(5 * time.Millisecond)
-
-	// start a goroutine that will advance the clock when we have a couple of items waiting
-	go func() {
-		done := false
-		for !done {
-			select {
-			case <-ctx.Done():
-				done = true
-			case <-ticker.C:
-				if batcher.BufferLen() == 2 {
-					testClock.Step(5 * time.Second)
-				}
-			}
-		}
-	}()
-
 	inputChan <- 1
 	inputChan <- 2
-
+	waitForBufferLength(ctx, batcher, 2)
+	testClock.Step(5 * time.Second)
 	waitForExpectedEvents(ctx, result, 1)
 	assert.Equal(t, [][]int{{1, 2}}, result.result)
 	cancel()
+}
+
+func waitForBufferLength(ctx context.Context, batcher *Batcher[int], numEvents int) error {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if batcher.BufferLen() >= numEvents {
+				return nil
+			}
+		}
+	}
 }
 
 func waitForExpectedEvents(ctx context.Context, rh *resultHolder, numEvents int) {
