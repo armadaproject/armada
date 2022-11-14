@@ -87,7 +87,7 @@ func TestBatch_Time(t *testing.T) {
 			case <-ctx.Done():
 				done = true
 			case <-ticker.C:
-				if len(batcher.buffer) == 2 {
+				if batcher.BufferLen() == 2 {
 					testClock.Step(5 * time.Second)
 				}
 			}
