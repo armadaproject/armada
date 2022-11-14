@@ -41,7 +41,6 @@ func TestBatch_MaxItems(t *testing.T) {
 }
 
 func TestBatch_Time(t *testing.T) {
-
 	for i := 0; i < 100; i++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		testClock := clock.NewFakeClock(time.Now())
