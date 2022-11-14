@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 // CreateJobInstruction is an instruction to insert a new row into the jobs table
@@ -75,5 +75,9 @@ type InstructionSet struct {
 	JobRunsToCreate         []*CreateJobRunInstruction
 	JobRunsToUpdate         []*UpdateJobRunInstruction
 	UserAnnotationsToCreate []*CreateUserAnnotationInstruction
-	MessageIds              []*pulsarutils.ConsumerMessageId
+	MessageIds              []pulsar.MessageID
+}
+
+func (i *InstructionSet) GetMessageIDs() []pulsar.MessageID {
+	return i.MessageIds
 }

@@ -359,7 +359,7 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 
 // Single submit message
 func TestSubmit(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, submit)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -373,7 +373,7 @@ func TestSubmit(t *testing.T) {
 // All in a single update
 // Single submit message
 func TestHappyPathSingleUpdate(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, submit, assigned, running, jobRunSucceeded, jobSucceeded)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -392,7 +392,7 @@ func TestHappyPathSingleUpdate(t *testing.T) {
 }
 
 func TestHappyPathMultiUpdate(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	compressor := &compress.NoOpCompressor{}
 
 	// Submit
@@ -444,7 +444,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 }
 
 func TestCancelled(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, jobCancelled)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -455,7 +455,7 @@ func TestCancelled(t *testing.T) {
 }
 
 func TestReprioritised(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, jobReprioritised)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -466,7 +466,7 @@ func TestReprioritised(t *testing.T) {
 }
 
 func TestJobRunFailed(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, jobRunFailed)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -477,7 +477,7 @@ func TestJobRunFailed(t *testing.T) {
 }
 
 func TestJobFailed(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, jobFailed)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -488,7 +488,7 @@ func TestJobFailed(t *testing.T) {
 }
 
 func TestFailedWithMissingRunId(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, jobLeaseReturned)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	jobRun := instructions.JobRunsToCreate[0]
@@ -543,7 +543,7 @@ func TestHandlePodTerminated(t *testing.T) {
 		},
 	}
 
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, podTerminated)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -585,7 +585,7 @@ func TestHandlePodUnschedulable(t *testing.T) {
 		},
 	}
 
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, podUnschedulable)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -631,7 +631,7 @@ func TestSubmitWithNullChar(t *testing.T) {
 		},
 	})
 
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	assert.Len(t, instructions.JobsToCreate, 1)
 	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
@@ -661,7 +661,7 @@ func TestFailedWithNullCharInError(t *testing.T) {
 		},
 	})
 
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
 		{
@@ -685,7 +685,7 @@ func TestInvalidEvent(t *testing.T) {
 	}
 
 	// Check that the (valid) Submit is processed, but the invalid message is discarded
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := NewMsg(baseTime, invalidEvent, submit)
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{
@@ -698,7 +698,7 @@ func TestInvalidEvent(t *testing.T) {
 // This message is invalid as it has no payload
 // Assert that the update just contains the messageId, so we can ack it
 func TestInvalidMessage(t *testing.T) {
-	svc := New(metrics.Get())
+	svc := NewInstructionConverter(metrics.Get())
 	msg := &pulsarutils.ConsumerMessage{Message: pulsarutils.EmptyPulsarMessage(3, time.Now()), ConsumerId: 3}
 	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
 	expected := &model.InstructionSet{

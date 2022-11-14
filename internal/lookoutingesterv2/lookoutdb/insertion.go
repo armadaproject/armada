@@ -15,48 +15,29 @@ import (
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
-type DB struct {
+type LookoutDb struct {
 	db         *pgxpool.Pool
-	m          *metrics.Metrics
+	metrics    *metrics.Metrics
 	maxRetries int
 	maxBackoff int
 }
 
-func New(db *pgxpool.Pool, m *metrics.Metrics, maxRetries int, maxBackoff int) *DB {
-	return &DB{db: db, m: m, maxRetries: maxRetries, maxBackoff: maxBackoff}
+func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxRetries int, maxBackoff int) *LookoutDb {
+	return &LookoutDb{db: db, metrics: metrics, maxRetries: maxRetries, maxBackoff: maxBackoff}
 }
 
-// ProcessUpdates will update the lookout database according to the incoming channel of instructions.  It returns a channel
-// containing all the message ids that have been successfully processed.
-func (l *DB) ProcessUpdates(ctx context.Context, msgs chan *model.InstructionSet, bufferSize int) chan []*pulsarutils.ConsumerMessageId {
-	out := make(chan []*pulsarutils.ConsumerMessageId, bufferSize)
-	go func() {
-		fmt.Println("STARTED LOOP")
-		for msg := range msgs {
-			start := time.Now()
-			l.Update(ctx, msg)
-			taken := time.Now().Sub(start).Milliseconds()
-			log.Infof("Inserted %d events in %dms", len(msg.MessageIds), taken)
-			out <- msg.MessageIds
-		}
-		close(out)
-	}()
-	return out
-}
-
-// Update updates the lookout database according to the supplied InstructionSet.
+// Store updates the lookout database according to the supplied InstructionSet.
 // The updates are applied in the following order:
 // * New Job Creations
 // * Job Updates, New Job Creations, New User Annotations
 // * Job Run Updates
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
-func (l *DB) Update(ctx context.Context, instructions *model.InstructionSet) {
+func (l *LookoutDb) Store(ctx context.Context, instructions *model.InstructionSet) error {
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
 	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
@@ -85,9 +66,10 @@ func (l *DB) Update(ctx context.Context, instructions *model.InstructionSet) {
 
 	// Finally, we can update the job runs
 	l.UpdateJobRuns(ctx, jobRunsToUpdate)
+	return nil
 }
 
-func (l *DB) CreateJobs(ctx context.Context, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobs(ctx context.Context, instructions []*model.CreateJobInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -98,11 +80,11 @@ func (l *DB) CreateJobs(ctx context.Context, instructions []*model.CreateJobInst
 	}
 }
 
-func (l *DB) UpdateJobs(ctx context.Context, instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.UpdateJobInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
-	instructions = l.filterEventsForCancelledJobs(ctx, l.db, instructions, l.m)
+	instructions = l.filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -110,7 +92,7 @@ func (l *DB) UpdateJobs(ctx context.Context, instructions []*model.UpdateJobInst
 	}
 }
 
-func (l *DB) CreateJobRuns(ctx context.Context, instructions []*model.CreateJobRunInstruction) {
+func (l *LookoutDb) CreateJobRuns(ctx context.Context, instructions []*model.CreateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -121,7 +103,7 @@ func (l *DB) CreateJobRuns(ctx context.Context, instructions []*model.CreateJobR
 	}
 }
 
-func (l *DB) UpdateJobRuns(ctx context.Context, instructions []*model.UpdateJobRunInstruction) {
+func (l *LookoutDb) UpdateJobRuns(ctx context.Context, instructions []*model.UpdateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -132,7 +114,7 @@ func (l *DB) UpdateJobRuns(ctx context.Context, instructions []*model.UpdateJobR
 	}
 }
 
-func (l *DB) CreateUserAnnotations(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) {
+func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -143,7 +125,7 @@ func (l *DB) CreateUserAnnotations(ctx context.Context, instructions []*model.Cr
 	}
 }
 
-func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJobInstruction) error {
+func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job")
 
@@ -168,7 +150,7 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 				    priority_class               varchar(63)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -240,7 +222,7 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		}
@@ -250,7 +232,7 @@ func (l *DB) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJo
 }
 
 // CreateJobsScalar will insert jobs one by one into the database
-func (l *DB) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJobInstruction) {
 	sqlStatement := `INSERT INTO job (
     		job_id,
 			queue,
@@ -288,7 +270,7 @@ func (l *DB) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJ
 				i.JobProto,
 				i.PriorityClass)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		})
@@ -298,7 +280,7 @@ func (l *DB) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJ
 	}
 }
 
-func (l *DB) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJobInstruction) error {
+func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job")
 
@@ -315,7 +297,7 @@ func (l *DB) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJo
 				    latest_run_id                varchar(36)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -364,7 +346,7 @@ func (l *DB) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJo
 				FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
 			return err
 		}
@@ -373,7 +355,7 @@ func (l *DB) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJo
 	})
 }
 
-func (l *DB) UpdateJobsScalar(ctx context.Context, instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.UpdateJobInstruction) {
 	sqlStatement := `UPDATE job
 				SET
 					priority                     = coalesce($2, priority),
@@ -396,7 +378,7 @@ func (l *DB) UpdateJobsScalar(ctx context.Context, instructions []*model.UpdateJ
 				i.Duplicate,
 				i.LatestRunId)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
 			return err
 		})
@@ -406,7 +388,7 @@ func (l *DB) UpdateJobsScalar(ctx context.Context, instructions []*model.UpdateJ
 	}
 }
 
-func (l *DB) CreateJobRunsBatch(ctx context.Context, instructions []*model.CreateJobRunInstruction) error {
+func (l *LookoutDb) CreateJobRunsBatch(ctx context.Context, instructions []*model.CreateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run")
 
@@ -420,7 +402,7 @@ func (l *DB) CreateJobRunsBatch(ctx context.Context, instructions []*model.Creat
 					job_run_state smallint
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -461,7 +443,7 @@ func (l *DB) CreateJobRunsBatch(ctx context.Context, instructions []*model.Creat
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		}
@@ -469,7 +451,7 @@ func (l *DB) CreateJobRunsBatch(ctx context.Context, instructions []*model.Creat
 	})
 }
 
-func (l *DB) CreateJobRunsScalar(ctx context.Context, instructions []*model.CreateJobRunInstruction) {
+func (l *LookoutDb) CreateJobRunsScalar(ctx context.Context, instructions []*model.CreateJobRunInstruction) {
 	sqlStatement := `INSERT INTO job_run (
     		run_id,
             job_id,
@@ -487,7 +469,7 @@ func (l *DB) CreateJobRunsScalar(ctx context.Context, instructions []*model.Crea
 				i.Pending,
 				i.JobRunState)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		})
@@ -497,7 +479,7 @@ func (l *DB) CreateJobRunsScalar(ctx context.Context, instructions []*model.Crea
 	}
 }
 
-func (l *DB) UpdateJobRunsBatch(ctx context.Context, instructions []*model.UpdateJobRunInstruction) error {
+func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*model.UpdateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run")
 
@@ -513,7 +495,7 @@ func (l *DB) UpdateJobRunsBatch(ctx context.Context, instructions []*model.Updat
 				    exit_code     int
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -559,7 +541,7 @@ func (l *DB) UpdateJobRunsBatch(ctx context.Context, instructions []*model.Updat
 					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
 			return err
 		}
@@ -568,7 +550,7 @@ func (l *DB) UpdateJobRunsBatch(ctx context.Context, instructions []*model.Updat
 	})
 }
 
-func (l *DB) UpdateJobRunsScalar(ctx context.Context, instructions []*model.UpdateJobRunInstruction) {
+func (l *LookoutDb) UpdateJobRunsScalar(ctx context.Context, instructions []*model.UpdateJobRunInstruction) {
 	sqlStatement := `UPDATE job_run
 				SET
 				  node          = coalesce($2, node),
@@ -589,7 +571,7 @@ func (l *DB) UpdateJobRunsScalar(ctx context.Context, instructions []*model.Upda
 				i.Error,
 				i.ExitCode)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationUpdate)
+				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
 			return err
 		})
@@ -599,7 +581,7 @@ func (l *DB) UpdateJobRunsScalar(ctx context.Context, instructions []*model.Upda
 	}
 }
 
-func (l *DB) CreateUserAnnotationsBatch(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) error {
+func (l *LookoutDb) CreateUserAnnotationsBatch(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("user_annotation_lookup")
 
@@ -613,7 +595,7 @@ func (l *DB) CreateUserAnnotationsBatch(ctx context.Context, instructions []*mod
 				    jobset varchar(1024)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationCreateTempTable)
+				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
 			}
 			return err
 		}
@@ -654,7 +636,7 @@ func (l *DB) CreateUserAnnotationsBatch(ctx context.Context, instructions []*mod
 					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		}
@@ -662,7 +644,7 @@ func (l *DB) CreateUserAnnotationsBatch(ctx context.Context, instructions []*mod
 	})
 }
 
-func (l *DB) CreateUserAnnotationsScalar(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) {
+func (l *LookoutDb) CreateUserAnnotationsScalar(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) {
 	sqlStatement := `INSERT INTO user_annotation_lookup (
             job_id,
             key,
@@ -680,7 +662,7 @@ func (l *DB) CreateUserAnnotationsScalar(ctx context.Context, instructions []*mo
 				i.Queue,
 				i.Jobset)
 			if err != nil {
-				l.m.RecordDBError(metrics.DBOperationInsert)
+				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		})
@@ -811,7 +793,7 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
 // in the cancelling state. If, however, the database returns a non-retryable error it will give up and simply not
 // filter out any events as the job state is undetermined.
-func (l *DB) filterEventsForCancelledJobs(
+func (l *LookoutDb) filterEventsForCancelledJobs(
 	ctx context.Context,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
@@ -856,7 +838,7 @@ func (l *DB) filterEventsForCancelledJobs(
 	}
 }
 
-func (l *DB) withDatabaseRetryInsert(executeDb func() error) error {
+func (l *LookoutDb) withDatabaseRetryInsert(executeDb func() error) error {
 	_, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
 		return nil, executeDb()
 	})
@@ -864,7 +846,7 @@ func (l *DB) withDatabaseRetryInsert(executeDb func() error) error {
 }
 
 // Executes a database function, retrying until it either succeeds or encounters a non-retryable error
-func (l *DB) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
+func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
 	// TODO: arguably this should come from config
 	backOff := 1
 	numRetries := 0
