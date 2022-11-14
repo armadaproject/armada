@@ -1,18 +1,17 @@
 package testfixtures
 
 import (
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"time"
+
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"time"
+
+	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-//
 // Standard Set of events for common tests
-//
-
 const (
 	JobIdString          = "01f3j0g1md4qx7z5qb148qnh4r"
 	RunIdString          = "123e4567-e89b-12d3-a456-426614174000"
