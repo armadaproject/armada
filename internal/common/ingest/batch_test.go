@@ -66,7 +66,6 @@ func TestBatch_MaxItems(t *testing.T) {
 }
 
 func TestBatch_Time(t *testing.T) {
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
@@ -82,7 +81,7 @@ func TestBatch_Time(t *testing.T) {
 
 	// start a goroutine that will advance the clock when we have a couple of items waiting
 	go func() {
-		var done = false
+		done := false
 		for !done {
 			select {
 			case <-ctx.Done():
@@ -104,7 +103,7 @@ func TestBatch_Time(t *testing.T) {
 }
 
 func waitForExpectedEvents(ctx context.Context, rh *resultHolder, numEvents int) {
-	var done = false
+	done := false
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for !done {
 		select {
