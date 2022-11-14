@@ -86,6 +86,35 @@ func TestBatch_Time(t *testing.T) {
 	cancel()
 }
 
+func TestBatch_Time_WithIntialQuiet(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	testClock := clock.NewFakeClock(time.Now())
+	inputChan := make(chan int)
+	result := newResultHolder()
+	batcher := NewBatcher[int](inputChan, defaultMaxItems, defaultMaxTimeOut, result.add)
+	batcher.clock = testClock
+
+	go func() {
+		batcher.Run(ctx)
+	}()
+
+	// intial quiet period
+	testClock.Step(5 * time.Second)
+
+	inputChan <- 1
+	inputChan <- 2
+	waitForBufferLength(ctx, batcher, 2)
+	testClock.Step(5 * time.Second)
+	waitForExpectedEvents(ctx, result, 1)
+	inputChan <- 3
+	inputChan <- 4
+	waitForBufferLength(ctx, batcher, 2)
+	testClock.Step(5 * time.Second)
+	waitForExpectedEvents(ctx, result, 2)
+	assert.Equal(t, [][]int{{1, 2}, {3, 4}}, result.result)
+	cancel()
+}
+
 func waitForBufferLength(ctx context.Context, batcher *Batcher[int], numEvents int) error {
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for {
