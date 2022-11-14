@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/G-Research/armada/internal/scheduleringester"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/G-Research/armada/internal/scheduleringester"
 
 	"github.com/G-Research/armada/internal/common"
 )
