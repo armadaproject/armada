@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"reflect"
 	"strings"
 
@@ -49,10 +50,15 @@ func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema stri
 }
 
 func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
+
+	if len(records) < 1 {
+		return nil
+	}
+
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.
 	// The table is created with the provided schema.
-	tempTableName := "insert"
+	tempTableName := uniqueTableName(tableName)
 	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s %s ON COMMIT DROP;", tempTableName, schema))
 	if err != nil {
 		return errors.WithStack(err)
@@ -180,4 +186,9 @@ func NamesValuesFromRecord(x interface{}) ([]string, []interface{}) {
 		}
 	}
 	return names, values
+}
+
+func uniqueTableName(table string) string {
+	suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
+	return fmt.Sprintf("%s_tmp_%s", table, suffix)
 }
