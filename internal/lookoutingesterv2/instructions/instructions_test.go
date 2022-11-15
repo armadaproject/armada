@@ -158,7 +158,7 @@ func TestConvert(t *testing.T) {
 		PriorityClass:             pointer.String(priorityClass),
 	}
 
-	var tests = map[string]struct {
+	tests := map[string]struct {
 		events   *ingest.EventSequencesWithIds
 		expected *model.InstructionSet
 	}{
@@ -176,8 +176,14 @@ func TestConvert(t *testing.T) {
 		},
 		"happy path single update": {
 			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(submit, testfixtures.Assigned, testfixtures.Running, testfixtures.JobRunSucceeded, testfixtures.JobSucceeded)},
-				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(
+					submit,
+					testfixtures.Assigned,
+					testfixtures.Running,
+					testfixtures.JobRunSucceeded,
+					testfixtures.JobSucceeded,
+				)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
 				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},

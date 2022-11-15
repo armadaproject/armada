@@ -1,6 +1,9 @@
 package lookoutingesterv2
 
 import (
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/database"
@@ -10,8 +13,6 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the

@@ -3,13 +3,11 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
-	"github.com/apache/pulsar-client-go/pulsar"
 	"sort"
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
-
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
@@ -17,6 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
+	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
