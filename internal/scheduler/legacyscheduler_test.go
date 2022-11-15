@@ -494,6 +494,7 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 					return
 				}
 				if tc.LeaseJobs {
+					scheduler.selectNodeForPod(ctx, report.JobId, report.Job, true)
 					it.Lease(report)
 				}
 				actual = append(actual, report.Job)
