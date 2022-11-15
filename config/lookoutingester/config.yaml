@@ -16,13 +16,13 @@ metrics:
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"
-  jobsetEventsTopic: "persistent://armada/armada/events"
+  jobsetEventsTopic: "events"
+  receiveTimeout: 5s
+  backofftime: 1s
 
 paralellism: 1
 subscriptionName: "lookout-ingester"
 batchSize: 10000
 batchDuration: 500ms
-pulsarReceiveTimeout: 5s
-pulsarBackoffTime: 1s
 minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"

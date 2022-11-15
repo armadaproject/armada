@@ -342,7 +342,7 @@ func TestNodePodRequirementsMet(t *testing.T) {
 				Labels:                           tc.Labels,
 				AllocatableByPriorityAndResource: tc.AvailableResources,
 			}
-			matches, _, reason, err := node.PodRequirementsMet(tc.Req, nil)
+			matches, _, reason, err := node.PodRequirementsMet(tc.Req)
 			assert.NoError(t, err)
 			if tc.ExpectSuccess { // TODO: Test score set correctly.
 				assert.True(t, matches)
