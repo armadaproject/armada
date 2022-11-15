@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
-	"math/rand"
 	"testing"
 	"time"
 )
@@ -161,12 +160,16 @@ func TestAutoIncrement(t *testing.T) {
 			return nil
 		}
 		assert.Equal(t, 2, len(actual))
-		assert.Equal(t, int64(1), actual[0].Serial)
-		assert.Equal(t, int64(2), actual[1].Serial)
+		serial1 := actual[0].Serial
+		serial2 := actual[1].Serial
+		assert.NotEqual(t, serial1, serial2)
 
 		// Update one of the records.
-		// Should automatically set the serial of the row to 3.
-		records[1].Message = "foo"
+		// Should automatically update the serial
+		records[1].Message = "fish"
+		records = []Record{
+			records[1],
+		}
 
 		err = Upsert(ctx, db, TABLE_NAME, SCHEMA, interfacesFromSlice(records))
 		if !assert.NoError(t, err) {
@@ -178,9 +181,9 @@ func TestAutoIncrement(t *testing.T) {
 			return nil
 		}
 		assert.Equal(t, 2, len(actual))
-		assert.Equal(t, int64(1), actual[0].Serial)
-		assert.Equal(t, int64(4), actual[1].Serial)
-		assert.Equal(t, records[1].Message, actual[1].Message)
+		assert.Equal(t, actual[0].Serial, serial1)
+		assert.Greater(t, actual[1].Serial, serial2)
+		assert.Equal(t, "fish", actual[1].Message)
 
 		return nil
 	})
@@ -210,7 +213,7 @@ func makeRecords(n int) []Record {
 	for i := 0; i < n; i++ {
 		vs[i] = Record{
 			Id:      uuid.New(),
-			Value:   rand.Intn(1000000),
+			Value:   i,
 			Message: uuid.NewString(),
 		}
 	}
@@ -232,21 +235,41 @@ func interfacesFromSlice[T any](vs []T) []interface{} {
 }
 
 func selectRecords(db *pgxpool.Pool) ([]Record, error) {
-	rows, err := db.Query(context.Background(), fmt.Sprintf("SELECT * FROM %s", TABLE_NAME))
+	rows, err := db.Query(context.Background(), fmt.Sprintf("SELECT id, message, value, serial  FROM %s order by value", TABLE_NAME))
 	if err != nil {
 		return nil, err
 	}
 	records := make([]Record, 0)
 	for rows.Next() {
 		record := Record{}
-		rows.Scan(&record)
+		err := rows.Scan(&record.Id, &record.Message, &record.Value, &record.Serial)
+		if err != nil {
+			return nil, err
+		}
 		records = append(records, record)
 	}
 	return records, nil
 }
 
 func withDb(action func(db *pgxpool.Pool) error) error {
-	var ddl = fmt.Sprintf("CREATE TABLE %s %s", TABLE_NAME, SCHEMA)
-	println(ddl)
-	return WithTestDb([]Migration{NewMigration(1, "init", ddl)}, action)
+	var createTable = fmt.Sprintf("CREATE TABLE %s %s", TABLE_NAME, SCHEMA)
+	var addTrigger = fmt.Sprintf(
+		`CREATE OR REPLACE FUNCTION trg_increment_serial()
+				RETURNS trigger
+				LANGUAGE plpgsql AS
+				$func$
+				BEGIN
+				NEW.serial := nextval(CONCAT(TG_TABLE_SCHEMA, '.', TG_TABLE_NAME, '_serial_seq'));
+				RETURN NEW;
+				END
+				$func$;
+			
+				CREATE TRIGGER next_serial
+				BEFORE INSERT or UPDATE ON %s
+				FOR EACH ROW
+				EXECUTE FUNCTION trg_increment_serial();`, TABLE_NAME)
+	return WithTestDb([]Migration{
+		NewMigration(1, "init", createTable),
+		NewMigration(2, "trigger", addTrigger),
+	}, action)
 }
