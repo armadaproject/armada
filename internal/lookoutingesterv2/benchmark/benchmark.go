@@ -49,11 +49,12 @@ func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngester
 		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
 	}
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
+		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
 		b.StartTimer()
-
-		ldb.Update(context.TODO(), instructions)
-
+		err := ldb.Store(context.TODO(), instructions)
+		if err != nil {
+			panic(err)
+		}
 		b.StopTimer()
 	})
 }
@@ -66,11 +67,12 @@ func benchmarkSubmissions10000(b *testing.B, config configuration.LookoutIngeste
 		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
 	}
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
+		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
 		b.StartTimer()
-
-		ldb.Update(context.TODO(), instructions)
-
+		err := ldb.Store(context.TODO(), instructions)
+		if err != nil {
+			panic(err)
+		}
 		b.StopTimer()
 	})
 }
@@ -96,12 +98,16 @@ func benchmarkUpdates1000(b *testing.B, config configuration.LookoutIngesterV2Co
 	}
 
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
-		ldb.Update(context.TODO(), initialInstructions)
+		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
+		err := ldb.Store(context.TODO(), initialInstructions)
+		if err != nil {
+			panic(err)
+		}
 		b.StartTimer()
-
-		ldb.Update(context.TODO(), instructions)
-
+		err = ldb.Store(context.TODO(), instructions)
+		if err != nil {
+			panic(err)
+		}
 		b.StopTimer()
 	})
 }
@@ -127,12 +133,16 @@ func benchmarkUpdates10000(b *testing.B, config configuration.LookoutIngesterV2C
 	}
 
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.New(db, metrics.Get(), 2, 10)
-		ldb.Update(context.TODO(), initialInstructions)
+		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
+		err := ldb.Store(context.TODO(), initialInstructions)
+		if err != nil {
+			panic(err)
+		}
 		b.StartTimer()
-
-		ldb.Update(context.TODO(), instructions)
-
+		err = ldb.Store(context.TODO(), instructions)
+		if err != nil {
+			panic(err)
+		}
 		b.StopTimer()
 	})
 }

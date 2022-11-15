@@ -1,14 +1,12 @@
 package instructions
 
 import (
-	"math/rand"
+	"context"
 	"testing"
-	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
@@ -16,601 +14,421 @@ import (
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-// Mock Pulsar Message with implementations only for the functions we care about
-
-//
-// Standard Set of events for common tests
-//
-
 const (
-	jobIdString          = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString          = "123e4567-e89b-12d3-a456-426614174000"
+	cpu                  = 12500
+	memory               = 2000 * 1024 * 1024 * 1024
+	ephemeralStorage     = 3000 * 1024 * 1024 * 1024
+	gpu                  = 8
+	priorityClass        = "default"
 	userAnnotationPrefix = "test_prefix/"
 )
 
-var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
-)
+var expectedLeased = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(database.JobPendingOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+	LatestRunId:               pointer.String(testfixtures.RunIdString),
+}
 
-const (
-	jobSetName       = "testJobset"
-	cpu              = 12500
-	memory           = 2000 * 1024 * 1024 * 1024
-	ephemeralStorage = 3000 * 1024 * 1024 * 1024
-	gpu              = 8
-	executorId       = "testCluster"
-	nodeName         = "testNode"
-	podName          = "test-pod"
-	queue            = "test-queue"
-	userId           = "testUser"
-	namespace        = "test-ns"
-	priority         = 3
-	newPriority      = 4
-	priorityClass    = "default"
-	podNumber        = 6
-	errMsg           = "sample error message"
-	exitCode         = 322
-	leaseReturnedMsg = "lease returned error message"
-)
+var expectedRunning = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(database.JobRunningOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+	LatestRunId:               pointer.String(testfixtures.RunIdString),
+}
 
-var baseTime, _ = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+var expectedLeasedRun = model.CreateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	JobId:       testfixtures.JobIdString,
+	Cluster:     testfixtures.ExecutorId,
+	Pending:     testfixtures.BaseTime,
+	JobRunState: database.JobRunPendingOrdinal,
+}
 
-// Submit
-var submit = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_SubmitJob{
-		SubmitJob: &armadaevents.SubmitJob{
-			JobId:    jobIdProto,
-			Priority: priority,
-			ObjectMeta: &armadaevents.ObjectMeta{
-				Namespace: namespace,
-				Name:      "test-job",
+var expectedRunningRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Node:        pointer.String(testfixtures.NodeName),
+	Started:     &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(database.JobRunRunningOrdinal),
+}
+
+var expectedJobRunSucceeded = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(database.JobRunSucceededOrdinal),
+	ExitCode:    pointer.Int32(0),
+}
+
+var expectedJobSucceeded = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(database.JobSucceededOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+}
+
+var expectedJobCancelled = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(database.JobCancelledOrdinal),
+	Cancelled:                 &testfixtures.BaseTime,
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+}
+
+var expectedJobReprioritised = model.UpdateJobInstruction{
+	JobId:    testfixtures.JobIdString,
+	Priority: pointer.Int64(testfixtures.NewPriority),
+}
+
+var expectedFailed = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(database.JobFailedOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+}
+
+var expectedFailedRun = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Node:        pointer.String(testfixtures.NodeName),
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(database.JobRunFailedOrdinal),
+	Error:       []byte(testfixtures.ErrMsg),
+	ExitCode:    pointer.Int32(testfixtures.ExitCode),
+}
+
+var expectedTerminated = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Node:        pointer.String(testfixtures.NodeName),
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(database.JobRunTerminatedOrdinal),
+	Error:       []byte(testfixtures.TerminatedMsg),
+}
+
+var expectedUnschedulable = model.UpdateJobRunInstruction{
+	RunId:       testfixtures.RunIdString,
+	Node:        pointer.String(testfixtures.NodeName),
+	Finished:    &testfixtures.BaseTime,
+	JobRunState: pointer.Int32(database.JobRunUnableToScheduleOrdinal),
+	Error:       []byte(testfixtures.UnschedulableMsg),
+}
+
+func TestConvert(t *testing.T) {
+	submit, err := testfixtures.DeepCopy(testfixtures.Submit)
+	assert.NoError(t, err)
+	resources := map[v1.ResourceName]resource.Quantity{
+		"cpu":               resource.MustParse("12500m"),
+		"memory":            resource.MustParse("2000Gi"),
+		"ephemeral-storage": resource.MustParse("3000Gi"),
+		"nvidia.com/gpu":    resource.MustParse("8"),
+	}
+	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().Containers[0].Resources = v1.ResourceRequirements{
+		Limits:   resources,
+		Requests: resources,
+	}
+	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = priorityClass
+	job, err := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submit.GetSubmitJob())
+	assert.NoError(t, err)
+	jobProto, err := proto.Marshal(job)
+	assert.NoError(t, err)
+
+	expectedSubmit := &model.CreateJobInstruction{
+		JobId:                     testfixtures.JobIdString,
+		Queue:                     testfixtures.Queue,
+		Owner:                     testfixtures.UserId,
+		JobSet:                    testfixtures.JobSetName,
+		Cpu:                       cpu,
+		Memory:                    memory,
+		EphemeralStorage:          ephemeralStorage,
+		Gpu:                       gpu,
+		Priority:                  testfixtures.Priority,
+		Submitted:                 testfixtures.BaseTime,
+		State:                     database.JobQueuedOrdinal,
+		LastTransitionTime:        testfixtures.BaseTime,
+		LastTransitionTimeSeconds: testfixtures.BaseTime.Unix(),
+		JobProto:                  jobProto,
+		PriorityClass:             pointer.String(priorityClass),
+	}
+
+	var tests = map[string]struct {
+		events   *ingest.EventSequencesWithIds
+		expected *model.InstructionSet
+	}{
+		"submit": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(submit)},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+				},
 			},
-			MainObject: &armadaevents.KubernetesMainObject{
-				Object: &armadaevents.KubernetesMainObject_PodSpec{
-					PodSpec: &armadaevents.PodSpecWithAvoidList{
-						PodSpec: &v1.PodSpec{
-							PriorityClassName: priorityClass,
-							Containers: []v1.Container{
+			expected: &model.InstructionSet{
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"happy path single update": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(submit, testfixtures.Assigned, testfixtures.Running, testfixtures.JobRunSucceeded, testfixtures.JobSucceeded)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"happy path multi update": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(submit),
+					testfixtures.NewEventSequence(testfixtures.Assigned),
+					testfixtures.NewEventSequence(testfixtures.Running),
+					testfixtures.NewEventSequence(testfixtures.JobRunSucceeded),
+					testfixtures.NewEventSequence(testfixtures.JobSucceeded),
+				},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+					pulsarutils.NewMessageId(2),
+					pulsarutils.NewMessageId(3),
+					pulsarutils.NewMessageId(4),
+					pulsarutils.NewMessageId(5),
+				},
+			},
+			expected: &model.InstructionSet{
+				JobsToCreate:    []*model.CreateJobInstruction{expectedSubmit},
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedRunning, &expectedJobSucceeded},
+				JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+					pulsarutils.NewMessageId(2),
+					pulsarutils.NewMessageId(3),
+					pulsarutils.NewMessageId(4),
+					pulsarutils.NewMessageId(5),
+				},
+			},
+		},
+		"cancelled": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobCancelled)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"reprioritized": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobReprioritised)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run failed": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunFailed)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRun},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job failed": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobFailed)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedFailed},
+				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"terminated": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunTerminated)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedTerminated},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"unschedulable": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobRunUnschedulable)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"job run failed with null char in error": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+					Created: &testfixtures.BaseTime,
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{
+						JobRunErrors: &armadaevents.JobRunErrors{
+							JobId: testfixtures.JobIdProto,
+							RunId: testfixtures.RunIdProto,
+							Errors: []*armadaevents.Error{
 								{
-									Name:    "container1",
-									Image:   "alpine:latest",
-									Command: []string{"myprogram.sh"},
-									Args:    []string{"foo", "bar"},
-									Resources: v1.ResourceRequirements{
-										Limits: map[v1.ResourceName]resource.Quantity{
-											"cpu":               resource.MustParse("12500m"),
-											"memory":            resource.MustParse("2000Gi"),
-											"ephemeral-storage": resource.MustParse("3000Gi"),
-											"nvidia.com/gpu":    resource.MustParse("8"),
-										},
-										Requests: map[v1.ResourceName]resource.Quantity{
-											"cpu":               resource.MustParse("12500m"),
-											"memory":            resource.MustParse("2000Gi"),
-											"ephemeral-storage": resource.MustParse("3000Gi"),
-											"nvidia.com/gpu":    resource.MustParse("8"),
+									Terminal: true,
+									Reason: &armadaevents.Error_PodError{
+										PodError: &armadaevents.PodError{
+											Message:  "error message with null char \000",
+											NodeName: testfixtures.NodeName,
+											ContainerErrors: []*armadaevents.ContainerError{
+												{ExitCode: 42},
+											},
 										},
 									},
 								},
 							},
 						},
 					},
-				},
+				})},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+					RunId:       testfixtures.RunIdString,
+					Node:        pointer.String(testfixtures.NodeName),
+					Finished:    &testfixtures.BaseTime,
+					JobRunState: pointer.Int32(database.JobRunFailedOrdinal),
+					Error:       []byte("error message with null char "),
+					ExitCode:    pointer.Int32(42),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-	},
-}
-
-// Assigned
-var assigned = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
-		JobRunAssigned: &armadaevents.JobRunAssigned{
-			RunId: runIdProto,
-			JobId: jobIdProto,
-			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
-				{
-					ObjectMeta: &armadaevents.ObjectMeta{
-						KubernetesId: runIdString,
-						Name:         podName,
-						Namespace:    namespace,
-						ExecutorId:   executorId,
-					},
-					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
-						PodInfo: &armadaevents.PodInfo{
-							PodNumber: podNumber,
+		"invalid event without job id or run id": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+						Created: &testfixtures.BaseTime,
+						Event: &armadaevents.EventSequence_Event_JobRunRunning{
+							JobRunRunning: &armadaevents.JobRunRunning{},
 						},
-					},
+					}),
+					testfixtures.NewEventSequence(submit),
+				},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+					pulsarutils.NewMessageId(2),
+				},
+			},
+			expected: &model.InstructionSet{
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+					pulsarutils.NewMessageId(2),
 				},
 			},
 		},
-	},
-}
-
-// Running
-var running = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobRunRunning{
-		JobRunRunning: &armadaevents.JobRunRunning{
-			RunId: runIdProto,
-			JobId: jobIdProto,
-			ResourceInfos: []*armadaevents.KubernetesResourceInfo{
-				{
-					Info: &armadaevents.KubernetesResourceInfo_PodInfo{
-						PodInfo: &armadaevents.PodInfo{
-							NodeName:  nodeName,
-							PodNumber: podNumber,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// Succeeded
-var jobRunSucceeded = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
-		JobRunSucceeded: &armadaevents.JobRunSucceeded{
-			RunId: runIdProto,
-			JobId: jobIdProto,
-		},
-	},
-}
-
-// Cancelled
-var jobCancelled = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_CancelledJob{
-		CancelledJob: &armadaevents.CancelledJob{
-			JobId: jobIdProto,
-		},
-	},
-}
-
-// Reprioritised
-var jobReprioritised = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
-		ReprioritisedJob: &armadaevents.ReprioritisedJob{
-			JobId:    jobIdProto,
-			Priority: newPriority,
-		},
-	},
-}
-
-// Job Failed
-var jobFailed = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobErrors{
-		JobErrors: &armadaevents.JobErrors{
-			JobId: jobIdProto,
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: true,
-					Reason: &armadaevents.Error_PodError{
-						PodError: &armadaevents.PodError{
-							Message:  errMsg,
-							NodeName: nodeName,
-							ContainerErrors: []*armadaevents.ContainerError{
-								{ExitCode: exitCode},
+		"invalid event without created time": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{
+					testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
+						Event: &armadaevents.EventSequence_Event_JobRunRunning{
+							JobRunRunning: &armadaevents.JobRunRunning{
+								RunId: testfixtures.RunIdProto,
+								JobId: testfixtures.JobIdProto,
+								ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+									{
+										Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+											PodInfo: &armadaevents.PodInfo{
+												NodeName:  testfixtures.NodeName,
+												PodNumber: testfixtures.PodNumber,
+											},
+										},
+									},
+								},
 							},
 						},
-					},
+					}),
+					testfixtures.NewEventSequence(submit),
+				},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+					pulsarutils.NewMessageId(2),
+				},
+			},
+			expected: &model.InstructionSet{
+				JobsToCreate: []*model.CreateJobInstruction{expectedSubmit},
+				MessageIds: []pulsar.MessageID{
+					pulsarutils.NewMessageId(1),
+					pulsarutils.NewMessageId(2),
 				},
 			},
 		},
-	},
-}
-
-// Job Run Failed
-var jobRunFailed = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId: jobIdProto,
-			RunId: runIdProto,
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: true,
-					Reason: &armadaevents.Error_PodError{
-						PodError: &armadaevents.PodError{
-							Message:  errMsg,
-							NodeName: nodeName,
-							ContainerErrors: []*armadaevents.ContainerError{
-								{ExitCode: exitCode},
-							},
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-// Job Lease Returned
-var jobLeaseReturned = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobRunErrors{
-		JobRunErrors: &armadaevents.JobRunErrors{
-			JobId: jobIdProto,
-			RunId: eventutil.LegacyJobRunId(),
-			Errors: []*armadaevents.Error{
-				{
-					Terminal: true,
-					Reason: &armadaevents.Error_PodLeaseReturned{
-						PodLeaseReturned: &armadaevents.PodLeaseReturned{
-							ObjectMeta: &armadaevents.ObjectMeta{
-								ExecutorId: executorId,
-							},
-							Message: leaseReturnedMsg,
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-var jobSucceeded = &armadaevents.EventSequence_Event{
-	Event: &armadaevents.EventSequence_Event_JobSucceeded{
-		JobSucceeded: &armadaevents.JobSucceeded{
-			JobId: jobIdProto,
-		},
-	},
-}
-
-var (
-	expectedApiJob, _      = eventutil.ApiJobFromLogSubmitJob(userId, []string{}, queue, jobSetName, baseTime, submit.GetSubmitJob())
-	expectedApiJobProto, _ = proto.Marshal(expectedApiJob)
-)
-
-// Standard Set of expected rows for common tests
-var expectedSubmit = model.CreateJobInstruction{
-	JobId:                     jobIdString,
-	Queue:                     queue,
-	Owner:                     userId,
-	JobSet:                    jobSetName,
-	Cpu:                       cpu,
-	Memory:                    memory,
-	EphemeralStorage:          ephemeralStorage,
-	Gpu:                       gpu,
-	Priority:                  priority,
-	Submitted:                 baseTime,
-	State:                     database.JobQueuedOrdinal,
-	LastTransitionTime:        baseTime,
-	LastTransitionTimeSeconds: baseTime.Unix(),
-	JobProto:                  expectedApiJobProto,
-	PriorityClass:             pointer.String(priorityClass),
-}
-
-var expectedLeased = model.UpdateJobInstruction{
-	JobId:                     jobIdString,
-	State:                     pointer.Int32(database.JobPendingOrdinal),
-	LastTransitionTime:        &baseTime,
-	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-	LatestRunId:               pointer.String(runIdString),
-}
-
-var expectedRunning = model.UpdateJobInstruction{
-	JobId:                     jobIdString,
-	State:                     pointer.Int32(database.JobRunningOrdinal),
-	LastTransitionTime:        &baseTime,
-	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-	LatestRunId:               pointer.String(runIdString),
-}
-
-var expectedLeasedRun = model.CreateJobRunInstruction{
-	RunId:       runIdString,
-	JobId:       jobIdString,
-	Cluster:     executorId,
-	Pending:     baseTime,
-	JobRunState: database.JobRunPendingOrdinal,
-}
-
-var expectedRunningRun = model.UpdateJobRunInstruction{
-	RunId:       runIdString,
-	Node:        pointer.String(nodeName),
-	Started:     &baseTime,
-	JobRunState: pointer.Int32(database.JobRunRunningOrdinal),
-}
-
-var expectedJobRunSucceeded = model.UpdateJobRunInstruction{
-	RunId:       runIdString,
-	Finished:    &baseTime,
-	JobRunState: pointer.Int32(database.JobRunSucceededOrdinal),
-	ExitCode:    pointer.Int32(0),
-}
-
-var expectedJobSucceeded = model.UpdateJobInstruction{
-	JobId:                     jobIdString,
-	State:                     pointer.Int32(database.JobSucceededOrdinal),
-	LastTransitionTime:        &baseTime,
-	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-}
-
-var expectedJobCancelled = model.UpdateJobInstruction{
-	JobId:                     jobIdString,
-	State:                     pointer.Int32(database.JobCancelledOrdinal),
-	Cancelled:                 &baseTime,
-	LastTransitionTime:        &baseTime,
-	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-}
-
-var expectedJobReprioritised = model.UpdateJobInstruction{
-	JobId:    jobIdString,
-	Priority: pointer.Int64(newPriority),
-}
-
-var expectedFailed = model.UpdateJobInstruction{
-	JobId:                     jobIdString,
-	State:                     pointer.Int32(database.JobFailedOrdinal),
-	LastTransitionTime:        &baseTime,
-	LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-}
-
-var expectedFailedRun = model.UpdateJobRunInstruction{
-	RunId:       runIdString,
-	Node:        pointer.String(nodeName),
-	Finished:    &baseTime,
-	JobRunState: pointer.Int32(database.JobRunFailedOrdinal),
-	Error:       []byte(errMsg),
-	ExitCode:    pointer.Int32(exitCode),
-}
-
-// Single submit message
-func TestSubmit(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, submit)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
 	}
-	assert.Equal(t, expected, instructions)
-}
-
-// Happy path of submit -> assigned -> running -> succeeded
-// All in a single update
-// Single submit message
-func TestHappyPathSingleUpdate(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, submit, assigned, running, jobRunSucceeded, jobSucceeded)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobsToCreate:    []*model.CreateJobInstruction{&expectedSubmit},
-		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased, &expectedRunning, &expectedJobSucceeded},
-		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun, &expectedJobRunSucceeded},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+			instructionSet := converter.Convert(context.TODO(), tc.events)
+			assert.Equal(t, tc.expected, instructionSet)
+		})
 	}
-	// assert each field separately as can be tricky to see what doesn't match
-	assert.Equal(t, expected.JobsToCreate, instructions.JobsToCreate)
-	assert.Equal(t, expected.JobsToUpdate, instructions.JobsToUpdate)
-	assert.Equal(t, expected.JobRunsToCreate, instructions.JobRunsToCreate)
-	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
-	assert.Equal(t, expected.MessageIds, instructions.MessageIds)
-}
-
-func TestHappyPathMultiUpdate(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	compressor := &compress.NoOpCompressor{}
-
-	// Submit
-	msg1 := NewMsg(baseTime, submit)
-	instructions := svc.ConvertMsg(context.Background(), msg1, userAnnotationPrefix, compressor)
-	expected := &model.InstructionSet{
-		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg1.Message.ID(), 0, msg1.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-
-	// Leased
-	msg2 := NewMsg(baseTime, assigned)
-	instructions = svc.ConvertMsg(context.Background(), msg2, userAnnotationPrefix, compressor)
-	expected = &model.InstructionSet{
-		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedLeased},
-		JobRunsToCreate: []*model.CreateJobRunInstruction{&expectedLeasedRun},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg2.Message.ID(), 0, msg2.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-
-	// Running
-	msg3 := NewMsg(baseTime, running)
-	instructions = svc.ConvertMsg(context.Background(), msg3, userAnnotationPrefix, compressor)
-	expected = &model.InstructionSet{
-		JobsToUpdate:    []*model.UpdateJobInstruction{&expectedRunning},
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedRunningRun},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg3.Message.ID(), 0, msg3.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-
-	// Run Succeeded
-	msg4 := NewMsg(baseTime, jobRunSucceeded)
-	instructions = svc.ConvertMsg(context.Background(), msg4, userAnnotationPrefix, compressor)
-	expected = &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedJobRunSucceeded},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg4.Message.ID(), 0, msg4.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-
-	// Job Succeeded
-	msg5 := NewMsg(baseTime, jobSucceeded)
-	instructions = svc.ConvertMsg(context.Background(), msg5, userAnnotationPrefix, compressor)
-	expected = &model.InstructionSet{
-		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobSucceeded},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg5.Message.ID(), 0, msg5.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-func TestCancelled(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, jobCancelled)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-func TestReprioritised(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, jobReprioritised)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobReprioritised},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-func TestJobRunFailed(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, jobRunFailed)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedFailedRun},
-		MessageIds:      []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-func TestJobFailed(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, jobFailed)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobsToUpdate: []*model.UpdateJobInstruction{&expectedFailed},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
 }
 
 func TestFailedWithMissingRunId(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, jobLeaseReturned)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+	instructions := converter.Convert(context.Background(), &ingest.EventSequencesWithIds{
+		EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobLeaseReturned)},
+		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+	})
 	jobRun := instructions.JobRunsToCreate[0]
 	assert.NotEqual(t, eventutil.LEGACY_RUN_ID, jobRun.RunId)
 	expected := &model.InstructionSet{
 		JobRunsToCreate: []*model.CreateJobRunInstruction{
 			{
-				JobId:       jobIdString,
+				JobId:       testfixtures.JobIdString,
 				RunId:       jobRun.RunId,
-				Cluster:     executorId,
-				Pending:     baseTime,
+				Cluster:     testfixtures.ExecutorId,
+				Pending:     testfixtures.BaseTime,
 				JobRunState: database.JobRunPendingOrdinal,
 			},
 		},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{
 			{
 				RunId:       jobRun.RunId,
-				Started:     &baseTime,
-				Finished:    &baseTime,
+				Started:     &testfixtures.BaseTime,
+				Finished:    &testfixtures.BaseTime,
 				JobRunState: pointer.Int32(database.JobRunLeaseReturnedOrdinal),
-				Error:       []byte(leaseReturnedMsg),
+				Error:       []byte(testfixtures.LeaseReturnedMsg),
 			},
 		},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
+		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
 
-func TestHandlePodTerminated(t *testing.T) {
-	terminatedMsg := "test pod terminated msg"
-
-	podTerminated := &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: true,
-						Reason: &armadaevents.Error_PodTerminated{
-							PodTerminated: &armadaevents.PodTerminated{
-								NodeName: nodeName,
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: executorId,
-								},
-								Message: terminatedMsg,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, podTerminated)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:       runIdString,
-			Node:        pointer.String(nodeName),
-			Finished:    &baseTime,
-			JobRunState: pointer.Int32(database.JobRunTerminatedOrdinal),
-			Error:       []byte(terminatedMsg),
-		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-func TestHandlePodUnschedulable(t *testing.T) {
-	unschedulableMsg := "test pod unschedulable msg"
-
-	podUnschedulable := &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: true,
-						Reason: &armadaevents.Error_PodUnschedulable{
-							PodUnschedulable: &armadaevents.PodUnschedulable{
-								NodeName: nodeName,
-								ObjectMeta: &armadaevents.ObjectMeta{
-									ExecutorId: executorId,
-								},
-								Message: unschedulableMsg,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, podUnschedulable)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:       runIdString,
-			Node:        pointer.String(nodeName),
-			Finished:    &baseTime,
-			JobRunState: pointer.Int32(database.JobRunUnableToScheduleOrdinal),
-			Error:       []byte(unschedulableMsg),
-		}},
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
 func TestSubmitWithNullChar(t *testing.T) {
-	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
-		Created: &baseTime,
+	submit := &armadaevents.EventSequence_Event{
+		Created: &testfixtures.BaseTime,
 		Event: &armadaevents.EventSequence_Event_SubmitJob{
 			SubmitJob: &armadaevents.SubmitJob{
-				JobId:           jobIdProto,
+				JobId:           testfixtures.JobIdProto,
 				DeduplicationId: "",
 				Priority:        0,
 				ObjectMeta: &armadaevents.ObjectMeta{
-					Namespace: namespace,
+					Namespace: testfixtures.Namespace,
 				},
 				MainObject: &armadaevents.KubernetesMainObject{
 					Object: &armadaevents.KubernetesMainObject_PodSpec{
@@ -629,121 +447,42 @@ func TestSubmitWithNullChar(t *testing.T) {
 				},
 			},
 		},
-	})
+	}
 
-	svc := NewInstructionConverter(metrics.Get())
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
+	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+	instructions := converter.Convert(context.Background(), &ingest.EventSequencesWithIds{
+		EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(submit)},
+		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+	})
 	assert.Len(t, instructions.JobsToCreate, 1)
 	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
-}
-
-func TestFailedWithNullCharInError(t *testing.T) {
-	msg := NewMsg(baseTime, &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunErrors{
-			JobRunErrors: &armadaevents.JobRunErrors{
-				JobId: jobIdProto,
-				RunId: runIdProto,
-				Errors: []*armadaevents.Error{
-					{
-						Terminal: true,
-						Reason: &armadaevents.Error_PodError{
-							PodError: &armadaevents.PodError{
-								Message:  "error message with null char \000",
-								NodeName: nodeName,
-								ContainerErrors: []*armadaevents.ContainerError{
-									{ExitCode: 42},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	})
-
-	svc := NewInstructionConverter(metrics.Get())
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expectedJobRunsToUpdate := []*model.UpdateJobRunInstruction{
-		{
-			RunId:       runIdString,
-			Node:        pointer.String(nodeName),
-			Finished:    &baseTime,
-			JobRunState: pointer.Int32(database.JobRunFailedOrdinal),
-			Error:       []byte("error message with null char "),
-			ExitCode:    pointer.Int32(42),
-		},
-	}
-	assert.Equal(t, expectedJobRunsToUpdate, instructions.JobRunsToUpdate)
-}
-
-func TestInvalidEvent(t *testing.T) {
-	// This event is invalid as it doesn't have a job id or a run id
-	invalidEvent := &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunRunning{
-			JobRunRunning: &armadaevents.JobRunRunning{},
-		},
-	}
-
-	// Check that the (valid) Submit is processed, but the invalid message is discarded
-	svc := NewInstructionConverter(metrics.Get())
-	msg := NewMsg(baseTime, invalidEvent, submit)
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
-		MessageIds:   []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
-}
-
-// This message is invalid as it has no payload
-// Assert that the update just contains the messageId, so we can ack it
-func TestInvalidMessage(t *testing.T) {
-	svc := NewInstructionConverter(metrics.Get())
-	msg := &pulsarutils.ConsumerMessage{Message: pulsarutils.EmptyPulsarMessage(3, time.Now()), ConsumerId: 3}
-	instructions := svc.ConvertMsg(context.Background(), msg, userAnnotationPrefix, &compress.NoOpCompressor{})
-	expected := &model.InstructionSet{
-		MessageIds: []*pulsarutils.ConsumerMessageId{{msg.Message.ID(), 0, msg.ConsumerId}},
-	}
-	assert.Equal(t, expected, instructions)
 }
 
 func TestAnnotations(t *testing.T) {
 	annotations := map[string]string{userAnnotationPrefix + "a": "b", "1": "2"}
 	expected := []*model.CreateUserAnnotationInstruction{
 		{
-			JobId:  jobIdString,
+			JobId:  testfixtures.JobIdString,
 			Key:    "1",
 			Value:  "2",
-			Queue:  queue,
-			Jobset: jobSetName,
+			Queue:  testfixtures.Queue,
+			Jobset: testfixtures.JobSetName,
 		},
 		{
-			JobId:  jobIdString,
+			JobId:  testfixtures.JobIdString,
 			Key:    "a",
 			Value:  "b",
-			Queue:  queue,
-			Jobset: jobSetName,
+			Queue:  testfixtures.Queue,
+			Jobset: testfixtures.JobSetName,
 		},
 	}
-	annotationInstructions := extractAnnotations(jobIdString, queue, jobSetName, annotations, userAnnotationPrefix)
+	annotationInstructions := extractAnnotations(testfixtures.JobIdString, testfixtures.Queue, testfixtures.JobSetName, annotations, userAnnotationPrefix)
 	assert.Equal(t, expected, annotationInstructions)
 }
 
 func TestExtractNodeName(t *testing.T) {
 	podError := armadaevents.PodError{}
 	assert.Nil(t, extractNodeName(&podError))
-	podError.NodeName = nodeName
-	assert.Equal(t, pointer.String(nodeName), extractNodeName(&podError))
-}
-
-func NewMsg(publishTime time.Time, event ...*armadaevents.EventSequence_Event) *pulsarutils.ConsumerMessage {
-	seq := &armadaevents.EventSequence{
-		Queue:      queue,
-		JobSetName: jobSetName,
-		Events:     event,
-		UserId:     userId,
-	}
-	payload, _ := proto.Marshal(seq)
-	messageSeq := rand.Int()
-	return &pulsarutils.ConsumerMessage{Message: pulsarutils.NewPulsarMessage(messageSeq, publishTime, payload), ConsumerId: messageSeq}
+	podError.NodeName = testfixtures.NodeName
+	assert.Equal(t, pointer.String(testfixtures.NodeName), extractNodeName(&podError))
 }

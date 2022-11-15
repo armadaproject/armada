@@ -66,6 +66,11 @@ func (c *InstructionConverter) convertSequence(
 	owner := sequence.UserId
 	for idx, event := range sequence.Events {
 		var err error
+		if event.Created == nil {
+			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+			log.WithError(err).Warnf("Missing timestamp for event at index %d.", idx)
+			continue
+		}
 		ts := *event.Created
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
@@ -128,16 +133,16 @@ func (c *InstructionConverter) handleSubmitJob(
 
 		jobProtoUncompressed, err := proto.Marshal(apiJob)
 		if err != nil {
-			log.Warnf("Couldn't marshall job %c in jobset %c as json.  %+v", jobId, jobSet, err)
+			log.Warnf("Couldn't marshall job %s in jobset %s as json.  %+v", jobId, jobSet, err)
 		}
 
 		jobProto, err = c.compressor.Compress(jobProtoUncompressed)
 		if err != nil {
-			log.Warnf("Couldn't compress proto for job %c in jobset %c as json.  %+v", jobId, jobSet, err)
+			log.Warnf("Couldn't compress proto for job %s in jobset %s as json.  %+v", jobId, jobSet, err)
 		}
 	} else {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		log.Warnf("Couldn't convert job event for job %c in jobset %c to api job.  %+v", jobId, jobSet, err)
+		log.Warnf("Couldn't convert job event for job %s in jobset %s to api job.  %+v", jobId, jobSet, err)
 	}
 
 	resources := getJobResources(apiJob)
