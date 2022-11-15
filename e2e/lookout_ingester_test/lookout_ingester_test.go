@@ -67,34 +67,38 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
 		defer cancelFunc()
 
-		var jobGood bool
-		var jobRunGood bool
+		jst := NewJobStateTracker(jobId, db)
+		jrt := NewJobRunTracker(jobId, db)
 
 		for {
 			select {
-			case <-jobUpdateListener.NotificationChannel():
-				// TODO: Abstract this a bit.
-				pJob := &PartialJob{}
-				row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1 AND state = $2", jobId, repository.JobSucceededOrdinal)
-				if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
-					continue
+			case notification := <-jobUpdateListener.NotificationChannel():
+				if notification.Extra == jobId {
+					err := jst.ScanRow()
+					assert.NoError(t, err)
 				}
-				assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
-				jobGood = true
-			case <-jobRunUpdateListener.NotificationChannel():
-				pJobRun := &PartialJobRun{}
-				row := db.QueryRow("SELECT run_id,job_id,cluster,succeeded,pod_number FROM job_run WHERE job_id = $1 AND finished IS NOT NULL", jobId)
-				if err := row.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber); err != nil {
-					continue
+			case notification := <-jobRunUpdateListener.NotificationChannel():
+				if notification.Extra == jobId {
+					err := jrt.Scan()
+					assert.NoError(t, err)
 				}
-				assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
-				assert.Equal(t, pJobRun.Succeeded, true)
-				jobRunGood = true
 			case <-ctx.Done():
 				return ctx.Err()
 			}
 
-			if jobGood && jobRunGood {
+			// We're gating on things that should be satisfied by entries in
+			// both job and job_run tables.
+			if jst.SeenStates[repository.JobSucceededOrdinal] && jrt.OneRun().Finished.Valid {
+				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobSucceededOrdinal])
+
+				assert.Len(t, jrt.JobRuns, 1)
+				pJobRun := jrt.OneRun()
+				assert.True(t, pJobRun.Succeeded.Valid)
+				assert.True(t, pJobRun.Succeeded.Bool)
+				assert.True(t, pJobRun.Finished.Valid)
 				return nil
 			}
 		}
@@ -137,34 +141,38 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
 		defer cancelFunc()
 
-		var jobGood bool
-		var jobRunGood bool
+		jst := NewJobStateTracker(jobId, db)
+		jrt := NewJobRunTracker(jobId, db)
 
 		for {
 			select {
-			case <-jobUpdateListener.NotificationChannel():
-				// TODO: Abstract this a bit.
-				pJob := &PartialJob{}
-				row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1 AND state = $2", jobId, repository.JobFailedOrdinal)
-				if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
-					continue
+			case notification := <-jobUpdateListener.NotificationChannel():
+				if notification.Extra == jobId {
+					err := jst.ScanRow()
+					assert.NoError(t, err)
 				}
-				assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
-				jobGood = true
-			case <-jobRunUpdateListener.NotificationChannel():
-				pJobRun := &PartialJobRun{}
-				row := db.QueryRow("SELECT run_id,job_id,cluster,succeeded,pod_number FROM job_run WHERE job_id = $1 AND finished IS NOT NULL", jobId)
-				if err := row.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber); err != nil {
-					continue
+			case notification := <-jobRunUpdateListener.NotificationChannel():
+				if notification.Extra == jobId {
+					err := jrt.Scan()
+					assert.NoError(t, err)
 				}
-				assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
-				assert.Equal(t, pJobRun.Succeeded, false)
-				jobRunGood = true
 			case <-ctx.Done():
 				return ctx.Err()
 			}
 
-			if jobGood && jobRunGood {
+			// We're gating on things that should be satisfied by entries in
+			// both job and job_run tables.
+			if jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid {
+				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
+
+				assert.Len(t, jrt.JobRuns, 1)
+				pJobRun := jrt.OneRun()
+				assert.True(t, pJobRun.Succeeded.Valid)
+				assert.False(t, pJobRun.Succeeded.Bool)
+				assert.True(t, pJobRun.Finished.Valid)
+
 				return nil
 			}
 		}
@@ -172,55 +180,89 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+type JobStateTracker struct {
+	JobId      string
+	SeenStates map[int]bool
+
+	db *sql.DB
+}
+
+func NewJobStateTracker(jobId string, db *sql.DB) *JobStateTracker {
+	return &JobStateTracker{
+		JobId:      jobId,
+		SeenStates: make(map[int]bool),
+		db:         db,
+	}
+}
+
+func (jst *JobStateTracker) ScanRow() error {
+	pJob := &PartialJob{}
+	row := jst.db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1", jst.JobId)
+	if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
+		return err
+	}
+	fmt.Printf("%v\n", pJob)
+	jst.AddState(pJob.State)
+	return nil
+}
+
+func (jst *JobStateTracker) AddState(state int) {
+	jst.SeenStates[state] = true
+}
+
 type PartialJob struct {
 	JobId string
 	State int
-}
-
-func awaitJobEntry(db *sql.DB, jobId string, pollWait time.Duration, expiresAfter time.Duration, expectedState int) (*PartialJob, error) {
-	timeout := time.Now().Add(expiresAfter)
-	pJob := &PartialJob{}
-
-	for {
-		row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1 AND state = $2", jobId, expectedState)
-		if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
-			if err == sql.ErrNoRows && time.Now().After(timeout) {
-				return nil, fmt.Errorf("Timed out waiting for job to appear in postgres in the expected state")
-			} else if err == sql.ErrNoRows {
-				time.Sleep(pollWait)
-				continue
-			}
-			return nil, err
-		}
-		return pJob, nil
-	}
 }
 
 type PartialJobRun struct {
 	RunId     string
 	JobId     string
 	Cluster   string
-	Succeeded bool
+	Succeeded sql.NullBool
 	PodNumber int
+	Finished  sql.NullTime
 }
 
-func awaitJobRunEntry(db *sql.DB, jobId string, pollWait time.Duration, expiresAfter time.Duration) (*PartialJobRun, error) {
-	timeout := time.Now().Add(expiresAfter)
-	pJobRun := &PartialJobRun{}
+type JobRunTracker struct {
+	JobId   string
+	JobRuns map[string]*PartialJobRun
 
-	for {
-		row := db.QueryRow("SELECT run_id,job_id,cluster,succeeded,pod_number FROM job_run WHERE job_id = $1 AND finished IS NOT NULL", jobId)
-		if err := row.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber); err != nil {
-			if err == sql.ErrNoRows && time.Now().After(timeout) {
-				return nil, fmt.Errorf("Timed out waiting for job run to appear in postgres")
-			} else if err == sql.ErrNoRows {
-				time.Sleep(pollWait)
-				continue
-			}
-			return nil, err
-		}
-		return pJobRun, nil
+	db *sql.DB
+}
+
+func NewJobRunTracker(jobId string, db *sql.DB) *JobRunTracker {
+	return &JobRunTracker{
+		JobId:   jobId,
+		JobRuns: make(map[string]*PartialJobRun),
+		db:      db,
 	}
+}
+
+func (jrt *JobRunTracker) Scan() error {
+	pJobRun := &PartialJobRun{}
+	rows, err := jrt.db.Query("SELECT run_id,job_id,cluster,succeeded,pod_number,finished FROM job_run WHERE job_id = $1", jrt.JobId)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		pJobRun = &PartialJobRun{}
+		if err := rows.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber, &pJobRun.Finished); err != nil {
+			return err
+		}
+		jrt.JobRuns[pJobRun.RunId] = pJobRun
+	}
+
+	return nil
+}
+
+func (jrt *JobRunTracker) OneRun() *PartialJobRun {
+	for _, pjr := range jrt.JobRuns {
+		return pjr
+	}
+	return nil
 }
 
 func connectionDetails() *client.ApiConnectionDetails {
@@ -278,7 +320,7 @@ func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest
 	assert.NoError(t, err)
 }
 
-// NOTE Some important points on trugger functions
+// NOTE Some important points on trigger functions
 // They must:
 //	- return trigger in their function signature
 //	- return OLD, NEW, or NULL (In the case of AFTER triggers, NULL is most logical)
@@ -286,8 +328,8 @@ func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest
 //  when using plpgsql language.
 const triggerNotifyFuncSql = `CREATE OR REPLACE FUNCTION %s() RETURNS trigger AS $$ 
 	BEGIN 
-		PERFORM pg_notify('%s', 'update') as notify; 
-		RETURN NULL; 
+		PERFORM pg_notify('%s', NEW.job_id) as notify; 
+		RETURN NEW; 
 	END; 
 	$$ LANGUAGE plpgsql;
 `
@@ -301,10 +343,10 @@ func createNotifyFuncs(db *sql.DB) {
 	}
 }
 
-// This will trigger once for each statement that updates a given table.
+// This will trigger for each row updated on a table.
 const updateTriggerSql = `CREATE TRIGGER %s
-	AFTER UPDATE ON %s
-	FOR EACH STATEMENT
+	AFTER INSERT OR UPDATE ON %s
+	FOR EACH ROW
 	EXECUTE FUNCTION %s();`
 
 type triggerInfo struct {
