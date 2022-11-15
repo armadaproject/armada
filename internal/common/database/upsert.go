@@ -3,10 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"reflect"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -50,7 +50,6 @@ func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema stri
 }
 
 func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
-
 	if len(records) < 1 {
 		return nil
 	}

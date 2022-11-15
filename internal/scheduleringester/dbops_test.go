@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"testing"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
+
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 )
 
 func TestMerge(t *testing.T) {

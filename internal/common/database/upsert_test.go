@@ -3,11 +3,12 @@ package database
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
 )
 
 // Used for tests.
@@ -252,8 +253,8 @@ func selectRecords(db *pgxpool.Pool) ([]Record, error) {
 }
 
 func withDb(action func(db *pgxpool.Pool) error) error {
-	var createTable = fmt.Sprintf("CREATE TABLE %s %s", TABLE_NAME, SCHEMA)
-	var addTrigger = fmt.Sprintf(
+	createTable := fmt.Sprintf("CREATE TABLE %s %s", TABLE_NAME, SCHEMA)
+	addTrigger := fmt.Sprintf(
 		`CREATE OR REPLACE FUNCTION trg_increment_serial()
 				RETURNS trigger
 				LANGUAGE plpgsql AS

@@ -4,6 +4,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"

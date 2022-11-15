@@ -5,10 +5,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
-
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -19,6 +15,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
