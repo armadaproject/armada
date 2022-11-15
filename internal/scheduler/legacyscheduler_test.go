@@ -494,6 +494,7 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 					return
 				}
 				if tc.LeaseJobs {
+					scheduler.selectNodeForPod(ctx, report.JobId, report.Job, true)
 					it.Lease(report)
 				}
 				actual = append(actual, report.Job)
@@ -839,6 +840,68 @@ func TestSchedule(t *testing.T) {
 			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{},
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1, 2, 5, 6, 7, 8, 9},
+			},
+		},
+		"per priority per queue limits equal limits": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 0.9}, // 28 cpu
+					1: {"cpu": 0.9},
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(0, 5), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+				"A": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("13"),
+						},
+					},
+					1: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("14"),
+						},
+					},
+				},
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
+		"limit hit at higher priority doesn't block jobs at lower priority": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 0.9}, // 28 cpu
+					1: {"cpu": 0.5}, // 14 cpu
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(1, 1), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+				"A": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("7"), // under limit
+						},
+					},
+					1: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("20"), // over limit
+						},
+					},
+				},
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
 			},
 		},
 		"fairness two queues": {
