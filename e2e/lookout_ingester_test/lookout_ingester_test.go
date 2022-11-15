@@ -1,11 +1,13 @@
 package lookout_ingester_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -38,6 +40,21 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 
 		createQueue(submitClient, jobRequest, t)
 
+		db, err := openPgDbTestConnection()
+		assert.NoError(t, err)
+		dbTestSetup(db)
+		defer dbTestTeardown(db)
+
+		jobUpdateListener := openTestListener(t, "job_update", func(event pq.ListenerEventType, err error) {
+			// TODO
+		})
+		defer jobUpdateListener.Close()
+
+		jobRunUpdateListener := openTestListener(t, "job_run_update", func(event pq.ListenerEventType, err error) {
+			// TODO
+		})
+		defer jobRunUpdateListener.Close()
+
 		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
 		assert.NoError(t, err)
 		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
@@ -47,20 +64,40 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 		assert.Empty(t, errStr)
 		assert.NotEmpty(t, jobId)
 
-		db, err := openPgDbTestConnection()
-		assert.NoError(t, err)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelFunc()
 
-		pJobRun, err := awaitJobRunEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter)
-		assert.NoError(t, err)
-		assert.NotNil(t, pJobRun)
-		assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
+		var jobGood bool
+		var jobRunGood bool
 
-		pJob, err := awaitJobEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter, repository.JobSucceededOrdinal)
-		assert.NoError(t, err)
-		assert.NotNil(t, pJob)
-		assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
+		for {
+			select {
+			case <-jobUpdateListener.NotificationChannel():
+				// TODO: Abstract this a bit.
+				pJob := &PartialJob{}
+				row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1 AND state = $2", jobId, repository.JobSucceededOrdinal)
+				if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
+					continue
+				}
+				assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
+				jobGood = true
+			case <-jobRunUpdateListener.NotificationChannel():
+				pJobRun := &PartialJobRun{}
+				row := db.QueryRow("SELECT run_id,job_id,cluster,succeeded,pod_number FROM job_run WHERE job_id = $1 AND finished IS NOT NULL", jobId)
+				if err := row.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber); err != nil {
+					continue
+				}
+				assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
+				assert.Equal(t, pJobRun.Succeeded, true)
+				jobRunGood = true
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 
-		return nil
+			if jobGood && jobRunGood {
+				return nil
+			}
+		}
 	})
 	assert.NoError(t, err)
 }
@@ -73,6 +110,21 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 
 		createQueue(submitClient, jobRequest, t)
 
+		db, err := openPgDbTestConnection()
+		assert.NoError(t, err)
+		dbTestSetup(db)
+		defer dbTestTeardown(db)
+
+		jobUpdateListener := openTestListener(t, "job_update", func(event pq.ListenerEventType, err error) {
+			// TODO
+		})
+		defer jobUpdateListener.Close()
+
+		jobRunUpdateListener := openTestListener(t, "job_run_update", func(event pq.ListenerEventType, err error) {
+			// TODO
+		})
+		defer jobRunUpdateListener.Close()
+
 		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
 		assert.NoError(t, err)
 		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
@@ -82,22 +134,40 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 		assert.Empty(t, errStr)
 		assert.NotEmpty(t, jobId)
 
-		db, err := openPgDbTestConnection()
-		assert.NoError(t, err)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelFunc()
 
-		pJobRun, err := awaitJobRunEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter)
-		assert.NoError(t, err)
-		assert.NotNil(t, pJobRun)
-		assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
-		assert.Equal(t, pJobRun.Succeeded, false)
+		var jobGood bool
+		var jobRunGood bool
 
-		pJob, err := awaitJobEntry(db, jobId, defaultWaits.PollWait, defaultWaits.ExpiresAfter, repository.JobFailedOrdinal)
-		assert.NoError(t, err)
-		assert.NotNil(t, pJob)
-		assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
-		assert.Equal(t, repository.JobFailedOrdinal, pJob.State)
+		for {
+			select {
+			case <-jobUpdateListener.NotificationChannel():
+				// TODO: Abstract this a bit.
+				pJob := &PartialJob{}
+				row := db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1 AND state = $2", jobId, repository.JobFailedOrdinal)
+				if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
+					continue
+				}
+				assert.Equal(t, pJob.JobId, submitResponse.JobResponseItems[0].JobId)
+				jobGood = true
+			case <-jobRunUpdateListener.NotificationChannel():
+				pJobRun := &PartialJobRun{}
+				row := db.QueryRow("SELECT run_id,job_id,cluster,succeeded,pod_number FROM job_run WHERE job_id = $1 AND finished IS NOT NULL", jobId)
+				if err := row.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber); err != nil {
+					continue
+				}
+				assert.Equal(t, pJobRun.JobId, submitResponse.JobResponseItems[0].JobId)
+				assert.Equal(t, pJobRun.Succeeded, false)
+				jobRunGood = true
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 
-		return nil
+			if jobGood && jobRunGood {
+				return nil
+			}
+		}
 	})
 	assert.NoError(t, err)
 }
@@ -160,8 +230,17 @@ func connectionDetails() *client.ApiConnectionDetails {
 	return connectionDetails
 }
 
+const testPGConnectionString = "postgresql://postgres:psw@localhost:5432/postgres?sslmode=disable"
+
 func openPgDbTestConnection() (*sql.DB, error) {
-	return sql.Open("postgres", "postgresql://postgres:psw@localhost:5432/postgres?sslmode=disable")
+	return sql.Open("postgres", testPGConnectionString)
+}
+
+func openTestListener(t *testing.T, channelName string, callback func(pq.ListenerEventType, error)) *pq.Listener {
+	listener := pq.NewListener(testPGConnectionString, 10*time.Second, time.Minute, callback)
+	err := listener.Listen(channelName)
+	assert.NoError(t, err)
+	return listener
 }
 
 // TODO: Copy paste of func from e2e/basic_test/basic_test.go, refactor
@@ -179,7 +258,7 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 						{
 							Name:  "container1",
 							Image: "alpine:3.10",
-							Args:  []string{"sleep", "1s"},
+							Args:  []string{"sleep", "5s"},
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
@@ -197,4 +276,81 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest, t *testing.T) {
 	err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
 	assert.NoError(t, err)
+}
+
+// NOTE Some important points on trugger functions
+// They must:
+//	- return trigger in their function signature
+//	- return OLD, NEW, or NULL (In the case of AFTER triggers, NULL is most logical)
+//  Also note that PERFORM discards results we don't want/use, and is only available
+//  when using plpgsql language.
+const triggerNotifyFuncSql = `CREATE OR REPLACE FUNCTION %s() RETURNS trigger AS $$ 
+	BEGIN 
+		PERFORM pg_notify('%s', 'update') as notify; 
+		RETURN NULL; 
+	END; 
+	$$ LANGUAGE plpgsql;
+`
+
+func createNotifyFuncs(db *sql.DB) {
+	for _, trigger := range testTriggers {
+		_, err := db.Exec(fmt.Sprintf(triggerNotifyFuncSql, trigger.Func(), trigger.NotifyChannel()))
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+// This will trigger once for each statement that updates a given table.
+const updateTriggerSql = `CREATE TRIGGER %s
+	AFTER UPDATE ON %s
+	FOR EACH STATEMENT
+	EXECUTE FUNCTION %s();`
+
+type triggerInfo struct {
+	Table string
+}
+
+func (ti *triggerInfo) Name() string {
+	return fmt.Sprintf("%s_update_trigger", ti.Table)
+}
+
+func (ti *triggerInfo) Func() string {
+	return fmt.Sprintf("notify_%s_update", ti.Table)
+}
+
+func (ti *triggerInfo) NotifyChannel() string {
+	return fmt.Sprintf("%s_update", ti.Table)
+}
+
+var testTriggers = []triggerInfo{
+	{"job"},
+	{"job_run"},
+}
+
+func dbTestSetup(db *sql.DB) {
+	// Just in case they're hanging around from a previous test run.
+	dropTestTriggers(db)
+	createNotifyFuncs(db)
+	createTestTriggers(db)
+}
+
+func dbTestTeardown(db *sql.DB) {
+	dropTestTriggers(db)
+}
+
+func createTestTriggers(db *sql.DB) {
+	for _, trigger := range testTriggers {
+		_, err := db.Exec(fmt.Sprintf(updateTriggerSql, trigger.Name(), trigger.Table, trigger.Func()))
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func dropTestTriggers(db *sql.DB) {
+	for _, trigger := range testTriggers {
+		// We don't care about the result. Just drop them.
+		db.Exec(fmt.Sprintf("DROP TRIGGER %s on %s", trigger.Name(), trigger.Table))
+	}
 }
