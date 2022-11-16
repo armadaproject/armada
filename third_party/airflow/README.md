@@ -36,6 +36,14 @@ python3.8 -m pip install armada-airflow
 
 From the top level of the repo, you should run `make airflow-operator`.  This will generate proto/grpc files in the jobservice folder.
 
+Airflow with the Armada operator can be run alongside the other Armada services via the localdev docker-compose 
+environment. It is manually started in this way:
+
+```
+cd localdev
+docker-compose up -d airflow
+```
+
 You can install the package via `pip3 install third_party/airflow`. 
 
 You can use our tox file that streamlines development lifecycle.  For development, you can install black, tox, mypy and flake8.
