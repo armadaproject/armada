@@ -20,8 +20,9 @@ const (
 )
 
 const (
-	ArmadaLookoutIngesterMetricsPrefix = "armada_lookout_ingester_"
-	ArmadaEventIngesterMetricsPrefix   = "armada_event_ingester_"
+	ArmadaLookoutIngesterMetricsPrefix   = "armada_lookout_ingester_"
+	ArmadaLookoutIngesterV2MetricsPrefix = "armada_lookout_ingester_v2_"
+	ArmadaEventIngesterMetricsPrefix     = "armada_event_ingester_"
 )
 
 type Metrics struct {

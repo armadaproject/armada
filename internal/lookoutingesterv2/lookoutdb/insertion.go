@@ -14,26 +14,27 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 )
 
 type LookoutDb struct {
-	db      *pgxpool.Pool
-	metrics *metrics.Metrics
+	db          *pgxpool.Pool
+	metrics     *metrics.Metrics
+	maxAttempts int
+	maxBackoff  int
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model.InstructionSet] {
-	return &LookoutDb{db: db, metrics: metrics}
+func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxAttempts int, maxBackoff int) *LookoutDb {
+	return &LookoutDb{db: db, metrics: metrics, maxAttempts: maxAttempts, maxBackoff: maxBackoff}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
 // The updates are applied in the following order:
 // * New Job Creations
 // * Job Updates, New Job Creations, New User Annotations
-// * Job Run Updates, New Job Containers
+// * Job Run Updates
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
 func (l *LookoutDb) Store(ctx context.Context, instructions *model.InstructionSet) error {
@@ -63,18 +64,8 @@ func (l *LookoutDb) Store(ctx context.Context, instructions *model.InstructionSe
 
 	wg.Wait()
 
-	// Finally, we can update the job runs and container exit codes
-	wg2 := sync.WaitGroup{}
-	wg2.Add(2)
-	go func() {
-		defer wg2.Done()
-		l.UpdateJobRuns(ctx, jobRunsToUpdate)
-	}()
-	go func() {
-		defer wg2.Done()
-		l.CreateJobRunContainers(ctx, instructions.JobRunContainersToCreate)
-	}()
-	wg2.Wait()
+	// Finally, we can update the job runs
+	l.UpdateJobRuns(ctx, jobRunsToUpdate)
 	return nil
 }
 
@@ -84,7 +75,7 @@ func (l *LookoutDb) CreateJobs(ctx context.Context, instructions []*model.Create
 	}
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Creating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobsScalar(ctx, instructions)
 	}
 }
@@ -93,10 +84,10 @@ func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.Update
 	if len(instructions) == 0 {
 		return
 	}
-	instructions = filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
+	instructions = l.filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobsScalar(ctx, instructions)
 	}
 }
@@ -107,7 +98,7 @@ func (l *LookoutDb) CreateJobRuns(ctx context.Context, instructions []*model.Cre
 	}
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Creating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobRunsScalar(ctx, instructions)
 	}
 }
@@ -118,7 +109,7 @@ func (l *LookoutDb) UpdateJobRuns(ctx context.Context, instructions []*model.Upd
 	}
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Updating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
 }
@@ -129,39 +120,34 @@ func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*m
 	}
 	err := l.CreateUserAnnotationsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateUserAnnotationsScalar(ctx, instructions)
 	}
 }
 
-func (l *LookoutDb) CreateJobRunContainers(ctx context.Context, instructions []*model.CreateJobRunContainerInstruction) {
-	if len(instructions) == 0 {
-		return
-	}
-	err := l.CreateJobRunContainersBatch(ctx, instructions)
-	if err != nil {
-		log.Warnf("Creating job run containers via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
-		l.CreateJobRunContainersScalar(ctx, instructions)
-	}
-}
-
 func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJobInstruction) error {
-	return withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s 
 				(
-				  job_id 	varchar(32),
-				  queue     varchar(512),
-				  owner     varchar(512),
-				  jobset    varchar(1024),
-				  priority  double precision,
-	                          submitted timestamp,
-	                          orig_job_spec bytea,
-				  state     smallint,
-				  job_updated   timestamp
+					job_id 	                      varchar(32),
+					queue                        varchar(512),
+					owner                        varchar(512),
+					jobset                       varchar(1024),
+					cpu                          bigint,
+					memory                       bigint,
+					ephemeral_storage            bigint,
+					gpu                          bigint,
+					priority                     bigint,
+					submitted                    timestamp,
+					state                        smallint,
+					last_transition_time         timestamp,
+					last_transition_time_seconds bigint,
+					job_spec                     bytea,
+					priority_class               varchar(63)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -172,18 +158,40 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "queue", "owner", "jobset", "priority", "submitted", "orig_job_spec", "state", "job_updated"},
+				[]string{
+					"job_id",
+					"queue",
+					"owner",
+					"jobset",
+					"cpu",
+					"memory",
+					"ephemeral_storage",
+					"gpu",
+					"priority",
+					"submitted",
+					"state",
+					"last_transition_time",
+					"last_transition_time_seconds",
+					"job_spec",
+					"priority_class",
+				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
 						instructions[i].Queue,
 						instructions[i].Owner,
 						instructions[i].JobSet,
+						instructions[i].Cpu,
+						instructions[i].Memory,
+						instructions[i].EphemeralStorage,
+						instructions[i].Gpu,
 						instructions[i].Priority,
 						instructions[i].Submitted,
-						instructions[i].JobProto,
 						instructions[i].State,
-						instructions[i].Updated,
+						instructions[i].LastTransitionTime,
+						instructions[i].LastTransitionTimeSeconds,
+						instructions[i].JobProto,
+						instructions[i].PriorityClass,
 					}, nil
 				}),
 			)
@@ -194,7 +202,23 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`
-					INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, orig_job_spec, state, job_updated) SELECT * from %s
+					INSERT INTO job (
+						job_id,
+						queue,
+						owner,
+						jobset,
+						cpu,
+						memory,
+						ephemeral_storage,
+						gpu,
+						priority,
+						submitted,
+						state,
+						last_transition_time,
+						last_transition_time_seconds,
+						job_spec,
+						priority_class
+					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable),
 			)
 			if err != nil {
@@ -209,37 +233,68 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 
 // CreateJobsScalar will insert jobs one by one into the database
 func (l *LookoutDb) CreateJobsScalar(ctx context.Context, instructions []*model.CreateJobInstruction) {
-	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, orig_job_spec, state, job_updated)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT DO NOTHING`
+	sqlStatement := `INSERT INTO job (
+			job_id,
+			queue,
+			owner,
+			jobset,
+			cpu,
+			memory,
+			ephemeral_storage,
+			gpu,
+			priority,
+			submitted,
+			state,
+			last_transition_time,
+			last_transition_time_seconds,
+			job_spec,
+			priority_class)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.JobId, i.Queue, i.Owner, i.JobSet, i.Priority, i.Submitted, i.JobProto, i.State, i.Updated)
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.JobId,
+				i.Queue,
+				i.Owner,
+				i.JobSet,
+				i.Cpu,
+				i.Memory,
+				i.EphemeralStorage,
+				i.Gpu,
+				i.Priority,
+				i.Submitted,
+				i.State,
+				i.LastTransitionTime,
+				i.LastTransitionTimeSeconds,
+				i.JobProto,
+				i.PriorityClass)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		})
 		if err != nil {
-			log.Warnf("Create job for job %s, jobset %s failed with error %+v", i.JobId, i.JobSet, err)
+			log.WithError(err).Warnf("Create job for job %s, jobset %s failed", i.JobId, i.JobSet)
 		}
 	}
 }
 
 func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJobInstruction) error {
-	return withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE %s
-				(
-					job_id      varchar(32),
-					priority    double precision,
-					state       smallint,
-					job_updated timestamp,
-					cancelled   timestamp,
-					duplicate   bool
+				CREATE TEMPORARY TABLE %s (
+					job_id                       varchar(32),
+					priority                     bigint,
+					state                        smallint,
+					cancelled                    timestamp,
+					last_transition_time         timestamp,
+					last_transition_time_seconds bigint,
+					duplicate                    bool,
+					latest_run_id                varchar(36)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -250,15 +305,26 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "priority", "state", "job_updated", "cancelled", "duplicate"},
+				[]string{
+					"job_id",
+					"priority",
+					"state",
+					"cancelled",
+					"last_transition_time",
+					"last_transition_time_seconds",
+					"duplicate",
+					"latest_run_id",
+				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
 						instructions[i].Priority,
 						instructions[i].State,
-						instructions[i].Updated,
 						instructions[i].Cancelled,
+						instructions[i].LastTransitionTime,
+						instructions[i].LastTransitionTimeSeconds,
 						instructions[i].Duplicate,
+						instructions[i].LatestRunId,
 					}, nil
 				}),
 			)
@@ -269,13 +335,15 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`UPDATE job
-				SET
-				  priority = coalesce(tmp.priority, job.priority),
-                  state = coalesce(tmp.state, job.state),
-                  job_updated = tmp.job_updated,
-                  cancelled = coalesce(tmp.cancelled, job.cancelled),
-                  duplicate = coalesce(tmp.duplicate, job.duplicate)
-				FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
+					SET
+						priority                     = coalesce(tmp.priority, job.priority),
+						state                        = coalesce(tmp.state, job.state),
+						cancelled                    = coalesce(tmp.cancelled, job.cancelled),
+						last_transition_time         = coalesce(tmp.last_transition_time, job.last_transition_time),
+						last_transition_time_seconds = coalesce(tmp.last_transition_time_seconds, job.last_transition_time_seconds),
+						duplicate                    = coalesce(tmp.duplicate, job.duplicate),
+						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id)
+					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
@@ -289,39 +357,49 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 
 func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.UpdateJobInstruction) {
 	sqlStatement := `UPDATE job
-				SET
-				  priority = coalesce($1, priority),
-                  state = coalesce($2, state),
-                  job_updated = coalesce($3, job_updated),
-                  cancelled = coalesce($4, cancelled),
-                  duplicate = coalesce($5, duplicate)
-				WHERE job_id = $6`
+		SET
+			priority                     = coalesce($2, priority),
+			state                        = coalesce($3, state),
+			cancelled                    = coalesce($4, cancelled),
+			last_transition_time         = coalesce($5, job.last_transition_time),
+			last_transition_time_seconds = coalesce($6, job.last_transition_time_seconds),
+			duplicate                    = coalesce($7, duplicate),
+			latest_run_id                = coalesce($8, job.latest_run_id)
+		WHERE job_id = $1`
 	for _, i := range instructions {
-		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.JobId,
+				i.Priority,
+				i.State,
+				i.Cancelled,
+				i.LastTransitionTime,
+				i.LastTransitionTimeSeconds,
+				i.Duplicate,
+				i.LatestRunId)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
 			return err
 		})
 		if err != nil {
-			log.Warnf("Updating job %s failed with error %+v", i.JobId, err)
+			log.WithError(err).Warnf("Updating job %s failed", i.JobId)
 		}
 	}
 }
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx context.Context, instructions []*model.CreateJobRunInstruction) error {
-	return withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s
-				(
-				  run_id  varchar(36),
-                  job_id  varchar(32),
-				  cluster varchar(512),
-				  created timestamp
+				CREATE TEMPORARY TABLE  %s (
+					run_id        varchar(36),
+					job_id        varchar(32),
+					cluster       varchar(512),
+					pending       timestamp,
+					job_run_state smallint
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -332,13 +410,20 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx context.Context, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"run_id", "job_id", "created", "cluster"},
+				[]string{
+					"run_id",
+					"job_id",
+					"cluster",
+					"pending",
+					"job_run_state",
+				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].RunId,
 						instructions[i].JobId,
-						instructions[i].Created,
 						instructions[i].Cluster,
+						instructions[i].Pending,
+						instructions[i].JobRunState,
 					}, nil
 				}),
 			)
@@ -349,7 +434,13 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx context.Context, instructions []*mode
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`
-					INSERT INTO job_run (run_id, job_id, cluster, created) SELECT * from %s
+					INSERT INTO job_run (
+						run_id,
+						job_id,
+						cluster,
+						pending,
+						job_run_state
+					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
@@ -361,41 +452,47 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx context.Context, instructions []*mode
 }
 
 func (l *LookoutDb) CreateJobRunsScalar(ctx context.Context, instructions []*model.CreateJobRunInstruction) {
-	sqlStatement := `INSERT INTO job_run (run_id, job_id, created, cluster)
-		 VALUES ($1, $2, $3, $4)
-         ON CONFLICT DO NOTHING`
+	sqlStatement := `INSERT INTO job_run (
+			run_id,
+			job_id,
+			cluster,
+			pending,
+			job_run_state)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.RunId, i.JobId, i.Created, i.Cluster)
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.RunId,
+				i.JobId,
+				i.Cluster,
+				i.Pending,
+				i.JobRunState)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
 			return err
 		})
 		if err != nil {
-			log.Warnf("Create job run for job %s, run %s failed with error %+v", i.JobId, i.RunId, err)
+			log.WithError(err).Warnf("Create job run for job %s, run %s failed", i.JobId, i.RunId)
 		}
 	}
 }
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*model.UpdateJobRunInstruction) error {
-	return withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE %s
-				(
-			      run_id             varchar(36),
-			      cluster            varchar(512),
-			      node               varchar(512),
-			      started            timestamp,
-			      finished           timestamp,
-			      preempted          timestamp,
-			      succeeded          boolean,
-			      error              varchar(2048),
-			      pod_number         integer,
-			      unable_to_schedule boolean
+				CREATE TEMPORARY TABLE %s (
+					run_id        varchar(36),
+					node          varchar(512),
+					started       timestamp,
+					finished      timestamp,
+				    job_run_state smallint,
+					error         bytea,
+				    exit_code     int
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -406,18 +503,24 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*mode
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"run_id", "node", "started", "finished", "preempted", "succeeded", "error", "pod_number", "unable_to_schedule"},
+				[]string{
+					"run_id",
+					"node",
+					"started",
+					"finished",
+					"job_run_state",
+					"error",
+					"exit_code",
+				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].RunId,
 						instructions[i].Node,
 						instructions[i].Started,
 						instructions[i].Finished,
-						instructions[i].Preempted,
-						instructions[i].Succeeded,
+						instructions[i].JobRunState,
 						instructions[i].Error,
-						instructions[i].PodNumber,
-						instructions[i].UnableToSchedule,
+						instructions[i].ExitCode,
 					}, nil
 				}),
 			)
@@ -428,16 +531,14 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*mode
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`UPDATE job_run
-						SET
-		                  node = coalesce(tmp.node, job_run.node),
-		                  started = coalesce(tmp.started, job_run.started),
-		                  finished = coalesce(tmp.finished, job_run.finished),
-		                  succeeded = coalesce(tmp.succeeded, job_run.succeeded),
-		                  preempted = coalesce(tmp.preempted, job_run.preempted),
-		                  error = coalesce(tmp.error, job_run.error),
-		                  pod_number = coalesce(tmp.pod_number, job_run.pod_number),
-		                  unable_to_schedule = coalesce(tmp.unable_to_schedule, job_run.unable_to_schedule)
-						FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
+					SET
+						node          = coalesce(tmp.node, job_run.node),
+						started       = coalesce(tmp.started, job_run.started),
+						finished      = coalesce(tmp.finished, job_run.finished),
+						job_run_state = coalesce(tmp.job_run_state, job_run.job_run_state),
+						error         = coalesce(tmp.error, job_run.error),
+						exit_code     = coalesce(tmp.exit_code, job_run.exit_code)
+					FROM %s as tmp where tmp.run_id = job_run.run_id`, tmpTable),
 			)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
@@ -451,41 +552,47 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*mode
 
 func (l *LookoutDb) UpdateJobRunsScalar(ctx context.Context, instructions []*model.UpdateJobRunInstruction) {
 	sqlStatement := `UPDATE job_run
-				SET
-				  node = coalesce($1, node),
-				  started = coalesce($2, started),
-				  finished = coalesce($3, finished),
-				  succeeded = coalesce($4, succeeded),
-				  preempted = coalesce($5, preempted),
-				  error = coalesce($6, error),
-				  pod_number = coalesce($7, pod_number),
-				  unable_to_schedule = coalesce($8, unable_to_schedule)
-				WHERE run_id = $9`
+		SET
+			node          = coalesce($2, node),
+			started       = coalesce($3, started),
+			finished      = coalesce($4, finished),
+			job_run_state = coalesce($5, job_run_state),
+			error         = coalesce($6, error),
+			exit_code     = coalesce($7, exit_code)
+		WHERE run_id = $1`
 	for _, i := range instructions {
-		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.Node, i.Started, i.Finished, i.Succeeded, i.Preempted, i.Error, i.PodNumber, i.UnableToSchedule, i.RunId)
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.RunId,
+				i.Node,
+				i.Started,
+				i.Finished,
+				i.JobRunState,
+				i.Error,
+				i.ExitCode)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
 			return err
 		})
 		if err != nil {
-			log.Warnf("Updating job run %s failed with error %+v", i.RunId, err)
+			log.WithError(err).Warnf("Updating job run %s failed", i.RunId)
 		}
 	}
 }
 
 func (l *LookoutDb) CreateUserAnnotationsBatch(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) error {
-	return withDatabaseRetryInsert(func() error {
+	return l.withDatabaseRetryInsert(func() error {
 		tmpTable := uniqueTableName("user_annotation_lookup")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE  %s
-				(
-				  job_id  varchar(32),
-                  key     varchar(1024),
-				  value   varchar(1024)
+				CREATE TEMPORARY TABLE  %s (
+					job_id varchar(32),
+					key    varchar(1024),
+					value  varchar(1024),
+					queue  varchar(512),
+					jobset varchar(1024)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -496,12 +603,20 @@ func (l *LookoutDb) CreateUserAnnotationsBatch(ctx context.Context, instructions
 		insertTmp := func(tx pgx.Tx) error {
 			_, err := tx.CopyFrom(ctx,
 				pgx.Identifier{tmpTable},
-				[]string{"job_id", "key", "value"},
+				[]string{
+					"job_id",
+					"key",
+					"value",
+					"queue",
+					"jobset",
+				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
 						instructions[i].JobId,
 						instructions[i].Key,
 						instructions[i].Value,
+						instructions[i].Queue,
+						instructions[i].Jobset,
 					}, nil
 				}),
 			)
@@ -512,7 +627,13 @@ func (l *LookoutDb) CreateUserAnnotationsBatch(ctx context.Context, instructions
 			_, err := tx.Exec(
 				ctx,
 				fmt.Sprintf(`
-					INSERT INTO user_annotation_lookup (job_id, key, value) SELECT * from %s
+					INSERT INTO user_annotation_lookup (
+						job_id,
+						key,
+						value,
+						queue,
+						jobset
+					) SELECT * from %s
 					ON CONFLICT DO NOTHING`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
@@ -524,12 +645,22 @@ func (l *LookoutDb) CreateUserAnnotationsBatch(ctx context.Context, instructions
 }
 
 func (l *LookoutDb) CreateUserAnnotationsScalar(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) {
-	sqlStatement := `INSERT INTO user_annotation_lookup (job_id, key, value)
-		 VALUES ($1, $2, $3) 
-         ON CONFLICT DO NOTHING`
+	sqlStatement := `INSERT INTO user_annotation_lookup (
+			job_id,
+			key,
+			value,
+			queue,
+			jobset)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
-		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.JobId, i.Key, i.Value)
+		err := l.withDatabaseRetryInsert(func() error {
+			_, err := l.db.Exec(ctx, sqlStatement,
+				i.JobId,
+				i.Key,
+				i.Value,
+				i.Queue,
+				i.Jobset)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationInsert)
 			}
@@ -537,74 +668,7 @@ func (l *LookoutDb) CreateUserAnnotationsScalar(ctx context.Context, instruction
 		})
 		// TODO- work out what is a retryable error
 		if err != nil {
-			log.Warnf("Create annotation run for job %s, key %s failed with error %+v", i.JobId, i.Key, err)
-		}
-	}
-}
-
-func (l *LookoutDb) CreateJobRunContainersBatch(ctx context.Context, instructions []*model.CreateJobRunContainerInstruction) error {
-	return withDatabaseRetryInsert(func() error {
-		tmpTable := uniqueTableName("job_run_container")
-		createTmp := func(tx pgx.Tx) error {
-			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE %s (
-				  run_id  varchar(36),
-                  container_name  varchar(512),
-				  exit_code integer
-				) ON COMMIT DROP;`, tmpTable))
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		}
-
-		insertTmp := func(tx pgx.Tx) error {
-			_, err := tx.CopyFrom(ctx,
-				pgx.Identifier{tmpTable},
-				[]string{"run_id", "container_name", "exit_code"},
-				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
-					return []interface{}{
-						instructions[i].RunId,
-						instructions[i].ContainerName,
-						instructions[i].ExitCode,
-					}, nil
-				}),
-			)
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		}
-
-		copyToDest := func(tx pgx.Tx) error {
-			_, err := tx.Exec(
-				ctx,
-				fmt.Sprintf(`
-					INSERT INTO job_run_container (run_id, container_name, exit_code) SELECT * from %s
-					ON CONFLICT DO NOTHING`, tmpTable))
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		}
-		return batchInsert(ctx, l.db, createTmp, insertTmp, copyToDest)
-	})
-}
-
-func (l *LookoutDb) CreateJobRunContainersScalar(ctx context.Context, instructions []*model.CreateJobRunContainerInstruction) {
-	sqlStatement := `INSERT INTO job_run_container (run_id, container_name, exit_code)
-		 VALUES ($1, $2, $3)
-	     ON CONFLICT DO NOTHING`
-	for _, i := range instructions {
-		err := withDatabaseRetryInsert(func() error {
-			_, err := l.db.Exec(ctx, sqlStatement, i.RunId, i.ContainerName, i.ExitCode)
-			if err != nil {
-				l.metrics.RecordDBError(metrics.DBOperationInsert)
-			}
-			return err
-		})
-		if err != nil {
-			log.Warnf("Create JobRunContainer run for job run %s, container %s failed with error %+v", i.RunId, i.ContainerName, err)
+			log.WithError(err).Warnf("Create annotation run for job %s, key %s failed", i.JobId, i.Key)
 		}
 	}
 }
@@ -658,20 +722,28 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
 		if !ok {
 			updatesById[update.JobId] = update
-		} else if deref(existing.State) != int32(repository.JobCancelledOrdinal) {
-			if update.State != nil {
-				existing.State = update.State
-			}
+		} else if deref(existing.State) != int32(lookout.JobCancelledOrdinal) {
 			if update.Priority != nil {
 				existing.Priority = update.Priority
+			}
+			if update.State != nil {
+				existing.State = update.State
 			}
 			if update.Cancelled != nil {
 				existing.Cancelled = update.Cancelled
 			}
+			if update.LastTransitionTime != nil {
+				existing.LastTransitionTime = update.LastTransitionTime
+			}
+			if update.LastTransitionTimeSeconds != nil {
+				existing.LastTransitionTimeSeconds = update.LastTransitionTimeSeconds
+			}
 			if update.Duplicate != nil {
 				existing.Duplicate = update.Duplicate
 			}
-			existing.Updated = update.Updated
+			if update.LatestRunId != nil {
+				existing.LatestRunId = update.LatestRunId
+			}
 		}
 	}
 
@@ -699,17 +771,8 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			if update.Finished != nil {
 				existing.Finished = update.Finished
 			}
-			if update.Succeeded != nil {
-				existing.Succeeded = update.Succeeded
-			}
 			if update.Error != nil {
 				existing.Error = update.Error
-			}
-			if update.PodNumber != nil {
-				existing.PodNumber = update.PodNumber
-			}
-			if update.UnableToSchedule != nil {
-				existing.UnableToSchedule = update.UnableToSchedule
 			}
 		} else {
 			updatesById[update.RunId] = update
@@ -724,13 +787,13 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 }
 
 // filterEventsForCancelledJobs queries the database for any jobs that are in the cancelled state and removes them from the list of
-// instructions.  This is necessary because Armada will generate event stauses even for jobs that have been cancelled
+// instructions. This is necessary because Armada will generate event stauses even for jobs that have been cancelled
 // The proper solution here is to make it so once a job is cancelled, no more events are generated for it, but until
 // that day we have to manually filter them out here.
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
-// in the cancelling state.  If, however, the database returns a non-retryable error it will give up and simply not
+// in the cancelling state. If, however, the database returns a non-retryable error it will give up and simply not
 // filter out any events as the job state is undetermined.
-func filterEventsForCancelledJobs(
+func (l *LookoutDb) filterEventsForCancelledJobs(
 	ctx context.Context,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
@@ -741,8 +804,8 @@ func filterEventsForCancelledJobs(
 		jobIds[i] = instruction.JobId
 	}
 
-	rowsRaw, err := withDatabaseRetryQuery(func() (interface{}, error) {
-		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", repository.JobCancelledOrdinal, jobIds)
+	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
+		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", lookout.JobCancelledOrdinal, jobIds)
 	})
 	if err != nil {
 		m.RecordDBError(metrics.DBOperationRead)
@@ -775,22 +838,20 @@ func filterEventsForCancelledJobs(
 	}
 }
 
-func withDatabaseRetryInsert(executeDb func() error) error {
-	_, err := withDatabaseRetryQuery(func() (interface{}, error) {
+func (l *LookoutDb) withDatabaseRetryInsert(executeDb func() error) error {
+	_, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
 		return nil, executeDb()
 	})
 	return err
 }
 
 // Executes a database function, retrying until it either succeeds or encounters a non-retryable error
-func withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
+func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
 	// TODO: arguably this should come from config
 	backOff := 1
-	const maxBackoff = 60
-	const maxRetries = 10
 	numRetries := 0
 	var err error = nil
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := 0; attempt < l.maxAttempts; attempt++ {
 		res, err := executeDb()
 
 		if err == nil {
@@ -798,9 +859,9 @@ func withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{},
 		}
 
 		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
-			backOff = min(2*backOff, maxBackoff)
+			backOff = min(2*backOff, l.maxBackoff)
 			numRetries++
-			log.Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.  Error was %v", backOff, err)
+			log.WithError(err).Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.", backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
 		} else {
 			// Non retryable error
@@ -810,7 +871,7 @@ func withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{},
 
 	// If we get to here then we've got an error we can't handle.  Panic
 	panic(errors.WithStack(&armadaerrors.ErrMaxRetriesExceeded{
-		Message:   fmt.Sprintf("Gave up running database query after %d retries", maxRetries),
+		Message:   fmt.Sprintf("Gave up running database query after %d retries", l.maxAttempts),
 		LastError: err,
 	}))
 }
