@@ -14,7 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 )
@@ -722,7 +722,7 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
 		if !ok {
 			updatesById[update.JobId] = update
-		} else if deref(existing.State) != int32(database.JobCancelledOrdinal) {
+		} else if deref(existing.State) != int32(lookout.JobCancelledOrdinal) {
 			if update.Priority != nil {
 				existing.Priority = update.Priority
 			}
@@ -805,7 +805,7 @@ func (l *LookoutDb) filterEventsForCancelledJobs(
 	}
 
 	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
-		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", database.JobCancelledOrdinal, jobIds)
+		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", lookout.JobCancelledOrdinal, jobIds)
 	})
 	if err != nil {
 		m.RecordDBError(metrics.DBOperationRead)

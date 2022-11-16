@@ -1,4 +1,4 @@
-package database
+package lookout
 
 type JobState string
 
