@@ -133,21 +133,21 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s 
 				(
-					job_id 	                     varchar(32),
+					job_id 	                      varchar(32),
 					queue                        varchar(512),
 					owner                        varchar(512),
 					jobset                       varchar(1024),
 					cpu                          bigint,
-				    memory                       bigint,
-				    ephemeral_storage            bigint,
-				    gpu                          bigint,
+					memory                       bigint,
+					ephemeral_storage            bigint,
+					gpu                          bigint,
 					priority                     bigint,
 					submitted                    timestamp,
 					state                        smallint,
-				    last_transition_time         timestamp,
-    				last_transition_time_seconds bigint,
+					last_transition_time         timestamp,
+					last_transition_time_seconds bigint,
 					job_spec                     bytea,
-				    priority_class               varchar(63)
+					priority_class               varchar(63)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
