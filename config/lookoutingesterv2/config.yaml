@@ -1,5 +1,5 @@
 postgres:
-  maxOpenConns: 100
+  maxOpenConns: 5
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
@@ -18,7 +18,6 @@ pulsar:
   URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "persistent://armada/armada/events"
 
-paralellism: 1
 subscriptionName: "lookout-ingester"
 batchSize: 10000
 batchDuration: 500ms
