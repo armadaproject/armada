@@ -30,7 +30,7 @@ func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configu
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		err := database.WithTestDb(migrations, &config.Postgres, func(db *pgxpool.Pool) error {
+		err := database.WithTestDbCustom(migrations, config.Postgres, func(db *pgxpool.Pool) error {
 			action(b, db)
 			return nil
 		})
