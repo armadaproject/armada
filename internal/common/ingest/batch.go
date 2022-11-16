@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -16,6 +17,8 @@ type Batcher[T any] struct {
 	maxTimeout time.Duration
 	clock      clock.Clock
 	callback   func([]T)
+	buffer     []T
+	mutex      sync.Mutex
 }
 
 func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, callback func([]T)) *Batcher[T] {
@@ -25,12 +28,13 @@ func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, cal
 		maxTimeout: maxTimeout,
 		callback:   callback,
 		clock:      clock.RealClock{},
+		mutex:      sync.Mutex{},
 	}
 }
 
 func (b *Batcher[T]) Run(ctx context.Context) {
 	for {
-		var batch []T
+		b.buffer = []T{}
 		expire := b.clock.After(b.maxTimeout)
 		for appendToBatch := true; appendToBatch; {
 			select {
@@ -43,19 +47,27 @@ func (b *Batcher[T]) Run(ctx context.Context) {
 					// input channel has closed
 					return
 				}
-
-				batch = append(batch, value)
-				if len(batch) == b.maxItems {
-					b.callback(batch)
+				b.mutex.Lock()
+				b.buffer = append(b.buffer, value)
+				if len(b.buffer) == b.maxItems {
+					b.callback(b.buffer)
 					appendToBatch = false
 				}
-
+				b.mutex.Unlock()
 			case <-expire:
-				if len(batch) > 0 {
-					b.callback(batch)
-					appendToBatch = false
+				b.mutex.Lock()
+				if len(b.buffer) > 0 {
+					b.callback(b.buffer)
 				}
+				appendToBatch = false
+				b.mutex.Unlock()
 			}
 		}
 	}
+}
+
+func (b *Batcher[T]) BufferLen() int {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return len(b.buffer)
 }
