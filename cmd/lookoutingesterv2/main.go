@@ -1,15 +1,18 @@
 package main
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/lookoutingesterv2"
+	"github.com/G-Research/armada/internal/lookoutingesterv2/benchmark"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
 )
 
 const CustomConfigLocation string = "config"
+const Benchmark string = "bench"
 
 func init() {
 	pflag.StringSlice(
@@ -17,6 +20,7 @@ func init() {
 		[]string{},
 		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
 	)
+	pflag.Bool(Benchmark, false, "Whether to run Lookout Ingester benchmarks instead of the application")
 	pflag.Parse()
 }
 
@@ -28,6 +32,13 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 
 	common.LoadConfig(&config, "./config/lookoutingesterv2", userSpecifiedConfigs)
+
+	runBenchmarks := viper.GetBool(Benchmark)
+	if runBenchmarks {
+		log.Info("Running Lookout Ingester benchmarks")
+		benchmark.RunBenchmark(config)
+		return
+	}
 
 	lookoutingesterv2.Run(&config)
 }
