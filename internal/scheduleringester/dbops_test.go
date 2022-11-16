@@ -271,7 +271,7 @@ func (db *mockDb) apply(op DbOperation) error {
 		n := len(db.Jobs)
 		for _, job := range o {
 			job := *job // Copy primitive types
-			db.Jobs[job.JobID] = &sqlc.Job{}
+			db.Jobs[job.JobID] = &job
 		}
 		if len(db.Jobs) != n+len(o) {
 			return errors.New("duplicate job id")
@@ -280,7 +280,7 @@ func (db *mockDb) apply(op DbOperation) error {
 		n := len(db.Runs)
 		for _, run := range o {
 			run := *run // Copy primitive types
-			db.Runs[run.RunID] = &sqlc.Run{}
+			db.Runs[run.RunID] = &run
 		}
 		if len(db.Runs) != n+len(o) {
 			return errors.New("duplicate run id")

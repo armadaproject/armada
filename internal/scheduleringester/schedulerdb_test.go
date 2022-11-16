@@ -283,7 +283,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		actual := make(InsertJobs)
 		for _, job := range jobs {
 			job := job
-			actual[job.JobID] = &sqlc.Job{}
+			actual[job.JobID] = &job
 			serials["jobs"] = max(serials["jobs"], job.Serial)
 			if v, ok := expected[job.JobID]; ok {
 				v.Serial = job.Serial
@@ -311,7 +311,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		actual := make(InsertRuns)
 		for _, run := range runs {
 			run := run
-			actual[run.RunID] = &sqlc.Run{}
+			actual[run.RunID] = &run
 			serials["runs"] = max(serials["runs"], run.Serial)
 			if v, ok := expected[run.RunID]; ok {
 				v.Serial = run.Serial
