@@ -24,6 +24,15 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+const (
+	maxQueueLen         = 512
+	maxOwnerLen         = 512
+	maxJobSetLen        = 1024
+	maxPriorityClassLen = 63
+	maxClusterLen       = 512
+	maxNodeLen          = 512
+)
+
 type HasNodeName interface {
 	GetNodeName() string
 }
@@ -61,9 +70,9 @@ func (c *InstructionConverter) convertSequence(
 	sequence *armadaevents.EventSequence,
 	update *model.InstructionSet,
 ) {
-	queue := sequence.Queue
-	jobset := sequence.JobSetName
-	owner := sequence.UserId
+	queue := util.Truncate(sequence.Queue, maxQueueLen)
+	jobset := util.Truncate(sequence.JobSetName, maxJobSetLen)
+	owner := util.Truncate(sequence.UserId, maxOwnerLen)
 	for idx, event := range sequence.Events {
 		var err error
 		if event.Created == nil {
@@ -147,6 +156,10 @@ func (c *InstructionConverter) handleSubmitJob(
 
 	resources := getJobResources(apiJob)
 	priorityClass := getJobPriorityClass(apiJob)
+	if priorityClass != nil {
+		truncatedPriorityClass := util.Truncate(*priorityClass, maxPriorityClassLen)
+		priorityClass = &truncatedPriorityClass
+	}
 
 	job := model.CreateJobInstruction{
 		JobId:                     jobId,
@@ -325,7 +338,7 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	node := getNode(event.ResourceInfos)
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       runId,
-		Node:        &node,
+		Node:        node,
 		Started:     &ts,
 		JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal),
 	}
@@ -358,7 +371,7 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 	update.JobsToUpdate = append(update.JobsToUpdate, &job)
 	cluster := ""
 	if len(event.GetResourceInfos()) > 0 {
-		cluster = event.GetResourceInfos()[0].GetObjectMeta().GetExecutorId()
+		cluster = util.Truncate(event.GetResourceInfos()[0].GetObjectMeta().GetExecutorId(), maxClusterLen)
 	}
 	// Now create a job run
 	jobRun := model.CreateJobRunInstruction{
@@ -415,7 +428,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				runId = jobRun.RunId
 				objectMeta := extractMetaFromError(e)
 				if objectMeta != nil && objectMeta.ExecutorId != "" {
-					jobRun.Cluster = objectMeta.ExecutorId
+					jobRun.Cluster = util.Truncate(objectMeta.ExecutorId, maxClusterLen)
 				}
 				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
 			}
@@ -468,7 +481,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
-	compressedError, err := compressor.Compress([]byte(util.RemoveNullsFromString(errorString)))
+	compressedError, err := compressor.Compress([]byte(errorString))
 	if err != nil {
 		log.WithError(err).Warnf("Couldn't compress error for job %s.", jobId)
 	}
@@ -489,14 +502,14 @@ func extractMetaFromError(e *armadaevents.Error) *armadaevents.ObjectMeta {
 	return nil
 }
 
-func getNode(resources []*armadaevents.KubernetesResourceInfo) string {
+func getNode(resources []*armadaevents.KubernetesResourceInfo) *string {
 	for _, r := range resources {
-		node := r.GetPodInfo().GetNodeName()
-		if node != "" {
+		node := extractNodeName(r.GetPodInfo())
+		if node != nil {
 			return node
 		}
 	}
-	return "UNKNOWN"
+	return pointer.String("UNKNOWN")
 }
 
 func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction {
@@ -513,7 +526,7 @@ func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction
 func extractNodeName(x HasNodeName) *string {
 	nodeName := x.GetNodeName()
 	if len(nodeName) > 0 {
-		return pointer.String(nodeName)
+		return pointer.String(util.Truncate(nodeName, maxNodeLen))
 	}
 	return nil
 }

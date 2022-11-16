@@ -2,6 +2,7 @@ package instructions
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -284,45 +285,6 @@ func TestConvert(t *testing.T) {
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
-		"job run failed with null char in error": {
-			events: &ingest.EventSequencesWithIds{
-				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(&armadaevents.EventSequence_Event{
-					Created: &testfixtures.BaseTime,
-					Event: &armadaevents.EventSequence_Event_JobRunErrors{
-						JobRunErrors: &armadaevents.JobRunErrors{
-							JobId: testfixtures.JobIdProto,
-							RunId: testfixtures.RunIdProto,
-							Errors: []*armadaevents.Error{
-								{
-									Terminal: true,
-									Reason: &armadaevents.Error_PodError{
-										PodError: &armadaevents.PodError{
-											Message:  "error message with null char \000",
-											NodeName: testfixtures.NodeName,
-											ContainerErrors: []*armadaevents.ContainerError{
-												{ExitCode: 42},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				})},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-					RunId:       testfixtures.RunIdString,
-					Node:        pointer.String(testfixtures.NodeName),
-					Finished:    &testfixtures.BaseTime,
-					JobRunState: pointer.Int32(lookout.JobRunFailedOrdinal),
-					Error:       []byte("error message with null char "),
-					ExitCode:    pointer.Int32(42),
-				}},
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-			},
-		},
 		"invalid event without job id or run id": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{
@@ -425,43 +387,45 @@ func TestFailedWithMissingRunId(t *testing.T) {
 	assert.Equal(t, expected.JobRunsToUpdate, instructions.JobRunsToUpdate)
 }
 
-func TestSubmitWithNullChar(t *testing.T) {
-	submit := &armadaevents.EventSequence_Event{
-		Created: &testfixtures.BaseTime,
-		Event: &armadaevents.EventSequence_Event_SubmitJob{
-			SubmitJob: &armadaevents.SubmitJob{
-				JobId:           testfixtures.JobIdProto,
-				DeduplicationId: "",
-				Priority:        0,
-				ObjectMeta: &armadaevents.ObjectMeta{
-					Namespace: testfixtures.Namespace,
-				},
-				MainObject: &armadaevents.KubernetesMainObject{
-					Object: &armadaevents.KubernetesMainObject_PodSpec{
-						PodSpec: &armadaevents.PodSpecWithAvoidList{
-							PodSpec: &v1.PodSpec{
-								Containers: []v1.Container{
-									{
-										Name:    "container",
-										Command: []string{"/bin/bash \000"},
-										Args:    []string{"hello \000 world"},
-									},
-								},
-							},
-						},
-					},
-				},
+func TestTruncatesStringsThatAreTooLong(t *testing.T) {
+	longString := strings.Repeat("x", 4000)
+
+	submit, err := testfixtures.DeepCopy(testfixtures.Submit)
+	assert.NoError(t, err)
+	submit.GetSubmitJob().GetMainObject().GetPodSpec().GetPodSpec().PriorityClassName = longString
+
+	assigned, err := testfixtures.DeepCopy(testfixtures.Assigned)
+	assert.NoError(t, err)
+	assigned.GetJobRunAssigned().GetResourceInfos()[0].GetObjectMeta().ExecutorId = longString
+
+	running, err := testfixtures.DeepCopy(testfixtures.Running)
+	assert.NoError(t, err)
+	running.GetJobRunRunning().GetResourceInfos()[0].GetPodInfo().NodeName = longString
+
+	events := &ingest.EventSequencesWithIds{
+		EventSequences: []*armadaevents.EventSequence{{
+			Queue:      longString,
+			JobSetName: longString,
+			UserId:     longString,
+			Events: []*armadaevents.EventSequence_Event{
+				submit,
+				assigned,
+				running,
 			},
-		},
+		}},
+		MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
 
 	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
-	instructions := converter.Convert(context.Background(), &ingest.EventSequencesWithIds{
-		EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(submit)},
-		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
-	})
-	assert.Len(t, instructions.JobsToCreate, 1)
-	assert.NotContains(t, string(instructions.JobsToCreate[0].JobProto), "\\u0000")
+	actual := converter.Convert(context.TODO(), events)
+
+	// String lengths obtained from database schema
+	assert.Len(t, actual.JobsToCreate[0].Queue, 512)
+	assert.Len(t, actual.JobsToCreate[0].Owner, 512)
+	assert.Len(t, actual.JobsToCreate[0].JobSet, 1024)
+	assert.Len(t, *actual.JobsToCreate[0].PriorityClass, 63)
+	assert.Len(t, actual.JobRunsToCreate[0].Cluster, 512)
+	assert.Len(t, *actual.JobRunsToUpdate[0].Node, 512)
 }
 
 func TestAnnotations(t *testing.T) {

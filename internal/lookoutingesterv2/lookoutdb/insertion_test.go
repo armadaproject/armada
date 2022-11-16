@@ -84,7 +84,7 @@ type JobRunRow struct {
 	Started     *time.Time
 	Finished    *time.Time
 	JobRunState int32
-	Error       *string
+	Error       []byte
 	ExitCode    *int32
 }
 
@@ -631,10 +631,10 @@ func TestStore(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestConflateJobUpdates(T *testing.T) {
+func TestConflateJobUpdates(t *testing.T) {
 	// Empty
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{})
-	assert.Equal(T, []*model.UpdateJobInstruction{}, updates)
+	assert.Equal(t, []*model.UpdateJobInstruction{}, updates)
 
 	// Non-Empty
 	updates = conflateJobUpdates([]*model.UpdateJobInstruction{
@@ -654,10 +654,10 @@ func TestConflateJobUpdates(T *testing.T) {
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].JobId < expected[j].JobId
 	})
-	assert.Equal(T, expected, updates)
+	assert.Equal(t, expected, updates)
 }
 
-func TestConflateJobUpdatesWithCancelled(T *testing.T) {
+func TestConflateJobUpdatesWithCancelled(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
@@ -667,13 +667,13 @@ func TestConflateJobUpdatesWithCancelled(T *testing.T) {
 	expected := []*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
 	}
-	assert.Equal(T, expected, updates)
+	assert.Equal(t, expected, updates)
 }
 
-func TestConflateJobRunUpdates(T *testing.T) {
+func TestConflateJobRunUpdates(t *testing.T) {
 	// Empty
 	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{})
-	assert.Equal(T, []*model.UpdateJobRunInstruction{}, updates)
+	assert.Equal(t, []*model.UpdateJobRunInstruction{}, updates)
 
 	// Non-Empty
 	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
@@ -694,7 +694,30 @@ func TestConflateJobRunUpdates(T *testing.T) {
 	sort.Slice(expected, func(i, j int) bool {
 		return expected[i].RunId < expected[j].RunId
 	})
-	assert.Equal(T, expected, updates)
+	assert.Equal(t, expected, updates)
+}
+
+func TestStoreNullValue(t *testing.T) {
+	err := withLookoutDb(func(db *pgxpool.Pool) error {
+		jobProto := []byte("hello \000 world \000")
+		errorMsg := []byte("some \000 error \000")
+		instructions := defaultInstructionSet()
+		instructions.JobsToCreate[0].JobProto = jobProto
+		instructions.JobRunsToUpdate[0].Error = errorMsg
+
+		ldb := NewLookoutDb(db, m, 2, 10)
+		// Do the update
+		err := ldb.Store(ctx.Background(), instructions)
+		assert.NoError(t, err)
+
+		job := getJob(t, ldb.db, jobIdString)
+		jobRun := getJobRun(t, ldb.db, runIdString)
+
+		assert.Equal(t, jobProto, job.JobProto)
+		assert.Equal(t, errorMsg, jobRun.Error)
+		return nil
+	})
+	assert.NoError(t, err)
 }
 
 func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
@@ -775,7 +798,7 @@ func getJobRun(t *testing.T, db *pgxpool.Pool, runId string) JobRunRow {
 		&run.Error,
 		&run.ExitCode,
 	)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	return run
 }
 
@@ -786,7 +809,7 @@ func getUserAnnotationLookup(t *testing.T, db *pgxpool.Pool, jobId string) UserA
 		`SELECT job_id, key, value, queue, jobset FROM user_annotation_lookup WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(&annotation.JobId, &annotation.Key, &annotation.Value, &annotation.Queue, &annotation.JobSet)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	return annotation
 }
 
@@ -796,7 +819,7 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
 	r := db.QueryRow(ctx.Background(), query)
 	err := r.Scan(&count)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
 
