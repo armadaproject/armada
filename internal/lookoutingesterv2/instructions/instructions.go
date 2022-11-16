@@ -125,20 +125,20 @@ func (c *InstructionConverter) handleSubmitJob(
 		return err
 	}
 
-	// Try and marshall the job Json. This shouldn't go wrong but if it does, it's not a fatal error
-	// Rather it means that the json won't be available in the ui
+	// Try and marshall the job proto. This shouldn't go wrong but if it does, it's not a fatal error
+	// Rather it means that the job spec won't be available in the ui
 	var jobProto []byte
 	apiJob, err := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, event)
 	if err == nil {
 
 		jobProtoUncompressed, err := proto.Marshal(apiJob)
 		if err != nil {
-			log.Warnf("Couldn't marshall job %s in jobset %s as json.  %+v", jobId, jobSet, err)
+			log.Warnf("Couldn't marshall job %s in jobset %s as proto.  %+v", jobId, jobSet, err)
 		}
 
 		jobProto, err = c.compressor.Compress(jobProtoUncompressed)
 		if err != nil {
-			log.Warnf("Couldn't compress proto for job %s in jobset %s as json.  %+v", jobId, jobSet, err)
+			log.Warnf("Couldn't compress proto for job %s in jobset %s.  %+v", jobId, jobSet, err)
 		}
 	} else {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -470,7 +470,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
 	compressedError, err := compressor.Compress([]byte(util.RemoveNullsFromString(errorString)))
 	if err != nil {
-		log.Warnf("Couldn't compress error for job %s as json.  %+v", jobId, err)
+		log.Warnf("Couldn't compress error for job %s.  %+v", jobId, err)
 	}
 	return compressedError
 }
