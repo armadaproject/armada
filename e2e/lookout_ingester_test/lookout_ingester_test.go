@@ -36,7 +36,7 @@ func init() {
 func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous")
+		jobRequest := createJobRequest("personal-anonymous", []string{"sleep", "5"})
 
 		createQueue(submitClient, jobRequest, t)
 
@@ -105,7 +105,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous")
+		jobRequest := createJobRequest("personal-anonymous", []string{"sleep", "5"})
 		jobRequest.JobRequestItems[0].PodSpec.Containers[0].Image = "https://wrongimagename/"
 
 		createQueue(submitClient, jobRequest, t)
@@ -278,7 +278,7 @@ func openTestListener(t *testing.T, channelName string) *pq.Listener {
 }
 
 // TODO: Copy paste of func from e2e/basic_test/basic_test.go, refactor
-func createJobRequest(namespace string) *api.JobSubmitRequest {
+func createJobRequest(namespace string, args []string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
 	return &api.JobSubmitRequest{
@@ -292,7 +292,7 @@ func createJobRequest(namespace string) *api.JobSubmitRequest {
 						{
 							Name:  "container1",
 							Image: "alpine:3.10",
-							Args:  []string{"sleep", "5s"},
+							Args:  args, //[]string{"sleep", "5s"},
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
