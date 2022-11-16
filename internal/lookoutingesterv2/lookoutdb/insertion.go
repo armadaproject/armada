@@ -75,7 +75,7 @@ func (l *LookoutDb) CreateJobs(ctx context.Context, instructions []*model.Create
 	}
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Creating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Creating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobsScalar(ctx, instructions)
 	}
 }
@@ -87,7 +87,7 @@ func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.Update
 	instructions = l.filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobsScalar(ctx, instructions)
 	}
 }
@@ -98,7 +98,7 @@ func (l *LookoutDb) CreateJobRuns(ctx context.Context, instructions []*model.Cre
 	}
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Creating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Creating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateJobRunsScalar(ctx, instructions)
 	}
 }
@@ -109,7 +109,7 @@ func (l *LookoutDb) UpdateJobRuns(ctx context.Context, instructions []*model.Upd
 	}
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Updating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Updating job runs via batch failed, will attempt to insert serially (this might be slow).")
 		l.UpdateJobRunsScalar(ctx, instructions)
 	}
 }
@@ -120,7 +120,7 @@ func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*m
 	}
 	err := l.CreateUserAnnotationsBatch(ctx, instructions)
 	if err != nil {
-		log.Warnf("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
+		log.WithError(err).Warn("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).")
 		l.CreateUserAnnotationsScalar(ctx, instructions)
 	}
 }
@@ -275,7 +275,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx context.Context, instructions []*model.
 			return err
 		})
 		if err != nil {
-			log.Warnf("Create job for job %s, jobset %s failed with error %+v", i.JobId, i.JobSet, err)
+			log.WithError(err).Warnf("Create job for job %s, jobset %s failed", i.JobId, i.JobSet)
 		}
 	}
 }
@@ -383,7 +383,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.
 			return err
 		})
 		if err != nil {
-			log.Warnf("Updating job %s failed with error %+v", i.JobId, err)
+			log.WithError(err).Warnf("Updating job %s failed", i.JobId)
 		}
 	}
 }
@@ -474,7 +474,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx context.Context, instructions []*mod
 			return err
 		})
 		if err != nil {
-			log.Warnf("Create job run for job %s, run %s failed with error %+v", i.JobId, i.RunId, err)
+			log.WithError(err).Warnf("Create job run for job %s, run %s failed", i.JobId, i.RunId)
 		}
 	}
 }
@@ -576,7 +576,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx context.Context, instructions []*mod
 			return err
 		})
 		if err != nil {
-			log.Warnf("Updating job run %s failed with error %+v", i.RunId, err)
+			log.WithError(err).Warnf("Updating job run %s failed", i.RunId)
 		}
 	}
 }
@@ -668,7 +668,7 @@ func (l *LookoutDb) CreateUserAnnotationsScalar(ctx context.Context, instruction
 		})
 		// TODO- work out what is a retryable error
 		if err != nil {
-			log.Warnf("Create annotation run for job %s, key %s failed with error %+v", i.JobId, i.Key, err)
+			log.WithError(err).Warnf("Create annotation run for job %s, key %s failed", i.JobId, i.Key)
 		}
 	}
 }
@@ -861,7 +861,7 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
 			backOff = min(2*backOff, l.maxBackoff)
 			numRetries++
-			log.Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.  Error was %v", backOff, err)
+			log.WithError(err).Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.", backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
 		} else {
 			// Non retryable error

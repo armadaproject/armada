@@ -133,16 +133,16 @@ func (c *InstructionConverter) handleSubmitJob(
 
 		jobProtoUncompressed, err := proto.Marshal(apiJob)
 		if err != nil {
-			log.Warnf("Couldn't marshall job %s in jobset %s as proto.  %+v", jobId, jobSet, err)
+			log.WithError(err).Warnf("Couldn't marshall job %s in jobset %s as proto.", jobId, jobSet)
 		}
 
 		jobProto, err = c.compressor.Compress(jobProtoUncompressed)
 		if err != nil {
-			log.Warnf("Couldn't compress proto for job %s in jobset %s.  %+v", jobId, jobSet, err)
+			log.WithError(err).Warnf("Couldn't compress proto for job %s in jobset %s.", jobId, jobSet)
 		}
 	} else {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		log.Warnf("Couldn't convert job event for job %s in jobset %s to api job.  %+v", jobId, jobSet, err)
+		log.WithError(err).Warnf("Couldn't convert job event for job %s in jobset %s to api job.", jobId, jobSet)
 	}
 
 	resources := getJobResources(apiJob)
@@ -470,7 +470,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {
 	compressedError, err := compressor.Compress([]byte(util.RemoveNullsFromString(errorString)))
 	if err != nil {
-		log.Warnf("Couldn't compress error for job %s.  %+v", jobId, err)
+		log.WithError(err).Warnf("Couldn't compress error for job %s.", jobId)
 	}
 	return compressedError
 }
