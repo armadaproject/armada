@@ -33,10 +33,10 @@ func init() {
 	defaultWaits.ExpiresAfter = expiresAfter
 }
 
-func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
+func TestLookoutIngesterUpdatesPostgresWithJobInfoJobSucceeds(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous", []string{"sleep", "5"})
+		jobRequest := createJobRequest("personal-anonymous", []string{"sleep 5"})
 
 		createQueue(submitClient, jobRequest, t)
 
@@ -102,10 +102,10 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
+func TestLookoutIngesterUpdatesPostgresWithJobInfoUnrunnableJob(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous", []string{"sleep", "5"})
+		jobRequest := createJobRequest("personal-anonymous", []string{"sleep 5"})
 		jobRequest.JobRequestItems[0].PodSpec.Containers[0].Image = "https://wrongimagename/"
 
 		createQueue(submitClient, jobRequest, t)
@@ -157,6 +157,76 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 			if jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid {
 				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
 				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
+
+				assert.Len(t, jrt.JobRuns, 1)
+				pJobRun := jrt.OneRun()
+				assert.True(t, pJobRun.Succeeded.Valid)
+				assert.False(t, pJobRun.Succeeded.Bool)
+				assert.True(t, pJobRun.Finished.Valid)
+
+				return nil
+			}
+		}
+	})
+	assert.NoError(t, err)
+}
+
+func TestLookoutIngesterUpdatesPostgresWithJobInfoJobFails(t *testing.T) {
+	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
+		submitClient := api.NewSubmitClient(connection)
+		jobRequest := createJobRequest("personal-anonymous", []string{"sleep 10; exit 57"})
+
+		createQueue(submitClient, jobRequest, t)
+
+		db, err := openPgDbTestConnection()
+		assert.NoError(t, err)
+		dbTestSetup(db)
+		defer dbTestTeardown(db)
+
+		jobUpdateListener := openTestListener(t, "job_update")
+		defer jobUpdateListener.Close()
+
+		jobRunUpdateListener := openTestListener(t, "job_run_update")
+		defer jobRunUpdateListener.Close()
+
+		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
+		assert.NoError(t, err)
+		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
+
+		jobId := submitResponse.JobResponseItems[0].JobId
+		errStr := submitResponse.JobResponseItems[0].Error
+		assert.Empty(t, errStr)
+		assert.NotEmpty(t, jobId)
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+		defer cancelFunc()
+
+		jst := NewJobStateTracker(jobId, db)
+		jrt := NewJobRunTracker(jobId, db)
+
+		for {
+			select {
+			case notification := <-jobUpdateListener.NotificationChannel():
+				if notification.Extra == jobId {
+					err := jst.Scan()
+					assert.NoError(t, err)
+				}
+			case notification := <-jobRunUpdateListener.NotificationChannel():
+				if notification.Extra == jobId {
+					err := jrt.Scan()
+					assert.NoError(t, err)
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+
+			// We're gating on things that should be satisfied by entries in
+			// both job and job_run tables.
+			if jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid {
+				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+				assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
 				assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
 
 				assert.Len(t, jrt.JobRuns, 1)
@@ -277,7 +347,6 @@ func openTestListener(t *testing.T, channelName string) *pq.Listener {
 	return listener
 }
 
-// TODO: Copy paste of func from e2e/basic_test/basic_test.go, refactor
 func createJobRequest(namespace string, args []string) *api.JobSubmitRequest {
 	cpu, _ := resource.ParseQuantity("80m")
 	memory, _ := resource.ParseQuantity("50Mi")
@@ -290,9 +359,10 @@ func createJobRequest(namespace string, args []string) *api.JobSubmitRequest {
 				PodSpec: &v1.PodSpec{
 					Containers: []v1.Container{
 						{
-							Name:  "container1",
-							Image: "alpine:3.10",
-							Args:  args,
+							Name:    "container1",
+							Image:   "alpine:3.10",
+							Command: []string{"/bin/sh", "-c"},
+							Args:    args,
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
