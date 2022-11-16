@@ -292,7 +292,7 @@ func createJobRequest(namespace string, args []string) *api.JobSubmitRequest {
 						{
 							Name:  "container1",
 							Image: "alpine:3.10",
-							Args:  args, //[]string{"sleep", "5s"},
+							Args:  args,
 							Resources: v1.ResourceRequirements{
 								Requests: v1.ResourceList{"cpu": cpu, "memory": memory},
 								Limits:   v1.ResourceList{"cpu": cpu, "memory": memory},
