@@ -191,7 +191,4 @@ services:
     volumes:
       - "..:/app:rw"
     working_dir: "/app"
-    environment:
-      _AIRFLOW_WWW_USER_USER: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
     entrypoint: sh -c "localdev/scripts/airflow-start.sh"
