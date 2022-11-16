@@ -125,7 +125,7 @@ func (c *InstructionConverter) handleSubmitJob(
 		return err
 	}
 
-	// Try and marshall the job Json. This shouldn't go wrong but if it does, it'c not a fatal error
+	// Try and marshall the job Json. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the json won't be available in the ui
 	var jobProto []byte
 	apiJob, err := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, event)
