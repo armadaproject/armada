@@ -442,8 +442,6 @@ tests-e2e-setup: setup-cluster
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 	docker run -d --name lookout-ingester-migrate  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
-	sleep 3
-	docker logs lookout-ingester-migrate
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
 
