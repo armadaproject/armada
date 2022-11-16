@@ -11,8 +11,10 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
 )
 
-const CustomConfigLocation string = "config"
-const Benchmark string = "bench"
+const (
+	CustomConfigLocation = "config"
+	Benchmark            = "bench"
+)
 
 func init() {
 	pflag.StringSlice(
