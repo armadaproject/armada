@@ -45,14 +45,10 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 		dbTestSetup(db)
 		defer dbTestTeardown(db)
 
-		jobUpdateListener := openTestListener(t, "job_update", func(event pq.ListenerEventType, err error) {
-			// TODO
-		})
+		jobUpdateListener := openTestListener(t, "job_update")
 		defer jobUpdateListener.Close()
 
-		jobRunUpdateListener := openTestListener(t, "job_run_update", func(event pq.ListenerEventType, err error) {
-			// TODO
-		})
+		jobRunUpdateListener := openTestListener(t, "job_run_update")
 		defer jobRunUpdateListener.Close()
 
 		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
@@ -74,7 +70,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 			select {
 			case notification := <-jobUpdateListener.NotificationChannel():
 				if notification.Extra == jobId {
-					err := jst.ScanRow()
+					err := jst.Scan()
 					assert.NoError(t, err)
 				}
 			case notification := <-jobRunUpdateListener.NotificationChannel():
@@ -119,14 +115,10 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 		dbTestSetup(db)
 		defer dbTestTeardown(db)
 
-		jobUpdateListener := openTestListener(t, "job_update", func(event pq.ListenerEventType, err error) {
-			// TODO
-		})
+		jobUpdateListener := openTestListener(t, "job_update")
 		defer jobUpdateListener.Close()
 
-		jobRunUpdateListener := openTestListener(t, "job_run_update", func(event pq.ListenerEventType, err error) {
-			// TODO
-		})
+		jobRunUpdateListener := openTestListener(t, "job_run_update")
 		defer jobRunUpdateListener.Close()
 
 		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
@@ -148,7 +140,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoFailedJob(t *testing.T) {
 			select {
 			case notification := <-jobUpdateListener.NotificationChannel():
 				if notification.Extra == jobId {
-					err := jst.ScanRow()
+					err := jst.Scan()
 					assert.NoError(t, err)
 				}
 			case notification := <-jobRunUpdateListener.NotificationChannel():
@@ -195,13 +187,12 @@ func NewJobStateTracker(jobId string, db *sql.DB) *JobStateTracker {
 	}
 }
 
-func (jst *JobStateTracker) ScanRow() error {
+func (jst *JobStateTracker) Scan() error {
 	pJob := &PartialJob{}
 	row := jst.db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1", jst.JobId)
 	if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
 		return err
 	}
-	fmt.Printf("%v\n", pJob)
 	jst.AddState(pJob.State)
 	return nil
 }
@@ -278,8 +269,9 @@ func openPgDbTestConnection() (*sql.DB, error) {
 	return sql.Open("postgres", testPGConnectionString)
 }
 
-func openTestListener(t *testing.T, channelName string, callback func(pq.ListenerEventType, error)) *pq.Listener {
-	listener := pq.NewListener(testPGConnectionString, 10*time.Second, time.Minute, callback)
+func openTestListener(t *testing.T, channelName string) *pq.Listener {
+	listener := pq.NewListener(testPGConnectionString, 10*time.Second, time.Minute,
+		generateNotificationConnectionEventHandler(channelName))
 	err := listener.Listen(channelName)
 	assert.NoError(t, err)
 	return listener
@@ -394,5 +386,16 @@ func dropTestTriggers(db *sql.DB) {
 	for _, trigger := range testTriggers {
 		// We don't care about the result. Just drop them.
 		db.Exec(fmt.Sprintf("DROP TRIGGER %s on %s", trigger.Name(), trigger.Table))
+	}
+}
+
+func generateNotificationConnectionEventHandler(channelName string) func(pq.ListenerEventType, error) {
+	return func(event pq.ListenerEventType, err error) {
+		switch event {
+		case pq.ListenerEventDisconnected:
+			panic(fmt.Sprintf("Listener %q got disconnected: %s", channelName, err.Error()))
+		case pq.ListenerEventConnectionAttemptFailed:
+			panic(fmt.Sprintf("Listener %q could not connect: %s", channelName, err.Error()))
+		}
 	}
 }
