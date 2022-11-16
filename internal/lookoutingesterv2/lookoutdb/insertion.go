@@ -20,14 +20,14 @@ import (
 )
 
 type LookoutDb struct {
-	db         *pgxpool.Pool
-	metrics    *metrics.Metrics
-	maxRetries int
-	maxBackoff int
+	db          *pgxpool.Pool
+	metrics     *metrics.Metrics
+	maxAttempts int
+	maxBackoff  int
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxRetries int, maxBackoff int) *LookoutDb {
-	return &LookoutDb{db: db, metrics: metrics, maxRetries: maxRetries, maxBackoff: maxBackoff}
+func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxAttempts int, maxBackoff int) *LookoutDb {
+	return &LookoutDb{db: db, metrics: metrics, maxAttempts: maxAttempts, maxBackoff: maxBackoff}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
@@ -851,7 +851,7 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 	backOff := 1
 	numRetries := 0
 	var err error = nil
-	for attempt := 0; attempt < l.maxRetries; attempt++ {
+	for attempt := 0; attempt < l.maxAttempts; attempt++ {
 		res, err := executeDb()
 
 		if err == nil {
@@ -871,7 +871,7 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 
 	// If we get to here then we've got an error we can't handle.  Panic
 	panic(errors.WithStack(&armadaerrors.ErrMaxRetriesExceeded{
-		Message:   fmt.Sprintf("Gave up running database query after %d retries", l.maxRetries),
+		Message:   fmt.Sprintf("Gave up running database query after %d retries", l.maxAttempts),
 		LastError: err,
 	}))
 }
