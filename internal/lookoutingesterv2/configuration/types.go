@@ -25,8 +25,6 @@ type LookoutIngesterV2Configuration struct {
 	PulsarReceiveTimeout time.Duration
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
-	// Number of goroutines to be used for receiving messages and converting them to instructions
-	Paralellism int
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
