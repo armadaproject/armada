@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
