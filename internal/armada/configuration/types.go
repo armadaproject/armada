@@ -97,7 +97,7 @@ type SchedulingConfig struct {
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
-	// Fraction of resources that can be assigned in a single lease jobs call.
+	// Fraction of total resources across clusters that can be assigned in a single lease jobs call.
 	// Applies to both the old and new scheduler.
 	MaximalClusterFractionToSchedule map[string]float64
 	// Fraction of resources that can be assigned to any single queue,
@@ -108,7 +108,7 @@ type SchedulingConfig struct {
 	// Applies to both the old and new scheduler.
 	MaximalResourceFractionPerQueue map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
-	MaximumJobsToSchedule int
+	MaximumJobsToSchedule uint
 	// Probability of using the new sheduler.
 	// Set to 0 to disable the new scheduler and to 1 to disable the old scheduler.
 	ProbabilityOfUsingNewScheduler float64
@@ -178,6 +178,10 @@ type SchedulingConfig struct {
 	// Should normally not be set greater than single-digit minutes,
 	// since cancellation and preemption may need to wait for this amount of time.
 	MaxTerminationGracePeriod time.Duration
+	// Jobs are grouped into gangs by this annotation.
+	GangIdAnnotation string
+	// Jobs in a gang specify the number of jobs in the gang via this annotation.
+	GangCardinalityAnnotation string
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -203,7 +207,19 @@ type PreemptionConfig struct {
 }
 
 type PriorityClass struct {
-	Priority                        int32
+	Priority int32
+	// Max fraction of resources assigned to jobs of this priority or lower.
+	// Must be non-increasing with higher priority.
+	//
+	// For example, the following examples are valid configurations.
+	// A:
+	// - 2: 10%
+	// - 1: 100%
+	//
+	// B:
+	// - 9: 10%
+	// - 5: 50%
+	// - 3: 80%
 	MaximalResourceFractionPerQueue map[string]float64
 }
 
