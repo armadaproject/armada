@@ -6,6 +6,10 @@ pip3 install "./third_party/airflow/" "kubernetes"
 export AIRFLOW_HOME=~/airflow
 mkdir -p ~/airflow/dags
 cp ./third_party/airflow/examples/* ~/airflow/dags
+sed -i 's/127.0.0.1:50051/armada-server:50051/g' ~/airflow/dags/*.py
+sed -i 's/127.0.0.1:60003/jobservice:60003/g' ~/airflow/dags/*.py
+sed -i 's/127.0.0.1:8089/lookout:8089/g' ~/airflow/dags/*.py
+sed -i 's/test/queue-a/g' ~/airflow/dags/*.py
 
 # Run this command in any terminal.
 airflow db init
