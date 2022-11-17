@@ -3,25 +3,15 @@
 # Declare variables to be passed into your templates.
 
 dependencies:
-  # -- Toggle whether to install Armada Server
   armada-server: true
-  # -- Toggle whether to install Armada Executor
   armada-executor: true
-  # -- Toggle whether to install Armada Lookout UI
   armada-lookout: true
-  # -- Toggle whether to install Armada Lookout migrations
   armada-lookout-migration: true
-  # -- Toggle whether to install Armada Lookout Ingester
   armada-lookout-ingester: true
-  # -- Toggle whether to install Redis HA cluster
   redis-ha: true
-  # -- Toggle whether to install Streaming NATS
   stan: true
-  # -- Toggle whether to install Pulsar
   pulsar: true
-  # -- Toggle whether to install executor cluster monitoring rules (NOTE: requires Prometheus CRDs)
   executor-cluster-monitoring: true
-  # -- Toggle whether to install PostgreSQL
   postgresql: true
 
 redis-ha:
@@ -41,12 +31,39 @@ stan:
     clusterID: "armada-cluster"
   nameOverride: stan
 
+kube-prometheus-stack:
+  alertmanager:
+    enabled: false
+
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+
+  grafana:
+    service:
+      type: NodePort
+      nodePort: 30001
+
+  prometheusOperator:
+    admissionWebhooks:
+      enabled: false
+    tls:
+      enabled: false
+    tlsProxy:
+      enabled: false
+    createCustomResource: false
+
 armada:
   image:
     repository: gresearchdev/armada-server
     tag: v0.3.36
   # -- Ingress class
   ingressClass: nginx
+  ingress:
+    labels:
+      # -- Ingress class as label, used usually as a workaround by external-dns as they currently do not support filtering by ingressClass field
+      kubernetes.io/ingress.class: nginx
   # -- ClusterIssuer from whom a Let's Encrypt certificate will be requested
   clusterIssuer: dev-ca
   hostnames: []
@@ -54,56 +71,48 @@ armada:
   applicationConfig:
     grpcPort: 50051
     httpPort: 8080
-    # -- Armada auth config
-    auth: {}
-#      Here is an example auth config which disables basic auth and allows anybody to submit jobs
-#      NOTE: This setup should never be used in production environments
-#      basicAuth:
-#        enableAuthentication: false
-#      anonymousAuth: true
-#      permissionGroupMapping:
-#        submit_jobs: [ "everyone" ]
-#        submit_any_jobs: [ "everyone" ]
-#        create_queue: [ "everyone" ]
-#        delete_queue: [ "everyone" ]
-#        cancel_jobs: [ "everyone" ]
-#        cancel_any_jobs: [ "everyone" ]
-#        reprioritize_jobs: [ "everyone" ]
-#        reprioritize_any_jobs: [ "everyone" ]
-#        watch_events: [ "everyone" ]
-#        watch_all_events: [ "everyone" ]
-#        execute_jobs: [ "everyone" ]
+    auth:
+      basicAuth:
+        enableAuthentication: false
+      anonymousAuth: true
+      permissionGroupMapping:
+        submit_jobs: [ "everyone" ]
+        submit_any_jobs: [ "everyone" ]
+        create_queue: [ "everyone" ]
+        delete_queue: [ "everyone" ]
+        cancel_jobs: [ "everyone" ]
+        cancel_any_jobs: [ "everyone" ]
+        reprioritize_jobs: [ "everyone" ]
+        reprioritize_any_jobs: [ "everyone" ]
+        watch_events: [ "everyone" ]
+        watch_all_events: [ "everyone" ]
+        execute_jobs: [ "everyone" ]
     redis:
       masterName: "mymaster"
-      # -- master Redis cluster instance URLs
-      addrs: []
-#        - "redis-ha-announce-0.armada.svc.cluster.local:26379"
-#        - "redis-ha-announce-1.armada.svc.cluster.local:26379"
-#        - "redis-ha-announce-2.armada.svc.cluster.local:26379"
+      addrs:
+        - "redis-ha-announce-0.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-1.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-2.armada.svc.cluster.local:26379"
     eventsRedis:
       masterName: "mymaster"
-      # -- events Redis cluster instance URLs
-      addrs: []
-#        - "redis-ha-announce-0.armada.svc.cluster.local:26379"
-#        - "redis-ha-announce-1.armada.svc.cluster.local:26379"
-#        - "redis-ha-announce-2.armada.svc.cluster.local:26379"
+      addrs:
+        - "redis-ha-announce-0.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-1.armada.svc.cluster.local:26379"
+        - "redis-ha-announce-2.armada.svc.cluster.local:26379"
       poolSize: 1000
     eventsNats:
       timeout: 10s
-      # -- events STAN URIs
-      servers: []
-#        - "nats://stan.armada.svc.cluster.local:4222"
-      # -- STAN cluster ID
+      servers:
+        - "nats://stan.armada.svc.cluster.local:4222"
       clusterId: "armada-cluster"
       subject: "ArmadaTest"
       QueueGroup: "ArmadaEventRedisProcessor"
     scheduling:
       probabilityOfUsingNewScheduler: 1
-      # -- default node tolerations for Armada jobs
-      defaultJobTolerations: []
-#        - key: armada.io/batch
-#          operator: Exists
-#          effect: NoSchedule
+      defaultJobTolerations:
+        - key: armada.io/batch
+          operator: Exists
+          effect: NoSchedule
     pulsar:
       # -- Toggle whether to connect to Pulsar
       enabled: true
@@ -150,13 +159,10 @@ armada-lookout:
   # -- Ingress class
   ingressClass: nginx
   ingress:
-    # -- Ingress annotations
     annotations: {}
-    # -- Ingress labels
     labels: {}
   # -- ClusterIssuer from whom a Let's Encrypt certificate will be requested
   clusterIssuer: dev-ca
-  # -- Ingress hostnames
   hostnames: []
 
   prometheus:

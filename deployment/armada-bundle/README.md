@@ -64,68 +64,50 @@ A helm chart which bundles Armada components
 | armada-lookout.applicationConfig.postgres.connection.port | int | `5432` | Postgres port |
 | armada-lookout.applicationConfig.postgres.connection.user | string | `"postgres"` | Postgres username |
 | armada-lookout.clusterIssuer | string | `"dev-ca"` | ClusterIssuer from whom a Let's Encrypt certificate will be requested |
-| armada-lookout.hostnames | list | `[]` |  |
+| armada-lookout.hostnames | list | `[]` | Ingress hostnames |
 | armada-lookout.image.repository | string | `"gresearchdev/armada-lookout"` |  |
 | armada-lookout.image.tag | string | `"v0.3.36"` |  |
-| armada-lookout.ingress.labels."kubernetes.io/ingress.class" | string | `"nginx"` | Ingress class as label, used usually as a workaround by external-dns as they currently do not support filtering by ingressClass field |
+| armada-lookout.ingress.annotations | object | `{}` | Ingress annotations |
+| armada-lookout.ingress.labels | object | `{}` | Ingress labels |
 | armada-lookout.ingressClass | string | `"nginx"` | Ingress class |
 | armada-lookout.prometheus.enabled | bool | `true` | Toggle whether to create a ServiceMonitor for Lookout |
-| armada.applicationConfig.auth.anonymousAuth | bool | `true` |  |
-| armada.applicationConfig.auth.basicAuth.enableAuthentication | bool | `false` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.cancel_any_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.cancel_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.create_queue[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.delete_queue[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.execute_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.reprioritize_any_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.reprioritize_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.submit_any_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.submit_jobs[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.watch_all_events[0] | string | `"everyone"` |  |
-| armada.applicationConfig.auth.permissionGroupMapping.watch_events[0] | string | `"everyone"` |  |
-| armada.applicationConfig.eventsRedis.addrs[0] | string | `"redis-ha-announce-0.armada.svc.cluster.local:26379"` |  |
-| armada.applicationConfig.eventsRedis.addrs[1] | string | `"redis-ha-announce-1.armada.svc.cluster.local:26379"` |  |
-| armada.applicationConfig.eventsRedis.addrs[2] | string | `"redis-ha-announce-2.armada.svc.cluster.local:26379"` |  |
+| armada.applicationConfig.auth | object | `{}` | Armada auth config |
+| armada.applicationConfig.eventsNats.QueueGroup | string | `"ArmadaEventRedisProcessor"` |  |
+| armada.applicationConfig.eventsNats.clusterId | string | `"armada-cluster"` | STAN cluster ID |
+| armada.applicationConfig.eventsNats.servers | list | `[]` | events STAN URIs |
+| armada.applicationConfig.eventsNats.subject | string | `"ArmadaTest"` |  |
+| armada.applicationConfig.eventsNats.timeout | string | `"10s"` |  |
+| armada.applicationConfig.eventsRedis.addrs | list | `[]` | events Redis cluster instance URLs |
 | armada.applicationConfig.eventsRedis.masterName | string | `"mymaster"` |  |
 | armada.applicationConfig.eventsRedis.poolSize | int | `1000` |  |
 | armada.applicationConfig.grpcPort | int | `50051` |  |
 | armada.applicationConfig.httpPort | int | `8080` |  |
 | armada.applicationConfig.pulsar.URL | string | `"pulsar://pulsar-broker.armada.svc.cluster.local:6650"` | Pulsar connection string |
 | armada.applicationConfig.pulsar.enabled | bool | `true` | Toggle whether to connect to Pulsar |
-| armada.applicationConfig.redis.addrs[0] | string | `"redis-ha-announce-0.armada.svc.cluster.local:26379"` |  |
-| armada.applicationConfig.redis.addrs[1] | string | `"redis-ha-announce-1.armada.svc.cluster.local:26379"` |  |
-| armada.applicationConfig.redis.addrs[2] | string | `"redis-ha-announce-2.armada.svc.cluster.local:26379"` |  |
+| armada.applicationConfig.redis.addrs | list | `[]` | master Redis cluster instance URLs |
 | armada.applicationConfig.redis.masterName | string | `"mymaster"` |  |
+| armada.applicationConfig.scheduling.defaultJobTolerations | list | `[]` | default node tolerations for Armada jobs |
+| armada.applicationConfig.scheduling.probabilityOfUsingNewScheduler | int | `1` |  |
 | armada.clusterIssuer | string | `"dev-ca"` | ClusterIssuer from whom a Let's Encrypt certificate will be requested |
 | armada.hostnames | list | `[]` |  |
 | armada.image.repository | string | `"gresearchdev/armada-server"` |  |
 | armada.image.tag | string | `"v0.3.36"` |  |
-| armada.ingress.labels."kubernetes.io/ingress.class" | string | `"nginx"` | Ingress class as label, used usually as a workaround by external-dns as they currently do not support filtering by ingressClass field |
 | armada.ingressClass | string | `"nginx"` | Ingress class |
 | armada.nodePort | int | `30000` |  |
 | armada.prometheus.enabled | bool | `true` | Toggle whether to create a ServiceMonitor for Armada Server |
-| dependencies.armada-executor | bool | `true` |  |
-| dependencies.armada-lookout | bool | `true` |  |
-| dependencies.armada-lookout-ingester | bool | `true` |  |
-| dependencies.armada-lookout-migration | bool | `true` |  |
-| dependencies.armada-server | bool | `true` |  |
-| dependencies.executor-cluster-monitoring | bool | `true` |  |
-| dependencies.postgresql | bool | `true` |  |
-| dependencies.pulsar | bool | `true` |  |
-| dependencies.redis-ha | bool | `true` |  |
-| dependencies.stan | bool | `true` |  |
+| dependencies.armada-executor | bool | `true` | Toggle whether to install Armada Executor |
+| dependencies.armada-lookout | bool | `true` | Toggle whether to install Armada Lookout UI |
+| dependencies.armada-lookout-ingester | bool | `true` | Toggle whether to install Armada Lookout Ingester |
+| dependencies.armada-lookout-migration | bool | `true` | Toggle whether to install Armada Lookout migrations |
+| dependencies.armada-server | bool | `true` | Toggle whether to install Armada Server |
+| dependencies.executor-cluster-monitoring | bool | `true` | Toggle whether to install executor cluster monitoring rules (NOTE: requires Prometheus CRDs) |
+| dependencies.postgresql | bool | `true` | Toggle whether to install PostgreSQL |
+| dependencies.pulsar | bool | `true` | Toggle whether to install Pulsar |
+| dependencies.redis-ha | bool | `true` | Toggle whether to install Redis HA cluster |
+| dependencies.stan | bool | `true` | Toggle whether to install Streaming NATS |
 | executor-cluster-monitoring.additionalLabels.app | string | `"prometheus-operator"` |  |
 | executor-cluster-monitoring.additionalLabels.release | string | `"prometheus-operator"` |  |
 | executor-cluster-monitoring.interval | string | `"5s"` |  |
-| kube-prometheus-stack.alertmanager.enabled | bool | `false` |  |
-| kube-prometheus-stack.grafana.service.nodePort | int | `30001` |  |
-| kube-prometheus-stack.grafana.service.type | string | `"NodePort"` |  |
-| kube-prometheus-stack.prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues | bool | `false` |  |
-| kube-prometheus-stack.prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues | bool | `false` |  |
-| kube-prometheus-stack.prometheusOperator.admissionWebhooks.enabled | bool | `false` |  |
-| kube-prometheus-stack.prometheusOperator.createCustomResource | bool | `false` |  |
-| kube-prometheus-stack.prometheusOperator.tls.enabled | bool | `false` |  |
-| kube-prometheus-stack.prometheusOperator.tlsProxy.enabled | bool | `false` |  |
 | postgresql.auth.postgresPassword | string | `"psw"` |  |
 | postgresql.fullnameOverride | string | `"postgresql"` |  |
 | pulsar.armadaInit.adminPort | int | `8080` | Pulsar admin (REST) port |
@@ -143,7 +125,7 @@ A helm chart which bundles Armada components
 | redis-ha.hardAntiAffinity | bool | `false` |  |
 | redis-ha.persistentVolume.enabled | bool | `false` |  |
 | stan.nameOverride | string | `"stan"` |  |
-| stan.stan.clusterID | string | `"test-cluster"` |  |
+| stan.stan.clusterID | string | `"armada-cluster"` | Streaming NATS Cluster ID (set during install and saved in the persistence backend) |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.11.0](https://github.com/norwoodj/helm-docs/releases/v1.11.0)
