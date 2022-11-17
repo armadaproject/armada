@@ -1,0 +1,43 @@
+{{- if .Values.pulsar.armadaInit.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pulsar-init
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-pulsar
+          image: alpine:3.16
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for Pulsar... ({{ .Values.pulsar.armadaInit.brokerHost }}:{{ .Values.pulsar.armadaInit.port }})"
+
+              while ! nc -z {{ .Values.pulsar.armadaInit.brokerHost }} {{ .Values.pulsar.armadaInit.port }}; do
+                sleep 1
+              done
+
+              echo "Pulsar started!"
+      containers:
+        - name: init-pulsar
+          image: {{ .Values.pulsar.armadaInit.image.repository }}:{{ .Values.pulsar.armadaInit.image.tag }}
+          {{- $pulsarAdminUrl := printf "%s://%s:%s" .Values.pulsar.armadaInit.protocol .Values.pulsar.armadaInit.brokerHost (toString .Values.pulsar.armadaInit.adminPort) }}
+          command:
+            - sh
+            - -c
+            - |
+              echo -e "Initializing pulsar ({{ $pulsarAdminUrl }})"
+              bin/pulsar-admin --admin-url {{ $pulsarAdminUrl }} tenants create armada
+              bin/pulsar-admin --admin-url {{ $pulsarAdminUrl }} namespaces create armada/armada
+              bin/pulsar-admin --admin-url {{ $pulsarAdminUrl }} topics delete-partitioned-topic persistent://armada/armada/events -f || true
+              bin/pulsar-admin --admin-url {{ $pulsarAdminUrl }} topics create-partitioned-topic persistent://armada/armada/events -p 2
+
+              # Disable topic auto-creation to ensure an error is thrown on using the wrong topic
+              # (Pulsar automatically created the public tenant and default namespace).
+              bin/pulsar-admin --admin-url {{ $pulsarAdminUrl }} namespaces set-auto-topic-creation public/default --disable
+              bin/pulsar-admin --admin-url {{ $pulsarAdminUrl }} namespaces set-auto-topic-creation armada/armada --disable
+      restartPolicy: Never
+  backoffLimit: 0
+{{- end }}
