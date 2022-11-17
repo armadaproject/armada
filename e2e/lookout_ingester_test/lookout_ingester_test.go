@@ -383,10 +383,10 @@ func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest
 
 // NOTE Some important points on trigger functions
 // They must:
-//	- return trigger in their function signature
-//	- return OLD, NEW, or NULL (In the case of AFTER triggers, NULL is most logical)
-//  Also note that PERFORM discards results we don't want/use, and is only available
-//  when using plpgsql language.
+// - return trigger in their function signature
+// - return OLD, NEW, or NULL (In the case of AFTER triggers, NULL is most logical)
+// Also note that PERFORM discards results we don't want/use, and is only available
+// when using plpgsql language.
 const triggerNotifyFuncSql = `CREATE OR REPLACE FUNCTION %s() RETURNS trigger AS $$ 
 	BEGIN 
 		PERFORM pg_notify('%s', NEW.job_id) as notify; 
