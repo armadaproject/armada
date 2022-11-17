@@ -19,19 +19,6 @@ import (
 	"github.com/G-Research/armada/pkg/client"
 )
 
-var defaultWaits struct {
-	PollWait     time.Duration
-	ExpiresAfter time.Duration
-}
-
-func init() {
-	pollWait, _ := time.ParseDuration("1s")
-	expiresAfter, _ := time.ParseDuration("1m")
-
-	defaultWaits.PollWait = pollWait
-	defaultWaits.ExpiresAfter = expiresAfter
-}
-
 func TestLookoutIngesterUpdatesPostgresWithJobInfoJobSucceeds(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
