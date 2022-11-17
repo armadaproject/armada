@@ -3,17 +3,14 @@ package convert
 import (
 	"context"
 
-	"github.com/pkg/errors"
-
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-
-	"github.com/G-Research/armada/internal/common/ingest"
-
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/internal/eventingester/model"
 )
 

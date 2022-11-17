@@ -1,3 +1,5 @@
+from airflow import DAG
+from airflow.models.taskinstance import TaskInstance
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -8,7 +10,9 @@ import grpc
 from concurrent import futures
 from armada_client.armada import submit_pb2_grpc, submit_pb2, event_pb2_grpc
 
+import pendulum
 import pytest
+from armada.operators.armada import ArmadaOperator, annotate_job_request_items
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import JobState, search_for_job_complete
 from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
@@ -131,3 +135,42 @@ def test_mock_cancelled_job():
     )
     assert job_state == JobState.CANCELLED
     assert job_message == "Armada test-mock:test_cancelled cancelled"
+
+
+def test_annotate_job_request_items():
+
+    no_auth_client = ArmadaClient(
+        channel=grpc.insecure_channel(target="127.0.0.1:50051")
+    )
+    job_service_client = JobServiceClient(
+        channel=grpc.insecure_channel(target="127.0.0.1:60003")
+    )
+
+    job_request_items = sleep_job()
+    task_id = "58896abbfr9"
+    operator = ArmadaOperator(
+        task_id=task_id,
+        name="armada-task",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=job_request_items,
+        lookout_url_template="http://127.0.0.1:8089",
+    )
+
+    task_instance = TaskInstance(operator)
+    dag = DAG(
+        dag_id="hello_armada",
+        start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
+        schedule_interval="@daily",
+        catchup=False,
+        default_args={"retries": 2},
+    )
+    context = {"ti": task_instance, "dag": dag, "run_id": "some-run-id"}
+
+    result = annotate_job_request_items(context, job_request_items)
+    assert result[0].annotations == {
+        "armadaproject.io/taskId": task_id,
+        "armadaproject.io/taskRunId": "some-run-id",
+        "armadaproject.io/dagId": "hello_armada",
+    }
