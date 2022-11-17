@@ -13,10 +13,10 @@ grpc:
     permitWithoutStream: false
 
 uiConfig:
-  armadaApiBaseUrl: "http://armada-server:8080"
+  armadaApiBaseUrl: "http://localhost:8080"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsEnabled: true
-  binocularsBaseUrlPattern: "http://binoculars:8082" # {CLUSTER_ID} gets replaced by appropriate cluster id
+  binocularsBaseUrlPattern: "http://localhost:8082" # {CLUSTER_ID} gets replaced by appropriate cluster id
   overviewAutoRefreshMs: 15000
   jobSetsAutoRefreshMs: 15000
   jobsAutoRefreshMs: 30000

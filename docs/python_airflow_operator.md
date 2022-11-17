@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template=None, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -37,6 +37,13 @@ Airflow operators inherit from BaseOperator.
 
 
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
+
+
+    * **lookout_url_template** (*Optional**[**str**]*) – A URL template to be used to provide users
+    a valid link to the related lookout job in this operator’s log.
+    The format should be:
+    “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will
+    be replaced with the actual job ID.
 
 
 
@@ -67,6 +74,50 @@ Runs an Armada job and calls the job_service_client for polling.
 * **Return type**
 
     None
+
+
+
+### armada.operators.armada.annotate_job_request_items(context, job_request_items)
+Annotates the inbound job request items with Airflow context elements
+
+
+* **Parameters**
+
+    
+    * **context** – The airflow context.
+
+
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – The job request items to be sent to armada
+
+
+
+* **Returns**
+
+    annotated job request items for armada
+
+
+
+* **Return type**
+
+    *List*[*JobSubmitRequestItem*]
+
+
+
+### armada.operators.armada.get_annotation_key_prefix()
+Provides the annotation key perfix,
+which can be specified in env var ANNOTATION_KEY_PREFIX.
+A default is provided if the env var is not defined
+
+
+* **Returns**
+
+    string annotation key prefix
+
+
+
+* **Return type**
+
+    str
 
 
 ## armada.operators.jobservice module

@@ -338,11 +338,11 @@ func TestNodePodRequirementsMet(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			node := &Node{
-				Taints:                         tc.Taints,
-				Labels:                         tc.Labels,
-				AvailableByPriorityAndResource: tc.AvailableResources,
+				Taints:                           tc.Taints,
+				Labels:                           tc.Labels,
+				AllocatableByPriorityAndResource: tc.AvailableResources,
 			}
-			matches, _, reason, err := node.PodRequirementsMet(tc.Req, nil)
+			matches, _, reason, err := node.PodRequirementsMet(tc.Req)
 			assert.NoError(t, err)
 			if tc.ExpectSuccess { // TODO: Test score set correctly.
 				assert.True(t, matches)
