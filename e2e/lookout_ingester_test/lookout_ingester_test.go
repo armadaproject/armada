@@ -86,6 +86,8 @@ var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
 			assert.True(t, pJobRun.Succeeded.Valid)
 			assert.False(t, pJobRun.Succeeded.Bool)
 			assert.True(t, pJobRun.Finished.Valid)
+			assert.True(t, pJobRun.Error.Valid)
+			assert.Contains(t, pJobRun.Error.String, "Container container1 failed with exit code 57")
 		},
 	},
 	{
@@ -234,6 +236,7 @@ type PartialJobRun struct {
 	Succeeded sql.NullBool
 	PodNumber int
 	Finished  sql.NullTime
+	Error     sql.NullString
 }
 
 type JobRunTracker struct {
@@ -253,7 +256,7 @@ func NewJobRunTracker(jobId string, db *sql.DB) *JobRunTracker {
 
 func (jrt *JobRunTracker) Scan() error {
 	pJobRun := &PartialJobRun{}
-	rows, err := jrt.db.Query("SELECT run_id,job_id,cluster,succeeded,pod_number,finished FROM job_run WHERE job_id = $1", jrt.JobId)
+	rows, err := jrt.db.Query("SELECT run_id,job_id,cluster,succeeded,pod_number,finished,error FROM job_run WHERE job_id = $1", jrt.JobId)
 	if err != nil {
 		return err
 	}
@@ -261,7 +264,7 @@ func (jrt *JobRunTracker) Scan() error {
 
 	for rows.Next() {
 		pJobRun = &PartialJobRun{}
-		if err := rows.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber, &pJobRun.Finished); err != nil {
+		if err := rows.Scan(&pJobRun.RunId, &pJobRun.JobId, &pJobRun.Cluster, &pJobRun.Succeeded, &pJobRun.PodNumber, &pJobRun.Finished, &pJobRun.Error); err != nil {
 			return err
 		}
 		jrt.JobRuns[pJobRun.RunId] = pJobRun
