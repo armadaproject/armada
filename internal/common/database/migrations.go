@@ -19,6 +19,14 @@ type Migration struct {
 	sql  string
 }
 
+func NewMigration(id int, name string, sql string) Migration {
+	return Migration{
+		id:   id,
+		name: name,
+		sql:  sql,
+	}
+}
+
 func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migration) error {
 	log.Info("Updating postgres...")
 	version, err := readVersion(ctx, db)

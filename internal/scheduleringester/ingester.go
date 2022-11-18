@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"github.com/G-Research/armada/internal/common/database"
 	"time"
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common/app"
 	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/lookout/postgres"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
@@ -20,7 +20,7 @@ func Run(config *Configuration) {
 	metrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
 
 	log.Infof("Opening connection pool to postgres")
-	db, err := postgres.OpenPgxPool(config.Postgres)
+	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
