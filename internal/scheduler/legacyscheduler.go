@@ -824,7 +824,12 @@ func pickQueueRandomly(weights map[string]float64, random *rand.Rand) (string, f
 	for _, share := range weights {
 		sum += share
 	}
-	pick := sum * random.Float64()
+	var pick float64
+	if random != nil {
+		pick = sum * random.Float64()
+	} else {
+		pick = sum * rand.Float64()
+	}
 
 	// Iterate over queues in deterministic order.
 	queues := maps.Keys(weights)

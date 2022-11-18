@@ -62,6 +62,13 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	if len(priorities) == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "priorities",
+			Value:   priorities,
+			Message: "there must be at least one supported priority",
+		})
+	}
 	priorities = slices.Clone(priorities)
 	slices.Sort(priorities) // To enable binary search.
 	if len(indexedResources) == 0 {

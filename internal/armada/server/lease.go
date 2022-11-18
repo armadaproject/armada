@@ -446,12 +446,20 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			priorities,
 		)
 	}
+	indexedResources := q.schedulingConfig.IndexedResources
+	if len(indexedResources) == 0 {
+		indexedResources = []string{"cpu", "memory"}
+	}
 	nodeDb, err := scheduler.NewNodeDb(
 		priorities,
-		q.schedulingConfig.IndexedResources,
+		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
 	)
+	if err != nil {
+		return nil, err
+	}
+	err = nodeDb.Upsert(nodes)
 	if err != nil {
 		return nil, err
 	}
