@@ -293,6 +293,28 @@ func TestValidateGangs(t *testing.T) {
 			},
 			ExpectSuccess: false,
 		},
+		"inconsistent PriorityClassName": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+					PodSpec: &v1.PodSpec{
+						PriorityClassName: "baz",
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation: "bar",
+					},
+					PodSpec: &v1.PodSpec{
+						PriorityClassName: "zab",
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/scheduler"
 
 	"github.com/G-Research/armada/pkg/api"
@@ -25,8 +26,9 @@ func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) err
 
 func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation string) error {
 	gangDetailsByGangId := make(map[string]struct {
-		actualCardinality   int
-		expectedCardinality int
+		actualCardinality         int
+		expectedCardinality       int
+		expectedPriorityClassName string
 	})
 	for i, job := range jobs {
 		annotations := job.Annotations
@@ -40,14 +42,18 @@ func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation 
 		if gangId == "" {
 			return errors.Errorf("empty gang id for %d-th job with id %s", i, job.Id)
 		}
+		podSpec := util.PodSpecFromJob(job)
 		if details, ok := gangDetailsByGangId[gangId]; ok {
 			if details.expectedCardinality != gangCardinality {
-				if err != nil {
-					return err
-				}
 				return errors.Errorf(
 					"inconsistent gang cardinality for %d-th job with id %s in gang %s: expected %d but got %d",
 					i, job.Id, gangId, details.expectedCardinality, gangCardinality,
+				)
+			}
+			if podSpec != nil && details.expectedPriorityClassName != podSpec.PriorityClassName {
+				return errors.Errorf(
+					"inconsistent PriorityClassName for %d-th job with id %s in gang %s: expected %s but got %s",
+					i, job.Id, gangId, details.expectedPriorityClassName, podSpec.PriorityClassName,
 				)
 			}
 			details.actualCardinality++
@@ -55,6 +61,9 @@ func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation 
 		} else {
 			details.actualCardinality = 1
 			details.expectedCardinality = gangCardinality
+			if podSpec != nil {
+				details.expectedPriorityClassName = podSpec.PriorityClassName
+			}
 			gangDetailsByGangId[gangId] = details
 		}
 	}
