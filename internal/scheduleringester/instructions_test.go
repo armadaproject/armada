@@ -165,6 +165,7 @@ func TestConvertSequence(t *testing.T) {
 }
 
 func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []DbOperation) {
+	t.Helper()
 	assert.Equal(t, len(expectedOps), len(actualOps), "operations arrays are not the same length")
 	for i := 0; i < len(expectedOps); i++ {
 		expectedOp := expectedOps[i]
