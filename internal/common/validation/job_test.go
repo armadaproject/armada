@@ -128,6 +128,17 @@ func TestValidateGangs(t *testing.T) {
 			},
 			ExpectSuccess: true,
 		},
+		"empty gangId": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "",
+						gangCardinalityAnnotation: strconv.Itoa(1),
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
 		"complete gang job of cardinality 3": {
 			Jobs: []*api.Job{
 				{

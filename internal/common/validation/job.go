@@ -37,6 +37,9 @@ func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation 
 		if !isGangJob {
 			continue
 		}
+		if gangId == "" {
+			return errors.Errorf("empty gang id for %d-th job with id %s", i, job.Id)
+		}
 		if details, ok := gangDetailsByGangId[gangId]; ok {
 			if details.expectedCardinality != gangCardinality {
 				if err != nil {
