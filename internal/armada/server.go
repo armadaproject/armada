@@ -350,22 +350,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return errors.New("new scheduler enabled, but postgres is disabled")
 		}
 
-		// Scheduler jobs ingester.
-		schedulerIngester := &scheduler.Ingester{
-			PulsarClient: pulsarClient,
-			ConsumerOptions: pulsar.ConsumerOptions{
-				Topic:            config.Pulsar.JobsetEventsTopic,
-				SubscriptionName: "pulsar-scheduler-ingester",
-				Type:             pulsar.KeyShared,
-			},
-			MaxWriteInterval: time.Second,
-			MaxDbOps:         10000,
-			Db:               pool,
-		}
-		services = append(services, func() error {
-			return schedulerIngester.Run(ctx)
-		})
-
 		// The scheduler itself.
 		// TODO: I think we can safely re-use the same producer for all components.
 		schedulerProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
