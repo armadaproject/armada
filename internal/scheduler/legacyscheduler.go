@@ -226,7 +226,7 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	podSpec := podSpecFromJob(job)
+	podSpec := util.PodSpecFromJob(job)
 	if podSpec == nil {
 		return nil, errors.New("failed to get pod spec")
 	}
@@ -276,13 +276,14 @@ func (it *QueueCandidateJobsIterator) schedulingReportFromJob(ctx context.Contex
 		it.SchedulingConstraints.TotalResources,
 		it.MaximalResourceFractionPerQueue,
 	); exceeded {
-		jobSchedulingReport.UnschedulableReason = reason + " (per scheduling round limit for this queue)"
+		jobSchedulingReport.UnschedulableReason = reason + " (total limit for this queue)"
 		return jobSchedulingReport, nil
 	}
 
 	// MaximalCumulativeResourceFractionPerQueueAndPriority check.
 	if exceeded, reason := exceedsPerPriorityResourceLimits(
 		ctx,
+		priority,
 		totalQueueResourcesByPriority,
 		it.SchedulingConstraints.TotalResources,
 		it.MaximalCumulativeResourceFractionPerQueueAndPriority,
@@ -414,7 +415,7 @@ func exceedsResourceLimits(ctx context.Context, used, total schedulerobjects.Res
 }
 
 // Check if scheduling this job would exceed per-priority-per-queue resource limits.
-func exceedsPerPriorityResourceLimits(ctx context.Context, usedByPriority schedulerobjects.QuantityByPriorityAndResourceType, total schedulerobjects.ResourceList, limits map[int32]map[string]float64) (bool, string) {
+func exceedsPerPriorityResourceLimits(ctx context.Context, jobPriority int32, usedByPriority schedulerobjects.QuantityByPriorityAndResourceType, total schedulerobjects.ResourceList, limits map[int32]map[string]float64) (bool, string) {
 	// Calculate cumulative usage at each priority.
 	// This involves summing the usage at all higher priorities.
 	priorities := maps.Keys(limits)
@@ -423,20 +424,19 @@ func exceedsPerPriorityResourceLimits(ctx context.Context, usedByPriority schedu
 	cumulativeSum := schedulerobjects.ResourceList{}
 	for i := len(priorities) - 1; i >= 0; i-- {
 		priority := priorities[i]
-		usageAtPriority, ok := usedByPriority[priority]
-		if ok {
-			cumulativeSum.Add(usageAtPriority)
-		}
+		cumulativeSum.Add(usedByPriority[priority])
 		cumulativeUsageByPriority[priority] = cumulativeSum.DeepCopy()
 	}
 	for priority, priorityLimits := range limits {
-		if rl, ok := cumulativeUsageByPriority[priority]; ok {
-			limitExceeded, msg := exceedsResourceLimits(ctx, rl, total, priorityLimits)
-			if limitExceeded {
-				return true, fmt.Sprintf("%s at priority %d", msg, priority)
+		if priority <= jobPriority {
+			if rl, ok := cumulativeUsageByPriority[priority]; ok {
+				limitExceeded, msg := exceedsResourceLimits(ctx, rl, total, priorityLimits)
+				if limitExceeded {
+					return true, fmt.Sprintf("%s at priority %d", msg, priority)
+				}
+			} else {
+				log.Warnf("Job scheduled at priority %d but there are no per-priority limits set up for this class; skipping per periority limit check", priority)
 			}
-		} else {
-			log.Warnf("Job scheduled at priority %d but there are no per-priority limits set up for this class; skipping per periority limit check", priority)
 		}
 	}
 	return false, ""
@@ -526,56 +526,6 @@ func (it *CandidateGangIterator) Next() ([]*JobSchedulingReport, error) {
 			return []*JobSchedulingReport{report}, nil
 		}
 	}
-}
-
-func scheduleJob(ctx context.Context, job *api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass, nodeDb *NodeDb) (*PodSchedulingReport, bool, error) {
-	reports, ok, err := scheduleJobs(ctx, []*api.Job{job}, priorityByPriorityClassName, nodeDb)
-	if len(reports) == 0 {
-		return nil, ok, err
-	}
-	return reports[0], ok, err
-}
-
-// TODO: Consider moving to the NodeDb.
-func scheduleJobs(ctx context.Context, jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass, nodeDb *NodeDb) ([]*PodSchedulingReport, bool, error) {
-	reports, ok, err := nodeDb.ScheduleMany(reqsFromJobs(jobs, priorityByPriorityClassName))
-	if err != nil {
-		return nil, ok, err
-	}
-	return reports, ok, nil
-}
-
-func reqsFromJobs(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, 0)
-	for _, job := range jobs {
-		rv = append(rv, schedulerobjects.PodRequirementsFromPodSpec(job.PodSpec, priorityByPriorityClassName))
-		for _, podSpec := range job.PodSpecs {
-			rv = append(rv, schedulerobjects.PodRequirementsFromPodSpec(podSpec, priorityByPriorityClassName))
-		}
-	}
-	return rv
-}
-
-func (sched *LegacyScheduler) selectNodeForPod(ctx context.Context, jobId uuid.UUID, job *api.Job, bind bool) (*PodSchedulingReport, error) {
-	podSpec := podSpecFromJob(job)
-	if podSpec == nil {
-		return nil, errors.New("failed to get pod spec")
-	}
-
-	// Try to find a node for this pod.
-	// Store the report returned by the NodeDb.
-	req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, sched.PriorityClasses)
-	var report *PodSchedulingReport
-	var err error
-	if bind {
-		report, err = sched.NodeDb.SelectAndBindNodeToPod(req)
-	} else {
-		report, err = sched.NodeDb.SelectNodeForPod(req)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return report, nil
 }
 
 func (sched *LegacyScheduler) podRequirementsFromJobs(jobs []*api.Job) []*schedulerobjects.PodRequirements {

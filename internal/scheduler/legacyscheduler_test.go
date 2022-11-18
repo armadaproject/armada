@@ -928,12 +928,12 @@ func TestSchedule(t *testing.T) {
 				"A": {
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("7"), // under limit
+							"cpu": resource.MustParse("7"), // out of 28
 						},
 					},
 					1: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("20"), // over limit
+							"cpu": resource.MustParse("20"), // out of 14, i.e., over the limit
 						},
 					},
 				},
