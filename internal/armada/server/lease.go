@@ -446,6 +446,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			priorities,
 		)
 	}
+	nodeDb, err := scheduler.NewNodeDb(
+		priorities,
+		q.schedulingConfig.IndexedResources,
+		q.schedulingConfig.IndexedTaints,
+		q.schedulingConfig.IndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
 	// all queues for which the jobs queue has not been deleted automatically by Redis.
@@ -468,23 +477,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		priorityFactorByActiveQueue[queue.Name] = priorityFactorByQueue[queue.Name]
 	}
 
-	sched, err := scheduler.NewLegacyScheduler(
-		q.schedulingConfig,
-		req.ClusterId,
-		totalCapacityRl,
-		nodes,
-		q.jobRepository,
-		priorityFactorByActiveQueue,
-	)
-	if err != nil {
-		return nil, err
-	}
-	sched.MinimumJobSize = req.MinimumJobSize
-	sched.Pool = req.Pool
-
-	// Log initial scheduler state.
-	log.Info("LegacyScheduler:\n" + sched.String())
-
 	// Give Schedule() a 3 second shorter deadline than ctx,
 	// to give it a chance to finish up before ctx is cancelled.
 	if deadline, ok := ctx.Deadline(); ok {
@@ -492,26 +484,37 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
+	constraints := scheduler.SchedulingConstraintsFromSchedulingConfig(
+		req.ClusterId,
+		req.Pool,
+		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		q.schedulingConfig,
+		totalCapacityRl,
+	)
+	sched, err := scheduler.NewLegacyScheduler(
+		ctx,
+		*constraints,
+		q.schedulingConfig,
+		nodeDb,
+		q.jobRepository,
+		priorityFactorByActiveQueue,
+		aggregatedUsageByQueue,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log initial scheduler state.
+	log.Info("LegacyScheduler:\n" + sched.String())
 
 	// Run the scheduler.
-	jobs, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+	jobs, err := sched.Schedule()
 
 	// Log and store scheduling reports.
-	if sched.SchedulingRoundReport != nil {
+	if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
 		log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
-		if q.SchedulingReportsRepository != nil {
-			sched.SchedulingRoundReport.ClearJobSpecs()
-			for queue, jobReports := range sched.SchedulingRoundReport.SuccessfulJobSchedulingReportsByQueue {
-				for _, jobReport := range jobReports {
-					q.SchedulingReportsRepository.Add(queue, jobReport)
-				}
-			}
-			for queue, jobReports := range sched.SchedulingRoundReport.UnsuccessfulJobSchedulingReportsByQueue {
-				for _, jobReport := range jobReports {
-					q.SchedulingReportsRepository.Add(queue, jobReport)
-				}
-			}
-		}
+		sched.SchedulingRoundReport.ClearJobSpecs()
+		q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
 	}
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
@@ -526,15 +529,17 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			reportsByExecutor[req.ClusterId] = executorReport
 		}
-		for queue, resourcesByPriority := range sched.SchedulingRoundReport.ScheduledResourcesByQueueAndPriority {
-			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil && queueClusterUsage.ResourcesByPriority != nil {
-				schedulerobjects.QuantityByPriorityAndResourceType(queueClusterUsage.ResourcesByPriority).Add(resourcesByPriority)
+		for queue, queueSchedulingRoundReport := range sched.SchedulingRoundReport.QueueSchedulingRoundReports {
+			if queueClusterUsage := executorReport.ResourcesByQueue[queue]; queueClusterUsage != nil && queueClusterUsage.ResourcesByPriority != nil {
+				schedulerobjects.QuantityByPriorityAndResourceType(queueClusterUsage.ResourcesByPriority).Add(
+					queueSchedulingRoundReport.ScheduledResourcesByPriority,
+				)
 			} else {
 				queueClusterUsage = &schedulerobjects.QueueClusterResourceUsage{
 					Created:             q.clock.Now(),
 					Queue:               queue,
 					ExecutorId:          req.ClusterId,
-					ResourcesByPriority: resourcesByPriority,
+					ResourcesByPriority: queueSchedulingRoundReport.ScheduledResourcesByPriority.DeepCopy(),
 				}
 				executorReport.ResourcesByQueue[queue] = queueClusterUsage
 			}

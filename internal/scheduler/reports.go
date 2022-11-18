@@ -12,6 +12,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
@@ -222,6 +223,19 @@ func (repo *SchedulingReportsRepository) GetJobReport(ctx context.Context, jobId
 	return &schedulerobjects.JobReport{
 		Report: report.String(),
 	}, nil
+}
+
+func (repo *SchedulingReportsRepository) AddSchedulingRoundReport(report *SchedulingRoundReport) {
+	for queue, queueSchedulingRoundReport := range report.QueueSchedulingRoundReports {
+		repo.AddMany(queue, maps.Values(queueSchedulingRoundReport.SuccessfulJobSchedulingReports))
+		repo.AddMany(queue, maps.Values(queueSchedulingRoundReport.UnsuccessfulJobSchedulingReports))
+	}
+}
+
+func (repo *SchedulingReportsRepository) AddMany(queueName string, reports []*JobSchedulingReport) {
+	for _, report := range reports {
+		repo.Add(queueName, report)
+	}
 }
 
 func (repo *SchedulingReportsRepository) Add(queueName string, report *JobSchedulingReport) {
