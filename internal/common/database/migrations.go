@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgtype/pgxtype"
+
 	"github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,14 +17,6 @@ type Migration struct {
 	id   int
 	name string
 	sql  string
-}
-
-func NewMigration(id int, name string, sql string) Migration {
-	return Migration{
-		id:   id,
-		name: name,
-		sql:  sql,
-	}
 }
 
 func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migration) error {
@@ -36,6 +29,7 @@ func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migrat
 
 	for _, m := range migrations {
 		if m.id > version {
+			log.Debugf("Executing %s", m.name)
 			_, err := db.Exec(ctx, m.sql)
 			if err != nil {
 				return err
@@ -95,7 +89,7 @@ func GetMigrations(namespace string) ([]Migration, error) {
 
 	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
 
-	migrations := []Migration{}
+	var migrations []Migration
 	for _, f := range files {
 		file, err := vfs.Open("/" + f.Name())
 		if err != nil {
