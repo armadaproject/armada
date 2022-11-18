@@ -1,8 +1,9 @@
 package scheduleringester
 
 import (
-	"github.com/G-Research/armada/internal/common/database"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/database"
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/pkg/armadaevents"
