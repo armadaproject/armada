@@ -316,7 +316,6 @@ func (it *CandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 		return nil, it.err
 	}
 
-	// TODO: Use uint always.
 	if it.MaximumJobsToSchedule != 0 && it.SchedulingRoundReport.NumScheduledJobs == int(it.MaximumJobsToSchedule) {
 		it.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
 		return nil, nil

@@ -392,13 +392,13 @@ func testNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
-func testNTaintedtGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testTaintedGpuNode(priorities)
-	}
-	return rv
-}
+// func testNTaintedtGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
+// 	rv := make([]*schedulerobjects.Node, n)
+// 	for i := 0; i < n; i++ {
+// 		rv[i] = testTaintedGpuNode(priorities)
+// 	}
+// 	return rv
+// }
 
 // func testNA100Node(n int, priorities []int32) []*schedulerobjects.Node {
 // 	rv := make([]*schedulerobjects.Node, n)
@@ -483,38 +483,38 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
-func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
-	taints := []v1.Taint{
-		{
-			Key:    "gpu",
-			Value:  "true",
-			Effect: v1.TaintEffectNoSchedule,
-		},
-	}
-	labels := map[string]string{
-		"gpu": "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
-		Taints: taints,
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		),
-	}
-}
+// func testTaintedGpuNode(priorities []int32) *schedulerobjects.Node {
+// 	taints := []v1.Taint{
+// 		{
+// 			Key:    "gpu",
+// 			Value:  "true",
+// 			Effect: v1.TaintEffectNoSchedule,
+// 		},
+// 	}
+// 	labels := map[string]string{
+// 		"gpu": "true",
+// 	}
+// 	return &schedulerobjects.Node{
+// 		Id:     uuid.NewString(),
+// 		Taints: taints,
+// 		Labels: labels,
+// 		TotalResources: schedulerobjects.ResourceList{
+// 			Resources: map[string]resource.Quantity{
+// 				"cpu":    resource.MustParse("64"),
+// 				"memory": resource.MustParse("1024Gi"),
+// 				"gpu":    resource.MustParse("8"),
+// 			},
+// 		},
+// 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+// 			priorities,
+// 			map[string]resource.Quantity{
+// 				"cpu":    resource.MustParse("64"),
+// 				"memory": resource.MustParse("1024Gi"),
+// 				"gpu":    resource.MustParse("8"),
+// 			},
+// 		),
+// 	}
+// }
 
 // func testA100GpuNode(priorities []int32) *schedulerobjects.Node {
 // 	return &schedulerobjects.Node{

@@ -573,11 +573,6 @@ func withMaxJobsToSchedule(n uint, config configuration.SchedulingConfig) config
 	return config
 }
 
-func withMaxConsecutiveUnschedulableJobs(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.QueueLeaseBatchSize = n
-	return config
-}
-
 func withIndexedTaints(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.IndexedTaints = append(config.IndexedTaints, indexedTaints...)
 	return config
