@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Migration represents a single, versioned database migration script
 type Migration struct {
 	id   int
 	name string
