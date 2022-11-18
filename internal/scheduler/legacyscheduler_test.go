@@ -345,8 +345,10 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 		"minimum job size below limit": {
 			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
-				MinimumJobSize: map[string]resource.Quantity{
-					"cpu": resource.MustParse("31"),
+				MinimumJobSize: schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("31"),
+					},
 				},
 			},
 			ExpectedIndices: []int{3, 4},
@@ -354,8 +356,10 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 		"minimum job size at limit": {
 			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
-				MinimumJobSize: map[string]resource.Quantity{
-					"cpu": resource.MustParse("32"),
+				MinimumJobSize: schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu": resource.MustParse("32"),
+					},
 				},
 			},
 			ExpectedIndices: []int{3, 4},
@@ -1277,13 +1281,14 @@ func TestSchedule(t *testing.T) {
 			constraints := SchedulingConstraintsFromSchedulingConfig(
 				"executor",
 				"pool",
-				tc.MinimumJobSize,
+				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
 			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
+				tc.SchedulingConfig,
 				nodeDb,
 				jobRepository,
 				tc.PriorityFactorByQueue,
@@ -1292,9 +1297,7 @@ func TestSchedule(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			sched.CandidateJobsIterator.rand = util.NewThreadsafeRand(42) // Reproducible tests.
-			sched.GangIdAnnotation = tc.SchedulingConfig.GangIdAnnotation
-			sched.GangCardinalityAnnotation = tc.SchedulingConfig.GangCardinalityAnnotation
+			sched.CandidateGangIterator.CandidateJobsIterator.rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
 			jobs, err := sched.Schedule()
 			if !assert.NoError(t, err) {

@@ -82,43 +82,19 @@ func NewSchedulingRoundReport(totalResources schedulerobjects.ResourceList, prio
 }
 
 func (report *SchedulingRoundReport) String() string {
-	return ""
-	// var sb strings.Builder
-	// w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	// fmt.Fprintf(w, "Started:\t%s\n", report.Started)
-	// fmt.Fprintf(w, "Finished:\t%s\n", report.Finished)
-	// fmt.Fprintf(w, "Duration:\t%s\n", report.Finished.Sub(report.Started))
-	// fmt.Fprintf(w, "Total capacity:\t%s\n", report.TotalResources.CompactString())
-	// if len(report.PriorityFactorByQueue) == 0 {
-	// 	fmt.Fprint(w, "Queue priority factors:\tnone\n")
-	// } else {
-	// 	fmt.Fprint(w, "Queue priority factors:\n")
-	// 	for queue, priorityFactor := range report.PriorityFactorByQueue {
-	// 		fmt.Fprintf(w, "  %s: %f\n", queue, priorityFactor)
-	// 	}
-	// }
-	// totalJobsScheduled := 0
-	// totalResourcesScheduled := make(schedulerobjects.QuantityByPriorityAndResourceType)
-	// if len(report.SuccessfulJobSchedulingReportsByQueue) == 0 {
-	// 	fmt.Fprint(w, "Jobs scheduled:\tnone\n")
-	// } else {
-	// 	fmt.Fprint(w, "Jobs scheduled:\n")
-	// 	for queue, jobReports := range report.SuccessfulJobSchedulingReportsByQueue {
-	// 		scheduledResourcesByPriority, ok := report.ScheduledResourcesByQueueAndPriority[queue]
-	// 		if ok {
-	// 			fmt.Fprintf(w, "  %s: %d (%s)\n", queue, len(jobReports), scheduledResourcesByPriority)
-	// 		} else {
-	// 			fmt.Fprintf(w, "  %s: %d\n", queue, len(jobReports))
-	// 		}
-	// 		totalJobsScheduled += len(jobReports)
-	// 		totalResourcesScheduled.Add(scheduledResourcesByPriority)
-	// 	}
-	// }
-	// fmt.Fprintf(w, "Total jobs scheduled:\t%d\n", totalJobsScheduled)
-	// fmt.Fprintf(w, "Total resources scheduled:\t%s\n", totalResourcesScheduled)
-	// fmt.Fprintf(w, "Termination reason:\t%s\n", report.TerminationReason)
-	// w.Flush()
-	// return sb.String()
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Started:\t%s\n", report.Started)
+	fmt.Fprintf(w, "Finished:\t%s\n", report.Finished)
+	fmt.Fprintf(w, "Duration:\t%s\n", report.Finished.Sub(report.Started))
+	fmt.Fprintf(w, "Total capacity:\t%s\n", report.TotalResources.CompactString())
+	totalJobsScheduled := 0
+	totalResourcesScheduled := make(schedulerobjects.QuantityByPriorityAndResourceType)
+	fmt.Fprintf(w, "Total jobs scheduled:\t%d\n", totalJobsScheduled)
+	fmt.Fprintf(w, "Total resources scheduled:\t%s\n", totalResourcesScheduled)
+	fmt.Fprintf(w, "Termination reason:\t%s\n", report.TerminationReason)
+	w.Flush()
+	return sb.String()
 }
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
@@ -329,9 +305,7 @@ type JobSchedulingReport struct {
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	Req *schedulerobjects.PodRequirements
-	// Executor this job was assigned to.
-	// If empty, the job could not be scheduled,
-	// and the UnschedulableReason is populated.
+	// Executor this job was attempted to be assigned to.
 	ExecutorId string
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
