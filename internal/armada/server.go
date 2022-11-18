@@ -28,12 +28,12 @@ import (
 	"github.com/G-Research/armada/internal/armada/server"
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/eventstream"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/postgres"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler"
@@ -225,7 +225,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var pool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
-		pool, err = postgres.OpenPgxPool(config.Postgres)
+		pool, err = database.OpenPgxPool(config.Postgres)
 		if err != nil {
 			return err
 		}
@@ -349,22 +349,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		if pool == nil {
 			return errors.New("new scheduler enabled, but postgres is disabled")
 		}
-
-		// Scheduler jobs ingester.
-		schedulerIngester := &scheduler.Ingester{
-			PulsarClient: pulsarClient,
-			ConsumerOptions: pulsar.ConsumerOptions{
-				Topic:            config.Pulsar.JobsetEventsTopic,
-				SubscriptionName: "pulsar-scheduler-ingester",
-				Type:             pulsar.KeyShared,
-			},
-			MaxWriteInterval: time.Second,
-			MaxDbOps:         10000,
-			Db:               pool,
-		}
-		services = append(services, func() error {
-			return schedulerIngester.Run(ctx)
-		})
 
 		// The scheduler itself.
 		// TODO: I think we can safely re-use the same producer for all components.

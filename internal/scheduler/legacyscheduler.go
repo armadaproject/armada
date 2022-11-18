@@ -17,11 +17,11 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
@@ -389,7 +389,7 @@ func (it *CandidateJobsIterator) Next() (*JobSchedulingReport, error) {
 }
 
 func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) (priority int32, ok bool) {
-	return schedulerobjects.PriorityFromPodSpec(podSpecFromJob(job), priorityByPriorityClassName)
+	return schedulerobjects.PriorityFromPodSpec(util.PodSpecFromJob(job), priorityByPriorityClassName)
 }
 
 func uuidFromUlidString(ulid string) (uuid.UUID, error) {
@@ -894,16 +894,4 @@ func pickQueueRandomly(weights map[string]float64, random *rand.Rand) (string, f
 	log.Error("Could not randomly pick a queue, this should not happen!")
 	queue := queues[len(queues)-1]
 	return queue, weights[queue] / sum
-}
-
-func podSpecFromJob(job *api.Job) *v1.PodSpec {
-	if job.PodSpec != nil {
-		return job.PodSpec
-	}
-	for _, podSpec := range job.PodSpecs {
-		if podSpec != nil {
-			return podSpec
-		}
-	}
-	return nil
 }

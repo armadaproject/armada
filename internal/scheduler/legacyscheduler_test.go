@@ -880,7 +880,7 @@ func TestSchedule(t *testing.T) {
 				"A": {0, 1, 2, 5, 6, 7, 8, 9},
 			},
 		},
-		"per priority  limits 2": {
+		"per priority per queue limits equal limits": {
 			SchedulingConfig: withPerPriorityLimits(
 				map[int32]map[string]float64{
 					0: {"cpu": 0.9}, // 28 cpu
@@ -909,6 +909,37 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0},
+			},
+		},
+		"limit hit at higher priority doesn't block jobs at lower priority": {
+			SchedulingConfig: withPerPriorityLimits(
+				map[int32]map[string]float64{
+					0: {"cpu": 0.9}, // 28 cpu
+					1: {"cpu": 0.5}, // 14 cpu
+				}, testSchedulingConfig()),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(testNSmallCpuJob(1, 1), testNSmallCpuJob(0, 5)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			InitialUsageByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+				"A": {
+					0: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("7"), // under limit
+						},
+					},
+					1: schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("20"), // over limit
+						},
+					},
+				},
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
 			},
 		},
 		"fairness two queues": {

@@ -58,8 +58,8 @@ func (b *Batcher[T]) Run(ctx context.Context) {
 				b.mutex.Lock()
 				if len(b.buffer) > 0 {
 					b.callback(b.buffer)
-					appendToBatch = false
 				}
+				appendToBatch = false
 				b.mutex.Unlock()
 			}
 		}

@@ -1,93 +1,85 @@
-package scheduler
+package scheduleringester
 
 import (
 	"context"
+	"time"
 
-	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
+
+	"github.com/hashicorp/go-multierror"
+
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+
+	"github.com/G-Research/armada/internal/scheduler"
+
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
+
+	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/ingest/metrics"
 )
 
-// Service that writes DbOperations into postgres.
-type DbOpsWriter struct {
-	In chan *DbOperationsWithMessageIds
+// SchedulerDb writes DbOperations into postgres.
+type SchedulerDb struct {
 	// Connection to the postgres database.
-	Db *pgxpool.Pool
-	// Pulsar consumer used to ack messages.
-	Consumer pulsar.Consumer
-	// Optional logger.
-	// If not provided, the default logrus logger is used.
-	Logger *logrus.Entry
+	db             *pgxpool.Pool
+	metrics        *metrics.Metrics
+	initialBackOff time.Duration
+	maxBackOff     time.Duration
 }
 
-func (srv *DbOpsWriter) Run(ctx context.Context) error {
-	// Get the configured logger, or the standard logger if none is provided.
-	var log *logrus.Entry
-	if srv.Logger != nil {
-		log = srv.Logger.WithField("service", "DbOpsWriter")
-	} else {
-		log = logrus.StandardLogger().WithField("service", "DbOpsWriter")
-	}
-	log.Info("service started")
-	defer log.Info("service stopped")
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case opsWithIds := <-srv.In:
-			if opsWithIds == nil || len(opsWithIds.Ops) == 0 {
-				continue
-			}
-			for _, op := range opsWithIds.Ops {
-				// TODO: Add timeout?
-				err := WriteDbOp(ctx, srv.Db, op)
-				if err != nil {
-					return err // TODO: Retry on transient errors. Fall back to sequential insert?
-				}
-			}
-			for _, messageId := range opsWithIds.MessageIds {
-				srv.Consumer.AckID(messageId)
-			}
-		}
-	}
+func NewSchedulerDb(db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff time.Duration, maxBackOff time.Duration) ingest.Sink[*DbOperationsWithMessageIds] {
+	return &SchedulerDb{db: db, metrics: metrics, initialBackOff: initialBackOff, maxBackOff: maxBackOff}
 }
 
-// TODO: The caller of this function should keep retrying on transient failures.
-func WriteDbOp(ctx context.Context, db *pgxpool.Pool, op DbOperation) error {
-	queries := New(db)
+func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
+	var result *multierror.Error = nil
+	for _, dbOp := range instructions.Ops {
+		err := ingest.WithRetry(func() (bool, error) {
+			err := s.WriteDbOp(ctx, dbOp)
+			shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
+			return shouldRetry, err
+		}, s.initialBackOff, s.maxBackOff)
+		multierror.Append(result, err)
+	}
+	return result.ErrorOrNil()
+}
+
+func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
+	queries := sqlc.New(s.db)
 	switch o := op.(type) {
 	case InsertJobs:
-		records := make([]interface{}, len(o))
+		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, db, "jobs", JobsSchema(), records)
+		err := database.Upsert(ctx, s.db, "jobs", scheduler.JobsSchema(), records)
 		if err != nil {
 			return err
 		}
 	case InsertRuns:
-		records := make([]interface{}, len(o))
+		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, db, "runs", RunsSchema(), records)
+		err := database.Upsert(ctx, s.db, "runs", scheduler.RunsSchema(), records)
 		if err != nil {
 			return err
 		}
 	case InsertRunAssignments:
-		records := make([]interface{}, len(o))
+		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, db, "job_run_assignments", JobRunAssignmentSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_run_assignments", scheduler.JobRunAssignmentSchema(), records)
 		if err != nil {
 			return err
 		}
@@ -95,7 +87,7 @@ func WriteDbOp(ctx context.Context, db *pgxpool.Pool, op DbOperation) error {
 		for jobSet, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
-				UpdateJobPriorityByJobSetParams{
+				sqlc.UpdateJobPriorityByJobSetParams{
 					JobSet:   jobSet,
 					Priority: priority,
 				},
@@ -140,7 +132,7 @@ func WriteDbOp(ctx context.Context, db *pgxpool.Pool, op DbOperation) error {
 		// TODO: This will be slow if there's a large number of ids.
 		// Could be addressed by using a separate table for priority + upsert.
 		for jobId, priority := range o {
-			err := queries.UpdateJobPriorityById(ctx, UpdateJobPriorityByIdParams{
+			err := queries.UpdateJobPriorityById(ctx, sqlc.UpdateJobPriorityByIdParams{
 				JobID:    jobId,
 				Priority: priority,
 			})
@@ -167,24 +159,24 @@ func WriteDbOp(ctx context.Context, db *pgxpool.Pool, op DbOperation) error {
 			return errors.WithStack(err)
 		}
 	case InsertJobErrors:
-		records := make([]interface{}, len(o))
+		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, db, "job_errors", JobErrorsSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_errors", scheduler.JobErrorsSchema(), records)
 		if err != nil {
 			return err
 		}
 	case InsertJobRunErrors:
-		records := make([]interface{}, len(o))
+		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
 			records[i] = *v
 			i++
 		}
-		err := Upsert(ctx, db, "job_run_errors", JobRunErrorsSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_run_errors", scheduler.JobRunErrorsSchema(), records)
 		if err != nil {
 			return err
 		}

@@ -3,6 +3,7 @@ package testfixtures
 import (
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -13,9 +14,8 @@ import (
 
 // Standard Set of events for common tests
 const (
-	JobIdString          = "01f3j0g1md4qx7z5qb148qnh4r"
-	RunIdString          = "123e4567-e89b-12d3-a456-426614174000"
-	UserAnnotationPrefix = "test_prefix/"
+	JobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
+	RunIdString = "123e4567-e89b-12d3-a456-426614174000"
 )
 
 var (
@@ -43,8 +43,11 @@ const (
 	Priority         = 3
 	NewPriority      = 4
 	PodNumber        = 6
+	ExitCode         = 322
 	ErrMsg           = "sample error message"
 	LeaseReturnedMsg = "lease returned error message"
+	TerminatedMsg    = "test pod terminated message"
+	UnschedulableMsg = "test pod is unschedulable"
 )
 
 var Submit = &armadaevents.EventSequence_Event{
@@ -255,7 +258,78 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 							Message:  ErrMsg,
 							NodeName: NodeName,
 							ContainerErrors: []*armadaevents.ContainerError{
-								{ExitCode: 1},
+								{ExitCode: ExitCode},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var JobRunTerminated = &armadaevents.EventSequence_Event{
+	Created: &BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: JobIdProto,
+			RunId: RunIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodTerminated{
+						PodTerminated: &armadaevents.PodTerminated{
+							NodeName: NodeName,
+							ObjectMeta: &armadaevents.ObjectMeta{
+								ExecutorId: ExecutorId,
+							},
+							Message: TerminatedMsg,
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var JobRunUnschedulable = &armadaevents.EventSequence_Event{
+	Created: &BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobRunErrors{
+		JobRunErrors: &armadaevents.JobRunErrors{
+			JobId: JobIdProto,
+			RunId: RunIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodUnschedulable{
+						PodUnschedulable: &armadaevents.PodUnschedulable{
+							NodeName: NodeName,
+							ObjectMeta: &armadaevents.ObjectMeta{
+								ExecutorId: ExecutorId,
+							},
+							Message: UnschedulableMsg,
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
+var JobFailed = &armadaevents.EventSequence_Event{
+	Created: &BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobErrors{
+		JobErrors: &armadaevents.JobErrors{
+			JobId: JobIdProto,
+			Errors: []*armadaevents.Error{
+				{
+					Terminal: true,
+					Reason: &armadaevents.Error_PodError{
+						PodError: &armadaevents.PodError{
+							Message:  ErrMsg,
+							NodeName: NodeName,
+							ContainerErrors: []*armadaevents.ContainerError{
+								{ExitCode: ExitCode},
 							},
 						},
 					},
@@ -295,6 +369,19 @@ var JobSucceeded = &armadaevents.EventSequence_Event{
 			JobId: JobIdProto,
 		},
 	},
+}
+
+func DeepCopy(events *armadaevents.EventSequence_Event) (*armadaevents.EventSequence_Event, error) {
+	bytes, err := proto.Marshal(events)
+	if err != nil {
+		return nil, err
+	}
+	var copied armadaevents.EventSequence_Event
+	err = proto.Unmarshal(bytes, &copied)
+	if err != nil {
+		return nil, err
+	}
+	return &copied, nil
 }
 
 func NewEventSequence(event ...*armadaevents.EventSequence_Event) *armadaevents.EventSequence {
