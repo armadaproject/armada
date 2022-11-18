@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -30,34 +31,29 @@ func TestCalculateRunningJobStats(t *testing.T) {
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
 
-		assert.Equal(t, len(runTimeMetrics), 1)
-		assert.NotNil(t, runTimeMetrics)
-		assert.NotNil(t, runTimeMetrics[clusterInfo.Pool])
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetCount(), uint64(3))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMin(), float64(60*10))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMedian(), float64(60*20))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMax(), float64(60*30))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetSum(), float64(60*60))
+		assert.Equal(t, len(result), 1)
+		runTimeMetrics := result[0].Durations
+		assert.Equal(t, runTimeMetrics.GetCount(), uint64(3))
+		assert.Equal(t, runTimeMetrics.GetMin(), float64(60*10))
+		assert.Equal(t, runTimeMetrics.GetMedian(), float64(60*20))
+		assert.Equal(t, runTimeMetrics.GetMax(), float64(60*30))
+		assert.Equal(t, runTimeMetrics.GetSum(), float64(60*60))
 
-		assert.Equal(t, len(resourceMetrics), 1)
-		assert.NotNil(t, resourceMetrics)
-		assert.NotNil(t, resourceMetrics[clusterInfo.Pool])
-		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["cpu"])
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetCount(), uint64(3))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMin(), float64(1))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMedian(), float64(2))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMax(), float64(3))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetSum(), float64(6))
+		resourceMetrics := result[0].Resources
+		assert.NotNil(t, resourceMetrics["cpu"])
+		assert.Equal(t, resourceMetrics["cpu"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics["cpu"].GetMin(), float64(1))
+		assert.Equal(t, resourceMetrics["cpu"].GetMedian(), float64(2))
+		assert.Equal(t, resourceMetrics["cpu"].GetMax(), float64(3))
+		assert.Equal(t, resourceMetrics["cpu"].GetSum(), float64(6))
 
-		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["memory"])
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetCount(), uint64(3))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMin(), float64(1000))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMedian(), float64(2000))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMax(), float64(3000))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetSum(), float64(6000))
+		assert.NotNil(t, resourceMetrics["memory"])
+		assert.Equal(t, resourceMetrics["memory"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics["memory"].GetMin(), float64(1000))
+		assert.Equal(t, resourceMetrics["memory"].GetMedian(), float64(2000))
+		assert.Equal(t, resourceMetrics["memory"].GetMax(), float64(3000))
+		assert.Equal(t, resourceMetrics["memory"].GetSum(), float64(6000))
 	})
 }
 
@@ -74,14 +70,14 @@ func TestCalculateRunningJobStats_WhenMultiCluster(t *testing.T) {
 		addRunningJob(t, queueCache.jobRepository, createJob(queue1.Name), cluster2.ClusterId, now)
 
 		queueCache.Refresh()
-		result := queueCache.GetRunningJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
 
-		assert.Equal(t, len(runTimeMetrics), 1)
-		assert.Equal(t, runTimeMetrics[cluster1.Pool].GetCount(), uint64(3))
-		assert.Equal(t, len(resourceMetrics), 1)
-		assert.Equal(t, resourceMetrics[cluster1.Pool]["cpu"].GetCount(), uint64(3))
+		result := queueCache.GetRunningJobMetrics(queue1.Name)
+		assert.Equal(t, len(result), 1)
+
+		runTimeMetrics := result[0].Durations
+		resourceMetrics := result[0].Resources
+		assert.Equal(t, runTimeMetrics.GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics["cpu"].GetCount(), uint64(3))
 	})
 }
 
@@ -99,15 +95,17 @@ func TestCalculateRunningJobStats_WhenMultiPool(t *testing.T) {
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
+		assert.Equal(t, len(result), 2)
 
-		assert.Equal(t, len(runTimeMetrics), 2)
-		assert.Equal(t, runTimeMetrics[cluster1.Pool].GetCount(), uint64(2))
-		assert.Equal(t, runTimeMetrics[cluster2.Pool].GetCount(), uint64(1))
-		assert.Equal(t, len(resourceMetrics), 2)
-		assert.Equal(t, resourceMetrics[cluster1.Pool]["cpu"].GetCount(), uint64(2))
-		assert.Equal(t, resourceMetrics[cluster2.Pool]["cpu"].GetCount(), uint64(1))
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].Pool < result[j].Pool
+		})
+
+		assert.Equal(t, result[0].Durations.GetCount(), uint64(2))
+		assert.Equal(t, result[1].Durations.GetCount(), uint64(1))
+		assert.Equal(t, result[0].Resources["cpu"].GetCount(), uint64(2))
+		assert.Equal(t, result[1].Resources["cpu"].GetCount(), uint64(1))
+
 	})
 }
 
@@ -122,11 +120,7 @@ func TestCalculateRunningJobStats_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 
 		queueCache.Refresh()
 		result := queueCache.GetRunningJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
-
-		assert.Equal(t, len(runTimeMetrics), 0)
-		assert.Equal(t, len(resourceMetrics), 0)
+		assert.Equal(t, len(result), 0)
 	})
 }
 
@@ -142,34 +136,31 @@ func TestGetQueuedJobMetrics(t *testing.T) {
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
+		assert.Equal(t, len(result), 1)
 
-		assert.Equal(t, len(runTimeMetrics), 1)
-		assert.NotNil(t, runTimeMetrics)
-		assert.NotNil(t, runTimeMetrics[clusterInfo.Pool])
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetCount(), uint64(3))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMin(), float64(60*10))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMedian(), float64(60*20))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetMax(), float64(60*30))
-		assert.Equal(t, runTimeMetrics[clusterInfo.Pool].GetSum(), float64(60*60))
+		runTimeMetrics := result[0].Durations
+		resourceMetrics := result[0].Resources
 
-		assert.Equal(t, len(resourceMetrics), 1)
-		assert.NotNil(t, resourceMetrics)
+		assert.Equal(t, runTimeMetrics.GetCount(), uint64(3))
+		assert.Equal(t, runTimeMetrics.GetMin(), float64(60*10))
+		assert.Equal(t, runTimeMetrics.GetMedian(), float64(60*20))
+		assert.Equal(t, runTimeMetrics.GetMax(), float64(60*30))
+		assert.Equal(t, runTimeMetrics.GetSum(), float64(60*60))
+
 		assert.NotNil(t, resourceMetrics[clusterInfo.Pool])
-		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["cpu"])
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetCount(), uint64(3))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMin(), float64(1))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMedian(), float64(2))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetMax(), float64(3))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["cpu"].GetSum(), float64(6))
+		assert.NotNil(t, resourceMetrics["cpu"])
+		assert.Equal(t, resourceMetrics["cpu"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics["cpu"].GetMin(), float64(1))
+		assert.Equal(t, resourceMetrics["cpu"].GetMedian(), float64(2))
+		assert.Equal(t, resourceMetrics["cpu"].GetMax(), float64(3))
+		assert.Equal(t, resourceMetrics["cpu"].GetSum(), float64(6))
 
-		assert.NotNil(t, resourceMetrics[clusterInfo.Pool]["memory"])
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetCount(), uint64(3))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMin(), float64(1000000000))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMedian(), float64(2000000000))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetMax(), float64(3000000000))
-		assert.Equal(t, resourceMetrics[clusterInfo.Pool]["memory"].GetSum(), float64(6000000000))
+		assert.NotNil(t, resourceMetrics["memory"])
+		assert.Equal(t, resourceMetrics["memory"].GetCount(), uint64(3))
+		assert.Equal(t, resourceMetrics["memory"].GetMin(), float64(1000000000))
+		assert.Equal(t, resourceMetrics["memory"].GetMedian(), float64(2000000000))
+		assert.Equal(t, resourceMetrics["memory"].GetMax(), float64(3000000000))
+		assert.Equal(t, resourceMetrics["memory"].GetSum(), float64(6000000000))
 	})
 }
 
@@ -185,13 +176,10 @@ func TestGetQueuedJobMetrics_CountedOnce_WhenMultiCluster(t *testing.T) {
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
-
-		assert.Equal(t, len(runTimeMetrics), 1)
-		assert.Equal(t, runTimeMetrics[cluster1.Pool].GetCount(), uint64(1))
-		assert.Equal(t, len(resourceMetrics), 1)
-		assert.Equal(t, resourceMetrics[cluster1.Pool]["cpu"].GetCount(), uint64(1))
+		assert.Equal(t, len(result), 1)
+		assert.Equal(t, cluster1.Pool, result[0].Pool)
+		assert.Equal(t, result[0].Durations.GetCount(), uint64(1))
+		assert.Equal(t, result[0].Resources["cpu"].GetCount(), uint64(1))
 	})
 }
 
@@ -206,15 +194,19 @@ func TestGetQueuedJobMetrics_CountedForEachMatchingPool_WhenMultiPool(t *testing
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
+		assert.Equal(t, len(result), 2)
 
-		assert.Equal(t, len(runTimeMetrics), 2)
-		assert.Equal(t, runTimeMetrics[cluster1.Pool].GetCount(), uint64(1))
-		assert.Equal(t, runTimeMetrics[cluster2.Pool].GetCount(), uint64(1))
-		assert.Equal(t, len(resourceMetrics), 2)
-		assert.Equal(t, resourceMetrics[cluster1.Pool]["cpu"].GetCount(), uint64(1))
-		assert.Equal(t, resourceMetrics[cluster2.Pool]["cpu"].GetCount(), uint64(1))
+		sort.Slice(result, func(i, j int) bool {
+			return result[i].Pool < result[j].Pool
+		})
+
+		assert.Equal(t, cluster1.Pool, result[0].Pool)
+		assert.Equal(t, cluster2.Pool, result[1].Pool)
+
+		assert.Equal(t, result[0].Durations.GetCount(), uint64(1))
+		assert.Equal(t, result[1].Durations.GetCount(), uint64(1))
+		assert.Equal(t, result[0].Resources["cpu"].GetCount(), uint64(1))
+		assert.Equal(t, result[1].Resources["cpu"].GetCount(), uint64(1))
 	})
 }
 
@@ -236,11 +228,8 @@ func TestGetQueuedJobMetrics_NotCounted_WhenJobCannotScheduleOntoCluster(t *test
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
 
-		assert.Equal(t, len(runTimeMetrics), 0)
-		assert.Equal(t, len(resourceMetrics), 0)
+		assert.Equal(t, len(result), 0)
 	})
 }
 
@@ -255,11 +244,8 @@ func TestGetQueuedJobMetrics_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 
 		queueCache.Refresh()
 		result := queueCache.GetQueuedJobMetrics(queue1.Name)
-		runTimeMetrics := result.Durations
-		resourceMetrics := result.Resources
 
-		assert.Equal(t, len(runTimeMetrics), 0)
-		assert.Equal(t, len(resourceMetrics), 0)
+		assert.Equal(t, len(result), 0)
 	})
 }
 
