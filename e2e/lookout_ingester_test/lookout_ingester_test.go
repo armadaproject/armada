@@ -19,152 +19,101 @@ import (
 	"github.com/G-Research/armada/pkg/client"
 )
 
-func TestLookoutIngesterUpdatesPostgresWithJobInfoJobSucceeds(t *testing.T) {
-	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
-		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous", []string{"sleep 5"})
-
-		createQueue(submitClient, jobRequest, t)
-
-		db, err := openPgDbTestConnection()
-		assert.NoError(t, err)
-		dbTestSetup(db)
-		defer dbTestTeardown(db)
-
-		jobUpdateListener := openTestListener(t, "job_update")
-		defer jobUpdateListener.Close()
-
-		jobRunUpdateListener := openTestListener(t, "job_run_update")
-		defer jobRunUpdateListener.Close()
-
-		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
-		assert.NoError(t, err)
-		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
-
-		jobId := submitResponse.JobResponseItems[0].JobId
-		errStr := submitResponse.JobResponseItems[0].Error
-		assert.Empty(t, errStr)
-		assert.NotEmpty(t, jobId)
-
-		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
-		defer cancelFunc()
-
-		jst := NewJobStateTracker(jobId, db)
-		jrt := NewJobRunTracker(jobId, db)
-
-		for {
-			select {
-			case notification := <-jobUpdateListener.NotificationChannel():
-				if notification.Extra == jobId {
-					err := jst.Scan()
-					assert.NoError(t, err)
-				}
-			case notification := <-jobRunUpdateListener.NotificationChannel():
-				if notification.Extra == jobId {
-					err := jrt.Scan()
-					assert.NoError(t, err)
-				}
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
-			// We're gating on things that should be satisfied by entries in
-			// both job and job_run tables.
-			if jst.SeenStates[repository.JobSucceededOrdinal] && jrt.OneRun().Finished.Valid {
-				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobSucceededOrdinal])
-
-				assert.Len(t, jrt.JobRuns, 1)
-				pJobRun := jrt.OneRun()
-				assert.True(t, pJobRun.Succeeded.Valid)
-				assert.True(t, pJobRun.Succeeded.Bool)
-				assert.True(t, pJobRun.Finished.Valid)
-				return nil
-			}
-		}
-	})
-	assert.NoError(t, err)
+type JobRequestArgs struct {
+	Namespace string
+	Args      []string
 }
 
-func TestLookoutIngesterUpdatesPostgresWithJobInfoUnrunnableJob(t *testing.T) {
-	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
-		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous", []string{"sleep 5"})
-		jobRequest.JobRequestItems[0].PodSpec.Containers[0].Image = "https://wrongimagename/"
-
-		createQueue(submitClient, jobRequest, t)
-
-		db, err := openPgDbTestConnection()
-		assert.NoError(t, err)
-		dbTestSetup(db)
-		defer dbTestTeardown(db)
-
-		jobUpdateListener := openTestListener(t, "job_update")
-		defer jobUpdateListener.Close()
-
-		jobRunUpdateListener := openTestListener(t, "job_run_update")
-		defer jobRunUpdateListener.Close()
-
-		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
-		assert.NoError(t, err)
-		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
-
-		jobId := submitResponse.JobResponseItems[0].JobId
-		errStr := submitResponse.JobResponseItems[0].Error
-		assert.Empty(t, errStr)
-		assert.NotEmpty(t, jobId)
-
-		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
-		defer cancelFunc()
-
-		jst := NewJobStateTracker(jobId, db)
-		jrt := NewJobRunTracker(jobId, db)
-
-		for {
-			select {
-			case notification := <-jobUpdateListener.NotificationChannel():
-				if notification.Extra == jobId {
-					err := jst.Scan()
-					assert.NoError(t, err)
-				}
-			case notification := <-jobRunUpdateListener.NotificationChannel():
-				if notification.Extra == jobId {
-					err := jrt.Scan()
-					assert.NoError(t, err)
-				}
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
-			// We're gating on things that should be satisfied by entries in
-			// both job and job_run tables.
-			if jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid {
-				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
-
-				assert.Len(t, jrt.JobRuns, 1)
-				pJobRun := jrt.OneRun()
-				assert.True(t, pJobRun.Succeeded.Valid)
-				assert.False(t, pJobRun.Succeeded.Bool)
-				assert.True(t, pJobRun.Finished.Valid)
-
-				return nil
-			}
-		}
-	})
-	assert.NoError(t, err)
+type lookoutIngesterPGTestCase struct {
+	Name              string
+	JobRequestArgs    *JobRequestArgs
+	JobRequestMutator func(*api.JobSubmitRequest) *api.JobSubmitRequest
+	TerminalCondition func(*JobStateTracker, *JobRunTracker) bool
+	TestAssertions    func(*testing.T, *JobStateTracker, *JobRunTracker)
 }
 
-func TestLookoutIngesterUpdatesPostgresWithJobInfoJobFails(t *testing.T) {
+var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
+	{
+		"JobSucceeds",
+		&JobRequestArgs{
+			"personal-anonymous",
+			[]string{"sleep 5"},
+		},
+		func(jr *api.JobSubmitRequest) *api.JobSubmitRequest {
+			return jr
+		},
+		func(jst *JobStateTracker, jrt *JobRunTracker) bool {
+			return jst.SeenStates[repository.JobSucceededOrdinal] && jrt.OneRun().Finished.Valid
+		},
+		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker) {
+			assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobSucceededOrdinal])
+
+			assert.Len(t, jrt.JobRuns, 1)
+			pJobRun := jrt.OneRun()
+			assert.True(t, pJobRun.Succeeded.Valid)
+			assert.True(t, pJobRun.Succeeded.Bool)
+			assert.True(t, pJobRun.Finished.Valid)
+		},
+	},
+	{
+		"JobFails",
+		&JobRequestArgs{
+			"personal-anonymous",
+			[]string{"sleep 10; exit 57"},
+		},
+		func(jr *api.JobSubmitRequest) *api.JobSubmitRequest {
+			return jr
+		},
+		func(jst *JobStateTracker, jrt *JobRunTracker) bool {
+			return jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid
+		},
+		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker) {
+			assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
+
+			assert.Len(t, jrt.JobRuns, 1)
+			pJobRun := jrt.OneRun()
+			assert.True(t, pJobRun.Succeeded.Valid)
+			assert.False(t, pJobRun.Succeeded.Bool)
+			assert.True(t, pJobRun.Finished.Valid)
+		},
+	},
+	{
+		"UnrunnableJobFails",
+		&JobRequestArgs{
+			"personal-anonymous",
+			[]string{"sleep 5"},
+		},
+		func(jr *api.JobSubmitRequest) *api.JobSubmitRequest {
+			jr.JobRequestItems[0].PodSpec.Containers[0].Image = "https://wrongimagename/"
+			return jr
+		},
+		func(jst *JobStateTracker, jrt *JobRunTracker) bool {
+			return jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid
+		},
+		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker) {
+			assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
+			assert.False(t, jst.SeenStates[repository.JobRunningOrdinal])
+			assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
+
+			assert.Len(t, jrt.JobRuns, 1)
+			pJobRun := jrt.OneRun()
+			assert.True(t, pJobRun.Succeeded.Valid)
+			assert.False(t, pJobRun.Succeeded.Bool)
+			assert.True(t, pJobRun.Finished.Valid)
+		},
+	},
+}
+
+func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
-		jobRequest := createJobRequest("personal-anonymous", []string{"sleep 10; exit 57"})
-
-		createQueue(submitClient, jobRequest, t)
-
 		db, err := openPgDbTestConnection()
 		assert.NoError(t, err)
 		dbTestSetup(db)
@@ -176,54 +125,56 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfoJobFails(t *testing.T) {
 		jobRunUpdateListener := openTestListener(t, "job_run_update")
 		defer jobRunUpdateListener.Close()
 
-		submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
-		assert.NoError(t, err)
-		assert.Equal(t, len(submitResponse.JobResponseItems), 1)
+		for _, tc := range lookoutIngesterPostgresTestCases {
+			t.Run(tc.Name, func(t *testing.T) {
+				jobRequest := createJobRequest(
+					tc.JobRequestArgs.Namespace,
+					tc.JobRequestArgs.Args)
 
-		jobId := submitResponse.JobResponseItems[0].JobId
-		errStr := submitResponse.JobResponseItems[0].Error
-		assert.Empty(t, errStr)
-		assert.NotEmpty(t, jobId)
+				jobRequest = tc.JobRequestMutator(jobRequest)
 
-		ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
-		defer cancelFunc()
+				createQueue(submitClient, jobRequest, t)
 
-		jst := NewJobStateTracker(jobId, db)
-		jrt := NewJobRunTracker(jobId, db)
+				submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
+				assert.NoError(t, err)
+				assert.Equal(t, len(submitResponse.JobResponseItems), 1)
 
-		for {
-			select {
-			case notification := <-jobUpdateListener.NotificationChannel():
-				if notification.Extra == jobId {
-					err := jst.Scan()
-					assert.NoError(t, err)
+				jobId := submitResponse.JobResponseItems[0].JobId
+				errStr := submitResponse.JobResponseItems[0].Error
+				assert.Empty(t, errStr)
+				assert.NotEmpty(t, jobId)
+
+				ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+				defer cancelFunc()
+
+				jst := NewJobStateTracker(jobId, db)
+				jrt := NewJobRunTracker(jobId, db)
+
+				for {
+					select {
+					case notification := <-jobUpdateListener.NotificationChannel():
+						if notification.Extra == jobId {
+							err := jst.Scan()
+							assert.NoError(t, err)
+						}
+					case notification := <-jobRunUpdateListener.NotificationChannel():
+						if notification.Extra == jobId {
+							err := jrt.Scan()
+							assert.NoError(t, err)
+						}
+					case <-ctx.Done():
+						assert.NoError(t, ctx.Err())
+						return
+					}
+
+					if tc.TerminalCondition(jst, jrt) {
+						tc.TestAssertions(t, jst, jrt)
+						return
+					}
 				}
-			case notification := <-jobRunUpdateListener.NotificationChannel():
-				if notification.Extra == jobId {
-					err := jrt.Scan()
-					assert.NoError(t, err)
-				}
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-
-			// We're gating on things that should be satisfied by entries in
-			// both job and job_run tables.
-			if jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid {
-				assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
-				assert.True(t, jst.SeenStates[repository.JobFailedOrdinal])
-
-				assert.Len(t, jrt.JobRuns, 1)
-				pJobRun := jrt.OneRun()
-				assert.True(t, pJobRun.Succeeded.Valid)
-				assert.False(t, pJobRun.Succeeded.Bool)
-				assert.True(t, pJobRun.Finished.Valid)
-
-				return nil
-			}
+			})
 		}
+		return nil
 	})
 	assert.NoError(t, err)
 }
