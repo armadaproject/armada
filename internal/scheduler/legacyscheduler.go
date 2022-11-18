@@ -503,15 +503,13 @@ func (it *CandidateGangIterator) Next() ([]*JobSchedulingReport, error) {
 			return nil, nil
 		}
 
-		gangId, isGangJob := gangIdFromJobSchedulingReport(report, it.gangIdAnnotation)
+		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromJob(report.Job, it.gangIdAnnotation, it.gangCardinalityAnnotation)
+		if err != nil {
+			log := ctxlogrus.Extract(it.ctx)
+			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", report.Job.Id)
+			gangCardinality = 1 // Schedule jobs with invalid gang cardinality one by one.
+		}
 		if isGangJob {
-			gangCardinality, err := gangCardinalityFromJobSchedulingReport(report, it.gangCardinalityAnnotation)
-			if err != nil {
-				log := ctxlogrus.Extract(it.ctx)
-				logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", report.Job.Id)
-				gangCardinality = 1 // Schedule jobs with invalid gang cardinality one by one.
-			}
-
 			jobsByGangId, ok := it.gangsByQueue[report.Job.Queue]
 			if !ok {
 				jobsByGangId = make(map[string][]*JobSchedulingReport)
@@ -777,27 +775,30 @@ func (sched *LegacyScheduler) Schedule() ([]*api.Job, error) {
 	return jobs, nil
 }
 
-func gangIdFromJobSchedulingReport(r *JobSchedulingReport, annotation string) (string, bool) {
-	if r.Job.Annotations == nil {
-		return "", false
-	}
-	gangId, ok := r.Job.Annotations[annotation]
-	return gangId, ok
+func GangIdAndCardinalityFromJob(job *api.Job, gangIdAnnotation, gangCardinalityAnnotation string) (string, int, bool, error) {
+	return GangIdAndCardinalityFromAnnotations(job.Annotations, gangIdAnnotation, gangCardinalityAnnotation)
 }
 
-func gangCardinalityFromJobSchedulingReport(r *JobSchedulingReport, annotation string) (int, error) {
-	if r.Job.Annotations == nil {
-		return 0, errors.New("no annotations")
+func GangIdAndCardinalityFromAnnotations(annotations map[string]string, gangIdAnnotation, gangCardinalityAnnotation string) (string, int, bool, error) {
+	if annotations == nil {
+		return "", 0, false, nil
 	}
-	gangCardinalityString, ok := r.Job.Annotations[annotation]
+	gangId, ok := annotations[gangIdAnnotation]
 	if !ok {
-		return 0, errors.Errorf("missing annotation %s", annotation)
+		return "", 0, false, nil
+	}
+	gangCardinalityString, ok := annotations[gangCardinalityAnnotation]
+	if !ok {
+		return "", 0, false, errors.Errorf("missing annotation %s", gangCardinalityAnnotation)
 	}
 	gangCardinality, err := strconv.Atoi(gangCardinalityString)
 	if err != nil {
-		return 0, errors.WithStack(err)
+		return "", 0, false, errors.WithStack(err)
 	}
-	return gangCardinality, nil
+	if gangCardinality == 0 {
+		return "", 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
+	}
+	return gangId, gangCardinality, true, nil
 }
 
 func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList, resourceScarcity map[string]float64) map[string]float64 {

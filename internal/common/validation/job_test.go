@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -103,4 +104,193 @@ func Test_ValidateJobSubmitRequestItem_WithPortRepeatedInSeperateConfig(t *testi
 		},
 	}
 	assert.Error(t, ValidateJobSubmitRequestItem(validIngressConfig))
+}
+
+func TestValidateGangs(t *testing.T) {
+	gangIdAnnotation := "gangId"
+	gangCardinalityAnnotation := "gangCardinality"
+	tests := map[string]struct {
+		Jobs          []*api.Job
+		ExpectSuccess bool
+	}{
+		"no gang jobs": {
+			Jobs:          []*api.Job{{}, {}},
+			ExpectSuccess: true,
+		},
+		"complete gang job of cardinality 1": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(1),
+					},
+				},
+			},
+			ExpectSuccess: true,
+		},
+		"complete gang job of cardinality 3": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+			},
+			ExpectSuccess: true,
+		},
+		"two complete gangs": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+			},
+			ExpectSuccess: true,
+		},
+		"one complete and one incomplete gang": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
+		"missing cardinality": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation: "bar",
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
+		"invalid cardinality": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: "not an int",
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation: "not an int",
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
+		"inconsistent cardinality": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(3),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "foo",
+						gangCardinalityAnnotation: strconv.Itoa(2),
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := validateGangs(tc.Jobs, gangIdAnnotation, gangCardinalityAnnotation)
+			if tc.ExpectSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
 }
