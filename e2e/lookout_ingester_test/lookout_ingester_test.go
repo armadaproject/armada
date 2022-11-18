@@ -28,8 +28,8 @@ type lookoutIngesterPGTestCase struct {
 	Name              string
 	JobRequestArgs    *JobRequestArgs
 	JobRequestMutator func(*api.JobSubmitRequest) *api.JobSubmitRequest
-	TerminalCondition func(*JobStateTracker, *JobRunTracker) bool
-	TestAssertions    func(*testing.T, *JobStateTracker, *JobRunTracker)
+	TerminalCondition func(*JobStateTracker, *JobRunTracker, *UserAnnotationLookupTracker) bool
+	TestAssertions    func(*testing.T, *JobStateTracker, *JobRunTracker, *UserAnnotationLookupTracker)
 }
 
 var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
@@ -40,12 +40,14 @@ var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
 			[]string{"sleep 5"},
 		},
 		func(jr *api.JobSubmitRequest) *api.JobSubmitRequest {
+			jr.JobRequestItems[0].Annotations = make(map[string]string)
+			jr.JobRequestItems[0].Annotations["test"] = "asdf"
 			return jr
 		},
-		func(jst *JobStateTracker, jrt *JobRunTracker) bool {
+		func(jst *JobStateTracker, jrt *JobRunTracker, ualt *UserAnnotationLookupTracker) bool {
 			return jst.SeenStates[repository.JobSucceededOrdinal] && jrt.OneRun().Finished.Valid
 		},
-		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker) {
+		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker, ualt *UserAnnotationLookupTracker) {
 			assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
 			assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
 			assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
@@ -56,6 +58,9 @@ var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
 			assert.True(t, pJobRun.Succeeded.Valid)
 			assert.True(t, pJobRun.Succeeded.Bool)
 			assert.True(t, pJobRun.Finished.Valid)
+
+			assert.Contains(t, ualt.Annotations, "test")
+			assert.Equal(t, ualt.Annotations["test"], "asdf")
 		},
 	},
 	{
@@ -67,10 +72,10 @@ var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
 		func(jr *api.JobSubmitRequest) *api.JobSubmitRequest {
 			return jr
 		},
-		func(jst *JobStateTracker, jrt *JobRunTracker) bool {
+		func(jst *JobStateTracker, jrt *JobRunTracker, ualt *UserAnnotationLookupTracker) bool {
 			return jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid
 		},
-		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker) {
+		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker, ualt *UserAnnotationLookupTracker) {
 			assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
 			assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
 			assert.True(t, jst.SeenStates[repository.JobRunningOrdinal])
@@ -93,10 +98,10 @@ var lookoutIngesterPostgresTestCases = []*lookoutIngesterPGTestCase{
 			jr.JobRequestItems[0].PodSpec.Containers[0].Image = "https://wrongimagename/"
 			return jr
 		},
-		func(jst *JobStateTracker, jrt *JobRunTracker) bool {
+		func(jst *JobStateTracker, jrt *JobRunTracker, ualt *UserAnnotationLookupTracker) bool {
 			return jst.SeenStates[repository.JobFailedOrdinal] && jrt.OneRun().Finished.Valid
 		},
-		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker) {
+		func(t *testing.T, jst *JobStateTracker, jrt *JobRunTracker, ualt *UserAnnotationLookupTracker) {
 			assert.True(t, jst.SeenStates[repository.JobQueuedOrdinal])
 			assert.True(t, jst.SeenStates[repository.JobPendingOrdinal])
 			assert.False(t, jst.SeenStates[repository.JobRunningOrdinal])
@@ -125,6 +130,9 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 		jobRunUpdateListener := openTestListener(t, "job_run_update")
 		defer jobRunUpdateListener.Close()
 
+		annotationUpdateLisener := openTestListener(t, "user_annotation_lookup_update")
+		defer annotationUpdateLisener.Close()
+
 		for _, tc := range lookoutIngesterPostgresTestCases {
 			t.Run(tc.Name, func(t *testing.T) {
 				jobRequest := createJobRequest(
@@ -149,6 +157,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 
 				jst := NewJobStateTracker(jobId, db)
 				jrt := NewJobRunTracker(jobId, db)
+				uslt := NewUserAnnotationLookupTracker(jobId, db)
 
 				for {
 					select {
@@ -162,13 +171,18 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 							err := jrt.Scan()
 							assert.NoError(t, err)
 						}
+					case notification := <-annotationUpdateLisener.NotificationChannel():
+						if notification.Extra == jobId {
+							err := uslt.Scan()
+							assert.NoError(t, err)
+						}
 					case <-ctx.Done():
 						assert.NoError(t, ctx.Err())
 						return
 					}
 
-					if tc.TerminalCondition(jst, jrt) {
-						tc.TestAssertions(t, jst, jrt)
+					if tc.TerminalCondition(jst, jrt, uslt) {
+						tc.TestAssertions(t, jst, jrt, uslt)
 						return
 					}
 				}
@@ -270,6 +284,38 @@ func connectionDetails() *client.ApiConnectionDetails {
 	return connectionDetails
 }
 
+type UserAnnotationLookupTracker struct {
+	JobId       string
+	Annotations map[string]string
+	db          *sql.DB
+}
+
+func NewUserAnnotationLookupTracker(jobId string, db *sql.DB) *UserAnnotationLookupTracker {
+	return &UserAnnotationLookupTracker{
+		JobId:       jobId,
+		Annotations: make(map[string]string),
+		db:          db,
+	}
+}
+
+func (ualt *UserAnnotationLookupTracker) Scan() error {
+	rows, err := ualt.db.Query("SELECT key,value FROM user_annotation_lookup WHERE job_id = $1", ualt.JobId)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key, value string
+		if err = rows.Scan(&key, &value); err != nil {
+			return err
+		}
+		ualt.Annotations[key] = value
+	}
+
+	return nil
+}
+
 const testPGConnectionString = "postgresql://postgres:psw@localhost:5432/postgres?sslmode=disable"
 
 func openPgDbTestConnection() (*sql.DB, error) {
@@ -367,6 +413,7 @@ func (ti *triggerInfo) NotifyChannel() string {
 var testTriggers = []triggerInfo{
 	{"job"},
 	{"job_run"},
+	{"user_annotation_lookup"},
 }
 
 func dbTestSetup(db *sql.DB) {
