@@ -1,10 +1,11 @@
 package scheduleringester
 
 import (
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar

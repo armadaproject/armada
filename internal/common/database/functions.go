@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/golang-migrate/migrate/v4"
+	foo "github.com/golang-migrate/migrate/v4/database/pgx"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/pkg/errors"
 	"strings"
@@ -16,7 +17,9 @@ import (
 )
 
 func MigrateDatabase(sourceInstance source.Driver, databaseUrl string) error {
-	m, err := migrate.NewWithSourceInstance("iofs", sourceInstance, databaseUrl)
+	p := &foo.Postgres{}
+	database, err := p.Open(databaseUrl)
+	m, err := migrate.NewWithInstance("iofs", sourceInstance, "db", database)
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -12,7 +12,7 @@ import (
 var fs embed.FS
 
 func UpdateDatabase(databaseUrl string) error {
-	driver, err := iofs.New(fs, "migrations/*.sql")
+	driver, err := iofs.New(fs, "migrations")
 	if err != nil {
 		return err
 	}
@@ -20,7 +20,7 @@ func UpdateDatabase(databaseUrl string) error {
 }
 
 func WithTestDb(action func(queries *Queries, db *pgxpool.Pool) error) error {
-	driver, err := iofs.New(fs, "migrations/*.sql")
+	driver, err := iofs.New(fs, "migrations")
 	if err != nil {
 		return err
 	}
