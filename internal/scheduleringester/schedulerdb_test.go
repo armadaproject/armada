@@ -2,7 +2,6 @@ package scheduleringester
 
 import (
 	"context"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"testing"
 	"time"
 
@@ -11,6 +10,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/constraints"
+
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
 func TestWriteOps(t *testing.T) {
@@ -194,7 +195,7 @@ func TestWriteOps(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := schedulerdb.WithSchedulerDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
+			err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
 				schedulerDb := &SchedulerDb{db: db}
 				serials := make(map[string]int64)
 				for _, op := range tc.Ops {

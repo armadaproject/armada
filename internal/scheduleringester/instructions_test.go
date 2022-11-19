@@ -11,8 +11,8 @@ import (
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -26,7 +26,7 @@ func TestConvertSequence(t *testing.T) {
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobIdUuid: &sqlc.Job{
+			expected: []DbOperation{InsertJobs{f.JobIdUuid: &schedulerdb.Job{
 				JobID:         f.JobIdUuid,
 				JobSet:        f.JobSetName,
 				UserID:        f.UserId,
@@ -65,14 +65,14 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run assigned": {
 			events: []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &sqlc.JobRunAssignment{
+			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &schedulerdb.JobRunAssignment{
 				RunID:      f.RunIdUuid,
 				Assignment: mustMarshall(f.Assigned.GetJobRunAssigned()),
 			}}},
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
-			expected: []DbOperation{InsertRuns{f.RunIdUuid: &sqlc.Run{
+			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
 				RunID:    f.RunIdUuid,
 				JobID:    f.JobIdUuid,
 				JobSet:   f.JobSetName,
