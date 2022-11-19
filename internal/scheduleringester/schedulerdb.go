@@ -4,21 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
-
 	"github.com/hashicorp/go-multierror"
-
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-
-	"github.com/G-Research/armada/internal/scheduler"
-
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
+	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/G-Research/armada/internal/scheduler"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
 // SchedulerDb writes DbOperations into postgres.
@@ -48,7 +44,7 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 }
 
 func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
-	queries := sqlc.New(s.db)
+	queries := schedulerdb.New(s.db)
 	switch o := op.(type) {
 	case InsertJobs:
 		records := make([]any, len(o))
@@ -87,7 +83,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		for jobSet, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
-				sqlc.UpdateJobPriorityByJobSetParams{
+				schedulerdb.UpdateJobPriorityByJobSetParams{
 					JobSet:   jobSet,
 					Priority: priority,
 				},
@@ -132,7 +128,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		// TODO: This will be slow if there's a large number of ids.
 		// Could be addressed by using a separate table for priority + upsert.
 		for jobId, priority := range o {
-			err := queries.UpdateJobPriorityById(ctx, sqlc.UpdateJobPriorityByIdParams{
+			err := queries.UpdateJobPriorityById(ctx, schedulerdb.UpdateJobPriorityByIdParams{
 				JobID:    jobId,
 				Priority: priority,
 			})
@@ -157,28 +153,6 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		err := queries.MarkJobRunsRunningById(ctx, runIds)
 		if err != nil {
 			return errors.WithStack(err)
-		}
-	case InsertJobErrors:
-		records := make([]any, len(o))
-		i := 0
-		for _, v := range o {
-			records[i] = *v
-			i++
-		}
-		err := database.Upsert(ctx, s.db, "job_errors", scheduler.JobErrorsSchema(), records)
-		if err != nil {
-			return err
-		}
-	case InsertJobRunErrors:
-		records := make([]any, len(o))
-		i := 0
-		for _, v := range o {
-			records[i] = *v
-			i++
-		}
-		err := database.Upsert(ctx, s.db, "job_run_errors", scheduler.JobRunErrorsSchema(), records)
-		if err != nil {
-			return err
 		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)

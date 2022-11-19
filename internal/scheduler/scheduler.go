@@ -15,7 +15,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -29,7 +29,7 @@ type Scheduler struct {
 	// i.e., succeed, failed, or been cancelled.
 	// Jobs are added when read from postgres.
 	// Jobs are removed when they terminate
-	ActiveJobs map[uuid.UUID]*sqlc.Job
+	ActiveJobs map[uuid.UUID]*schedulerdb.Job
 	// Map from job id to a collection of all runs associated with that job.
 	RunsByJobId map[uuid.UUID]*JobRuns
 	// The queue consists of all active jobs that don't have at least one active run associated with it.
@@ -37,7 +37,7 @@ type Scheduler struct {
 	// Ids of jobs that have not yet been scheduled.
 	QueuedJobIds []uuid.UUID
 	// List of worker nodes available across all clusters.
-	Nodes map[string]*sqlc.Nodeinfo
+	Nodes map[string]*schedulerdb.Nodeinfo
 	// Map from executor name to the last time we heard from that executor.
 	Executors map[string]time.Time
 	// Amount of time after which an executor is assumed to be unavailable
@@ -64,17 +64,17 @@ type Scheduler struct {
 type JobRuns struct {
 	// Any runs associated with this job that have not terminated.
 	// Map from run id to run.
-	ActiveRuns map[uuid.UUID]*sqlc.Run
+	ActiveRuns map[uuid.UUID]*schedulerdb.Run
 	// Any runs associated with this job for which the ingester has received
 	// a terminal event (i.e., succeeded, failed, or cancelled).
 	// Map from run id to run.
-	InactiveRuns map[uuid.UUID]*sqlc.Run
+	InactiveRuns map[uuid.UUID]*schedulerdb.Run
 }
 
 func NewJobRuns() *JobRuns {
 	return &JobRuns{
-		ActiveRuns:   make(map[uuid.UUID]*sqlc.Run),
-		InactiveRuns: make(map[uuid.UUID]*sqlc.Run),
+		ActiveRuns:   make(map[uuid.UUID]*schedulerdb.Run),
+		InactiveRuns: make(map[uuid.UUID]*schedulerdb.Run),
 	}
 }
 
@@ -82,9 +82,9 @@ func NewScheduler(producer pulsar.Producer, db *pgxpool.Pool) *Scheduler {
 	return &Scheduler{
 		Producer:              producer,
 		Db:                    db,
-		ActiveJobs:            make(map[uuid.UUID]*sqlc.Job),
+		ActiveJobs:            make(map[uuid.UUID]*schedulerdb.Job),
 		RunsByJobId:           make(map[uuid.UUID]*JobRuns),
-		Nodes:                 make(map[string]*sqlc.Nodeinfo),
+		Nodes:                 make(map[string]*schedulerdb.Nodeinfo),
 		Executors:             make(map[string]time.Time),
 		ExecutorAliveDuration: 5 * time.Minute,
 	}
@@ -131,7 +131,7 @@ func (srv *Scheduler) Run(ctx context.Context) error {
 
 func (srv *Scheduler) updateNodes(ctx context.Context) error {
 	log := ctxlogrus.Extract(ctx)
-	queries := sqlc.New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 	nodes, err := queries.SelectNewNodeInfo(ctx, srv.NodesSerial)
 	if err != nil {
 		return errors.WithStack(err)
@@ -150,7 +150,7 @@ func (srv *Scheduler) updateNodes(ctx context.Context) error {
 
 func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 	log := ctxlogrus.Extract(ctx)
-	queries := sqlc.New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 
 	// New jobs.
 	// TODO: We shouldn't load all columns.
@@ -193,7 +193,7 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 		jobIds[i] = jobId
 		i++
 	}
-	runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
+	runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
 		JobIds: jobIds,
 		Serial: srv.RunsSerial,
 	})
