@@ -2,8 +2,9 @@ package scheduleringester
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common/compress"
 	"testing"
+
+	"github.com/G-Research/armada/internal/common/compress"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -17,8 +18,10 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-var m = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
-var compressedGroups, _ = compress.CompressStringArray(f.Groups, &compress.NoOpCompressor{})
+var (
+	m                   = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
+	compressedGroups, _ = compress.CompressStringArray(f.Groups, &compress.NoOpCompressor{})
+)
 
 func TestConvertSequence(t *testing.T) {
 	tests := map[string]struct {

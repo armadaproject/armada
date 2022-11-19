@@ -3,9 +3,11 @@ package database
 import (
 	"embed"
 	_ "embed"
-	"github.com/G-Research/armada/internal/common/database"
+
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/G-Research/armada/internal/common/database"
 )
 
 //go:embed migrations/*.sql

@@ -1,8 +1,9 @@
 package scheduleringester
 
 import (
-	"github.com/G-Research/armada/internal/common/compress"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/compress"
 
 	"github.com/G-Research/armada/internal/common/database"
 

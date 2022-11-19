@@ -3,10 +3,11 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/app"
-	"github.com/G-Research/armada/internal/common/database"
 	"math/rand"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/app"
+	"github.com/G-Research/armada/internal/common/database"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
@@ -306,7 +307,6 @@ func (srv *Scheduler) getActiveExecutors() []string {
 }
 
 func Run(config *Configuration) error {
-
 	pulsarCompressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
 	if err != nil {
 		return err
