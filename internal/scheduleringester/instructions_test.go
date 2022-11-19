@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/internal/common/compress"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -17,6 +18,7 @@ import (
 )
 
 var m = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
+var compressedGroups, _ = compress.CompressStringArray(f.Groups, &compress.NoOpCompressor{})
 
 func TestConvertSequence(t *testing.T) {
 	tests := map[string]struct {
@@ -30,7 +32,7 @@ func TestConvertSequence(t *testing.T) {
 				JobID:         f.JobIdUuid,
 				JobSet:        f.JobSetName,
 				UserID:        f.UserId,
-				Groups:        f.Groups,
+				Groups:        compressedGroups,
 				Queue:         f.Queue,
 				Priority:      int64(f.Priority),
 				SubmitMessage: mustMarshall(f.Submit.GetSubmitJob()),
@@ -87,14 +89,18 @@ func TestConvertSequence(t *testing.T) {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
 			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: true}},
 		},
-		// TODO: can we remove the error message from the fields stored
-		// If so we can have the simple test below
-		//"job run errors terminal": {
-		//	events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
-		//	expected: []DbOperation{
-		//		MarkJobsFailed{f.RunIdUuid: true},
-		//	},
-		//},
+		"job run errors terminal": {
+			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
+			expected: []DbOperation{
+				MarkRunsFailed{f.RunIdUuid: true},
+			},
+		},
+		"job errors terminal": {
+			events: []*armadaevents.EventSequence_Event{f.JobFailed},
+			expected: []DbOperation{
+				MarkJobsFailed{f.JobIdUuid: true},
+			},
+		},
 		"job succeeded": {
 			events: []*armadaevents.EventSequence_Event{f.JobSucceeded},
 			expected: []DbOperation{
@@ -156,7 +162,7 @@ func TestConvertSequence(t *testing.T) {
 					return true
 				}
 			}
-			converter := InstructionConverter{m, tc.filter}
+			converter := InstructionConverter{m, tc.filter, &compress.NoOpCompressor{}}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.convertSequence(es)
 			assertOperationsEqual(t, tc.expected, results)

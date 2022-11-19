@@ -2,17 +2,15 @@ package scheduleringester
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
-
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -26,14 +24,16 @@ type eventSequenceCommon struct {
 type InstructionConverter struct {
 	metrics     *metrics.Metrics
 	eventFilter func(event *armadaevents.EventSequence_Event) bool
+	compressor  compress.Compressor
 }
 
 func NewInstructionConverter(metrics *metrics.Metrics,
-	filter func(event *armadaevents.EventSequence_Event) bool,
+	filter func(event *armadaevents.EventSequence_Event) bool, compressor compress.Compressor,
 ) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
 	return &InstructionConverter{
 		metrics:     metrics,
 		eventFilter: filter,
+		compressor:  compressor,
 	}
 }
 
@@ -128,13 +128,17 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	compressedGroups, err := compress.CompressStringArray(meta.groups, c.compressor)
+	if err != nil {
+		return nil, err
+	}
 
 	jobId := armadaevents.UuidFromProtoUuid(job.JobId)
-	return []DbOperation{InsertJobs{jobId: &sqlc.Job{
+	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:          jobId,
 		JobSet:         meta.jobset,
 		UserID:         meta.user,
-		Groups:         meta.groups,
+		Groups:         compressedGroups,
 		Queue:          meta.queue,
 		Priority:       int64(job.Priority),
 		SubmitMessage:  submitJobBytes,
@@ -144,7 +148,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 
 func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, meta eventSequenceCommon) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunLeased.GetRunId())
-	return []DbOperation{InsertRuns{runId: &sqlc.Run{
+	return []DbOperation{InsertRuns{runId: &schedulerdb.Run{
 		RunID:    runId,
 		JobID:    armadaevents.UuidFromProtoUuid(jobRunLeased.GetJobId()),
 		JobSet:   meta.jobset,
@@ -158,7 +162,7 @@ func (c *InstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to marshal JobRunAssigned")
 	}
-	return []DbOperation{InsertRunAssignments{runId: &sqlc.JobRunAssignment{
+	return []DbOperation{InsertRunAssignments{runId: &schedulerdb.JobRunAssignment{
 		RunID:      runId,
 		Assignment: bytes,
 	}}}, nil
@@ -175,45 +179,16 @@ func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaeven
 }
 
 func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors) ([]DbOperation, error) {
-	jobId := jobRunErrors.GetJobId()
 	runId := jobRunErrors.GetRunId()
-	jobIdBytes, err := proto.Marshal(jobId)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal jobId")
-	}
-	runIdBytes, err := proto.Marshal(runId)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal runId")
-	}
-	insertJobRunErrors := make(InsertJobRunErrors)
-	markRunsFailed := make(MarkRunsFailed)
 	for _, runError := range jobRunErrors.GetErrors() {
-		bytes, err := proto.Marshal(runError)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal RunError")
-		}
-
-		// To ensure inserts are idempotent, each row must have a unique deterministic.
-		// We use the hash of (job id, error message),
-		// which isn't entirely correct since it deduplicates identical error message.
-		hash := sha256.Sum256(append(bytes, append(jobIdBytes, runIdBytes...)...))
-		key := int32(binary.BigEndian.Uint32(hash[:]))
-		insertJobRunErrors[key] = &sqlc.JobRunError{
-			ID:       key,
-			RunID:    armadaevents.UuidFromProtoUuid(runId),
-			Error:    bytes,
-			Terminal: runError.GetTerminal(),
-		}
-
 		// For terminal errors, we also need to mark the run as failed.
 		if runError.GetTerminal() {
+			markRunsFailed := make(MarkRunsFailed)
 			markRunsFailed[armadaevents.UuidFromProtoUuid(runId)] = true
+			return []DbOperation{markRunsFailed}, nil
 		}
 	}
-	if len(markRunsFailed) > 0 {
-		return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
-	}
-	return []DbOperation{insertJobRunErrors}, nil
+	return nil, nil
 }
 
 func (c *InstructionConverter) handleJobSucceeded(jobSucceeded *armadaevents.JobSucceeded) ([]DbOperation, error) {
@@ -225,40 +200,15 @@ func (c *InstructionConverter) handleJobSucceeded(jobSucceeded *armadaevents.Job
 
 func (c *InstructionConverter) handleJobErrors(jobErrors *armadaevents.JobErrors) ([]DbOperation, error) {
 	jobId := jobErrors.GetJobId()
-	jobIdBytes, err := proto.Marshal(jobId)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal jobId")
-	}
-	insertJobErrors := make(InsertJobErrors)
-	markJobsFailed := make(MarkJobsFailed)
 	for _, jobError := range jobErrors.GetErrors() {
-		bytes, err := proto.Marshal(jobError)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal JobError")
-		}
-
-		// To ensure inserts are idempotent, each row must have a unique deterministic.
-		// We use the hash of (job id, error message),
-		// which isn't entirely correct since it deduplicates identical error message.
-		hash := sha256.Sum256(append(bytes, jobIdBytes...))
-		key := int32(binary.BigEndian.Uint32(hash[:]))
-		insertJobErrors[key] = &sqlc.JobError{
-			ID:       key,
-			JobID:    armadaevents.UuidFromProtoUuid(jobId),
-			Error:    bytes,
-			Terminal: jobError.GetTerminal(),
-		}
-
 		// For terminal errors, we also need to mark the job as failed.
 		if jobError.GetTerminal() {
+			markJobsFailed := make(MarkJobsFailed)
 			markJobsFailed[armadaevents.UuidFromProtoUuid(jobId)] = true
+			return []DbOperation{markJobsFailed}, nil
 		}
 	}
-
-	if len(markJobsFailed) > 0 {
-		return []DbOperation{insertJobErrors, markJobsFailed}, nil
-	}
-	return []DbOperation{insertJobErrors}, nil
+	return nil, nil
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob) ([]DbOperation, error) {

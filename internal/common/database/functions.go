@@ -3,6 +3,9 @@ package database
 import (
 	"context"
 	"fmt"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/source"
+	"github.com/pkg/errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -11,6 +14,14 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
+
+func MigrateDatabase(sourceInstance source.Driver, databaseUrl string) error {
+	m, err := migrate.NewWithSourceInstance("iofs", sourceInstance, databaseUrl)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return errors.WithStack(m.Up())
+}
 
 func UniqueTableName(table string) string {
 	suffix := strings.ReplaceAll(uuid.New().String(), "-", "")

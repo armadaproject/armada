@@ -3,36 +3,28 @@ package database
 import (
 	"embed"
 	_ "embed"
-	"github.com/jackc/pgx/v4/pgxpool"
-	_ "github.com/lib/pq"
-
 	"github.com/G-Research/armada/internal/common/database"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-//go:embed testdata/migrations/*.sql
+//go:embed migrations/*.sql
 var fs embed.FS
 
-func Example() {
-	d, err := iofs.New(fs, "testdata/migrations")
+func UpdateDatabase(databaseUrl string) error {
+	driver, err := iofs.New(fs, "migrations/*.sql")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", d, "postgres://postgres@localhost/postgres?sslmode=disable")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = m.Up()
-	if err != nil {
-		// ...
-	}
-	// ...
+	return database.MigrateDatabase(driver, databaseUrl)
 }
+
 func WithTestDb(action func(queries *Queries, db *pgxpool.Pool) error) error {
-	// TODO: make the scheduler database properly support migrations
-	migrations := []database.Migration{
-		database.NewMigration(1, "initial", SchemaTemplate()),
+	driver, err := iofs.New(fs, "migrations/*.sql")
+	if err != nil {
+		return err
 	}
-	return database.WithTestDb(migrations, func(db *pgxpool.Pool) error {
+	return database.WithTestDb2(driver, func(db *pgxpool.Pool) error {
 		return action(New(db), db)
 	})
 }
