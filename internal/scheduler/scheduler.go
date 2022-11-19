@@ -2,6 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"github.com/G-Research/armada/internal/common/app"
+	"github.com/G-Research/armada/internal/common/database"
 	"math/rand"
 	"time"
 
@@ -300,4 +303,43 @@ func (srv *Scheduler) getActiveExecutors() []string {
 		}
 	}
 	return activeExecutors
+}
+
+func Run(config *Configuration) error {
+
+	pulsarCompressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+	if err != nil {
+		return err
+	}
+	pulsarCompressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+	if err != nil {
+		return err
+	}
+
+	db, err := database.OpenPgxPool(config.Postgres)
+	if err != nil {
+		panic(errors.WithMessage(err, "Error opening connection to postgres"))
+	}
+
+	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+	if err != nil {
+		return errors.WithMessage(err, "Error creating pulsar client")
+	}
+
+	serverPulsarProducerName := fmt.Sprintf("armada-scheduler-%s", uuid.New())
+	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+		Name:             serverPulsarProducerName,
+		CompressionType:  pulsarCompressionType,
+		CompressionLevel: pulsarCompressionLevel,
+		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+		Topic:            config.Pulsar.JobsetEventsTopic,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
+	}
+	defer producer.Close()
+
+	scheduler := NewScheduler(producer, db)
+	scheduler.Run(app.CreateContextWithShutdown())
+	return nil
 }

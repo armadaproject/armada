@@ -13,7 +13,6 @@ import (
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/scheduler"
 	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
@@ -53,7 +52,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "jobs", scheduler.JobsSchema(), records)
+		err := database.Upsert(ctx, s.db, "jobs", records)
 		if err != nil {
 			return err
 		}
@@ -64,7 +63,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "runs", scheduler.RunsSchema(), records)
+		err := database.Upsert(ctx, s.db, "runs", records)
 		if err != nil {
 			return err
 		}
@@ -75,7 +74,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "job_run_assignments", scheduler.JobRunAssignmentSchema(), records)
+		err := database.Upsert(ctx, s.db, "job_run_assignments", records)
 		if err != nil {
 			return err
 		}

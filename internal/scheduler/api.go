@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/database"
 	"io"
 	"sync/atomic"
 	"time"
@@ -14,9 +13,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/jackc/pgx/v4/pgxpool"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/pulsarutils"
@@ -27,14 +30,10 @@ import (
 
 type ExecutorApi struct {
 	api.UnimplementedAggregatedQueueServer
-	// Embed the Redis-backed event server.
-	// Provides methods for dual-publishing events etc.
-	//
-	// TODO: Can't import due to import cycle.
-	// *server.EventServer
-	Producer       pulsar.Producer
-	Db             *pgxpool.Pool
-	MaxJobsPerCall int32
+	Producer         pulsar.Producer
+	Db               *pgxpool.Pool
+	MaxJobsPerCall   int32
+	decompressorPool *pool.ObjectPool
 }
 
 func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
@@ -99,9 +98,15 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	jobTime := time.Now()
 	jobsToLease := make([]*api.Job, len(logJobs))
 	for i, logJob := range logJobs {
+
+		groups, err := srv.decompressOwnershipGroups(sqlJobs[i].Groups)
+		if err != nil {
+			return err
+		}
+
 		legacyJob, err := eventutil.ApiJobFromLogSubmitJob(
 			sqlJobs[i].UserID,
-			sqlJobs[i].Groups,
+			groups,
 			sqlJobs[i].Queue,
 			sqlJobs[i].JobSet,
 			jobTime,
@@ -217,7 +222,7 @@ func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorNam
 			Message:          message,
 		})
 	}
-	return database.Upsert(ctx, srv.Db, "nodeinfo", NodeInfoSchema(), records)
+	return database.Upsert(ctx, srv.Db, "nodeinfo", records)
 }
 
 func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {
@@ -240,7 +245,7 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 	}
 
 	queries := schedulerdb.New(srv.Db)
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, sqlc.SelectRunsFromExecutorAndJobsParams{
+	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
 		JobIds:   jobIds,
 	})
@@ -392,4 +397,20 @@ func (srv *ExecutorApi) ReportUsage(ctx context.Context, req *api.ClusterUsageRe
 // PublishToPulsar sends pulsar messages async
 func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
 	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.Producer, 4194304) // 4 MB
+}
+
+func (srv *ExecutorApi) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
+	decompressor, err := srv.decompressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
+	}
+
+	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+		err := decompressorPool.ReturnObject(ctx, object)
+		if err != nil {
+			log.WithError(err).Errorf("Error returning decompressor to pool")
+		}
+	}(srv.decompressorPool, context.Background(), decompressor)
+
+	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }

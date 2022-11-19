@@ -215,7 +215,7 @@ func addDefaultValues(op DbOperation) DbOperation {
 	switch o := op.(type) {
 	case InsertJobs:
 		for _, job := range o {
-			job.Groups = make([]string, 0)
+			job.Groups = make([]byte, 0)
 			job.SubmitMessage = make([]byte, 0)
 			job.SchedulingInfo = make([]byte, 0)
 		}

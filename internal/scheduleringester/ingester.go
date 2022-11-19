@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"github.com/G-Research/armada/internal/common/compress"
 	"time"
 
 	"github.com/G-Research/armada/internal/common/database"
@@ -36,7 +37,11 @@ func Run(config *Configuration) {
 		return true
 	}
 
-	converter := NewInstructionConverter(metrics, submitJobFilter)
+	compressor, err := compress.NewZlibCompressor(1024)
+	if err != nil {
+		panic(errors.WithMessage(err, "Error opening connection to postgres"))
+	}
+	converter := NewInstructionConverter(metrics, submitJobFilter, compressor)
 
 	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,
