@@ -158,7 +158,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 			if err != nil {
 				log.WithError(err).Warn("Error inserting messages")
 			} else {
-				log.Infof("Ingested %d pulsar messages in %dms", len(msg.GetMessageIDs()), taken.Milliseconds())
+				log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), taken.Milliseconds())
 			}
 			if errors.Is(err, context.DeadlineExceeded) {
 				// This occurs when we're shutting down- it's a signal to stop processing immediately
