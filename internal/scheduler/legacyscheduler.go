@@ -547,19 +547,19 @@ func jobIsLargeEnough(jobTotalResourceRequests, minimumJobSize schedulerobjects.
 	return true, ""
 }
 
-func (sched *LegacyScheduler) podRequirementsFromJobs(jobs []*api.Job) []*schedulerobjects.PodRequirements {
+func PodRequirementsFromJobs(priorityClasses map[string]configuration.PriorityClass, jobs []*api.Job) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
-		rv = append(rv, sched.podRequirementsFromJob(job)...)
+		rv = append(rv, PodRequirementsFromJob(priorityClasses, job)...)
 	}
 	return rv
 }
 
-func (sched *LegacyScheduler) podRequirementsFromJob(job *api.Job) []*schedulerobjects.PodRequirements {
+func PodRequirementsFromJob(priorityClasses map[string]configuration.PriorityClass, job *api.Job) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, 1+len(job.PodSpecs))
-	rv = append(rv, schedulerobjects.PodRequirementsFromPodSpec(job.PodSpec, sched.PriorityClasses))
+	rv = append(rv, schedulerobjects.PodRequirementsFromPodSpec(job.PodSpec, priorityClasses))
 	for _, podSpec := range job.PodSpecs {
-		req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, sched.PriorityClasses)
+		req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, priorityClasses)
 		rv = append(rv, req)
 	}
 	return rv
@@ -701,7 +701,7 @@ func (sched *LegacyScheduler) Schedule() ([]*api.Job, error) {
 		for i, r := range reports {
 			jobs[i] = r.Job
 		}
-		reqs := sched.podRequirementsFromJobs(jobs)
+		reqs := PodRequirementsFromJobs(sched.PriorityClasses, jobs)
 
 		podSchedulingReports, ok, err := sched.NodeDb.ScheduleMany(reqs)
 		if err != nil {

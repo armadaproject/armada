@@ -1,8 +1,10 @@
 package scheduler
 
 import (
+	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/exp/maps"
 
@@ -10,8 +12,15 @@ import (
 )
 
 type SubmitChecker struct {
+	executorTimeout  time.Duration
 	nodeDbByExecutor map[string]*NodeDb
 	mu               sync.Mutex
+}
+
+func NewSubmitChecker(executorTimeout time.Duration) *SubmitChecker {
+	return &SubmitChecker{
+		executorTimeout: executorTimeout,
+	}
 }
 
 // RegisterNodeDb adds a NodeDb to use when checking if a pod can be scheduled.
@@ -40,7 +49,14 @@ func (srv *SubmitChecker) Check(reqs []*schedulerobjects.PodRequirements) (bool,
 	nodeDbByExecutor := maps.Clone(srv.nodeDbByExecutor)
 	srv.mu.Unlock()
 	for executor, nodeDb := range nodeDbByExecutor {
-		reports, ok, err := nodeDb.ScheduleManyWithTxn(nodeDb.db.Txn(false), reqs)
+		if time.Since(nodeDb.MostRecentUpsert()) > srv.executorTimeout {
+			continue
+		}
+
+		txn := nodeDb.db.Txn(true)
+		reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
+		txn.Abort()
+		fmt.Println("++++++++++++ ", ok)
 		sb.WriteString(executor)
 		sb.WriteString("\n")
 		if err != nil {

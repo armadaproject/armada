@@ -26,6 +26,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -46,6 +47,9 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
+	// Used to check at job submit time if the job could ever be scheduled.
+	// Currently only used for gang jobs.
+	SubmitChecker *scheduler.SubmitChecker
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -163,6 +167,21 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 	}
 
+	// Special code path for checking if gang jobs could ever be scheduled.
+	// Later, all jobs will be checked via this code path.
+	jobsByGangId := groupJobsByAnnotation(srv.SubmitServer.schedulingConfig.GangIdAnnotation, apiJobs)
+	for gangId, gang := range jobsByGangId {
+		if gangId == "" {
+			continue
+		}
+		reqs := scheduler.PodRequirementsFromJobs(srv.SubmitServer.schedulingConfig.Preemption.PriorityClasses, gang)
+		ok, reason := srv.SubmitChecker.Check(reqs)
+		fmt.Println("================ gangId ", gangId, " ok ", ok, " reason ", reason)
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "gang job unschedulable:\n %s", reason)
+		}
+	}
+
 	// Create events marking the jobs as submitted
 	err = reportSubmitted(srv.SubmitServer.eventStore, apiJobs)
 	if err != nil {
@@ -182,6 +201,19 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
+}
+
+func groupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api.Job {
+	rv := make(map[string][]*api.Job)
+	for _, job := range jobs {
+		if len(job.Annotations) == 0 {
+			rv[""] = append(rv[""], job)
+		} else {
+			value := job.Annotations[annotation]
+			rv[value] = append(rv[value], job)
+		}
+	}
+	return rv
 }
 
 // selectApiJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.

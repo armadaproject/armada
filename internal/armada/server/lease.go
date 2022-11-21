@@ -49,6 +49,9 @@ type AggregatedQueueServer struct {
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
 	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
+	// Stores the most recent NodeDb for each executor.
+	// Used to check if a job could ever be scheduled at job submit time.
+	SubmitChecker *scheduler.SubmitChecker
 }
 
 func NewAggregatedQueueServer(
@@ -567,6 +570,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	} else if err != nil {
 		return nil, err
 	}
+
+	// Use this NodeDb when checking if a job could ever be scheduled.
+	nodeDb.CheckOnlyStaticRequirements = true
+	q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
 
 	return jobs, nil
 }
