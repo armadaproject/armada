@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -17,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -62,8 +62,22 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	if len(priorities) == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "priorities",
+			Value:   priorities,
+			Message: "there must be at least one supported priority",
+		})
+	}
 	priorities = slices.Clone(priorities)
 	slices.Sort(priorities) // To enable binary search.
+	if len(indexedResources) == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "indexedResources",
+			Value:   indexedResources,
+			Message: "there must be at least one indexed resource",
+		})
+	}
 	mapFromSlice := func(vs []string) map[string]interface{} {
 		rv := make(map[string]interface{})
 		for _, v := range vs {
@@ -101,10 +115,48 @@ func (nodeDb *NodeDb) String() string {
 	return sb.String()
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+// TODO: Pass through contexts to support timeouts.
+func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
 	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
-	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, jobId, req)
+
+	// Attempt to schedule pods one by one in a transaction.
+	// If any pod fails to schedule, abort the transaction and return.
+	reports := make([]*PodSchedulingReport, 0, len(reqs))
+	for _, req := range reqs {
+		report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
+		if err != nil {
+			return nil, false, err
+		}
+		reports = append(reports, report)
+
+		// If we found a node for this pod,
+		// bind it and continue to the next pod.
+		//
+		// Otherwise, zero out the node binding in all previous reports,
+		// abort the transaction, and return.
+		if report.Node != nil {
+			err = nodeDb.BindNodeToPod(txn, req, report.Node)
+			if err != nil {
+				return nil, false, err
+			}
+		} else {
+			for _, report := range reports {
+				report.Node = nil
+			}
+			return reports, false, nil
+		}
+	}
+
+	// All pods could be scheduled; commit the transaction and return.
+	txn.Commit()
+	return reports, true, nil
+}
+
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+	txn := nodeDb.Db.Txn(true)
+	defer txn.Abort()
+	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
 	}
@@ -112,13 +164,13 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(jobId uuid.UUID, req *schedulerobje
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-	report, err := nodeDb.SelectNodeForPodWithTxn(txn, jobId, req)
+func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+	report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
 	}
 	if report.Node != nil {
-		err = nodeDb.BindNodeToPod(txn, jobId, req, report.Node)
+		err = nodeDb.BindNodeToPod(txn, req, report.Node)
 		if err != nil {
 			return nil, err
 		}
@@ -126,13 +178,13 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, jobId uuid.U
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectNodeForPod(jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-	return nodeDb.SelectNodeForPodWithTxn(nodeDb.Db.Txn(false), jobId, req)
+func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+	return nodeDb.SelectNodeForPodWithTxn(nodeDb.Db.Txn(false), req)
 }
 
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
 // and updates the internal state of the db to indicate that this pod is bound to that node.
-func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, jobId uuid.UUID, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -150,7 +202,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, jobId uuid.UUID, r
 	// Create a report to be returned to the caller.
 	report := &PodSchedulingReport{
 		Timestamp:                    time.Now(),
-		JobId:                        jobId,
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
 		NumMatchedNodeTypes:          len(nodeTypes),
@@ -192,7 +243,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, jobId uuid.UUID, r
 	return report, nil
 }
 
-func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, jobId uuid.UUID, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
 	// DeepCopy the node.
 	// TODO: Use more efficient deepcopy.
 	buffer, err := node.Marshal()
