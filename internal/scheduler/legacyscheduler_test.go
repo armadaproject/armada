@@ -19,6 +19,11 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+const (
+	testGangIdAnnotation          = "armada.io/gangId"
+	testGangCardinalityAnnotation = "armada.io/gangCardinality"
+)
+
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
@@ -328,7 +333,7 @@ func TestPickQueueRandomly(t *testing.T) {
 	}
 }
 
-func TestQueueCandidateJobsIterator(t *testing.T) {
+func TestQueueCandidateGangIterator(t *testing.T) {
 	tests := map[string]struct {
 		Reqs                   []*schedulerobjects.PodRequirements
 		InitialUsageByPriority schedulerobjects.QuantityByPriorityAndResourceType
@@ -496,36 +501,38 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-
-			it := &QueueCandidateJobsIterator{
+			queuedGangIterator := NewQueuedGangIterator(
+				ctx,
+				queuedJobsIterator,
+				testGangIdAnnotation,
+				testGangCardinalityAnnotation,
+			)
+			it := &QueueCandidateGangIterator{
+				ctx:                        ctx,
 				SchedulingConstraints:      tc.SchedulingConstraints,
 				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
-				ctx:                        ctx,
-				jobsIterator:               queuedJobsIterator,
+				queuedGangIterator:         queuedGangIterator,
 			}
 
 			actual := make([]*api.Job, 0)
 			actualIndices := make([]int, 0)
-			for report, err := it.Next(); report != nil; report, err = it.Next() {
+			for reports, err := it.Next(); reports != nil; reports, err = it.Next() {
 				if !assert.NoError(t, err) {
 					return
 				}
-				if tc.LeaseJobs {
-					it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
+				for _, report := range reports {
+					if tc.LeaseJobs {
+						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
+					}
+					actual = append(actual, report.Job)
+					actualIndices = append(actualIndices, indexByJobId[report.Job.Id])
 				}
-				actual = append(actual, report.Job)
-				actualIndices = append(actualIndices, indexByJobId[report.Job.Id])
 			}
 			assert.Equal(t, tc.ExpectedIndices, actualIndices) // Redundant, but useful to debug tests.
 			assert.Equal(t, expected, actual, "")
 		})
 	}
 }
-
-const (
-	testGangIdAnnotation          = "armada.io/gangId"
-	testGangCardinalityAnnotation = "armada.io/gangCardinality"
-)
 
 func testSchedulingConfig() configuration.SchedulingConfig {
 	priorityClasses := make(map[string]configuration.PriorityClass)
@@ -611,12 +618,18 @@ func withNodeSelector(selector map[string]string, reqs []*schedulerobjects.PodRe
 func withGangAnnotations(reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))
+	return withAnnotations(
+		map[string]string{testGangIdAnnotation: gangId, testGangCardinalityAnnotation: gangCardinality},
+		reqs,
+	)
+}
+
+func withAnnotations(annotations map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		if req.Annotations == nil {
 			req.Annotations = make(map[string]string)
 		}
-		req.Annotations[testGangIdAnnotation] = gangId
-		req.Annotations[testGangCardinalityAnnotation] = gangCardinality
+		maps.Copy(req.Annotations, annotations)
 	}
 	return reqs
 }
@@ -1276,6 +1289,28 @@ func TestSchedule(t *testing.T) {
 				"A": {},
 			},
 		},
+		"gang aggregated resource accounting": {
+			SchedulingConfig: withPerQueueLimits(
+				map[string]float64{
+					"cpu": 2.0 / 32.0,
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(
+					withAnnotations(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob(0, 1)),
+					testNSmallCpuJob(0, 1)...),
+					withAnnotations(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob(0, 1))...,
+				),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {1},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1323,7 +1358,7 @@ func TestSchedule(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			sched.CandidateGangIterator.CandidateJobsIterator.rand = util.NewThreadsafeRand(42) // Reproducible tests.
+			sched.CandidateGangIterator.rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
 			jobs, err := sched.Schedule()
 			if !assert.NoError(t, err) {
