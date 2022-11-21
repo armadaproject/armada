@@ -8,10 +8,14 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/util"
 )
 
-func WithTestDb(migrations []migration, action func(db *pgxpool.Pool) error) error {
+// WithTestDb spins up a Postgres database for testing
+// migrations: perform the list of migrations before entering the action callback
+// action: callback for client code
+func WithTestDb(migrations []Migration, action func(db *pgxpool.Pool) error) error {
 	ctx := context.Background()
 
 	// Connect and create a dedicated database for the test
@@ -48,6 +52,27 @@ func WithTestDb(migrations []migration, action func(db *pgxpool.Pool) error) err
 			fmt.Println("Failed to drop database")
 		}
 	}()
+
+	err = UpdateDatabase(ctx, testDbPool, migrations)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	return action(testDbPool)
+}
+
+// WithTestDbCustom connects to specified database for testing
+// migrations: perform the list of migrations before entering the action callback
+// config: PostgresConfig to specify connection details to database
+// action: callback for client code
+func WithTestDbCustom(migrations []Migration, config configuration.PostgresConfig, action func(db *pgxpool.Pool) error) error {
+	ctx := context.Background()
+
+	testDbPool, err := OpenPgxPool(config)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer testDbPool.Close()
 
 	err = UpdateDatabase(ctx, testDbPool, migrations)
 	if err != nil {

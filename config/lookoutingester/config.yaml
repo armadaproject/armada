@@ -18,7 +18,7 @@ pulsar:
   URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
-  backofftime: 1s
+  backoffTime: 1s
 
 paralellism: 1
 subscriptionName: "lookout-ingester"

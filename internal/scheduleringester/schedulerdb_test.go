@@ -1,9 +1,12 @@
-package scheduler
+package scheduleringester
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
+	"github.com/G-Research/armada/internal/scheduler/testutil"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -26,45 +29,45 @@ func TestWriteOps(t *testing.T) {
 	}{
 		"InsertJobs": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
 			},
 			InsertJobs{
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 		}},
 		"InsertRuns": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &Run{JobID: jobIds[0], RunID: runIds[0]},
-				runIds[1]: &Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]},
 			},
 			InsertRuns{
-				runIds[2]: &Run{JobID: jobIds[2], RunID: runIds[2]},
-				runIds[3]: &Run{JobID: jobIds[3], RunID: runIds[3]},
+				runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &sqlc.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 		}},
 		"UpdateJobSetPriorities": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			UpdateJobSetPriorities{"set1": 1},
 		}},
 		"UpdateJobPriorities": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			UpdateJobPriorities{
 				jobIds[0]: 1,
@@ -73,31 +76,31 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobSetsCancelled": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &Run{JobID: jobIds[0], RunID: runIds[0], JobSet: "set1"},
-				runIds[1]: &Run{JobID: jobIds[1], RunID: runIds[1], JobSet: "set2"},
-				runIds[2]: &Run{JobID: jobIds[2], RunID: runIds[2], JobSet: "set1"},
-				runIds[3]: &Run{JobID: jobIds[3], RunID: runIds[3], JobSet: "set2"},
+				runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0], JobSet: "set1"},
+				runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1], JobSet: "set2"},
+				runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2], JobSet: "set1"},
+				runIds[3]: &sqlc.Run{JobID: jobIds[3], RunID: runIds[3], JobSet: "set2"},
 			},
 			MarkJobSetsCancelled{"set1": true},
 		}},
 		"MarkJobsCancelled": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &Run{JobID: jobIds[0], RunID: runIds[0]},
-				runIds[1]: &Run{JobID: jobIds[1], RunID: runIds[1]},
-				runIds[2]: &Run{JobID: jobIds[2], RunID: runIds[2]},
-				runIds[3]: &Run{JobID: jobIds[3], RunID: runIds[3]},
+				runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &sqlc.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkJobsCancelled{
 				jobIds[0]: true,
@@ -106,10 +109,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsSucceeded": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			MarkJobsSucceeded{
 				jobIds[0]: true,
@@ -118,10 +121,10 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkJobsFailed": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			MarkJobsFailed{
 				jobIds[0]: true,
@@ -130,16 +133,16 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsSucceeded": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &Run{JobID: jobIds[0], RunID: runIds[0]},
-				runIds[1]: &Run{JobID: jobIds[1], RunID: runIds[1]},
-				runIds[2]: &Run{JobID: jobIds[2], RunID: runIds[2]},
-				runIds[3]: &Run{JobID: jobIds[3], RunID: runIds[3]},
+				runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &sqlc.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkRunsSucceeded{
 				runIds[0]: true,
@@ -148,16 +151,16 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsFailed": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &Run{JobID: jobIds[0], RunID: runIds[0]},
-				runIds[1]: &Run{JobID: jobIds[1], RunID: runIds[1]},
-				runIds[2]: &Run{JobID: jobIds[2], RunID: runIds[2]},
-				runIds[3]: &Run{JobID: jobIds[3], RunID: runIds[3]},
+				runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &sqlc.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkRunsFailed{
 				runIds[0]: true,
@@ -166,16 +169,16 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
 			InsertJobs{
-				jobIds[0]: &Job{JobID: jobIds[0], JobSet: "set1"},
-				jobIds[1]: &Job{JobID: jobIds[1], JobSet: "set2"},
-				jobIds[2]: &Job{JobID: jobIds[2], JobSet: "set1"},
-				jobIds[3]: &Job{JobID: jobIds[3], JobSet: "set2"},
+				jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &Run{JobID: jobIds[0], RunID: runIds[0]},
-				runIds[1]: &Run{JobID: jobIds[1], RunID: runIds[1]},
-				runIds[2]: &Run{JobID: jobIds[2], RunID: runIds[2]},
-				runIds[3]: &Run{JobID: jobIds[3], RunID: runIds[3]},
+				runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &sqlc.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkRunsRunning{
 				runIds[0]: true,
@@ -184,35 +187,36 @@ func TestWriteOps(t *testing.T) {
 		}},
 		"InsertJobErrors": {Ops: []DbOperation{
 			InsertJobErrors{
-				0: &JobError{ID: 0, JobID: jobIds[0]},
+				0: &sqlc.JobError{ID: 0, JobID: jobIds[0]},
 			},
 			InsertJobErrors{
-				1: &JobError{ID: 1, JobID: jobIds[1]},
+				1: &sqlc.JobError{ID: 1, JobID: jobIds[1]},
 			},
 		}},
 		"InsertJobRunErrors": {Ops: []DbOperation{
 			InsertJobRunErrors{
-				0: &JobRunError{ID: 0, RunID: runIds[0]},
+				0: &sqlc.JobRunError{ID: 0, RunID: runIds[0]},
 			},
 			InsertJobRunErrors{
-				1: &JobRunError{ID: 1, RunID: runIds[1]},
+				1: &sqlc.JobRunError{ID: 1, RunID: runIds[1]},
 			},
 		}},
 		"InsertRunAssignments": {Ops: []DbOperation{
 			InsertRunAssignments{
-				runIds[0]: &JobRunAssignment{RunID: runIds[0]},
+				runIds[0]: &sqlc.JobRunAssignment{RunID: runIds[0]},
 			},
 			InsertRunAssignments{
-				runIds[1]: &JobRunAssignment{RunID: runIds[1]},
+				runIds[1]: &sqlc.JobRunAssignment{RunID: runIds[1]},
 			},
 		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
+			err := testutil.WithSchedulerDb(func(_ *sqlc.Queries, db *pgxpool.Pool) error {
+				schedulerDb := &SchedulerDb{db: db}
 				serials := make(map[string]int64)
 				for _, op := range tc.Ops {
-					err := assertOpSuccess(t, db, serials, addDefaultValues(op))
+					err := assertOpSuccess(t, schedulerDb, serials, addDefaultValues(op))
 					if err != nil {
 						return err
 					}
@@ -258,18 +262,18 @@ func addDefaultValues(op DbOperation) DbOperation {
 	return op
 }
 
-func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, op DbOperation) error {
+func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]int64, op DbOperation) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Apply the op to the database.
-	err := WriteDbOp(ctx, db, op)
+	err := schedulerDb.WriteDbOp(ctx, op)
 	if err != nil {
 		return err
 	}
 
 	// Read back the state from the db to compare.
-	queries := New(db)
+	queries := sqlc.New(schedulerDb.db)
 	switch expected := op.(type) {
 	case InsertJobs:
 		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
@@ -297,7 +301,7 @@ func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, o
 			jobIds = append(jobIds, job.JobID)
 		}
 
-		runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+		runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
 			Serial: serials["runs"],
 			JobIds: jobIds,
 		})
@@ -360,7 +364,7 @@ func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, o
 		}
 		assert.Greater(t, numChanged, 0)
 
-		runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+		runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
 			Serial: serials["runs"],
 			JobIds: jobIds,
 		})
@@ -387,7 +391,7 @@ func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, o
 		}
 		assert.Equal(t, len(expected), numChanged)
 
-		runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+		runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
 			Serial: serials["runs"],
 			JobIds: jobIds,
 		})
@@ -447,7 +451,7 @@ func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, o
 			jobIds = append(jobIds, job.JobID)
 		}
 
-		runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+		runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
 			Serial: serials["runs"],
 			JobIds: jobIds,
 		})
@@ -472,7 +476,7 @@ func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, o
 			jobIds = append(jobIds, job.JobID)
 		}
 
-		runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+		runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
 			Serial: serials["runs"],
 			JobIds: jobIds,
 		})
@@ -497,7 +501,7 @@ func assertOpSuccess(t *testing.T, db *pgxpool.Pool, serials map[string]int64, o
 			jobIds = append(jobIds, job.JobID)
 		}
 
-		runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+		runs, err := queries.SelectNewRunsForJobs(ctx, sqlc.SelectNewRunsForJobsParams{
 			Serial: serials["runs"],
 			JobIds: jobIds,
 		})
