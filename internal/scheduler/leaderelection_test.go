@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
+	"github.com/G-Research/armada/internal/scheduler/testutil"
+
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +23,7 @@ const (
 func TestLeaderElection(t *testing.T) {
 	numInstances := 10
 	for i := 0; i < 10; i++ {
-		err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
+		err := testutil.WithSchedulerDb(func(_ *sqlc.Queries, db *pgxpool.Pool) error {
 			// Create several instances that all try to become leader.
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
@@ -65,7 +68,7 @@ func TestLeaderElection(t *testing.T) {
 
 func TestLeaderElectionTimeout(t *testing.T) {
 	numInstances := 2
-	err := withSetup(func(_ *Queries, db *pgxpool.Pool) error {
+	err := testutil.WithSchedulerDb(func(_ *sqlc.Queries, db *pgxpool.Pool) error {
 		// Create several instances that all try to become leader.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
