@@ -48,8 +48,6 @@ type PulsarSubmitServer struct {
 	KVStore *pgkeyvalue.PGKeyValueStore
 }
 
-// TODO: Add input validation to make sure messages can be inserted to the database.
-// TODO: Check job size and reject jobs that could never be scheduled. Maybe by querying the scheduler for its limits.
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
@@ -69,6 +67,9 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
 	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
+		return nil, err
+	}
+	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
 		return nil, err
 	}
 
@@ -108,10 +109,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 					apiJob.ClientId,
 					apiJob.GetId())
 			}
-		}
-
-		if err := commonvalidation.ValidateApiJob(apiJob, srv.SubmitServer.schedulingConfig.Preemption); err != nil {
-			return nil, err
 		}
 
 		// Users submit API-specific service and ingress objects.

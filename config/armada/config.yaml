@@ -54,6 +54,8 @@ scheduling:
   maximumJobsToSchedule: 5000
   maxQueueReportsToStore: 1000
   MaxJobReportsToStore: 100000
+  resourceScarcity:
+    cpu: 1.0
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
@@ -63,6 +65,11 @@ scheduling:
     memory: 1Mi
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
+  indexedResources:
+    - cpu
+    - memory
+  gangIdAnnotation: armadaproject.io/gangId
+  gangCardinalityAnnotation: armadaproject.io/gangCardinality
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
