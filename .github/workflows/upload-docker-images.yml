@@ -26,8 +26,8 @@ jobs:
           # ill-suited for our workflow.
           TAG_SUFFIX=$(${{ github.sha }} | sed 's|/|-|g')
 
-          if "${{github.ref_name}}" == "master"; then
-            TAG=$TAG_SUFFIX
+          if [ "${{github.ref_name}}" = "master" ]; then
+            TAG="$TAG_SUFFIX"
           else
             TAG="${{github.ref_name}}-$TAG_SUFFIX"
           fi
