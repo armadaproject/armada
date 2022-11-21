@@ -258,6 +258,28 @@ func TestValidateGangs(t *testing.T) {
 			},
 			ExpectSuccess: false,
 		},
+		"zero cardinality": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: "0",
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
+		"negative cardinality": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						gangIdAnnotation:          "bar",
+						gangCardinalityAnnotation: "-1",
+					},
+				},
+			},
+			ExpectSuccess: false,
+		},
 		"inconsistent cardinality": {
 			Jobs: []*api.Job{
 				{

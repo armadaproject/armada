@@ -771,7 +771,7 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string, gangIdAn
 	if err != nil {
 		return "", 0, false, errors.WithStack(err)
 	}
-	if gangCardinality == 0 {
+	if gangCardinality <= 0 {
 		return "", 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
 	}
 	return gangId, gangCardinality, true, nil
