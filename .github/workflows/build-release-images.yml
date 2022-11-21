@@ -52,5 +52,5 @@ jobs:
           if-no-files-found: error
   invoke-image-push:
     name: Push Docker Image artifacts to Docker Hub
-    needs: go-integration-tests
+    needs: test-and-build-images
     uses: ./.github/workflows/upload-docker-images.yml
