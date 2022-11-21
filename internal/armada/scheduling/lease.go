@@ -68,7 +68,7 @@ func LeaseJobs(ctx context.Context,
 		activeQueues,
 	)
 
-	schedulingLimit := newLeasePayloadLimit(config.MaximumJobsToSchedule, config.MaximumLeasePayloadSizeBytes, int(config.MaxPodSpecSizeBytes))
+	schedulingLimit := newLeasePayloadLimit(int(config.MaximumJobsToSchedule), config.MaximumLeasePayloadSizeBytes, int(config.MaxPodSpecSizeBytes))
 
 	jobs, err := lc.scheduleJobs(ctx, schedulingLimit)
 	if err != nil {
