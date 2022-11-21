@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -31,7 +33,13 @@ func (srv *SubmitChecker) Check(reqs []*schedulerobjects.PodRequirements) (bool,
 	}
 	canSchedule := false
 	var sb strings.Builder
-	for executor, nodeDb := range srv.nodeDbByExecutor {
+
+	// Make a shallow copy to avoid holding the lock and
+	// preventing registering new NodeDbs while checking if jobs can be scheduled.
+	srv.mu.Lock()
+	nodeDbByExecutor := maps.Clone(srv.nodeDbByExecutor)
+	srv.mu.Unlock()
+	for executor, nodeDb := range nodeDbByExecutor {
 		reports, ok, err := nodeDb.ScheduleManyWithTxn(nodeDb.db.Txn(false), reqs)
 		sb.WriteString(executor)
 		sb.WriteString("\n")
