@@ -66,6 +66,7 @@ func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, pritorityClass str
 	}
 	return qmr
 }
+
 func key(pool string, priorityClass string) string {
 	return fmt.Sprintf("%s:%s", pool, priorityClass)
 }

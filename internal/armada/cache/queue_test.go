@@ -105,7 +105,6 @@ func TestCalculateRunningJobStats_WhenMultiPool(t *testing.T) {
 		assert.Equal(t, result[1].Durations.GetCount(), uint64(1))
 		assert.Equal(t, result[0].Resources["cpu"].GetCount(), uint64(2))
 		assert.Equal(t, result[1].Resources["cpu"].GetCount(), uint64(1))
-
 	})
 }
 
