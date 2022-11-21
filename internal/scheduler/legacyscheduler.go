@@ -655,7 +655,7 @@ func NewLegacyScheduler(
 		}
 	}
 
-	// Multiplex betwen queues and enforce cross-queue constraints.
+	// Multiplex between queues and enforce cross-queue constraints.
 	candidateGangIterator := &CandidateGangIterator{
 		SchedulingConstraints: constraints,
 		SchedulingRoundReport: schedulingRoundReport,
