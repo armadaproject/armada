@@ -108,7 +108,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(
 			nonMatchingClusters := stringSet{}
 			queuedTime := currentTime.Sub(job.Created)
 
-			priorityClass := "nil"
+			priorityClass := getPriorityClass(job)
 
 			for pool, infos := range clusterInfoByPool {
 				matches := false
@@ -170,7 +170,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 			}
 			jobResources := common.TotalJobResourceRequest(job)
 			runTime := now.Sub(runInfo.StartTime)
-			priorityClass := "fish"
+			priorityClass := getPriorityClass(job)
 			metricsRecorder.RecordJobRuntime(pool, priorityClass, runTime)
 			metricsRecorder.RecordResources(pool, priorityClass, jobResources.AsFloat())
 		}
@@ -236,4 +236,12 @@ func matches(nonMatchingJobs map[string]stringSet, clusterId, jobId string) bool
 
 func (c *QueueCache) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
 	return c.jobRepository.TryLeaseJobs(clusterId, queue, jobs)
+}
+
+func getPriorityClass(job *api.Job) string {
+	podSpec := util.PodSpecFromJob(job)
+	if podSpec != nil && podSpec.PriorityClassName != "" {
+		return podSpec.PriorityClassName
+	}
+	return "unknown"
 }
