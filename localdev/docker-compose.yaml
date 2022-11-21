@@ -180,3 +180,15 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/event-ingester-start.sh"
+
+  airflow:
+    container_name: airflow
+    image: python:3.8-buster
+    networks:
+      - kind
+    ports:
+      - "8081:8081"
+    volumes:
+      - "..:/app:rw"
+    working_dir: "/app"
+    entrypoint: sh -c "localdev/scripts/airflow-start.sh"
