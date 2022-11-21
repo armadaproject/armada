@@ -19,6 +19,7 @@ pulsar:
   receiveTimeout: 5s
   backoffTime: 1s
 
-subscriptionName: "scheduler-ingester"
+subscriptionName: "scheduler"
 batchSize: 10000
 batchDuration: 500ms
+

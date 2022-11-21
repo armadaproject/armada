@@ -1,15 +1,22 @@
 package main
 
 import (
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-
-	"github.com/G-Research/armada/internal/scheduler"
+	"os"
+	"time"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/scheduler"
 )
 
-const CustomConfigLocation string = "config"
+const (
+	CustomConfigLocation string = "config"
+	MigrateDatabase      string = "migrateDatabase"
+)
 
 func init() {
 	pflag.StringSlice(
@@ -17,6 +24,7 @@ func init() {
 		[]string{},
 		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
 	)
+	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running scheduler")
 	pflag.Parse()
 }
 
@@ -29,5 +37,24 @@ func main() {
 
 	common.LoadConfig(&config, "./config/scheduler", userSpecifiedConfigs)
 
-	scheduler.Run(&config)
+	if viper.GetBool(MigrateDatabase) {
+		migrateDatabase(&config)
+	} else {
+		scheduler.Run(&config)
+	}
+}
+
+func migrateDatabase(config *scheduler.Configuration) {
+	start := time.Now()
+	log.Info("Beginning scheduler database migration")
+	connString := "pgx://postgres:psw@localhost:5432/postgres?sslmode=disable"
+	//connString := database.CreateConnectionString(string)
+	log.Info(connString)
+	err := schedulerdb.Migrate(connString)
+	if err != nil {
+		panic(errors.WithMessage(err, "Failed to migrate scheduler database"))
+	}
+	taken := start.Sub(time.Now())
+	log.Info("Scheduler database migrated in %dms", taken.Milliseconds())
+	os.Exit(0)
 }

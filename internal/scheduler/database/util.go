@@ -1,10 +1,10 @@
 package database
 
 import (
+	"context"
 	"embed"
 	_ "embed"
-
-	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 
 	"github.com/G-Research/armada/internal/common/database"
@@ -13,20 +13,20 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func UpdateDatabase(databaseUrl string) error {
-	driver, err := iofs.New(fs, "migrations")
+func Migrate(ctx context.Context, db pgxtype.Querier) error {
+	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {
 		return err
 	}
-	return database.MigrateDatabase(driver, databaseUrl)
+	return database.UpdateDatabase(ctx, db, migrations)
 }
 
 func WithTestDb(action func(queries *Queries, db *pgxpool.Pool) error) error {
-	driver, err := iofs.New(fs, "migrations")
+	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {
 		return err
 	}
-	return database.WithTestDb2(driver, func(db *pgxpool.Pool) error {
+	return database.WithTestDb(migrations, func(db *pgxpool.Pool) error {
 		return action(New(db), db)
 	})
 }

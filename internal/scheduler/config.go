@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/G-Research/armada/internal/armada/configuration"
 	"time"
 )
 
