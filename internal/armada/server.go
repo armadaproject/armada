@@ -237,7 +237,11 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var pulsarClient pulsar.Client
 	var pulsarCompressionType pulsar.CompressionType
 	var pulsarCompressionLevel pulsar.CompressionLevel
-	submitChecker := scheduler.NewSubmitChecker(10 * time.Minute)
+	submitChecker := scheduler.NewSubmitChecker(
+		10*time.Minute,
+		config.Scheduling.Preemption.PriorityClasses,
+		config.Scheduling.GangIdAnnotation,
+	)
 	if config.Pulsar.Enabled {
 		serverId := uuid.New()
 

@@ -163,9 +163,6 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 				return nil, false, err
 			}
 		} else {
-			for _, report := range reports {
-				report.Node = nil
-			}
 			return reports, false, nil
 		}
 	}

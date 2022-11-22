@@ -147,10 +147,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		})
 	}
 
-	// Check if the job can be scheduled on any executor,
-	// to avoid having users wait for a job that may never be scheduled.
-	//
-	// We only perform this check for jobs submitted to the legacy scheduler.
+	// Check if all jobs can be scheduled.
+	// This check uses the legacy resource reporting logic.
 	legacySchedulerJobs := selectApiJobsForLegacyScheduler(apiJobs)
 	if len(legacySchedulerJobs) > 0 {
 		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
@@ -167,19 +165,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 	}
 
-	// Special code path for checking if gang jobs could ever be scheduled.
-	// Later, all jobs will be checked via this code path.
-	jobsByGangId := groupJobsByAnnotation(srv.SubmitServer.schedulingConfig.GangIdAnnotation, apiJobs)
-	for gangId, gang := range jobsByGangId {
-		if gangId == "" {
-			continue
-		}
-		reqs := scheduler.PodRequirementsFromJobs(srv.SubmitServer.schedulingConfig.Preemption.PriorityClasses, gang)
-		ok, reason := srv.SubmitChecker.Check(reqs)
-		fmt.Println("================ gangId ", gangId, " ok ", ok, " reason ", reason)
-		if !ok {
-			return nil, status.Errorf(codes.InvalidArgument, "gang job unschedulable:\n %s", reason)
-		}
+	// Check if all jobs can be scheduled.
+	// This check uses the NodeDb of the new scheduler and
+	// can check if all jobs in a gang can go onto the same cluster.
+	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
+		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
 	// Create events marking the jobs as submitted
@@ -201,19 +191,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
-}
-
-func groupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api.Job {
-	rv := make(map[string][]*api.Job)
-	for _, job := range jobs {
-		if len(job.Annotations) == 0 {
-			rv[""] = append(rv[""], job)
-		} else {
-			value := job.Annotations[annotation]
-			rv[value] = append(rv[value], job)
-		}
-	}
-	return rv
 }
 
 // selectApiJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
