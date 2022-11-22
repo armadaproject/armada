@@ -16,9 +16,12 @@ import (
 )
 
 type JobTableUpdater interface {
-	SubscribeJobSet(string, string)
-	IsJobSetSubscribed(string, string) bool
+	SubscribeJobSet(queue string, jobSet string)
+	IsJobSetSubscribed(queue string, jobSet string) bool
 	UpdateJobServiceDb(*JobStatus) error
+	SetSubscriptionError(queue string, jobSet string, err string)
+	GetSubscriptionError(queue string, jobSet string) string
+	ClearSubscriptionError(queue string, jobSet string)
 }
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
@@ -182,6 +185,35 @@ func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) bool {
 	return ok
 }
 
+// Clear subscription error if present
+func (s *SQLJobService) ClearSubscriptionError(queue string, jobSet string) {
+	s.SetSubscriptionError(queue, jobSet, "")
+}
+
+// Set subscription error if present
+func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, err string) {
+	s.jobSetSubscribe.subscribeLock.Lock()
+	defer s.jobSetSubscribe.subscribeLock.Unlock()
+	primaryKey := queue + jobSet
+	_, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
+	if ok {
+		s.jobSetSubscribe.subscribeMap[primaryKey].err = err
+	}
+}
+
+// Get subscription error if present
+func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) string {
+	s.jobSetSubscribe.subscribeLock.Lock()
+	defer s.jobSetSubscribe.subscribeLock.Unlock()
+	primaryKey := queue + jobSet
+	_, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
+	if ok {
+		return s.jobSetSubscribe.subscribeMap[primaryKey].err
+	}
+	return ""
+}
+
+
 // Mark our JobSet as being subscribed
 // SubscribeTable contains Queue, JobSet and time when it was created.
 func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
@@ -193,6 +225,7 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 		s.jobSetSubscribe.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 	}
 }
+
 
 // UnSubscribe to JobSet and delete all the jobs in the database
 func (s *SQLJobService) CleanupJobSetAndJobs(queue string, jobSet string) (int64, error) {
