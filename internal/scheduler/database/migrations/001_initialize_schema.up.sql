@@ -13,7 +13,7 @@ CREATE TABLE jobs (
     -- Indicates if this job has been cancelled by a user.
     cancelled boolean NOT NULL DEFAULT false,
     -- Set to true when a JobSucceeded event has been received for this job by the ingester.
-   succeeded boolean NOT NULL DEFAULT false,
+    succeeded boolean NOT NULL DEFAULT false,
     -- Set to true when a terminal JobErrors event has been received for this job by the ingester.
     failed boolean NOT NULL DEFAULT false,
     -- SubmitJob message stored as a proto buffer.
@@ -24,7 +24,10 @@ CREATE TABLE jobs (
     last_modified TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE runs (
+ALTER TABLE jobs ALTER COLUMN groups SET STORAGE EXTERNAL;
+ALTER TABLE jobs ALTER COLUMN submit_message SET STORAGE EXTERNAL;
+
+CREATE TABLE job_runs (
     run_id UUID PRIMARY KEY,
     job_id UUID NOT NULL,
     -- Needed to efficiently cancel all runs for a particular job set.

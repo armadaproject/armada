@@ -115,7 +115,7 @@ func ReadMigrations(fsys fs.FS, basePath string) ([]Migration, error) {
 	return migrations, nil
 }
 
-// TODO: remove this wehern we've migrated over to iofs
+// TODO: remove this when we've migrated over to iofs
 func ReadMigrationsFromStatik(namespace string) ([]Migration, error) {
 	vfs, err := stakikfs.NewWithNamespace(namespace)
 	if err != nil {

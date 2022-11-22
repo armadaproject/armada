@@ -120,6 +120,11 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 		return nil, errors.WithStack(err)
 	}
 
+	compressedSubmitJobBytes, err := c.compressor.Compress(submitJobBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	// Produce a minimal representation of the job for the scheduler.
 	// To avoid the scheduler needing to load the entire job spec.
 	schedulingInfo, err := schedulingInfoFromSubmitJob(job)
@@ -143,7 +148,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 		Groups:         compressedGroups,
 		Queue:          meta.queue,
 		Priority:       int64(job.Priority),
-		SubmitMessage:  submitJobBytes,
+		SubmitMessage:  compressedSubmitJobBytes,
 		SchedulingInfo: schedulingInfoBytes,
 	}}}, nil
 }

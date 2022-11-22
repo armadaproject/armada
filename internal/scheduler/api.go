@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/compress"
@@ -84,39 +84,49 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	// Unmarshal the submit job messages.
 	// We need these to convert to a form the executor understands.
 	logJobs := make([]*armadaevents.SubmitJob, len(sqlJobs))
-	for i, sqlJob := range sqlJobs {
-		logJob := &armadaevents.SubmitJob{}
-		err := proto.Unmarshal(sqlJob.SubmitMessage, logJob)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		logJobs[i] = logJob
-	}
 
 	// The executors expect the legacy job definition.
 	// So we need to convert from the Pulsar submit message to a legacy job.
 	jobTime := time.Now()
 	jobsToLease := make([]*api.Job, len(logJobs))
-	for i, logJob := range logJobs {
 
-		groups, err := srv.decompressOwnershipGroups(sqlJobs[i].Groups)
-		if err != nil {
-			return err
+	srv.withDecompressor(func(decompressor compress.Decompressor) error {
+
+		for i, sqlJob := range sqlJobs {
+			submitMessage, err := decompressor.Decompress(sqlJob.SubmitMessage)
+			if err != nil {
+				return err
+			}
+			logJob := &armadaevents.SubmitJob{}
+			err = proto.Unmarshal(submitMessage, logJob)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			logJobs[i] = logJob
 		}
 
-		legacyJob, err := eventutil.ApiJobFromLogSubmitJob(
-			sqlJobs[i].UserID,
-			groups,
-			sqlJobs[i].Queue,
-			sqlJobs[i].JobSet,
-			jobTime,
-			logJob,
-		)
-		if err != nil {
-			return err
+		for i, logJob := range logJobs {
+
+			groups, err := compress.DecompressStringArray(sqlJobs[i].Groups, decompressor)
+			if err != nil {
+				return err
+			}
+
+			legacyJob, err := eventutil.ApiJobFromLogSubmitJob(
+				sqlJobs[i].UserID,
+				groups,
+				sqlJobs[i].Queue,
+				sqlJobs[i].JobSet,
+				jobTime,
+				logJob,
+			)
+			if err != nil {
+				return err
+			}
+			jobsToLease[i] = legacyJob
 		}
-		jobsToLease[i] = legacyJob
-	}
+		return nil
+	})
 
 	// The server streams jobs to the executor.
 	// The executor streams back an ack for each received job.
@@ -204,6 +214,10 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	}
 
 	return nil
+}
+
+func doStream() {
+
 }
 
 // writeNodeInfoToPostgres writes the NodeInfo messages received from an executor into postgres
@@ -399,18 +413,18 @@ func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armada
 	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.Producer, 4194304) // 4 MB
 }
 
-func (srv *ExecutorApi) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
+func (srv *ExecutorApi) withDecompressor(action func(decompressor compress.Decompressor) error) error {
 	decompressor, err := srv.decompressorPool.BorrowObject(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
+		return errors.WithMessagef(err, "failed to borrow decompressor")
 	}
-
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
-		err := decompressorPool.ReturnObject(ctx, object)
+	defer func() {
+		err := srv.decompressorPool.ReturnObject(context.Background(), decompressor)
 		if err != nil {
-			log.WithError(err).Errorf("Error returning decompressor to pool")
+			log.
+				WithError(errors.WithStack(err)).Warn("error returning decompressor to pool")
 		}
-	}(srv.decompressorPool, context.Background(), decompressor)
+	}()
 
-	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
+	return action(decompressor.(compress.Decompressor))
 }
