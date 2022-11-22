@@ -15,9 +15,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # WARN(JayF): If we begin attempting to support >1 golang version,
+        # we'll have to ensure that we don't use the same artifact name for
+        # both versions in the matrix -- this will lead to them overwriting
+        # each other.
         go: [ '1.18' ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.1.0
       - uses: ./.github/workflows/go-setup
       - run: make build-ci
       - run: make tests-e2e-setup
@@ -26,7 +30,8 @@ jobs:
           INTEGRATION_ENABLED: true
       - run: make junit-report
       - name: Upload junit report
-        uses: actions/upload-artifact@v2.2.4
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: junit.xml
           path: test_reports/junit.xml
+          if-no-files-found: error
