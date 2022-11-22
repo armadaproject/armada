@@ -26,7 +26,7 @@ jobs:
           INTEGRATION_ENABLED: true
       - run: make junit-report
       - name: Upload junit report
-        uses: actions/upload-artifact@v2.2.4
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: junit.xml
           path: test_reports/junit.xml
