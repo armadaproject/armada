@@ -12,16 +12,9 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
-func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
-	if err != nil {
-		return nil, err
-	}
-	err = db.Upsert(nodes)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
+func TestNodeDbSchema(t *testing.T) {
+	err := nodeDbSchema(testPriorities, testResources).Validate()
+	assert.NoError(t, err)
 }
 
 // Test the accounting of total resources across all nodes.
@@ -866,4 +859,16 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 	}
+}
+
+func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Upsert(nodes)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
 }

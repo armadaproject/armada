@@ -138,3 +138,12 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 	}
 	return filteredLabels
 }
+
+func (nodeType *NodeType) DeepCopy() *NodeType {
+	return &NodeType{
+		Id:                 nodeType.Id,
+		Taints:             slices.Clone(nodeType.Taints),
+		Labels:             maps.Clone(nodeType.Labels),
+		UnsetIndexedLabels: maps.Clone(nodeType.UnsetIndexedLabels),
+	}
+}

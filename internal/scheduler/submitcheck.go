@@ -49,7 +49,7 @@ func (srv *SubmitChecker) Check(reqs []*schedulerobjects.PodRequirements) (bool,
 	nodeDbByExecutor := maps.Clone(srv.nodeDbByExecutor)
 	srv.mu.Unlock()
 	for executor, nodeDb := range nodeDbByExecutor {
-		if time.Since(nodeDb.MostRecentUpsert()) > srv.executorTimeout {
+		if time.Since(nodeDb.TimeOfMostRecentUpsert()) > srv.executorTimeout {
 			continue
 		}
 

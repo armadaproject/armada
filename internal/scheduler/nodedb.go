@@ -7,7 +7,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -27,7 +26,7 @@ type NodeDb struct {
 	// Used to efficiently iterate over nodes in sorted order.
 	db *memdb.MemDB
 	// Time at which the most recent upsert took place.
-	mostRecentUpsert time.Time
+	timeOfMostRecentUpsert time.Time
 	// Allowed pod priorities in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -122,6 +121,10 @@ func (nodeDb *NodeDb) String() string {
 	}
 	w.Flush()
 	return sb.String()
+}
+
+func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
+	return nodeDb.db.Txn(write)
 }
 
 // ScheduleMany assigns a set of pods to nodes.
@@ -272,30 +275,17 @@ func (nodeDb *NodeDb) schedulingRequirementsMet(node *schedulerobjects.Node, req
 }
 
 func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
-	// DeepCopy the node.
-	// TODO: Use more efficient deepcopy.
-	buffer, err := node.Marshal()
-	if err != nil {
-		return err
-	}
-	node = &schedulerobjects.Node{}
-	err = proto.Unmarshal(buffer, node)
-	if err != nil {
-		return err
-	}
-
-	// Mark resources as allocated.
-	schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(
+	node = node.DeepCopy()
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocated(
 		req.Priority,
 		schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests),
 	)
-
-	// Insert the node.
-	err = txn.Insert("nodes", node)
+	err := txn.Insert("nodes", node)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
 	return nil
 }
 
@@ -388,16 +378,39 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 		}
 	}
 	nodeDb.mu.Lock()
-	nodeDb.mostRecentUpsert = time.Now()
+	nodeDb.timeOfMostRecentUpsert = time.Now()
 	nodeDb.mu.Unlock()
 	txn.Commit()
 	return nil
 }
 
-func (nodeDb *NodeDb) MostRecentUpsert() time.Time {
+func (nodeDb *NodeDb) TimeOfMostRecentUpsert() time.Time {
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
-	return nodeDb.mostRecentUpsert
+	return nodeDb.timeOfMostRecentUpsert
+}
+
+// ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
+func (nodeDb *NodeDb) ClearAllocated() error {
+	txn := nodeDb.db.Txn(true)
+	defer txn.Abort()
+	it, err := NewNodesIterator(txn)
+	if err != nil {
+		return err
+	}
+	for node := it.NextNode(); node != nil; node = it.NextNode() {
+		node = node.DeepCopy()
+		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
+			nodeDb.priorities,
+			nodeDb.totalResources.Resources,
+		)
+		err := txn.Insert("nodes", node)
+		if err != nil {
+			return err
+		}
+	}
+	txn.Commit()
+	return nil
 }
 
 func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {

@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -24,9 +25,43 @@ var (
 	testIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
 )
 
-func TestNodeDbSchema(t *testing.T) {
-	err := nodeDbSchema(testPriorities, testResources).Validate()
-	assert.NoError(t, err)
+func TestNodesIterator(t *testing.T) {
+	tests := map[string]struct {
+		Nodes []*schedulerobjects.Node
+	}{
+		"1 node": {
+			Nodes: testNCpuNode(1, testPriorities),
+		},
+		"0 nodes": {
+			Nodes: testNCpuNode(0, testPriorities),
+		},
+		"3 nodes": {
+			Nodes: testNCpuNode(3, testPriorities),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := createNodeDb(tc.Nodes)
+			if !assert.NoError(t, err) {
+				return
+			}
+			it, err := NewNodesIterator(nodeDb.Txn(false))
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			expected := slices.Clone(tc.Nodes)
+			slices.SortFunc(expected, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+
+			actual := make([]*schedulerobjects.Node, 0)
+			for node := it.NextNode(); node != nil; node = it.NextNode() {
+				actual = append(actual, node)
+			}
+			slices.SortFunc(actual, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+
+			assert.Equal(t, expected, actual)
+		})
+	}
 }
 
 // The memdb internally uses bytes.Compare to compare keys.
