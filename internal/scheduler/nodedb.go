@@ -7,7 +7,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -25,7 +24,9 @@ import (
 type NodeDb struct {
 	// In-memory database. Stores *SchedulerNode.
 	// Used to efficiently iterate over nodes in sorted order.
-	Db *memdb.MemDB
+	db *memdb.MemDB
+	// Time at which the most recent upsert took place.
+	timeOfMostRecentUpsert time.Time
 	// Allowed pod priorities in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -52,7 +53,7 @@ type NodeDb struct {
 	totalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
-	NodeTypes map[string]*schedulerobjects.NodeType
+	nodeTypes map[string]*schedulerobjects.NodeType
 	// Mutex to control access to totalResources and NodeTypes.
 	mu sync.Mutex
 }
@@ -90,9 +91,9 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 		indexedResources:  mapFromSlice(indexedResources),
 		indexedTaints:     mapFromSlice(indexedTaints),
 		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
-		NodeTypes:         make(map[string]*schedulerobjects.NodeType),
+		nodeTypes:         make(map[string]*schedulerobjects.NodeType),
 		totalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		Db:                db,
+		db:                db,
 	}, nil
 }
 
@@ -103,11 +104,11 @@ func (nodeDb *NodeDb) String() string {
 	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
 	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
 	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
-	if len(nodeDb.NodeTypes) == 0 {
+	if len(nodeDb.nodeTypes) == 0 {
 		fmt.Fprint(w, "Node types:\tnone\n")
 	} else {
 		fmt.Fprint(w, "Node types:\n")
-		for _, nodeType := range nodeDb.NodeTypes {
+		for _, nodeType := range nodeDb.nodeTypes {
 			fmt.Fprintf(w, "  %s\n", nodeType.Id)
 		}
 	}
@@ -115,13 +116,27 @@ func (nodeDb *NodeDb) String() string {
 	return sb.String()
 }
 
+func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
+	return nodeDb.db.Txn(write)
+}
+
+// ScheduleMany assigns a set of pods to nodes.
+// The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
+// The returned bool indicates whether assignment succeeded or not.
 // TODO: Pass through contexts to support timeouts.
 func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
-	txn := nodeDb.Db.Txn(true)
+	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
+	reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
+	if ok && err == nil {
+		// All pods can be scheduled; commit the transaction.
+		txn.Commit()
+	}
+	return reports, ok, err
+}
 
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	// If any pod fails to schedule, abort the transaction and return.
 	reports := make([]*PodSchedulingReport, 0, len(reqs))
 	for _, req := range reqs {
 		report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
@@ -141,20 +156,14 @@ func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]
 				return nil, false, err
 			}
 		} else {
-			for _, report := range reports {
-				report.Node = nil
-			}
 			return reports, false, nil
 		}
 	}
-
-	// All pods could be scheduled; commit the transaction and return.
-	txn.Commit()
 	return reports, true, nil
 }
 
 func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-	txn := nodeDb.Db.Txn(true)
+	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
 	if err != nil {
@@ -179,7 +188,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 }
 
 func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-	return nodeDb.SelectNodeForPodWithTxn(nodeDb.Db.Txn(false), req)
+	return nodeDb.SelectNodeForPodWithTxn(nodeDb.db.Txn(false), req)
 }
 
 // SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
@@ -244,37 +253,24 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 }
 
 func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
-	// DeepCopy the node.
-	// TODO: Use more efficient deepcopy.
-	buffer, err := node.Marshal()
-	if err != nil {
-		return err
-	}
-	node = &schedulerobjects.Node{}
-	err = proto.Unmarshal(buffer, node)
-	if err != nil {
-		return err
-	}
-
-	// Mark resources as allocated.
-	schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(
+	node = node.DeepCopy()
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocated(
 		req.Priority,
 		schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests),
 	)
-
-	// Insert the node.
-	err = txn.Insert("nodes", node)
+	err := txn.Insert("nodes", node)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-
 	return nil
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
 // a given pod could potentially be scheduled on.
 func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
-	return NodeTypesMatchingPod(nodeDb.NodeTypes, req)
+	return NodeTypesMatchingPod(nodeDb.nodeTypes, req)
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
@@ -322,7 +318,7 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 
 // Upsert nodes.
 func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
-	txn := nodeDb.Db.Txn(true)
+	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	for _, node := range nodes {
 
@@ -339,11 +335,11 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 
 		// Record all unique node types.
 		nodeDb.mu.Lock()
-		nodeDb.NodeTypes[nodeType.Id] = nodeType
+		nodeDb.nodeTypes[nodeType.Id] = nodeType
 		nodeDb.mu.Unlock()
 
 		// If this is a new node, increase the overall resource count.
-		it, err := nodeDb.Db.Txn(false).Get("nodes", "id", node.Id)
+		it, err := nodeDb.db.Txn(false).Get("nodes", "id", node.Id)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -357,6 +353,38 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 		err = txn.Insert("nodes", node)
 		if err != nil {
 			return errors.WithStack(err)
+		}
+	}
+	nodeDb.mu.Lock()
+	nodeDb.timeOfMostRecentUpsert = time.Now()
+	nodeDb.mu.Unlock()
+	txn.Commit()
+	return nil
+}
+
+func (nodeDb *NodeDb) TimeOfMostRecentUpsert() time.Time {
+	nodeDb.mu.Lock()
+	defer nodeDb.mu.Unlock()
+	return nodeDb.timeOfMostRecentUpsert
+}
+
+// ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
+func (nodeDb *NodeDb) ClearAllocated() error {
+	txn := nodeDb.db.Txn(true)
+	defer txn.Abort()
+	it, err := NewNodesIterator(txn)
+	if err != nil {
+		return err
+	}
+	for node := it.NextNode(); node != nil; node = it.NextNode() {
+		node = node.DeepCopy()
+		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
+			nodeDb.priorities,
+			nodeDb.totalResources.Resources,
+		)
+		err := txn.Insert("nodes", node)
+		if err != nil {
+			return err
 		}
 	}
 	txn.Commit()

@@ -12,16 +12,9 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
-func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
-	if err != nil {
-		return nil, err
-	}
-	err = db.Upsert(nodes)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
+func TestNodeDbSchema(t *testing.T) {
+	err := nodeDbSchema(testPriorities, testResources).Validate()
+	assert.NoError(t, err)
 }
 
 // Test the accounting of total resources across all nodes.
@@ -370,6 +363,12 @@ func TestSelectNodeForPod_RespectTaints(t *testing.T) {
 					},
 				},
 			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("1Gi"),
+				},
+			},
 		},
 	}
 
@@ -428,6 +427,12 @@ func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
 					},
 				},
 			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("2"),
+					"memory": resource.MustParse("2Gi"),
+				},
+			},
 		},
 	}
 
@@ -484,6 +489,12 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 						"cpu":    resource.MustParse("2"),
 						"memory": resource.MustParse("2Gi"),
 					},
+				},
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("2"),
+					"memory": resource.MustParse("2Gi"),
 				},
 			},
 		},
@@ -621,26 +632,18 @@ func TestScheduleMany(t *testing.T) {
 					}
 					assert.True(t, ok)
 				} else {
-					numSuccessfullyScheduled := 0
-					for _, report := range reports {
-						if report.Node != nil {
-							numSuccessfullyScheduled++
-						}
-					}
 					assert.False(t, ok)
-					assert.Equal(t, numSuccessfullyScheduled, 0)
 				}
 			}
 		})
 	}
 }
 
-func benchmarkUpsert(numNodes int, b *testing.B) {
+func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
 	if !assert.NoError(b, err) {
 		return
 	}
-	nodes := testNodeItems2(testPriorities, testResources, numNodes)
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		err := db.Upsert(nodes)
@@ -650,9 +653,9 @@ func benchmarkUpsert(numNodes int, b *testing.B) {
 	}
 }
 
-func BenchmarkUpsert1(b *testing.B)      { benchmarkUpsert(1, b) }
-func BenchmarkUpsert1000(b *testing.B)   { benchmarkUpsert(1000, b) }
-func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(100000, b) }
+func BenchmarkUpsert1(b *testing.B)      { benchmarkUpsert(testNCpuNode(1, testPriorities), b) }
+func BenchmarkUpsert1000(b *testing.B)   { benchmarkUpsert(testNCpuNode(1000, testPriorities), b) }
+func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(testNCpuNode(100000, testPriorities), b) }
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
 	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
@@ -667,7 +670,7 @@ func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*sch
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		txn := db.Db.Txn(true)
+		txn := db.db.Txn(true)
 		for _, req := range reqs {
 			_, err := db.SelectAndBindNodeToPodWithTxn(txn, req)
 			if !assert.NoError(b, err) {
@@ -775,14 +778,6 @@ func testNGPUJob(priority int32, n int) []*schedulerobjects.PodRequirements {
 	return rv
 }
 
-// func testNA100Job(priority int32, n int) []*schedulerobjects.PodRequirements {
-// 	rv := make([]*schedulerobjects.PodRequirements, n)
-// 	for i := 0; i < n; i++ {
-// 		rv[i] = testA100Job(priority)
-// 	}
-// 	return rv
-// }
-
 func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
@@ -832,22 +827,14 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 	}
 }
 
-// func testA100Job(priority int32) *schedulerobjects.PodRequirements {
-// 	return &schedulerobjects.PodRequirements{
-// 		Priority: priority,
-// 		ResourceRequirements: v1.ResourceRequirements{
-// 			Requests: v1.ResourceList{
-// 				"cpu":    resource.MustParse("4"),
-// 				"memory": resource.MustParse("16Gi"),
-// 				"gpu":    resource.MustParse("1"),
-// 			},
-// 		},
-// 		NodeSelector: map[string]string{"a100": "true"},
-// 		Tolerations: []v1.Toleration{
-// 			{
-// 				Key:   "gpu",
-// 				Value: "true",
-// 			},
-// 		},
-// 	}
-// }
+func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Upsert(nodes)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}

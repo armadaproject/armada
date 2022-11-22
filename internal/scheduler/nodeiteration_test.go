@@ -3,14 +3,13 @@ package scheduler
 import (
 	"bytes"
 	"container/heap"
-	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -26,9 +25,43 @@ var (
 	testIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
 )
 
-func TestNodeDbSchema(t *testing.T) {
-	err := nodeDbSchema(testPriorities, testResources).Validate()
-	assert.NoError(t, err)
+func TestNodesIterator(t *testing.T) {
+	tests := map[string]struct {
+		Nodes []*schedulerobjects.Node
+	}{
+		"1 node": {
+			Nodes: testNCpuNode(1, testPriorities),
+		},
+		"0 nodes": {
+			Nodes: testNCpuNode(0, testPriorities),
+		},
+		"3 nodes": {
+			Nodes: testNCpuNode(3, testPriorities),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := createNodeDb(tc.Nodes)
+			if !assert.NoError(t, err) {
+				return
+			}
+			it, err := NewNodesIterator(nodeDb.Txn(false))
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			expected := slices.Clone(tc.Nodes)
+			slices.SortFunc(expected, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+
+			actual := make([]*schedulerobjects.Node, 0)
+			for node := it.NextNode(); node != nil; node = it.NextNode() {
+				actual = append(actual, node)
+			}
+			slices.SortFunc(actual, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+
+			assert.Equal(t, expected, actual)
+		})
+	}
 }
 
 // The memdb internally uses bytes.Compare to compare keys.
@@ -322,6 +355,12 @@ func testNodeItems1() []*schedulerobjects.Node {
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
 				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
 			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("3"),
+					"memory": resource.MustParse("3Gi"),
+				},
+			},
 		},
 		{
 			Id:         "node2",
@@ -331,6 +370,12 @@ func testNodeItems1() []*schedulerobjects.Node {
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
 				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
+			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("6"),
+					"memory": resource.MustParse("6Gi"),
+				},
 			},
 		},
 		{
@@ -342,30 +387,14 @@ func testNodeItems1() []*schedulerobjects.Node {
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
 				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
 			},
+			TotalResources: schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("9"),
+					"memory": resource.MustParse("9Gi"),
+				},
+			},
 		},
 	}
-}
-
-// testNodeItems2 returns a randomly generated set of n nodes.
-func testNodeItems2(priorities []int32, resources []string, n int) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = &schedulerobjects.Node{
-			Id:         uuid.NewString(),
-			NodeTypeId: "foo", // All nodes have the same node type.
-			NodeType:   &schedulerobjects.NodeType{Id: "bar"},
-		}
-		availableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(priorities, nil)
-		for _, p := range priorities {
-			rs := make(map[string]resource.Quantity)
-			for _, r := range resources {
-				rs[r] = resource.MustParse(fmt.Sprintf("%d", rand.Intn(100)))
-			}
-			availableByPriorityAndResource.MarkAllocatable(p, schedulerobjects.ResourceList{Resources: rs})
-		}
-		rv[i].AllocatableByPriorityAndResource = availableByPriorityAndResource
-	}
-	return rv
 }
 
 func testNCpuNode(n int, priorities []int32) []*schedulerobjects.Node {

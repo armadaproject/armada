@@ -26,6 +26,7 @@ import (
 	"github.com/G-Research/armada/internal/executor/configuration"
 	"github.com/G-Research/armada/internal/pgkeyvalue"
 	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -46,6 +47,9 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
+	// Used to check at job submit time if the job could ever be scheduled.
+	// Currently only used for gang jobs.
+	SubmitChecker *scheduler.SubmitChecker
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -143,10 +147,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		})
 	}
 
-	// Check if the job can be scheduled on any executor,
-	// to avoid having users wait for a job that may never be scheduled.
-	//
-	// We only perform this check for jobs submitted to the legacy scheduler.
+	// Check if all jobs can be scheduled.
+	// This check uses the legacy resource reporting logic.
 	legacySchedulerJobs := selectApiJobsForLegacyScheduler(apiJobs)
 	if len(legacySchedulerJobs) > 0 {
 		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
@@ -161,6 +163,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 				return nil, errors.Errorf("can't schedule job for user %s", userId)
 			}
 		}
+	}
+
+	// Check if all jobs can be scheduled.
+	// This check uses the NodeDb of the new scheduler and
+	// can check if all jobs in a gang can go onto the same cluster.
+	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
+		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
 	// Create events marking the jobs as submitted
