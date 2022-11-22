@@ -240,8 +240,8 @@ func (c *QueueCache) TryLeaseJobs(clusterId string, queue string, jobs []*api.Jo
 
 func getPriorityClass(job *api.Job) string {
 	podSpec := util.PodSpecFromJob(job)
-	if podSpec != nil && podSpec.PriorityClassName != "" {
+	if podSpec != nil {
 		return podSpec.PriorityClassName
 	}
-	return "unknown"
+	return ""
 }
