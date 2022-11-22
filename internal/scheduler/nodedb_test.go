@@ -574,33 +574,6 @@ func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
 	assert.NotNil(t, report.Node)
 }
 
-func TestSelectNodeForPod_CheckOnlyStaticRequirements(t *testing.T) {
-	nodes := testNCpuNode(1, testPriorities)
-	nodes = withUsedResources(3, nodes[0].TotalResources, nodes)
-	db, err := createNodeDb(nodes)
-	if !assert.NoError(t, err) {
-		return
-	}
-
-	reqs := testNLargeCpuJob(0, 1)
-	for _, req := range reqs {
-		report, err := db.SelectAndBindNodeToPod(req)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.Nil(t, report.Node)
-	}
-
-	db.CheckOnlyStaticRequirements = true
-	for _, req := range reqs {
-		report, err := db.SelectAndBindNodeToPod(req)
-		if !assert.NoError(t, err) {
-			return
-		}
-		assert.NotNil(t, report.Node)
-	}
-}
-
 func TestScheduleMany(t *testing.T) {
 	tests := map[string]struct {
 		// Nodes to schedule across.
@@ -659,14 +632,7 @@ func TestScheduleMany(t *testing.T) {
 					}
 					assert.True(t, ok)
 				} else {
-					numSuccessfullyScheduled := 0
-					for _, report := range reports {
-						if report.Node != nil {
-							numSuccessfullyScheduled++
-						}
-					}
 					assert.False(t, ok)
-					assert.Equal(t, numSuccessfullyScheduled, 0)
 				}
 			}
 		})

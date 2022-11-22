@@ -48,13 +48,6 @@ type NodeDb struct {
 	//
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]interface{}
-	// If true, only static scheduling constraints,
-	// i.e., taints, node selectors, node affinity, and total node resources,
-	// are considered when attempting to schedule a pod onto a node.
-	// If true, resources allocated to pods already on the node are also considered.
-	//
-	// Not safe to modify concurrently with using the NodeDb.
-	CheckOnlyStaticRequirements bool
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources schedulerobjects.ResourceList
@@ -226,16 +219,12 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Iterate over candidate nodes.
-	q := resource.Quantity{}
-	if !nodeDb.CheckOnlyStaticRequirements {
-		q = req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)]
-	}
 	it, err := NewNodeTypesResourceIterator(
 		txn,
 		dominantResourceType,
 		req.Priority,
 		nodeTypes,
-		q,
+		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
 	)
 	if err != nil {
 		return nil, err
@@ -247,7 +236,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 			break
 		}
 		// TODO: Use the score when selecting a node.
-		matches, score, reason, err := nodeDb.schedulingRequirementsMet(node, req)
+		matches, score, reason, err := node.PodRequirementsMet(req)
 		if err != nil {
 			return nil, err
 		}
@@ -261,14 +250,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		return report, nil
 	}
 	return report, nil
-}
-
-func (nodeDb *NodeDb) schedulingRequirementsMet(node *schedulerobjects.Node, req *schedulerobjects.PodRequirements) (bool, int, schedulerobjects.SchedulingRequirementsNotMetReason, error) {
-	if nodeDb.CheckOnlyStaticRequirements {
-		matches, reason, err := node.StaticSchedulingRequirementsMet(req)
-		return matches, 0, reason, err
-	}
-	return node.SchedulingRequirementsMet(req)
 }
 
 func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
@@ -298,7 +279,7 @@ func NodeTypesMatchingPod(nodeTypes map[string]*schedulerobjects.NodeType, req *
 	selectedNodeTypes := make([]*schedulerobjects.NodeType, 0)
 	numNodeTypesExcludedByReason := make(map[string]int)
 	for _, nodeType := range nodeTypes {
-		matches, reason, err := nodeType.SchedulingRequirementsMet(req)
+		matches, reason, err := nodeType.PodRequirementsMet(req)
 		if err != nil {
 			return nil, nil, err
 		}

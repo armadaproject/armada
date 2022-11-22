@@ -374,7 +374,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := tc.Node.SchedulingRequirementsMet(tc.Req)
+			matches, _, reason, err := tc.Node.PodRequirementsMet(tc.Req)
 			assert.NoError(t, err)
 			if tc.ExpectSuccess { // TODO: Test score set correctly.
 				assert.True(t, matches)
@@ -519,7 +519,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 				tc.IndexedTaints,
 				tc.IndexedLabels,
 			)
-			matches, reason, err := nodeType.SchedulingRequirementsMet(tc.Req)
+			matches, reason, err := nodeType.PodRequirementsMet(tc.Req)
 			assert.NoError(t, err)
 			if tc.ExpectSuccess {
 				assert.True(t, matches)
