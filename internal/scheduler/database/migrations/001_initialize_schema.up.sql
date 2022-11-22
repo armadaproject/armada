@@ -27,7 +27,7 @@ CREATE TABLE jobs (
 ALTER TABLE jobs ALTER COLUMN groups SET STORAGE EXTERNAL;
 ALTER TABLE jobs ALTER COLUMN submit_message SET STORAGE EXTERNAL;
 
-CREATE TABLE job_runs (
+CREATE TABLE runs (
     run_id UUID PRIMARY KEY,
     job_id UUID NOT NULL,
     -- Needed to efficiently cancel all runs for a particular job set.
@@ -45,7 +45,6 @@ CREATE TABLE job_runs (
     -- Set to true if a JobRunSucceeded message is received for this run.
     succeeded boolean NOT NULL DEFAULT false,
     -- Set to true when a terminal JobRunErrors event has been received for this run by the ingester.
-    -- The error itself is written into the job_run_errors table.
     failed boolean NOT NULL DEFAULT false,
     serial bigserial NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL
