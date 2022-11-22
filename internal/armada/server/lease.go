@@ -572,8 +572,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	// Use this NodeDb when checking if a job could ever be scheduled.
-	nodeDb.CheckOnlyStaticRequirements = true
-	q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
+	// We clear allocated resources since we want to check if a job
+	// could be scheduled if the cluster was empty.
+	if err := nodeDb.ClearAllocated(); err == nil {
+		q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
+	} else {
+		logging.WithStacktrace(log, err).Error("failed to clear allocated resources in NodeDb")
+	}
 
 	return jobs, nil
 }
