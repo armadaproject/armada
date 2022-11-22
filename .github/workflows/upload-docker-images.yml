@@ -32,7 +32,7 @@ jobs:
             TAG="${{github.ref_name}}-$TAG_SUFFIX"
           fi
 
-          echo ${{ env.DOCKERHUB_PASS }} | docker login -u ${{ env.DOCKERHUB_USER }} --password-stdin
+          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
 
           IMAGES_TO_UPLOAD=(
             "armada-server"
