@@ -17,6 +17,8 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
@@ -547,20 +549,35 @@ func jobIsLargeEnough(jobTotalResourceRequests, minimumJobSize schedulerobjects.
 	return true, ""
 }
 
-func (sched *LegacyScheduler) podRequirementsFromJobs(jobs []*api.Job) []*schedulerobjects.PodRequirements {
+func PodRequirementsFromJobs(priorityClasses map[string]configuration.PriorityClass, jobs []*api.Job) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
-		rv = append(rv, sched.podRequirementsFromJob(job)...)
+		rv = append(rv, PodRequirementsFromJob(priorityClasses, job)...)
 	}
 	return rv
 }
 
-func (sched *LegacyScheduler) podRequirementsFromJob(job *api.Job) []*schedulerobjects.PodRequirements {
+func PodRequirementsFromJob(priorityClasses map[string]configuration.PriorityClass, job *api.Job) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, 1+len(job.PodSpecs))
-	rv = append(rv, schedulerobjects.PodRequirementsFromPodSpec(job.PodSpec, sched.PriorityClasses))
-	for _, podSpec := range job.PodSpecs {
-		req := schedulerobjects.PodRequirementsFromPodSpec(podSpec, sched.PriorityClasses)
+	if job.PodSpec != nil {
+		req := schedulerobjects.PodRequirementsFromPod(&v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: job.Annotations,
+			},
+			Spec: *job.PodSpec,
+		}, priorityClasses)
 		rv = append(rv, req)
+	}
+	for _, spec := range job.PodSpecs {
+		if spec != nil {
+			req := schedulerobjects.PodRequirementsFromPod(&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: job.Annotations,
+				},
+				Spec: *spec,
+			}, priorityClasses)
+			rv = append(rv, req)
+		}
 	}
 	return rv
 }
@@ -701,7 +718,7 @@ func (sched *LegacyScheduler) Schedule() ([]*api.Job, error) {
 		for i, r := range reports {
 			jobs[i] = r.Job
 		}
-		reqs := sched.podRequirementsFromJobs(jobs)
+		reqs := PodRequirementsFromJobs(sched.PriorityClasses, jobs)
 
 		podSchedulingReports, ok, err := sched.NodeDb.ScheduleMany(reqs)
 		if err != nil {

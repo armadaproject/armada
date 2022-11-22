@@ -237,6 +237,11 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	var pulsarClient pulsar.Client
 	var pulsarCompressionType pulsar.CompressionType
 	var pulsarCompressionLevel pulsar.CompressionLevel
+	submitChecker := scheduler.NewSubmitChecker(
+		10*time.Minute,
+		config.Scheduling.Preemption.PriorityClasses,
+		config.Scheduling.GangIdAnnotation,
+	)
 	if config.Pulsar.Enabled {
 		serverId := uuid.New()
 
@@ -276,6 +281,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			Permissions:           permissions,
 			SubmitServer:          submitServer,
 			MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
+			SubmitChecker:         submitChecker,
 		}
 		submitServerToRegister = pulsarSubmitServer
 
@@ -395,6 +401,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		eventStore,
 		schedulingInfoRepository,
 	)
+	aggregatedQueueServer.SubmitChecker = submitChecker
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
 		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
 			config.Scheduling.MaxQueueReportsToStore,
