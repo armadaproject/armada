@@ -183,7 +183,9 @@ type SchedulingConfig struct {
 	GangIdAnnotation string
 	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as an integer, e.g., "3".
-	GangCardinalityAnnotation string
+	GangCardinalityAnnotation              string
+	DefaultActiveDeadline                  time.Duration
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
