@@ -183,8 +183,15 @@ type SchedulingConfig struct {
 	GangIdAnnotation string
 	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as an integer, e.g., "3".
-	GangCardinalityAnnotation              string
-	DefaultActiveDeadline                  time.Duration
+	GangCardinalityAnnotation string
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 }
 
