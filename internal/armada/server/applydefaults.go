@@ -10,6 +10,9 @@ import (
 )
 
 func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
+	if spec == nil {
+		return
+	}
 	applyDefaultPriorityClassNameToPodSpec(spec, config)
 	applyDefaultRequestsAndLimitsToPodSpec(spec, config)
 	applyDefaultTolerationsToPodSpec(spec, config)
