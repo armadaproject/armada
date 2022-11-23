@@ -47,7 +47,6 @@ func TestSubscriptionError(t *testing.T) {
 	})
 }
 
-
 func TestConstructInMemoryServiceFailed(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}

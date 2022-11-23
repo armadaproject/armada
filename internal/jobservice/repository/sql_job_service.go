@@ -221,7 +221,6 @@ func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) string
 	return ""
 }
 
-
 // Mark our JobSet as being subscribed
 // SubscribeTable contains Queue, JobSet and time when it was created.
 func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
@@ -233,7 +232,6 @@ func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) {
 		s.jobSetSubscribe.subscribeMap[primaryKey] = NewSubscribeTable(queue, jobSet)
 	}
 }
-
 
 // UnSubscribe to JobSet and delete all the jobs in the database
 func (s *SQLJobService) CleanupJobSetAndJobs(queue string, jobSet string) (int64, error) {
