@@ -100,16 +100,24 @@ ON jobservice (Queue, JobSetId)`)
 
 // Get the JobStatus given the jodId
 func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
-	row := s.db.QueryRow("SELECT JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
-	var jobState string
-	var jobError string
+	row := s.db.QueryRow("SELECT Queue, JobSetId, JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
+	var queue, jobSetId, jobState, jobError string
 
-	err := row.Scan(&jobState, &jobError)
+	err := row.Scan(&queue, &jobSetId, &jobState, &jobError)
 
 	if err == sql.ErrNoRows {
 		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	} else if err != nil {
 		return nil, err
+	}
+
+	// indicate connnection error for jobset/queue subscription where present
+	connErr := s.GetSubscriptionError(queue, jobSetId)
+	if connErr != "" {
+		return &js.JobServiceResponse{
+			Error: connErr,
+			State: js.JobServiceResponse_CONNECTION_ERR,
+		}, nil
 	}
 
 	jobJSRState, err := jobStateStrToJSRState(jobState)

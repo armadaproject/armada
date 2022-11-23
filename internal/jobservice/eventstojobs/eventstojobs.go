@@ -84,7 +84,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			}
 		}()
 
-		// this loop will run until the context is canceled or an error is encountered
+		// this loop will run until the context is canceled
 		for {
 			select {
 			case <-ctx.Done():

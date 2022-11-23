@@ -26,6 +26,28 @@ func TestConstructInMemoryDoesNotExist(t *testing.T) {
 	})
 }
 
+func TestSubscriptionError(t *testing.T) {
+	WithSqlServiceRepo(func(r *SQLJobService) {
+		persistedState := &jobservice.JobServiceResponse{
+			State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
+		}
+		responseExpected := &jobservice.JobServiceResponse{
+			State: jobservice.JobServiceResponse_CONNECTION_ERR,
+			Error: "conn-error",
+		}
+		jobStatus := NewJobStatus("queue-1", "job-set-1", "job-id", *persistedState)
+		err := r.UpdateJobServiceDb(jobStatus)
+		assert.Nil(t, err)
+
+		r.SubscribeJobSet("queue-1", "job-set-1")
+		r.SetSubscriptionError("queue-1", "job-set-1", "conn-error")
+		resp, err := r.GetJobStatus("job-id")
+		assert.Nil(t, err)
+		assert.Equal(t, responseExpected, resp)
+	})
+}
+
+
 func TestConstructInMemoryServiceFailed(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
