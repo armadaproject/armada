@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"time"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 type Configuration struct {
