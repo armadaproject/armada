@@ -203,9 +203,9 @@ func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, err st
 	s.jobSetSubscribe.subscribeLock.Lock()
 	defer s.jobSetSubscribe.subscribeLock.Unlock()
 	primaryKey := queue + jobSet
-	_, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
+	subscription, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
 	if ok {
-		s.jobSetSubscribe.subscribeMap[primaryKey].err = err
+		subscription.err = err
 	}
 }
 
@@ -214,9 +214,9 @@ func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) string
 	s.jobSetSubscribe.subscribeLock.Lock()
 	defer s.jobSetSubscribe.subscribeLock.Unlock()
 	primaryKey := queue + jobSet
-	_, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
+	subscription, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
 	if ok {
-		return s.jobSetSubscribe.subscribeMap[primaryKey].err
+		return subscription.err
 	}
 	return ""
 }
