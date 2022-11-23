@@ -3,10 +3,11 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"io"
 	"sync/atomic"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
@@ -91,7 +92,6 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	jobsToLease := make([]*api.Job, len(logJobs))
 
 	srv.withDecompressor(func(decompressor compress.Decompressor) error {
-
 		for i, sqlJob := range sqlJobs {
 			submitMessage, err := decompressor.Decompress(sqlJob.SubmitMessage)
 			if err != nil {
@@ -214,10 +214,6 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	}
 
 	return nil
-}
-
-func doStream() {
-
 }
 
 // writeNodeInfoToPostgres writes the NodeInfo messages received from an executor into postgres

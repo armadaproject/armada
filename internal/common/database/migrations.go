@@ -3,13 +3,13 @@ package database
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgtype/pgxtype"
-	"io/fs"
 
 	stakikfs "github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"

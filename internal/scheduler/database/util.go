@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	_ "embed"
+
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 

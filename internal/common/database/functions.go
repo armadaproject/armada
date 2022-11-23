@@ -4,8 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/jackc/pgx/v4/pgxpool"
+
+	"github.com/G-Research/armada/internal/armada/configuration"
 )
 
 func CreateConnectionString(values map[string]string) string {
