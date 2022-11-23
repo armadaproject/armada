@@ -191,6 +191,39 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 				ActiveDeadlineSeconds: pointerFromValue(int64(1)),
 			},
 		},
+		"DefaultActiveDeadlineSecondsByResource trumps DefaultActiveDeadlineSeconds": {
+			Config: configuration.SchedulingConfig{
+				DefaultActiveDeadline: time.Minute,
+				DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{
+					"gpu": time.Second,
+				},
+			},
+			PodSpec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"gpu": resource.MustParse("1"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+			},
+			Expected: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"gpu": resource.MustParse("1"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				ActiveDeadlineSeconds: pointerFromValue(int64(1)),
+			},
+		},
 		"MinTerminationGracePeriod": {
 			Config: configuration.SchedulingConfig{
 				MinTerminationGracePeriod: time.Second,

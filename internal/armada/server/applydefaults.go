@@ -79,7 +79,7 @@ func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configu
 	if spec.ActiveDeadlineSeconds != nil {
 		return
 	}
-	activeDeadlineSeconds := config.DefaultActiveDeadline.Seconds()
+	var activeDeadlineSeconds float64
 	for resourceType, activeDeadlineForResource := range config.DefaultActiveDeadlineByResourceRequest {
 		for _, c := range spec.Containers {
 			q := c.Resources.Requests[v1.ResourceName(resourceType)]
@@ -87,6 +87,9 @@ func applyDefaultActiveDeadlineSecondsToPodSpec(spec *v1.PodSpec, config configu
 				activeDeadlineSeconds = activeDeadlineForResource.Seconds()
 			}
 		}
+	}
+	if activeDeadlineSeconds == 0 {
+		activeDeadlineSeconds = config.DefaultActiveDeadline.Seconds()
 	}
 	if activeDeadlineSeconds != 0 {
 		v := int64(math.Ceil(activeDeadlineSeconds))
