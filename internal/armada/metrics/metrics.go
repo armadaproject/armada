@@ -145,7 +145,7 @@ var medianJobRunDurationDesc = prometheus.NewDesc(
 var jobRunDurationDesc = prometheus.NewDesc(
 	MetricPrefix+"job_run_time_seconds",
 	"Run time for Armada jobs",
-	[]string{"pool", "queueName"},
+	[]string{"pool", "priorityClass", "queueName"},
 	nil,
 )
 
