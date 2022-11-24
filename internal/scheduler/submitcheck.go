@@ -42,14 +42,15 @@ func (srv *SubmitChecker) RegisterNodeDb(executor string, nodeDb *NodeDb) {
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	// First, check if all jobs can be scheduled individually.
-	for i, job := range jobs {
-		reqs := PodRequirementsFromJob(srv.priorityClasses, job)
-		canSchedule, reason := srv.Check(reqs)
-		if !canSchedule {
-			return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
-		}
-	}
+	// // First, check if all jobs can be scheduled individually.
+	// // TODO: Disabled for now; the SubmitChecker would reject all jobs until populated.
+	// for i, job := range jobs {
+	// 	reqs := PodRequirementsFromJob(srv.priorityClasses, job)
+	// 	canSchedule, reason := srv.Check(reqs)
+	// 	if !canSchedule {
+	// 		return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
+	// 	}
+	// }
 	// Then, check if all gangs can be scheduled.
 	for gangId, jobs := range groupJobsByAnnotation(srv.gangIdAnnotation, jobs) {
 		if gangId == "" {
