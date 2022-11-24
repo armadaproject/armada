@@ -274,7 +274,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 			queueDurations := m.Durations
 			if queueDurations.GetCount() > 0 {
 				metrics <- prometheus.MustNewConstHistogram(queueDurationDesc, m.Durations.GetCount(),
-					queueDurations.GetSum(), queueDurations.GetBuckets(), m.Pool, q.Name, m.PriorityClass)
+					queueDurations.GetSum(), queueDurations.GetBuckets(), m.Pool, m.PriorityClass, q.Name)
 				metrics <- prometheus.MustNewConstMetric(minQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMin(), m.Pool, m.PriorityClass, q.Name)
 				metrics <- prometheus.MustNewConstMetric(maxQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMax(), m.Pool, m.PriorityClass, q.Name)
 				metrics <- prometheus.MustNewConstMetric(medianQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMedian(), m.Pool, m.PriorityClass, q.Name)
