@@ -1,5 +1,6 @@
 package api
 
+// TODO: Use interfaces + casting instead.
 func JobIdFromApiEvent(msg *EventMessage) string {
 	switch e := msg.Events.(type) {
 	case *EventMessage_Submitted:
