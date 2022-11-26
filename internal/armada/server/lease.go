@@ -49,6 +49,9 @@ type AggregatedQueueServer struct {
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
 	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
+	// Stores the most recent NodeDb for each executor.
+	// Used to check if a job could ever be scheduled at job submit time.
+	SubmitChecker *scheduler.SubmitChecker
 }
 
 func NewAggregatedQueueServer(
@@ -566,6 +569,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return jobs, nil
 	} else if err != nil {
 		return nil, err
+	}
+
+	// Use this NodeDb when checking if a job could ever be scheduled.
+	// We clear allocated resources since we want to check if a job
+	// could be scheduled if the cluster was empty.
+	if err := nodeDb.ClearAllocated(); err == nil {
+		q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
+	} else {
+		logging.WithStacktrace(log, err).Error("failed to clear allocated resources in NodeDb")
 	}
 
 	return jobs, nil

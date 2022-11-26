@@ -23,6 +23,12 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	return nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 }
 
+func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]configuration.PriorityClass) *PodRequirements {
+	rv := PodRequirementsFromPodSpec(&pod.Spec, priorityByPriorityClassName)
+	rv.Annotations = pod.Annotations
+	return rv
+}
+
 func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) *PodRequirements {
 	priority, ok := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
 	if !ok {
