@@ -5,19 +5,15 @@ import (
 	"os"
 	"time"
 
-	"os"
-	"time"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common/database"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
-
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/scheduler"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
 const (
