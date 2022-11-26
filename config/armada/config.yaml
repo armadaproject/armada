@@ -89,7 +89,6 @@ eventRetention:
 metrics:
   refreshInterval: 30s
 pulsar:
-  enabled: true
   URL: "pulsar://localhost:6650"
   maxAllowedMessageSize: 4194304 # 4MB
   jobsetEventsTopic: "persistent://armada/armada/events"

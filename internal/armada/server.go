@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -149,19 +148,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		)
 		defer eventStream.Close() // Closes the stanClient
 		healthChecks.Add(stanClient)
-	} else if len(config.EventsJetstream.Servers) > 0 {
-		stream, err := eventstream.NewJetstreamEventStream(
-			&config.EventsJetstream,
-			jsm.SamplePercent(100),
-			jsm.StartWithLastReceived(),
-		)
-		if err != nil {
-			return err
-		}
-		defer stream.Close()
-		eventStream = stream
-
-		healthChecks.Add(stream)
 	}
 
 	var eventProcessor *processor.RedisEventProcessor
@@ -242,116 +228,108 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Scheduling.Preemption.PriorityClasses,
 		config.Scheduling.GangIdAnnotation,
 	)
-	if config.Pulsar.Enabled {
-		serverId := uuid.New()
 
-		// API endpoints that generate Pulsar messages.
-		log.Info("Pulsar config provided; using Pulsar submit endpoints.")
-		var err error
-		pulsarClient, err = pulsarutils.NewPulsarClient(&config.Pulsar)
-		if err != nil {
-			return err
-		}
-		defer pulsarClient.Close()
+	serverId := uuid.New()
 
-		pulsarCompressionType, err = pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+	// API endpoints that generate Pulsar messages.
+	pulsarClient, err = pulsarutils.NewPulsarClient(&config.Pulsar)
+	if err != nil {
+		return err
+	}
+	defer pulsarClient.Close()
+
+	pulsarCompressionType, err = pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+	if err != nil {
+		return err
+	}
+	pulsarCompressionLevel, err = pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+	if err != nil {
+		return err
+	}
+	serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
+	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+		Name:             serverPulsarProducerName,
+		CompressionType:  pulsarCompressionType,
+		CompressionLevel: pulsarCompressionLevel,
+		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+		Topic:            config.Pulsar.JobsetEventsTopic,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
+	}
+	defer producer.Close()
+
+	pulsarSubmitServer := &server.PulsarSubmitServer{
+		Producer:              producer,
+		QueueRepository:       queueRepository,
+		Permissions:           permissions,
+		SubmitServer:          submitServer,
+		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
+		SubmitChecker:         submitChecker,
+	}
+	submitServerToRegister = pulsarSubmitServer
+
+	// If postgres details were provided, enable deduplication.
+	if config.Pulsar.DedupTable != "" {
+		if pool == nil {
+			return errors.New("deduplication is enabled, but no postgres settings are provided")
+		}
+		log.Info("Pulsar submit API deduplication enabled")
+
+		store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
-		pulsarCompressionLevel, err = pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
-		if err != nil {
-			return err
-		}
-		serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
-		producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             serverPulsarProducerName,
-			CompressionType:  pulsarCompressionType,
-			CompressionLevel: pulsarCompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
+		pulsarSubmitServer.KVStore = store
+
+		// Automatically clean up keys after two weeks.
+		services = append(services, func() error {
+			return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
 		})
-		if err != nil {
-			return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
-		}
-		defer producer.Close()
+	} else {
+		log.Info("Pulsar submit API deduplication disabled")
+	}
 
-		pulsarSubmitServer := &server.PulsarSubmitServer{
-			Producer:              producer,
-			QueueRepository:       queueRepository,
-			Permissions:           permissions,
-			SubmitServer:          submitServer,
-			MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
-			SubmitChecker:         submitChecker,
-		}
-		submitServerToRegister = pulsarSubmitServer
+	// If there's a streamEventProcessor,
+	// insert the PulsarSubmitServer so it can publish state transitions to Pulsar too.
+	if streamEventStore != nil {
+		streamEventStore.PulsarSubmitServer = pulsarSubmitServer
+	}
 
-		// If postgres details were provided, enable deduplication.
-		if config.Pulsar.DedupTable != "" {
-			if pool == nil {
-				return errors.New("deduplication is enabled, but no postgres settings are provided")
-			}
-			log.Info("Pulsar submit API deduplication enabled")
+	// Service that consumes Pulsar messages and writes to Redis and Nats.
+	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+		Topic:            config.Pulsar.JobsetEventsTopic,
+		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
+		Type:             pulsar.KeyShared,
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer consumer.Close()
 
-			store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
-			if err != nil {
-				return err
-			}
-			pulsarSubmitServer.KVStore = store
+	submitFromLog := server.SubmitFromLog{
+		Consumer:     consumer,
+		SubmitServer: submitServer,
+	}
+	services = append(services, func() error {
+		return submitFromLog.Run(ctx)
+	})
 
-			// Automatically clean up keys after two weeks.
-			services = append(services, func() error {
-				return store.PeriodicCleanup(ctx, time.Hour, 14*24*time.Hour)
-			})
-		} else {
-			log.Info("Pulsar submit API deduplication disabled")
-		}
-
-		// If there's a streamEventProcessor,
-		// insert the PulsarSubmitServer so it can publish state transitions to Pulsar too.
-		if streamEventStore != nil {
-			streamEventStore.PulsarSubmitServer = pulsarSubmitServer
-		}
-
-		// Service that consumes Pulsar messages and writes to Redis and Nats.
-		consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
+	// Service that reads from Pulsar and logs events.
+	if config.Pulsar.EventsPrinter {
+		eventsPrinter := server.EventsPrinter{
+			Client:           pulsarClient,
 			Topic:            config.Pulsar.JobsetEventsTopic,
-			SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-			Type:             pulsar.KeyShared,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		defer consumer.Close()
-
-		submitFromLog := server.SubmitFromLog{
-			Consumer:     consumer,
-			SubmitServer: submitServer,
+			SubscriptionName: config.Pulsar.EventsPrinterSubscription,
 		}
 		services = append(services, func() error {
-			return submitFromLog.Run(ctx)
+			return eventsPrinter.Run(ctx)
 		})
-
-		// Service that reads from Pulsar and logs events.
-		if config.Pulsar.EventsPrinter {
-			eventsPrinter := server.EventsPrinter{
-				Client:           pulsarClient,
-				Topic:            config.Pulsar.JobsetEventsTopic,
-				SubscriptionName: config.Pulsar.EventsPrinterSubscription,
-			}
-			services = append(services, func() error {
-				return eventsPrinter.Run(ctx)
-			})
-		}
-	} else {
-		log.Info("No Pulsar config provided; submitting directly to Redis and Nats.")
 	}
 
 	// New Pulsar-based scheduler.
 	var newSchedulerApiServer *scheduler.ExecutorApi
 	if config.NewScheduler.Enabled {
-		if !config.Pulsar.Enabled {
-			return errors.New("new scheduler enabled, but Pulsar is disabled")
-		}
 		if pool == nil {
 			return errors.New("new scheduler enabled, but postgres is disabled")
 		}
