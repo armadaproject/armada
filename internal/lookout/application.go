@@ -5,7 +5,6 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/nats-io/jsm.go"
 	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
 
@@ -55,34 +54,20 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	var eventStream eventstream.EventStream
 
 	if !config.DisableEventProcessing {
-
-		if len(config.Jetstream.Servers) > 0 {
-			stream, err := eventstream.NewJetstreamEventStream(
-				&config.Jetstream,
-				jsm.SamplePercent(100),
-				jsm.StartWithLastReceived())
-			if err != nil {
-				panic(err)
-			}
-			eventStream = stream
-
-			healthChecks.Add(stream)
-		} else {
-			stanClient, err := eventstream.NewStanClientConnection(
-				config.Nats.ClusterID,
-				"armada-server-"+util.NewULID(),
-				config.Nats.Servers)
-			if err != nil {
-				panic(err)
-			}
-			eventStream = eventstream.NewStanEventStream(
-				config.Nats.Subject,
-				stanClient,
-				stan.SetManualAckMode(),
-				stan.StartWithLastReceived())
-
-			healthChecks.Add(stanClient)
+		stanClient, err := eventstream.NewStanClientConnection(
+			config.Nats.ClusterID,
+			"armada-server-"+util.NewULID(),
+			config.Nats.Servers)
+		if err != nil {
+			panic(err)
 		}
+		eventStream = eventstream.NewStanEventStream(
+			config.Nats.Subject,
+			stanClient,
+			stan.SetManualAckMode(),
+			stan.StartWithLastReceived())
+
+		healthChecks.Add(stanClient)
 
 		eventProcessor := events.NewEventProcessor(config.EventQueue, eventStream, jobStore)
 		eventProcessor.Start()

@@ -2,6 +2,11 @@ package armada
 
 import (
 	"context"
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/encoding/gzip"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -67,10 +72,10 @@ func TestSubmitJob(t *testing.T) {
 			t.FailNow()
 		}
 
-		if !assert.Equal(t, 1, len(leasedResponse.Job)) {
+		if !assert.Equal(t, 1, len(leasedResponse)) {
 			t.FailNow()
 		}
-		if !assert.Equal(t, jobId, leasedResponse.Job[0].Id) {
+		if !assert.Equal(t, jobId, leasedResponse[0].Job.Id) {
 			t.FailNow()
 		}
 	})
@@ -87,8 +92,8 @@ func TestAutomQueueCreation(t *testing.T) {
 			t.FailNow()
 		}
 
-		assert.Equal(t, 1, len(leasedResponse.Job))
-		assert.Equal(t, jobId, leasedResponse.Job[0].Id)
+		assert.Equal(t, 1, len(leasedResponse))
+		assert.Equal(t, jobId, leasedResponse[0].Job.Id)
 
 		info, err := client.GetQueueInfo(ctx, &api.QueueInfoRequest{Name: "test"})
 		if !assert.NoError(t, err) {
@@ -118,7 +123,7 @@ func TestCancelJob(t *testing.T) {
 		if ok := assert.NoError(t, err); !ok {
 			t.FailNow()
 		}
-		assert.Equal(t, 1, len(leasedResponse.Job))
+		assert.Equal(t, 1, len(leasedResponse))
 
 		cancelResult, err := client.CancelJobs(ctx, &api.JobCancelRequest{JobSetId: "set", Queue: "test"})
 		if ok := assert.NoError(t, err); !ok {
@@ -128,7 +133,7 @@ func TestCancelJob(t *testing.T) {
 
 		renewed, err := leaseClient.RenewLease(ctx, &api.RenewLeaseRequest{
 			ClusterId: "test-cluster",
-			Ids:       []string{leasedResponse.Job[0].Id},
+			Ids:       []string{leasedResponse[0].Job.Id},
 		})
 		if ok := assert.NoError(t, err); !ok {
 			t.FailNow()
@@ -158,7 +163,7 @@ func TestCancelJobSet(t *testing.T) {
 		if ok := assert.NoError(t, err); !ok {
 			t.FailNow()
 		}
-		assert.Equal(t, 1, len(leasedResponse.Job))
+		assert.Equal(t, 1, len(leasedResponse))
 
 		queuedCount, leasedCount := getQueueStateSummary(ctx, t, client, "test")
 		assert.Equal(t, queuedCount, 1)
@@ -286,13 +291,113 @@ func TestValidatePreemeptionConfig_Failures(t *testing.T) {
 	assert.Error(t, validatePreemptionConfig(extraResourceType2))
 }
 
-func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) (*api.JobLease, error) {
+func leaseJobs(leaseClient api.AggregatedQueueClient, ctx context.Context, availableResource common.ComputeResources) ([]*api.StreamingJobLease, error) {
 	nodeResources := common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}
-	return leaseClient.LeaseJobs(ctx, &api.LeaseRequest{
+
+	// Setup a bidirectional gRPC stream.
+	// The server sends jobs over this stream.
+	// The executor sends back acks to indicate which jobs were successfully received.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	stream, err := leaseClient.StreamingLeaseJobs(ctx, grpc_retry.Disable(), grpc.UseCompressor(gzip.Name))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// The first message sent over the stream includes all information necessary
+	// for the server to choose jobs to lease.
+	// Subsequent messages only include ids of received jobs.
+	err = stream.Send(&api.StreamingLeaseRequest{
 		ClusterId: "test-cluster",
 		Resources: availableResource,
 		Nodes:     []api.NodeInfo{{Name: "testNode", AllocatableResources: nodeResources, AvailableResources: nodeResources}},
 	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// Goroutine receiving jobs from the server.
+	// Also recevies ack confirmations from the server.
+	// Send leases on ch to another goroutine responsible for sending back acks.
+	// Give the channel a small buffer to allow for some asynchronicity.
+	var numServerAcks uint32
+	var numJobs uint32
+	jobs := make([]*api.StreamingJobLease, 0)
+	ch := make(chan *api.StreamingJobLease, 10)
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		// Close channel to ensure sending goroutine exits.
+		defer close(ch)
+
+		// Exit when until all acks have been confirmed.
+		for numServerAcks == 0 || numServerAcks < numJobs {
+			select {
+			case <-ctx.Done():
+				if ctx.Err() == context.DeadlineExceeded {
+					return nil
+				} else {
+					return ctx.Err()
+				}
+			default:
+				res, err := stream.Recv()
+				if err == io.EOF {
+					return nil
+				} else if err != nil {
+					return err
+				}
+				numJobs = res.GetNumJobs()
+				numServerAcks = res.GetNumAcked()
+				if res.Job != nil {
+					jobs = append(jobs, res)
+				}
+				ch <- res
+			}
+		}
+		return nil
+	})
+
+	// Get received jobs on the channel and send back acks.
+	g.Go(func() error {
+		defer stream.CloseSend()
+		for {
+			select {
+			case <-ctx.Done():
+				if ctx.Err() == context.DeadlineExceeded {
+					return nil
+				} else {
+					return ctx.Err()
+				}
+			case res := <-ch:
+				if res == nil {
+					return nil // Channel closed.
+				}
+
+				// Send ack back to the server.
+				if res.Job != nil {
+					err := stream.Send(&api.StreamingLeaseRequest{
+						ReceivedJobIds: []string{res.Job.Id},
+					})
+					if err == io.EOF {
+						return nil
+					} else if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	})
+
+	// Wait for receiver to exit.
+	err = g.Wait()
+	if err != nil {
+		return nil, err
+	}
+
+	// If we received confirmation on the ack, we know the server is aware we received the job.
+	// For the remaining jobs, return any leases.
+	receivedJobs := jobs[:numServerAcks]
+
+	return receivedJobs, nil
 }
 
 func getQueueStateSummary(ctx context.Context, t *testing.T, client api.SubmitClient, queue string) (queuedCount int, leasedCount int) {

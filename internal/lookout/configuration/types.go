@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 )
 
 type NatsConfig struct {
@@ -27,23 +26,6 @@ type LookoutUIConfig struct {
 type PrunerConfig struct {
 	DaysToKeep int
 	BatchSize  int
-}
-
-type LookoutConfiguration struct {
-	HttpPort    uint16
-	GrpcPort    uint16
-	MetricsPort uint16
-
-	Grpc grpcconfig.GrpcConfig
-
-	UIConfig LookoutUIConfig
-
-	EventQueue             string
-	Nats                   NatsConfig
-	Jetstream              configuration.JetstreamConfig
-	Postgres               configuration.PostgresConfig
-	PrunerConfig           PrunerConfig
-	DisableEventProcessing bool
 }
 
 type LookoutIngesterConfiguration struct {
