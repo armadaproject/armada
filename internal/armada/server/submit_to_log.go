@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"time"
+
 	"github.com/G-Research/armada/internal/common/pgkeyvalue"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"

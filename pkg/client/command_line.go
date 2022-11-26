@@ -2,9 +2,12 @@ package client
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common/fileutils"
 	"os"
 	"path/filepath"
+
+	"github.com/G-Research/armada/internal/common/fileutils"
+
+	"github.com/G-Research/armada/internal/common/fileutils"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"

@@ -1,9 +1,12 @@
 package ingest
 
 import (
-	pulsarutils2 "github.com/G-Research/armada/internal/common/pulsarutils"
 	"sync"
 	"time"
+
+	pulsarutils2 "github.com/G-Research/armada/internal/common/pulsarutils"
+
+	pulsarutils2 "github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"

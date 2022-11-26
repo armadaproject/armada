@@ -3,9 +3,12 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
 	"reflect"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"

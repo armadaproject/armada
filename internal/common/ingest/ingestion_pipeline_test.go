@@ -2,9 +2,12 @@ package ingest
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"

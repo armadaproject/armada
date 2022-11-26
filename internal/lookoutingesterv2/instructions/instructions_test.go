@@ -2,9 +2,12 @@ package instructions
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"strings"
 	"testing"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"

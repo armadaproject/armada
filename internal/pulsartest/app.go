@@ -2,6 +2,7 @@ package pulsartest
 
 import (
 	"fmt"
+
 	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"

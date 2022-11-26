@@ -3,8 +3,9 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"

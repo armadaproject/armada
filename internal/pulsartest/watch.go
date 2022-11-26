@@ -3,9 +3,12 @@ package pulsartest
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"log"
 	"os"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/sanity-io/litter"
 

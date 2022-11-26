@@ -3,10 +3,13 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"io"
 	"sync/atomic"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"

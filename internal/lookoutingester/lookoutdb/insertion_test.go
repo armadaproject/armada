@@ -3,10 +3,13 @@ package lookoutdb
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4/pgxpool"

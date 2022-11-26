@@ -3,10 +3,11 @@ package armada
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/pgkeyvalue"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"net"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/pgkeyvalue"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 
 	"golang.org/x/exp/slices"
 
