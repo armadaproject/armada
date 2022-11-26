@@ -1,6 +1,6 @@
 postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
+  maxOpenConns: 10
+  maxIdleConns: 1
   connMaxLifetime: 30m
   connection:
     host: localhost
