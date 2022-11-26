@@ -40,7 +40,7 @@ func Run(config *Configuration) {
 
 	compressor, err := compress.NewZlibCompressor(1024)
 	if err != nil {
-		panic(errors.WithMessage(err, "Error opening connection to postgres"))
+		panic(errors.WithMessage(err, "Error creating  compressor"))
 	}
 	converter := NewInstructionConverter(metrics, submitJobFilter, compressor)
 
