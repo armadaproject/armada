@@ -70,7 +70,7 @@ func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation 
 	for gangId, details := range gangDetailsByGangId {
 		if details.expectedCardinality != details.actualCardinality {
 			return errors.Errorf(
-				"incomplete gang %s: expected %d jobs but got %d",
+				"unexpected number of jobs for gang %s: expected %d jobs but got %d",
 				gangId, details.expectedCardinality, details.actualCardinality,
 			)
 		}
