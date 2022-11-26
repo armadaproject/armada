@@ -3,6 +3,8 @@ package armada
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/pgkeyvalue"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"net"
 	"time"
 
@@ -34,8 +36,6 @@ import (
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/pgkeyvalue"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"

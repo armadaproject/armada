@@ -2,6 +2,7 @@ package instructions
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"testing"
 	"time"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 

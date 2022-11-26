@@ -2,6 +2,7 @@ package convert
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"math/rand"
 	"testing"
 	"time"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 

@@ -3,6 +3,7 @@ package lookoutdb
 import (
 	ctx "context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"sort"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 const (

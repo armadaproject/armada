@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/pgkeyvalue"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -24,8 +26,6 @@ import (
 	"github.com/G-Research/armada/internal/common/requestid"
 	commonvalidation "github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/pgkeyvalue"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"

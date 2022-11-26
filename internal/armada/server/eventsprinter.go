@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -12,7 +13,6 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 

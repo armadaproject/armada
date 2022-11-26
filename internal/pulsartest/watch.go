@@ -3,13 +3,13 @@ package pulsartest
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"log"
 	"os"
 
 	"github.com/sanity-io/litter"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 // Watch for Pulsar events

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"math/rand"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )

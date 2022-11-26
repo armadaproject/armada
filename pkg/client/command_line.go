@@ -2,6 +2,7 @@ package client
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/internal/common/fileutils"
 	"os"
 	"path/filepath"
 
@@ -9,8 +10,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
-
-	"github.com/G-Research/armada/internal/fileutils"
 )
 
 // list of config files loaded into viper
