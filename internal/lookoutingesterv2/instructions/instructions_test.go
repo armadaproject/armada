@@ -5,10 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +17,7 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/pkg/armadaevents"
