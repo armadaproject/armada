@@ -5,10 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
 	"github.com/google/uuid"
@@ -20,6 +16,7 @@ import (
 	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/metrics"
 	"github.com/G-Research/armada/internal/lookoutingester/model"

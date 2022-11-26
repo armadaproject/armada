@@ -4,10 +4,6 @@ import (
 	"sync"
 	"time"
 
-	pulsarutils2 "github.com/G-Research/armada/internal/common/pulsarutils"
-
-	pulsarutils2 "github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -17,6 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	commonmetrics "github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -106,7 +103,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 		ingester.consumer = consumer
 		defer closePulsar()
 	}
-	pulsarMsgs := pulsarutils2.Receive(ctx, ingester.consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
+	pulsarMsgs := pulsarutils.Receive(ctx, ingester.consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
 
 	// Setup a context that n seconds after ctx
 	// This gives the rest of the pipeline a chance to flush pending messages
@@ -184,7 +181,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 
 func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), error) {
 	// Subscribe to Pulsar and receive messages
-	pulsarClient, err := pulsarutils2.NewPulsarClient(&ingester.pulsarConfig)
+	pulsarClient, err := pulsarutils.NewPulsarClient(&ingester.pulsarConfig)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "Error creating pulsar client")
 	}

@@ -6,9 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/pgkeyvalue"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"golang.org/x/exp/slices"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -35,6 +32,8 @@ import (
 	"github.com/G-Research/armada/internal/common/eventstream"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
+	"github.com/G-Research/armada/internal/common/pgkeyvalue"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/common/task"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/scheduler"

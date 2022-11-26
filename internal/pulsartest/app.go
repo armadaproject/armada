@@ -3,13 +3,12 @@ package pulsartest
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 )
 
 type App struct {

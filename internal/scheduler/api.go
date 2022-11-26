@@ -7,10 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -21,10 +17,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
-
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )

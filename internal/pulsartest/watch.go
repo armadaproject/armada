@@ -6,13 +6,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/sanity-io/litter"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 )
 
 // Watch for Pulsar events

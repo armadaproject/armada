@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/pgkeyvalue"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -24,6 +21,8 @@ import (
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/auth/permission"
 	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/G-Research/armada/internal/common/pgkeyvalue"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/common/requestid"
 	commonvalidation "github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/internal/executor/configuration"

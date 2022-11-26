@@ -5,14 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/G-Research/armada/internal/common/fileutils"
-
-	"github.com/G-Research/armada/internal/common/fileutils"
-
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
+
+	"github.com/G-Research/armada/internal/common/fileutils"
 )
 
 // list of config files loaded into viper

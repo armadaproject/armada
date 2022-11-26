@@ -5,14 +5,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )

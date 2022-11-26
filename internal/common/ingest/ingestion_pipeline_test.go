@@ -5,10 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -16,6 +12,7 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
