@@ -2,10 +2,6 @@ package armada
 
 import (
 	"context"
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/encoding/gzip"
 	"io"
 	"log"
 	"net"
@@ -13,6 +9,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/encoding/gzip"
 
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"

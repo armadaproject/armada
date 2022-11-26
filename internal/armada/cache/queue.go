@@ -200,12 +200,6 @@ func (c *QueueCache) GetRunningJobMetrics(queueName string) []*metrics.QueueMetr
 	return c.runningJobMetrics[queueName]
 }
 
-func (c *QueueCache) getNonSchedulableJobIds(queueName string) map[string]stringSet {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	return c.queueNonMatchingJobIds[queueName]
-}
-
 func getPriorityClass(job *api.Job) string {
 	podSpec := util.PodSpecFromJob(job)
 	if podSpec != nil {

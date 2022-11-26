@@ -205,8 +205,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		&config.QueueManagement,
 		&config.Scheduling,
 	)
-	var submitServerToRegister api.SubmitServer
-	submitServerToRegister = submitServer
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var pool *pgxpool.Pool
@@ -267,7 +265,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
 		SubmitChecker:         submitChecker,
 	}
-	submitServerToRegister = pulsarSubmitServer
+	submitServerToRegister := pulsarSubmitServer
 
 	// If postgres details were provided, enable deduplication.
 	if config.Pulsar.DedupTable != "" {
