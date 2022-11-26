@@ -395,7 +395,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		permissions,
 		config.Scheduling,
 		jobRepository,
-		queueCache,
 		queueRepository,
 		usageRepository,
 		eventStore,

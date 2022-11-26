@@ -15,7 +15,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
+func CreateClusterSchedulingInfoReport(leaseRequest *api.StreamingLeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
 	return &api.ClusterSchedulingInfoReport{
 		ClusterId:      leaseRequest.ClusterId,
 		Pool:           leaseRequest.Pool,
