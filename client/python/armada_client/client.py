@@ -66,7 +66,7 @@ class ArmadaClient:
 
         :param queue: The name of the queue
         :param job_set_id: The name of the job set (a grouping of jobs)
-        :param from_message_id: The from message id.
+        :param from_message_id: The message id.
         :return: A job events stream for the job_set_id provided.
         """
         jsr = event_pb2.JobSetRequest(
