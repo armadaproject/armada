@@ -2,6 +2,13 @@ project_name: armada
 
 dist: "dist"
 
+gomod:
+  proxy: true
+  env:
+    - GOPROXY=https://proxy.golang.org,direct
+    - GOSUMDB=sum.golang.org
+  gobinary: go
+
 builds:
   - env: [CGO_ENABLED=0]
     id: server
@@ -48,6 +55,13 @@ archives:
 universal_binaries:
   - replace: true
     id: armadactl
+    name_template: 'armadactl'
+
+signs:
+  - artifacts: checksum
+
+sboms:
+  - artifacts: archive
 
 dockers:
   -
