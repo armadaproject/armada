@@ -7,11 +7,6 @@ labels:
 assignees: ""
 ---
 
-<!--
-Please read this page: https://kubectl.docs.kubernetes.io/contributing/kustomize/bugs/ before
-filing a bug
--->
-
 <!-- Feel free to skip the sections if they are not applicable. -->
 
 **Describe the bug**
@@ -20,32 +15,6 @@ filing a bug
 
 **Files that can reproduce the issue**
 
-<!--
-We cannot figure out or fix the issue if we don't know how to reproduce. Please
-provide a minimum set of files that can reproduce the issue. You can paste the
-file contents here or provide a link to a tarball or git repo.
-
-Example:
-
-kustomization.yaml
-
-```
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-...
-```
-
-resources.yaml
-
-```
-apiVersion: v1
-kind: Deployment
-...
-```
-
-...
--->
 
 **Expected output**
 
@@ -54,10 +23,6 @@ kind: Deployment
 **Actual output**
 
 <!-- What's the actual output? -->
-
-**Kustomize version**
-
-<!-- Please use the latest version when it's possible. -->
 
 **Platform**
 
