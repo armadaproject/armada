@@ -45,3 +45,7 @@ func IsStateTerminal(State js.JobServiceResponse_State) bool {
 		return false
 	}
 }
+
+func HelloWorld() bool {
+	return true
+}
