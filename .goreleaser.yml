@@ -1,0 +1,118 @@
+project_name: armada
+
+builds:
+  - env: [CGO_ENABLED=0]
+    id: server
+    main: ./cmd/armada/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: executor
+    main: ./cmd/executor/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: armadactl
+    main: ./cmd/armadactl/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+dockers:
+  -
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DockerRepo }}/armada-server:{{ .Major }}"
+      - "{{ .Env.DockerRepo }}/armada-server:{{ .Major }}.{{ .Minor }}"
+      - "{{ .Env.DockerRepo }}/armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DockerRepo }}/armada-server:latest"
+    build_flag_templates:
+      - --label=org.opencontainers.image.title=armada-server
+      - --label=org.opencontainers.image.description="Armada Server"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-server
+      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    dockerfile: ./build_goreleaser/server/Dockerfile
+  -
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DockerRepo }}/armada-executor:{{ .Major }}"
+      - "{{ .Env.DockerRepo }}/armada-executor:{{ .Major }}.{{ .Minor }}"
+      - "{{ .Env.DockerRepo }}/armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DockerRepo }}/armada-executor:latest"
+    build_flag_templates:
+      - --label=org.opencontainers.image.title=armada-executor
+      - --label=org.opencontainers.image.description="Armada Executor"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-executor
+      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    dockerfile: ./build_goreleaser/executor/Dockerfile
+  -
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DockerRepo }}/armadactl:{{ .Major }}"
+      - "{{ .Env.DockerRepo }}/armadactl:{{ .Major }}.{{ .Minor }}"
+      - "{{ .Env.DockerRepo }}/armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DockerRepo }}/armadactl:latest"
+    build_flag_templates:
+      - --label=org.opencontainers.image.title=armadactl
+      - --label=org.opencontainers.image.description="Armada CLI"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armadactl
+      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    dockerfile: ./build_goreleaser/armadactl/Dockerfile
+
+dist: "build/dist"
+
+changelog:
+  use: "github"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: false
+  header: |
+    ## Armada {{ .Version }} - ({{ .Date }})
+    See https://github.com/kubeshop/{{ .ProjectName }} for download links and documentation
+    ## Docker images
+    ### Armada Server
+    - `docker pull {{ .Env.DockerRepo }}/armada-server:{{ .Major }}`
+    - `docker pull {{ .Env.DockerRepo }}/armada-server:{{ .Major }}.{{ .Minor }}`
+    - `docker pull {{ .Env.DockerRepo }}/armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DockerRepo }}/armada-server:latest`
+    ### Armada Executor
+    - `docker pull {{ .Env.DockerRepo }}/armada-executor:{{ .Major }}`
+    - `docker pull {{ .Env.DockerRepo }}/armada-executor:{{ .Major }}.{{ .Minor }}`
+    - `docker pull {{ .Env.DockerRepo }}/armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DockerRepo }}/armada-executor:latest`
+    ### Armada CLI
+    - `docker pull {{ .Env.DockerRepo }}/armadactl:{{ .Major }}`
+    - `docker pull {{ .Env.DockerRepo }}/armadactl:{{ .Major }}.{{ .Minor }}`
+    - `docker pull {{ .Env.DockerRepo }}/armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DockerRepo }}/armadactl:latest`
+
+snapshot:
+  name_template: "{{ .Tag }}"
+
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+  format: "zip"
