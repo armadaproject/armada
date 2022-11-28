@@ -19,7 +19,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/analysis v0.21.4
 	github.com/go-openapi/jsonreference v0.20.0
-	github.com/go-openapi/loads v0.21.1
+	github.com/go-openapi/loads v0.21.2
 	github.com/go-openapi/runtime v0.24.2
 	github.com/go-openapi/spec v0.20.7
 	github.com/go-redis/redis v6.15.9+incompatible
