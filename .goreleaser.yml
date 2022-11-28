@@ -1,5 +1,7 @@
 project_name: armada
 
+dist: "dist"
+
 builds:
   - env: [CGO_ENABLED=0]
     id: server
@@ -22,9 +24,17 @@ builds:
     main: ./cmd/armadactl/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
+      - windows
+      - darwin
       - linux
     goarch:
       - amd64
+      - arm64
+
+# macOS Universal Binaries
+universal_binaries:
+  - replace: true
+    id: armadactl
 
 dockers:
   -
@@ -43,6 +53,8 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    extra_files:
+      - config/armada/config.yaml
     dockerfile: ./build_goreleaser/server/Dockerfile
   -
     goos: linux
@@ -60,6 +72,8 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
+    extra_files:
+      - config/executor/config.yaml
     dockerfile: ./build_goreleaser/executor/Dockerfile
   -
     goos: linux
@@ -78,8 +92,6 @@ dockers:
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
     dockerfile: ./build_goreleaser/armadactl/Dockerfile
-
-dist: "build/dist"
 
 changelog:
   use: "github"
