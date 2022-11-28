@@ -6,7 +6,7 @@ USER armada
 
 COPY server /app/
 
-COPY config.yaml /app/config/armada
+COPY config/armada/config.yaml /app/config/armada/config.yaml
 
 WORKDIR /app
 

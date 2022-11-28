@@ -6,7 +6,7 @@ USER armada
 
 COPY executor /app/
 
-COPY config.yaml /app/config/executor
+COPY config/executor/config.yaml /app/config/executor/config.yaml
 
 WORKDIR /app
 

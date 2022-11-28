@@ -5,6 +5,7 @@ dist: "dist"
 builds:
   - env: [CGO_ENABLED=0]
     id: server
+    binary: server
     main: ./cmd/armada/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
@@ -13,6 +14,7 @@ builds:
       - amd64
   - env: [CGO_ENABLED=0]
     id: executor
+    binary: executor
     main: ./cmd/executor/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
@@ -21,6 +23,7 @@ builds:
       - amd64
   - env: [CGO_ENABLED=0]
     id: armadactl
+    binary: armadactl
     main: ./cmd/armadactl/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
