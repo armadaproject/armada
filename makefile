@@ -444,6 +444,8 @@ tests-e2e-setup: setup-cluster
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
+	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
+	    armada-jobservice
 
 	# Create test queue if it doesn't already exist
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
@@ -493,6 +495,10 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 .ONESHELL:
 tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
+
+.ONESHELL:
+tests-e2e-airflow: airflow-operator
+	docker run -v${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
 
 # Output test results in Junit format, e.g., to display in Jenkins.
 # Relies on go-junit-report

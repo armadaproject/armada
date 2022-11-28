@@ -4,6 +4,6 @@ FROM --platform=x86_64 python:${PYTHON_VERSION}-buster
 
 RUN mkdir /proto
 
-RUN pip install grpcio grpcio-tools mypy-protobuf
+RUN pip install grpcio grpcio-tools mypy-protobuf pytest
 
 ENTRYPOINT ["/bin/bash"]
