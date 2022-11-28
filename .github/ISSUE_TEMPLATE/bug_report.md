@@ -2,8 +2,6 @@
 name: Bug report
 about: Create a report to help us improve
 title: ""
-labels:
-  - kind/bug
 assignees: ""
 ---
 
@@ -13,20 +11,16 @@ assignees: ""
 
 <!-- A clear and concise description of what the bug is. -->
 
-**Files that can reproduce the issue**
+**Files Or Markdown that can reproduce the issue**
 
 
-**Expected output**
+**Expected behavior**
 
-<!-- What's the expected output? -->
+<!-- What's the expected behavior? -->
 
-**Actual output**
+**Actual behavior**
 
-<!-- What's the actual output? -->
-
-**Platform**
-
-<!-- Linux/macOS/Windows? -->
+<!-- What's the actual behavior? -->
 
 **Additional context**
 
