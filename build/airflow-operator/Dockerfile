@@ -4,8 +4,6 @@ FROM --platform=x86_64 python:${PYTHON_VERSION}-buster
 
 RUN mkdir /proto
 
-RUN pip install grpcio grpcio-tools mypy-protobuf pytest armada-client
-
 # Note that --use-feature=in-tree-build is needed until pip 21.3
 # (https://github.com/libAtoms/QUIP/issues/345)
 #
@@ -14,6 +12,6 @@ RUN pip install grpcio grpcio-tools mypy-protobuf pytest armada-client
 #
 # Then to install the `test` optional dependencies, we pip install from /code[test]
 # See https://stackoverflow.com/questions/46775346/what-do-square-brackets-mean-in-pip-install
-RUN pip install "/code[test]" grpcio grpcio-tools mypy-protobuf pytest armada-client --use-feature=in-tree-build
+RUN pip install "/code[test]" --use-feature=in-tree-build
 
 ENTRYPOINT ["/bin/bash"]
