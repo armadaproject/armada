@@ -4,7 +4,7 @@ FROM --platform=x86_64 python:${PYTHON_VERSION}-buster
 
 RUN mkdir /proto
 
-COPY client/python/pyproject.toml /code/pyproject.toml
+COPY third_party/airflow/pyproject.toml /code/pyproject.toml
 
 # Note that --use-feature=in-tree-build is needed until pip 21.3
 # (https://github.com/libAtoms/QUIP/issues/345)
