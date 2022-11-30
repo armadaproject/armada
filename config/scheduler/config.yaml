@@ -1,6 +1,6 @@
 postgres:
-  maxOpenConns: 10
-  maxIdleConns: 1
+  maxOpenConns: 20
+  maxIdleConns: 5
   connMaxLifetime: 30m
   connection:
     host: localhost
@@ -19,6 +19,7 @@ pulsar:
   receiveTimeout: 5s
   backoffTime: 1s
 
-subscriptionName: "scheduler-ingester"
+subscriptionName: "scheduler"
 batchSize: 10000
 batchDuration: 500ms
+
