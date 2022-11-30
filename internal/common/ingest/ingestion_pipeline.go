@@ -13,7 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	commonmetrics "github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 

@@ -17,11 +17,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
-
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )

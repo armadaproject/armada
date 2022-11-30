@@ -14,10 +14,10 @@ import (
 
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 const (
