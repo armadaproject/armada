@@ -918,8 +918,8 @@ func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec)
 // fillContainerRequestsAndLimits updates resource's requests/limits of container to match the value of
 // limits/requests if the resource doesn't have requests/limits setup. If a Container specifies its own
 // memory limit, but does not specify a memory request, assign a memory request that matches the limit.
-// Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
-// assigns a CPU request that matches the limit.
+// Similarly, if a Container specifies its own Cpu limit, but does not specify a Cpu request, automatically
+// assigns a Cpu request that matches the limit.
 func fillContainerRequestsAndLimits(containers []v1.Container) {
 	for index := range containers {
 		if containers[index].Resources.Limits == nil {

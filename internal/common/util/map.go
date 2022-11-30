@@ -58,3 +58,11 @@ func FilterKeys(a map[string]string, keys []string) map[string]string {
 
 	return result
 }
+
+func InverseMap[K comparable, V comparable](a map[K]V) map[V]K {
+	result := make(map[V]K)
+	for key, value := range a {
+		result[value] = key
+	}
+	return result
+}

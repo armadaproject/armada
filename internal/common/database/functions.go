@@ -2,8 +2,11 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"github.com/pkg/errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
@@ -61,4 +64,59 @@ func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
 	}
 	err = db.Ping(context.Background())
 	return db, err
+}
+
+func ParseNullStringDefault(nullString sql.NullString) string {
+	if !nullString.Valid {
+		return ""
+	}
+	return nullString.String
+}
+
+func ParseNullString(nullString sql.NullString) *string {
+	if !nullString.Valid {
+		return nil
+	}
+	return &nullString.String
+}
+
+func ParseNullTime(nullTime sql.NullTime) *time.Time {
+	if !nullTime.Valid {
+		return nil
+	}
+	return &nullTime.Time
+}
+
+func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {
+	if !nullTime.Valid {
+		return time.Now()
+	}
+	return nullTime.Time
+}
+
+func ParseNullInt32(nullInt sql.NullInt32) *int32 {
+	if !nullInt.Valid {
+		return nil
+	}
+	return &nullInt.Int32
+}
+
+func ParseNullInt16Default(nullInt sql.NullInt16) int16 {
+	if !nullInt.Valid {
+		return 0
+	}
+	return nullInt.Int16
+}
+
+func ReadInt(rows pgx.Rows) (int, error) {
+	defer rows.Close()
+	var val int
+	for rows.Next() {
+		err := rows.Scan(&val)
+		if err != nil {
+			return -1, err
+		}
+		return val, nil
+	}
+	return -1, errors.New("no rows found")
 }

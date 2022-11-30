@@ -52,7 +52,7 @@ type Node struct {
 	// Total resources on this node.
 	TotalResources ResourceList `protobuf:"bytes,7,opt,name=TotalResources,proto3" json:"TotalResources"`
 	// Resources available for jobs of a given priority.
-	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
+	// E.g., AvailableResources[5]["cpu"] is the amount of Cpu available to jobs with priority 5,
 	// where available resources = unused resources + resources assigned to lower-priority jobs.
 	AllocatableByPriorityAndResource map[int32]ResourceList `protobuf:"bytes,8,rep,name=AllocatableByPriorityAndResource,proto3" json:"AllocatableByPriorityAndResource" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }

@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/database"
 	"strings"
 	"testing"
 	"time"
@@ -822,7 +823,7 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 				"SELECT priority FROM job"))
 
 			var job api.Job
-			jobProto := ParseNullString(selectNullString(t, db, "SELECT orig_job_spec FROM job"))
+			jobProto := database.ParseNullStringDefault(selectNullString(t, db, "SELECT orig_job_spec FROM job"))
 			err = job.Unmarshal([]byte(jobProto))
 			assert.NoError(t, err)
 			assert.Equal(t, float64(123), job.Priority)
@@ -979,7 +980,7 @@ func getPriority(t *testing.T, db *goqu.Database, jobId string) float64 {
 
 func getJob(t *testing.T, db *goqu.Database, jobId string) *api.Job {
 	var job api.Job
-	jobProto := ParseNullString(selectNullString(t, db, fmt.Sprintf("SELECT orig_job_spec FROM job WHERE job_id = '%s'", jobId)))
+	jobProto := database.ParseNullStringDefault(selectNullString(t, db, fmt.Sprintf("SELECT orig_job_spec FROM job WHERE job_id = '%s'", jobId)))
 	err := job.Unmarshal([]byte(jobProto))
 	assert.Nil(t, err)
 	return &job

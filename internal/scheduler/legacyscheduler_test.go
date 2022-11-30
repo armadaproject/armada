@@ -421,7 +421,7 @@ func TestQueueCandidateJobsIterator(t *testing.T) {
 			LeaseJobs:       true,
 			ExpectedIndices: []int{0, 1, 4},
 		},
-		"tainted CPU nodes": {
+		"tainted Cpu nodes": {
 			Reqs:            append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
 			Nodes:           testNTaintedCpuNode(1, testPriorities),
 			LeaseJobs:       true,

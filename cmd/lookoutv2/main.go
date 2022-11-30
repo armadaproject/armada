@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/lookoutv2"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
-
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -78,12 +78,20 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookoutv2", userSpecifiedConfigs)
 
-	logrus.SetLevel(logrus.DebugLevel)
+	log.SetLevel(log.DebugLevel)
 
 	ctx, cleanup := makeContext()
 	defer cleanup()
 
 	if viper.GetBool(MigrateDatabase) {
+		log.Info("Migrating database")
 		migrate(ctx, config)
+		return
+	}
+
+	err := lookoutv2.Serve(config)
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
 	}
 }

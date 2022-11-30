@@ -16,7 +16,7 @@ var scarcity = map[string]float64{"cpu": 1, "memory": 1.0 / (1024 * 1024 * 1024)
 type queueResources map[*api.Queue]common.ComputeResourcesFloat
 
 // Verify that two maps of queues to compute-resources are basically equal, in
-// keys, as well as resource cpu value, accepting a small tolerance for CPU
+// keys, as well as resource cpu value, accepting a small tolerance for Cpu
 // resource, as some versions of Docker will report a microscopically
 // fractional difference, instead of the exact smooth integer-like value that
 // tests often specify.

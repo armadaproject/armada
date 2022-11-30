@@ -12,11 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
@@ -215,7 +213,7 @@ var expectedUserAnnotation = UserAnnotationRow{
 }
 
 func TestCreateJobsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -244,7 +242,7 @@ func TestCreateJobsBatch(t *testing.T) {
 }
 
 func TestUpdateJobsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -279,7 +277,7 @@ func TestUpdateJobsBatch(t *testing.T) {
 }
 
 func TestUpdateJobsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -312,7 +310,7 @@ func TestUpdateJobsScalar(t *testing.T) {
 }
 
 func TestUpdateJobsWithCancelled(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		initial := []*model.CreateJobInstruction{{
 			JobId:                     jobIdString,
 			Queue:                     queue,
@@ -368,7 +366,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 }
 
 func TestCreateJobsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Simple create
 		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -395,7 +393,7 @@ func TestCreateJobsScalar(t *testing.T) {
 }
 
 func TestCreateJobRunsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -428,7 +426,7 @@ func TestCreateJobRunsBatch(t *testing.T) {
 }
 
 func TestCreateJobRunsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -459,7 +457,7 @@ func TestCreateJobRunsScalar(t *testing.T) {
 }
 
 func TestUpdateJobRunsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -498,7 +496,7 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 }
 
 func TestUpdateJobRunsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -536,7 +534,7 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 }
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -569,7 +567,7 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 }
 
 func TestStoreWithEmptyInstructionSet(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		err := ldb.Store(ctx.Background(), &model.InstructionSet{})
 		assert.NoError(t, err)
@@ -582,7 +580,7 @@ func TestStoreWithEmptyInstructionSet(t *testing.T) {
 }
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -613,7 +611,7 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Do the update
 		err := ldb.Store(ctx.Background(), defaultInstructionSet())
@@ -695,10 +693,22 @@ func TestConflateJobRunUpdates(t *testing.T) {
 		return expected[i].RunId < expected[j].RunId
 	})
 	assert.Equal(t, expected, updates)
+
+	// Latest job run state is used
+	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+		{RunId: runIdString, Started: &baseTime, JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal)},
+		{RunId: runIdString, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
+	})
+
+	expected = []*model.UpdateJobRunInstruction{
+		{RunId: runIdString, Started: &baseTime, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
+	}
+
+	assert.Equal(t, expected, updates)
 }
 
 func TestStoreNullValue(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		jobProto := []byte("hello \000 world \000")
 		errorMsg := []byte("some \000 error \000")
 		instructions := defaultInstructionSet()
@@ -821,12 +831,4 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 	err := r.Scan(&count)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, count)
-}
-
-func withLookoutDb(action func(db *pgxpool.Pool) error) error {
-	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
-	if err != nil {
-		return err
-	}
-	return database.WithTestDb(migrations, action)
 }
