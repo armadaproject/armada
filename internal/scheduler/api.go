@@ -7,8 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -17,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/compress"
@@ -24,7 +23,6 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"

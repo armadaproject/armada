@@ -19,7 +19,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/pulsarutils"
 	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
