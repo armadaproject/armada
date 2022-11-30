@@ -4,10 +4,8 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 
 USER armada
 
-COPY server /app/
-
-COPY config/armada/config.yaml /app/config/armada/config.yaml
+COPY testsuite /app/
 
 WORKDIR /app
 
-ENTRYPOINT ["./server"]
+ENTRYPOINT ["./testsuite"]
