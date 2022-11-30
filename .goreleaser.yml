@@ -272,7 +272,7 @@ release:
   draft: false
   header: |
     ## Armada {{ .Version }} - ({{ .Date }})
-    See https://github.com/kubeshop/{{ .ProjectName }} for download links and documentation
+    See https://github.com/G-Research/armada for more info and documentation.
     ## Docker images
     ### Armada Bundle
     - `docker pull {{ .Env.DOCKER_REPO }}/armada:{{ .Major }}`
