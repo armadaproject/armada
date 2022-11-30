@@ -445,7 +445,7 @@ tests-e2e-setup: setup-cluster
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
 	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
-	    jobservice
+	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 
 	# Create test queue if it doesn't already exist
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
@@ -476,7 +476,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester
+		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube

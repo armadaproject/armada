@@ -17,17 +17,6 @@ import grpc
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import JobState, search_for_job_complete
 
-@pytest.fixture(scope="session", name="queue_name")
-def get_queue():
-    return f"queue-{uuid.uuid1()}"
-
-# @pytest.fixture(scope="session", autouse=True)
-# def create_queue(client: ArmadaClient, queue_name):
-
-#     queue = client.create_queue_request(name=queue_name, priority_factor=1)
-#     client.create_queue(queue)
-#     wait_for(client, queue=queue_name)
-
 @pytest.fixture(scope="session", name="jobservice")
 def job_service_client() -> ArmadaClient:
     server_name = os.environ.get("JOB_SERVICE_HOST", "localhost")
@@ -87,12 +76,8 @@ def sleep_pod(image: str):
 
 def test_success_job(client: ArmadaClient, jobservice: JobServiceClient):
     job_set_name = f"test-{uuid.uuid1()}"
-    queue = client.create_queue_request(name="test", priority_factor=1)
-    client.create_queue(queue)
-    wait_for(client, queue="test")
-
     job = client.submit_jobs(
-        queue="test",
+        queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="busybox"),
     )
@@ -100,7 +85,7 @@ def test_success_job(client: ArmadaClient, jobservice: JobServiceClient):
 
     job_state, job_message = search_for_job_complete(
         job_service_client=jobservice,
-        armada_queue="test",
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=job_id,
@@ -109,128 +94,98 @@ def test_success_job(client: ArmadaClient, jobservice: JobServiceClient):
     assert job_message == f"Armada test:{job_id} succeeded"
 
 
-# def test_bad_job():
-#     job_set_name = f"test-{uuid.uuid1()}"
+def test_bad_job(client: ArmadaClient, jobservice: JobServiceClient):
+    job_set_name = f"test-{uuid.uuid1()}"
 
-#     job = no_auth_client.submit_jobs(
-#         queue="test",
-#         job_set_id=job_set_name,
-#         job_request_items=sleep_pod(image="NOTACONTAINER"),
-#     )
-#     job_id = job.job_response_items[0].job_id
+    job = client.submit_jobs(
+        queue="queue-a",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="NOTACONTAINER"),
+    )
+    job_id = job.job_response_items[0].job_id
 
-#     job_state, job_message = search_for_job_complete(
-#         job_service_client=job_service_client(),
-#         armada_queue="test",
-#         job_set_id=job_set_name,
-#         airflow_task_name="test",
-#         job_id=job_id,
-#     )
-#     assert job_state == JobState.FAILED
-#     assert job_message.startswith(f"Armada test:{job_id} failed")
-
-
-# def test_two_jobs():
-#     job_set_name = f"test-{uuid.uuid1()}"
-
-#     first_job = no_auth_client.submit_jobs(
-#         queue="test",
-#         job_set_id=job_set_name,
-#         job_request_items=sleep_pod(image="busybox"),
-#     )
-#     first_job_id = first_job.job_response_items[0].job_id
-
-#     job_state, job_message = search_for_job_complete(
-#         job_service_client=job_service_client(),
-#         armada_queue="test",
-#         job_set_id=job_set_name,
-#         airflow_task_name="test",
-#         job_id=first_job_id,
-#     )
-#     assert job_state == JobState.SUCCEEDED
-#     assert job_message == f"Armada test:{first_job_id} succeeded"
-
-#     second_job = no_auth_client().submit_jobs(
-#         queue="test",
-#         job_set_id=job_set_name,
-#         job_request_items=sleep_pod(image="busybox"),
-#     )
-#     second_job_id = second_job.job_response_items[0].job_id
-
-#     job_state, job_message = search_for_job_complete(
-#         job_service_client=job_service_client(),
-#         armada_queue="test",
-#         job_set_id=job_set_name,
-#         airflow_task_name="test",
-#         job_id=second_job_id,
-#     )
-#     assert job_state == JobState.SUCCEEDED
-#     assert job_message == f"Armada test:{second_job_id} succeeded"
+    job_state, job_message = search_for_job_complete(
+        job_service_client=jobservice,
+        armada_queue="queue-a",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=job_id,
+    )
+    assert job_state == JobState.FAILED
+    assert job_message.startswith(f"Armada test:{job_id} failed")
 
 
-# def test_two_jobs_good_bad():
-#     job_set_name = f"test-{uuid.uuid1()}"
+def test_two_jobs(client: ArmadaClient, jobservice: JobServiceClient):
+    job_set_name = f"test-{uuid.uuid1()}"
 
-#     first_job = no_auth_client().submit_jobs(
-#         queue="test",
-#         job_set_id=job_set_name,
-#         job_request_items=sleep_pod(image="busybox"),
-#     )
-#     first_job_id = first_job.job_response_items[0].job_id
+    first_job = client.submit_jobs(
+        queue="queue-a",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="busybox"),
+    )
+    first_job_id = first_job.job_response_items[0].job_id
 
-#     job_state, job_message = search_for_job_complete(
-#         job_service_client=job_service_client(),
-#         armada_queue="test",
-#         job_set_id=job_set_name,
-#         airflow_task_name="test",
-#         job_id=first_job_id,
-#     )
-#     assert job_state == JobState.SUCCEEDED
-#     assert job_message == f"Armada test:{first_job_id} succeeded"
+    job_state, job_message = search_for_job_complete(
+        job_service_client=jobservice,
+        armada_queue="queue-a",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=first_job_id,
+    )
+    assert job_state == JobState.SUCCEEDED
+    assert job_message == f"Armada test:{first_job_id} succeeded"
 
-#     second_job = no_auth_client.submit_jobs(
-#         queue="test",
-#         job_set_id=job_set_name,
-#         job_request_items=sleep_pod(image="nonexistant"),
-#     )
-#     second_job_id = second_job.job_response_items[0].job_id
+    second_job = client.submit_jobs(
+        queue="queue-a",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="busybox"),
+    )
+    second_job_id = second_job.job_response_items[0].job_id
 
-#     job_state, job_message = search_for_job_complete(
-#         job_service_client=job_service_client(),
-#         armada_queue="test",
-#         job_set_id=job_set_name,
-#         airflow_task_name="test",
-#         job_id=second_job_id,
-#     )
-#     assert job_state == JobState.FAILED
-#     assert job_message.startswith(f"Armada test:{second_job_id} failed")
+    job_state, job_message = search_for_job_complete(
+        job_service_client=jobservice,
+        armada_queue="queue-a",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=second_job_id,
+    )
+    assert job_state == JobState.SUCCEEDED
+    assert job_message == f"Armada test:{second_job_id} succeeded"
 
-def wait_for(client: ArmadaClient, queue: str):
-    """
-    Waits for a queue and optionally the job_set_id to be active.
 
-    Ensures that following steps will not fail.
-    """
+def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
+    job_set_name = f"test-{uuid.uuid1()}"
 
-    timeout = 20
+    first_job = client.submit_jobs(
+        queue="queue-a",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="busybox"),
+    )
+    first_job_id = first_job.job_response_items[0].job_id
 
-    while True:
-        try:
+    job_state, job_message = search_for_job_complete(
+        job_service_client=jobservice,
+        armada_queue="queue-a",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=first_job_id,
+    )
+    assert job_state == JobState.SUCCEEDED
+    assert job_message == f"Armada test:{first_job_id} succeeded"
 
-            # queue active test
-            client.get_queue(name=queue)
+    second_job = client.submit_jobs(
+        queue="queue-a",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="nonexistant"),
+    )
+    second_job_id = second_job.job_response_items[0].job_id
 
-            return True
-
-        except grpc.RpcError as e:
-            code = e.code()
-            if code != grpc.StatusCode.NOT_FOUND:
-                raise e
-
-        timeout -= 1
-
-        time.sleep(1)
-
-        if timeout <= 0:
-            raise Exception("Timeout")
-
+    job_state, job_message = search_for_job_complete(
+        job_service_client=jobservice,
+        armada_queue="queue-a",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=second_job_id,
+    )
+    assert job_state == JobState.FAILED
+    assert job_message.startswith(f"Armada test:{second_job_id} failed")
