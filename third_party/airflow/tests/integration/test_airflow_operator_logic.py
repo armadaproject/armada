@@ -30,20 +30,8 @@ def job_service_client() -> ArmadaClient:
 def no_auth_client() -> ArmadaClient:
     server_name = os.environ.get("ARMADA_SERVER", "localhost")
     server_port = os.environ.get("ARMADA_PORT", "50051")
-    server_ssl = os.environ.get("ARMADA_SSL", "false")
 
-    if server_ssl.lower() == "true":
-        channel_credentials = grpc.ssl_channel_credentials()
-        return ArmadaClient(
-            channel=grpc.secure_channel(
-                f"{server_name}:{server_port}", channel_credentials
-            )
-        )
-
-    else:
-        return ArmadaClient(
-            channel=grpc.insecure_channel(f"{server_name}:{server_port}")
-        )
+    return ArmadaClient(channel=grpc.insecure_channel(f"{server_name}:{server_port}"))
 
 
 def sleep_pod(image: str):
@@ -56,12 +44,12 @@ def sleep_pod(image: str):
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
                     requests={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
                     },
                     limits={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
                     },
                 ),
             )
@@ -69,7 +57,7 @@ def sleep_pod(image: str):
     )
     return [
         submit_pb2.JobSubmitRequestItem(
-            priority=0, pod_spec=pod, namespace="personal-anonymous"
+            priority=1, pod_spec=pod, namespace="personal-anonymous"
         )
     ]
 
