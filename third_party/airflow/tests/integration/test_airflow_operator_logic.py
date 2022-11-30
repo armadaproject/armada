@@ -1,6 +1,4 @@
 import os
-import time
-from typing import ByteString
 import uuid
 import pytest
 
@@ -17,6 +15,7 @@ import grpc
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import JobState, search_for_job_complete
 
+
 @pytest.fixture(scope="session", name="jobservice")
 def job_service_client() -> ArmadaClient:
     server_name = os.environ.get("JOB_SERVICE_HOST", "localhost")
@@ -25,6 +24,7 @@ def job_service_client() -> ArmadaClient:
     return JobServiceClient(
         channel=grpc.insecure_channel(f"{server_name}:{server_port}")
     )
+
 
 @pytest.fixture(scope="session", name="client")
 def no_auth_client() -> ArmadaClient:
