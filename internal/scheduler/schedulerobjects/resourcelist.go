@@ -33,11 +33,15 @@ func (a QuantityByPriorityAndResourceType) String() string {
 }
 
 func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
-	for p, rsb := range b {
-		rsa := a[p]
-		rsa.Add(rsb)
-		a[p] = rsa
+	for p, rlb := range b {
+		a.AddResouceList(p, rlb)
 	}
+}
+
+func (a QuantityByPriorityAndResourceType) AddResouceList(priority int32, rlb ResourceList) {
+	rla := a[priority]
+	rla.Add(rlb)
+	a[priority] = rla
 }
 
 func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {

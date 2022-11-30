@@ -1,0 +1,29 @@
+numBatches: 1
+batchSize: 8
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    annotations:
+      armadaproject.io/gangId: "my-gang"
+      armadaproject.io/gangCardinality: "8"
+    podSpec:
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.10
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 5
+            requests:
+              memory: 10Mi
+              cpu: 5
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:

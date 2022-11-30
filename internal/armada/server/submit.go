@@ -260,11 +260,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		reqJson, _ := json.Marshal(req)
 		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 	}
-
-	for _, j := range jobs {
-		if err := validation.ValidateApiJob(j, server.schedulingConfig.Preemption); err != nil {
-			return nil, err
-		}
+	if err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
+		return nil, err
 	}
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
