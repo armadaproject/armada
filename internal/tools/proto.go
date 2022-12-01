@@ -3,6 +3,7 @@
 
 package tools
 
+// go packages containing .proto files we depend on.
 import (
 	_ "github.com/gogo/protobuf"
 	_ "github.com/grpc-ecosystem/grpc-gateway"
