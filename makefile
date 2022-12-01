@@ -346,9 +346,9 @@ tests:
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GO_TEST_CMD) go test -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GO_TEST_CMD) go test -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GO_TEST_CMD) go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
 lint-fix:
@@ -608,3 +608,6 @@ generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookoutv2/schema/ -src=internal/lookoutv2/schema/ -include=\*.sql -ns=lookoutv2/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookoutv2/schema/statik
+
+helm-docs:
+	./scripts/helm-docs.sh

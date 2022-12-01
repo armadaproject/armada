@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -82,11 +82,11 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-type InsertJobs map[uuid.UUID]*sqlc.Job
+type InsertJobs map[uuid.UUID]*schedulerdb.Job
 
 type (
-	InsertRuns             map[uuid.UUID]*sqlc.Run
-	InsertRunAssignments   map[uuid.UUID]*sqlc.JobRunAssignment
+	InsertRuns             map[uuid.UUID]*schedulerdb.Run
+	InsertRunAssignments   map[uuid.UUID]*schedulerdb.JobRunAssignment
 	UpdateJobSetPriorities map[string]int64
 	MarkJobSetsCancelled   map[string]bool
 	MarkJobsCancelled      map[uuid.UUID]bool
@@ -96,8 +96,6 @@ type (
 	MarkRunsSucceeded      map[uuid.UUID]bool
 	MarkRunsFailed         map[uuid.UUID]bool
 	MarkRunsRunning        map[uuid.UUID]bool
-	InsertJobErrors        map[int32]*sqlc.JobError
-	InsertJobRunErrors     map[int32]*sqlc.JobRunError
 )
 
 type JobSetOperation interface {
@@ -159,14 +157,6 @@ func (a MarkRunsFailed) Merge(b DbOperation) bool {
 }
 
 func (a MarkRunsRunning) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
-}
-
-func (a InsertJobErrors) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
-}
-
-func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -260,18 +250,6 @@ func (a MarkRunsFailed) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
-}
-
-func (a InsertJobErrors) CanBeAppliedBefore(b DbOperation) bool {
-	// Inserting errors before a job has been marked as failed is ok.
-	// We only require that errors are written to the schedulerdb before the job is marked as failed.
-	return true
-}
-
-func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
-	// Inserting errors before a run has been marked as failed is ok.
-	// We only require that errors are written to the schedulerdb before the run is marked as failed.
-	return true
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation

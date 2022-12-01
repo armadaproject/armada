@@ -84,7 +84,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			}
 		}()
 
-		// this loop will run until the context is canceled or an error is encountered
+		// this loop will run until the context is canceled
 		for {
 			select {
 			case <-ctx.Done():
@@ -99,9 +99,14 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				})
 				if err != nil {
 					log.WithError(err).Error("could not obtain job set event message, retrying")
+					eventToJobService.jobServiceRepository.SetSubscriptionError(
+						eventToJobService.queue, eventToJobService.jobSetId, err.Error())
 					time.Sleep(5 * time.Second)
 					continue
 				}
+				eventToJobService.jobServiceRepository.ClearSubscriptionError(
+					eventToJobService.queue, eventToJobService.jobSetId)
+
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {

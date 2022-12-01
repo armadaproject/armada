@@ -824,7 +824,7 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 }
 
 func withLookoutDb(action func(db *pgxpool.Pool) error) error {
-	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
+	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
 	if err != nil {
 		return err
 	}

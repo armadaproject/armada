@@ -413,15 +413,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		)
 	}
 
-	// If the new Pulsar-driven scheduler is provided, run that.
-	// Otherwise run the legacy scheduler.
-	if newSchedulerApiServer != nil {
-		log.Info("Pulsar-based scheduler enabled")
-		api.RegisterAggregatedQueueServer(grpcServer, newSchedulerApiServer)
-	} else {
-		log.Info("legacy scheduler enabled")
-		api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
-	}
+	log.Info("legacy scheduler enabled")
+	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	grpc_prometheus.Register(grpcServer)
 
 	// Cancel the errgroup if grpcServer.Serve returns an error.
