@@ -1,6 +1,5 @@
 package api
 
-// TODO: Use interfaces + casting instead.
 func JobIdFromApiEvent(msg *EventMessage) string {
 	switch e := msg.Events.(type) {
 	case *EventMessage_Submitted:
@@ -41,6 +40,50 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Reprioritizing.JobId
 	case *EventMessage_Updated:
 		return e.Updated.JobId
+	}
+	return ""
+}
+
+func JobSetIdFromApiEvent(msg *EventMessage) string {
+	switch e := msg.Events.(type) {
+	case *EventMessage_Submitted:
+		return e.Submitted.JobSetId
+	case *EventMessage_Queued:
+		return e.Queued.JobSetId
+	case *EventMessage_DuplicateFound:
+		return e.DuplicateFound.JobSetId
+	case *EventMessage_Leased:
+		return e.Leased.JobSetId
+	case *EventMessage_LeaseReturned:
+		return e.LeaseReturned.JobSetId
+	case *EventMessage_LeaseExpired:
+		return e.LeaseExpired.JobSetId
+	case *EventMessage_Pending:
+		return e.Pending.JobSetId
+	case *EventMessage_Running:
+		return e.Running.JobSetId
+	case *EventMessage_UnableToSchedule:
+		return e.UnableToSchedule.JobSetId
+	case *EventMessage_Failed:
+		return e.Failed.JobSetId
+	case *EventMessage_Succeeded:
+		return e.Succeeded.JobSetId
+	case *EventMessage_Reprioritized:
+		return e.Reprioritized.JobSetId
+	case *EventMessage_Cancelling:
+		return e.Cancelling.JobSetId
+	case *EventMessage_Cancelled:
+		return e.Cancelled.JobSetId
+	case *EventMessage_Terminated:
+		return e.Terminated.JobSetId
+	case *EventMessage_Utilisation:
+		return e.Utilisation.JobSetId
+	case *EventMessage_IngressInfo:
+		return e.IngressInfo.JobSetId
+	case *EventMessage_Reprioritizing:
+		return e.Reprioritizing.JobSetId
+	case *EventMessage_Updated:
+		return e.Updated.JobSetId
 	}
 	return ""
 }
