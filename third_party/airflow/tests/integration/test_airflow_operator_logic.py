@@ -164,7 +164,7 @@ def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
     second_job = client.submit_jobs(
         queue="queue-a",
         job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="nonexistant"),
+        job_request_items=sleep_pod(image="NOTACONTAINER"),
     )
     second_job_id = second_job.job_response_items[0].job_id
 
