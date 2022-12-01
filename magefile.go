@@ -18,6 +18,7 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+	"github.com/pkg/errors"
 )
 
 const PROTOC_VERSION_MIN = "3.21.8"
@@ -195,10 +196,10 @@ func ProtocVersionCheck() error {
 	}
 	protocVersion := strings.TrimSpace(strings.Split(out, " ")[1])
 	if len(strings.Split(protocVersion, ".")) != 3 {
-		return fmt.Errorf("expected a semver but got %s", protocVersion)
+		return errors.Errorf("expected a semver but got %s", protocVersion)
 	}
 	if protocVersion < PROTOC_VERSION_MIN {
-		return fmt.Errorf("found protoc version %s but the minimum required is %s", protocVersion, PROTOC_VERSION_MIN)
+		return errors.Errorf("found protoc version %s but the minimum required is %s", protocVersion, PROTOC_VERSION_MIN)
 	}
 	return nil
 }
@@ -227,7 +228,7 @@ func ProtocInstall() error {
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("failed to download protoc: unexpected response '%s'", string(contents))
+		return errors.Errorf("failed to download protoc: unexpected response '%s'", string(contents))
 	}
 
 	f, err := os.Create("protoc.zip")
@@ -333,7 +334,7 @@ func protocArchOs() (string, error) {
 	case "windows/amd64":
 		return "win64", nil
 	}
-	return "", fmt.Errorf("protoc not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
+	return "", errors.Errorf("protoc not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
 }
 
 func Bootstrap() error {
