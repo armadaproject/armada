@@ -9,7 +9,7 @@ import (
 	"github.com/sanity-io/litter"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 )
 
 // Watch for Pulsar events
