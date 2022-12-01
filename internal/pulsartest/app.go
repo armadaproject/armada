@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 )
 
 type App struct {

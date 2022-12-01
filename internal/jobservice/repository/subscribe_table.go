@@ -6,6 +6,7 @@ type SubscribeTable struct {
 	queue                string
 	jobSet               string
 	lastRequestTimeStamp int64
+	err                  string
 }
 
 func NewSubscribeTable(queue string, jobSet string) *SubscribeTable {

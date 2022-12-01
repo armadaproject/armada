@@ -14,10 +14,10 @@ import (
 
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
 	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
-	"github.com/G-Research/armada/internal/pulsarutils"
 )
 
 const (
@@ -824,7 +824,7 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 }
 
 func withLookoutDb(action func(db *pgxpool.Pool) error) error {
-	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
+	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
 	if err != nil {
 		return err
 	}
