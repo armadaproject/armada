@@ -9,7 +9,7 @@ The EKS demo of Armada can be found at these URLs:
 - [API Server](https://armada.demo.armadaproject.io)
 - [Web UI aka Lookout](https://ui.demo.armadaproject.io)
 
-## Local prequisites
+## Local prerequisites
 
 - Git
 - Go 1.18
