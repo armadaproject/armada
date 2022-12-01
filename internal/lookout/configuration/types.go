@@ -40,7 +40,6 @@ type LookoutConfiguration struct {
 
 	EventQueue             string
 	Nats                   NatsConfig
-	Jetstream              configuration.JetstreamConfig
 	Postgres               configuration.PostgresConfig
 	PrunerConfig           PrunerConfig
 	DisableEventProcessing bool
