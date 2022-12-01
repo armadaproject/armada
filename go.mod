@@ -44,14 +44,12 @@ require (
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report v1.0.0
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
-	github.com/kyleconroy/sqlc v1.16.0
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/gox v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/nats-io/jsm.go v0.0.26
-	github.com/nats-io/nats-server/v2 v2.8.2
+	github.com/nats-io/nats-server/v2 v2.8.2 // indirect
 	github.com/nats-io/nats-streaming-server v0.24.6
 	github.com/nats-io/nats.go v1.16.0
 	github.com/nats-io/stan.go v0.10.2
@@ -89,6 +87,8 @@ require (
 )
 
 require (
+	github.com/kyleconroy/sqlc v1.16.0
+	github.com/magefile/mage v1.14.0
 	github.com/openconfig/goyang v1.1.0
 	github.com/sanity-io/litter v1.5.5
 )
@@ -114,7 +114,6 @@ require (
 	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
 	github.com/evanphx/json-patch v4.11.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
