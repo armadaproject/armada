@@ -48,7 +48,7 @@ require (
 	github.com/mattn/go-zglob v0.0.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/gox v1.0.1
-	github.com/mitchellh/mapstructure v1.4.3
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/nats-io/nats-server/v2 v2.8.2 // indirect
 	github.com/nats-io/nats-streaming-server v0.24.6
 	github.com/nats-io/nats.go v1.16.0
