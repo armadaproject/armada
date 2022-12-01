@@ -325,46 +325,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		})
 	}
 
-	// New Pulsar-based scheduler.
-	var newSchedulerApiServer *scheduler.ExecutorApi
-	if config.NewScheduler.Enabled {
-		if pool == nil {
-			return errors.New("new scheduler enabled, but postgres is disabled")
-		}
-
-		// The scheduler itself.
-		// TODO: I think we can safely re-use the same producer for all components.
-		schedulerProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			CompressionType:  pulsarCompressionType,
-			CompressionLevel: pulsarCompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		sched := scheduler.NewScheduler(schedulerProducer, pool)
-		services = append(services, func() error {
-			return sched.Run(ctx)
-		})
-
-		// API of the new scheduler.
-		apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			CompressionType:  pulsarCompressionType,
-			CompressionLevel: pulsarCompressionLevel,
-			BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
-			Topic:            config.Pulsar.JobsetEventsTopic,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		newSchedulerApiServer = &scheduler.ExecutorApi{
-			Producer:       apiProducer,
-			Db:             pool,
-			MaxJobsPerCall: 100,
-		}
-	}
-
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 	queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
@@ -413,7 +373,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		)
 	}
 
-	log.Info("legacy scheduler enabled")
 	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	grpc_prometheus.Register(grpcServer)
 
