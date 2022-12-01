@@ -1,8 +1,0 @@
-jetstream:
-  servers:
-    - "nats://localhost:4222"
-  streamName: "EVENTS"
-  subject: "EVENTS"
-  replicas: 1
-  maxAgeDays: 365
-  connTimeout: 10s

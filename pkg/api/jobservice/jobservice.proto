@@ -32,6 +32,7 @@ message JobServiceResponse {
         SUCCEEDED = 4;
         CANCELLED = 5;
         JOB_ID_NOT_FOUND = 6;
+	CONNECTION_ERR = 7;
     }
     State state = 1;
 // For failed jobs, this will contain a reason why the job failed

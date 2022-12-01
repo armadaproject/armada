@@ -3,6 +3,8 @@ package scheduleringester
 import (
 	"time"
 
+	"github.com/G-Research/armada/internal/common/compress"
+
 	"github.com/G-Research/armada/internal/common/database"
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
@@ -36,7 +38,11 @@ func Run(config *Configuration) {
 		return true
 	}
 
-	converter := NewInstructionConverter(metrics, submitJobFilter)
+	compressor, err := compress.NewZlibCompressor(1024)
+	if err != nil {
+		panic(errors.WithMessage(err, "Error creating  compressor"))
+	}
+	converter := NewInstructionConverter(metrics, submitJobFilter, compressor)
 
 	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,

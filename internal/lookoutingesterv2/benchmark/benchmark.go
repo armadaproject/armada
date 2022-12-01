@@ -22,7 +22,7 @@ import (
 )
 
 func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configuration, action func(b *testing.B, db *pgxpool.Pool)) {
-	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
+	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
 	if err != nil {
 		panic(err)
 	}

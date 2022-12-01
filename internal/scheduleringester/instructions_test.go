@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/G-Research/armada/internal/common/compress"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -11,12 +13,15 @@ import (
 
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-var m = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
+var (
+	m                   = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
+	compressedGroups, _ = compress.CompressStringArray(f.Groups, &compress.NoOpCompressor{})
+)
 
 func TestConvertSequence(t *testing.T) {
 	tests := map[string]struct {
@@ -26,11 +31,11 @@ func TestConvertSequence(t *testing.T) {
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobIdUuid: &sqlc.Job{
+			expected: []DbOperation{InsertJobs{f.JobIdUuid: &schedulerdb.Job{
 				JobID:         f.JobIdUuid,
 				JobSet:        f.JobSetName,
 				UserID:        f.UserId,
-				Groups:        f.Groups,
+				Groups:        compressedGroups,
 				Queue:         f.Queue,
 				Priority:      int64(f.Priority),
 				SubmitMessage: mustMarshall(f.Submit.GetSubmitJob()),
@@ -65,14 +70,14 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run assigned": {
 			events: []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &sqlc.JobRunAssignment{
+			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &schedulerdb.JobRunAssignment{
 				RunID:      f.RunIdUuid,
 				Assignment: mustMarshall(f.Assigned.GetJobRunAssigned()),
 			}}},
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
-			expected: []DbOperation{InsertRuns{f.RunIdUuid: &sqlc.Run{
+			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
 				RunID:    f.RunIdUuid,
 				JobID:    f.JobIdUuid,
 				JobSet:   f.JobSetName,
@@ -87,14 +92,18 @@ func TestConvertSequence(t *testing.T) {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
 			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: true}},
 		},
-		// TODO: can we remove the error message from the fields stored
-		// If so we can have the simple test below
-		//"job run errors terminal": {
-		//	events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
-		//	expected: []DbOperation{
-		//		MarkJobsFailed{f.RunIdUuid: true},
-		//	},
-		//},
+		"job run errors terminal": {
+			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
+			expected: []DbOperation{
+				MarkRunsFailed{f.RunIdUuid: true},
+			},
+		},
+		"job errors terminal": {
+			events: []*armadaevents.EventSequence_Event{f.JobFailed},
+			expected: []DbOperation{
+				MarkJobsFailed{f.JobIdUuid: true},
+			},
+		},
 		"job succeeded": {
 			events: []*armadaevents.EventSequence_Event{f.JobSucceeded},
 			expected: []DbOperation{
@@ -156,7 +165,7 @@ func TestConvertSequence(t *testing.T) {
 					return true
 				}
 			}
-			converter := InstructionConverter{m, tc.filter}
+			converter := InstructionConverter{m, tc.filter, &compress.NoOpCompressor{}}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.convertSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
