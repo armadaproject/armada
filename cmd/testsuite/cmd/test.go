@@ -9,14 +9,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-
 	"github.com/jstemmer/go-junit-report/v2/junit"
-	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/testsuite"
+	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
 )
 
 // Submit batches of jobs and wait for those jobs to finish.
@@ -57,20 +55,20 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.WithStack(err)
 		}
 
-		testFiles, err := zglob.Glob(testFilesPattern)
-		if err != nil {
-			return errors.WithStack(err)
-		}
+		// testFiles, err := zglob.Glob(testFilesPattern)
+		// if err != nil {
+		// 	return errors.WithStack(err)
+		// }
 
 		junitPath, err := cmd.Flags().GetString("junit")
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		benchmarkPath, err := cmd.Flags().GetString("benchmark")
-		if err != nil {
-			return errors.WithStack(err)
-		}
+		// benchmarkPath, err := cmd.Flags().GetString("benchmark")
+		// if err != nil {
+		// 	return errors.WithStack(err)
+		// }
 
 		// Create a context that is cancelled on SIGINT/SIGTERM.
 		// Ensures test jobs are cancelled on ctrl-C.
@@ -93,12 +91,16 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 
 		start := time.Now()
 
-		numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
+		report, err := app.TestPattern(ctx, testFilesPattern)
 
+		// numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
+
+		numSuccesses := report.NumSuccesses()
+		numFailures := report.NumFailures()
 		fmt.Printf("\n======= SUMMARY =======\n")
 		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
-		fmt.Printf("Successes: %d\n", numSuccesses)
-		fmt.Printf("Failures: %d\n", numFailures)
+		fmt.Printf("Success: %d\n", numSuccesses)
+		fmt.Printf("Failure: %d\n", numFailures)
 
 		// If junitPath is set, write a JUnit report.
 		testSuite.Time = fmt.Sprint(time.Since(start))
@@ -113,11 +115,11 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			}
 		}
 
-		if benchmarkPath != "" {
-			if err := writeBenchmarkReport(benchmarkPath, app.GetBenchmarkReport()); err != nil {
-				return errors.WithMessage(err, "error writing benchmark report")
-			}
-		}
+		// if benchmarkPath != "" {
+		// 	if err := writeBenchmarkReport(benchmarkPath, app.GetBenchmarkReport()); err != nil {
+		// 		return errors.WithMessage(err, "error writing benchmark report")
+		// 	}
+		// }
 
 		if numFailures != 0 {
 			return errors.Errorf("there was at least one test failure")

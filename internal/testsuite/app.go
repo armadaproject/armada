@@ -10,17 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
-
-	"github.com/G-Research/armada/internal/testsuite/joblogger"
-
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-	"github.com/G-Research/armada/internal/testsuite/eventlogger"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jstemmer/go-junit-report/v2/junit"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"golang.org/x/sync/errgroup"
@@ -28,8 +25,12 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/G-Research/armada/internal/testsuite/build"
+	"github.com/G-Research/armada/internal/testsuite/common"
+	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
+	"github.com/G-Research/armada/internal/testsuite/eventlogger"
 	"github.com/G-Research/armada/internal/testsuite/eventsplitter"
 	"github.com/G-Research/armada/internal/testsuite/eventwatcher"
+	"github.com/G-Research/armada/internal/testsuite/joblogger"
 	"github.com/G-Research/armada/internal/testsuite/submitter"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
@@ -44,8 +45,6 @@ type App struct {
 	// Source of randomness. Tests can use a mocked random source in order to provide
 	// deterministic testing behaviour.
 	Random io.Reader
-	// Benchmark reports from test files
-	reports []*eventbenchmark.TestCaseBenchmarkReport
 }
 
 // Params struct holds all user-customizable parameters.
@@ -93,7 +92,7 @@ func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcas
 
 	// Run the tests and convert any errors into a Junit result.
 	start := time.Now()
-	testErr := a.Test(ctx, testSpec)
+	_, testErr := a.RunTests(ctx, []*api.TestSpec{testSpec})
 	var failure *junit.Result
 	if testErr != nil {
 		failure = &junit.Result{
@@ -119,7 +118,36 @@ func (a *App) TestFile(ctx context.Context, filePath string) error {
 	if err != nil {
 		return err
 	}
-	return a.Test(ctx, testSpec)
+	_, err = a.RunTests(ctx, []*api.TestSpec{testSpec})
+	return err
+}
+
+func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport, error) {
+	testSpecs, err := TestSpecsFromPattern(pattern)
+	if err != nil {
+		return nil, err
+	}
+	return a.RunTests(ctx, testSpecs)
+}
+
+func TestSpecsFromPattern(pattern string) ([]*api.TestSpec, error) {
+	filePaths, err := zglob.Glob(pattern)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return TestSpecsFromFilePaths(filePaths)
+}
+
+func TestSpecsFromFilePaths(filePaths []string) ([]*api.TestSpec, error) {
+	rv := make([]*api.TestSpec, len(filePaths))
+	for i, filePath := range filePaths {
+		testSpec, err := TestSpecFromFilePath(filePath)
+		if err != nil {
+			return nil, err
+		}
+		rv[i] = testSpec
+	}
+	return rv, nil
 }
 
 func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
@@ -174,10 +202,81 @@ func GetCancelAllJobs(
 	}
 }
 
-func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error) error {
+type TestSuiteReport struct {
+	TestRunnerReports []*TestRunnerReport
+}
+
+func (report *TestSuiteReport) NumSuccesses() int {
+	if report == nil {
+		return 0
+	}
+	rv := 0
+	for _, r := range report.TestRunnerReports {
+		if r != nil && r.TerminationReason == "" {
+			rv++
+		}
+	}
+	return rv
+}
+
+func (report *TestSuiteReport) NumFailures() int {
+	if report == nil {
+		return 0
+	}
+	rv := 0
+	for _, r := range report.TestRunnerReports {
+		if r != nil && r.TerminationReason != "" {
+			rv++
+		}
+	}
+	return rv
+}
+
+func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSuiteReport, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+	eventLogger := eventlogger.New(make(chan *api.EventMessage), time.Second)
+	eventLogger.Out = a.Out
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(testSpecs))
+	rv := &TestSuiteReport{
+		TestRunnerReports: make([]*TestRunnerReport, len(testSpecs)),
+	}
+	for i, testSpec := range testSpecs {
+		i := i
+		testRunner := TestRunner{
+			Out:                  a.Out,
+			apiConnectionDetails: a.Params.ApiConnectionDetails,
+			testSpec:             testSpec,
+			eventLogger:          eventLogger,
+		}
+		go func() {
+			testRunner.Run(ctx)
+			rv.TestRunnerReports[i] = testRunner.Report
+			wg.Done()
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	fmt.Fprintf(a.Out, "---\n")
+	g.Go(func() error { return eventLogger.Run(ctx) })
+
+	wg.Wait()
+	cancel()
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return rv, nil
+}
+
+// , asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error
+func (a *App) TestOld(ctx context.Context, testSpec *api.TestSpec) error {
 	logInterval := 5 * time.Second
-	a.printTestHeader(testSpec, logInterval)
-	_, _ = fmt.Fprintf(a.Out, "Job transitions over windows of length %s:\n", logInterval)
+	fmt.Fprintf(a.Out, "starting test case "+testSpecHeader(testSpec)+"\n")
 
 	// Optional timeout
 	ctx, cancel := context.WithCancel(ctx)
@@ -268,10 +367,10 @@ func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...fun
 	_, _ = fmt.Fprint(a.Out, "All job transitions:\n")
 	eventLogger.Log()
 
-	// benchmark
-	report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
-	report.PrintStatistics(a.Out)
-	a.reports = append(a.reports, report)
+	// // benchmark
+	// report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
+	// report.PrintStatistics(a.Out)
+	// a.reports = append(a.reports, report)
 
 	// Armada JobSet logs
 	if testSpec.GetLogs && executorClustersDefined {
@@ -315,12 +414,29 @@ func getJobNamespace(testSpec *api.TestSpec) (string, error) {
 	return testSpec.GetJobs()[0].Namespace, nil
 }
 
-func (a *App) printTestHeader(testSpec *api.TestSpec, logInterval time.Duration) {
+func testSpecHeader(testSpec *api.TestSpec) string {
+	var sb strings.Builder
+	sb.WriteString(
+		fmt.Sprintf(
+			"%s: {queue: %s, job set: %s, timeout: %s, expected: [",
+			testSpec.Name, testSpec.Queue, testSpec.JobSetId, testSpec.Timeout.String(),
+		),
+	)
+	for i, e := range testSpec.GetExpectedEvents() {
+		sb.WriteString(common.ShortStringFromApiEvent(e))
+		if i < len(testSpec.GetExpectedEvents())-1 {
+			sb.WriteString(", ")
+		}
+	}
+	sb.WriteString("]}")
+	return sb.String()
+}
+
+func (a *App) printTestHeader(testSpec *api.TestSpec) {
 	_, _ = fmt.Fprintf(a.Out, "\n======= %s =======\n", testSpec.GetName())
 	_, _ = fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetQueue())
 	_, _ = fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetJobSetId())
 	_, _ = fmt.Fprintf(a.Out, "Timeout: %s\n", testSpec.GetTimeout())
-	_, _ = fmt.Fprintf(a.Out, "Log interval: %s\n", logInterval)
 	_, _ = fmt.Fprint(a.Out, "\n")
 	_, _ = fmt.Fprintf(a.Out, "Expected events:\n")
 	for _, e := range testSpec.GetExpectedEvents() {
@@ -340,6 +456,7 @@ func submitWithCancel(testSpec *api.TestSpec, jobIdMap map[string]bool, out io.W
 			if hasTerminated {
 				continue
 			}
+			jobId := jobId
 			cancelGroup.Go(func() error {
 				res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
 					Queue:    testSpec.GetQueue(),
@@ -397,38 +514,35 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 }
 
 // tryCancelJobs cancels submitted jobs if cancellation is configured.
-func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) (err error) {
+func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
 	req := &api.JobCancelRequest{
 		Queue:    testSpec.GetQueue(),
 		JobSetId: testSpec.GetJobSetId(),
 	}
-	fCancelByID := func(sc api.SubmitClient) error {
-		for _, jobId := range jobIds {
-			req.JobId = jobId
+	switch {
+	case testSpec.Cancel == api.TestSpec_BY_ID:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			for _, jobId := range jobIds {
+				req.JobId = jobId
+				_, err := sc.CancelJobs(ctx, req)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+			return nil
+		})
+	case testSpec.Cancel == api.TestSpec_BY_SET:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
 			_, err := sc.CancelJobs(ctx, req)
 			if err != nil {
 				return errors.WithStack(err)
 			}
-		}
-		return nil
+			return nil
+		})
 	}
-	fCancelBySet := func(sc api.SubmitClient) error {
-		_, err := sc.CancelJobs(ctx, req)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		return nil
-	}
-	// If configured, cancel the submitted jobs.
-	switch {
-	case testSpec.Cancel == api.TestSpec_BY_ID:
-		err = client.WithSubmitClient(conn, fCancelByID)
-	case testSpec.Cancel == api.TestSpec_BY_SET:
-		err = client.WithSubmitClient(conn, fCancelBySet)
-	}
-	return err
+	return nil
 }
 
-func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
-	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
-}
+// func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
+// 	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
+// }

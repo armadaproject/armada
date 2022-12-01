@@ -15,6 +15,8 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
@@ -80,11 +82,16 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 				}
 			}
 		})
-		if err != nil {
-			attempt++
-			lastErr = err
-			fmt.Fprintf(srv.Out, "EventWatcher stream broken: %s\n", err)
+		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
 		}
+		if status.Code(err) == codes.Canceled {
+			return err
+		}
+
+		attempt++
+		lastErr = err
+		fmt.Fprintf(srv.Out, "EventWatcher stream broken: %s\n", err)
 	}
 	return lastErr
 }
@@ -163,7 +170,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
-				if err := validateEvent(actual, expected[i]); err != nil {
+				if err := assertEvent(expected[i], actual); err != nil {
 					return terminatedByJobId, err
 				}
 				i++
@@ -202,8 +209,7 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 	return false
 }
 
-// WithCancelOnNoActiveJobs returns a context that is cancelled when there are no active jobs,
-// or if the parent is cancelled.
+// ErrorOnNoActiveJobs returns an error if there are no active jobs.
 func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
 	numRemaining := len(jobIds)
@@ -250,8 +256,7 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 	}
 }
 
-// WithCancelOnFailed returns a context that is cancelled if a job fails,
-// or if the parent is cancelled.
+// ErrorOnFailed returns an error on job failure.
 func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 	for {
 		select {
