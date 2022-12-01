@@ -23,7 +23,6 @@ func submitCmd() *cobra.Command {
 
 			params := pulsartest.Params{
 				Pulsar: configuration.PulsarConfig{
-					Enabled:               true,
 					URL:                   flags.url,
 					AuthenticationEnabled: flags.authEnable,
 					AuthenticationType:    flags.authType,

@@ -15,7 +15,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
+func CreateClusterSchedulingInfoReport(leaseRequest *api.StreamingLeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
 	return &api.ClusterSchedulingInfoReport{
 		ClusterId:      leaseRequest.ClusterId,
 		Pool:           leaseRequest.Pool,
@@ -108,27 +108,6 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 		}
 	}
 	return false, result
-}
-
-func matchAnyNodeTypeAllocation(
-	job *api.Job,
-	nodeAllocations []*nodeTypeAllocation,
-	alreadyConsumed nodeTypeUsedResources,
-) (nodeTypeUsedResources, bool, error) {
-	newlyConsumed := nodeTypeUsedResources{}
-
-	for _, podSpec := range job.GetAllPodSpecs() {
-
-		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
-
-		if !ok {
-			return nodeTypeUsedResources{}, false, err
-		}
-		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
-		resourceRequest.Add(newlyConsumed[nodeType])
-		newlyConsumed[nodeType] = resourceRequest
-	}
-	return newlyConsumed, true, nil
 }
 
 func matchAnyNodeTypePodAllocation(

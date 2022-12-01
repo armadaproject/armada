@@ -27,7 +27,6 @@ type ArmadaConfig struct {
 	Redis                 redis.UniversalOptions
 	Events                EventsConfig
 	EventsNats            NatsConfig
-	EventsJetstream       JetstreamConfig
 	EventsRedis           redis.UniversalOptions
 	EventsApiRedis        redis.UniversalOptions
 	DefaultToLegacyEvents bool
@@ -44,8 +43,6 @@ type ArmadaConfig struct {
 }
 
 type PulsarConfig struct {
-	// Flag controlling if Pulsar is enabled or not.
-	Enabled bool
 	// Pulsar URL
 	URL string
 	// Path to the trusted TLS certificate file (must exist)
@@ -109,9 +106,6 @@ type SchedulingConfig struct {
 	MaximalResourceFractionPerQueue map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
-	// Probability of using the new sheduler.
-	// Set to 0 to disable the new scheduler and to 1 to disable the old scheduler.
-	ProbabilityOfUsingNewScheduler float64
 	// The scheduler stores reports about scheduling decisions for each queue.
 	// These can be queried by users. To limit memory usage, old reports are deleted
 	// to keep the number of stored reports within this limit.
@@ -260,16 +254,6 @@ type NatsConfig struct {
 	ClusterID string
 	Subject   string
 	Timeout   time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
-}
-
-type JetstreamConfig struct {
-	Servers     []string
-	StreamName  string
-	Replicas    int
-	Subject     string
-	MaxAgeDays  int
-	ConnTimeout time.Duration
-	InMemory    bool // Whether stream should be stored in memory (as opposed to on disk)
 }
 
 type QueueManagementConfig struct {
