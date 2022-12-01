@@ -106,24 +106,24 @@ func GogoBootstrap() error {
 }
 
 func ProtoBootstrap() error {
-	modules, err := sh.Output("go", "list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/proto.go")
-	if err != nil {
-		return err
+	// Go modules containing .proto dependencies we need.
+	modules := []string{
+		"github.com/gogo/protobuf",
+		"github.com/grpc-ecosystem/grpc-gateway",
+		"k8s.io/api",
+		"k8s.io/apimachinery",
 	}
-	gopath := os.Getenv("GOPATH")
 	redirects := map[string]string{
 		filepath.Join("/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/annotations.proto"): filepath.Join("/google/api/annotations.proto"),
 		filepath.Join("/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/http.proto"):        filepath.Join("/google/api/http.proto"),
 		filepath.Join("/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api/httpbody.proto"):    filepath.Join("/google/api/httpbody.proto"),
 	}
-
-	for _, module := range strings.Split(strings.TrimSpace(modules), " ") {
+	for _, module := range modules {
 		v, err := moduleVersion(module)
 		if err != nil {
 			return err
 		}
-
-		tokens := []string{gopath, "pkg", "mod"}
+		tokens := []string{os.Getenv("GOPATH"), "pkg", "mod"}
 		prefix := filepath.Join(tokens...)
 		tokens = append(tokens, strings.Split(module, "/")...)
 		tokens[len(tokens)-1] = tokens[len(tokens)-1] + "@" + v
