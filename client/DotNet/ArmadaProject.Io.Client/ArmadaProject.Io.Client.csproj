@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <PackageId>ArmadaProject.Io.Client</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>G-Research</Authors>
+    <Company>G-Research</Company>    
+    <Description>ArmadaProject.Io.Client is a .NET core library for communicating with Armada server implemented in C#</Description>
+    <Copyright>Copyright G-Research 2022</Copyright>
+    <PackageProjectUrl>https://github.com/G-Research/armada</PackageProjectUrl>
+    <PackageTags>armada armadaproject.io .net c# dotnet</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RootNamespace>ArmadaProject.Io.Client</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.21.1" />
+    <PackageReference Include="Grpc.Tools" Version="2.47.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.47.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="../../../proto/**/*.proto" Exclude="../../../proto/google/protobuf/*.proto" ProtoRoot="../../../proto/" GrpcServices="None" />
+    <Protobuf Include="../../../pkg/**/*.proto" AdditionalProtocArguments="--proto_path=../../../proto" ProtoRoot="../../../" GrpcServices="Client" />
+  </ItemGroup>
+
+</Project>
+
