@@ -12,6 +12,9 @@ code_reports
 /jobservice
 jobservice.db
 
+# Intermediary build artifacts
+dist
+
 # Proto compiler and dependencies
 proto
 protoc
