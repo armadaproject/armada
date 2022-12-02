@@ -444,7 +444,7 @@ tests-e2e-setup: setup-cluster
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
-	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
+	docker run $(DOCKER_RUN_AS_USER) -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
 	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 
 	# Create test queue if it doesn't already exist
