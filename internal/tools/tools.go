@@ -6,6 +6,7 @@ package tools
 import (
 	_ "github.com/go-swagger/go-swagger/cmd/swagger"
 	_ "github.com/gordonklaus/ineffassign"
+	_ "github.com/goreleaser/goreleaser"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
 	_ "github.com/jstemmer/go-junit-report"
