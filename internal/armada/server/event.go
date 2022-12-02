@@ -157,7 +157,7 @@ func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repos
 	}
 
 	// It's not a valid new-style sequence number so we have to default to the legacy store
-	if !sequence.IsValid(request.GetId()) {
+	if !sequence.IsValid(request.GetFromMessageId()) {
 		return s.legacyEventRepository
 	}
 

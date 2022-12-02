@@ -20,6 +20,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 		isJobSetSubscribedFn func(string, string) bool
 		ttlSecs              int64
 		wantErr              bool
+		wantSubscriptionErr  bool
 	}{
 		{
 			name:    "it exits with error after expiration even if messages are received",
@@ -33,7 +34,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "it exits with error if client errors",
+			name:    "it exits with error if client errors and sets subscription error",
 			ttlSecs: int64(1),
 			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
 				return &api.EventStreamMessage{Message: &api.EventMessage{}}, errors.New("some error")
@@ -41,7 +42,8 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			isJobSetSubscribedFn: func(string, string) bool {
 				return true
 			},
-			wantErr: true,
+			wantErr:             true,
+			wantSubscriptionErr: true,
 		},
 		{
 			name:    "it exits without error when job unsubscribes",
@@ -64,8 +66,10 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			}
 
 			mockJobRepo := repository.JobTableUpdaterMock{
-				IsJobSetSubscribedFunc: tt.isJobSetSubscribedFn,
-				SubscribeJobSetFunc:    func(string, string) {},
+				IsJobSetSubscribedFunc:     tt.isJobSetSubscribedFn,
+				SubscribeJobSetFunc:        func(string, string) {},
+				ClearSubscriptionErrorFunc: func(string, string) {},
+				SetSubscriptionErrorFunc:   func(string, string, string) {},
 			}
 
 			service := eventstojobs.NewEventsToJobService(
@@ -80,6 +84,13 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 				assert.Error(t, result)
 			} else {
 				assert.Nil(t, result)
+			}
+			if tt.wantSubscriptionErr {
+				assert.True(t, len(mockJobRepo.SetSubscriptionErrorCalls()) > 0)
+				assert.Equal(t, 0, len(mockJobRepo.ClearSubscriptionErrorCalls()))
+			} else {
+				assert.Equal(t, 0, len(mockJobRepo.SetSubscriptionErrorCalls()))
+				assert.True(t, len(mockJobRepo.ClearSubscriptionErrorCalls()) > 0)
 			}
 		})
 	}

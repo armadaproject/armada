@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
 
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 
 func TestMerge(t *testing.T) {
@@ -46,92 +46,92 @@ func TestDbOperationOptimisation(t *testing.T) {
 		Ops []DbOperation // Ops sequence to optimise.
 	}{
 		"InsertJobs": {N: 1, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set2"}}, // 1
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[3]: &sqlc.Job{JobID: jobIds[3], JobSet: "set2"}}, // 1
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"}}, // 1
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}}, // 1
+			InsertJobs{jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"}}, // 1
 		}},
 		"InsertJobs, InsertRuns": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0]}},                   // 1
-			InsertRuns{runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1]}},                   // 2
-			InsertRuns{runIds[1]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[1]}}, // 2
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2]}},                   // 2
-			InsertRuns{runIds[2]: &sqlc.Run{JobID: jobIds[2], RunID: runIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
+			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 2
+			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[1]}}, // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 2
+			InsertRuns{runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}}, // 2
 		}},
 		"UpdateJobSetPriorities": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
-			UpdateJobSetPriorities{"set1": 1},                                  // 2
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set1"}}, // 3
-			UpdateJobSetPriorities{"set2": 2},                                  // 3
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"}}, // 3
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
+			UpdateJobSetPriorities{"set1": 1},                                         // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set1"}}, // 3
+			UpdateJobSetPriorities{"set2": 2},                                         // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}}, // 3
 		}},
 		"UpdateJobSetPriorities, UpdateJobPriorities": {N: 4, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set1"}}, // 1
-			UpdateJobPriorities{jobIds[0]: 1},                                  // 2
-			UpdateJobSetPriorities{"set1": 2},                                  // 3
-			UpdateJobPriorities{jobIds[1]: 3},                                  // 4
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set2"}}, // 4
-			UpdateJobPriorities{jobIds[1]: 4},                                  // 4
-			UpdateJobPriorities{jobIds[2]: 5},                                  // 4
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set1"}}, // 1
+			UpdateJobPriorities{jobIds[0]: 1},                                         // 2
+			UpdateJobSetPriorities{"set1": 2},                                         // 3
+			UpdateJobPriorities{jobIds[1]: 3},                                         // 4
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set2"}}, // 4
+			UpdateJobPriorities{jobIds[1]: 4},                                         // 4
+			UpdateJobPriorities{jobIds[2]: 5},                                         // 4
 		}},
 		"MarkJobSetsCancelled": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
-			MarkJobSetsCancelled{"set1": true},                                 // 2
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set1"}}, // 3
-			MarkJobSetsCancelled{"set2": true},                                 // 3
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"}}, // 3
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
+			MarkJobSetsCancelled{"set1": true},                                        // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set1"}}, // 3
+			MarkJobSetsCancelled{"set2": true},                                        // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}}, // 3
 		}},
 		"MarkJobSetsCancelled, MarkJobsCancelled": {N: 4, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1], JobSet: "set1"}}, // 1
-			MarkJobsCancelled{jobIds[0]: true},                                 // 2
-			MarkJobSetsCancelled{"set1": true},                                 // 3
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2], JobSet: "set1"}}, // 4
-			MarkJobsCancelled{jobIds[1]: true},                                 // 4
-			MarkJobsCancelled{jobIds[2]: true},                                 // 4
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set1"}}, // 1
+			MarkJobsCancelled{jobIds[0]: true},                                        // 2
+			MarkJobSetsCancelled{"set1": true},                                        // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}}, // 4
+			MarkJobsCancelled{jobIds[1]: true},                                        // 4
+			MarkJobsCancelled{jobIds[2]: true},                                        // 4
 		}},
 		"MarkJobsSucceeded": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsSucceeded{jobIds[0]: true},                 // 2
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsSucceeded{jobIds[1]: true},                 // 2
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
+			MarkJobsSucceeded{jobIds[0]: true},                        // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
+			MarkJobsSucceeded{jobIds[1]: true},                        // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
 		}},
 		"MarkJobsFailed": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsFailed{jobIds[0]: true},                    // 2
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsFailed{jobIds[1]: true},                    // 2
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2]}}, // 2
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
+			MarkJobsFailed{jobIds[0]: true},                           // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
+			MarkJobsFailed{jobIds[1]: true},                           // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
 		}},
 		"MarkRunsSucceeded": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0]}},                   // 1
-			InsertRuns{runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			MarkRunsSucceeded{runIds[0]: true},                                   // 3
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1]}},                   // 3
-			InsertRuns{runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
-			MarkRunsSucceeded{runIds[1]: true},                                   // 3
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2]}},                   // 3
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
+			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
+			MarkRunsSucceeded{runIds[0]: true},                                          // 3
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 3
+			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
+			MarkRunsSucceeded{runIds[1]: true},                                          // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
 		"MarkRunsFailed": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0]}},                   // 1
-			InsertRuns{runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			MarkRunsFailed{runIds[0]: true},                                      // 3
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1]}},                   // 3
-			InsertRuns{runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
-			MarkRunsFailed{runIds[1]: true},                                      // 3
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2]}},                   // 3
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
+			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
+			MarkRunsFailed{runIds[0]: true},                                             // 3
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 3
+			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
+			MarkRunsFailed{runIds[1]: true},                                             // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
 		"MarkRunsRunning": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &sqlc.Job{JobID: jobIds[0]}},                   // 1
-			InsertRuns{runIds[0]: &sqlc.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			MarkRunsRunning{runIds[0]: true},                                     // 3
-			InsertJobs{jobIds[1]: &sqlc.Job{JobID: jobIds[1]}},                   // 3
-			InsertRuns{runIds[1]: &sqlc.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
-			MarkRunsRunning{runIds[1]: true},                                     // 3
-			InsertJobs{jobIds[2]: &sqlc.Job{JobID: jobIds[2]}},                   // 3
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
+			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
+			MarkRunsRunning{runIds[0]: true},                                            // 3
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 3
+			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
+			MarkRunsRunning{runIds[1]: true},                                            // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
 	}
 	for name, tc := range tests {
@@ -174,12 +174,12 @@ func TestInsertJobCancel(t *testing.T) {
 	var ops []DbOperation
 	expectedCancelledIds := make(map[uuid.UUID]bool)
 	for i := 0; i < 2; i++ {
-		job := &sqlc.Job{JobID: uuid.New(), JobSet: "set1"}
+		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set1"}
 		expectedCancelledIds[job.JobID] = true
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 	for i := 0; i < 2; i++ {
-		job := &sqlc.Job{JobID: uuid.New(), JobSet: "set2"}
+		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set2"}
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 
@@ -188,11 +188,11 @@ func TestInsertJobCancel(t *testing.T) {
 
 	// Submit some more jobs to both job sets.
 	for i := 0; i < 2; i++ {
-		job := &sqlc.Job{JobID: uuid.New(), JobSet: "set2"}
+		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set2"}
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 	for i := 0; i < 2; i++ {
-		job := &sqlc.Job{JobID: uuid.New(), JobSet: "set1"}
+		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set1"}
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 
@@ -230,20 +230,16 @@ func TestInsertJobCancel(t *testing.T) {
 }
 
 type mockDb struct {
-	Jobs           map[uuid.UUID]*sqlc.Job
-	Runs           map[uuid.UUID]*sqlc.Run
-	RunAssignments map[uuid.UUID]*sqlc.JobRunAssignment
-	JobErrors      map[int32]*sqlc.JobError
-	JobRunErrors   map[int32]*sqlc.JobRunError
+	Jobs           map[uuid.UUID]*schedulerdb.Job
+	Runs           map[uuid.UUID]*schedulerdb.Run
+	RunAssignments map[uuid.UUID]*schedulerdb.JobRunAssignment
 }
 
 func newMockDb() *mockDb {
 	return &mockDb{
-		Jobs:           make(map[uuid.UUID]*sqlc.Job),
-		Runs:           make(map[uuid.UUID]*sqlc.Run),
-		RunAssignments: make(map[uuid.UUID]*sqlc.JobRunAssignment),
-		JobErrors:      make(map[int32]*sqlc.JobError),
-		JobRunErrors:   make(map[int32]*sqlc.JobRunError),
+		Jobs:           make(map[uuid.UUID]*schedulerdb.Job),
+		Runs:           make(map[uuid.UUID]*schedulerdb.Run),
+		RunAssignments: make(map[uuid.UUID]*schedulerdb.JobRunAssignment),
 	}
 }
 
@@ -251,8 +247,6 @@ func assertDbEquals(t *testing.T, expected, actual *mockDb) {
 	assert.Equal(t, expected.Jobs, actual.Jobs)
 	assert.Equal(t, expected.Runs, actual.Runs)
 	assert.Equal(t, expected.RunAssignments, actual.RunAssignments)
-	assert.Equal(t, expected.JobErrors, actual.JobErrors)
-	assert.Equal(t, expected.JobRunErrors, actual.JobRunErrors)
 }
 
 func (db *mockDb) applySeveral(ops []DbOperation) error {
@@ -362,18 +356,6 @@ func (db *mockDb) apply(op DbOperation) error {
 			} else {
 				return errors.Errorf("run %s not in db", runId)
 			}
-		}
-	case InsertJobErrors:
-		n := len(db.JobErrors)
-		maps.Copy(db.JobErrors, o)
-		if len(db.JobErrors) != n+len(o) {
-			return errors.New("duplicate job error")
-		}
-	case InsertJobRunErrors:
-		n := len(db.JobRunErrors)
-		maps.Copy(db.JobRunErrors, o)
-		if len(db.JobRunErrors) != n+len(o) {
-			return errors.New("duplicate job run error")
 		}
 	}
 	return nil
