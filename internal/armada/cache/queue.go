@@ -200,44 +200,6 @@ func (c *QueueCache) GetRunningJobMetrics(queueName string) []*metrics.QueueMetr
 	return c.runningJobMetrics[queueName]
 }
 
-func (c *QueueCache) getNonSchedulableJobIds(queueName string) map[string]stringSet {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	return c.queueNonMatchingJobIds[queueName]
-}
-
-func (c *QueueCache) PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error) {
-	ids, e := c.jobRepository.GetQueueJobIds(queue)
-	if e != nil {
-		return nil, e
-	}
-	nonMatchingJobs := c.getNonSchedulableJobIds(queue)
-
-	filtered := []string{}
-	for _, id := range ids {
-		if matches(nonMatchingJobs, clusterId, id) {
-			filtered = append(filtered, id)
-		}
-		if len(filtered) == int(limit) {
-			break
-		}
-	}
-	return c.jobRepository.GetExistingJobsByIds(filtered)
-}
-
-func matches(nonMatchingJobs map[string]stringSet, clusterId, jobId string) bool {
-	nonMatchingClusters, ok := nonMatchingJobs[jobId]
-	if !ok {
-		return true
-	}
-	_, exists := nonMatchingClusters[clusterId]
-	return !exists
-}
-
-func (c *QueueCache) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	return c.jobRepository.TryLeaseJobs(clusterId, queue, jobs)
-}
-
 func getPriorityClass(job *api.Job) string {
 	podSpec := util.PodSpecFromJob(job)
 	if podSpec != nil {
