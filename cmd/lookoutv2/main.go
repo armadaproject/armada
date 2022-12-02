@@ -59,7 +59,7 @@ func migrate(ctx context.Context, config configuration.LookoutV2Configuration) {
 		panic(err)
 	}
 
-	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
+	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
 	if err != nil {
 		panic(err)
 	}

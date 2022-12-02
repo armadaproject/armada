@@ -13,29 +13,27 @@ import (
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/jackc/pgx/v4/pgxpool"
+	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/scheduler/sqlc"
-
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 type ExecutorApi struct {
 	api.UnimplementedAggregatedQueueServer
-	// Embed the Redis-backed event server.
-	// Provides methods for dual-publishing events etc.
-	//
-	// TODO: Can't import due to import cycle.
-	// *server.EventServer
-	Producer       pulsar.Producer
-	Db             *pgxpool.Pool
-	MaxJobsPerCall int32
+	Producer         pulsar.Producer
+	Db               *pgxpool.Pool
+	MaxJobsPerCall   int32
+	decompressorPool *pool.ObjectPool
 }
 
 func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
@@ -55,10 +53,10 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	}
 
 	// Get leases assigned to this executor.
-	queries := sqlc.New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 	runs, err := queries.SelectNewRunsForExecutorWithLimit(
 		stream.Context(),
-		sqlc.SelectNewRunsForExecutorWithLimitParams{
+		schedulerdb.SelectNewRunsForExecutorWithLimitParams{
 			Executor: req.GetClusterId(),
 			Limit:    srv.MaxJobsPerCall,
 		},
@@ -86,33 +84,48 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	// Unmarshal the submit job messages.
 	// We need these to convert to a form the executor understands.
 	logJobs := make([]*armadaevents.SubmitJob, len(sqlJobs))
-	for i, sqlJob := range sqlJobs {
-		logJob := &armadaevents.SubmitJob{}
-		err := proto.Unmarshal(sqlJob.SubmitMessage, logJob)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		logJobs[i] = logJob
-	}
 
 	// The executors expect the legacy job definition.
 	// So we need to convert from the Pulsar submit message to a legacy job.
 	jobTime := time.Now()
 	jobsToLease := make([]*api.Job, len(logJobs))
-	for i, logJob := range logJobs {
-		legacyJob, err := eventutil.ApiJobFromLogSubmitJob(
-			sqlJobs[i].UserID,
-			sqlJobs[i].Groups,
-			sqlJobs[i].Queue,
-			sqlJobs[i].JobSet,
-			jobTime,
-			logJob,
-		)
-		if err != nil {
-			return err
+
+	srv.withDecompressor(func(decompressor compress.Decompressor) error {
+		for i, sqlJob := range sqlJobs {
+			submitMessage, err := decompressor.Decompress(sqlJob.SubmitMessage)
+			if err != nil {
+				return err
+			}
+			logJob := &armadaevents.SubmitJob{}
+			err = proto.Unmarshal(submitMessage, logJob)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			logJobs[i] = logJob
 		}
-		jobsToLease[i] = legacyJob
-	}
+
+		for i, logJob := range logJobs {
+
+			groups, err := compress.DecompressStringArray(sqlJobs[i].Groups, decompressor)
+			if err != nil {
+				return err
+			}
+
+			legacyJob, err := eventutil.ApiJobFromLogSubmitJob(
+				sqlJobs[i].UserID,
+				groups,
+				sqlJobs[i].Queue,
+				sqlJobs[i].JobSet,
+				jobTime,
+				logJob,
+			)
+			if err != nil {
+				return err
+			}
+			jobsToLease[i] = legacyJob
+		}
+		return nil
+	})
 
 	// The server streams jobs to the executor.
 	// The executor streams back an ack for each received job.
@@ -151,7 +164,7 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	defer func() {
 		if len(ackedJobIds) > 0 {
 			// Use the background context to run even if the stream context is cancelled.
-			err := queries.MarkRunsAsSentByExecutorAndJobId(context.Background(), sqlc.MarkRunsAsSentByExecutorAndJobIdParams{
+			err := queries.MarkRunsAsSentByExecutorAndJobId(context.Background(), schedulerdb.MarkRunsAsSentByExecutorAndJobIdParams{
 				Executor: req.GetClusterId(),
 				JobIds:   ackedJobIds,
 			})
@@ -211,14 +224,14 @@ func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorNam
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		records = append(records, sqlc.Nodeinfo{
+		records = append(records, schedulerdb.Nodeinfo{
 			ExecutorNodeName: fmt.Sprintf("%s-%s", executorName, nodeInfo.GetName()),
 			NodeName:         nodeInfo.GetName(),
 			Executor:         executorName,
 			Message:          message,
 		})
 	}
-	return database.Upsert(ctx, srv.Db, "nodeinfo", NodeInfoSchema(), records)
+	return database.Upsert(ctx, srv.Db, "nodeinfo", records)
 }
 
 func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {
@@ -240,8 +253,8 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 		jobIds[i] = armadaevents.UuidFromProtoUuid(protoUuid)
 	}
 
-	queries := sqlc.New(srv.Db)
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, sqlc.SelectRunsFromExecutorAndJobsParams{
+	queries := schedulerdb.New(srv.Db)
+	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
 		JobIds:   jobIds,
 	})
@@ -272,7 +285,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 	log := ctxlogrus.Extract(ctx)
 	log.Infof("executor %s returned %s", req.ClusterId, req.JobId)
 
-	queries := sqlc.New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 
 	protoUuid, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
 	if err != nil {
@@ -285,7 +298,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 		return nil, errors.WithStack(err)
 	}
 
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, sqlc.SelectRunsFromExecutorAndJobsParams{
+	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
 		JobIds:   []uuid.UUID{jobId},
 	})
@@ -337,7 +350,7 @@ func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.I
 	log := ctxlogrus.Extract(ctx)
 	log.Infof("jobs %v reported done", req.Ids)
 
-	queries := sqlc.New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 
 	jobIds := make([]uuid.UUID, len(req.Ids))
 	for i, s := range req.Ids {
@@ -393,4 +406,20 @@ func (srv *ExecutorApi) ReportUsage(ctx context.Context, req *api.ClusterUsageRe
 // PublishToPulsar sends pulsar messages async
 func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
 	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.Producer, 4194304) // 4 MB
+}
+
+func (srv *ExecutorApi) withDecompressor(action func(decompressor compress.Decompressor) error) error {
+	decompressor, err := srv.decompressorPool.BorrowObject(context.Background())
+	if err != nil {
+		return errors.WithMessagef(err, "failed to borrow decompressor")
+	}
+	defer func() {
+		err := srv.decompressorPool.ReturnObject(context.Background(), decompressor)
+		if err != nil {
+			log.
+				WithError(errors.WithStack(err)).Warn("error returning decompressor to pool")
+		}
+	}()
+
+	return action(decompressor.(compress.Decompressor))
 }
