@@ -5,9 +5,9 @@ instance already deployed to AWS EKS.
 
 ## EKS
 
-The EKS demo of Armada can be found at these URLs:
-- [API Server](https://armada.demo.armadaproject.io)
-- [Web UI aka Lookout](https://ui.demo.armadaproject.io)
+The EKS demo of Armada can be found at this URL:
+
+- [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io)
 
 ## Local prerequisites
 
@@ -30,7 +30,7 @@ alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproj
 ```
 
 ## Create queues and jobs
-Create queues, submit some jobs and monitor progress:
+Create queues, submit some jobs, and monitor progress:
 
 ### Queue Creation
 ```bash
@@ -44,8 +44,7 @@ For queues created in this way, user and group owners of the queue have permissi
 - reprioritize jobs
 - watch queue
 
-For more control, queues can be created via `armadactl create`, which allows for setting specific 
-permission; see the following example.
+For more control, queues can be created via `armadactl create`, which allows for setting specific permission; see the following example.
 
 ```bash
 armadactl create -f ./docs/quickstart/queue-a.yaml
@@ -58,7 +57,7 @@ armadactl submit ./docs/quickstart/job-queue-a.yaml
 armadactl submit ./docs/quickstart/job-queue-b.yaml
 ```
 
-Watch individual queues:
+### Monitor Job Progress
 
 ```bash
 armadactl watch queue-a job-set-1
@@ -77,7 +76,7 @@ do
 done
 ```
 
-## Example output:
+## Observing job progress
 
 CLI:
 
@@ -97,3 +96,9 @@ Nov  4 11:43:41 | Queued:   0, Leased:   0, Pending:   0, Running:   2, Succeede
 Nov  4 11:44:17 | Queued:   0, Leased:   0, Pending:   0, Running:   1, Succeeded:   1, Failed:   0, Cancelled:   0 | event: *api.JobSucceededEvent, job id: 01drv3mf7b6fd1rraeq1f554fn
 Nov  4 11:44:26 | Queued:   0, Leased:   0, Pending:   0, Running:   0, Succeeded:   2, Failed:   0, Cancelled:   0 | event: *api.JobSucceededEvent, job id: 01drv3mey2mzmayf50631tzp9m
 ```
+
+Web UI:
+
+Open [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io) in your browser.
+
+![Lookout UI](./quickstart/img/lookout.png "Lookout UI")
