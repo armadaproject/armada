@@ -15,6 +15,11 @@ jobservice.db
 # Intermediary build artifacts
 dist
 
+# Proto compiler and dependencies
+proto
+protoc
+protoc.zip
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -65,7 +70,6 @@ client/python/dist
 *_pb2_grpc.py
 client/python/armada_client/armada/
 .tox
-/proto
 proto-airflow
 client/python/build/
 client/python/docs/build/

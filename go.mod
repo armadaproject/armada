@@ -44,7 +44,6 @@ require (
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report v1.0.0
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
-	github.com/kyleconroy/sqlc v1.16.0
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mitchellh/go-homedir v1.1.0
@@ -88,6 +87,8 @@ require (
 )
 
 require (
+	github.com/kyleconroy/sqlc v1.16.0
+	github.com/magefile/mage v1.14.0
 	github.com/openconfig/goyang v1.1.0
 	github.com/sanity-io/litter v1.5.5
 )
