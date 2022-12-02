@@ -17,28 +17,25 @@ jobs:
           tar xf docker-images.tar.gz
           rm docker-images.tar.gz
       - name: Upload images to docker
-        env:
-            DOCKERHUB_PASS: ${{ secrets.DOCKERHUB_PASS }}
-            DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
         run: |
           # Note(JayF): All the offical docker actions for uploading these
           # containers also assume you need to rebuild them. That makes them
           # ill-suited for our workflow.
-          TAG_SUFFIX=$(${{ github.sha }} | sed 's|/|-|g')
+          TAG_SUFFIX=$(echo "${{ github.sha }}" | sed 's|/|-|g')
 
           if [ "${{github.ref_name}}" = "master" ]; then
             TAG="$TAG_SUFFIX"
           else
-            TAG="${{github.ref_name}}-$TAG_SUFFIX"
+            TAG="${{ github.ref_name }}-$TAG_SUFFIX"
           fi
 
-          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+          echo ${{ secrets.DOCKERHUB_PASS }} | docker login -u ${{ secrets.DOCKERHUB_USER }} --password-stdin
 
           IMAGES_TO_UPLOAD=(
-            "armada-server"
+            "armada"
             "armada-executor"
-            "armada-armadactl"
-            "armada-testsuite"
+            "armadactl"
+            "testsuite"
             "armada-lookout"
             "armada-lookout-ingester"
             "armada-event-ingester"
@@ -47,7 +44,7 @@ jobs:
           )
           for image in "${IMAGES_TO_UPLOAD[@]}"; do
               remote="gresearch/${image}-dev:${TAG}"
-              docker load -i $image.tar.gz
-              docker tag $image $remote
+              docker load -i docker-images/$image.tar.gz
+              docker tag $image:latest $remote
               docker push $remote
           done
