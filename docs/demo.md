@@ -5,7 +5,7 @@ instance already deployed to AWS EKS.
 
 ## EKS
 
-The EKS demo of Armada can be found at this URL:
+The Armada UI (lookout) can be found at this URL:
 
 - [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io)
 
