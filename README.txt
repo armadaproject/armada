@@ -34,8 +34,16 @@ Testing
 armadaproject.io is a jekyll generated site, using github pages. You have two
 choices for running it locally for testing.
 
-Local testing
-=============
+Local testing with Docker
+========================
+
+Using Docker is the simplest way to render the site and preview locally:
+
+- run `docker run -p 4000:4000 -v $(pwd):/site bretfisher/jekyll-serve`
+- navigate to `http://localhost:4000`
+
+Local testing (native)
+======================
 
 The below is a summary of how to test locally. The canonical documentation
 for doing this is in Github docs:
