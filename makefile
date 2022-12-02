@@ -334,13 +334,13 @@ tests-teardown:
 	docker rm -f redis postgres || true
 
 .ONESHELL:
-tests-no-setup:
+tests-no-setup: generate
 	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-tests:
+tests: generate
 	mkdir -p test_reports
 	docker run -d --name=redis $(DOCKER_NET) -p=6379:6379 redis:6.2.6
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
@@ -351,11 +351,11 @@ tests:
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-lint-fix:
+lint-fix: generate
 	$(GO_TEST_CMD) golangci-lint run --fix
 
 .ONESHELL:
-lint:
+lint: generate
 	$(GO_TEST_CMD) golangci-lint run
 
 .ONESHELL:
@@ -419,7 +419,7 @@ setup-cluster:
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
-tests-e2e-setup: setup-cluster
+tests-e2e-setup: setup-cluster generateg
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
@@ -605,9 +605,7 @@ generate:
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 
-	$(GO_CMD) go run github.com/rakyll/statik \
-		-dest=internal/lookoutv2/schema/ -src=internal/lookoutv2/schema/ -include=\*.sql -ns=lookoutv2/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookoutv2/schema/statik
+	$(GO_CMD) go generate ./...
 
 helm-docs:
 	./scripts/helm-docs.sh
