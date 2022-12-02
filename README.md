@@ -45,3 +45,11 @@ We expect readers of the documentation to have a basic understanding of Docker a
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
 Armada follows the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md)
+
+## Setup
+
+- go v1.18+
+- goreleaser
+- mage
+- docker
+- docker-compose

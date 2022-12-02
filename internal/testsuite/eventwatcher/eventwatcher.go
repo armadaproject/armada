@@ -46,6 +46,8 @@ func New(queue string, jobSetName string, apiConnectionDetails *client.ApiConnec
 		JobSetName:           jobSetName,
 		ApiConnectionDetails: apiConnectionDetails,
 		C:                    make(chan *api.EventMessage),
+		BackoffExponential:   time.Second,
+		MaxRetries:           6,
 	}
 }
 

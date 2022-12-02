@@ -10,8 +10,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/G-Research/armada/internal/testsuite/common"
-
 	"github.com/G-Research/armada/pkg/api"
 )
 
@@ -67,8 +65,7 @@ func (srv *EventLogger) Run(ctx context.Context) error {
 			srv.mu.Lock()
 			jobId := api.JobIdFromApiEvent(e)
 			srv.jobSetIdByJobId[jobId] = api.JobSetIdFromApiEvent(e)
-			s := common.ShortStringFromApiEvent(e)
-			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], s)
+			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], e.ShortString())
 			srv.mu.Unlock()
 		}
 	}

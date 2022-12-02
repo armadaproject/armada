@@ -1,5 +1,16 @@
 package api
 
+import (
+	"fmt"
+	strings "strings"
+)
+
+// TODO: Rename this file to utils.go or similar.
+
+func (msg *EventMessage) ShortString() string {
+	return strings.ReplaceAll(fmt.Sprintf("%T", msg.Events), "*api.EventMessage_", "")
+}
+
 func JobIdFromApiEvent(msg *EventMessage) string {
 	switch e := msg.Events.(type) {
 	case *EventMessage_Submitted:
