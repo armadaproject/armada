@@ -24,7 +24,8 @@ COPY config/eventingester/config.yaml /app/config/eventingester/config.yaml
 COPY eventingester /app/
 COPY config/eventingester/config.yaml /app/config/eventingester/config.yaml
 
-# Testsuite
-COPY testsuite /app/
+# Job Service
+COPY jobservice /app/
+COPY config/jobservice/config.yaml /app/config/jobservice/config.yaml
 
 WORKDIR /app

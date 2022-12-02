@@ -65,9 +65,9 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
-    id: testsuite
-    binary: testsuite
-    main: ./cmd/testsuite/main.go
+    id: jobservice
+    binary: jobservice
+    main: ./cmd/jobservice/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -255,14 +255,14 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}/armada-testsuite:{{ .Major }}"
-      - "{{ .Env.DOCKER_REPO }}/armada-testsuite:{{ .Major }}.{{ .Minor }}"
-      - "{{ .Env.DOCKER_REPO }}/armada-testsuite:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}/armada-testsuite:latest"
+      - "{{ .Env.DOCKER_REPO }}/armada-jobservice:{{ .Major }}"
+      - "{{ .Env.DOCKER_REPO }}/armada-jobservice:{{ .Major }}.{{ .Minor }}"
+      - "{{ .Env.DOCKER_REPO }}/armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}/armada-jobservice:latest"
     build_flag_templates:
-      - --label=org.opencontainers.image.title=armada-testsuite
-      - --label=org.opencontainers.image.description="Armada Testsuite"
-      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-testsuite
+      - --label=org.opencontainers.image.title=armada-jobservice
+      - --label=org.opencontainers.image.description="Armada Job Service"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-jobservice
       - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
@@ -271,7 +271,9 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
-    dockerfile: ./build_goreleaser/testsuite/Dockerfile
+    extra_files:
+      - config/jobservice/config.yaml
+    dockerfile: ./build_goreleaser/jobservice/Dockerfile
   -
     goos: linux
     goarch: amd64
@@ -336,11 +338,11 @@ release:
     - `docker pull {{ .Env.DOCKER_REPO }}/armada-binoculars:{{ .Major }}.{{ .Minor }}`
     - `docker pull {{ .Env.DOCKER_REPO }}/armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}/armada-binoculars:latest`
-    ### Armada Testsuite
-    - `docker pull {{ .Env.DOCKER_REPO }}/armada-testsuite:{{ .Major }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}/armada-testsuite:{{ .Major }}.{{ .Minor }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}/armada-testsuite:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}/armada-testsuite:latest`
+    ### Armada Job Service
+    - `docker pull {{ .Env.DOCKER_REPO }}/armada-jobservice:{{ .Major }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}/armada-jobservice:{{ .Major }}.{{ .Minor }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}/armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}/armada-jobservice:latest`
     ### Armada CLI
     - `docker pull {{ .Env.DOCKER_REPO }}/armadactl:{{ .Major }}`
     - `docker pull {{ .Env.DOCKER_REPO }}/armadactl:{{ .Major }}.{{ .Minor }}`
