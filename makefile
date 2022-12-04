@@ -324,7 +324,7 @@ build-docker: build-docker-jobservice build-docker-server build-docker-executor 
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 # We still build lookout-ingester since that go code that is isolated from lookout itself.
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookoutingester
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
@@ -419,7 +419,7 @@ setup-cluster:
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
-tests-e2e-setup: setup-cluster generateg
+tests-e2e-setup: setup-cluster generate
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
@@ -596,21 +596,16 @@ push-nuget: dotnet-setup setup-proto
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download:
-	download_url=$(curl -s https://api.github.com/repos/go-swagger/go-swagger/releases/57786786 | \
-	jq -r '.assets[] | select(.name | contains("'"$(uname | tr '[:upper:]' '[:lower:]')"'_amd64")) | .browser_download_url')
-	curl -o /usr/local/bin/swagger -L'#' "$download_url"
-	chmod +x /usr/local/bin/swagger
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
-	$(GO_CMD) go generate ./...
 
 generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 
-	$(GO_CMD) go generate ./...
+	go generate ./...
 
 helm-docs:
 	./scripts/helm-docs.sh

@@ -1,32 +1,106 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	swaggerGenDir   = "./gen"
-	swaggerFilePath = "./swagger.yaml"
-	statikDir       = "./schema/"
+	armadaMountDir  = "/mnt/armada"
+	lookoutPath     = "internal/lookoutv2"
+	swaggerGenDir   = "gen"
+	swaggerFilePath = "swagger.yaml"
+
+	statikDir = "./schema/"
 )
 
 func generateSwagger() error {
-	err := os.RemoveAll(swaggerGenDir)
+	localSwaggerGenDir := filepath.Join(".", swaggerGenDir)
+	err := os.RemoveAll(localSwaggerGenDir)
 	if err != nil {
 		return err
 	}
-	err = os.Mkdir(swaggerGenDir, 0755)
+	err = os.Mkdir(localSwaggerGenDir, 0755)
 	if err != nil {
 		return err
 	}
 
-	executable := "swagger"
-	args := []string{"generate", "server", "-t", swaggerGenDir, "-f", swaggerFilePath, "--exclude-main", "-A", "lookout"}
-	return run(executable, args...)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	armadaDir, err := filepath.Abs(fmt.Sprintf("%s/../..", cwd))
+	if err != nil {
+		return err
+	}
+	uid := os.Getuid()
+	gid := os.Getgid()
+
+	ctx := context.Background()
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		err = cli.Close()
+	}()
+
+	containerSwaggerGenDir := filepath.Join(armadaMountDir, lookoutPath, swaggerGenDir)
+	containerSwaggerFilePath := filepath.Join(armadaMountDir, lookoutPath, swaggerFilePath)
+	args := []string{"generate", "server", "-t", containerSwaggerGenDir, "-f", containerSwaggerFilePath, "--exclude-main", "-A", "lookout"}
+
+	res, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:      "quay.io/goswagger/swagger",
+		Cmd:        args,
+		WorkingDir: armadaMountDir,
+		User:       fmt.Sprintf("%d:%d", uid, gid),
+	},
+		&container.HostConfig{
+			Mounts: []mount.Mount{
+				{
+					Type:   mount.TypeBind,
+					Source: armadaDir,
+					Target: armadaMountDir,
+				},
+			},
+		}, nil, nil, "")
+	if err != nil {
+		return err
+	}
+	if err := cli.ContainerStart(ctx, res.ID, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
+	statusCh, errCh := cli.ContainerWait(ctx, res.ID, container.WaitConditionNotRunning)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			return err
+		}
+	case status := <-statusCh:
+		fmt.Println(status)
+	}
+	out, err := cli.ContainerLogs(ctx, res.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
+	if err != nil {
+		return err
+	}
+	_, err = stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+	if err != nil {
+		return err
+	}
+	err = cli.ContainerRemove(ctx, res.ID, types.ContainerRemoveOptions{
+		RemoveVolumes: true,
+	})
+	return err
 }
 
 func generateStatik() error {
