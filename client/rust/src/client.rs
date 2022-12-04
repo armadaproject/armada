@@ -1,25 +1,32 @@
-use crate::armada_client::api::{
-    event_client::EventClient, submit_client::SubmitClient,
-    usage_client::UsageClient, BatchQueueCreateResponse, BatchQueueUpdateResponse,
-    CancellationResult, EventStreamMessage, HealthCheckResponse, JobCancelRequest,
-    JobReprioritizeRequest, JobReprioritizeResponse, JobSetCancelRequest, JobSetFilter,
-    JobSetRequest, JobState, JobSubmitRequest, JobSubmitRequestItem, JobSubmitResponse, Queue,
-    QueueDeleteRequest, QueueGetRequest, QueueInfo, QueueInfoRequest, QueueList,
+use tonic::transport::Channel;
+
+use crate::armada::api::{
+    event_client::EventClient, submit_client::SubmitClient, BatchQueueCreateResponse,
+    BatchQueueUpdateResponse, CancellationResult, EventStreamMessage, HealthCheckResponse,
+    JobCancelRequest, JobReprioritizeRequest, JobReprioritizeResponse, JobSetCancelRequest,
+    JobSetFilter, JobSetRequest, JobState, JobSubmitRequest, JobSubmitRequestItem,
+    JobSubmitResponse, Queue, QueueDeleteRequest, QueueGetRequest, QueueInfo, QueueInfoRequest,
+    QueueList,
 };
 
 pub struct ArmadaClient {
     event_client: EventClient<tonic::transport::Channel>,
     submit_client: SubmitClient<tonic::transport::Channel>,
-    usage_client: UsageClient<tonic::transport::Channel>,
 }
 
 impl ArmadaClient {
+    pub fn new(channel: Channel) -> Self {
+        ArmadaClient {
+            event_client: EventClient::new(channel.clone()),
+            submit_client: SubmitClient::new(channel.clone()),
+        }
+    }
     pub async fn get_job_events_stream(
         &mut self,
         queue: String,
         id: String,
         from_message_id: String,
-    ) -> Result<tonic::Streaming<EventStreamMessage>, tonic::Status> {
+    ) -> Result<tonic::Response<tonic::Streaming<EventStreamMessage>>, tonic::Status> {
         let jsr = JobSetRequest {
             queue,
             id,
@@ -30,11 +37,7 @@ impl ArmadaClient {
             force_legacy: false,
             force_new: false,
         };
-        Ok(self
-            .event_client
-            .get_job_set_events(jsr)
-            .await?
-            .into_inner())
+        self.event_client.get_job_set_events(jsr).await
     }
 
     pub async fn submit_health(

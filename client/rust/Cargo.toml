@@ -12,3 +12,8 @@ tonic = "0.8.3"
 
 [build-dependencies]
 tonic-build = "0.8.4"
+
+[dev-dependencies]
+anyhow = "1.0.66"
+tokio = { version = "1.22.0", features = ["rt-multi-thread"] }
+uuid = { version = "1.2.2", features = ["v1", "v4"] }
