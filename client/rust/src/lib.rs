@@ -1,4 +1,8 @@
+mod client;
+
 pub mod armada_client {
+    pub use crate::client::*;
+
     pub mod api {
         include!("gen/api.rs");
     }
