@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/google/uuid"
 	"testing"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutv2"
 )
 
 func TestGroupByQueue(t *testing.T) {
@@ -29,8 +29,8 @@ func TestGroupByQueue(t *testing.T) {
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			context.TODO(),
-			[]*lookoutv2.Filter{},
-			&lookoutv2.Order{
+			[]*model.Filter{},
+			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
 			},
@@ -42,7 +42,7 @@ func TestGroupByQueue(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
 		assert.Equal(t, 3, result.Count)
-		assert.Equal(t, result.Groups, []*lookoutv2.JobGroup{
+		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "queue-1",
 				Count:      10,
@@ -76,8 +76,8 @@ func TestGroupByJobSet(t *testing.T) {
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			context.TODO(),
-			[]*lookoutv2.Filter{},
-			&lookoutv2.Order{
+			[]*model.Filter{},
+			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
 			},
@@ -89,7 +89,7 @@ func TestGroupByJobSet(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
 		assert.Equal(t, 3, result.Count)
-		assert.Equal(t, result.Groups, []*lookoutv2.JobGroup{
+		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-1",
 				Count:      10,
@@ -124,8 +124,8 @@ func TestGroupByState(t *testing.T) {
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			context.TODO(),
-			[]*lookoutv2.Filter{},
-			&lookoutv2.Order{
+			[]*model.Filter{},
+			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
 			},
@@ -137,7 +137,7 @@ func TestGroupByState(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 4)
 		assert.Equal(t, 4, result.Count)
-		assert.Equal(t, result.Groups, []*lookoutv2.JobGroup{
+		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
 				Count:      10,
@@ -187,19 +187,19 @@ func TestGroupByWithFilters(t *testing.T) {
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
 			context.TODO(),
-			[]*lookoutv2.Filter{
+			[]*model.Filter{
 				{
 					Field: "queue",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: queue,
 				},
 				{
 					Field: "jobSet",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: jobSet,
 				},
 			},
-			&lookoutv2.Order{
+			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
 			},
@@ -211,7 +211,7 @@ func TestGroupByWithFilters(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 4)
 		assert.Equal(t, 4, result.Count)
-		assert.Equal(t, result.Groups, []*lookoutv2.JobGroup{
+		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
 				Count:      10,
@@ -248,8 +248,8 @@ func TestGroupJobsSkip(t *testing.T) {
 			manyJobs(i+1, fmt.Sprintf("queue-%d", i+1), jobSet, lookout.JobQueued, converter, store)
 		}
 
-		queueGroup := func(i int) *lookoutv2.JobGroup {
-			return &lookoutv2.JobGroup{
+		queueGroup := func(i int) *model.JobGroup {
+			return &model.JobGroup{
 				Name:       fmt.Sprintf("queue-%d", i),
 				Count:      i,
 				Aggregates: map[string]string{},
@@ -263,8 +263,8 @@ func TestGroupJobsSkip(t *testing.T) {
 			take := 5
 			result, err := repo.GroupBy(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
 				},
@@ -276,7 +276,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Groups, take)
 			assert.Equal(t, nGroups, result.Count)
-			assert.Equal(t, []*lookoutv2.JobGroup{
+			assert.Equal(t, []*model.JobGroup{
 				queueGroup(4),
 				queueGroup(5),
 				queueGroup(6),
@@ -290,8 +290,8 @@ func TestGroupJobsSkip(t *testing.T) {
 			take := 5
 			result, err := repo.GroupBy(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
 				},
@@ -303,7 +303,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Groups, take)
 			assert.Equal(t, nGroups, result.Count)
-			assert.Equal(t, []*lookoutv2.JobGroup{
+			assert.Equal(t, []*model.JobGroup{
 				queueGroup(8),
 				queueGroup(9),
 				queueGroup(10),
@@ -317,8 +317,8 @@ func TestGroupJobsSkip(t *testing.T) {
 			take := 5
 			result, err := repo.GroupBy(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
 				},
@@ -330,7 +330,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Groups, 2)
 			assert.Equal(t, nGroups, result.Count)
-			assert.Equal(t, []*lookoutv2.JobGroup{
+			assert.Equal(t, []*model.JobGroup{
 				queueGroup(14),
 				queueGroup(15),
 			}, result.Groups)

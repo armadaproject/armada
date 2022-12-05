@@ -1,13 +1,14 @@
 package conversions
 
 import (
-	"github.com/G-Research/armada/internal/lookoutv2"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/go-openapi/strfmt"
 	"time"
+
+	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
 )
 
-func ToSwaggerJob(job *lookoutv2.Job) *models.Job {
+func ToSwaggerJob(job *model.Job) *models.Job {
 	runs := make([]*models.Run, len(job.Runs))
 	for i := 0; i < len(job.Runs); i++ {
 		runs[i] = ToSwaggerRun(job.Runs[i])
@@ -34,7 +35,7 @@ func ToSwaggerJob(job *lookoutv2.Job) *models.Job {
 	}
 }
 
-func ToSwaggerRun(run *lookoutv2.Run) *models.Run {
+func ToSwaggerRun(run *model.Run) *models.Run {
 	return &models.Run{
 		Cluster:     run.Cluster,
 		ExitCode:    run.ExitCode,
@@ -47,7 +48,7 @@ func ToSwaggerRun(run *lookoutv2.Run) *models.Run {
 	}
 }
 
-func ToSwaggerGroup(group *lookoutv2.JobGroup) *models.Group {
+func ToSwaggerGroup(group *model.JobGroup) *models.Group {
 	return &models.Group{
 		Aggregates: group.Aggregates,
 		Count:      group.Count,
@@ -61,8 +62,8 @@ func ToSwaggerError(err string) *models.Error {
 	}
 }
 
-func FromSwaggerFilter(filter *models.Filter) *lookoutv2.Filter {
-	return &lookoutv2.Filter{
+func FromSwaggerFilter(filter *models.Filter) *model.Filter {
+	return &model.Filter{
 		Field:        filter.Field,
 		Match:        filter.Match,
 		Value:        filter.Value,
@@ -70,8 +71,8 @@ func FromSwaggerFilter(filter *models.Filter) *lookoutv2.Filter {
 	}
 }
 
-func FromSwaggerOrder(order *models.Order) *lookoutv2.Order {
-	return &lookoutv2.Order{
+func FromSwaggerOrder(order *models.Order) *model.Order {
+	return &model.Order{
 		Direction: order.Direction,
 		Field:     order.Field,
 	}

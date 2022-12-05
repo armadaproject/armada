@@ -1,6 +1,7 @@
 package conversions
 
 import (
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2"
 	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
 )
 
@@ -51,7 +51,7 @@ var (
 		Submitted: baseTimeSwagger,
 	}
 
-	job = &lookoutv2.Job{
+	job = &model.Job{
 		Annotations: map[string]string{
 			"key1": "value1",
 		},
@@ -69,7 +69,7 @@ var (
 		Priority:           10,
 		PriorityClass:      pointer.String("default"),
 		Queue:              "queue",
-		Runs: []*lookoutv2.Run{
+		Runs: []*model.Run{
 			{
 				Cluster:     "cluster",
 				ExitCode:    pointer.Int32(322),
@@ -93,7 +93,7 @@ var (
 		Name:  "queue-1",
 	}
 
-	group = &lookoutv2.JobGroup{
+	group = &model.JobGroup{
 		Aggregates: map[string]string{
 			"averageTimeInState": "3d",
 		},
@@ -108,7 +108,7 @@ var (
 		IsAnnotation: true,
 	}
 
-	filter = &lookoutv2.Filter{
+	filter = &model.Filter{
 		Field:        "jobSet",
 		Match:        "exact",
 		Value:        "something",
@@ -120,7 +120,7 @@ var (
 		Field:     "lastTransitionTime",
 	}
 
-	order = &lookoutv2.Order{
+	order = &model.Order{
 		Direction: "ASC",
 		Field:     "lastTransitionTime",
 	}

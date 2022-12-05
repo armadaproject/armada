@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"sort"
 	"time"
 
@@ -13,11 +14,10 @@ import (
 
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2"
 )
 
 type GetJobsRepository interface {
-	GetJobs(ctx context.Context, filters []*lookoutv2.Filter, order *lookoutv2.Order, skip int, take int) *GetJobsResult
+	GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) *GetJobsResult
 }
 
 type SqlGetJobsRepository struct {
@@ -26,7 +26,7 @@ type SqlGetJobsRepository struct {
 }
 
 type GetJobsResult struct {
-	Jobs  []*lookoutv2.Job
+	Jobs  []*model.Job
 	Count int
 }
 
@@ -74,7 +74,7 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	}
 }
 
-func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*lookoutv2.Filter, order *lookoutv2.Order, skip int, take int) (*GetJobsResult, error) {
+func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) (*GetJobsResult, error) {
 	var err error
 	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
@@ -155,11 +155,11 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*lookoutv2
 	}, nil
 }
 
-func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow, order *lookoutv2.Order) ([]*lookoutv2.Job, error) {
-	jobMap := make(map[string]*lookoutv2.Job) // Map from Job ID to Job
+func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow, order *model.Order) ([]*model.Job, error) {
+	jobMap := make(map[string]*model.Job) // Map from Job ID to Job
 
 	for _, row := range jobRows {
-		job := &lookoutv2.Job{
+		job := &model.Job{
 			Annotations:        make(map[string]string),
 			Cancelled:          database.ParseNullTime(row.cancelled),
 			Cpu:                row.cpu,
@@ -175,7 +175,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			Priority:           row.priority,
 			PriorityClass:      database.ParseNullString(row.priorityClass),
 			Queue:              row.queue,
-			Runs:               []*lookoutv2.Run{},
+			Runs:               []*model.Run{},
 			State:              string(lookout.JobStateMap[row.state]),
 			Submitted:          row.submitted,
 		}
@@ -183,7 +183,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 	}
 
 	for _, row := range runRows {
-		run := &lookoutv2.Run{
+		run := &model.Run{
 			Cluster:     row.cluster,
 			ExitCode:    database.ParseNullInt32(row.exitCode),
 			Finished:    database.ParseNullTime(row.finished),
@@ -196,7 +196,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 		jobMap[row.jobId].Runs = append(jobMap[row.jobId].Runs, run)
 	}
 
-	jobs := make([]*lookoutv2.Job, len(jobMap))
+	jobs := make([]*model.Job, len(jobMap))
 	i := 0
 	for _, job := range jobMap {
 		sortRuns(job.Runs)
@@ -215,7 +215,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 	return jobs, nil
 }
 
-func sortRuns(runs []*lookoutv2.Run) {
+func sortRuns(runs []*model.Run) {
 	sort.Slice(runs, func(i, j int) bool {
 		return runs[i].Pending.Before(runs[j].Pending)
 	})
@@ -352,7 +352,7 @@ func makeAnnotationRows(ctx context.Context, tx pgx.Tx, tempTableName string) ([
 	return rows, nil
 }
 
-func sortFn(jobs []*lookoutv2.Job, order *lookoutv2.Order) (func(i int, j int) bool, error) {
+func sortFn(jobs []*model.Job, order *model.Order) (func(i int, j int) bool, error) {
 	return func(i int, j int) bool {
 		f := jobAccessorFromField(order.Field)
 		if order.Direction == "ASC" {
@@ -362,14 +362,14 @@ func sortFn(jobs []*lookoutv2.Job, order *lookoutv2.Order) (func(i int, j int) b
 	}, nil
 }
 
-func jobAccessorFromField(field string) func(job *lookoutv2.Job) string {
+func jobAccessorFromField(field string) func(job *model.Job) string {
 	switch field {
 	case "jobId":
-		return func(job *lookoutv2.Job) string {
+		return func(job *model.Job) string {
 			return job.JobId
 		}
 	default:
-		return func(job *lookoutv2.Job) string {
+		return func(job *model.Job) string {
 			return ""
 		}
 	}

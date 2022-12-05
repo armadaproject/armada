@@ -11,7 +11,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutv2"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -30,7 +30,7 @@ type JobSimulator struct {
 	annotationPrefix string
 	jobId            *armadaevents.Uuid
 	apiJob           *api.Job
-	job              *lookoutv2.Job
+	job              *model.Job
 	events           []*armadaevents.EventSequence_Event
 	converter        *instructions.InstructionConverter
 	store            *lookoutdb.LookoutDb
@@ -144,7 +144,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submitEvent.GetSubmitJob())
 	js.apiJob = apiJob
 
-	js.job = &lookoutv2.Job{
+	js.job = &model.Job{
 		Annotations:        make(map[string]string),
 		Cpu:                opts.Cpu.MilliValue(),
 		EphemeralStorage:   opts.EphemeralStorage.Value(),
@@ -157,7 +157,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 		Priority:           int64(opts.Priority),
 		PriorityClass:      &priorityClass,
 		Queue:              queue,
-		Runs:               []*lookoutv2.Run{},
+		Runs:               []*model.Run{},
 		State:              string(lookout.JobQueued),
 		Submitted:          ts,
 	}
@@ -537,7 +537,7 @@ func (js *JobSimulator) Build() *JobSimulator {
 	return js
 }
 
-func (js *JobSimulator) Job() *lookoutv2.Job {
+func (js *JobSimulator) Job() *model.Job {
 	return js.job
 }
 
@@ -552,7 +552,7 @@ func timestampOrNow(timestamp time.Time) time.Time {
 	return timestamp
 }
 
-func updateRun(job *lookoutv2.Job, patch *runPatch) {
+func updateRun(job *model.Job, patch *runPatch) {
 	for _, run := range job.Runs {
 		if run.RunId == patch.runId {
 			patchRun(run, patch)
@@ -571,7 +571,7 @@ func updateRun(job *lookoutv2.Job, patch *runPatch) {
 	if patch.pending != nil {
 		pending = *patch.pending
 	}
-	job.Runs = append(job.Runs, &lookoutv2.Run{
+	job.Runs = append(job.Runs, &model.Run{
 		Cluster:     cluster,
 		ExitCode:    patch.exitCode,
 		Finished:    patch.finished,
@@ -583,7 +583,7 @@ func updateRun(job *lookoutv2.Job, patch *runPatch) {
 	})
 }
 
-func patchRun(run *lookoutv2.Run, patch *runPatch) {
+func patchRun(run *model.Run, patch *runPatch) {
 	if patch.cluster != nil {
 		run.Cluster = *patch.cluster
 	}

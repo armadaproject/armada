@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutv2"
 )
 
 const (
@@ -65,7 +65,7 @@ func TestGetJobsSingle(t *testing.T) {
 			Job()
 
 		repo := NewSqlGetJobsRepository(db)
-		result, err := repo.GetJobs(context.TODO(), []*lookoutv2.Filter{}, &lookoutv2.Order{}, 0, 1)
+		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
 		assert.Equal(t, 1, result.Count)
@@ -93,7 +93,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 
 		// Runs should be sorted from oldest -> newest
 		repo := NewSqlGetJobsRepository(db)
-		result, err := repo.GetJobs(context.TODO(), []*lookoutv2.Filter{}, &lookoutv2.Order{}, 0, 1)
+		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
 		assert.Equal(t, 1, result.Count)
@@ -108,8 +108,8 @@ func TestOrderByUnsupportedField(t *testing.T) {
 		repo := NewSqlGetJobsRepository(db)
 		_, err := repo.GetJobs(
 			context.TODO(),
-			[]*lookoutv2.Filter{},
-			&lookoutv2.Order{
+			[]*model.Filter{},
+			&model.Order{
 				Field:     "someField",
 				Direction: "ASC",
 			},
@@ -128,8 +128,8 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 		repo := NewSqlGetJobsRepository(db)
 		_, err := repo.GetJobs(
 			context.TODO(),
-			[]*lookoutv2.Filter{},
-			&lookoutv2.Order{
+			[]*model.Filter{},
+			&model.Order{
 				Field:     "jobId",
 				Direction: "INTERLEAVED",
 			},
@@ -179,8 +179,8 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
 				},
@@ -198,10 +198,10 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 		t.Run("descending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "jobId",
-					Direction: lookoutv2.DirectionDesc,
+					Direction: model.DirectionDesc,
 				},
 				0,
 				10,
@@ -224,12 +224,12 @@ func TestFilterByUnsupportedField(t *testing.T) {
 		repo := NewSqlGetJobsRepository(db)
 		_, err := repo.GetJobs(
 			context.TODO(),
-			[]*lookoutv2.Filter{{
+			[]*model.Filter{{
 				Field: "someField",
-				Match: lookoutv2.MatchExact,
+				Match: model.MatchExact,
 				Value: "something",
 			}},
-			&lookoutv2.Order{},
+			&model.Order{},
 			0,
 			10,
 		)
@@ -246,17 +246,17 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 
 		_, err := repo.GetJobs(
 			context.TODO(),
-			[]*lookoutv2.Filter{{
+			[]*model.Filter{{
 				Field: "jobId",
-				Match: lookoutv2.MatchLessThan,
+				Match: model.MatchLessThan,
 				Value: "something",
 			}},
-			&lookoutv2.Order{},
+			&model.Order{},
 			0,
 			10,
 		)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), fmt.Sprintf("%s is not supported for field jobId", lookoutv2.MatchLessThan))
+		assert.Contains(t, err.Error(), fmt.Sprintf("%s is not supported for field jobId", model.MatchLessThan))
 
 		return nil
 	})
@@ -288,12 +288,12 @@ func TestGetJobsById(t *testing.T) {
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "jobId",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: jobId,
 				}},
-				&lookoutv2.Order{},
+				&model.Order{},
 				0,
 				10,
 			)
@@ -338,12 +338,12 @@ func TestGetJobsByQueue(t *testing.T) {
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "queue",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: queue,
 				}},
-				&lookoutv2.Order{},
+				&model.Order{},
 				0,
 				10,
 			)
@@ -356,14 +356,14 @@ func TestGetJobsByQueue(t *testing.T) {
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "queue",
-					Match: lookoutv2.MatchStartsWith,
+					Match: model.MatchStartsWith,
 					Value: "queue-",
 				}},
-				&lookoutv2.Order{
+				&model.Order{
 					Field:     "jobId",
-					Direction: lookoutv2.DirectionAsc,
+					Direction: model.DirectionAsc,
 				},
 				0,
 				10,
@@ -411,12 +411,12 @@ func TestGetJobsByJobSet(t *testing.T) {
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "jobSet",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: jobSet,
 				}},
-				&lookoutv2.Order{},
+				&model.Order{},
 				0,
 				10,
 			)
@@ -429,14 +429,14 @@ func TestGetJobsByJobSet(t *testing.T) {
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "jobSet",
-					Match: lookoutv2.MatchStartsWith,
+					Match: model.MatchStartsWith,
 					Value: "job-set-",
 				}},
-				&lookoutv2.Order{
+				&model.Order{
 					Field:     "jobId",
-					Direction: lookoutv2.DirectionAsc,
+					Direction: model.DirectionAsc,
 				},
 				0,
 				10,
@@ -484,12 +484,12 @@ func TestGetJobsByOwner(t *testing.T) {
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "owner",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: owner,
 				}},
-				&lookoutv2.Order{},
+				&model.Order{},
 				0,
 				10,
 			)
@@ -502,14 +502,14 @@ func TestGetJobsByOwner(t *testing.T) {
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "owner",
-					Match: lookoutv2.MatchStartsWith,
+					Match: model.MatchStartsWith,
 					Value: "user-",
 				}},
-				&lookoutv2.Order{
+				&model.Order{
 					Field:     "jobId",
-					Direction: lookoutv2.DirectionAsc,
+					Direction: model.DirectionAsc,
 				},
 				0,
 				10,
@@ -565,12 +565,12 @@ func TestGetJobsByState(t *testing.T) {
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "state",
-					Match: lookoutv2.MatchExact,
+					Match: model.MatchExact,
 					Value: string(lookout.JobRunning),
 				}},
-				&lookoutv2.Order{},
+				&model.Order{},
 				0,
 				10,
 			)
@@ -583,18 +583,18 @@ func TestGetJobsByState(t *testing.T) {
 		t.Run("anyOf", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field: "state",
-					Match: lookoutv2.MatchAnyOf,
+					Match: model.MatchAnyOf,
 					Value: []string{
 						string(lookout.JobQueued),
 						string(lookout.JobPending),
 						string(lookout.JobRunning),
 					},
 				}},
-				&lookoutv2.Order{
+				&model.Order{
 					Field:     "jobId",
-					Direction: lookoutv2.DirectionAsc,
+					Direction: model.DirectionAsc,
 				},
 				0,
 				10,
@@ -659,13 +659,13 @@ func TestGetJobsByAnnotation(t *testing.T) {
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{{
+				[]*model.Filter{{
 					Field:        "annotation-key-1",
-					Match:        lookoutv2.MatchExact,
+					Match:        model.MatchExact,
 					Value:        "annotation-value-1",
 					IsAnnotation: true,
 				}},
-				&lookoutv2.Order{},
+				&model.Order{},
 				0,
 				10,
 			)
@@ -686,7 +686,7 @@ func TestGetJobsSkip(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		nJobs := 15
-		jobs := make([]*lookoutv2.Job, nJobs)
+		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
 			jobs[i] = NewJobSimulator(userAnnotationPrefix, converter, store).
@@ -702,8 +702,8 @@ func TestGetJobsSkip(t *testing.T) {
 			take := 5
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
 				},
@@ -721,8 +721,8 @@ func TestGetJobsSkip(t *testing.T) {
 			take := 5
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
 				},
@@ -740,8 +740,8 @@ func TestGetJobsSkip(t *testing.T) {
 			take := 5
 			result, err := repo.GetJobs(
 				context.TODO(),
-				[]*lookoutv2.Filter{},
-				&lookoutv2.Order{
+				[]*model.Filter{},
+				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
 				},

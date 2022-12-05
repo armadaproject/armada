@@ -1,4 +1,4 @@
-package lookoutv2
+package model
 
 import "time"
 

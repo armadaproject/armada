@@ -1,10 +1,10 @@
 package repository
 
 import (
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutv2"
 )
 
 const (
@@ -64,11 +64,11 @@ func NewTables() *LookoutTables {
 			jobIdCol,
 		}),
 		filterableColumns: map[string]map[string]bool{
-			jobIdCol:  util.StringListToSet([]string{lookoutv2.MatchExact}),
-			queueCol:  util.StringListToSet([]string{lookoutv2.MatchExact, lookoutv2.MatchStartsWith}),
-			jobSetCol: util.StringListToSet([]string{lookoutv2.MatchExact, lookoutv2.MatchStartsWith}),
-			ownerCol:  util.StringListToSet([]string{lookoutv2.MatchExact, lookoutv2.MatchStartsWith}),
-			stateCol:  util.StringListToSet([]string{lookoutv2.MatchExact, lookoutv2.MatchAnyOf}),
+			jobIdCol:  util.StringListToSet([]string{model.MatchExact}),
+			queueCol:  util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith}),
+			jobSetCol: util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith}),
+			ownerCol:  util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith}),
+			stateCol:  util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
 		},
 		tableAbbrevs: map[string]string{
 			jobTable:                  jobTableAbbrev,

@@ -4,26 +4,25 @@ import (
 	"context"
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/jackc/pgx/v4"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/jackc/pgx/v4/pgxpool"
-
-	"github.com/G-Research/armada/internal/lookoutv2"
 )
 
 type GroupByResult struct {
 	// Total number of groups
 	Count  int
-	Groups []*lookoutv2.JobGroup
+	Groups []*model.JobGroup
 }
 
 type GroupJobsRepository interface {
 	GroupBy(
 		ctx context.Context,
-		filters []*lookoutv2.Filter,
-		order *lookoutv2.Order,
+		filters []*model.Filter,
+		order *model.Order,
 		groupedField string,
 		aggregates []string,
 		skip int,
@@ -45,8 +44,8 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 
 func (r *SqlGroupJobsRepository) GroupBy(
 	ctx context.Context,
-	filters []*lookoutv2.Filter,
-	order *lookoutv2.Order,
+	filters []*model.Filter,
+	order *model.Order,
 	groupedField string,
 	aggregates []string,
 	skip int,
@@ -104,8 +103,8 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	}, nil
 }
 
-func rowsToGroups(rows pgx.Rows, groupedField string) ([]*lookoutv2.JobGroup, error) {
-	var groups []*lookoutv2.JobGroup
+func rowsToGroups(rows pgx.Rows, groupedField string) ([]*model.JobGroup, error) {
+	var groups []*model.JobGroup
 	for rows.Next() {
 		jobGroup, err := scanGroup(rows, groupedField)
 		if err != nil {
@@ -116,7 +115,7 @@ func rowsToGroups(rows pgx.Rows, groupedField string) ([]*lookoutv2.JobGroup, er
 	return groups, nil
 }
 
-func scanGroup(rows pgx.Rows, field string) (*lookoutv2.JobGroup, error) {
+func scanGroup(rows pgx.Rows, field string) (*model.JobGroup, error) {
 	if field == "state" {
 		var stateInt int
 		var count int
@@ -128,7 +127,7 @@ func scanGroup(rows pgx.Rows, field string) (*lookoutv2.JobGroup, error) {
 		if !ok {
 			return nil, errors.Errorf("state not found: %d", stateInt)
 		}
-		return &lookoutv2.JobGroup{
+		return &model.JobGroup{
 			Name:       string(state),
 			Count:      count,
 			Aggregates: make(map[string]string),
@@ -140,7 +139,7 @@ func scanGroup(rows pgx.Rows, field string) (*lookoutv2.JobGroup, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &lookoutv2.JobGroup{
+	return &model.JobGroup{
 		Name:       group,
 		Count:      count,
 		Aggregates: make(map[string]string),

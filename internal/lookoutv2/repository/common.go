@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"math"
 	"strings"
 
@@ -13,7 +14,6 @@ import (
 
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutv2"
 )
 
 const countCol = "count"
@@ -57,13 +57,13 @@ func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 	}, tempTable
 }
 
-func (qb *QueryBuilder) JobCount(filters []*lookoutv2.Filter) (*Query, error) {
+func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return &Query{}, errors.Wrap(err, "filters are invalid")
 	}
 
-	tablesFromColumns, err := qb.getAllTables(filters, &lookoutv2.Order{})
+	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (qb *QueryBuilder) JobCount(filters []*lookoutv2.Filter) (*Query, error) {
 	}, nil
 }
 
-func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*lookoutv2.Filter, order *lookoutv2.Order, skip, take int) (*Query, error) {
+func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*model.Filter, order *model.Order, skip, take int) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return &Query{}, errors.Wrap(err, "filters are invalid")
@@ -158,13 +158,13 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*loo
 	}, nil
 }
 
-func (qb *QueryBuilder) CountGroups(filters []*lookoutv2.Filter, groupedField string) (*Query, error) {
+func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return &Query{}, errors.Wrap(err, "filters are invalid")
 	}
 	err = qb.validateGroupedField(groupedField)
-	tablesFromColumns, err := qb.getAllTables(filters, &lookoutv2.Order{})
+	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
 	if err != nil {
 		return nil, err
 	}
@@ -207,8 +207,8 @@ func (qb *QueryBuilder) CountGroups(filters []*lookoutv2.Filter, groupedField st
 }
 
 func (qb *QueryBuilder) GroupBy(
-	filters []*lookoutv2.Filter,
-	order *lookoutv2.Order,
+	filters []*model.Filter,
+	order *model.Order,
 	groupedField string,
 	skip int,
 	take int,
@@ -222,7 +222,7 @@ func (qb *QueryBuilder) GroupBy(
 		return &Query{}, errors.Wrap(err, "group order is invalid")
 	}
 	err = qb.validateGroupedField(groupedField)
-	tablesFromColumns, err := qb.getAllTables(filters, &lookoutv2.Order{})
+	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (qb *QueryBuilder) GroupBy(
 }
 
 // For each field/column, get the possible tables we could be querying as string set
-func (qb *QueryBuilder) getAllTables(filters []*lookoutv2.Filter, order *lookoutv2.Order) ([]map[string]bool, error) {
+func (qb *QueryBuilder) getAllTables(filters []*model.Filter, order *model.Order) ([]map[string]bool, error) {
 	var result []map[string]bool
 	for _, filter := range filters {
 		if filter.IsAnnotation {
@@ -419,7 +419,7 @@ func (qb *QueryBuilder) firstTableAbbrev(queryTables map[string]bool) (string, e
 	return "", errors.New("no tables")
 }
 
-func (qb *QueryBuilder) makeQueryFilters(filters []*lookoutv2.Filter, queryTables map[string]bool) ([]*queryFilter, error) {
+func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables map[string]bool) ([]*queryFilter, error) {
 	result := make([]*queryFilter, len(filters))
 	for i, filter := range filters {
 		if filter.IsAnnotation {
@@ -492,7 +492,7 @@ func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter, valuesMap map[
 	for _, filter := range filters {
 		if filter.isAnnotation {
 			// Need two filters, one for annotation key, one for annotation value
-			keyExpr, err := qb.comparisonExpr(filter.column.name, lookoutv2.MatchExact, filter.column.abbrev, annotationKeyCol, valuesMap)
+			keyExpr, err := qb.comparisonExpr(filter.column.name, model.MatchExact, filter.column.abbrev, annotationKeyCol, valuesMap)
 			if err != nil {
 				return "", err
 			}
@@ -525,11 +525,11 @@ func (qb *QueryBuilder) comparisonExpr(value interface{}, match, abbrev, colName
 
 func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 	switch match {
-	case lookoutv2.MatchExact:
+	case model.MatchExact:
 		return "=", nil
-	case lookoutv2.MatchStartsWith:
+	case model.MatchStartsWith:
 		return "LIKE", nil
-	case lookoutv2.MatchAnyOf:
+	case model.MatchAnyOf:
 		return "IN", nil
 	default:
 		err := errors.Errorf("unsupported match type: %s", match)
@@ -541,12 +541,12 @@ func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 // Returns string to render in SQL, updates valuesMap with corresponding value(s)
 func (qb *QueryBuilder) valueForMatch(value interface{}, match string, valuesMap map[string]interface{}) (string, error) {
 	switch match {
-	case lookoutv2.MatchStartsWith:
+	case model.MatchStartsWith:
 		v := fmt.Sprintf("%v%%", value)
 		id := uuid.NewString()
 		valuesMap[id] = v
 		return idToTemplateString(id), nil
-	case lookoutv2.MatchAnyOf:
+	case model.MatchAnyOf:
 		switch v := value.(type) {
 		case []int:
 			ids := make([]string, len(v))
@@ -566,7 +566,7 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string, valuesMap
 	}
 }
 
-func (qb *QueryBuilder) makeQueryOrder(order *lookoutv2.Order, queryTables map[string]bool) (*queryOrder, error) {
+func (qb *QueryBuilder) makeQueryOrder(order *model.Order, queryTables map[string]bool) (*queryOrder, error) {
 	if orderIsNull(order) {
 		return nil, nil
 	}
@@ -644,7 +644,7 @@ func limitOffsetSql(skip, take int) string {
 	return fmt.Sprintf("LIMIT %d OFFSET %d", take, skip)
 }
 
-func (qb *QueryBuilder) validateFilters(filters []*lookoutv2.Filter) error {
+func (qb *QueryBuilder) validateFilters(filters []*model.Filter) error {
 	for _, filter := range filters {
 		err := qb.validateFilter(filter)
 		if err != nil {
@@ -654,7 +654,7 @@ func (qb *QueryBuilder) validateFilters(filters []*lookoutv2.Filter) error {
 	return nil
 }
 
-func (qb *QueryBuilder) validateFilter(filter *lookoutv2.Filter) error {
+func (qb *QueryBuilder) validateFilter(filter *model.Filter) error {
 	if filter.IsAnnotation {
 		return validateAnnotationFilter(filter)
 	}
@@ -671,14 +671,14 @@ func (qb *QueryBuilder) validateFilter(filter *lookoutv2.Filter) error {
 	return nil
 }
 
-func validateAnnotationFilter(filter *lookoutv2.Filter) error {
-	if !slices.Contains([]string{lookoutv2.MatchExact, lookoutv2.MatchStartsWith, lookoutv2.MatchContains}, filter.Match) {
+func validateAnnotationFilter(filter *model.Filter) error {
+	if !slices.Contains([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}, filter.Match) {
 		return errors.Errorf("match %s is not supported for annotation", filter.Match)
 	}
 	return nil
 }
 
-func (qb *QueryBuilder) validateOrder(order *lookoutv2.Order) error {
+func (qb *QueryBuilder) validateOrder(order *model.Order) error {
 	if orderIsNull(order) {
 		return nil
 	}
@@ -696,14 +696,14 @@ func (qb *QueryBuilder) validateOrder(order *lookoutv2.Order) error {
 }
 
 func isValidOrderDirection(direction string) bool {
-	return slices.Contains([]string{lookoutv2.DirectionAsc, lookoutv2.DirectionDesc}, direction)
+	return slices.Contains([]string{model.DirectionAsc, model.DirectionDesc}, direction)
 }
 
-func orderIsNull(order *lookoutv2.Order) bool {
+func orderIsNull(order *model.Order) bool {
 	return order == nil || (order.Direction == "" && order.Field == "")
 }
 
-func (qb *QueryBuilder) validateGroupOrder(order *lookoutv2.Order) error {
+func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
 	if order.Field != countCol {
 		return errors.Errorf("unsupported group ordering: %s", order.Field)
 	}
