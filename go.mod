@@ -69,8 +69,8 @@ require (
 	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
 	golang.org/x/net v0.2.0
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/tools v0.1.12
+	golang.org/x/sync v0.1.0
+	golang.org/x/tools v0.3.0
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
 	google.golang.org/grpc v1.43.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -210,7 +210,7 @@ require (
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/crypto v0.3.0 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
+	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect
 	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
@@ -236,7 +236,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
 )
 
-require github.com/docker/docker v20.10.21+incompatible
+require (
+	github.com/docker/docker v20.10.21+incompatible
+	github.com/matryer/moq v0.3.0
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
