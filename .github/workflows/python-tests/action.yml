@@ -31,8 +31,8 @@ runs:
       run: tox -e docs-check
       shell: bash
       working-directory: ${{ inputs.path }}
-    - name: Run tox python 3.8 unit tests
-      run: tox -e py38
+    - name: Run tox python unit tests
+      run: tox -e py38 py39 py310
       shell: bash
       working-directory: ${{ inputs.path }}
     - name: Build and verify wheel
