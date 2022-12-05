@@ -60,7 +60,7 @@ func generateSwagger() error {
 	args := []string{"generate", "server", "-t", containerSwaggerGenDir, "-f", containerSwaggerFilePath, "--exclude-main", "-A", "lookout"}
 
 	res, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:      "quay.io/goswagger/swagger",
+		Image:      "quay.io/goswagger/swagger:v0.29.0",
 		Cmd:        args,
 		WorkingDir: armadaMountDir,
 		User:       fmt.Sprintf("%d:%d", uid, gid),
