@@ -334,13 +334,13 @@ tests-teardown:
 	docker rm -f redis postgres || true
 
 .ONESHELL:
-tests-no-setup: generate
+tests-no-setup:
 	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-tests: generate
+tests:
 	mkdir -p test_reports
 	docker run -d --name=redis $(DOCKER_NET) -p=6379:6379 redis:6.2.6
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
@@ -351,11 +351,11 @@ tests: generate
 	$(GO_TEST_CMD) go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-lint-fix: generate
+lint-fix:
 	$(GO_TEST_CMD) golangci-lint run --fix
 
 .ONESHELL:
-lint: generate
+lint:
 	$(GO_TEST_CMD) golangci-lint run
 
 .ONESHELL:
@@ -419,7 +419,7 @@ setup-cluster:
 	mkdir -p .kube
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
-tests-e2e-setup: setup-cluster generate
+tests-e2e-setup: setup-cluster
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
@@ -594,13 +594,16 @@ push-nuget: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
+# Download all install tools listed in internal/tools/tools.go
+download-tools:
+	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
+
 # Download all dependencies and install tools listed in internal/tools/tools.go
 download: generate
 	$(GO_TEST_CMD) go mod download
-	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
 
-generate:
+generate: download-tools
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
