@@ -554,7 +554,7 @@ proto: setup-proto
 	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
+	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json -x internal/lookoutv2
 
 	# combine swagger definitions
 	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
