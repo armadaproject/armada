@@ -503,7 +503,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-setup-proto: download
+setup-proto:
 	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
 	# first delete files in this directory - by default it has write perms disabled.
 	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
