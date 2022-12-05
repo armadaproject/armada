@@ -54,7 +54,7 @@ services:
   #
   armada-server:
     container_name: armada-server
-    image: gresearchdev/armada:latest
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -70,7 +70,7 @@ services:
     entrypoint: ./server
     command: --config /config/armada/config.yaml
 
-  # TODO: Build with gorelease or magefile.
+  # TODO: Build with goreleaser or magefile.
   lookout:
     container_name: lookout
     image: golang:1.18-buster
@@ -90,7 +90,7 @@ services:
 
   executor:
     container_name: executor
-    image: gresearchdev/armada:latest
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -108,7 +108,7 @@ services:
 
   binoculars:
     container_name: binoculars
-    image: gresearchdev/armada:latest
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -126,7 +126,7 @@ services:
 
   jobservice:
     container_name: jobservice
-    image: gresearchdev/armada:latest
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}    
     networks:
       - kind
     ports:
@@ -141,7 +141,7 @@ services:
 
   lookout-ingester:
     container_name: lookout-ingester
-    image: gresearchdev/armada:latest
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
@@ -154,7 +154,7 @@ services:
 
   event-ingester:
     container_name: event-ingester
-    image: gresearchdev/armada:latest
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
