@@ -251,7 +251,7 @@ func TestGroupJobsSkip(t *testing.T) {
 		queueGroup := func(i int) *model.JobGroup {
 			return &model.JobGroup{
 				Name:       fmt.Sprintf("queue-%d", i),
-				Count:      i,
+				Count:      int64(i),
 				Aggregates: map[string]string{},
 			}
 		}

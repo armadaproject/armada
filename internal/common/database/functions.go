@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"github.com/google/uuid"
 	"strings"
 	"time"
 
@@ -32,6 +34,11 @@ func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
 	return db, err
 }
 
+func UniqueTableName(table string) string {
+	suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
+	return fmt.Sprintf("%s_tmp_%s", table, suffix)
+}
+
 func ParseNullStringDefault(nullString sql.NullString) string {
 	if !nullString.Valid {
 		return ""
@@ -53,25 +60,11 @@ func ParseNullTime(nullTime sql.NullTime) *time.Time {
 	return &nullTime.Time
 }
 
-func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {
-	if !nullTime.Valid {
-		return time.Now()
-	}
-	return nullTime.Time
-}
-
 func ParseNullInt32(nullInt sql.NullInt32) *int32 {
 	if !nullInt.Valid {
 		return nil
 	}
 	return &nullInt.Int32
-}
-
-func ParseNullInt16Default(nullInt sql.NullInt16) int16 {
-	if !nullInt.Valid {
-		return 0
-	}
-	return nullInt.Int16
 }
 
 func ReadInt(rows pgx.Rows) (int, error) {

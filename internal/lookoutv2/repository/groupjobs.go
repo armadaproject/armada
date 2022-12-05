@@ -118,7 +118,7 @@ func rowsToGroups(rows pgx.Rows, groupedField string) ([]*model.JobGroup, error)
 func scanGroup(rows pgx.Rows, field string) (*model.JobGroup, error) {
 	if field == "state" {
 		var stateInt int
-		var count int
+		var count int64
 		err := rows.Scan(&stateInt, &count)
 		if err != nil {
 			return nil, err
@@ -134,7 +134,7 @@ func scanGroup(rows pgx.Rows, field string) (*model.JobGroup, error) {
 		}, nil
 	}
 	var group string
-	var count int
+	var count int64
 	err := rows.Scan(&group, &count)
 	if err != nil {
 		return nil, err
