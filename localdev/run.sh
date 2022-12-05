@@ -1,7 +1,5 @@
 #! /bin/bash
 
-# TODO: Delete this once I have it replicated in the magefile.
-
 INFRA_SVCS="redis postgres pulsar stan"
 ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservice event-ingester"
 
