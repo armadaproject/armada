@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,18 +50,28 @@ func generateSwagger() error {
 	ctx := context.Background()
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer func() {
 		err = cli.Close()
 	}()
 
+	image := "quay.io/goswagger/swagger:v0.29.0"
 	containerSwaggerGenDir := filepath.Join(armadaMountDir, lookoutPath, swaggerGenDir)
 	containerSwaggerFilePath := filepath.Join(armadaMountDir, lookoutPath, swaggerFilePath)
 	args := []string{"generate", "server", "-t", containerSwaggerGenDir, "-f", containerSwaggerFilePath, "--exclude-main", "-A", "lookout"}
 
+	reader, err := cli.ImagePull(ctx, image, types.ImagePullOptions{})
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(os.Stdout, reader)
+	if err != nil {
+		return err
+	}
+
 	res, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:      "quay.io/goswagger/swagger:v0.29.0",
+		Image:      image,
 		Cmd:        args,
 		WorkingDir: armadaMountDir,
 		User:       fmt.Sprintf("%d:%d", uid, gid),
