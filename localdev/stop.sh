@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# TODO: Delete this once I have it replicated in the magefile.
+
 # make the dir containing this file the CWD
 cd "$(dirname "${0}")" || exit
 

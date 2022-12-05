@@ -4,21 +4,10 @@ networks:
   kind:
     external: true
 
-
-volumes:
-  # shared gopath volume for armada services
-  # with this, modules do not need to be redundantly downloaded
-  # and persist through restarts
-  gopath:
-  # shared gocache volume for armada services
-  # with this, build artifacts do not need to be redundantly downloaded
-  # and persist through restarts
-  go-cache:
-
 services:
   #
-  # Infrastructure services needed for Armada
-  # Note that kubernetes cluster is also needed (kind) but is external to the compose environment
+  # Infrastructure services.
+  # A Kubernetes cluster (e.g., kind) must also be setup before starting Armada.
   #
   redis:
     container_name: redis
@@ -42,15 +31,14 @@ services:
     image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
     container_name: pulsar
     volumes:
-      - ./scripts/pulsar-start.sh:/pulsar-start.sh
-    entrypoint: sh -c "/pulsar-start.sh"
+      - ./pulsar.conf:/conf/pulsar.conf
+    entrypoint: bin/pulsar standalone
     ports:
       - "0.0.0.0:6650:6650"
-    depends_on:
-      - redis
     networks:
       - kind
 
+  # TODO: Remove
   stan:
     container_name: stan
     image: nats-streaming
@@ -58,34 +46,31 @@ services:
     ports:
       - "4223:4223"
       - "8223:8223"
-    depends_on:
-      - redis
     networks:
       - kind
 
   #
-  # The Armada server and affiliated services
+  # Armada services.
   #
   armada-server:
     container_name: armada-server
-    image: golang:1.18-buster
+    image: gresearchdev/armada:latest
     networks:
       - kind
     ports:
-      - "50051:50051"
-      - "8080:8080"
+      - 50051:50051
+      - 8080:8080
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
+      - ./config:/config
     depends_on:
       - redis
       - postgres
       - pulsar
-      - stan
-    working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/armada-start.sh"
+    working_dir: /app
+    entrypoint: ./server
+    command: --config /config/armada/config.yaml
 
+  # TODO: Build with gorelease or magefile.
   lookout:
     container_name: lookout
     image: golang:1.18-buster
@@ -95,91 +80,90 @@ services:
       - "9009:9009"
       - "8089:8089"
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
+      - ./config:/config
     depends_on:
-      - armada-server
       - postgres
+      - armada-server
+      - lookout-ingester
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-start.sh"
 
   executor:
     container_name: executor
-    image: golang:1.18-buster
+    image: gresearchdev/armada:latest
     networks:
       - kind
     ports:
-      - "9001:9001"
+      - 9001:9001
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
-    working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/executor-start.sh"
+      - ./config:/config
+      - ../.kube/internal/:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    working_dir: /app
+    entrypoint: ./executor
+    command: --config /config/executor/config.yaml
 
   binoculars:
     container_name: binoculars
-    image: golang:1.18-buster
+    image: gresearchdev/armada:latest
     networks:
       - kind
     ports:
-      - "8082:8082"
+      - 8082:8082
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
-    working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/binoculars-start.sh"
+      - ./config:/config
+      - ../.kube:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    working_dir: /app
+    entrypoint: ./binoculars
+    command: --config /config/binoculars/config.yaml
 
   jobservice:
     container_name: jobservice
-    image: golang:1.18-buster
+    image: gresearchdev/armada:latest
     networks:
       - kind
     ports:
-      - "60003:60003"
+      - 60003:60003
     depends_on:
       - armada-server
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
+      - ./config:/config
     working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/jobservice-start.sh"
+    entrypoint: ./jobservice
+    command: --config /config/jobservice/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester
-    image: golang:1.18-buster
+    image: gresearchdev/armada:latest
     networks:
       - kind
     depends_on:
-      - armada-server
-      - lookout
+      - postgres
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
-    working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/lookout-ingester-start.sh"
+      - ./config:/config
+    working_dir: /app
+    entrypoint: ./lookoutingester
+    command: --config /config/lookoutingester/config.yaml
 
   event-ingester:
     container_name: event-ingester
-    image: golang:1.18-buster
+    image: gresearchdev/armada:latest
     networks:
       - kind
     depends_on:
-      - armada-server
+      - redis
     volumes:
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
-    working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/event-ingester-start.sh"
+      - ./config:/config
+    working_dir: /app
+    entrypoint: eventingester
+    command: --config /config/eventingester/config.yaml
 
   airflow:
     container_name: airflow
@@ -187,7 +171,7 @@ services:
     networks:
       - kind
     ports:
-      - "8081:8081"
+      - 8081:8081
     volumes:
       - "..:/app:rw"
     working_dir: "/app"
