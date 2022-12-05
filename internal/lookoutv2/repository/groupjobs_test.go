@@ -3,10 +3,9 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
-	"github.com/google/uuid"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 func TestGroupByQueue(t *testing.T) {

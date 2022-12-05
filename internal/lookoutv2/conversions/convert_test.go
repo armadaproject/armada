@@ -1,7 +1,6 @@
 package conversions
 
 import (
-	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 var (

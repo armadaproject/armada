@@ -3,6 +3,15 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/utils/pointer"
+
 	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/ingest"
@@ -14,13 +23,6 @@ import (
 	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/utils/pointer"
-	"time"
 )
 
 type JobSimulator struct {

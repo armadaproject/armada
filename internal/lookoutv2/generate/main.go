@@ -3,16 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -31,7 +31,7 @@ func generateSwagger() error {
 	if err != nil {
 		return err
 	}
-	err = os.Mkdir(localSwaggerGenDir, 0755)
+	err = os.Mkdir(localSwaggerGenDir, 0o755)
 	if err != nil {
 		return err
 	}

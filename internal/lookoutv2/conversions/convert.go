@@ -1,11 +1,12 @@
 package conversions
 
 import (
-	"github.com/G-Research/armada/internal/lookoutv2/model"
-	"github.com/go-openapi/strfmt"
 	"time"
 
+	"github.com/go-openapi/strfmt"
+
 	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 func ToSwaggerJob(job *model.Job) *models.Job {

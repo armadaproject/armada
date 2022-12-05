@@ -1,10 +1,10 @@
 package repository
 
 import (
-	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 const (

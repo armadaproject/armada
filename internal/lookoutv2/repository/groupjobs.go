@@ -2,14 +2,15 @@ package repository
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 type GroupByResult struct {

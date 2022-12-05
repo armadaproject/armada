@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"sort"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 type GetJobsRepository interface {

@@ -2,8 +2,6 @@ package repository
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
 	"math"
 	"strings"
 
@@ -13,7 +11,9 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
 const countCol = "count"
@@ -164,6 +164,9 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 		return &Query{}, errors.Wrap(err, "filters are invalid")
 	}
 	err = qb.validateGroupedField(groupedField)
+	if err != nil {
+		return nil, err
+	}
 	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
 	if err != nil {
 		return nil, err
@@ -222,6 +225,9 @@ func (qb *QueryBuilder) GroupBy(
 		return &Query{}, errors.Wrap(err, "group order is invalid")
 	}
 	err = qb.validateGroupedField(groupedField)
+	if err != nil {
+		return &Query{}, errors.Wrap(err, "group field is invalid")
+	}
 	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
 	if err != nil {
 		return nil, err
@@ -338,7 +344,7 @@ func (qb *QueryBuilder) determineTablesForQuery(tablesForColumns []map[string]bo
 		didMatch := true
 		for _, tablesForCol := range tablesForColumns {
 			didMatchCol := false
-			for table, _ := range tablesForCol {
+			for table := range tablesForCol {
 				if _, ok := set[table]; ok {
 					didMatchCol = true
 				}
@@ -366,7 +372,7 @@ func intersection(sets []map[string]bool) map[string]bool {
 	inter := sets[0]
 	for i := 1; i < len(sets); i++ {
 		cur := make(map[string]bool)
-		for s, _ := range inter {
+		for s := range inter {
 			if _, ok := sets[i][s]; ok {
 				cur[s] = true
 			}
@@ -497,6 +503,9 @@ func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter, valuesMap map[
 				return "", err
 			}
 			valueExpr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, annotationValueCol, valuesMap)
+			if err != nil {
+				return "", err
+			}
 			exprs = append(exprs, keyExpr, valueExpr)
 			continue
 		}

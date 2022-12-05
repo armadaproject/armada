@@ -1,9 +1,11 @@
 package repository
 
 import (
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 func TestIntersection(t *testing.T) {

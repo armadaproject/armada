@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/lookoutv2"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/lookoutv2"
 	"github.com/G-Research/armada/internal/lookoutv2/configuration"
 	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
 )
