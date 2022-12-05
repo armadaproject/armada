@@ -11,7 +11,7 @@ postgres:
     sslmode: disable
 
 metrics:
-  port: 9003
+  port: 9004
 
 pulsar:
   enabled: true

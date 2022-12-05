@@ -38,11 +38,15 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		func(params operations.GetJobsParams) middleware.Responder {
 			filters := util.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
+			skip := 0
+			if params.GetJobsRequest.Skip != nil {
+				skip = int(*params.GetJobsRequest.Skip)
+			}
 			result, err := getJobsRepo.GetJobs(
 				params.HTTPRequest.Context(),
 				filters,
 				order,
-				int(params.GetJobsRequest.Skip),
+				skip,
 				int(params.GetJobsRequest.Take))
 			if err != nil {
 				return operations.NewGetJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
@@ -58,13 +62,17 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		func(params operations.GroupJobsParams) middleware.Responder {
 			filters := util.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
+			skip := 0
+			if params.GroupJobsRequest.Skip != nil {
+				skip = int(*params.GroupJobsRequest.Skip)
+			}
 			result, err := groupJobsRepo.GroupBy(
 				params.HTTPRequest.Context(),
 				filters,
 				order,
 				params.GroupJobsRequest.GroupedField,
 				params.GroupJobsRequest.Aggregates,
-				int(params.GroupJobsRequest.Skip),
+				skip,
 				int(params.GroupJobsRequest.Take))
 			if err != nil {
 				return operations.NewGroupJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))

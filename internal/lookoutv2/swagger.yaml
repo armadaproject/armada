@@ -252,13 +252,14 @@ paths:
                 description: "Filters to apply to jobs."
                 items:
                   $ref: "#/definitions/filter"
+                x-nullable: true
               order:
                 description: "Ordering to apply to jobs."
                 $ref: "#/definitions/order"
+                x-nullable: true
               skip:
                 type: integer
                 description: "First elements to ignore from the full set of results. Used for pagination."
-                x-nullable: false
               take:
                 type: integer
                 description: "Number of jobs to fetch."
@@ -314,9 +315,11 @@ paths:
                 description: "Filters to apply to jobs before grouping."
                 items:
                   $ref: "#/definitions/filter"
+                x-nullable: true
               order:
                 description: "Ordering to apply to job groups."
                 $ref: "#/definitions/order"
+                x-nullable: true
               groupedField:
                 type: string
                 description: "Field to group jobs by"
@@ -328,10 +331,10 @@ paths:
                 items:
                   type: string
                   x-nullable: false
+                x-nullable: true
               skip:
                 type: integer
                 description: "First elements to ignore from the full set of results. Used for pagination."
-                x-nullable: false
               take:
                 type: integer
                 description: "Number of job groups to fetch."
