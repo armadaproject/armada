@@ -497,9 +497,16 @@ tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 .ONESHELL:
-tests-e2e-airflow: airflow-operator
+tests-e2e-airflow: airflow-operator setup-localdev
+	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-a || true
 	docker logs jobservice
-	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
+	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=armada-server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
+
+setup-localdev:
+	./localdev/run.sh
+
+teardown-localdev:
+	./localdev/stop.sh
 
 # Output test results in Junit format, e.g., to display in Jenkins.
 # Relies on go-junit-report
