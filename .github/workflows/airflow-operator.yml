@@ -45,11 +45,12 @@ jobs:
     strategy:
       matrix:
         go: [ '1.18' ]
+        python: [ '1.18' ]
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
       - run: make airflow-operator
       - uses: ./.github/workflows/python-tests
         with:
-          python-version: '3.8'
+          python-version: ${{ matrix.python }}
           path: third_party/airflow
