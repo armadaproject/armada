@@ -1,6 +1,6 @@
 databasePath: "jobservice.db"
 subscribeJobSetTime: 100
 apiConnection:
-  armadaUrl: "server:50051"
+  armadaUrl: "armada-server:50051"
   forceNoTls: true
 
