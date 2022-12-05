@@ -595,7 +595,7 @@ push-nuget: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
-download:
+download: generate
 	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
