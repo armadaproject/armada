@@ -66,6 +66,7 @@ services:
       - redis
       - postgres
       - pulsar
+      - stan
     working_dir: /app
     entrypoint: ./server
     command: --config /config/armada/config.yaml
