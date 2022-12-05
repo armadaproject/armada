@@ -720,7 +720,11 @@ func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
 }
 
 func (qb *QueryBuilder) validateGroupedField(groupedField string) error {
-	if !qb.lookoutTables.IsGroupable(groupedField) {
+	col, err := qb.lookoutTables.ColumnFromField(groupedField)
+	if err != nil {
+		return err
+	}
+	if !qb.lookoutTables.IsGroupable(col) {
 		return errors.Errorf("cannot group by field %s", groupedField)
 	}
 	return nil
