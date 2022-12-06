@@ -1,7 +1,8 @@
+import { memo, useCallback, useMemo } from "react"
+
 import { Checkbox as MuiCheckbox } from "@mui/material"
 import { ColumnDef } from "@tanstack/react-table"
 import { JobTableRow } from "models/jobsTableModels"
-import { memo, useCallback, useMemo } from "react"
 import { ColumnId } from "utils/jobsTableColumns"
 
 const Checkbox = memo(MuiCheckbox)

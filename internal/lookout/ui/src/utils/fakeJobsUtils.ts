@@ -1,7 +1,6 @@
 import { isString } from "lodash"
-import { v4 as uuidv4 } from "uuid"
-
 import { Job, JobFilter, JobKey, JobRun, JobRunStates, JobStates, Match, SortDirection } from "models/lookoutV2Models"
+import { v4 as uuidv4 } from "uuid"
 
 export function randomInt(min: number, max: number, rand: () => number) {
   const range = max - min

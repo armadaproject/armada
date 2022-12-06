@@ -32,7 +32,7 @@ export default function JobDialog(props: JobDetailsModalProps) {
       fullWidth={true}
       maxWidth={"md"}
       TransitionProps={{
-        onExited: () => changeTab("Details")
+        onExited: () => changeTab("Details"),
       }}
     >
       <Tabs

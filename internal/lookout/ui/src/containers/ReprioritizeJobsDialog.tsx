@@ -67,7 +67,7 @@ export default function ReprioritizeJobsDialog(props: ReprioritizeJobsProps) {
       aria-describedby="reprioritize-jobs-modal-description"
       onClose={props.onClose}
       TransitionProps={{
-        onExited: cleanup
+        onExited: cleanup,
       }}
       maxWidth={"md"}
     >

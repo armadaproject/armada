@@ -1,6 +1,7 @@
-import React, { useMemo } from "react"
-
 import ReactDOM from "react-dom"
+import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
+import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
+import { makeTestJobs } from "utils/fakeJobsUtils"
 
 import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
@@ -12,10 +13,7 @@ import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
 import "./index.css"
-;import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
-import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import { makeTestJobs } from "utils/fakeJobsUtils"
-(async () => {
+;(async () => {
   const uiConfig = await getUIConfig()
 
   const jobService = new LookoutJobService(

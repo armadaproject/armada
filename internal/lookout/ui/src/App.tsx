@@ -1,10 +1,12 @@
 import React from "react"
 
 import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
-import { createGenerateClassName } from '@material-ui/core/styles';
-import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from '@mui/material/styles';
-
+import { createGenerateClassName } from "@material-ui/core/styles"
+import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
+import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
+import GetJobsService from "services/lookoutV2/GetJobsService"
+import GroupJobsService from "services/lookoutV2/GroupJobsService"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
@@ -14,9 +16,6 @@ import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 
 import "./App.css"
-import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
 
 type AppProps = {
   jobService: JobService
@@ -36,8 +35,8 @@ const generateClassName = createGenerateClassName({
   // Make sure to convert them to use `styled()` or `<Box />` first.
   disableGlobal: true,
   // Class names will receive this seed to avoid name collisions.
-  seed: 'mui-jss',
-});
+  seed: "mui-jss",
+})
 
 const theme = {
   palette: {

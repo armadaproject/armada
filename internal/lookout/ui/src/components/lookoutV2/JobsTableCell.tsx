@@ -1,9 +1,9 @@
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel } from "@mui/material"
 import { Cell, flexRender, Header } from "@tanstack/react-table"
-import _ from "lodash"
 import { JobRow } from "models/jobsTableModels"
 import { ColumnId, ColumnSpec, columnSpecFor } from "utils/jobsTableColumns"
+
 import { JobsTableFilter } from "./JobsTableFilter"
 
 const sharedCellStyle = {

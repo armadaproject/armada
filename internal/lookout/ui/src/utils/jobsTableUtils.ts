@@ -1,9 +1,10 @@
 import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
-import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { JobRow, JobGroupRow, JobTableRow } from "models/jobsTableModels"
+import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import GetJobsService from "services/lookoutV2/GetJobsService"
 import GroupJobsService from "services/lookoutV2/GroupJobsService"
+
 import { RowIdParts, toRowId, RowId, findRowInData } from "./reactTableUtils"
 
 export interface PendingData {

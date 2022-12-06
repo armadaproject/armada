@@ -1,3 +1,5 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react"
+
 import {
   TableContainer,
   Paper,
@@ -27,11 +29,15 @@ import {
   ColumnFiltersState,
   SortingState,
 } from "@tanstack/react-table"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
+import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
+import { getSelectedColumnDef, SELECT_COLUMN_ID } from "components/lookoutV2/SelectedColumn"
+import _ from "lodash"
+import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
+import { JobId } from "models/lookoutV2Models"
 import GetJobsService from "services/lookoutV2/GetJobsService"
 import GroupJobsService from "services/lookoutV2/GroupJobsService"
-import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
-import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
+import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
   fetchJobGroups,
@@ -45,12 +51,8 @@ import {
   PendingData,
   pendingDataForAllVisibleData,
 } from "utils/jobsTableUtils"
-import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
-import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
-import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
-import { getSelectedColumnDef, SELECT_COLUMN_ID } from "components/lookoutV2/SelectedColumn"
-import _ from "lodash"
-import { JobId } from "models/lookoutV2Models"
+import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
+
 import styles from "./JobsTableContainer.module.css"
 
 const DEFAULT_PAGE_SIZE = 30
@@ -223,7 +225,7 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
         typeof newExpandedOrBool === "boolean"
           ? _.fromPairs(table.getRowModel().flatRows.map((r) => [r.id, true]))
           : newExpandedOrBool
-      const [newlyExpanded, _newlyUnexpanded] = diffOfKeys<RowId>(newExpandedState, expanded)
+      const [newlyExpanded] = diffOfKeys<RowId>(newExpandedState, expanded)
       setExpanded(newExpandedState)
 
       // Fetch subrows for expanded rows

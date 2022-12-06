@@ -1,7 +1,6 @@
 import { Job, JobFilter, JobKey, JobOrder } from "models/lookoutV2Models"
-import { compareValues, mergeFilters } from "utils/fakeJobsUtils"
-
 import GetJobsService, { GetJobsResponse } from "services/lookoutV2/GetJobsService"
+import { compareValues, mergeFilters } from "utils/fakeJobsUtils"
 
 export default class FakeGetJobsService implements GetJobsService {
   jobs: Job[]

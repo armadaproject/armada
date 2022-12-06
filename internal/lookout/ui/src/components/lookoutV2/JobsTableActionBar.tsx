@@ -1,10 +1,12 @@
+import { memo } from "react"
+
 import { Divider, Button } from "@mui/material"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
-import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
-import styles from "./JobsTableActionBar.module.css"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
-import { memo } from "react"
 import { JobId } from "models/lookoutV2Models"
+import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
+
+import styles from "./JobsTableActionBar.module.css"
 
 export interface JobsTableActionBarProps {
   allColumns: ColumnSpec[]

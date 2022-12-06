@@ -15,9 +15,9 @@ import {
   TextField,
   Typography,
 } from "@mui/material"
+import { ColumnId, ColumnSpec } from "utils/jobsTableColumns"
 
 import styles from "./ColumnSelect.module.css"
-import { ColumnId, ColumnSpec } from "utils/jobsTableColumns"
 
 type ColumnSelectProps = {
   allColumns: ColumnSpec[]

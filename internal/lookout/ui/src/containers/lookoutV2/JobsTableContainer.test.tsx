@@ -6,8 +6,9 @@ import GroupJobsService from "services/lookoutV2/GroupJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
-import { JobsTableContainer } from "./JobsTableContainer"
 import { DEFAULT_COLUMN_SPECS } from "utils/jobsTableColumns"
+
+import { JobsTableContainer } from "./JobsTableContainer"
 
 describe("JobsTableContainer", () => {
   const numJobs = 5,

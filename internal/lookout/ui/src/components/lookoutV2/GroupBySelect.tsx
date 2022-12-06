@@ -1,9 +1,10 @@
+import { Fragment } from "react"
+
 import { Clear } from "@mui/icons-material"
 import { Divider, FormControl, IconButton, InputLabel, MenuItem, OutlinedInput, Select } from "@mui/material"
+import { ColumnId, ColumnSpec } from "utils/jobsTableColumns"
 
 import styles from "./GroupBySelect.module.css"
-import { ColumnId, ColumnSpec } from "utils/jobsTableColumns"
-import { Fragment } from "react"
 
 function isGroupable(column: ColumnSpec): boolean {
   return column.groupable

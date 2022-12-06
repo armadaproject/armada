@@ -75,7 +75,7 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
       aria-describedby="reprioritize-job-sets-dialog-description"
       onClose={props.onClose}
       TransitionProps={{
-        onExited: cleanup
+        onExited: cleanup,
       }}
       maxWidth={"md"}
     >

@@ -84,7 +84,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
       aria-describedby="cancel-job-sets-modal-description"
       onClose={props.onClose}
       TransitionProps={{
-        onExited: cleanup
+        onExited: cleanup,
       }}
       maxWidth={"md"}
     >
