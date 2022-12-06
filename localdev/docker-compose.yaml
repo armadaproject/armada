@@ -162,7 +162,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: go
-    command: run cmd/jobservice/main.go --config /config/jobservice/config.yaml
+    command: run cmd/jobservice/main.go run --config /config/jobservice/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester
