@@ -47,21 +47,24 @@ func (report *TestCaseReport) JunitTestCase() junit.Testcase {
 	}
 }
 
-func (srv *TestRunner) Run(ctx context.Context) error {
+func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	report := &TestCaseReport{
 		Out:      &bytes.Buffer{},
 		Start:    time.Now(),
 		TestSpec: srv.testSpec,
 	}
-	defer func() {
-		report.Finish = time.Now()
-		srv.TestCaseReport = report
-	}()
 	out := io.MultiWriter(srv.Out, report.Out)
 
 	fmt.Fprintf(out, "test case started %s\n", testSpecHeader(srv.testSpec))
 	defer func() {
-		fmt.Fprintf(out, "test case completed %s\n", srv.testSpec.Name)
+		report.Finish = time.Now()
+		srv.TestCaseReport = report
+		if err != nil {
+			report.FailureReason = err.Error()
+			fmt.Fprintf(out, "test case %s failed: %s\n", srv.testSpec.Name, report.FailureReason)
+		} else {
+			fmt.Fprintf(out, "test case %s succeeded\n", srv.testSpec.Name)
+		}
 	}()
 
 	// Optional timeout
@@ -78,7 +81,7 @@ func (srv *TestRunner) Run(ctx context.Context) error {
 
 	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
 	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec)
-	if err := sbmtr.Run(ctx); err != nil {
+	if err = sbmtr.Run(ctx); err != nil {
 		return err
 	}
 	jobIds := sbmtr.JobIds()
@@ -99,15 +102,13 @@ func (srv *TestRunner) Run(ctx context.Context) error {
 			return err
 		})
 		if err != nil {
-			fmt.Fprintf(out, "failed to cancel job set: %s", err)
-		} else {
-			fmt.Fprintf(out, "cancelled job set: %s", err)
+			fmt.Fprintf(out, "failed to cancel job set %s: %s\n", srv.testSpec.JobSetId, err)
 		}
 	}()
 
 	// If configured, cancel the submitted jobs immediately.
 	// Used to test job cancellation.
-	if err := tryCancelJobs(ctx, srv.testSpec, srv.apiConnectionDetails, jobIds); err != nil {
+	if err = tryCancelJobs(ctx, srv.testSpec, srv.apiConnectionDetails, jobIds); err != nil {
 		return err
 	}
 
@@ -154,31 +155,28 @@ func (srv *TestRunner) Run(ctx context.Context) error {
 	eventBenchmark := eventbenchmark.New(benchmarkCh)
 	eventBenchmark.Out = out
 	g.Go(func() error { return eventBenchmark.Run(ctx) })
+	defer func() {
+		report.BenchmarkReport = eventBenchmark.NewTestCaseBenchmarkReport(srv.testSpec.GetName())
+	}()
 
 	// Watch for ingress events and try to download from any ingresses found.
 	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
 
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
-	g.Go(func() error { return eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents) })
-
-	// Wait for test to complete.
-	if err := g.Wait(); err != nil {
-		fmt.Fprintf(out, "g exited with: %s", err)
-		report.FailureReason = err.Error()
+	if err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents); err != nil {
+		return err
 	}
-
-	// Create benchmark report.
-	//
-	// TODO: Look over this.
-	report.BenchmarkReport = eventBenchmark.NewTestCaseBenchmarkReport(srv.testSpec.GetName())
-	// report.PrintStatistics(srv.Out)
 
 	// Armada JobSet logs
 	// TODO: Optionally get logs from failed jobs.
 	// if testSpec.GetLogs && executorClustersDefined {
 	// 	jobLogger.PrintLogs()
 	// }
+
+	// Clean up remaining services.
+	cancel()
+	_ = g.Wait()
 
 	return nil
 }
