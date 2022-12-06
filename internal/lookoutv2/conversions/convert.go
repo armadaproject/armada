@@ -79,10 +79,10 @@ func FromSwaggerOrder(order *models.Order) *model.Order {
 	}
 }
 
-func toSwaggerTimePtr(swaggerTs *time.Time) *strfmt.DateTime {
-	if swaggerTs == nil {
+func toSwaggerTimePtr(ts *time.Time) *strfmt.DateTime {
+	if ts == nil {
 		return nil
 	}
-	ts := strfmt.DateTime(*swaggerTs)
-	return &ts
+	swaggerTs := strfmt.DateTime(*ts)
+	return &swaggerTs
 }
