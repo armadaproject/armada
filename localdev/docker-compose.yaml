@@ -115,7 +115,7 @@ services:
       - armada-server
     volumes:
       - ./config:/config
-      - ../.kube/internal/:/.kube
+      - ./.kube:/.kube
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
@@ -136,7 +136,7 @@ services:
       - armada-server
     volumes:
       - ./config:/config
-      - ../.kube:/.kube
+      - ./.kube:/.kube
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"

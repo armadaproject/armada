@@ -82,7 +82,7 @@ services:
       - server
     volumes:
       - ./localdev/config:/config
-      - ./.kube/internal/:/.kube
+      - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
@@ -100,7 +100,7 @@ services:
       - server
     volumes:
       - ./localdev/config:/config
-      - ./.kube:/.kube
+      - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
