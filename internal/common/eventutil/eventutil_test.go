@@ -104,7 +104,6 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 				Annotations:     expectedServiceAnnotations,
 				OwnerReferences: nil,
 				Finalizers:      nil,
-				ClusterName:     "",
 				ManagedFields:   nil,
 			},
 			Spec: v1.ServiceSpec{
