@@ -21,8 +21,8 @@ type GetJobsRepository interface {
 }
 
 type SqlGetJobsRepository struct {
-	db           *pgxpool.Pool
-	queryBuilder *QueryBuilder
+	db            *pgxpool.Pool
+	lookoutTables *LookoutTables
 }
 
 type GetJobsResult struct {
@@ -69,8 +69,8 @@ type annotationRow struct {
 
 func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	return &SqlGetJobsRepository{
-		db:           db,
-		queryBuilder: &QueryBuilder{lookoutTables: NewTables()},
+		db:            db,
+		lookoutTables: NewTables(),
 	}
 }
 
@@ -85,7 +85,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := r.queryBuilder.JobCount(filters)
+		countQuery, err := NewQueryBuilder(r.lookoutTables).JobCount(filters)
 		if err != nil {
 			return err
 		}
@@ -98,13 +98,13 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 			return err
 		}
 
-		createTempTableQuery, tempTableName := r.queryBuilder.CreateTempTable()
+		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
 		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
 		if err != nil {
 			return err
 		}
 
-		insertQuery, err := r.queryBuilder.InsertIntoTempTable(tempTableName, filters, order, skip, take)
+		insertQuery, err := NewQueryBuilder(r.lookoutTables).InsertIntoTempTable(tempTableName, filters, order, skip, take)
 		if err != nil {
 			return err
 		}

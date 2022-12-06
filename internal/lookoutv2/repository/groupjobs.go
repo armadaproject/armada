@@ -31,14 +31,14 @@ type GroupJobsRepository interface {
 }
 
 type SqlGroupJobsRepository struct {
-	db           *pgxpool.Pool
-	queryBuilder *QueryBuilder
+	db            *pgxpool.Pool
+	lookoutTables *LookoutTables
 }
 
 func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
-		db:           db,
-		queryBuilder: &QueryBuilder{lookoutTables: NewTables()},
+		db:            db,
+		lookoutTables: NewTables(),
 	}
 }
 
@@ -59,7 +59,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := r.queryBuilder.CountGroups(filters, groupedField)
+		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, groupedField)
 		if err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
-		groupByQuery, err := r.queryBuilder.GroupBy(filters, order, groupedField, skip, take)
+		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, order, groupedField, skip, take)
 		if err != nil {
 			return err
 		}

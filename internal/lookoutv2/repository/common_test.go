@@ -88,7 +88,6 @@ func TestQueryBuilder_DetermineTablesForQuery(t *testing.T) {
 			util.StringListToSet([]string{userAnnotationLookupTable}),
 		})
 		assert.NoError(t, err)
-		// TODO: Sub optimal - actual problem is NP-hard, fine for now
 		assert.Equal(t, util.StringListToSet([]string{jobRunTable, userAnnotationLookupTable}), tables)
 	})
 }

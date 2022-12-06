@@ -23,16 +23,27 @@ type Query struct {
 	Args []interface{}
 }
 
+// QueryBuilder is a struct responsible for building a single Lookout SQL query
 type QueryBuilder struct {
+	// Returns information about database schema to create the queries
 	lookoutTables *LookoutTables
+	// Mapping from UUID to value to be used in query - we will use this mapping to create a prepared SQL query,
+	// substituting each UUID in the SQL string with $1, $2, ...
+	queryValues map[string]interface{}
 }
 
+// queryColumn contains all data related to a column to be used in a query
+// The same column could be used in multiple databases, this struct will be used to determine which table should be used
+// The abbreviation of the table, abbrev is included for ease
 type queryColumn struct {
 	name   string
 	table  string
 	abbrev string
 }
 
+// Represents data required to construct a condition based on a column, it's desired value, and match expression
+// isAnnotation is set to true if we are filtering on annotations: in this case, the column.name will be the annotation
+// key, and value will be the annotation value
 type queryFilter struct {
 	column       *queryColumn
 	value        interface{}
@@ -40,11 +51,22 @@ type queryFilter struct {
 	isAnnotation bool
 }
 
+// Represents data required to construct a sort expression based on a column and a direction.
+// The direction can be "ASC" or "DESC"
 type queryOrder struct {
 	column    *queryColumn
 	direction string
 }
 
+func NewQueryBuilder(lookoutTables *LookoutTables) *QueryBuilder {
+	return &QueryBuilder{
+		lookoutTables: lookoutTables,
+		queryValues:   make(map[string]interface{}),
+	}
+}
+
+// CreateTempTable creates a temporary table of job ids
+// Returns the Query and the name of the temporary table, to be used later in InsertIntoTempTable
 func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 	tempTable := database.UniqueTableName(jobTable)
 	sql := fmt.Sprintf(`
@@ -57,6 +79,7 @@ func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 	}, tempTable
 }
 
+// JobCount Returns SQL Query that when executed will return the total number of jobs that match the list of filters
 func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
@@ -79,8 +102,7 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	valuesMap := make(map[string]interface{})
-	whereSql, err := qb.queryFiltersToSql(queryFilters, valuesMap)
+	whereSql, err := qb.queryFiltersToSql(queryFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -94,13 +116,15 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 		%s
 		%s`,
 		abbrev, fromSql, whereSql)
-	templated, args := templateSql(template, valuesMap)
+	templated, args := templateSql(template, qb.queryValues)
 	return &Query{
 		Sql:  templated,
 		Args: args,
 	}, nil
 }
 
+// InsertIntoTempTable returns Query that returns Job IDs according to filters, order, skip and take, and inserts them
+// in the temp table with name tempTableName
 func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*model.Filter, order *model.Order, skip, take int) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
@@ -131,8 +155,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	if err != nil {
 		return nil, err
 	}
-	valuesMap := make(map[string]interface{})
-	whereSql, err := qb.queryFiltersToSql(queryFilters, valuesMap)
+	whereSql, err := qb.queryFiltersToSql(queryFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -151,13 +174,15 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 		ON CONFLICT DO NOTHING`,
 		tempTableName, abbrev, fromSql, whereSql, orderSql, limitOffsetSql(skip, take))
 
-	templated, args := templateSql(template, valuesMap)
+	templated, args := templateSql(template, qb.queryValues)
 	return &Query{
 		Sql:  templated,
 		Args: args,
 	}, nil
 }
 
+// CountGroups returns Query that counts the total number of groups created by grouping by groupedField and filtering
+// with filters
 func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
@@ -179,7 +204,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 	if err != nil {
 		return nil, err
 	}
-	groupCol, err := qb.getQueryCol(groupedField, queryTables)
+	groupCol, err := qb.getGroupByQueryCol(groupedField, queryTables)
 	if err != nil {
 		return nil, err
 	}
@@ -187,8 +212,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 	if err != nil {
 		return nil, err
 	}
-	valuesMap := make(map[string]interface{})
-	whereSql, err := qb.queryFiltersToSql(queryFilters, valuesMap)
+	whereSql, err := qb.queryFiltersToSql(queryFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -202,13 +226,14 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 		) AS group_table`,
 		groupCol.abbrev, groupCol.name, fromSql, whereSql, groupBySql)
 
-	templated, args := templateSql(template, valuesMap)
+	templated, args := templateSql(template, qb.queryValues)
 	return &Query{
 		Sql:  templated,
 		Args: args,
 	}, nil
 }
 
+// GroupBy returns Query that performs a group by on filters
 func (qb *QueryBuilder) GroupBy(
 	filters []*model.Filter,
 	order *model.Order,
@@ -240,7 +265,7 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	groupCol, err := qb.getQueryCol(groupedField, queryTables)
+	groupCol, err := qb.getGroupByQueryCol(groupedField, queryTables)
 	if err != nil {
 		return nil, err
 	}
@@ -248,8 +273,7 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	valuesMap := make(map[string]interface{})
-	whereSql, err := qb.queryFiltersToSql(queryFilters, valuesMap)
+	whereSql, err := qb.queryFiltersToSql(queryFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +287,7 @@ func (qb *QueryBuilder) GroupBy(
 		%[8]s
 		%[9]s`,
 		groupCol.abbrev, groupCol.name, jobIdCol, countCol, fromSql, whereSql, groupBySql, orderSql, limitOffsetSql(skip, take))
-	templated, args := templateSql(template, valuesMap)
+	templated, args := templateSql(template, qb.queryValues)
 	fmt.Println(templated)
 	fmt.Println(args)
 	return &Query{
@@ -272,7 +296,8 @@ func (qb *QueryBuilder) GroupBy(
 	}, nil
 }
 
-// For each field/column, get the possible tables we could be querying as string set
+// For each field/column specified in filters and order, get all the possible tables we could be querying
+// returns a string set
 func (qb *QueryBuilder) getAllTables(filters []*model.Filter, order *model.Order) ([]map[string]bool, error) {
 	var result []map[string]bool
 	for _, filter := range filters {
@@ -298,6 +323,7 @@ func (qb *QueryBuilder) getAllTables(filters []*model.Filter, order *model.Order
 	return result, nil
 }
 
+// Converts field -> column, then returns list of tables that column appears in
 func (qb *QueryBuilder) tablesFromField(field string) (map[string]bool, error) {
 	col, err := qb.lookoutTables.ColumnFromField(field)
 	if err != nil {
@@ -310,6 +336,17 @@ func (qb *QueryBuilder) tablesFromField(field string) (map[string]bool, error) {
 	return tables, nil
 }
 
+// For each query, we will have to query one or more columns. Each column can be found in one or more tables.
+// To optimise queries, we want to find the smallest set of tables that includes all columns required in the query.
+// determineTablesForQuery takes a list of sets of tables (one set of tables for each column), and returns the minimal
+// set of tables that includes all columns.
+// E.g. three tables: A, B, C
+//   Col 1 is in table [A, B]
+//   Col 2 is in table [B]
+//   Col 3 is in table [B]
+//   Col 4 is in table [C]
+//   Therefore, the smallest set of tables to use is [B, C]
+// If multiple tables can be used, it picks the one with the highest precedence
 func (qb *QueryBuilder) determineTablesForQuery(tablesForColumns []map[string]bool) (map[string]bool, error) {
 	if len(tablesForColumns) == 0 {
 		return util.StringListToSet([]string{jobTable}), nil
@@ -324,6 +361,7 @@ func (qb *QueryBuilder) determineTablesForQuery(tablesForColumns []map[string]bo
 		}
 	}
 
+	// Compute power set of tables, and select smallest set that includes all columns
 	nTables := len(qb.lookoutTables.TablePrecedence())
 	nSets := int(math.Pow(2, float64(nTables))) - 1
 	i := 1
@@ -382,6 +420,8 @@ func intersection(sets []map[string]bool) map[string]bool {
 	return inter
 }
 
+// queryTablesToSql creates FROM clause using a set of tables,
+// joining them on colToJoin if multiple tables are present
 func (qb *QueryBuilder) queryTablesToSql(queryTables map[string]bool, colToJoin string) (string, error) {
 	sortedTables := make([]string, len(queryTables))
 	idx := 0
@@ -411,7 +451,7 @@ func (qb *QueryBuilder) queryTablesToSql(queryTables map[string]bool, colToJoin 
 	return sb.String(), nil
 }
 
-// Get abbreviation for highest precedence table
+// Get abbreviation for highest precedence table out of a set of tables
 func (qb *QueryBuilder) firstTableAbbrev(queryTables map[string]bool) (string, error) {
 	for _, table := range qb.lookoutTables.TablePrecedence() {
 		if _, ok := queryTables[table]; ok {
@@ -425,6 +465,8 @@ func (qb *QueryBuilder) firstTableAbbrev(queryTables map[string]bool) (string, e
 	return "", errors.New("no tables")
 }
 
+// makeQueryFilters takes a list of external filters and a set of tables to perform the queries on, and returns the
+// corresponding list of queryFilters which will be used to generate the WHERE clause for the query
 func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables map[string]bool) ([]*queryFilter, error) {
 	result := make([]*queryFilter, len(filters))
 	for i, filter := range filters {
@@ -490,7 +532,8 @@ func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables ma
 	return result, nil
 }
 
-func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter, valuesMap map[string]interface{}) (string, error) {
+// queryFiltersToSql converts list of queryFilters to WHERE clause
+func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter) (string, error) {
 	if len(filters) == 0 {
 		return "", nil
 	}
@@ -498,18 +541,18 @@ func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter, valuesMap map[
 	for _, filter := range filters {
 		if filter.isAnnotation {
 			// Need two filters, one for annotation key, one for annotation value
-			keyExpr, err := qb.comparisonExpr(filter.column.name, model.MatchExact, filter.column.abbrev, annotationKeyCol, valuesMap)
+			keyExpr, err := qb.comparisonExpr(filter.column.name, model.MatchExact, filter.column.abbrev, annotationKeyCol)
 			if err != nil {
 				return "", err
 			}
-			valueExpr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, annotationValueCol, valuesMap)
+			valueExpr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, annotationValueCol)
 			if err != nil {
 				return "", err
 			}
 			exprs = append(exprs, keyExpr, valueExpr)
 			continue
 		}
-		expr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, filter.column.name, valuesMap)
+		expr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, filter.column.name)
 		if err != nil {
 			return "", err
 		}
@@ -518,12 +561,14 @@ func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter, valuesMap map[
 	return fmt.Sprintf("WHERE %s", strings.Join(exprs, " AND ")), nil
 }
 
-func (qb *QueryBuilder) comparisonExpr(value interface{}, match, abbrev, colName string, valuesMap map[string]interface{}) (string, error) {
+// Given a value, a match, a table abbreviation and a column name, returns the corresponding comparison expression for
+// use in a WHERE clause
+func (qb *QueryBuilder) comparisonExpr(value interface{}, match, abbrev, colName string) (string, error) {
 	comparator, err := qb.comparatorForMatch(match)
 	if err != nil {
 		return "", err
 	}
-	formattedValue, err := qb.valueForMatch(value, match, valuesMap)
+	formattedValue, err := qb.valueForMatch(value, match)
 	if err != nil {
 		return "", err
 	}
@@ -532,6 +577,7 @@ func (qb *QueryBuilder) comparisonExpr(value interface{}, match, abbrev, colName
 		abbrev, colName, comparator, formattedValue), nil
 }
 
+// Given a match string, return the corresponding SQL compare operation
 func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 	switch match {
 	case model.MatchExact:
@@ -548,33 +594,36 @@ func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 }
 
 // Returns string to render in SQL, updates valuesMap with corresponding value(s)
-func (qb *QueryBuilder) valueForMatch(value interface{}, match string, valuesMap map[string]interface{}) (string, error) {
+func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, error) {
 	switch match {
 	case model.MatchStartsWith:
 		v := fmt.Sprintf("%v%%", value)
-		id := uuid.NewString()
-		valuesMap[id] = v
-		return idToTemplateString(id), nil
+		return qb.recordValue(v), nil
 	case model.MatchAnyOf:
 		switch v := value.(type) {
 		case []int:
 			ids := make([]string, len(v))
 			for i, val := range v {
-				id := uuid.NewString()
-				valuesMap[id] = val
-				ids[i] = idToTemplateString(id)
+				ids[i] = qb.recordValue(val)
 			}
 			return fmt.Sprintf("(%s)", strings.Join(ids, ", ")), nil
 		default:
 			return "", errors.Errorf("unsupported type for anyOf: %T", v)
 		}
 	default:
-		id := uuid.NewString()
-		valuesMap[id] = value
-		return idToTemplateString(id), nil
+		return qb.recordValue(value), nil
 	}
 }
 
+// Save value to be used in prepared statement, returns template string to put in place of the value in the SQL string
+func (qb *QueryBuilder) recordValue(value interface{}) string {
+	id := uuid.NewString()
+	qb.queryValues[id] = value
+	return idToTemplateString(id)
+}
+
+// makeQueryOrder takes an external order and a set of tables to perform the queries on, and returns the
+// corresponding queryOrder which will be used to generate the ORDER BY clause for the query
 func (qb *QueryBuilder) makeQueryOrder(order *model.Order, queryTables map[string]bool) (*queryOrder, error) {
 	if orderIsNull(order) {
 		return nil, nil
@@ -601,6 +650,7 @@ func (qb *QueryBuilder) makeQueryOrder(order *model.Order, queryTables map[strin
 	}, nil
 }
 
+// queryOrderToSql converts list of queryFilters to WHERE clause
 func (qb *QueryBuilder) queryOrderToSql(order *queryOrder) string {
 	if order == nil {
 		return ""
@@ -608,7 +658,8 @@ func (qb *QueryBuilder) queryOrderToSql(order *queryOrder) string {
 	return fmt.Sprintf("ORDER BY %s.%s %s", order.column.abbrev, order.column.name, order.direction)
 }
 
-func (qb *QueryBuilder) getQueryCol(groupedField string, queryTables map[string]bool) (*queryColumn, error) {
+// getGroupByQueryCol finds the groupedField's corresponding column and best table to group by on
+func (qb *QueryBuilder) getGroupByQueryCol(groupedField string, queryTables map[string]bool) (*queryColumn, error) {
 	col, err := qb.lookoutTables.ColumnFromField(groupedField)
 	if err != nil {
 		return nil, err
