@@ -84,6 +84,7 @@ export default class Jobs extends React.Component<JobsProps, Record<string, neve
 
   render() {
     const rowCount = this.props.jobs.length
+    console.log("Job count:", this.props.jobs.length)
     return (
       <div className="jobs">
         <div className="job-table-header-container">

@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 
 import ReactDOM from "react-dom"
 
@@ -12,7 +12,10 @@ import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
 import "./index.css"
-;(async () => {
+;import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
+import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
+import { makeTestJobs } from "utils/fakeJobsUtils"
+(async () => {
   const uiConfig = await getUIConfig()
 
   const jobService = new LookoutJobService(
@@ -32,9 +35,15 @@ import "./index.css"
     uiConfig.binocularsEnabled,
   )
 
+  const v2TestJobs = makeTestJobs(10000, 42)
+  const v2GetJobsService = new FakeGetJobsService(v2TestJobs)
+  const v2GroupJobsService = new FakeGroupJobsService(v2TestJobs)
+
   ReactDOM.render(
     <App
       jobService={jobService}
+      v2GetJobsService={v2GetJobsService}
+      v2GroupJobsService={v2GroupJobsService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
