@@ -53,20 +53,3 @@ jobs:
         with:
           python-version: '3.8'
           path: third_party/airflow
-  airflow-integration-tests:
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        go: [ '1.18' ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/workflows/go-setup
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-          path: third_party/airflow
-      - run: make build-ci
-      - run: make tests-e2e-setup
-      - run: make tests-e2e-airflow
-      - run: make tests-e2e-teardown
-
