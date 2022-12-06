@@ -60,7 +60,7 @@ func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "filters are invalid")
+		return nil, errors.Wrap(err, "filters are invalid")
 	}
 
 	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
@@ -104,11 +104,11 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*model.Filter, order *model.Order, skip, take int) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "filters are invalid")
+		return nil, errors.Wrap(err, "filters are invalid")
 	}
 	err = qb.validateOrder(order)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "order is invalid")
+		return nil, errors.Wrap(err, "order is invalid")
 	}
 
 	tablesFromColumns, err := qb.getAllTables(filters, order)
@@ -161,7 +161,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "filters are invalid")
+		return nil, errors.Wrap(err, "filters are invalid")
 	}
 	err = qb.validateGroupedField(groupedField)
 	if err != nil {
@@ -218,15 +218,15 @@ func (qb *QueryBuilder) GroupBy(
 ) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "filters are invalid")
+		return nil, errors.Wrap(err, "filters are invalid")
 	}
 	err = qb.validateGroupOrder(order)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "group order is invalid")
+		return nil, errors.Wrap(err, "group order is invalid")
 	}
 	err = qb.validateGroupedField(groupedField)
 	if err != nil {
-		return &Query{}, errors.Wrap(err, "group field is invalid")
+		return nil, errors.Wrap(err, "group field is invalid")
 	}
 	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
 	if err != nil {
