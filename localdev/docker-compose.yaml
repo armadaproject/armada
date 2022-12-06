@@ -92,6 +92,7 @@ services:
     ports:
       - "9009:9009"
       - "8089:8089"
+      - 3000:3000
     volumes:
       - ./config:/config
       - "..:/app:rw"
