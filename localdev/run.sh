@@ -34,8 +34,8 @@ then
     SLEEP_TIME=2
 fi
 
-docker-compose up -d $INFRA_SVCS --verbose
+docker-compose up --verbose -d $INFRA_SVCS
 sleep $SLEEP_TIME
-docker-compose up -d $ARMADA_SVCS --verbose
+docker-compose up --verbose -d $ARMADA_SVCS
 
 docker-compose ps
