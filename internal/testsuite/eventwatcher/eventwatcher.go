@@ -136,9 +136,9 @@ func (err *ErrUnexpectedEvent) Error() string {
 }
 
 // AssertEvents compares the events received for each job with the expected events.
-func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) (map[string]bool, error) {
+func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
 	if len(expected) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
@@ -157,7 +157,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	for {
 		select {
 		case <-ctx.Done():
-			return terminatedByJobId, errors.Errorf("did not receive all events for at least one job")
+			return errors.Errorf("did not receive all events for at least one job")
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
@@ -173,7 +173,7 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
 				if err := assertEvent(expected[i], actual); err != nil {
-					return terminatedByJobId, err
+					return err
 				}
 				i++
 				indexByJobId[actualJobId] = i
@@ -181,13 +181,13 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			if i == len(expected) {
 				numDone++
 				if numDone == len(jobIds) {
-					return terminatedByJobId, nil // We got all the expected events.
+					return nil // We got all the expected events.
 				}
 			}
 
 			// Return an error if the job has exited without us seeing all expected events.
 			if isTerminalEvent(actual) && i < len(expected) {
-				return terminatedByJobId, &ErrUnexpectedEvent{
+				return &ErrUnexpectedEvent{
 					jobId:    actualJobId,
 					expected: expected[i],
 					actual:   actual,

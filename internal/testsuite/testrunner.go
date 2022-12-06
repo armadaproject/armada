@@ -100,6 +100,8 @@ func (srv *TestRunner) Run(ctx context.Context) error {
 		})
 		if err != nil {
 			fmt.Fprintf(out, "failed to cancel job set: %s", err)
+		} else {
+			fmt.Fprintf(out, "cancelled job set: %s", err)
 		}
 	}()
 
@@ -158,15 +160,11 @@ func (srv *TestRunner) Run(ctx context.Context) error {
 
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
-	//
-	// TODO: Delete the terminatedByJobId.
-	g.Go(func() error {
-		_, err := eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents)
-		return err
-	})
+	g.Go(func() error { return eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents) })
 
 	// Wait for test to complete.
 	if err := g.Wait(); err != nil {
+		fmt.Fprintf(out, "g exited with: %s", err)
 		report.FailureReason = err.Error()
 	}
 
