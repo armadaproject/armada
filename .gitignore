@@ -14,6 +14,9 @@ jobservice.db
 jobservice.db-shm
 jobservice.db-wal
 
+# Intermediary build artifacts
+dist
+
 # Proto compiler and dependencies
 proto
 protoc
