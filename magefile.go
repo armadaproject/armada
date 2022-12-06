@@ -66,6 +66,7 @@ func KindSetup() error {
 	resources := []string{
 		"e2e/setup/ingress-nginx.yaml",
 		"e2e/setup/priorityclasses.yaml",
+		"e2e/setup/namespace-with-anonymous-user.yaml",
 	}
 	for _, f := range resources {
 		if err := sh.Run("kubectl", "apply", "-f", f, "--context", "kind-armada-test"); err != nil {
