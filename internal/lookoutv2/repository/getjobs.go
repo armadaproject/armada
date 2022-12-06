@@ -75,73 +75,63 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 }
 
 func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) (*GetJobsResult, error) {
-	var err error
-	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+	var jobRows []*jobRow
+	var runRows []*runRow
+	var annotationRows []*annotationRow
+	var count int
+
+	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		countQuery, err := r.queryBuilder.JobCount(filters)
+		if err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
+		if err != nil {
+			return err
+		}
+		count, err = database.ReadInt(rows)
+		if err != nil {
+			return err
+		}
+
+		createTempTableQuery, tempTableName := r.queryBuilder.CreateTempTable()
+		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
+		if err != nil {
+			return err
+		}
+
+		insertQuery, err := r.queryBuilder.InsertIntoTempTable(tempTableName, filters, order, skip, take)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
+		if err != nil {
+			return err
+		}
+
+		jobRows, err = makeJobRows(ctx, tx, tempTableName)
+		if err != nil {
+			log.WithError(err).Error("failed getting job rows")
+			return err
+		}
+		runRows, err = makeRunRows(ctx, tx, tempTableName)
+		if err != nil {
+			log.WithError(err).Error("failed getting run rows")
+			return err
+		}
+		annotationRows, err = makeAnnotationRows(ctx, tx, tempTableName)
+		if err != nil {
+			log.WithError(err).Error("failed getting annotation rows")
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
-		log.WithError(err).Error("failed to start transaction")
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			log.WithError(err).Error("transaction failed, rolling back")
-			txCloseErr := tx.Rollback(ctx)
-			if txCloseErr != nil {
-				log.WithError(txCloseErr).Error("failed to roll back transaction")
-			}
-		} else {
-			txCloseErr := tx.Commit(ctx)
-			if txCloseErr != nil {
-				log.WithError(txCloseErr).Error("failed to commit transaction")
-			}
-			err = txCloseErr
-		}
-	}()
-
-	countQuery, err := r.queryBuilder.JobCount(filters)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-	if err != nil {
-		return nil, err
-	}
-	count, err := database.ReadInt(rows)
-	if err != nil {
-		return nil, err
-	}
-
-	createTempTableQuery, tempTableName := r.queryBuilder.CreateTempTable()
-	_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
-	if err != nil {
-		return nil, err
-	}
-
-	insertQuery, err := r.queryBuilder.InsertIntoTempTable(tempTableName, filters, order, skip, take)
-	if err != nil {
-		return nil, err
-	}
-	_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
-	if err != nil {
-		return nil, err
-	}
-
-	jobRows, err := makeJobRows(ctx, tx, tempTableName)
-	if err != nil {
-		log.WithError(err).Error("failed getting job rows")
-		return nil, err
-	}
-	runRows, err := makeRunRows(ctx, tx, tempTableName)
-	if err != nil {
-		log.WithError(err).Error("failed getting run rows")
-		return nil, err
-	}
-	annotationRows, err := makeAnnotationRows(ctx, tx, tempTableName)
-	if err != nil {
-		log.WithError(err).Error("failed getting annotation rows")
 		return nil, err
 	}
 

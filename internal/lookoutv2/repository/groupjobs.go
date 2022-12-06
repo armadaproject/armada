@@ -3,14 +3,12 @@ package repository
 import (
 	"context"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 )
 
 type GroupByResult struct {
@@ -52,52 +50,35 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	skip int,
 	take int,
 ) (*GroupByResult, error) {
-	var err error
-	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+	var groups []*model.JobGroup
+	var count int
+
+	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		countQuery, err := r.queryBuilder.CountGroups(filters, groupedField)
+		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
+		if err != nil {
+			return err
+		}
+		count, err = database.ReadInt(rows)
+		if err != nil {
+			return err
+		}
+		groupByQuery, err := r.queryBuilder.GroupBy(filters, order, groupedField, skip, take)
+		groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
+		if err != nil {
+			return err
+		}
+		groups, err = rowsToGroups(groupRows, groupedField)
+		return err
 	})
 	if err != nil {
-		log.WithError(err).Error("failed to start transaction")
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			log.WithError(err).Error("transaction failed, rolling back")
-			txCloseErr := tx.Rollback(ctx)
-			if txCloseErr != nil {
-				log.WithError(txCloseErr).Error("failed to roll back transaction")
-			}
-		} else {
-			txCloseErr := tx.Commit(ctx)
-			if txCloseErr != nil {
-				log.WithError(txCloseErr).Error("failed to commit transaction")
-			}
-			err = txCloseErr
-		}
-	}()
-
-	countQuery, err := r.queryBuilder.CountGroups(filters, groupedField)
-	rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-	if err != nil {
-		return nil, err
-	}
-	count, err := database.ReadInt(rows)
-	if err != nil {
 		return nil, err
 	}
 
-	groupByQuery, err := r.queryBuilder.GroupBy(filters, order, groupedField, skip, take)
-	groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
-	if err != nil {
-		return nil, err
-	}
-
-	groups, err := rowsToGroups(groupRows, groupedField)
-	if err != nil {
-		return nil, err
-	}
 	return &GroupByResult{
 		Groups: groups,
 		Count:  count,
