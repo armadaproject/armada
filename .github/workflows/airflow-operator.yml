@@ -46,13 +46,6 @@ jobs:
       matrix:
         go: [ '1.18' ]
         python: [ '3.8', '3.9', '3.10' ]
-        includes:
-          - toxenv: py38
-            python: '3.8'
-          - toxenv: py39
-            python: '3.9'
-          - toxenv: py310
-            python: '3.10'
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
@@ -60,5 +53,4 @@ jobs:
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
-          toxenv: ${{ matrix.toxenv }}
           path: third_party/airflow
