@@ -7,9 +7,9 @@ import (
 )
 
 func assertEvent(expected *api.EventMessage, actual *api.EventMessage) error {
-	switch e := actual.Events.(type) {
+	switch e := expected.Events.(type) {
 	case *api.EventMessage_Failed:
-		v := expected.Events.(*api.EventMessage_Failed)
+		v := actual.Events.(*api.EventMessage_Failed)
 		return assertEventFailed(e, v)
 	default:
 		return nil
@@ -17,7 +17,13 @@ func assertEvent(expected *api.EventMessage, actual *api.EventMessage) error {
 }
 
 func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessage_Failed) error {
-	if len(expected.Failed.GetReason()) > 0 && expected.Failed.GetReason() != actual.Failed.GetReason() {
+	if expected.Failed.GetReason() == "" {
+		return nil
+	}
+	if actual == nil {
+		return errors.Errorf("unexpected nil event 'actual'")
+	}
+	if expected.Failed.GetReason() != actual.Failed.GetReason() {
 		return errors.Errorf(
 			"error asserting failure reason: expected %s, got %s",
 			expected.Failed.GetReason(), actual.Failed.GetReason(),
