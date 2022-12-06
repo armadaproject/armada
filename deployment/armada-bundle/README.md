@@ -41,7 +41,7 @@ A helm chart which bundles Armada components
 | armada-lookout-ingester.applicationConfig.postgres.maxOpenConns | int | `100` | Postgres max open connections |
 | armada-lookout-ingester.applicationConfig.pulsar.URL | string | `"pulsar://pulsar-broker.armada.svc.cluster.local:6650"` | Pulsar connection string |
 | armada-lookout-ingester.applicationConfig.pulsar.enabled | bool | `true` | Toggle whether to connect to Pulsar |
-| armada-lookout-ingester.applicationConfig.pulsar.jobsetEventsTopic | string | `"events"` |  |
+| armada-lookout-ingester.applicationConfig.pulsar.jobsetEventsTopic | string | `"persistent://armada/armada/events"` |  |
 | armada-lookout-ingester.image.repository | string | `"gresearchdev/armada-lookout-ingester-dev"` |  |
 | armada-lookout-ingester.image.tag | string | `"88ea8f0b8124c7dbbb44f7c7315c0fca13655f18"` |  |
 | armada-lookout-migration.applicationConfig.postgres.connMaxLifetime | string | `"30m"` | Postgres connection max lifetime |
