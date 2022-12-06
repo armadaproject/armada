@@ -7,35 +7,28 @@ ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservi
 cd "$(dirname "${0}")" || exit
 
 # start the kubernetes cluster if needed
-kind_output="$(kind get clusters)"
-if [[ $kind_output == *"armada-test"* ]]; then
-    echo "Using existing armada-test cluster"
-else
+kind get clusters | grep armada-test &> /dev/null
+if [ $? -ne 0 ];
+then
     scripts/kind-start.sh
 fi
 
 # select arm64 image for pulsar if needed
-os_system="$(uname -a)"
-#arm_found=$(grep -c arm64 <<< $os_system)
-#echo $arm_found
-if [[ $arm_found == *"arm64"* ]]; then
-    echo "Detecting Arm64 so will use custom pulsar image"
-    PULSAR_IMAGE="kezhenxu94/pulsar"
-else
-    echo "Detecting Linux so will use normal pulsar image."
+uname -a | grep "arm64" &> /dev/null
+if [ $? -eq 0 ];
+then
+    export PULSAR_IMAGE="kezhenxu94/pulsar"
 fi
 
 # see if pulsar is already up, in which case we don't need to sleep
-SLEEP_TIME=50
-compose_list="$(docker-compose ps)"
-if [[ $compose_list == *"pulsar.+running"* ]];
+SLEEP_TIME=0
+docker-compose ps | grep -E "pulsar.+running" &> /dev/null
+if [ $? -ne 0 ];
 then
-    echo "Pulsar is up, wait shortly ..."
-    SLEEP_TIME=2
+    echo "Pausing for pulsar start up ..."
+    SLEEP_TIME=50
 fi
 
-docker-compose --verbose up -d $INFRA_SVCS
+docker-compose up -d $INFRA_SVCS
 sleep $SLEEP_TIME
-docker-compose --verbose up -d $ARMADA_SVCS
-
-docker-compose ps
+docker-compose up -d $ARMADA_SVCS
