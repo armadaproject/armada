@@ -1,14 +1,15 @@
 # Armada Demo
 
-This guide will show you how to take a quick test drive of an Armada 
+This guide will show you how to take a quick test drive of an Armada
 instance already deployed to AWS EKS.
 
 ## EKS
 
-The EKS demo of Armada can be found at this URL::
+The Armada UI (lookout) can be found at this URL:
+
 - [https://ui.demo.armadaproject.io](https://ui.demo.armadaproject.io)
 
-## Local prequisites
+## Local prerequisites
 
 - Git
 - Go 1.18
@@ -25,7 +26,7 @@ All commands are intended to be run from the root of the repository.
 
 ## Setup an easy-to-use alias
 ```bash
-alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproject.io:443' 
+alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproject.io:443'
 ```
 
 ## Create queues and jobs
