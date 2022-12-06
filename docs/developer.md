@@ -74,7 +74,7 @@ a debugging instance. Below are the steps for replacing the `server` container w
 ```bash
 cd localdev
 docker stop server && docker rm server
-docker-compose run --entrypoint bash --name server server
+docker-compose run --entrypoint bash --name server --rm --service-ports server
 
 root@11c57f54c993:/app# go install github.com/go-delve/delve/cmd/dlv@latest
 root@11c57f54c993:/app# dlv debug cmd/armada/main.go -- --config /config/armada/config.yaml
