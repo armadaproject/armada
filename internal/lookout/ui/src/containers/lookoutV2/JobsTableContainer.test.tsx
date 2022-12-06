@@ -10,6 +10,9 @@ import { DEFAULT_COLUMN_SPECS } from "utils/jobsTableColumns"
 
 import { JobsTableContainer } from "./JobsTableContainer"
 
+// This is quite a heavy component, and tests can timeout on a slower machine
+jest.setTimeout(15_000)
+
 describe("JobsTableContainer", () => {
   const numJobs = 5,
     numQueues = 2,
@@ -173,7 +176,7 @@ describe("JobsTableContainer", () => {
     await groupByColumn("Job Set")
 
     // Verify all rows are now collapsed
-    waitForElementToBeRemoved(() => queryAllByRole("button", { name: "Expand row" }))
+    await waitFor(() => expect(queryAllByRole("button", { name: "Expand row" }).length).toBe(0))
   })
 
   it("should allow selecting of jobs", async () => {
@@ -183,18 +186,18 @@ describe("JobsTableContainer", () => {
     expect(await findByRole("button", { name: "Cancel" })).toBeDisabled()
     expect(await findByRole("button", { name: "Reprioritize" })).toBeDisabled()
 
-    toggleSelectedRow(jobs[0].jobId)
-    toggleSelectedRow(jobs[2].jobId)
+    await toggleSelectedRow(jobs[0].jobId)
+    await toggleSelectedRow(jobs[2].jobId)
 
     expect(await findByRole("button", { name: "Cancel 2 jobs" })).toBeEnabled()
     expect(await findByRole("button", { name: "Reprioritize 2 jobs" })).toBeEnabled()
 
-    toggleSelectedRow(jobs[2].jobId)
+    await toggleSelectedRow(jobs[2].jobId)
 
     expect(await findByRole("button", { name: "Cancel 1 job" })).toBeEnabled()
     expect(await findByRole("button", { name: "Reprioritize 1 job" })).toBeEnabled()
 
-    toggleSelectedRow(jobs[0].jobId)
+    await toggleSelectedRow(jobs[0].jobId)
 
     expect(await findByRole("button", { name: "Cancel" })).toBeDisabled()
     expect(await findByRole("button", { name: "Reprioritize" })).toBeDisabled()
@@ -290,7 +293,7 @@ describe("JobsTableContainer", () => {
 
   async function groupByColumn(columnDisplayName: string) {
     const groupByDropdownButton = await screen.findByRole("button", { name: "Group by" })
-    userEvent.click(groupByDropdownButton)
+    await userEvent.click(groupByDropdownButton)
 
     const dropdown = await screen.findByRole("listbox")
     const colToGroup = await within(dropdown).findByText(columnDisplayName)
@@ -302,13 +305,13 @@ describe("JobsTableContainer", () => {
       name: new RegExp(buttonText),
     })
     const expandButton = within(rowToExpand).getByRole("button", { name: "Expand row" })
-    userEvent.click(expandButton)
+    await userEvent.click(expandButton)
   }
 
   async function toggleSelectedRow(jobId: string) {
     const matchingRow = await screen.findByRole("row", { name: "job:" + jobId })
     const checkbox = await within(matchingRow).findByRole("checkbox")
-    userEvent.click(checkbox)
+    await userEvent.click(checkbox)
   }
 
   async function getHeaderCell(columnDisplayName: string) {
@@ -318,24 +321,26 @@ describe("JobsTableContainer", () => {
   async function filterTextColumnTo(columnDisplayName: string, filterText: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
     const filterInput = await within(headerCell).findByRole("textbox", { name: "Filter" })
-    userEvent.clear(filterInput)
-    userEvent.type(filterInput, filterText)
+    await userEvent.clear(filterInput)
+    if (filterText.length > 0) {
+      await userEvent.type(filterInput, filterText)
+    }
   }
 
   async function toggleEnumFilterOption(columnDisplayName: string, filterOption: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
     const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter" })
-    userEvent.click(dropdownTrigger)
+    await userEvent.click(dropdownTrigger)
     const optionButton = await screen.findByRole("option", { name: filterOption })
-    userEvent.click(optionButton)
+    await userEvent.click(optionButton)
 
     // Ensure the dropdown is closed
-    userEvent.tab()
+    await userEvent.tab()
   }
 
   async function toggleSorting(columnDisplayName: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
     const sortButton = await within(headerCell).findByRole("button", { name: "Toggle sort" })
-    userEvent.click(sortButton)
+    await userEvent.click(sortButton)
   }
 })
