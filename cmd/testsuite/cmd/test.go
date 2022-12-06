@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/testsuite"
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
 )
 
 // Submit batches of jobs and wait for those jobs to finish.
@@ -144,22 +143,22 @@ func writeJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
 	return nil
 }
 
-func writeBenchmarkReport(benchmarkPath string, report *eventbenchmark.GlobalBenchmarkReport) error {
-	benchmarkFile, err := os.Create(benchmarkPath)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer benchmarkFile.Close()
+// func writeBenchmarkReport(benchmarkPath string, report *eventbenchmark.GlobalBenchmarkReport) error {
+// 	benchmarkFile, err := os.Create(benchmarkPath)
+// 	if err != nil {
+// 		return errors.WithStack(err)
+// 	}
+// 	defer benchmarkFile.Close()
 
-	data, err := report.Generate(eventbenchmark.YamlFormatter)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+// 	data, err := report.Generate(eventbenchmark.YamlFormatter)
+// 	if err != nil {
+// 		return errors.WithStack(err)
+// 	}
 
-	_, err = benchmarkFile.Write(data)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+// 	_, err = benchmarkFile.Write(data)
+// 	if err != nil {
+// 		return errors.WithStack(err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
