@@ -1,0 +1,149 @@
+version: "3.8"
+
+networks:
+  kind:
+    external: true
+
+services:
+  #
+  # Infrastructure services.
+  # A Kubernetes cluster (e.g., kind) must also be setup before starting Armada.
+  #
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - kind
+
+  postgres:
+    container_name: postgres
+    image: postgres
+    environment:
+      - "POSTGRES_PASSWORD=psw"
+    ports:
+      - "5432:5432"
+    networks:
+      - kind
+
+  pulsar:
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
+    container_name: pulsar
+    volumes:
+      - ./localdev/pulsar.conf:/conf/pulsar.conf
+    entrypoint: bin/pulsar standalone
+    ports:
+      - "0.0.0.0:6650:6650"
+    networks:
+      - kind
+
+  # TODO: Remove
+  stan:
+    container_name: stan
+    image: nats-streaming
+    command: "-p 4223 -m 8223"
+    ports:
+      - "4223:4223"
+      - "8223:8223"
+    networks:
+      - kind
+
+  #
+  # Armada services.
+  #
+  server:
+    container_name: server
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 50051:50051
+      - 8080:8080
+    volumes:
+      - ./localdev/config:/config
+    depends_on:
+      - redis
+      - postgres
+      - pulsar
+      - stan
+    working_dir: /app
+    entrypoint: ./server
+    command: --config /config/armada/config.yaml
+
+  executor:
+    container_name: executor
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9001:9001
+    depends_on:
+      - server
+    volumes:
+      - ./localdev/config:/config
+      - ./.kube/internal/:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    working_dir: /app
+    entrypoint: ./executor
+    command: --config /config/executor/config.yaml
+
+  binoculars:
+    container_name: binoculars
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 8082:8082
+    depends_on:
+      - server
+    volumes:
+      - ./localdev/config:/config
+      - ./.kube:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    working_dir: /app
+    entrypoint: ./binoculars
+    command: --config /config/binoculars/config.yaml
+
+  jobservice:
+    container_name: jobservice
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 60003:60003
+    depends_on:
+      - server
+    volumes:
+      - ./localdev/config:/config
+    working_dir: "/app"
+    entrypoint: ./jobservice
+    command: --config /config/jobservice/config.yaml
+
+  lookoutingester:
+    container_name: lookoutingester
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - postgres
+    volumes:
+      - ./localdev/config:/config
+    working_dir: /app
+    entrypoint: ./lookoutingester
+    command: --config /config/lookoutingester/config.yaml
+
+  eventingester:
+    container_name: eventingester
+    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - redis
+    volumes:
+      - ./localdev/config:/config
+    working_dir: /app
+    entrypoint: eventingester
+    command: --config /config/eventingester/config.yaml

@@ -60,10 +60,10 @@ services:
       - kind
 
   #
-  # Armada services w. ad-hoc compilation.
+  # Armada services.
   #
-  armada-server-adhoc:
-    container_name: armada-server
+  armada-server:
+    container_name: server
     image: golang:1.18-buster
     networks:
       - kind
@@ -84,7 +84,7 @@ services:
     entrypoint: go
     command: run cmd/armada/main.go --config /config/armada/config.yaml
 
-  lookout-adhoc:
+  lookout:
     container_name: lookout
     image: golang:1.18-buster
     networks:
@@ -104,7 +104,7 @@ services:
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-start.sh"
 
-  executor-adhoc:
+  executor:
     container_name: executor
     image: golang:1.18-buster
     networks:
@@ -125,7 +125,7 @@ services:
     entrypoint: go
     command: run cmd/executor/main.go --config /config/executor/config.yaml
 
-  binoculars-adhoc:
+  binoculars:
     container_name: binoculars
     image: golang:1.18-buster
     networks:
@@ -146,7 +146,7 @@ services:
     entrypoint: go
     command: run cmd/binoculars/main.go --config /config/binoculars/config.yaml
 
-  jobservice-adhoc:
+  jobservice:
     container_name: jobservice
     image: golang:1.18-buster
     networks:
@@ -164,7 +164,7 @@ services:
     entrypoint: go
     command: run cmd/jobservice/main.go --config /config/jobservice/config.yaml
 
-  lookout-ingester-adhoc:
+  lookout-ingester:
     container_name: lookout-ingester
     image: golang:1.18-buster
     networks:
@@ -180,7 +180,7 @@ services:
     entrypoint: go
     command: run cmd/lookoutingester/main.go --config /config/lookoutingester/config.yaml
 
-  event-ingester-adhoc:
+  event-ingester:
     container_name: event-ingester
     image: golang:1.18-buster
     networks:
@@ -195,105 +195,6 @@ services:
     working_dir: /app
     entrypoint: go
     command: run cmd/eventingester/main.go --config /config/eventingester/config.yaml
-
-  #
-  # Armada services.
-  #
-  armada-server:
-    container_name: armada-server
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    ports:
-      - 50051:50051
-      - 8080:8080
-    volumes:
-      - ./config:/config
-    depends_on:
-      - redis
-      - postgres
-      - pulsar
-      - stan
-    working_dir: /app
-    entrypoint: ./server
-    command: --config /config/armada/config.yaml
-
-  executor:
-    container_name: executor
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    ports:
-      - 9001:9001
-    depends_on:
-      - armada-server
-    volumes:
-      - ./config:/config
-      - ../.kube/internal/:/.kube
-    environment:
-      - KUBECONFIG=/.kube/config
-    working_dir: /app
-    entrypoint: ./executor
-    command: --config /config/executor/config.yaml
-
-  binoculars:
-    container_name: binoculars
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    ports:
-      - 8082:8082
-    depends_on:
-      - armada-server
-    volumes:
-      - ./config:/config
-      - ../.kube:/.kube
-    environment:
-      - KUBECONFIG=/.kube/config
-    working_dir: /app
-    entrypoint: ./binoculars
-    command: --config /config/binoculars/config.yaml
-
-  jobservice:
-    container_name: jobservice
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    ports:
-      - 60003:60003
-    depends_on:
-      - armada-server
-    volumes:
-      - ./config:/config
-    working_dir: "/app"
-    entrypoint: ./jobservice
-    command: --config /config/jobservice/config.yaml
-
-  lookout-ingester:
-    container_name: lookout-ingester
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    depends_on:
-      - postgres
-    volumes:
-      - ./config:/config
-    working_dir: /app
-    entrypoint: ./lookoutingester
-    command: --config /config/lookoutingester/config.yaml
-
-  event-ingester:
-    container_name: event-ingester
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    depends_on:
-      - redis
-    volumes:
-      - ./config:/config
-    working_dir: /app
-    entrypoint: eventingester
-    command: --config /config/eventingester/config.yaml
 
   airflow:
     container_name: airflow
