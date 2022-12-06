@@ -3,12 +3,12 @@
 package lookoutv2
 
 import (
-	"github.com/G-Research/armada/internal/common/slices"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/database"
+	"github.com/G-Research/armada/internal/common/slices"
 	"github.com/G-Research/armada/internal/lookoutv2/configuration"
 	"github.com/G-Research/armada/internal/lookoutv2/conversions"
 	"github.com/G-Research/armada/internal/lookoutv2/gen/restapi"

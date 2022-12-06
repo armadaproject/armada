@@ -60,6 +60,9 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		countQuery, err := r.queryBuilder.CountGroups(filters, groupedField)
+		if err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
 		if err != nil {
 			return err
@@ -69,6 +72,9 @@ func (r *SqlGroupJobsRepository) GroupBy(
 			return err
 		}
 		groupByQuery, err := r.queryBuilder.GroupBy(filters, order, groupedField, skip, take)
+		if err != nil {
+			return err
+		}
 		groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
 		if err != nil {
 			return err
