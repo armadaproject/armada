@@ -1,7 +1,7 @@
 #! /bin/bash
 
 INFRA_SVCS="redis postgres pulsar stan"
-ARMADA_SVCS="armada-server-adhoc lookout-adhoc lookout-ingester-adhoc executor-adhoc binoculars-adhoc jobservice-adhoc event-ingester-adhoc"
+ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservice event-ingester"
 
 # make the dir containing this file the CWD
 cd "$(dirname "${0}")" || exit
