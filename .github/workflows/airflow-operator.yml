@@ -66,7 +66,7 @@ jobs:
           python-version: '3.8'
           path: third_party/airflow
       - run: make build-ci
-      - run: make setup-localdev
+      - run: make tests-e2e-setup
       - run: make tests-e2e-airflow
-      - run: make teardown-localdev
+      - run: make tests-e2e-teardown
 

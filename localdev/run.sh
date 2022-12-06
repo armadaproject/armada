@@ -39,6 +39,3 @@ sleep $SLEEP_TIME
 docker-compose --verbose up -d $ARMADA_SVCS
 
 docker-compose ps
-docker logs server
-docker logs jobservice
-docker logs executor
