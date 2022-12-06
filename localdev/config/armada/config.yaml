@@ -62,7 +62,7 @@ pulsar:
   eventsPrinter: true
   eventsPrinterSubscription: "EventsPrinter"
   maxAllowedMessageSize: 4194304 # 4MB
-postgres: # TODO: Why different from te other postgres config?
+postgres: # TODO: Why different from the other postgres config?
   maxOpenConns: 100
   maxIdleConns: 25
   connMaxLifetime: 30m
