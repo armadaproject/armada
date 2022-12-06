@@ -1,6 +1,6 @@
-databasePath: "jobservice.db"
+databasePath: "/e2e/jobservice.db"
 subscribeJobSetTime: 100
 apiConnection:
-  armadaUrl: "armada-server:50051"
+  armadaUrl: "server:50051"
   forceNoTls: true
 

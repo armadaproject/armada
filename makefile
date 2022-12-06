@@ -496,7 +496,8 @@ tests-e2e-python: python
 
 .ONESHELL:
 tests-e2e-airflow: airflow-operator
-	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=armada-server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
+	docker logs jobservice
+	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
 
 setup-localdev:
 	./localdev/run.sh
