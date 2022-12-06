@@ -91,7 +91,7 @@ metrics:
 pulsar:
   URL: "pulsar://localhost:6650"
   maxAllowedMessageSize: 4194304 # 4MB
-  jobsetEventsTopic: "persistent://armada/armada/events"
+  jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
