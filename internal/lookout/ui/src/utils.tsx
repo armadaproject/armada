@@ -153,3 +153,23 @@ const priorityRegex = new RegExp("^([0-9]+)$")
 export function priorityIsValid(priority: string): boolean {
   return priorityRegex.test(priority) && priority.length > 0
 }
+
+// Pluralization helper
+export function pl(itemsOrCount: unknown[] | number, singularForm: string, pluralForm?: string) {
+  const count = Array.isArray(itemsOrCount) ? itemsOrCount.length : itemsOrCount;
+  if (count === 1) {
+    return `${count} ${singularForm}`
+  }
+
+  if (pluralForm !== undefined) {
+    return `${count} ${pluralForm}`
+  }
+
+  if (/[s|ss|sh|ch|x|z]$/.test(singularForm)) {
+    pluralForm = singularForm + "es"
+  } else {
+    pluralForm = singularForm + "s"
+  }
+
+  return `${count} ${pluralForm}`
+}

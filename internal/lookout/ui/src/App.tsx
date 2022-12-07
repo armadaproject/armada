@@ -16,6 +16,7 @@ import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 
 import "./App.css"
+import { SnackbarProvider } from "notistack"
 
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
@@ -70,31 +71,33 @@ export function App(props: AppProps) {
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
         <ThemeProviderV5 theme={themeV5}>
-          <Router>
-            <div className="app-container">
-              <NavBar />
-              <div className="app-content">
-                <Switch>
-                  <Route exact path="/">
-                    <OverviewContainer {...props} />
-                  </Route>
-                  <Route exact path="/job-sets">
-                    <JobSetsContainer {...props} />
-                  </Route>
-                  <Route exact path="/jobs">
-                    <JobsContainer {...props} />
-                  </Route>
-                  <Route exact path="/v2">
-                    <JobsTableContainer
-                      getJobsService={props.v2GetJobsService}
-                      groupJobsService={props.v2GroupJobsService}
-                      debug={props.debugEnabled}
-                    />
-                  </Route>
-                </Switch>
+          <SnackbarProvider anchorOrigin={{horizontal: "right", vertical: "bottom"}} autoHideDuration={8000}>
+            <Router>
+              <div className="app-container">
+                <NavBar />
+                <div className="app-content">
+                  <Switch>
+                    <Route exact path="/">
+                      <OverviewContainer {...props} />
+                    </Route>
+                    <Route exact path="/job-sets">
+                      <JobSetsContainer {...props} />
+                    </Route>
+                    <Route exact path="/jobs">
+                      <JobsContainer {...props} />
+                    </Route>
+                    <Route exact path="/v2">
+                      <JobsTableContainer
+                        getJobsService={props.v2GetJobsService}
+                        groupJobsService={props.v2GroupJobsService}
+                        debug={props.debugEnabled}
+                      />
+                    </Route>
+                  </Switch>
+                </div>
               </div>
-            </div>
-          </Router>
+            </Router>
+          </SnackbarProvider>
         </ThemeProviderV5>
       </ThemeProviderV4>
     </StylesProvider>
