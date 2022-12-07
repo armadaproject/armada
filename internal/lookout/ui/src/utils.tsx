@@ -6,6 +6,7 @@ interface UIConfig {
   overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
+  debugEnabled: boolean
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -20,6 +21,8 @@ export interface Padding {
 }
 
 export async function getUIConfig(): Promise<UIConfig> {
+  const queryParams = new URLSearchParams(window.location.search)
+
   const config = {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
@@ -28,6 +31,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     overviewAutoRefreshMs: 15000,
     jobSetsAutoRefreshMs: 15000,
     jobsAutoRefreshMs: 30000,
+    debugEnabled: queryParams.has("debug"),
   }
 
   try {

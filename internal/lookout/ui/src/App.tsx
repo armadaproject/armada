@@ -17,16 +17,6 @@ import LogService from "./services/LogService"
 
 import "./App.css"
 
-type AppProps = {
-  jobService: JobService
-  v2GetJobsService: GetJobsService
-  v2GroupJobsService: GroupJobsService
-  logService: LogService
-  overviewAutoRefreshMs: number
-  jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
-}
-
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
 const generateClassName = createGenerateClassName({
@@ -65,6 +55,16 @@ const theme = {
 const themeV4 = createThemeV4(theme)
 const themeV5 = createThemeV5(theme)
 
+type AppProps = {
+  jobService: JobService
+  v2GetJobsService: GetJobsService
+  v2GroupJobsService: GroupJobsService
+  logService: LogService
+  overviewAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number
+  jobsAutoRefreshMs: number
+  debugEnabled: boolean
+}
 export function App(props: AppProps) {
   return (
     <StylesProvider generateClassName={generateClassName}>
@@ -88,7 +88,7 @@ export function App(props: AppProps) {
                     <JobsTableContainer
                       getJobsService={props.v2GetJobsService}
                       groupJobsService={props.v2GroupJobsService}
-                      debug={true}
+                      debug={props.debugEnabled}
                     />
                   </Route>
                 </Switch>

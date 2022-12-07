@@ -46,6 +46,7 @@ import "./index.css"
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
       jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
+      debugEnabled={uiConfig.debugEnabled}
     />,
     document.getElementById("root"),
   )

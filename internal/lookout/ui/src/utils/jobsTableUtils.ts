@@ -78,7 +78,6 @@ export const fetchJobGroups = async (
   groupedColumn: string,
   columnsToAggregate: string[],
 ) => {
-  console.log({ rowRequest })
   const { filters, skip, take } = rowRequest
   let { order } = rowRequest
 
