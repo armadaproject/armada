@@ -16,8 +16,10 @@ import (
 	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
-const countCol = "count"
-const annotationFilterTableAbbrev = "aft"
+const (
+	countCol                    = "count"
+	annotationFilterTableAbbrev = "aft"
+)
 
 type Query struct {
 	Sql  string
@@ -346,11 +348,13 @@ func (qb *QueryBuilder) tablesFromField(field string) (map[string]bool, error) {
 // determineTablesForQuery takes a list of sets of tables (one set of tables for each column), and returns the minimal
 // set of tables that includes all columns.
 // E.g. three tables: A, B, C
-//   Col 1 is in table [A, B]
-//   Col 2 is in table [B]
-//   Col 3 is in table [B]
-//   Col 4 is in table [C]
-//   Therefore, the smallest set of tables to use is [B, C]
+//
+//	Col 1 is in table [A, B]
+//	Col 2 is in table [B]
+//	Col 3 is in table [B]
+//	Col 4 is in table [C]
+//	Therefore, the smallest set of tables to use is [B, C]
+//
 // If multiple tables can be used, it picks the one with the highest precedence
 func (qb *QueryBuilder) determineTablesForQuery(tablesForColumns []map[string]bool) (map[string]bool, error) {
 	if len(tablesForColumns) == 0 {

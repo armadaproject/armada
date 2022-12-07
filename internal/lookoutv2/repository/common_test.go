@@ -11,32 +11,30 @@ import (
 	"github.com/G-Research/armada/internal/lookoutv2/model"
 )
 
-var (
-	testFilters = []*model.Filter{
-		{
-			Field: "queue",
-			Match: "exact",
-			Value: "test-queue",
-		},
-		{
-			Field: "owner",
-			Match: "startsWith",
-			Value: "anon",
-		},
-		{
-			Field:        "1234",
-			Match:        "exact",
-			Value:        "abcd",
-			IsAnnotation: true,
-		},
-		{
-			Field:        "5678",
-			Match:        "startsWith",
-			Value:        "efgh",
-			IsAnnotation: true,
-		},
-	}
-)
+var testFilters = []*model.Filter{
+	{
+		Field: "queue",
+		Match: "exact",
+		Value: "test-queue",
+	},
+	{
+		Field: "owner",
+		Match: "startsWith",
+		Value: "anon",
+	},
+	{
+		Field:        "1234",
+		Match:        "exact",
+		Value:        "abcd",
+		IsAnnotation: true,
+	},
+	{
+		Field:        "5678",
+		Match:        "startsWith",
+		Value:        "efgh",
+		IsAnnotation: true,
+	},
+}
 
 func TestIntersection(t *testing.T) {
 	t.Run("no items", func(t *testing.T) {
