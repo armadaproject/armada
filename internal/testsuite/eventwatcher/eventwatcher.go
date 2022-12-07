@@ -310,7 +310,7 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 		case msg := <-C:
 			if ingressInfo := msg.GetIngressInfo(); ingressInfo != nil {
 				for _, host := range ingressInfo.IngressAddresses {
-					ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
+					ctxWithTimeout, _ := context.WithTimeout(ctx, time.Minute)
 					host := host
 					g.Go(func() error { return getFromIngress(ctxWithTimeout, host) })
 				}
