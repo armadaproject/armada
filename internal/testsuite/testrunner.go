@@ -165,7 +165,12 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
 	if err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents); err != nil {
-		return err
+		groupErr := g.Wait()
+		if groupErr != nil {
+			return errors.Errorf("%s: %s", err, groupErr)
+		} else {
+			return err
+		}
 	}
 
 	// Armada JobSet logs
@@ -173,10 +178,6 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// if testSpec.GetLogs && executorClustersDefined {
 	// 	jobLogger.PrintLogs()
 	// }
-
-	// Clean up remaining services.
-	cancel()
-	_ = g.Wait()
 
 	return nil
 }

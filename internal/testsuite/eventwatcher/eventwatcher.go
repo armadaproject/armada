@@ -157,9 +157,9 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 		case <-ctx.Done():
 			s := assertEventErrorString(expected, indexByJobId)
 			if s != "" {
-				return errors.Errorf("test exited before receiving all expected events because %s: %s", ctx.Err(), s)
+				return errors.Errorf("test exited before receiving all expected events; %s: %s", s, ctx.Err())
 			} else {
-				return errors.Errorf("test exited before receiving all expected events because %s", ctx.Err())
+				return errors.Errorf("test exited before receiving all expected events: %s", ctx.Err())
 			}
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
@@ -213,7 +213,7 @@ func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[strin
 			continue
 		}
 		elem := fmt.Sprintf(
-			"%s received and %s missing for %d job(s)",
+			"%s received but %s missing for %d job(s)",
 			api.ShortStringFromEventMessages(received), api.ShortStringFromEventMessages(missing), c,
 		)
 		elems = append(elems, elem)
@@ -304,7 +304,7 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 	for {
 		select {
 		case <-parent.Done():
-			return g.Wait()
+			return ctx.Err()
 		case <-ctx.Done(): // errgroup cancelled
 			return g.Wait()
 		case msg := <-C:
@@ -370,13 +370,16 @@ func getFromIngress(ctx context.Context, host string) error {
 			time.Sleep(time.Second)
 			httpRes, err := httpClient.Do(httpReq)
 			if err != nil {
-				requestErr = err
+				requestErr = errors.Errorf("GET request failed: %s", err)
 				break
 			}
 			httpRes.Body.Close()
 
 			if httpRes.StatusCode != 200 {
-				requestErr = errors.Errorf("GET request failed for host %s: status code %d", host, httpRes.StatusCode)
+				requestErr = errors.Errorf(
+					"GET request failed for %s:%d: %d",
+					ingressUrl, ingressPort, httpRes.StatusCode,
+				)
 				break
 			}
 
