@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// TODO: Rename this file to utils.go or similar.
 func ShortStringFromEventMessages(msgs []*EventMessage) string {
 	var sb strings.Builder
 	sb.WriteString("[")
