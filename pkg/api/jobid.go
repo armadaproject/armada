@@ -2,10 +2,22 @@ package api
 
 import (
 	"fmt"
-	strings "strings"
+	"strings"
 )
 
 // TODO: Rename this file to utils.go or similar.
+func ShortStringFromEventMessages(msgs []*EventMessage) string {
+	var sb strings.Builder
+	sb.WriteString("[")
+	for i, msg := range msgs {
+		sb.WriteString(msg.ShortString())
+		if i < len(msgs)-1 {
+			sb.WriteString(", ")
+		}
+	}
+	sb.WriteString("]")
+	return sb.String()
+}
 
 func (msg *EventMessage) ShortString() string {
 	return strings.ReplaceAll(fmt.Sprintf("%T", msg.Events), "*api.EventMessage_", "")

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
@@ -93,9 +94,24 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		numSuccesses := testSuiteReport.NumSuccesses()
 		numFailures := testSuiteReport.NumFailures()
 		fmt.Printf("\n======= SUMMARY =======\n")
+		w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+		fmt.Fprint(w, "Test:\tResult:\tElapsed:\n")
+		for _, testCaseReport := range testSuiteReport.TestCaseReports {
+			var result string
+			if testCaseReport.FailureReason == "" {
+				result = "SUCCESS"
+			} else {
+				result = "FAILURE"
+			}
+			elapsed := testCaseReport.Finish.Sub(testCaseReport.Start)
+			fmt.Fprintf(w, "%s\t%s\t%s\n", testCaseReport.TestSpec.Name, result, elapsed)
+		}
+		_ = w.Flush()
+		fmt.Println()
 		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
 		fmt.Printf("Success: %d\n", numSuccesses)
 		fmt.Printf("Failure: %d\n", numFailures)
+		fmt.Println()
 
 		// If junitPath is set, write a JUnit report.
 		junitTestSuite.Time = fmt.Sprint(time.Since(start))
@@ -117,7 +133,7 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		// }
 
 		if numFailures != 0 {
-			return errors.Errorf("there was at least one test failure")
+			return errors.Errorf("test failure")
 		}
 		return nil
 	}

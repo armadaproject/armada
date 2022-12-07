@@ -14,6 +14,7 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -143,12 +144,9 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
 	// Initialise it by copying the jobIds map.
-	terminatedByJobId := make(map[string]bool)
-	for jobId, hasTerminated := range jobIds {
-		terminatedByJobId[jobId] = hasTerminated
-	}
+	terminatedByJobId := maps.Clone(jobIds)
 
-	// Track which events have been seen for each job
+	// Track which events have been seen for each job.
 	indexByJobId := make(map[string]int)
 	numDone := 0
 
@@ -157,7 +155,12 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	for {
 		select {
 		case <-ctx.Done():
-			return errors.Errorf("did not receive all events for at least one job")
+			s := assertEventErrorString(expected, indexByJobId)
+			if s != "" {
+				return errors.Errorf("test exited before receiving all expected events because %s: %s", ctx.Err(), s)
+			} else {
+				return errors.Errorf("test exited before receiving all expected events because %s", ctx.Err())
+			}
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
@@ -195,6 +198,27 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			}
 		}
 	}
+}
+
+func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[string]int) string {
+	countByIndex := make(map[int]int)
+	for _, i := range indexByJobId {
+		countByIndex[i] = +1
+	}
+	elems := make([]string, 0, len(countByIndex))
+	for i, c := range countByIndex {
+		received := expected[:i]
+		missing := expected[i:]
+		if len(missing) == 0 {
+			continue
+		}
+		elem := fmt.Sprintf(
+			"%s received and %s missing for %d job(s)",
+			api.ShortStringFromEventMessages(received), api.ShortStringFromEventMessages(missing), c,
+		)
+		elems = append(elems, elem)
+	}
+	return strings.Join(elems, ", ")
 }
 
 func isTerminalEvent(msg *api.EventMessage) bool {
@@ -252,7 +276,7 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				numActive--
 			}
 			if numRemaining <= 0 {
-				return errors.New("all jobs exited")
+				return errors.New("no jobs active")
 			}
 		}
 	}
