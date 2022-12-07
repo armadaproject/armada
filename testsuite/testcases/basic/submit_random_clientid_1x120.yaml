@@ -1,5 +1,5 @@
 numBatches: 1
-batchSize: 120
+batchSize: 10
 queue: e2e-test-queue
 randomClientId: true
 jobs:
@@ -11,16 +11,16 @@ jobs:
       containers:
         - name: ls
           imagePullPolicy: IfNotPresent
-          image: alpine:3.16
+          image: alpine:3.10
           args:
             - "ls"
           resources:
             limits:
               memory: 10Mi
-              cpu: 10m
+              cpu: 100m
             requests:
               memory: 10Mi
-              cpu: 10m
+              cpu: 100m
 ---
 timeout: "180s"
 expectedEvents:
