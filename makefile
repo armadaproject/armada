@@ -382,7 +382,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres || true
+	docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -442,6 +442,8 @@ tests-e2e-setup: setup-cluster
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
+	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
+	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 
 	# Create test queue if it doesn't already exist
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
@@ -472,7 +474,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester
+		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
@@ -491,6 +493,12 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 .ONESHELL:
 tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
+
+# To run integration tests with jobservice and such, we can run this command
+# For now, let's just have it in rare cases that people need to test. 
+.ONESHELL:
+tests-e2e-airflow: airflow-operator tests-e2e-setup build-ci
+	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
 
 # Output test results in Junit format, e.g., to display in Jenkins.
 # Relies on go-junit-report
