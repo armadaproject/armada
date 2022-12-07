@@ -377,7 +377,7 @@ func getFromIngress(ctx context.Context, host string) error {
 
 			if httpRes.StatusCode != 200 {
 				requestErr = errors.Errorf(
-					"GET request failed for %s:%d: %d",
+					"GET request failed for %s:%s: %d",
 					ingressUrl, ingressPort, httpRes.StatusCode,
 				)
 				break
