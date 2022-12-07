@@ -55,7 +55,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}
 	out := io.MultiWriter(srv.Out, report.Out)
 
-	fmt.Fprintf(out, "test case started %s\n", testSpecHeader(srv.testSpec))
+	fmt.Fprintf(out, "test case started %s\n", srv.testSpec.ShortString())
 	defer func() {
 		report.Finish = time.Now()
 		srv.TestCaseReport = report

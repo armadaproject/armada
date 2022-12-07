@@ -23,6 +23,24 @@ func (msg *EventMessage) ShortString() string {
 	return strings.ReplaceAll(fmt.Sprintf("%T", msg.Events), "*api.EventMessage_", "")
 }
 
+func (testSpec *TestSpec) ShortString() string {
+	var sb strings.Builder
+	sb.WriteString(
+		fmt.Sprintf(
+			"%s: {queue: %s, job set: %s, timeout: %s, expected: [",
+			testSpec.Name, testSpec.Queue, testSpec.JobSetId, testSpec.Timeout.String(),
+		),
+	)
+	for i, e := range testSpec.GetExpectedEvents() {
+		sb.WriteString(e.ShortString())
+		if i < len(testSpec.GetExpectedEvents())-1 {
+			sb.WriteString(", ")
+		}
+	}
+	sb.WriteString("]}")
+	return sb.String()
+}
+
 func JobIdFromApiEvent(msg *EventMessage) string {
 	switch e := msg.Events.(type) {
 	case *EventMessage_Submitted:

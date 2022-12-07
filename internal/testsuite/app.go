@@ -207,25 +207,6 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 	return rv, nil
 }
 
-// TODO: Make method on api.TestSpec.
-func testSpecHeader(testSpec *api.TestSpec) string {
-	var sb strings.Builder
-	sb.WriteString(
-		fmt.Sprintf(
-			"%s: {queue: %s, job set: %s, timeout: %s, expected: [",
-			testSpec.Name, testSpec.Queue, testSpec.JobSetId, testSpec.Timeout.String(),
-		),
-	)
-	for i, e := range testSpec.GetExpectedEvents() {
-		sb.WriteString(e.ShortString())
-		if i < len(testSpec.GetExpectedEvents())-1 {
-			sb.WriteString(", ")
-		}
-	}
-	sb.WriteString("]}")
-	return sb.String()
-}
-
 // UnmarshalTestCase unmarshalls bytes into a TestSpec.
 func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 	var result *multierror.Error
