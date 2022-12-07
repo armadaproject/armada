@@ -3,25 +3,16 @@ batchSize: 1
 queue: e2e-test-queue
 jobs:
   - priority: 0
-    namespace: personal-anonymous
+    namespace: default
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: highmem
+        - name: failure_namespace
           imagePullPolicy: IfNotPresent
-          image: alexeiled/stress-ng:0.12.05
+          image: alpine:3.10            
           args:
-            - --vm
-            - 1
-            - --vm-bytes
-            - 90%
-            - --vm-method
-            - all
-            - -t
-            - 180s
-            - --verify
-            - -v
+            - "ls"
           resources:
             limits:
               memory: 10Mi
@@ -30,7 +21,7 @@ jobs:
               memory: 10Mi
               cpu: 100m
 ---
-timeout: "200s"
+timeout: "100s"
 expectedEvents:
   - submitted:
-  - succeeded:
+  - failed:
