@@ -70,7 +70,7 @@ func NewQueryBuilder(lookoutTables *LookoutTables) *QueryBuilder {
 func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 	tempTable := database.UniqueTableName(jobTable)
 	sql := fmt.Sprintf(`
-		CREATE TEMPORARY TABLE %[1]s (
+		CREATE TEMPORARY TABLE %s (
 			job_id varchar(32) NOT NULL
 		) ON COMMIT DROP`, tempTable)
 	return &Query{
@@ -117,6 +117,7 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 		%s`,
 		abbrev, fromSql, whereSql)
 	templated, args := templateSql(template, qb.queryValues)
+	fmt.Println(templated, args)
 	return &Query{
 		Sql:  templated,
 		Args: args,

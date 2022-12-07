@@ -758,3 +758,61 @@ func TestGetJobsSkip(t *testing.T) {
 	})
 	assert.NoError(t, err)
 }
+
+func TestMultiAnnotationJobs(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		nJobs := 15
+		jobs := make([]*model.Job, nJobs)
+		for i := 0; i < nJobs; i++ {
+			jobId := util.NewULID()
+			jobs[i] = NewJobSimulator(userAnnotationPrefix, converter, store).
+				Submit(queue, jobSet, owner, baseTime, &JobOptions{
+					JobId: jobId,
+					Annotations: map[string]string{
+						"a": "value-1",
+						"b": "value-2",
+					},
+				}).
+				Build().
+				Job()
+		}
+
+		repo := NewSqlGetJobsRepository(db)
+
+		skip := 8
+		take := 5
+		result, err := repo.GetJobs(
+			context.TODO(),
+			[]*model.Filter{
+				{
+					Field:        "a",
+					Match:        "exact",
+					Value:        "value-1",
+					IsAnnotation: true,
+				},
+				{
+					Field:        "b",
+					Match:        "exact",
+					Value:        "value-2",
+					IsAnnotation: true,
+				},
+			},
+			&model.Order{
+				Field:     "jobId",
+				Direction: "ASC",
+			},
+			skip,
+			take,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Jobs, take)
+		assert.Equal(t, nJobs, result.Count)
+		assert.Equal(t, jobs[skip:skip+take], result.Jobs)
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
