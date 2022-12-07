@@ -4,8 +4,22 @@ metadata:
   name: job-submitter
 rules:
   - apiGroups: [""]
-    resources: ["configmaps", "endpoints", "events", "namespaces", "nodes", "persistentvolumeclaims", "pods", "services", "serviceaccounts"]
-    verbs: ["get", "list", "watch", "create"]
+    resources: 
+      - configmaps
+      - endpoints
+      - events
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - pods
+      - services
+      - ingresses
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+      - create
 ---
 # namespace for anonymous user - when using no auth, this is the name of the user
 apiVersion: v1
@@ -26,6 +40,9 @@ subjects:
   - kind: ServiceAccount
     name: default
     namespace: personal-anonymous
+  - kind: ServiceAccount
+    name: ingress-nginx
+    namespace: ingress-nginx
 roleRef:
   kind: ClusterRole
   name: job-submitter
