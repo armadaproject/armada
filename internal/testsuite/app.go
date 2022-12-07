@@ -26,7 +26,6 @@ import (
 	"github.com/G-Research/armada/internal/testsuite/build"
 	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
 	"github.com/G-Research/armada/internal/testsuite/eventlogger"
-	"github.com/G-Research/armada/internal/testsuite/joblogger"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client"
 )
@@ -206,41 +205,6 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 	}
 
 	return rv, nil
-}
-
-// TODO: Change name. Move into separate file.
-func (a *App) createJobLogger(testSpec *api.TestSpec) (*joblogger.JobLogger, error) {
-	namespace, err := getJobNamespace(testSpec)
-	if err != nil {
-		return nil, err
-	}
-	jobLogger, err := joblogger.New(
-		a.Params.ApiConnectionDetails.ExecutorClusters,
-		namespace,
-		joblogger.WithOutput(a.Out),
-		joblogger.WithJobSetId(testSpec.GetJobSetId()),
-		joblogger.WithQueue(testSpec.GetQueue()),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return jobLogger, nil
-}
-
-// getJobNamespace extracts the namespace in which the job will be created
-// current assumption is that all jobs will execute in the same namespace.
-//
-// TODO: Error on jobs not being in the same namespace.
-// TODO: Make sure we can disable getting logs from failed jobs.
-func getJobNamespace(testSpec *api.TestSpec) (string, error) {
-	if len(testSpec.Jobs) == 0 {
-		return "", errors.New("no jobs in test spec")
-	}
-	namespace := testSpec.GetJobs()[0].Namespace
-	if namespace == "" {
-		return "default", nil
-	}
-	return testSpec.GetJobs()[0].Namespace, nil
 }
 
 // TODO: Make method on api.TestSpec.
