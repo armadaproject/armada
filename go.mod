@@ -32,7 +32,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/hashicorp/go-memdb v1.3.3
+	github.com/hashicorp/go-memdb v1.3.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
@@ -89,7 +89,7 @@ require (
 require (
 	github.com/kyleconroy/sqlc v1.16.0
 	github.com/magefile/mage v1.14.0
-	github.com/openconfig/goyang v1.1.0
+	github.com/openconfig/goyang v1.2.0
 	github.com/sanity-io/litter v1.5.5
 )
 
