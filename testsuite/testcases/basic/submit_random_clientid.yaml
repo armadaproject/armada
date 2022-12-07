@@ -1,18 +1,17 @@
 numBatches: 1
-batchSize: 1
+batchSize: 10
 queue: e2e-test-queue
+randomClientId: true
 jobs:
   - priority: 0
     namespace: personal-anonymous
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
-      nodeSelector:
-        nodetype: test
       containers:
-        - name: unschedulable
+        - name: ls
           imagePullPolicy: IfNotPresent
-          image: alpine:3.16
+          image: alpine:3.10
           args:
             - "ls"
           resources:
@@ -23,3 +22,7 @@ jobs:
               memory: 10Mi
               cpu: 100m
 ---
+timeout: "180s"
+expectedEvents:
+  - submitted:
+  - succeeded:

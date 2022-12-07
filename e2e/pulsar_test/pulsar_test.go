@@ -34,7 +34,7 @@ import (
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const (
 	pulsarUrl            = "pulsar://localhost:6650"
-	pulsarTopic          = "persistent://armada/armada/events"
+	pulsarTopic          = "events"
 	pulsarSubscription   = "e2e-test"
 	armadaUrl            = "localhost:50051"
 	armadaQueueName      = "e2e-test-queue"
@@ -135,6 +135,7 @@ func TestSubmitJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TODO: Make testsuite test. Or unit test.
 func TestDedup(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 2

@@ -3,6 +3,10 @@
 
 package tools
 
+// TODO: Commented out to avoid dependency updates.
+// _ "github.com/anchore/syft/cmd/syft"
+// _ "github.com/goreleaser/goreleaser"
+
 import (
 	_ "github.com/go-swagger/go-swagger/cmd/swagger"
 	_ "github.com/gordonklaus/ineffassign"

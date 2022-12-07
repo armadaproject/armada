@@ -96,6 +96,7 @@ func TestCanNotSubmitJobToDeletedQueue(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TODO: Should be an armadactl test.
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()
