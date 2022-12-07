@@ -17,6 +17,7 @@ import (
 )
 
 const countCol = "count"
+const annotationFilterTableAbbrev = "aft"
 
 type Query struct {
 	Sql  string
@@ -42,13 +43,10 @@ type queryColumn struct {
 }
 
 // Represents data required to construct a condition based on a column, it's desired value, and match expression
-// isAnnotation is set to true if we are filtering on annotations: in this case, the column.name will be the annotation
-// key, and value will be the annotation value
 type queryFilter struct {
-	column       *queryColumn
-	value        interface{}
-	match        string
-	isAnnotation bool
+	column *queryColumn
+	value  interface{}
+	match  string
 }
 
 // Represents data required to construct a sort expression based on a column and a direction.
@@ -85,8 +83,9 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
 	}
+	normalFilters, annotationFilters := splitFilters(filters)
 
-	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
+	tablesFromColumns, err := qb.getAllTables(normalFilters, &model.Order{})
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +93,11 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	queryFilters, err := qb.makeQueryFilters(filters, queryTables)
+	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
 	if err != nil {
 		return nil, err
 	}
-	fromSql, err := qb.queryTablesToSql(queryTables, jobIdCol)
+	fromSql, err := qb.makeFromSql(queryTables, annotationFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +116,6 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 		%s`,
 		abbrev, fromSql, whereSql)
 	templated, args := templateSql(template, qb.queryValues)
-	fmt.Println(templated, args)
 	return &Query{
 		Sql:  templated,
 		Args: args,
@@ -135,8 +133,9 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	if err != nil {
 		return nil, errors.Wrap(err, "order is invalid")
 	}
+	normalFilters, annotationFilters := splitFilters(filters)
 
-	tablesFromColumns, err := qb.getAllTables(filters, order)
+	tablesFromColumns, err := qb.getAllTables(normalFilters, order)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +143,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	if err != nil {
 		return nil, err
 	}
-	queryFilters, err := qb.makeQueryFilters(filters, queryTables)
+	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +151,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	if err != nil {
 		return nil, err
 	}
-	fromSql, err := qb.queryTablesToSql(queryTables, jobIdCol)
+	fromSql, err := qb.makeFromSql(queryTables, annotationFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +192,9 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 	if err != nil {
 		return nil, err
 	}
-	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
+	normalFilters, annotationFilters := splitFilters(filters)
+
+	tablesFromColumns, err := qb.getAllTables(normalFilters, &model.Order{})
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +202,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 	if err != nil {
 		return nil, err
 	}
-	queryFilters, err := qb.makeQueryFilters(filters, queryTables)
+	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +210,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 	if err != nil {
 		return nil, err
 	}
-	fromSql, err := qb.queryTablesToSql(queryTables, jobIdCol)
+	fromSql, err := qb.makeFromSql(queryTables, annotationFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +255,9 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, errors.Wrap(err, "group field is invalid")
 	}
-	tablesFromColumns, err := qb.getAllTables(filters, &model.Order{})
+	normalFilters, annotationFilters := splitFilters(filters)
+
+	tablesFromColumns, err := qb.getAllTables(normalFilters, &model.Order{})
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +265,7 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	queryFilters, err := qb.makeQueryFilters(filters, queryTables)
+	queryFilters, err := qb.makeQueryFilters(normalFilters, queryTables)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +273,7 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	fromSql, err := qb.queryTablesToSql(queryTables, jobIdCol)
+	fromSql, err := qb.makeFromSql(queryTables, annotationFilters)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +282,10 @@ func (qb *QueryBuilder) GroupBy(
 		return nil, err
 	}
 	groupBySql := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
-	orderSql := fmt.Sprintf("ORDER BY %s %s", order.Field, order.Direction)
+	orderSql := ""
+	if order != nil {
+		orderSql = fmt.Sprintf("ORDER BY %s %s", order.Field, order.Direction)
+	}
 	template := fmt.Sprintf(`
 		SELECT %[1]s.%[2]s, COUNT(DISTINCT %[1]s.%[3]s) AS %[4]s
 		%[5]s
@@ -289,8 +295,6 @@ func (qb *QueryBuilder) GroupBy(
 		%[9]s`,
 		groupCol.abbrev, groupCol.name, jobIdCol, countCol, fromSql, whereSql, groupBySql, orderSql, limitOffsetSql(skip, take))
 	templated, args := templateSql(template, qb.queryValues)
-	fmt.Println(templated)
-	fmt.Println(args)
 	return &Query{
 		Sql:  templated,
 		Args: args,
@@ -302,8 +306,8 @@ func (qb *QueryBuilder) GroupBy(
 func (qb *QueryBuilder) getAllTables(filters []*model.Filter, order *model.Order) ([]map[string]bool, error) {
 	var result []map[string]bool
 	for _, filter := range filters {
+		// Ignore annotation columns, we deal with annotation filters separately
 		if filter.IsAnnotation {
-			result = append(result, util.StringListToSet([]string{userAnnotationLookupTable}))
 			continue
 		}
 		tables, err := qb.tablesFromField(filter.Field)
@@ -421,9 +425,24 @@ func intersection(sets []map[string]bool) map[string]bool {
 	return inter
 }
 
-// queryTablesToSql creates FROM clause using a set of tables,
+// Split filters into those for normal columns and those for annotations
+func splitFilters(filters []*model.Filter) ([]*model.Filter, []*model.Filter) {
+	var normalFilters []*model.Filter
+	var annotationFilters []*model.Filter
+	for _, filter := range filters {
+		if filter.IsAnnotation {
+			annotationFilters = append(annotationFilters, filter)
+		} else {
+			normalFilters = append(normalFilters, filter)
+		}
+	}
+	return normalFilters, annotationFilters
+}
+
+// makeFromSql creates FROM clause using a set of tables,
 // joining them on colToJoin if multiple tables are present
-func (qb *QueryBuilder) queryTablesToSql(queryTables map[string]bool, colToJoin string) (string, error) {
+// If annotations filters are present, inner joins on a table to select matching job ids with all the annotations
+func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, annotationFilters []*model.Filter) (string, error) {
 	sortedTables := make([]string, len(queryTables))
 	idx := 0
 	for _, table := range qb.lookoutTables.TablePrecedence() {
@@ -447,9 +466,47 @@ func (qb *QueryBuilder) queryTablesToSql(queryTables map[string]bool, colToJoin 
 		}
 		sb.WriteString(fmt.Sprintf(
 			" LEFT JOIN %[1]s AS %[2]s ON %[3]s.%[4]s = %[2]s.%[4]s",
-			table, abbrev, firstAbbrev, colToJoin))
+			table, abbrev, firstAbbrev, jobIdCol))
+	}
+	if len(annotationFilters) > 0 {
+		annotationFilterTableSql, err := qb.createAnnotationFilterTableSql(annotationFilters)
+		if err != nil {
+			return "", err
+		}
+		sb.WriteString(fmt.Sprintf(" INNER JOIN (%[1]s) AS %[2]s ON %[3]s.%[4]s = %[2]s.%[4]s",
+			annotationFilterTableSql,
+			annotationFilterTableAbbrev,
+			firstAbbrev,
+			jobIdCol))
 	}
 	return sb.String(), nil
+}
+
+func (qb *QueryBuilder) createAnnotationFilterTableSql(annotationFilters []*model.Filter) (string, error) {
+	whereExprs := make([]string, len(annotationFilters))
+	for i, filter := range annotationFilters {
+		comparator, err := qb.comparatorForMatch(filter.Match)
+		if err != nil {
+			return "", err
+		}
+		key, err := qb.valueForMatch(filter.Field, model.MatchExact)
+		if err != nil {
+			return "", err
+		}
+		value, err := qb.valueForMatch(filter.Value, filter.Match)
+		if err != nil {
+			return "", err
+		}
+		whereExprs[i] = fmt.Sprintf("%s = %s AND %s %s %s", annotationKeyCol, key, annotationValueCol, comparator, value)
+	}
+	joinedWhere := strings.Join(whereExprs, ") OR (")
+	return fmt.Sprintf(`
+		SELECT %[1]s
+		FROM %[2]s
+		WHERE (%[3]s)
+		GROUP BY %[1]s
+		HAVING COUNT(*) = %[4]d
+	`, jobIdCol, userAnnotationLookupTable, joinedWhere, len(annotationFilters)), nil
 }
 
 // Get abbreviation for highest precedence table out of a set of tables
@@ -471,19 +528,6 @@ func (qb *QueryBuilder) firstTableAbbrev(queryTables map[string]bool) (string, e
 func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables map[string]bool) ([]*queryFilter, error) {
 	result := make([]*queryFilter, len(filters))
 	for i, filter := range filters {
-		if filter.IsAnnotation {
-			result[i] = &queryFilter{
-				column: &queryColumn{
-					name:   filter.Field,
-					table:  userAnnotationLookupTable,
-					abbrev: userAnnotationLookupTableAbbrev,
-				},
-				value:        filter.Value,
-				match:        filter.Match,
-				isAnnotation: true,
-			}
-			continue
-		}
 		col, err := qb.lookoutTables.ColumnFromField(filter.Field)
 		if err != nil {
 			return nil, err
@@ -525,9 +569,8 @@ func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables ma
 				table:  table,
 				abbrev: abbrev,
 			},
-			value:        value,
-			match:        filter.Match,
-			isAnnotation: filter.IsAnnotation,
+			value: value,
+			match: filter.Match,
 		}
 	}
 	return result, nil
@@ -540,19 +583,6 @@ func (qb *QueryBuilder) queryFiltersToSql(filters []*queryFilter) (string, error
 	}
 	var exprs []string
 	for _, filter := range filters {
-		if filter.isAnnotation {
-			// Need two filters, one for annotation key, one for annotation value
-			keyExpr, err := qb.comparisonExpr(filter.column.name, model.MatchExact, filter.column.abbrev, annotationKeyCol)
-			if err != nil {
-				return "", err
-			}
-			valueExpr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, annotationValueCol)
-			if err != nil {
-				return "", err
-			}
-			exprs = append(exprs, keyExpr, valueExpr)
-			continue
-		}
 		expr, err := qb.comparisonExpr(filter.value, filter.match, filter.column.abbrev, filter.column.name)
 		if err != nil {
 			return "", err
@@ -765,6 +795,9 @@ func orderIsNull(order *model.Order) bool {
 }
 
 func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
+	if order == nil {
+		return nil
+	}
 	if order.Field != countCol {
 		return errors.Errorf("unsupported group ordering: %s", order.Field)
 	}

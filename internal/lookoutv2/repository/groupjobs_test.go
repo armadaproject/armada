@@ -22,9 +22,9 @@ func TestGroupByQueue(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, "queue-1", jobSet, lookout.JobQueued, converter, store)
-		manyJobs(5, "queue-2", jobSet, lookout.JobQueued, converter, store)
-		manyJobs(3, "queue-3", jobSet, lookout.JobQueued, converter, store)
+		manyJobs(10, "queue-1", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(5, "queue-2", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(3, "queue-3", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -69,9 +69,9 @@ func TestGroupByJobSet(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, queue, "job-set-1", lookout.JobQueued, converter, store)
-		manyJobs(5, queue, "job-set-2", lookout.JobQueued, converter, store)
-		manyJobs(3, queue, "job-set-3", lookout.JobQueued, converter, store)
+		manyJobs(10, queue, "job-set-1", lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(5, queue, "job-set-2", lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(3, queue, "job-set-3", lookout.JobQueued, make(map[string]string), converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -116,10 +116,10 @@ func TestGroupByState(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, queue, jobSet, lookout.JobQueued, converter, store)
-		manyJobs(5, queue, jobSet, lookout.JobPending, converter, store)
-		manyJobs(3, queue, jobSet, lookout.JobRunning, converter, store)
-		manyJobs(2, queue, jobSet, lookout.JobFailed, converter, store)
+		manyJobs(10, queue, jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(5, queue, jobSet, lookout.JobPending, make(map[string]string), converter, store)
+		manyJobs(3, queue, jobSet, lookout.JobRunning, make(map[string]string), converter, store)
+		manyJobs(2, queue, jobSet, lookout.JobFailed, make(map[string]string), converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -169,20 +169,30 @@ func TestGroupByWithFilters(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, queue, jobSet, lookout.JobQueued, converter, store)
-		manyJobs(5, queue, jobSet, lookout.JobPending, converter, store)
-		manyJobs(3, queue, jobSet, lookout.JobRunning, converter, store)
-		manyJobs(2, queue, jobSet, lookout.JobFailed, converter, store)
+		testAnnotations := map[string]string{
+			"key-1": "val-1",
+			"key-2": "val-2",
+		}
 
-		manyJobs(10, "queue-2", jobSet, lookout.JobQueued, converter, store)
-		manyJobs(5, queue, "queue-2", lookout.JobPending, converter, store)
-		manyJobs(3, queue, "queue-2", lookout.JobRunning, converter, store)
-		manyJobs(2, queue, "queue-2", lookout.JobFailed, converter, store)
+		manyJobs(10, queue, jobSet, lookout.JobQueued, testAnnotations, converter, store)
+		manyJobs(5, queue, jobSet, lookout.JobPending, testAnnotations, converter, store)
+		manyJobs(3, queue, jobSet, lookout.JobRunning, testAnnotations, converter, store)
+		manyJobs(2, queue, jobSet, lookout.JobFailed, testAnnotations, converter, store)
 
-		manyJobs(10, queue, "job-set-2", lookout.JobQueued, converter, store)
-		manyJobs(5, queue, "job-set-2", lookout.JobPending, converter, store)
-		manyJobs(3, queue, "job-set-2", lookout.JobRunning, converter, store)
-		manyJobs(2, queue, "job-set-2", lookout.JobFailed, converter, store)
+		manyJobs(11, queue, jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(6, queue, jobSet, lookout.JobPending, make(map[string]string), converter, store)
+		manyJobs(4, queue, jobSet, lookout.JobRunning, make(map[string]string), converter, store)
+		manyJobs(3, queue, jobSet, lookout.JobFailed, make(map[string]string), converter, store)
+
+		manyJobs(12, "queue-2", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(7, queue, "queue-2", lookout.JobPending, make(map[string]string), converter, store)
+		manyJobs(5, queue, "queue-2", lookout.JobRunning, make(map[string]string), converter, store)
+		manyJobs(4, queue, "queue-2", lookout.JobFailed, make(map[string]string), converter, store)
+
+		manyJobs(13, queue, "job-set-2", lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(8, queue, "job-set-2", lookout.JobPending, make(map[string]string), converter, store)
+		manyJobs(6, queue, "job-set-2", lookout.JobRunning, make(map[string]string), converter, store)
+		manyJobs(5, queue, "job-set-2", lookout.JobFailed, make(map[string]string), converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -197,6 +207,18 @@ func TestGroupByWithFilters(t *testing.T) {
 					Field: "jobSet",
 					Match: model.MatchExact,
 					Value: jobSet,
+				},
+				{
+					Field:        "key-1",
+					Match:        model.MatchExact,
+					Value:        "val-1",
+					IsAnnotation: true,
+				},
+				{
+					Field:        "key-2",
+					Match:        model.MatchStartsWith,
+					Value:        "val-2",
+					IsAnnotation: true,
 				},
 			},
 			&model.Order{
@@ -245,7 +267,7 @@ func TestGroupJobsSkip(t *testing.T) {
 
 		nGroups := 15
 		for i := 0; i < nGroups; i++ {
-			manyJobs(i+1, fmt.Sprintf("queue-%d", i+1), jobSet, lookout.JobQueued, converter, store)
+			manyJobs(i+1, fmt.Sprintf("queue-%d", i+1), jobSet, lookout.JobQueued, make(map[string]string), converter, store)
 		}
 
 		queueGroup := func(i int) *model.JobGroup {
@@ -341,12 +363,12 @@ func TestGroupJobsSkip(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-type createJobsFn func(queue, jobSet string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb)
+type createJobsFn func(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb)
 
-func manyJobs(n int, queue, jobSet string, state lookout.JobState, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func manyJobs(n int, queue, jobSet string, state lookout.JobState, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	fn := getCreateJobsFn(state)
 	for i := 0; i < n; i++ {
-		fn(queue, jobSet, converter, store)
+		fn(queue, jobSet, annotations, converter, store)
 	}
 }
 
@@ -365,32 +387,40 @@ func getCreateJobsFn(state lookout.JobState) createJobsFn {
 	}
 }
 
-func makeQueued(queue, jobSet string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makeQueued(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	NewJobSimulator(userAnnotationPrefix, converter, store).
-		Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+		Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Annotations: annotations,
+		}).
 		Build()
 }
 
-func makePending(queue, jobSet string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makePending(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	NewJobSimulator(userAnnotationPrefix, converter, store).
-		Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+		Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Annotations: annotations,
+		}).
 		Pending(uuid.NewString(), cluster, baseTime).
 		Build()
 }
 
-func makeRunning(queue, jobSet string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makeRunning(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	runId := uuid.NewString()
 	NewJobSimulator(userAnnotationPrefix, converter, store).
-		Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+		Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Annotations: annotations,
+		}).
 		Pending(runId, cluster, baseTime).
 		Running(runId, cluster, baseTime).
 		Build()
 }
 
-func makeFailed(queue, jobSet string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makeFailed(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	runId := uuid.NewString()
 	NewJobSimulator(userAnnotationPrefix, converter, store).
-		Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+		Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Annotations: annotations,
+		}).
 		Pending(runId, cluster, baseTime).
 		Running(runId, cluster, baseTime).
 		RunFailed(runId, node, 1, "error", baseTime).

@@ -675,6 +675,33 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.Equal(t, job, result.Jobs[0])
 		})
 
+		t.Run("exact, multiple annotations", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchExact,
+						Value:        "annotation-value-1",
+						IsAnnotation: true,
+					},
+					{
+						Field:        "annotation-key-2",
+						Match:        model.MatchExact,
+						Value:        "annotation-value-3",
+						IsAnnotation: true,
+					},
+				},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 1)
+			assert.Equal(t, 1, result.Count)
+			assert.Equal(t, job, result.Jobs[0])
+		})
+
 		return nil
 	})
 	assert.NoError(t, err)
@@ -759,7 +786,7 @@ func TestGetJobsSkip(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestMultiAnnotationJobs(t *testing.T) {
+func TestGetJobsComplex(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
@@ -780,6 +807,19 @@ func TestMultiAnnotationJobs(t *testing.T) {
 				Job()
 		}
 
+		for i := 0; i < nJobs; i++ {
+			NewJobSimulator(userAnnotationPrefix, converter, store).
+				Submit("other-queue", jobSet, owner, baseTime, &JobOptions{
+					JobId: util.NewULID(),
+					Annotations: map[string]string{
+						"a": "value-1",
+						"b": "value-2",
+					},
+				}).
+				Build().
+				Job()
+		}
+
 		repo := NewSqlGetJobsRepository(db)
 
 		skip := 8
@@ -787,6 +827,11 @@ func TestMultiAnnotationJobs(t *testing.T) {
 		result, err := repo.GetJobs(
 			context.TODO(),
 			[]*model.Filter{
+				{
+					Field: "queue",
+					Match: "exact",
+					Value: queue,
+				},
 				{
 					Field:        "a",
 					Match:        "exact",
