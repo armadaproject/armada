@@ -89,7 +89,7 @@ require (
 require (
 	github.com/kyleconroy/sqlc v1.16.0
 	github.com/magefile/mage v1.14.0
-	github.com/openconfig/goyang v1.1.0
+	github.com/openconfig/goyang v1.2.0
 	github.com/sanity-io/litter v1.5.5
 )
 
