@@ -218,7 +218,7 @@ func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevent
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if len(req.JobIds) > 0 {
-		return srv.cancelJobsById(ctx, req.JobIds)
+		return srv.cancelJobsByIds(ctx, req.JobIds)
 	}
 	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
@@ -334,7 +334,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) cancelJobsById(ctx context.Context, jobIds []string) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) cancelJobsByIds(ctx context.Context, jobIds []string) (*api.CancellationResult, error) {
 	batchSize := srv.SubmitServer.cancelJobsBatchSize
 	batches := util.Batch(jobIds, batchSize)
 	idQueueJobSetMap := make(map[string]map[string][]string)
