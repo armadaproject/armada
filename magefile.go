@@ -55,10 +55,7 @@ func CiIntegrationTests() error {
 func DockerBundle() error {
 	mg.Deps(DockerBundleGoreleaserConfig)
 	return sh.Run(
-		"go", "run", "github.com/goreleaser/goreleaser@v1.50.1", "release",
-		"--snapshot",
-		"--rm-dist",
-		"-f", ".goreleaser-docker.yml",
+		"goreleaser", "release", "--snapshot", "--rm-dist", "-f", ".goreleaser-docker.yml",
 	)
 }
 
