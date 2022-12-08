@@ -15,6 +15,9 @@ pip install diagrams
 python3 generate.py
 ```
 
+To find out more about the diagrams library, see https://diagrams.mingrammer.com/
+To find out more about the graphviz library, see https://graphviz.org/
+
 ## Systems Diagram
 
 ![Systems Diagram](armada-system.png)
