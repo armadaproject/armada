@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -22,17 +23,21 @@ func generateSwagger() error {
 		return err
 	}
 	fmt.Println(cwd)
-	err = os.RemoveAll(swaggerGenDir)
+	swaggerGenDirFull := filepath.Join(cwd, swaggerGenDir)
+	swaggerFilePathFull := filepath.Join(cwd, swaggerFilePath)
+	fmt.Println(swaggerGenDirFull)
+	fmt.Println(swaggerFilePathFull)
+	err = os.RemoveAll(swaggerGenDirFull)
 	if err != nil {
 		return err
 	}
-	err = os.Mkdir(swaggerGenDir, 0o755)
+	err = os.Mkdir(swaggerGenDirFull, 0o755)
 	if err != nil {
 		return err
 	}
 
 	executable := "swagger"
-	args := []string{"generate", "server", "-t", swaggerGenDir, "-f", swaggerFilePath, "--exclude-main", "-A", "lookout"}
+	args := []string{"generate", "server", "-t", swaggerGenDirFull, "-f", swaggerFilePathFull, "--exclude-main", "-A", "lookout"}
 	return run(executable, args...)
 }
 
