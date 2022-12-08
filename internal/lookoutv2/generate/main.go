@@ -1,156 +1,55 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	armadaMountDir  = "/mnt/armada"
-	lookoutPath     = "internal/lookoutv2"
-	swaggerGenDir   = "gen"
-	swaggerFilePath = "swagger.yaml"
-
-	statikDir = "./schema/"
+	swaggerGenDir   = "./gen"
+	swaggerFilePath = "./swagger.yaml"
 )
 
 func generateSwagger() error {
-	localSwaggerGenDir := filepath.Join(".", swaggerGenDir)
-	err := os.RemoveAll(localSwaggerGenDir)
-	if err != nil {
-		return err
-	}
-	err = os.Mkdir(localSwaggerGenDir, 0o755)
-	if err != nil {
-		return err
-	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	armadaDir, err := filepath.Abs(fmt.Sprintf("%s/../..", cwd))
+	swaggerGenDirFull := filepath.Join(cwd, swaggerGenDir)
+	swaggerFilePathFull := filepath.Join(cwd, swaggerFilePath)
+	err = os.RemoveAll(swaggerGenDirFull)
 	if err != nil {
 		return err
 	}
-	uid := os.Getuid()
-	gid := os.Getgid()
-
-	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err = cli.Close()
-	}()
-
-	image := "quay.io/goswagger/swagger:v0.29.0"
-	containerSwaggerGenDir := filepath.Join(armadaMountDir, lookoutPath, swaggerGenDir)
-	containerSwaggerFilePath := filepath.Join(armadaMountDir, lookoutPath, swaggerFilePath)
-	args := []string{"generate", "server", "-t", containerSwaggerGenDir, "-f", containerSwaggerFilePath, "--exclude-main", "-A", "lookout"}
-
-	reader, err := cli.ImagePull(ctx, image, types.ImagePullOptions{})
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(os.Stdout, reader)
+	err = os.Mkdir(swaggerGenDirFull, 0o755)
 	if err != nil {
 		return err
 	}
 
-	res, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:      image,
-		Cmd:        args,
-		WorkingDir: armadaMountDir,
-		User:       fmt.Sprintf("%d:%d", uid, gid),
-	},
-		&container.HostConfig{
-			Mounts: []mount.Mount{
-				{
-					Type:   mount.TypeBind,
-					Source: armadaDir,
-					Target: armadaMountDir,
-				},
-			},
-		}, nil, nil, "")
-	if err != nil {
-		return err
-	}
-	if err := cli.ContainerStart(ctx, res.ID, types.ContainerStartOptions{}); err != nil {
-		return err
-	}
-	statusCh, errCh := cli.ContainerWait(ctx, res.ID, container.WaitConditionNotRunning)
-	select {
-	case err := <-errCh:
-		if err != nil {
-			return err
-		}
-	case status := <-statusCh:
-		fmt.Println(status)
-	}
-	out, err := cli.ContainerLogs(ctx, res.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true})
-	if err != nil {
-		return err
-	}
-	_, err = stdcopy.StdCopy(os.Stdout, os.Stderr, out)
-	if err != nil {
-		return err
-	}
-	err = cli.ContainerRemove(ctx, res.ID, types.ContainerRemoveOptions{
-		RemoveVolumes: true,
-	})
-	return err
-}
-
-func generateStatik() error {
-	executable := "go"
-	args := []string{
-		"run",
-		"github.com/rakyll/statik",
-		"-dest",
-		statikDir,
-		"-src",
-		statikDir,
-		"-include=*.sql",
-		"-ns=lookoutv2/sql",
-		"-Z",
-		"-f",
-		"-m",
-	}
+	executable := "swagger"
+	args := []string{"generate", "server", "-t", swaggerGenDirFull, "-f", swaggerFilePathFull, "--exclude-main", "-A", "lookout"}
 	return run(executable, args...)
 }
 
 func run(executable string, args ...string) error {
 	cmd := exec.Command(executable, args...)
-	stdout, err := cmd.Output()
-	if len(stdout) > 0 {
-		fmt.Println(string(stdout))
+	cmd.Env = os.Environ()
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		fmt.Println("OUTPUT:")
+		fmt.Println(string(out))
 	}
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func main() {
-	err1 := generateSwagger()
-	err2 := generateStatik()
-	if err1 != nil {
-		log.WithError(err1).Error("swagger generation failed")
-	}
-	if err2 != nil {
-		log.WithError(err2).Error("statik generation failed")
+	err := generateSwagger()
+	if err != nil {
+		log.WithError(err).Error("swagger generation failed")
+		os.Exit(1)
 	}
 }

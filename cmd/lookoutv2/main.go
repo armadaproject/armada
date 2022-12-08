@@ -14,7 +14,7 @@ import (
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/lookoutv2"
 	"github.com/G-Research/armada/internal/lookoutv2/configuration"
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
+	"github.com/G-Research/armada/internal/lookoutv2/schema"
 )
 
 const (
@@ -59,7 +59,7 @@ func migrate(ctx context.Context, config configuration.LookoutV2Configuration) {
 		panic(err)
 	}
 
-	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
+	migrations, err := schema.LookoutMigrations()
 	if err != nil {
 		panic(err)
 	}
