@@ -13,7 +13,7 @@ import (
 	"github.com/G-Research/armada/internal/common"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	commonmetrics "github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -152,11 +152,14 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 		for msg := range instructions {
 			// The sink is responsible for retrying any messages so if we get a message here we know we can give up
 			// and just ACK the ids
+			start := time.Now()
 			err := ingester.sink.Store(pipelineShutdownContext, msg)
+			taken := time.Now().Sub(start)
 			if err != nil {
 				log.WithError(err).Warn("Error inserting messages")
+			} else {
+				log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), taken.Milliseconds())
 			}
-
 			if errors.Is(err, context.DeadlineExceeded) {
 				// This occurs when we're shutting down- it's a signal to stop processing immediately
 				break

@@ -23,7 +23,7 @@ func TestHandleMessage_JobRunningEvent(t *testing.T) {
 		})
 
 	mockBatcher := &mockEventBatcher{}
-	processor := NewEventJobStatusProcessor("test", &repository.RedisJobRepository{}, &eventstream.JetstreamEventStream{}, mockBatcher)
+	processor := NewEventJobStatusProcessor("test", &repository.RedisJobRepository{}, &eventstream.StanEventStream{}, mockBatcher)
 	err := processor.handleMessage(runningEventMessage)
 
 	assert.NoError(t, err)
@@ -41,7 +41,7 @@ func TestHandleMessage_NonJobRunningEvent(t *testing.T) {
 		})
 
 	mockBatcher := &mockEventBatcher{}
-	processor := NewEventJobStatusProcessor("test", &repository.RedisJobRepository{}, &eventstream.JetstreamEventStream{}, mockBatcher)
+	processor := NewEventJobStatusProcessor("test", &repository.RedisJobRepository{}, &eventstream.StanEventStream{}, mockBatcher)
 	err := processor.handleMessage(leasedEventMessage)
 
 	assert.NoError(t, err)
@@ -175,7 +175,7 @@ func createJobRunningEventStreamMessage(jobId string, queue string, jobSetId str
 }
 
 func withEventStatusProcess(jobRepository repository.JobRepository, action func(processor *EventJobStatusProcessor)) {
-	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.JetstreamEventStream{}, &eventstream.TimedEventBatcher{})
+	processor := NewEventJobStatusProcessor("test", jobRepository, &eventstream.StanEventStream{}, &eventstream.TimedEventBatcher{})
 	action(processor)
 }
 

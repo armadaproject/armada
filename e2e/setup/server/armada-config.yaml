@@ -9,7 +9,6 @@ scheduling:
   maximalClusterFractionToSchedule:
     memory: 0.99
     cpu: 0.99
-  probabilityOfUsingNewScheduler: 1
   preemption:
     enabled: true
     priorityClasses:

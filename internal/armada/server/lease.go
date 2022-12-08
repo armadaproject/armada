@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -33,14 +32,12 @@ import (
 	"github.com/G-Research/armada/internal/scheduler"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
 )
 
 type AggregatedQueueServer struct {
 	permissions              authorization.PermissionChecker
 	schedulingConfig         configuration.SchedulingConfig
 	jobRepository            repository.JobRepository
-	jobQueue                 scheduling.JobQueue
 	queueRepository          repository.QueueRepository
 	usageRepository          repository.UsageRepository
 	eventStore               repository.EventStore
@@ -49,13 +46,15 @@ type AggregatedQueueServer struct {
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
 	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
+	// Stores the most recent NodeDb for each executor.
+	// Used to check if a job could ever be scheduled at job submit time.
+	SubmitChecker *scheduler.SubmitChecker
 }
 
 func NewAggregatedQueueServer(
 	permissions authorization.PermissionChecker,
 	schedulingConfig configuration.SchedulingConfig,
 	jobRepository repository.JobRepository,
-	jobQueue scheduling.JobQueue,
 	queueRepository repository.QueueRepository,
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
@@ -79,7 +78,6 @@ func NewAggregatedQueueServer(
 	return &AggregatedQueueServer{
 		permissions:              permissions,
 		schedulingConfig:         schedulingConfig,
-		jobQueue:                 jobQueue,
 		jobRepository:            jobRepository,
 		queueRepository:          queueRepository,
 		usageRepository:          usageRepository,
@@ -88,88 +86,6 @@ func NewAggregatedQueueServer(
 		decompressorPool:         decompressorPool,
 		clock:                    clock.RealClock{},
 	}
-}
-
-func (q AggregatedQueueServer) LeaseJobs(ctx context.Context, request *api.LeaseRequest) (*api.JobLease, error) {
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[LeaseJobs] error: %s", err)
-	}
-
-	var res common.ComputeResources = request.Resources
-	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
-		return &api.JobLease{}, nil
-	}
-
-	queues, err := q.queueRepository.GetAllQueues()
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting queues: %s", err)
-	}
-
-	activeQueues, e := q.jobRepository.FilterActiveQueues(queue.QueuesToAPI(queues))
-	if e != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error filtering active queues: %s", err)
-	}
-
-	usageReports, err := q.usageRepository.GetClusterUsageReports()
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster usage: %s", err)
-	}
-
-	err = q.usageRepository.UpdateClusterLeased(&request.ClusterLeasedReport)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster lease report: %s", err)
-	}
-
-	nodeResources := scheduling.AggregateNodeTypeAllocations(request.Nodes)
-	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(request, nodeResources)
-	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error updating cluster scheduling info: %s", err)
-	}
-
-	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
-	activePoolClusterReports := scheduling.FilterPoolClusters(request.Pool, activeClusterReports)
-	activePoolCLusterIds := scheduling.GetClusterReportIds(activePoolClusterReports)
-	clusterPriorities, err := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster priorities: %s", err)
-	}
-
-	clusterLeasedJobReports, err := q.usageRepository.GetClusterLeasedReports()
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error getting cluster lease reports: %s", err)
-	}
-	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
-	jobs, err := scheduling.LeaseJobs(
-		ctx,
-		&q.schedulingConfig,
-		q.jobQueue,
-		func(jobs []*api.Job) { reportJobsLeased(q.eventStore, jobs, request.ClusterId) },
-		request,
-		nodeResources,
-		activePoolClusterReports,
-		poolLeasedJobReports,
-		clusterPriorities,
-		activeQueues)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error leasing jobs: %s", err)
-	}
-
-	err = q.decompressJobOwnershipGroups(jobs)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "error leasing jobs: %s", err)
-	}
-
-	clusterLeasedReport := scheduling.CreateClusterLeasedReport(request.ClusterLeasedReport.ClusterId, &request.ClusterLeasedReport, jobs)
-	err = q.usageRepository.UpdateClusterLeased(clusterLeasedReport)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "[LeaseJobs] error creating lease report: %s", err)
-	}
-
-	jobLease := &api.JobLease{
-		Job: jobs,
-	}
-	return jobLease, nil
 }
 
 // StreamingLeaseJobs is called by the executor to request jobs for it to run.
@@ -193,9 +109,8 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	if err != nil {
 		return err
 	}
-	leaseRequest := leaseRequestFromStreamingLeaseRequest(req)
 	nodeResources := scheduling.AggregateNodeTypeAllocations(req.Nodes)
-	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(leaseRequest, nodeResources)
+	clusterSchedulingInfo := scheduling.CreateClusterSchedulingInfoReport(req, nodeResources)
 	err = q.schedulingInfoRepository.UpdateClusterSchedulingInfo(clusterSchedulingInfo)
 	if err != nil {
 		return err
@@ -234,19 +149,9 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Get jobs to be leased.
-	var jobs []*api.Job
-	if rand.Float64() < q.schedulingConfig.ProbabilityOfUsingNewScheduler {
-		// New scheduler.
-		jobs, err = q.getJobs(stream.Context(), req)
-		if err != nil {
-			return err
-		}
-	} else {
-		// Old scheduler.
-		jobs, err = q.legacyGetJobs(stream.Context(), leaseRequest)
-		if err != nil {
-			return err
-		}
+	jobs, err := q.getJobs(stream.Context(), req)
+	if err != nil {
+		return err
 	}
 
 	err = q.decompressJobOwnershipGroups(jobs)
@@ -335,71 +240,6 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	return result.ErrorOrNil()
 }
 
-func leaseRequestFromStreamingLeaseRequest(req *api.StreamingLeaseRequest) *api.LeaseRequest {
-	return &api.LeaseRequest{
-		ClusterId:           req.ClusterId,
-		Pool:                req.Pool,
-		Resources:           req.Resources,
-		ClusterLeasedReport: req.ClusterLeasedReport,
-		MinimumJobSize:      req.MinimumJobSize,
-		Nodes:               req.Nodes,
-	}
-}
-
-func (q *AggregatedQueueServer) legacyGetJobs(ctx context.Context, req *api.LeaseRequest) ([]*api.Job, error) {
-	log := ctxlogrus.Extract(ctx)
-	log.Info("using old scheduler for lease call")
-
-	usageReports, err := q.usageRepository.GetClusterUsageReports()
-	if err != nil {
-		return nil, err
-	}
-	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
-	activePoolClusterReports := scheduling.FilterPoolClusters(req.Pool, activeClusterReports)
-	activePoolCLusterIds := scheduling.GetClusterReportIds(activePoolClusterReports)
-	clusterPriorities, err := q.usageRepository.GetClusterPriorities(activePoolCLusterIds)
-	if err != nil {
-		return nil, err
-	}
-
-	queues, err := q.queueRepository.GetAllQueues()
-	if err != nil {
-		return nil, err
-	}
-
-	activeQueues, err := q.jobRepository.FilterActiveQueues(queue.QueuesToAPI(queues))
-	if err != nil {
-		return nil, err
-	}
-
-	clusterLeasedJobReports, err := q.usageRepository.GetClusterLeasedReports()
-	if err != nil {
-		return nil, err
-	}
-
-	nodeResources := scheduling.AggregateNodeTypeAllocations(req.Nodes)
-	poolLeasedJobReports := scheduling.FilterClusterLeasedReports(activePoolCLusterIds, clusterLeasedJobReports)
-	jobs, err := scheduling.LeaseJobs(
-		ctx,
-		&q.schedulingConfig,
-		q.jobQueue,
-		// For the unary job lease call, we pass in a function that creates job leased events.
-		// Here, we create such events at the end of the function only for jobs the client sent back acks for.
-		func(jobs []*api.Job) {},
-		req,
-		nodeResources,
-		activePoolClusterReports,
-		poolLeasedJobReports,
-		clusterPriorities,
-		activeQueues,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return jobs, nil
-}
-
 func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log.Info("using new scheduler for lease call")
@@ -446,6 +286,23 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			priorities,
 		)
 	}
+	indexedResources := q.schedulingConfig.IndexedResources
+	if len(indexedResources) == 0 {
+		indexedResources = []string{"cpu", "memory"}
+	}
+	nodeDb, err := scheduler.NewNodeDb(
+		priorities,
+		indexedResources,
+		q.schedulingConfig.IndexedTaints,
+		q.schedulingConfig.IndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = nodeDb.Upsert(nodes)
+	if err != nil {
+		return nil, err
+	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
 	// all queues for which the jobs queue has not been deleted automatically by Redis.
@@ -468,23 +325,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		priorityFactorByActiveQueue[queue.Name] = priorityFactorByQueue[queue.Name]
 	}
 
-	sched, err := scheduler.NewLegacyScheduler(
-		q.schedulingConfig,
-		req.ClusterId,
-		totalCapacityRl,
-		nodes,
-		q.jobRepository,
-		priorityFactorByActiveQueue,
-	)
-	if err != nil {
-		return nil, err
-	}
-	sched.MinimumJobSize = req.MinimumJobSize
-	sched.Pool = req.Pool
-
-	// Log initial scheduler state.
-	log.Info("LegacyScheduler:\n" + sched.String())
-
 	// Give Schedule() a 3 second shorter deadline than ctx,
 	// to give it a chance to finish up before ctx is cancelled.
 	if deadline, ok := ctx.Deadline(); ok {
@@ -492,26 +332,37 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
+	constraints := scheduler.SchedulingConstraintsFromSchedulingConfig(
+		req.ClusterId,
+		req.Pool,
+		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		q.schedulingConfig,
+		totalCapacityRl,
+	)
+	sched, err := scheduler.NewLegacyScheduler(
+		ctx,
+		*constraints,
+		q.schedulingConfig,
+		nodeDb,
+		q.jobRepository,
+		priorityFactorByActiveQueue,
+		aggregatedUsageByQueue,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Log initial scheduler state.
+	log.Info("LegacyScheduler:\n" + sched.String())
 
 	// Run the scheduler.
-	jobs, err := sched.Schedule(ctx, aggregatedUsageByQueue)
+	jobs, err := sched.Schedule()
 
 	// Log and store scheduling reports.
-	if sched.SchedulingRoundReport != nil {
+	if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
 		log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
-		if q.SchedulingReportsRepository != nil {
-			sched.SchedulingRoundReport.ClearJobSpecs()
-			for queue, jobReports := range sched.SchedulingRoundReport.SuccessfulJobSchedulingReportsByQueue {
-				for _, jobReport := range jobReports {
-					q.SchedulingReportsRepository.Add(queue, jobReport)
-				}
-			}
-			for queue, jobReports := range sched.SchedulingRoundReport.UnsuccessfulJobSchedulingReportsByQueue {
-				for _, jobReport := range jobReports {
-					q.SchedulingReportsRepository.Add(queue, jobReport)
-				}
-			}
-		}
+		sched.SchedulingRoundReport.ClearJobSpecs()
+		q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
 	}
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
@@ -526,15 +377,17 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			reportsByExecutor[req.ClusterId] = executorReport
 		}
-		for queue, resourcesByPriority := range sched.SchedulingRoundReport.ScheduledResourcesByQueueAndPriority {
-			if queueClusterUsage, ok := executorReport.ResourcesByQueue[queue]; ok && queueClusterUsage != nil && queueClusterUsage.ResourcesByPriority != nil {
-				schedulerobjects.QuantityByPriorityAndResourceType(queueClusterUsage.ResourcesByPriority).Add(resourcesByPriority)
+		for queue, queueSchedulingRoundReport := range sched.SchedulingRoundReport.QueueSchedulingRoundReports {
+			if queueClusterUsage := executorReport.ResourcesByQueue[queue]; queueClusterUsage != nil && queueClusterUsage.ResourcesByPriority != nil {
+				schedulerobjects.QuantityByPriorityAndResourceType(queueClusterUsage.ResourcesByPriority).Add(
+					queueSchedulingRoundReport.ScheduledResourcesByPriority,
+				)
 			} else {
 				queueClusterUsage = &schedulerobjects.QueueClusterResourceUsage{
 					Created:             q.clock.Now(),
 					Queue:               queue,
 					ExecutorId:          req.ClusterId,
-					ResourcesByPriority: resourcesByPriority,
+					ResourcesByPriority: queueSchedulingRoundReport.ScheduledResourcesByPriority.DeepCopy(),
 				}
 				executorReport.ResourcesByQueue[queue] = queueClusterUsage
 			}
@@ -553,6 +406,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return jobs, nil
 	} else if err != nil {
 		return nil, err
+	}
+
+	// Use this NodeDb when checking if a job could ever be scheduled.
+	// We clear allocated resources since we want to check if a job
+	// could be scheduled if the cluster was empty.
+	if err := nodeDb.ClearAllocated(); err == nil {
+		q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
+	} else {
+		logging.WithStacktrace(log, err).Error("failed to clear allocated resources in NodeDb")
 	}
 
 	return jobs, nil

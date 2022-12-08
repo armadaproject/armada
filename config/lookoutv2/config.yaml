@@ -1,0 +1,13 @@
+port: 10000
+
+postgres:
+  maxOpenConns: 100
+  maxIdleConns: 25
+  connMaxLifetime: 30m
+  connection:
+    host: localhost
+    port: 5433
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable

@@ -20,7 +20,7 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with `./localdev/run.sh` Once complete, you will have a fully functional local deployment of armada via docker.
+All of these components can be started and initialised with `./localdev/run.sh` When the script completes, you will have a fully functional local deployment of armada via docker.
 
 Create a queue and submit a job:
 ```bash
@@ -60,9 +60,27 @@ yarn run build
 
 Once completed, the Lookout UI should be accessible through your browser at `http://localhost:8089`
 
-For UI development you can also use the React development server. Note that the Lookout API will still have to be running for this to work.
+For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will 
+still have to be running for this to work. Browse to `http://localhost:3000` with this.
 ```bash
 yarn run start
+```
+
+## Debugging localdev
+
+With the `localdev` environment running, it's possible to replace one more more services with 
+a debugging instance. Below are the steps for replacing the `server` container with a debugging session.
+
+```bash
+cd localdev
+docker stop server && docker rm server
+docker-compose run --entrypoint bash --name server --rm --service-ports server
+
+root@11c57f54c993:/app# go install github.com/go-delve/delve/cmd/dlv@latest
+root@11c57f54c993:/app# dlv debug cmd/armada/main.go -- --config /config/armada/config.yaml
+
+Type 'help' for list of commands.
+(dlv)
 ```
 
 ## Usage metrics
