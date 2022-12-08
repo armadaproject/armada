@@ -1,0 +1,81 @@
+package server
+
+import (
+	ctx "context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/G-Research/armada/internal/armada/repository"
+
+	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
+	"github.com/G-Research/armada/pkg/armadaevents"
+
+	"github.com/stretchr/testify/assert"
+)
+
+var events = []*armadaevents.JobRunRunning{
+	{
+		RunId: testfixtures.RunIdProto,
+		JobId: testfixtures.JobIdProto,
+		ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+			{
+				Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+					PodInfo: &armadaevents.PodInfo{
+						NodeName:  testfixtures.NodeName,
+						PodNumber: testfixtures.PodNumber,
+					},
+				},
+			},
+		},
+	},
+}
+
+func TestUpdateJobStartTimes(t *testing.T) {
+	jobRepo := newMockJobRepository()
+	s := SubmitFromLog{
+		SubmitServer: &SubmitServer{
+			jobRepository: jobRepo,
+		},
+	}
+
+	ok, err := s.UpdateJobStartTimes(ctx.Background(), events, []time.Time{testfixtures.BaseTime})
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	jobRunInfo, exists := jobRepo.jobStartTimeInfos[testfixtures.JobIdString]
+	assert.True(t, exists)
+	assert.Equal(t, testfixtures.BaseTime.UTC(), jobRunInfo.StartTime.UTC())
+}
+
+func TestUpdateJobStartTimes_NonExistentJob(t *testing.T) {
+	jobRepo := newMockJobRepository()
+	jobRepo.updateJobStartTimeError = &repository.ErrJobNotFound{JobId: "jobId", ClusterId: "clusterId"}
+	s := SubmitFromLog{
+		SubmitServer: &SubmitServer{
+			jobRepository: jobRepo,
+		},
+	}
+	ok, err := s.UpdateJobStartTimes(ctx.Background(), events, []time.Time{testfixtures.BaseTime})
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	_, exists := jobRepo.jobStartTimeInfos[testfixtures.JobIdString]
+	assert.False(t, exists)
+}
+
+func TestUpdateJobStartTimes_RedisError(t *testing.T) {
+	jobRepo := newMockJobRepository()
+	jobRepo.redisError = fmt.Errorf("redis error")
+	s := SubmitFromLog{
+		SubmitServer: &SubmitServer{
+			jobRepository: jobRepo,
+		},
+	}
+	ok, err := s.UpdateJobStartTimes(ctx.Background(), events, []time.Time{testfixtures.BaseTime})
+	assert.Error(t, err)
+	assert.False(t, ok)
+
+	_, exists := jobRepo.jobStartTimeInfos[testfixtures.JobIdString]
+	assert.False(t, exists)
+}
