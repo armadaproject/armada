@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -26,6 +27,21 @@ const (
 )
 
 func generateSwagger() error {
+	err := os.RemoveAll("./gen")
+	if err != nil {
+		return err
+	}
+	err = os.Mkdir("./gen", 0o755)
+	if err != nil {
+		return err
+	}
+
+	executable := "swagger"
+	args := []string{"generate", "server", "-t", "./gen/", "-f", "./swagger.yaml", "--exclude-main", "-A", "lookout"}
+	return run(executable, args...)
+}
+
+func generateSwaggerDocker() error {
 	localSwaggerGenDir := filepath.Join(".", swaggerGenDir)
 	err := os.RemoveAll(localSwaggerGenDir)
 	if err != nil {
@@ -133,10 +149,19 @@ func generateStatik() error {
 }
 
 func run(executable string, args ...string) error {
+	var outBuffer, errBuffer bytes.Buffer
 	cmd := exec.Command(executable, args...)
-	stdout, err := cmd.Output()
-	if len(stdout) > 0 {
-		fmt.Println(string(stdout))
+	cmd.Stdout = &outBuffer
+	cmd.Stderr = &errBuffer
+	err := cmd.Run()
+	if len(outBuffer.String()) > 0 {
+		fmt.Println(outBuffer.String())
+	}
+	if len(errBuffer.String()) > 0 {
+		fmt.Println(errBuffer.String())
+	}
+	if err != nil {
+		return err
 	}
 	if err != nil {
 		return err
