@@ -218,7 +218,10 @@ func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevent
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if len(req.JobIds) > 0 {
-		return srv.cancelJobsByIds(ctx, req.JobIds)
+		if req.Queue == "" || req.JobSetId == "" {
+			return srv.cancelJobsByIds(ctx, req.JobIds)
+		}
+		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
 	}
 	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
@@ -369,27 +372,9 @@ func (srv *PulsarSubmitServer) cancelJobsByIds(ctx context.Context, jobIds []str
 		}
 
 		for jobSet, jobIds := range jobSets {
-			var es []*armadaevents.EventSequence_Event
-			for _, jobIdStr := range jobIds {
-				jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
-				if err != nil {
-					log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
-					continue
-				}
-				cancelledIds = append(cancelledIds, jobIdStr)
-				es = append(es, &armadaevents.EventSequence_Event{
-					Event: &armadaevents.EventSequence_Event_CancelJob{
-						CancelJob: &armadaevents.CancelJob{JobId: jobId},
-					},
-				})
-			}
-			eventSequences = append(eventSequences, &armadaevents.EventSequence{
-				Queue:      q,
-				JobSetName: jobSet,
-				UserId:     userId,
-				Groups:     groups,
-				Events:     es,
-			})
+			sequence, validIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
+			eventSequences = append(eventSequences, sequence)
+			cancelledIds = append(cancelledIds, validIds...)
 		}
 	}
 
@@ -401,6 +386,50 @@ func (srv *PulsarSubmitServer) cancelJobsByIds(ctx context.Context, jobIds []str
 	return &api.CancellationResult{
 		CancelledIds: cancelledIds,
 	}, nil
+}
+
+// Assumes all Job IDs are in the queue and job set provided
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string) (*api.CancellationResult, error) {
+	userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	if err != nil {
+		return nil, err
+	}
+	var cancelledIds []string
+	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	if err != nil {
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
+	}
+	return &api.CancellationResult{
+		CancelledIds: cancelledIds,
+	}, nil
+}
+
+// Returns event sequence along with all valid job ids in the sequence
+func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, []string) {
+	sequence := &armadaevents.EventSequence{
+		Queue:      q,
+		JobSetName: jobSet,
+		UserId:     userId,
+		Groups:     groups,
+		Events:     []*armadaevents.EventSequence_Event{},
+	}
+	var validIds []string
+	for _, jobIdStr := range jobIds {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
+		if err != nil {
+			log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
+			continue
+		}
+		validIds = append(validIds, jobIdStr)
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+			},
+		})
+	}
+	return sequence, validIds
 }
 
 func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
