@@ -32,9 +32,10 @@ const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
 	mg.Deps(BootstrapTools)
+	sh.Run("sqlc", "version")
 	return sh.Run(
-		"goreleaser", "release",
-		// "go", "run", "github.com/goreleaser/goreleaser@v1.50.1", "release",
+		// "goreleaser", "release",
+		"go", "run", "github.com/goreleaser/goreleaser@v1.50.1", "release",
 		"--snapshot",
 		"--rm-dist",
 		"-f", ".goreleaser-docker.yml",
