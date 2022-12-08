@@ -12,21 +12,15 @@ import (
 const (
 	swaggerGenDir   = "./gen"
 	swaggerFilePath = "./swagger.yaml"
-
-	statikDir = "./schema/"
 )
 
 func generateSwagger() error {
-	fmt.Println(os.Environ())
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-	fmt.Println(cwd)
 	swaggerGenDirFull := filepath.Join(cwd, swaggerGenDir)
 	swaggerFilePathFull := filepath.Join(cwd, swaggerFilePath)
-	fmt.Println(swaggerGenDirFull)
-	fmt.Println(swaggerFilePathFull)
 	err = os.RemoveAll(swaggerGenDirFull)
 	if err != nil {
 		return err
@@ -38,24 +32,6 @@ func generateSwagger() error {
 
 	executable := "swagger"
 	args := []string{"generate", "server", "-t", swaggerGenDirFull, "-f", swaggerFilePathFull, "--exclude-main", "-A", "lookout"}
-	return run(executable, args...)
-}
-
-func generateStatik() error {
-	executable := "go"
-	args := []string{
-		"run",
-		"github.com/rakyll/statik",
-		"-dest",
-		statikDir,
-		"-src",
-		statikDir,
-		"-include=*.sql",
-		"-ns=lookoutv2/sql",
-		"-Z",
-		"-f",
-		"-m",
-	}
 	return run(executable, args...)
 }
 
@@ -74,15 +50,9 @@ func run(executable string, args ...string) error {
 }
 
 func main() {
-	err1 := generateSwagger()
-	err2 := generateStatik()
-	if err1 != nil {
-		log.WithError(err1).Error("swagger generation failed")
-	}
-	if err2 != nil {
-		log.WithError(err2).Error("statik generation failed")
-	}
-	if err1 != nil || err2 != nil {
+	err := generateSwagger()
+	if err != nil {
+		log.WithError(err).Error("swagger generation failed")
 		os.Exit(1)
 	}
 }

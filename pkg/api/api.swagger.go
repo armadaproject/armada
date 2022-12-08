@@ -5047,14 +5047,6 @@ func SwaggerJsonTemplate() string {
 		"    \"v1Volume\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"Volume represents a named volume in a pod that may be accessed by any container in the pod.\",\n" +
-		"      \"required\": [\n" +
-		"        \"Driver\",\n" +
-		"        \"Labels\",\n" +
-		"        \"Mountpoint\",\n" +
-		"        \"Name\",\n" +
-		"        \"Options\",\n" +
-		"        \"Scope\"\n" +
-		"      ],\n" +
 		"      \"properties\": {\n" +
 		"        \"awsElasticBlockStore\": {\n" +
 		"          \"$ref\": \"#/definitions/v1AWSElasticBlockStoreVolumeSource\"\n" +
