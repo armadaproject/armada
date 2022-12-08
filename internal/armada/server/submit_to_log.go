@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/G-Research/armada/internal/common/util"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -216,6 +217,9 @@ func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevent
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+	if len(req.JobIds) > 0 {
+		return srv.cancelJobsById(ctx, req.JobIds)
+	}
 	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
 	// If both queue and jobSetId are provided, we assume that those are correct
@@ -325,6 +329,75 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		return nil, status.Error(codes.Internal, "Failed to send message")
 	}
 
+	return &api.CancellationResult{
+		CancelledIds: cancelledIds,
+	}, nil
+}
+
+func (srv *PulsarSubmitServer) cancelJobsById(ctx context.Context, jobIds []string) (*api.CancellationResult, error) {
+	batchSize := srv.SubmitServer.cancelJobsBatchSize
+	batches := util.Batch(jobIds, batchSize)
+	idQueueJobSetMap := make(map[string]map[string][]string)
+
+	for _, batch := range batches {
+		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds(batch)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed to get jobs from redis")
+		}
+		for _, job := range jobs {
+			q := job.Job.GetQueue()
+			jobSet := job.Job.GetJobSetId()
+			_, ok := idQueueJobSetMap[q]
+			if !ok {
+				idQueueJobSetMap[q] = make(map[string][]string)
+			}
+			_, ok = idQueueJobSetMap[q][jobSet]
+			if !ok {
+				idQueueJobSetMap[q][jobSet] = []string{}
+			}
+			idQueueJobSetMap[q][jobSet] = append(idQueueJobSetMap[q][jobSet], job.Job.Id)
+		}
+	}
+
+	var cancelledIds []string
+	var eventSequences []*armadaevents.EventSequence
+	for q, jobSets := range idQueueJobSetMap {
+		userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+		if err != nil {
+			log.WithError(err).Errorf("user cannot cancel jobs in queue %s", q)
+			continue
+		}
+
+		for jobSet, jobIds := range jobSets {
+			var es []*armadaevents.EventSequence_Event
+			for _, jobIdStr := range jobIds {
+				jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
+				if err != nil {
+					log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
+					continue
+				}
+				cancelledIds = append(cancelledIds, jobIdStr)
+				es = append(es, &armadaevents.EventSequence_Event{
+					Event: &armadaevents.EventSequence_Event_CancelJob{
+						CancelJob: &armadaevents.CancelJob{JobId: jobId},
+					},
+				})
+			}
+			eventSequences = append(eventSequences, &armadaevents.EventSequence{
+				Queue:      q,
+				JobSetName: jobSet,
+				UserId:     userId,
+				Groups:     groups,
+				Events:     es,
+			})
+		}
+	}
+
+	err := srv.publishToPulsar(ctx, eventSequences)
+	if err != nil {
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
+	}
 	return &api.CancellationResult{
 		CancelledIds: cancelledIds,
 	}, nil
