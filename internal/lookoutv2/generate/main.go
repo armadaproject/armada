@@ -163,9 +163,6 @@ func run(executable string, args ...string) error {
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
