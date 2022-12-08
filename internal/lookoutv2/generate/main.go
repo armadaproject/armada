@@ -17,7 +17,12 @@ const (
 )
 
 func generateSwagger() error {
-	err := os.RemoveAll(swaggerGenDir)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	fmt.Println(cwd)
+	err = os.RemoveAll(swaggerGenDir)
 	if err != nil {
 		return err
 	}
