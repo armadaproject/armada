@@ -6,6 +6,7 @@ import (
 	"github.com/G-Research/armada/pkg/api"
 )
 
+// EventSplitter is a service for duplicating incoming events onto several outgoing channels.
 type EventSplitter struct {
 	in   chan *api.EventMessage
 	outs []chan *api.EventMessage
