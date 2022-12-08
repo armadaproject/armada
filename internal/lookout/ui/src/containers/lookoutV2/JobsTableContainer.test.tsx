@@ -1,6 +1,8 @@
 import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job } from "models/lookoutV2Models"
+import { debug } from "console"
+import { isTerminatedJobState, Job } from "models/lookoutV2Models"
+import { SnackbarProvider } from "notistack"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import GetJobsService from "services/lookoutV2/GetJobsService"
 import GroupJobsService from "services/lookoutV2/GroupJobsService"
@@ -15,15 +17,16 @@ import { JobsTableContainer } from "./JobsTableContainer"
 jest.setTimeout(15_000)
 
 describe("JobsTableContainer", () => {
-  const numJobs = 5,
-    numQueues = 2,
-    numJobSets = 3
+  let numJobs: number, numQueues: number, numJobSets: number;
   let jobs: Job[],
     getJobsService: GetJobsService,
     groupJobsService: GroupJobsService,
     cancelJobsService: CancelJobsService
 
   beforeEach(() => {
+    numJobs = 5
+    numQueues = 2
+    numJobSets = 3
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
     getJobsService = new FakeGetJobsService(jobs)
     groupJobsService = new FakeGroupJobsService(jobs)
@@ -35,12 +38,14 @@ describe("JobsTableContainer", () => {
 
   const renderComponent = () =>
     render(
-      <JobsTableContainer
-        getJobsService={getJobsService}
-        groupJobsService={groupJobsService}
-        cancelJobsService={cancelJobsService}
-        debug={false}
-      />,
+      <SnackbarProvider>
+        <JobsTableContainer
+          getJobsService={getJobsService}
+          groupJobsService={groupJobsService}
+          cancelJobsService={cancelJobsService}
+          debug={false}
+        />
+      </SnackbarProvider>
     )
 
   it("should render a spinner while loading initially", async () => {
@@ -201,21 +206,59 @@ describe("JobsTableContainer", () => {
     expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
     expect(await findByRole("button", { name: "Reprioritize selected" })).toBeDisabled()
 
-    await toggleSelectedRow(jobs[0].jobId)
-    await toggleSelectedRow(jobs[2].jobId)
+    await toggleSelectedRow("jobId", jobs[0].jobId)
+    await toggleSelectedRow("jobId", jobs[2].jobId)
 
     expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
     expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
-    await toggleSelectedRow(jobs[2].jobId)
+    await toggleSelectedRow("jobId", jobs[2].jobId)
 
     expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
     expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
-    await toggleSelectedRow(jobs[0].jobId)
+    await toggleSelectedRow("jobId", jobs[0].jobId)
 
     expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
     expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
+  })
+
+  it("should pass individual jobs to cancel dialog", async () => {
+    jobs[0].state = "Pending"
+
+    const { getByRole, findByRole } = renderComponent()
+    await waitForElementToBeRemoved(() => getByRole("progressbar"))
+
+    await toggleSelectedRow("jobId", jobs[0].jobId)
+
+    await userEvent.click(await findByRole("button", {name: "Cancel selected"}))
+    await findByRole("dialog", {name: "Cancel 1 job"}, {timeout: 2000})
+  })
+
+  it("should pass groups to cancel dialog", async () => {
+    numJobs = 1000 // Add enough jobs that it exercises grouping logic
+    jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
+    getJobsService = new FakeGetJobsService(jobs)
+    groupJobsService = new FakeGroupJobsService(jobs)
+
+    const { getByRole, findByRole } = renderComponent()
+    await waitForElementToBeRemoved(() => getByRole("progressbar"))
+
+    await groupByColumn("Queue")
+
+    // Wait for table to update
+    await assertNumDataRowsShown(numQueues)
+
+    // Select a queue
+    await toggleSelectedRow("queue", jobs[0].queue)
+
+    // Open the cancel dialog
+    await userEvent.click(await findByRole("button", {name: "Cancel selected"}))
+
+    // Check it retrieved the number of non-terminated jobs in this queue
+    // Longer timeout as some fake API calls need to be made
+    // Number of jobs will be static as long as the random seed above is static
+    await findByRole("dialog", {name: "Cancel 258 jobs"}, {timeout: 2000})
   })
 
   it("should allow text filtering", async () => {
@@ -323,8 +366,8 @@ describe("JobsTableContainer", () => {
     await userEvent.click(expandButton)
   }
 
-  async function toggleSelectedRow(jobId: string) {
-    const matchingRow = await screen.findByRole("row", { name: "jobId:" + jobId })
+  async function toggleSelectedRow(rowType: string, rowId: string) {
+    const matchingRow = await screen.findByRole("row", { name: `${rowType}:${rowId}` })
     const checkbox = await within(matchingRow).findByRole("checkbox")
     await userEvent.click(checkbox)
   }

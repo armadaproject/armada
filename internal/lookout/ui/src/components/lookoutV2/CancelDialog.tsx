@@ -128,6 +128,7 @@ export const CancelDialog = ({
 
   const handleRefetch = () => {
     setIsLoadingJobs(true)
+    setJobIdsToCancelResponses({})
     fetchSelectedJobs().catch(console.error)
   }
 
