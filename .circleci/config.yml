@@ -133,6 +133,7 @@ jobs:
             chmod +x kubectl
             mv kubectl /home/circleci/bin/
             make download-tools
+            echo $GOPATH
             which swagger
             make download # no-op if we restored from cache
 
