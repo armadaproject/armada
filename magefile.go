@@ -37,14 +37,24 @@ func CiIntegrationTests() error {
 	}
 	mg.Deps(BootstrapTools)
 	mg.Deps(DockerBundle, Kind)
+	err := sh.Run("docker-compose", "up", "-d", "redis", "postgres", "pulsar", "stan")
+	if err != nil {
+		return err
+	}
+
+	// TODO: Necessary to avoid connection error on Armada server startup.
+	time.Sleep(10 * time.Second)
+
 	err := sh.Run("docker-compose", "up", "-d", "server", "executor")
 	if err != nil {
 		return err
 	}
 	time.Sleep(10 * time.Second) // TODO: Wait until ready.
-	if err := sh.Run("docker", "ps"); err != nil {
+	if err := sh.Run("docker", "ps", "-a"); err != nil {
 		return err
 	}
+	sh.Run("docker", "logs", "server")
+
 	err = sh.Run("go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err != nil {
 		return err
