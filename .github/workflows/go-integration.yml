@@ -21,8 +21,12 @@ jobs:
         # each other.
         go: [ '1.18' ]
     steps:
-      - uses: actions/checkout@v3.1.0
-      - run: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - run: sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       - name: Upload junit report
         uses: actions/upload-artifact@v3.1.1
         with:
