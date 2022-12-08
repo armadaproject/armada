@@ -143,7 +143,8 @@ class ArmadaClient:
         :return: A JobSubmitResponse object.
         """
 
-        # Checks to ensure that either job_id is provided, or job_set_id AND queue is provided.
+        # Checks to ensure that either job_id is provided,
+        # or job_set_id AND queue is provided.
         # ensure that the others have appropriate empty values.
 
         if job_id:
@@ -209,7 +210,8 @@ class ArmadaClient:
         :return: ReprioritizeJobsResponse object. It is a map of strings.
         """
 
-        # Same as in cancel_jobs, ensure that either job_ids or job_set_id and queue is provided.
+        # Same as in cancel_jobs, ensure that either
+        # job_ids or job_set_id and queue is provided.
 
         if job_ids:
             job_set_id = ""

@@ -66,7 +66,7 @@ job_set_id is required.
 
 * **Return type**
 
-    armada.submit_pb2.JobCancelRequest
+    armada.submit_pb2.CancellationResult
 
 
 
@@ -294,7 +294,7 @@ for event in events:
 
 * **Return type**
 
-    *Generator*[armada.event_pb2.EventMessage, None, None]
+    *Generator*[armada.event_pb2.EventStreamMessage, None, None]
 
 
 
