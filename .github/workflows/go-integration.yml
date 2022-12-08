@@ -32,7 +32,7 @@ jobs:
           go env
           go env GOPATH
           go env GOBIN
-          sudo go run github.com/magefile/mage@v1.14.0 -v BootstrapTools          
+          go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
           ls $(go env GOPATH)/bin
           ls $(go env GOBIN)
           echo $PATH
