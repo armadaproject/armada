@@ -60,7 +60,11 @@ func generateStatik() error {
 
 func run(executable string, args ...string) error {
 	cmd := exec.Command(executable, args...)
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		fmt.Println("OUTPUT:")
+		fmt.Println(string(out))
+	}
 	if err != nil {
 		return err
 	}
