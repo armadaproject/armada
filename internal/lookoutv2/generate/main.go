@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,17 +59,8 @@ func generateStatik() error {
 }
 
 func run(executable string, args ...string) error {
-	var outBuffer, errBuffer bytes.Buffer
 	cmd := exec.Command(executable, args...)
-	cmd.Stdout = &outBuffer
-	cmd.Stderr = &errBuffer
 	err := cmd.Run()
-	if len(outBuffer.String()) > 0 {
-		fmt.Println(outBuffer.String())
-	}
-	if len(errBuffer.String()) > 0 {
-		fmt.Println(errBuffer.String())
-	}
 	if err != nil {
 		return err
 	}
