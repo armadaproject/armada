@@ -76,4 +76,7 @@ func main() {
 	if err2 != nil {
 		log.WithError(err2).Error("statik generation failed")
 	}
+	if err1 != nil || err2 != nil {
+		os.Exit(1)
+	}
 }
