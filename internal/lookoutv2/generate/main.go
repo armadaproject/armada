@@ -17,6 +17,7 @@ const (
 )
 
 func generateSwagger() error {
+	fmt.Println(os.Environ())
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
