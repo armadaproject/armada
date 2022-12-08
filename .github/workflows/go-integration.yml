@@ -37,7 +37,7 @@ jobs:
           ls $(go env GOBIN)
           echo $PATH
           sqlc version
-          # go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+          go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       # - run: ls $(go env GOPATH)/bin
       # - run: sqlc version
       # - run: sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
