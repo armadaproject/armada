@@ -26,7 +26,6 @@ func generateSwagger() error {
 	swaggerFilePathFull := filepath.Join(cwd, swaggerFilePath)
 	fmt.Println(swaggerGenDirFull)
 	fmt.Println(swaggerFilePathFull)
-	fmt.Println(os.Environ())
 	err = os.RemoveAll(swaggerGenDirFull)
 	if err != nil {
 		return err
