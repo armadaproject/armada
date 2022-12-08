@@ -29,10 +29,43 @@ import (
 const PROTOC_VERSION_MIN = "3.21.8"
 const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
 
+// Build images, spin up a test environment, and run the integration tests against it.
+func CiIntegrationTests() error {
+	mg.Deps(BootstrapTools)
+	mg.Deps(Kind, DockerBundle)
+	err := sh.Run("docker-compose", "up", "-d", "server", "executor")
+	if err != nil {
+		return err
+	}
+	err = sh.Run("go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
+	if err != nil {
+		return err
+	}
+	err = sh.Run(
+		"go", "run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/basic/*",
+		"--junit", "junit.xml",
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func DockerBundle() error {
+	mg.Deps(DockerBundleGoreleaserConfig)
+	return sh.Run(
+		"goreleaser", "release",
+		"--snapshot",
+		"--rm-dist",
+		"-f", ".goreleaser-docker.yml",
+	)
+}
+
 // Write a minimal goreleaser config to .goreleaser-docker.yml
 // containing only the subset of targets in .goreleaser.yaml necessary
 // for building a set of specified Docker images.
-func DockerGoreleaserConfig() error {
+func DockerBundleGoreleaserConfig() error {
 	// Docker targets to build and the build targets necessary to do so.
 	dockerIds := map[string]bool{
 		"bundle": true,
@@ -222,6 +255,19 @@ func Clean() {
 
 func Sql() error {
 	return sh.Run("sqlc", "generate", "-f", "internal/scheduler/sql/sql.yaml")
+}
+
+func BootstrapTools() error {
+	packages, err := sh.Output("go", "list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
+	if err != nil {
+		return err
+	}
+	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
+		if err := sh.Run("go", "install", p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Proto() error {
@@ -520,17 +566,4 @@ func protocArchOs() (string, error) {
 		return "win64", nil
 	}
 	return "", errors.Errorf("protoc not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
-}
-
-func Bootstrap() error {
-	packages, err := sh.Output("go", "list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
-	if err != nil {
-		return err
-	}
-	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
-		if err := sh.Run("go", "install", p); err != nil {
-			return err
-		}
-	}
-	return nil
 }
