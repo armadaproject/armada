@@ -32,7 +32,7 @@ const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
 	mg.Deps(BootstrapTools)
-	mg.Deps(Kind, DockerBundle)
+	mg.Deps(DockerBundle, Kind)
 	err := sh.Run("docker-compose", "up", "-d", "server", "executor")
 	if err != nil {
 		return err
