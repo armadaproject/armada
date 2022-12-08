@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/magefile/mage/mg"
@@ -31,10 +32,17 @@ const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
+	if err := os.MkdirAll(".kube", os.ModeDir); err != nil {
+		return err
+	}
 	mg.Deps(BootstrapTools)
 	mg.Deps(DockerBundle, Kind)
 	err := sh.Run("docker-compose", "up", "-d", "server", "executor")
 	if err != nil {
+		return err
+	}
+	time.Sleep(10 * time.Second) // TODO: Wait until ready.
+	if err := sh.Run("docker", "ps"); err != nil {
 		return err
 	}
 	err = sh.Run("go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
