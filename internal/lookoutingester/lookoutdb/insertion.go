@@ -15,6 +15,7 @@ import (
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/ingest"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/G-Research/armada/internal/lookout/configuration"
 	"github.com/G-Research/armada/internal/lookout/repository"
 	"github.com/G-Research/armada/internal/lookoutingester/model"
 )
@@ -22,10 +23,22 @@ import (
 type LookoutDb struct {
 	db      *pgxpool.Pool
 	metrics *metrics.Metrics
+	config  *configuration.LookoutIngesterConfiguration
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model.InstructionSet] {
-	return &LookoutDb{db: db, metrics: metrics}
+func NewLookoutDb(
+	db *pgxpool.Pool,
+	metrics *metrics.Metrics,
+	config *configuration.LookoutIngesterConfiguration,
+) ingest.Sink[*model.InstructionSet] {
+	if config.Debug.DisableConflateDBUpdates {
+		log.Warn("config.debug.disableConflateDBUpdates == true. Performance may be negatively impacted.")
+	}
+	if config.Debug.ForceScalarDBUpdates {
+		log.Warn("config.debug.forceScalarDBUpdates == true. Performance may be negatively impacted.")
+	}
+
+	return &LookoutDb{db: db, metrics: metrics, config: config}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
@@ -36,10 +49,15 @@ func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
 func (l *LookoutDb) Store(ctx context.Context, instructions *model.InstructionSet) error {
+	jobsToUpdate := instructions.JobsToUpdate
+	jobRunsToUpdate := instructions.JobRunsToUpdate
+
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
-	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
-	jobRunsToUpdate := conflateJobRunUpdates(instructions.JobRunsToUpdate)
+	if !l.config.Debug.DisableConflateDBUpdates {
+		jobsToUpdate = conflateJobUpdates(jobsToUpdate)
+		jobRunsToUpdate = conflateJobRunUpdates(jobRunsToUpdate)
+	}
 
 	// Jobs need to be ingested first as other updates may reference these
 	l.CreateJobs(ctx, instructions.JobsToCreate)
@@ -81,6 +99,12 @@ func (l *LookoutDb) CreateJobs(ctx context.Context, instructions []*model.Create
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.ForceScalarDBUpdates {
+		l.CreateJobsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -93,6 +117,12 @@ func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.Update
 		return
 	}
 	instructions = filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
+
+	if l.config.Debug.ForceScalarDBUpdates {
+		l.UpdateJobsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -104,6 +134,12 @@ func (l *LookoutDb) CreateJobRuns(ctx context.Context, instructions []*model.Cre
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.ForceScalarDBUpdates {
+		l.CreateJobRunsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -115,6 +151,12 @@ func (l *LookoutDb) UpdateJobRuns(ctx context.Context, instructions []*model.Upd
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.ForceScalarDBUpdates {
+		l.UpdateJobRunsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Updating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -126,6 +168,12 @@ func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*m
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.ForceScalarDBUpdates {
+		l.CreateUserAnnotationsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateUserAnnotationsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -137,6 +185,12 @@ func (l *LookoutDb) CreateJobRunContainers(ctx context.Context, instructions []*
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.ForceScalarDBUpdates {
+		l.CreateJobRunContainersScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateJobRunContainersBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating job run containers via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -296,6 +350,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.
                   duplicate = coalesce($5, duplicate)
 				WHERE job_id = $6`
 	for _, i := range instructions {
+		log.Infof("Job update: %s %d", i.JobId, *i.State)
 		err := withDatabaseRetryInsert(func() error {
 			_, err := l.db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
 			if err != nil {

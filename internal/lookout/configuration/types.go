@@ -47,6 +47,17 @@ type LookoutConfiguration struct {
 	DisableEventProcessing bool
 }
 
+type LookoutIngesterDebugConfig struct {
+	// Disables DB update conflation. If conflation is disabled then update
+	// instructions	will not conflatined/coalesed. Meaning update instructions
+	// that would imediately negate another update on the same table row will
+	// be retained.
+	DisableConflateDBUpdates bool
+	// Forces scalar DB updates. Default behavior is to batch updates to the
+	// database.
+	ForceScalarDBUpdates bool
+}
+
 type LookoutIngesterConfiguration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
@@ -54,6 +65,8 @@ type LookoutIngesterConfiguration struct {
 	Metrics configuration.MetricsConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
+	// Debug configuration. Not for production use.
+	Debug LookoutIngesterDebugConfig
 	// Pulsar subscription name
 	SubscriptionName string
 	// Size in bytes above which job specs will be compressed when inserting in the database
@@ -62,10 +75,6 @@ type LookoutIngesterConfiguration struct {
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
-	// Time for which the pulsar consumer will wait for a new message before retrying
-	PulsarReceiveTimeout time.Duration
-	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
-	PulsarBackoffTime time.Duration
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
