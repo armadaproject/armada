@@ -32,7 +32,7 @@ export function seededUuid(rand: () => number): () => string {
 }
 
 export async function simulateApiWait(): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, randomInt(200, 1000, Math.random)))
+  await new Promise((resolve) => setTimeout(resolve, randomInt(200, 1000, Math.random)))
 }
 
 export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100): Job[] {

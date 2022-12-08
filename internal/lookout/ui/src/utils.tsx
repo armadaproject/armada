@@ -156,7 +156,7 @@ export function priorityIsValid(priority: string): boolean {
 
 // Pluralization helper
 export function pl(itemsOrCount: unknown[] | number, singularForm: string, pluralForm?: string) {
-  const count = Array.isArray(itemsOrCount) ? itemsOrCount.length : itemsOrCount;
+  const count = Array.isArray(itemsOrCount) ? itemsOrCount.length : itemsOrCount
   if (count === 1) {
     return `${count} ${singularForm}`
   }

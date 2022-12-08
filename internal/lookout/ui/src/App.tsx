@@ -4,7 +4,9 @@ import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesP
 import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
+import { SnackbarProvider } from "notistack"
 import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
+import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import GetJobsService from "services/lookoutV2/GetJobsService"
 import GroupJobsService from "services/lookoutV2/GroupJobsService"
 
@@ -16,7 +18,6 @@ import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 
 import "./App.css"
-import { SnackbarProvider } from "notistack"
 
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
@@ -60,6 +61,7 @@ type AppProps = {
   jobService: JobService
   v2GetJobsService: GetJobsService
   v2GroupJobsService: GroupJobsService
+  v2CancelJobsService: CancelJobsService
   logService: LogService
   overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
@@ -71,7 +73,7 @@ export function App(props: AppProps) {
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
         <ThemeProviderV5 theme={themeV5}>
-          <SnackbarProvider anchorOrigin={{horizontal: "right", vertical: "bottom"}} autoHideDuration={8000}>
+          <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000}>
             <Router>
               <div className="app-container">
                 <NavBar />
@@ -90,6 +92,7 @@ export function App(props: AppProps) {
                       <JobsTableContainer
                         getJobsService={props.v2GetJobsService}
                         groupJobsService={props.v2GroupJobsService}
+                        cancelJobsService={props.v2CancelJobsService}
                         debug={props.debugEnabled}
                       />
                     </Route>

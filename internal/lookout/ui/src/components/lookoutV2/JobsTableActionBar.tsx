@@ -3,12 +3,13 @@ import { memo, useCallback, useState } from "react"
 import { Divider, Button } from "@mui/material"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
-import { JobFilter, JobId } from "models/lookoutV2Models"
+import { JobFilter } from "models/lookoutV2Models"
+import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
+import GetJobsService from "services/lookoutV2/GetJobsService"
 import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
 
-import styles from "./JobsTableActionBar.module.css"
 import { CancelDialog } from "./CancelDialog"
-import GetJobsService from "services/lookoutV2/GetJobsService"
+import styles from "./JobsTableActionBar.module.css"
 
 export interface JobsTableActionBarProps {
   allColumns: ColumnSpec[]
@@ -17,9 +18,18 @@ export interface JobsTableActionBarProps {
   onColumnsChanged: (newColumns: ColumnSpec[]) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: GetJobsService
+  cancelJobsService: CancelJobsService
 }
 export const JobsTableActionBar = memo(
-  ({ allColumns, groupedColumns, selectedItemFilters, onColumnsChanged, onGroupsChanged, getJobsService }: JobsTableActionBarProps) => {
+  ({
+    allColumns,
+    groupedColumns,
+    selectedItemFilters,
+    onColumnsChanged,
+    onGroupsChanged,
+    getJobsService,
+    cancelJobsService,
+  }: JobsTableActionBarProps) => {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
 
     function toggleColumn(key: string) {
@@ -58,11 +68,14 @@ export const JobsTableActionBar = memo(
     const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
-        {cancelDialogOpen && <CancelDialog 
-          onClose={cancelDialogOnClose}
-          selectedItemFilters={selectedItemFilters}
-          getJobsService={getJobsService}
-        />}
+        {cancelDialogOpen && (
+          <CancelDialog
+            onClose={cancelDialogOnClose}
+            selectedItemFilters={selectedItemFilters}
+            getJobsService={getJobsService}
+            cancelJobsService={cancelJobsService}
+          />
+        )}
         <div className={styles.actionGroup}>
           <GroupBySelect columns={allColumns} groups={groupedColumns} onGroupsChanged={onGroupsChanged} />
         </div>
