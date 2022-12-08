@@ -32,24 +32,31 @@ const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
 	mg.Deps(BootstrapTools)
-	mg.Deps(DockerBundle, Kind)
-	err := sh.Run("docker-compose", "up", "-d", "server", "executor")
-	if err != nil {
-		return err
-	}
-	err = sh.Run("go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
-	if err != nil {
-		return err
-	}
-	err = sh.Run(
-		"go", "run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*",
-		"--junit", "junit.xml",
+	return sh.Run(
+		"goreleaser", "release",
+		// "go", "run", "github.com/goreleaser/goreleaser@v1.50.1", "release",
+		"--snapshot",
+		"--rm-dist",
+		"-f", ".goreleaser-docker.yml",
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	// mg.Deps(DockerBundle, Kind)
+	// err := sh.Run("docker-compose", "up", "-d", "server", "executor")
+	// if err != nil {
+	// 	return err
+	// }
+	// err = sh.Run("go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
+	// if err != nil {
+	// 	return err
+	// }
+	// err = sh.Run(
+	// 	"go", "run", "cmd/testsuite/main.go", "test",
+	// 	"--tests", "testsuite/testcases/basic/*",
+	// 	"--junit", "junit.xml",
+	// )
+	// if err != nil {
+	// 	return err
+	// }
+	// return nil
 }
 
 func DockerBundle() error {
