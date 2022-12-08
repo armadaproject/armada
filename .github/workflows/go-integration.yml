@@ -27,6 +27,7 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: false
       - run: |
+          go env -w GOBIN=/home/runner/go/bin
           sudo go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
           go env
           go env GOPATH
