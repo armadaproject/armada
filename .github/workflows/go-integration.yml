@@ -11,7 +11,6 @@ on:
 jobs:
   go-integration-tests:
     if: github.repository_owner == 'G-Research'
-    runs-on: buildjet-4vcpu-ubuntu-2204
     strategy:
       fail-fast: false
       matrix:
@@ -20,23 +19,20 @@ jobs:
         # both versions in the matrix -- this will lead to them overwriting
         # each other.
         go: [ '1.18' ]
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    container: golang:${{ matrix.go }}-stretch
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go }}
-          cache: false
-      - name: setup env
-        run: |
-          echo "::set-env name=GOPATH::$(go env GOPATH)"
-          echo "::add-path::$(go env GOPATH)/bin"
-        shell: bash
+      # - uses: actions/setup-go@v3
+      #   with:
+      #     go-version: ${{ matrix.go }}
+      #     cache: false
       - run: |
           sudo go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
           ls $(go env GOPATH)/bin
           ls $(go env GOBIN)
           sqlc version
-          sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+          # sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       # - run: ls $(go env GOPATH)/bin
       # - run: sqlc version
       # - run: sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
