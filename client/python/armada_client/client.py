@@ -49,7 +49,7 @@ class ArmadaClient:
         queue: str,
         job_set_id: str,
         from_message_id: Optional[str] = None,
-    ) -> Generator[event_pb2.EventMessage, None, None]:
+    ) -> Generator[event_pb2.EventStreamMessage, None, None]:
         """Get event stream for a job set.
 
         Uses the GetJobSetEvents rpc to get a stream of events relating
@@ -69,6 +69,10 @@ class ArmadaClient:
         :param from_message_id: The from message id.
         :return: A job events stream for the job_set_id provided.
         """
+
+        if from_message_id is None:
+            from_message_id = ""
+
         jsr = event_pb2.JobSetRequest(
             queue=queue,
             id=job_set_id,
@@ -127,7 +131,7 @@ class ArmadaClient:
         queue: Optional[str] = None,
         job_id: Optional[str] = None,
         job_set_id: Optional[str] = None,
-    ) -> submit_pb2.JobCancelRequest:
+    ) -> submit_pb2.CancellationResult:
         """Cancel jobs in a given queue.
 
         Uses the CancelJobs RPC to cancel jobs. Either job_id or
@@ -138,6 +142,20 @@ class ArmadaClient:
         :param job_set_id: An array of JobSubmitRequestItems. (this or job_id required)
         :return: A JobSubmitResponse object.
         """
+
+        # Checks to ensure that either job_id is provided, or job_set_id AND queue is provided.
+        # ensure that the others have appropriate empty values.
+
+        if job_id:
+            job_set_id = ""
+            queue = ""
+
+        elif job_set_id and queue:
+            job_id = ""
+
+        else:
+            raise ValueError("Either job_id or job_set_id and queue must be provided.")
+
         request = submit_pb2.JobCancelRequest(
             queue=queue, job_id=job_id, job_set_id=job_set_id
         )
@@ -162,7 +180,9 @@ class ArmadaClient:
         """
 
         job_filter = submit_pb2.JobSetFilter(
-            states=[state.value for state in filter_states]
+            states=[
+                submit_pb2.JobState.ValueType(state.value) for state in filter_states
+            ]
         )
         request = submit_pb2.JobSetCancelRequest(
             queue=queue, job_set_id=job_set_id, filter=job_filter
@@ -188,6 +208,19 @@ class ArmadaClient:
         :param queue: The queue the jobs are in
         :return: ReprioritizeJobsResponse object. It is a map of strings.
         """
+
+        # Same as in cancel_jobs, ensure that either job_ids or job_set_id and queue is provided.
+
+        if job_ids:
+            job_set_id = ""
+            queue = ""
+
+        elif job_set_id and queue:
+            job_ids = []
+
+        else:
+            raise ValueError("Either job_ids or job_set_id and queue must be provided.")
+
         request = submit_pb2.JobReprioritizeRequest(
             job_ids=job_ids,
             job_set_id=job_set_id,
@@ -310,7 +343,12 @@ class ArmadaClient:
         :return: A queue request object.
         """
 
-        permissions = [p.to_grpc() for p in permissions] if permissions else None
+        if priority_factor is None:
+            priority_factor = 1.0
+
+        queue_permissions: Optional[List[submit_pb2.Queue.Permissions]] = (
+            [p.to_grpc() for p in permissions] if permissions else None
+        )
 
         return submit_pb2.Queue(
             name=name,
@@ -318,7 +356,7 @@ class ArmadaClient:
             user_owners=user_owners,
             group_owners=group_owners,
             resource_limits=resource_limits,
-            permissions=permissions,
+            permissions=queue_permissions,
         )
 
     def create_job_request_item(
@@ -358,6 +396,13 @@ class ArmadaClient:
 
         if pod_spec and pod_specs:
             raise ValueError("Only one of pod_spec and pod_specs can be specified")
+
+        # Set defaults for namespace and client_id
+        if namespace is None:
+            namespace = ""
+
+        if client_id is None:
+            client_id = ""
 
         return submit_pb2.JobSubmitRequestItem(
             priority=priority,
