@@ -25,7 +25,10 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
-          cache: true
+          cache: false
+      - run: sudo go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      - run: ls $(go env GOPATH)/bin      
+      - run: sqlc version
       - run: sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       - name: Upload junit report
         uses: actions/upload-artifact@v3.1.1
