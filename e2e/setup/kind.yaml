@@ -12,6 +12,10 @@ nodes:
     nodeRegistration:
       kubeletExtraArgs:
         node-labels: "ingress-ready=true"
+  - |
+    kind: KubeletConfiguration
+    # To speed up tests, reduce request timeout from the default 2m.
+    runtimeRequestTimeout: "30s"
   extraPortMappings:
   - containerPort: 80 # port of the nginx ingress controller
     hostPort: 5001 # expose ingresses on localhost:5001
