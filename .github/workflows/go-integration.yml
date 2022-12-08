@@ -20,19 +20,22 @@ jobs:
         # each other.
         go: [ '1.18' ]
     runs-on: buildjet-4vcpu-ubuntu-2204
-    container: golang:${{ matrix.go }}-stretch
     steps:
       - uses: actions/checkout@v3
-      # - uses: actions/setup-go@v3
-      #   with:
-      #     go-version: ${{ matrix.go }}
-      #     cache: false
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
       - run: |
-          # go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
-          # ls $(go env GOPATH)/bin
-          # ls $(go env GOBIN)
-          # sqlc version
-          go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+          sudo go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+          go env
+          go env GOPATH
+          go env GOBIN
+          ls $(go env GOPATH)/bin
+          ls $(go env GOBIN)
+          echo $PATH
+          sqlc version
+          # go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       # - run: ls $(go env GOPATH)/bin
       # - run: sqlc version
       # - run: sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
