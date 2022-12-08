@@ -43,10 +43,7 @@ func run(executable string, args ...string) error {
 		fmt.Println("OUTPUT:")
 		fmt.Println(string(out))
 	}
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func main() {
