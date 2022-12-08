@@ -28,7 +28,7 @@ jobs:
       #     go-version: ${{ matrix.go }}
       #     cache: false
       - run: |
-          sudo go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+          go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
           ls $(go env GOPATH)/bin
           ls $(go env GOBIN)
           sqlc version
