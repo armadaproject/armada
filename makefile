@@ -602,7 +602,7 @@ push-nuget: dotnet-setup setup-proto
 
 # Download all install tools listed in internal/tools/tools.go
 download-tools:
-	echo $GOPATH
+	echo $${GOPATH}
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 
 # Download all dependencies and install tools listed in internal/tools/tools.go
