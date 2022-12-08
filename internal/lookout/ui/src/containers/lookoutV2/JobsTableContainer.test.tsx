@@ -1,7 +1,6 @@
 import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { debug } from "console"
-import { isTerminatedJobState, Job } from "models/lookoutV2Models"
+import { Job } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import GetJobsService from "services/lookoutV2/GetJobsService"
@@ -17,7 +16,7 @@ import { JobsTableContainer } from "./JobsTableContainer"
 jest.setTimeout(15_000)
 
 describe("JobsTableContainer", () => {
-  let numJobs: number, numQueues: number, numJobSets: number;
+  let numJobs: number, numQueues: number, numJobSets: number
   let jobs: Job[],
     getJobsService: GetJobsService,
     groupJobsService: GroupJobsService,
@@ -45,7 +44,7 @@ describe("JobsTableContainer", () => {
           cancelJobsService={cancelJobsService}
           debug={false}
         />
-      </SnackbarProvider>
+      </SnackbarProvider>,
     )
 
   it("should render a spinner while loading initially", async () => {
@@ -231,8 +230,8 @@ describe("JobsTableContainer", () => {
 
     await toggleSelectedRow("jobId", jobs[0].jobId)
 
-    await userEvent.click(await findByRole("button", {name: "Cancel selected"}))
-    await findByRole("dialog", {name: "Cancel 1 job"}, {timeout: 2000})
+    await userEvent.click(await findByRole("button", { name: "Cancel selected" }))
+    await findByRole("dialog", { name: "Cancel 1 job" }, { timeout: 2000 })
   })
 
   it("should pass groups to cancel dialog", async () => {
@@ -253,12 +252,12 @@ describe("JobsTableContainer", () => {
     await toggleSelectedRow("queue", jobs[0].queue)
 
     // Open the cancel dialog
-    await userEvent.click(await findByRole("button", {name: "Cancel selected"}))
+    await userEvent.click(await findByRole("button", { name: "Cancel selected" }))
 
     // Check it retrieved the number of non-terminated jobs in this queue
     // Longer timeout as some fake API calls need to be made
     // Number of jobs will be static as long as the random seed above is static
-    await findByRole("dialog", {name: "Cancel 258 jobs"}, {timeout: 2000})
+    await findByRole("dialog", { name: "Cancel 258 jobs" }, { timeout: 2000 })
   })
 
   it("should allow text filtering", async () => {
@@ -343,10 +342,13 @@ describe("JobsTableContainer", () => {
   // })
 
   async function assertNumDataRowsShown(nDataRows: number) {
-    await waitFor(async () => {
-      const rows = await screen.findAllByRole("row")
-      expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
-    }, {timeout: 3000})
+    await waitFor(
+      async () => {
+        const rows = await screen.findAllByRole("row")
+        expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
+      },
+      { timeout: 3000 },
+    )
   }
 
   async function groupByColumn(columnDisplayName: string) {
