@@ -60,6 +60,7 @@ func generateStatik() error {
 
 func run(executable string, args ...string) error {
 	cmd := exec.Command(executable, args...)
+	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 	if len(out) > 0 {
 		fmt.Println("OUTPUT:")
