@@ -1,10 +1,7 @@
 package schema
 
 import (
-	"context"
 	"embed"
-
-	"github.com/jackc/pgtype/pgxtype"
 
 	"github.com/G-Research/armada/internal/common/database"
 )
@@ -18,12 +15,4 @@ func LookoutMigrations() ([]database.Migration, error) {
 		return nil, err
 	}
 	return migrations, nil
-}
-
-func MigrateLookout(ctx context.Context, db pgxtype.Querier) error {
-	migrations, err := database.ReadMigrations(fs, "migrations")
-	if err != nil {
-		return err
-	}
-	return database.UpdateDatabase(ctx, db, migrations)
 }
