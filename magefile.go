@@ -45,7 +45,7 @@ func CiIntegrationTests() error {
 	// TODO: Necessary to avoid connection error on Armada server startup.
 	time.Sleep(10 * time.Second)
 
-	err := sh.Run("docker-compose", "up", "-d", "server", "executor")
+	err = sh.Run("docker-compose", "up", "-d", "server", "executor")
 	if err != nil {
 		return err
 	}
