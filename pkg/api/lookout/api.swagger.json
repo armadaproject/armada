@@ -3857,6 +3857,14 @@
     "v1Volume": {
       "type": "object",
       "title": "Volume represents a named volume in a pod that may be accessed by any container in the pod.",
+      "required": [
+        "Driver",
+        "Labels",
+        "Mountpoint",
+        "Name",
+        "Options",
+        "Scope"
+      ],
       "properties": {
         "awsElasticBlockStore": {
           "$ref": "#/definitions/v1AWSElasticBlockStoreVolumeSource"

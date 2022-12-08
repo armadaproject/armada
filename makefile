@@ -324,7 +324,7 @@ build-docker: build-docker-jobservice build-docker-server build-docker-executor 
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 # We still build lookout-ingester since that go code that is isolated from lookout itself.
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookoutingester
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
@@ -509,7 +509,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-setup-proto: download
+setup-proto:
 	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
 	# first delete files in this directory - by default it has write perms disabled.
 	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
@@ -560,7 +560,7 @@ proto: setup-proto
 	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
+	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json -x internal/lookoutv2
 
 	# combine swagger definitions
 	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
@@ -600,20 +600,21 @@ push-nuget: dotnet-setup setup-proto
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
-# Download all dependencies and install tools listed in internal/tools/tools.go
-download:
-	$(GO_TEST_CMD) go mod download
+# Download all install tools listed in internal/tools/tools.go
+download-tools:
 	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
+
+# Download all dependencies and install tools listed in internal/tools/tools.go
+download: generate
+	$(GO_TEST_CMD) go mod download
 	$(GO_TEST_CMD) go mod tidy
 
-generate:
+generate: download-tools
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 
-	$(GO_CMD) go run github.com/rakyll/statik \
-		-dest=internal/lookoutv2/schema/ -src=internal/lookoutv2/schema/ -include=\*.sql -ns=lookoutv2/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookoutv2/schema/statik
+	go generate ./...
 
 helm-docs:
 	./scripts/helm-docs.sh

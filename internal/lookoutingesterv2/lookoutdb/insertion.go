@@ -3,17 +3,16 @@ package lookoutdb
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/common/ingest/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
@@ -127,7 +126,7 @@ func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*m
 
 func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.CreateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := uniqueTableName("job")
+		tmpTable := database.UniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -282,7 +281,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx context.Context, instructions []*model.
 
 func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.UpdateJobInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := uniqueTableName("job")
+		tmpTable := database.UniqueTableName("job")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -390,7 +389,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.
 
 func (l *LookoutDb) CreateJobRunsBatch(ctx context.Context, instructions []*model.CreateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := uniqueTableName("job_run")
+		tmpTable := database.UniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -481,7 +480,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx context.Context, instructions []*mod
 
 func (l *LookoutDb) UpdateJobRunsBatch(ctx context.Context, instructions []*model.UpdateJobRunInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := uniqueTableName("job_run")
+		tmpTable := database.UniqueTableName("job_run")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -583,7 +582,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx context.Context, instructions []*mod
 
 func (l *LookoutDb) CreateUserAnnotationsBatch(ctx context.Context, instructions []*model.CreateUserAnnotationInstruction) error {
 	return l.withDatabaseRetryInsert(func() error {
-		tmpTable := uniqueTableName("user_annotation_lookup")
+		tmpTable := database.UniqueTableName("user_annotation_lookup")
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
@@ -671,11 +670,6 @@ func (l *LookoutDb) CreateUserAnnotationsScalar(ctx context.Context, instruction
 			log.WithError(err).Warnf("Create annotation run for job %s, key %s failed", i.JobId, i.Key)
 		}
 	}
-}
-
-func uniqueTableName(table string) string {
-	suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
-	return fmt.Sprintf("%s_tmp_%s", table, suffix)
 }
 
 func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
@@ -773,6 +767,12 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 			}
 			if update.Error != nil {
 				existing.Error = update.Error
+			}
+			if update.JobRunState != nil {
+				existing.JobRunState = update.JobRunState
+			}
+			if update.ExitCode != nil {
+				existing.ExitCode = update.ExitCode
 			}
 		} else {
 			updatesById[update.RunId] = update
