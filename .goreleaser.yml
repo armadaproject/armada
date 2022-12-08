@@ -109,11 +109,11 @@ universal_binaries:
 sboms:
   - artifacts: archive
 
-env: 
+env:
   - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}{{ end }}
 
 dockers:
-  -
+  - id: bundle
     goos: linux
     goarch: amd64
     image_templates:
@@ -136,12 +136,11 @@ dockers:
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
-      - config/binoculars/config.yaml      
+      - config/binoculars/config.yaml
       - config/lookoutingester/config.yaml
       - config/eventingester/config.yaml
-      - config/jobservice/config.yaml
     dockerfile: ./build_goreleaser/armada/Dockerfile
-  -
+  - id: server
     goos: linux
     goarch: amd64
     image_templates:
@@ -164,7 +163,7 @@ dockers:
     extra_files:
       - config/armada/config.yaml
     dockerfile: ./build_goreleaser/server/Dockerfile
-  -
+  - id: executor
     goos: linux
     goarch: amd64
     image_templates:
@@ -187,7 +186,7 @@ dockers:
     extra_files:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/executor/Dockerfile
-  -
+  - id: lookoutingester
     goos: linux
     goarch: amd64
     image_templates:
@@ -210,7 +209,7 @@ dockers:
     extra_files:
       - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/lookoutingester/Dockerfile
-  -
+  - id: eventingester
     goos: linux
     goarch: amd64
     image_templates:
@@ -233,7 +232,7 @@ dockers:
     extra_files:
       - config/eventingester/config.yaml
     dockerfile: ./build_goreleaser/eventingester/Dockerfile
-  -
+  - id: binoculars
     goos: linux
     goarch: amd64
     image_templates:
@@ -256,7 +255,7 @@ dockers:
     extra_files:
       - config/binoculars/config.yaml
     dockerfile: ./build_goreleaser/binoculars/Dockerfile
-  -
+  - id: jobservice
     goos: linux
     goarch: amd64
     image_templates:
@@ -279,7 +278,7 @@ dockers:
     extra_files:
       - config/jobservice/config.yaml
     dockerfile: ./build_goreleaser/jobservice/Dockerfile
-  -
+  - id: armadactl
     goos: linux
     goarch: amd64
     image_templates:

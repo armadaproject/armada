@@ -14,8 +14,9 @@ jobservice.db
 jobservice.db-shm
 jobservice.db-wal
 
-# Intermediary build artifacts
+# Build artifacts
 dist
+.goreleaser-docker.yml
 
 # Proto compiler and dependencies
 proto
