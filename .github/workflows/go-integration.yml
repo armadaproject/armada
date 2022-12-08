@@ -28,21 +28,18 @@ jobs:
           cache: false
       - run: |
           go env -w GOBIN=/home/runner/go/bin
-          go version
-          go env
-          go env GOPATH
-          go env GOBIN
-          go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
-          ls $(go env GOPATH)/bin
-          ls $(go env GOBIN)
-          echo $PATH
-          sqlc version
-          mkdir -p .kube/external/
-          mkdir -p .kube/internal/
+          # go version
+          # go env
+          # go env GOPATH
+          # go env GOBIN
+          # go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+          # ls $(go env GOPATH)/bin
+          # ls $(go env GOBIN)
+          # echo $PATH
+          # sqlc version
+          # mkdir -p .kube/external/
+          # mkdir -p .kube/internal/
           go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
-      # - run: ls $(go env GOPATH)/bin
-      # - run: sqlc version
-      # - run: sudo go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       - name: Upload junit report
         uses: actions/upload-artifact@v3.1.1
         with:
