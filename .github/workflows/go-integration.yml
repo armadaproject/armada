@@ -38,6 +38,9 @@ jobs:
           install: true
           use: true
       - run: docker buildx ls
+      - run: docker buildx create --name builder --driver docker-container --use
+      - run: docker buildx install
+      - run: docker buildx ls
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
