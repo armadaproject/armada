@@ -274,8 +274,6 @@ func Sql() error {
 }
 
 func BootstrapTools() error {
-	sh.Run("go", "version")
-	sh.Run("go", "env")
 	packages, err := sh.Output("go", "list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
 	if err != nil {
 		return err
