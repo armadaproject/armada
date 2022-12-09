@@ -1,0 +1,30 @@
+name: JUnit test
+
+on:
+  push:
+    branches-ignore:
+      - master
+  pull_request:
+    branches-ignore:
+      - gh-pages
+
+jobs:
+  go-integration-tests:
+    if: github.repository_owner == 'G-Research'
+    strategy:
+      fail-fast: false
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+    steps:
+      - uses: actions/checkout@v3
+      - name: Publish JUnit report
+        uses: mikepenz/action-junit-report@v3.6.1
+        if: always() # always run even if the previous step fails
+        fail_on_failure: true
+        require_tests: true
+        detailed_summary: true
+        with:
+          report_paths: 'junit.xml'
+
