@@ -5,7 +5,7 @@ import { FilterType } from "utils/jobsTableColumns"
 export interface JobsTableFilterProps {
   currentFilter?: string | string[]
   filterType: FilterType
-  enumFilterValues?: { value: string; displayName: string }[]
+  enumFilterValues?: EnumFilterOption[]
   id: string
   onFilterChange: (newFilter: string | string[] | undefined) => void
 }
@@ -30,9 +30,13 @@ export const JobsTableFilter = ({
   )
 }
 
+export interface EnumFilterOption {
+  value: string
+  displayName: string
+}
 interface EnumFilterProps {
   currentFilter: string[]
-  enumFilterValues: { value: string; displayName: string }[]
+  enumFilterValues: EnumFilterOption[]
   onFilterChange: JobsTableFilterProps["onFilterChange"]
 }
 const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFilterProps) => {

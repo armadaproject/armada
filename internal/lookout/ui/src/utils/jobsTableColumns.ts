@@ -1,3 +1,4 @@
+import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { capitalize } from "lodash"
 import { formatJobState, Job, JobState, jobStateDisplayInfo } from "models/lookoutV2Models"
 import prettyBytes from "pretty-bytes"
@@ -13,7 +14,7 @@ export type ColumnSpec = {
   groupable: boolean
   sortable: boolean
   filterType?: FilterType
-  enumFitlerValues?: { value: string; displayName: string }[]
+  enumFitlerValues?: EnumFilterOption[]
   minSize: number
   isNumeric?: boolean
   formatter?: (value: unknown) => string
