@@ -35,9 +35,17 @@ jobs:
           mkdir -p .kube/internal
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
-      - name: Upload junit report
+      - name: Upload JUnit report as artifact
         uses: actions/upload-artifact@v3.1.1
         with:
           name: junit.xml
           path: junit.xml
           if-no-files-found: error
+      - name: Publish JUnit report
+        uses: mikepenz/action-junit-report@v3.6.1
+        if: always()
+        fail_on_failure: true
+        require_tests: true
+        detailed_summary: true
+        with:
+          report_paths: junit.xml
