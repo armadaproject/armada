@@ -6,12 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/stretchr/testify/assert"
 
+	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
 	"github.com/G-Research/armada/pkg/armadaevents"
-
-	"github.com/stretchr/testify/assert"
 )
 
 var events = []*armadaevents.JobRunRunning{
