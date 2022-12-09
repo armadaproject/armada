@@ -446,7 +446,7 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
 				// TODO: re-enable this once the executor stops sending phantom PodLeaseReturned messages
-				//resetStateToQueued = true
+				// resetStateToQueued = true
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
