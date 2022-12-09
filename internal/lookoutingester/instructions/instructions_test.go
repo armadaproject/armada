@@ -625,6 +625,33 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
+func TestHandleDuplicate(t *testing.T) {
+	duplicate := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
+			JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
+				NewJobId: jobIdProto,
+			},
+		},
+	}
+
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(duplicate)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		JobsToUpdate: []*model.UpdateJobInstruction{
+			{
+				JobId:     jobIdString,
+				State:     pointer.Int32(repository.JobDuplicateOrdinal),
+				Updated:   baseTime,
+				Duplicate: pointer.Bool(true),
+			},
+		},
+		MessageIds: msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
 func TestSubmitWithNullChar(t *testing.T) {
 	msg := NewMsg(&armadaevents.EventSequence_Event{
 		Created: &baseTime,
