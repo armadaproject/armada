@@ -154,6 +154,14 @@ func TestDetermineEventRepository(t *testing.T) {
 			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceNew: false}))
 			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3", ForceNew: false}))
 			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceLegacy: true}))
+
+			// Test with forcing new
+			s.forceNewEvents = true
+			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: true}))
+			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: false}))
+			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceNew: false}))
+			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3", ForceNew: false}))
+			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceLegacy: true}))
 		},
 	)
 }
@@ -468,7 +476,7 @@ func withEventServer(
 	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	jobRepo := repository.NewRedisJobRepository(client, databaseRetention)
-	server := NewEventServer(&FakePermissionChecker{}, eventRepo, legacyEventRepo, legacyEventRepo, queueRepo, jobRepo, true)
+	server := NewEventServer(&FakePermissionChecker{}, eventRepo, legacyEventRepo, legacyEventRepo, queueRepo, jobRepo, true, false)
 
 	client.FlushDB()
 	legacyClient.FlushDB()
