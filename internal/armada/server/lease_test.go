@@ -177,17 +177,22 @@ type mockJobRepository struct {
 	returnLeaseArg1 string
 	returnLeaseArg2 string
 	deleteJobsArg   []*api.Job
+
+	jobStartTimeInfos       map[string]*repository.JobStartInfo
+	updateJobStartTimeError error
+	redisError              error
 }
 
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
-		jobs:             make(map[string]*api.Job),
-		jobRetries:       make(map[string]int),
-		returnLeaseCalls: 0,
-		deleteJobsCalls:  0,
-		returnLeaseArg1:  "",
-		returnLeaseArg2:  "",
-		deleteJobsArg:    nil,
+		jobs:              make(map[string]*api.Job),
+		jobRetries:        make(map[string]int),
+		returnLeaseCalls:  0,
+		deleteJobsCalls:   0,
+		returnLeaseArg1:   "",
+		returnLeaseArg2:   "",
+		deleteJobsArg:     nil,
+		jobStartTimeInfos: map[string]*repository.JobStartInfo{},
 	}
 }
 
@@ -306,7 +311,20 @@ func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
 }
 
 func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*repository.JobStartInfo) ([]error, error) {
-	return nil, nil
+	if repo.redisError != nil {
+		return nil, repo.redisError
+	}
+	if repo.updateJobStartTimeError != nil {
+		errors := make([]error, 0, len(jobStartInfos))
+		errors = append(errors, repo.updateJobStartTimeError)
+		return errors, nil
+	}
+	errors := make([]error, 0, len(jobStartInfos))
+	for _, startInfo := range jobStartInfos {
+		repo.jobStartTimeInfos[startInfo.JobId] = startInfo
+		errors = append(errors, nil)
+	}
+	return errors, nil
 }
 
 func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]repository.UpdateJobResult, error) {
