@@ -34,7 +34,8 @@ import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
 import { getSelectedColumnDef, SELECT_COLUMN_ID } from "components/lookoutV2/SelectedColumn"
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
-import { JobId } from "models/lookoutV2Models"
+import { JobFilter } from "models/lookoutV2Models"
+import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import GetJobsService from "services/lookoutV2/GetJobsService"
 import GroupJobsService from "services/lookoutV2/GroupJobsService"
 import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
@@ -60,9 +61,15 @@ const DEFAULT_PAGE_SIZE = 30
 interface JobsTableContainerProps {
   getJobsService: GetJobsService
   groupJobsService: GroupJobsService
+  cancelJobsService: CancelJobsService
   debug: boolean
 }
-export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: JobsTableContainerProps) => {
+export const JobsTableContainer = ({
+  getJobsService,
+  groupJobsService,
+  cancelJobsService,
+  debug,
+}: JobsTableContainerProps) => {
   // Data
   const [isLoading, setIsLoading] = useState(true)
   const [data, setData] = useState<JobTableRow[]>([])
@@ -78,16 +85,6 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
 
   // Selecting
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({})
-  const selectedJobs: JobId[] = useMemo(
-    () =>
-      Object.keys(selectedRows)
-        .map((rowId) => {
-          const { rowIdPartsPath } = fromRowId(rowId as RowId)
-          return rowIdPartsPath.find((part) => part.type === "job")?.value
-        })
-        .filter((jobId): jobId is JobId => jobId !== undefined),
-    [selectedRows],
-  )
 
   // Pagination
   const [pagination, setPagination] = useState<PaginationState>({
@@ -246,6 +243,7 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
     (updater: Updater<ColumnFiltersState>) => {
       const newFilterState = updaterToValue(updater, columnFilterState)
       setColumnFilterState(newFilterState)
+      setSelectedRows({})
       setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
     },
     [columnFilterState, expanded, data, pageSize],
@@ -261,6 +259,14 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
     },
     [sorting, expanded, pageIndex, pageSize, data],
   )
+
+  const selectedItemsFilters: JobFilter[][] = useMemo(() => {
+    const tableFilters = convertColumnFiltersToFilters(columnFilterState)
+    return Object.keys(selectedRows).map((rowId) => {
+      const { rowIdPartsPath } = fromRowId(rowId as RowId)
+      return tableFilters.concat(convertRowPartsToFilters(rowIdPartsPath))
+    })
+  }, [selectedRows, columnFilterState])
 
   const selectedColumnDefs = useMemo<ColumnDef<JobTableRow>[]>(() => {
     return allColumns
@@ -335,9 +341,11 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
       <JobsTableActionBar
         allColumns={allColumns}
         groupedColumns={grouping}
-        selectedJobs={selectedJobs} // TODO: This may need to be change to reflect that queues/jobsets can be selected (e.g. to cancel all within)
+        selectedItemFilters={selectedItemsFilters}
         onColumnsChanged={setAllColumns}
         onGroupsChanged={onGroupingChange}
+        getJobsService={getJobsService}
+        cancelJobsService={cancelJobsService}
       />
       <TableContainer component={Paper}>
         <Table sx={{ tableLayout: "fixed" }}>

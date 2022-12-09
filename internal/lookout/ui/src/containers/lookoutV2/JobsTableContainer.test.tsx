@@ -1,6 +1,8 @@
 import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job } from "models/lookoutV2Models"
+import { SnackbarProvider } from "notistack"
+import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import GetJobsService from "services/lookoutV2/GetJobsService"
 import GroupJobsService from "services/lookoutV2/GroupJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
@@ -14,19 +16,36 @@ import { JobsTableContainer } from "./JobsTableContainer"
 jest.setTimeout(15_000)
 
 describe("JobsTableContainer", () => {
-  const numJobs = 5,
-    numQueues = 2,
-    numJobSets = 3
-  let jobs: Job[], getJobsService: GetJobsService, groupJobsService: GroupJobsService
+  let numJobs: number, numQueues: number, numJobSets: number
+  let jobs: Job[],
+    getJobsService: GetJobsService,
+    groupJobsService: GroupJobsService,
+    cancelJobsService: CancelJobsService
 
   beforeEach(() => {
+    numJobs = 5
+    numQueues = 2
+    numJobSets = 3
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
     getJobsService = new FakeGetJobsService(jobs)
     groupJobsService = new FakeGroupJobsService(jobs)
+
+    cancelJobsService = {
+      cancelJobs: jest.fn(),
+    } as any
   })
 
   const renderComponent = () =>
-    render(<JobsTableContainer getJobsService={getJobsService} groupJobsService={groupJobsService} debug={false} />)
+    render(
+      <SnackbarProvider>
+        <JobsTableContainer
+          getJobsService={getJobsService}
+          groupJobsService={groupJobsService}
+          cancelJobsService={cancelJobsService}
+          debug={false}
+        />
+      </SnackbarProvider>,
+    )
 
   it("should render a spinner while loading initially", async () => {
     getJobsService.getJobs = jest.fn(() => new Promise(() => undefined))
@@ -54,7 +73,7 @@ describe("JobsTableContainer", () => {
 
     // Check all details for the first job are shown
     const jobToSearchFor = jobs[0]
-    const matchingRow = await findByRole("row", { name: "job:" + jobToSearchFor.jobId })
+    const matchingRow = await findByRole("row", { name: "jobId:" + jobToSearchFor.jobId })
     DEFAULT_COLUMN_SPECS.forEach((col) => {
       const cellValue = jobToSearchFor[col.key as keyof Job]
       const expectedText = col.formatter?.(cellValue) ?? cellValue
@@ -183,24 +202,62 @@ describe("JobsTableContainer", () => {
     const { getByRole, findByRole } = renderComponent()
     await waitForElementToBeRemoved(() => getByRole("progressbar"))
 
-    expect(await findByRole("button", { name: "Cancel" })).toBeDisabled()
-    expect(await findByRole("button", { name: "Reprioritize" })).toBeDisabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
+    expect(await findByRole("button", { name: "Reprioritize selected" })).toBeDisabled()
 
-    await toggleSelectedRow(jobs[0].jobId)
-    await toggleSelectedRow(jobs[2].jobId)
+    await toggleSelectedRow("jobId", jobs[0].jobId)
+    await toggleSelectedRow("jobId", jobs[2].jobId)
 
-    expect(await findByRole("button", { name: "Cancel 2 jobs" })).toBeEnabled()
-    expect(await findByRole("button", { name: "Reprioritize 2 jobs" })).toBeEnabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
-    await toggleSelectedRow(jobs[2].jobId)
+    await toggleSelectedRow("jobId", jobs[2].jobId)
 
-    expect(await findByRole("button", { name: "Cancel 1 job" })).toBeEnabled()
-    expect(await findByRole("button", { name: "Reprioritize 1 job" })).toBeEnabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
-    await toggleSelectedRow(jobs[0].jobId)
+    await toggleSelectedRow("jobId", jobs[0].jobId)
 
-    expect(await findByRole("button", { name: "Cancel" })).toBeDisabled()
-    expect(await findByRole("button", { name: "Reprioritize" })).toBeDisabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
+    expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
+  })
+
+  it("should pass individual jobs to cancel dialog", async () => {
+    jobs[0].state = "Pending"
+
+    const { getByRole, findByRole } = renderComponent()
+    await waitForElementToBeRemoved(() => getByRole("progressbar"))
+
+    await toggleSelectedRow("jobId", jobs[0].jobId)
+
+    await userEvent.click(await findByRole("button", { name: "Cancel selected" }))
+    await findByRole("dialog", { name: "Cancel 1 job" }, { timeout: 2000 })
+  })
+
+  it("should pass groups to cancel dialog", async () => {
+    numJobs = 1000 // Add enough jobs that it exercises grouping logic
+    jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
+    getJobsService = new FakeGetJobsService(jobs)
+    groupJobsService = new FakeGroupJobsService(jobs)
+
+    const { getByRole, findByRole } = renderComponent()
+    await waitForElementToBeRemoved(() => getByRole("progressbar"))
+
+    await groupByColumn("Queue")
+
+    // Wait for table to update
+    await assertNumDataRowsShown(numQueues)
+
+    // Select a queue
+    await toggleSelectedRow("queue", jobs[0].queue)
+
+    // Open the cancel dialog
+    await userEvent.click(await findByRole("button", { name: "Cancel selected" }))
+
+    // Check it retrieved the number of non-terminated jobs in this queue
+    // Longer timeout as some fake API calls need to be made
+    // Number of jobs will be static as long as the random seed above is static
+    await findByRole("dialog", { name: "Cancel 258 jobs" }, { timeout: 2000 })
   })
 
   it("should allow text filtering", async () => {
@@ -285,10 +342,13 @@ describe("JobsTableContainer", () => {
   // })
 
   async function assertNumDataRowsShown(nDataRows: number) {
-    await waitFor(async () => {
-      const rows = await screen.findAllByRole("row")
-      expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
-    })
+    await waitFor(
+      async () => {
+        const rows = await screen.findAllByRole("row")
+        expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
+      },
+      { timeout: 3000 },
+    )
   }
 
   async function groupByColumn(columnDisplayName: string) {
@@ -308,8 +368,8 @@ describe("JobsTableContainer", () => {
     await userEvent.click(expandButton)
   }
 
-  async function toggleSelectedRow(jobId: string) {
-    const matchingRow = await screen.findByRole("row", { name: "job:" + jobId })
+  async function toggleSelectedRow(rowType: string, rowId: string) {
+    const matchingRow = await screen.findByRole("row", { name: `${rowType}:${rowId}` })
     const checkbox = await within(matchingRow).findByRole("checkbox")
     await userEvent.click(checkbox)
   }

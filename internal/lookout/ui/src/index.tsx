@@ -1,4 +1,5 @@
 import ReactDOM from "react-dom"
+import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
@@ -16,14 +17,16 @@ import "./index.css"
 ;(async () => {
   const uiConfig = await getUIConfig()
 
+  const submitApi = new SubmitApi(
+    new SubmitConfiguration({
+      basePath: uiConfig.armadaApiBaseUrl,
+      credentials: "include",
+    }),
+  )
+
   const jobService = new LookoutJobService(
     new LookoutApi(new LookoutConfiguration({ basePath: "" })),
-    new SubmitApi(
-      new SubmitConfiguration({
-        basePath: uiConfig.armadaApiBaseUrl,
-        credentials: "include",
-      }),
-    ),
+    submitApi,
     uiConfig.userAnnotationPrefix,
   )
 
@@ -36,12 +39,14 @@ import "./index.css"
   const v2TestJobs = makeTestJobs(10000, 42)
   const v2GetJobsService = new FakeGetJobsService(v2TestJobs)
   const v2GroupJobsService = new FakeGroupJobsService(v2TestJobs)
+  const v2CancelJobsService = new CancelJobsService(submitApi)
 
   ReactDOM.render(
     <App
       jobService={jobService}
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
+      v2CancelJobsService={v2CancelJobsService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
