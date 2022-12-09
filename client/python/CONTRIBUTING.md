@@ -35,7 +35,7 @@ Unit tests, auto-formatting, and formatting checks are all run using `tox` as an
 of virtual environments which allow testing under multiple python versions and install conditions.
 
 The following commands should be run, and passing, at this point:
-- `tox -e py39` will run unit tests with your default python 3.9 environment
+- `tox -e test` will run unit tests with your default python 3.9 environment
 - `tox -e format` will ensure formatting is compliant with linting tools and code formatters in use.
 
 ### Create a branch and work on your contribution
