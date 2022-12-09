@@ -1,7 +1,10 @@
 grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
-corsAllowedOrigins: []
+corsAllowedOrigins:
+  - "http://localhost:3000"
+  - "http://localhost:8089"
+  - "http://localhost:10000"
 priorityHalfTime: 20m
 cancelJobsBatchSize: 1000
 grpc:
