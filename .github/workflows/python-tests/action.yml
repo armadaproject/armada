@@ -18,7 +18,7 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
     # Tox to run tests; build to build the wheel after tests pass
-    - run: pip install tox build twine
+    - run: pip install tox==3.27.1 build twine
       shell: bash
     # Generate the proto files for python, required for later steps
     - run: make python

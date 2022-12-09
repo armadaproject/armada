@@ -11,12 +11,12 @@ postgres:
     sslmode: disable
 
 metrics:
-  port: 9003
+  port: 9004
 
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"
-  jobsetEventsTopic: "events"
+  jobsetEventsTopic: "persistent://armada/armada/events"
   receiveTimeout: 5s
   backoffTime: 1s
 

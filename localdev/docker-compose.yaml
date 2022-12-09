@@ -62,7 +62,7 @@ services:
   #
   # Armada services.
   #
-  armada-server:
+  server:
     container_name: server
     image: golang:1.18-buster
     networks:
@@ -92,6 +92,7 @@ services:
     ports:
       - "9009:9009"
       - "8089:8089"
+      - 3000:3000
     volumes:
       - ./config:/config
       - "..:/app:rw"
@@ -99,7 +100,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
       - postgres
-      - armada-server
+      - server
       - lookout-ingester
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-start.sh"
@@ -112,7 +113,7 @@ services:
     ports:
       - 9001:9001
     depends_on:
-      - armada-server
+      - server
     volumes:
       - ./config:/config
       - ./.kube:/.kube
@@ -133,7 +134,7 @@ services:
     ports:
       - 8082:8082
     depends_on:
-      - armada-server
+      - server
     volumes:
       - ./config:/config
       - ./.kube:/.kube
@@ -154,7 +155,7 @@ services:
     ports:
       - 60003:60003
     depends_on:
-      - armada-server
+      - server
     volumes:
       - ./config:/config
       - "..:/app:rw"

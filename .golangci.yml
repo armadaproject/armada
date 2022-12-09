@@ -20,11 +20,5 @@ linters:
 linters-settings:
   lll:
     line-length: 261
-  misspell:
-    locale: UK
-    ignore-words:
-      - analyze
-      - serialize
   goimports:
     local-prefixes: github.com/G-Research/armada
-
