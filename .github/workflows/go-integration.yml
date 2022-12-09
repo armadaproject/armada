@@ -41,11 +41,12 @@ jobs:
           name: junit.xml
           path: junit.xml
           if-no-files-found: error
-      - name: Publish JUnit report
-        uses: mikepenz/action-junit-report@v3.6.1
-        if: always()
-        fail_on_failure: true
-        require_tests: true
-        detailed_summary: true
-        with:
-          report_paths: junit.xml
+      # TODO: Enable
+      # - name: Publish JUnit report
+      #   uses: mikepenz/action-junit-report@v3.6.1
+      #   if: always()
+      #   fail_on_failure: true
+      #   require_tests: true
+      #   detailed_summary: true
+      #   with:
+      #     report_paths: junit.xml
