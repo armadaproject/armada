@@ -23,6 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: |
-        docker buildx ls
-        docker buildx create --use --driver=docker-container
-        docker buildx ls
+          docker buildx ls
+          docker buildx create --use --driver=docker-container
+          docker buildx ls
