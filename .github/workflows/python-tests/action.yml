@@ -31,8 +31,19 @@ runs:
       run: tox -e docs-check
       shell: bash
       working-directory: ${{ inputs.path }}
-    - name: Run tox python${{ python-version }} unit tests
-      run: python${{ python-version }} tox -e test
+    - name: Run tox python3.8 unit tests
+      if: ${{ inputs.python-version == '3.8'}}
+      run: tox -e py38
+      shell: bash
+      working-directory: ${{ inputs.path }}
+    - name: Run tox python3.9 unit tests
+      if: ${{ inputs.python-version == '3.9'}}
+      run: tox -e py39
+      shell: bash
+      working-directory: ${{ inputs.path }}
+    - name: Run tox python3.10 unit tests
+      if: ${{ inputs.python-version == '3.10'}}
+      run: tox -e py310
       shell: bash
       working-directory: ${{ inputs.path }}
     - name: Build and verify wheel
