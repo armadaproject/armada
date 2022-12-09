@@ -214,7 +214,7 @@ const CancelDialogBody = memo(
                     <TableCell>Queue</TableCell>
                     <TableCell>Job Set</TableCell>
                     <TableCell>State</TableCell>
-                    <TableCell>Owner</TableCell>
+                    <TableCell>Submitted Time</TableCell>
                     {showResponseCol && <TableCell>Response</TableCell>}
                   </TableRow>
                 </TableHead>
@@ -226,7 +226,7 @@ const CancelDialogBody = memo(
                       <TableCell>{job.queue}</TableCell>
                       <TableCell>{job.jobSet}</TableCell>
                       <TableCell>{job.state}</TableCell>
-                      <TableCell>{job.owner}</TableCell>
+                      <TableCell>{job.submitted}</TableCell>
                       {showResponseCol && <TableCell>{lastResponseStatus}</TableCell>}
                     </TableRow>
                   ))}
