@@ -39,7 +39,7 @@ jobs:
           install: true
           use: true
       - run: docker buildx ls
-      - run: docker buildx create --name ${builder} --driver docker-container --use
+      - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
       - run: docker buildx ls
       - uses: actions/setup-go@v3
