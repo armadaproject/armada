@@ -233,8 +233,8 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 			j = i + len(es)
 		}
 	case *armadaevents.EventSequence_Event_JobRunRunning:
-		es, times := collectJobRunRunningEvents(ctx, i, sequence)
-		ok, err = srv.UpdateJobStartTimes(ctx, es, times)
+		es := collectJobRunRunningEvents(ctx, i, sequence)
+		ok, err = srv.UpdateJobStartTimes(ctx, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -313,22 +313,16 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
-func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) ([]*armadaevents.JobRunRunning, []time.Time) {
-	events := make([]*armadaevents.JobRunRunning, 0)
-	times := make([]time.Time, 0)
+func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, 0)
 	for j := i; j < len(sequence.Events); j++ {
-		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
-			time := time.Now()
-			if sequence.Events[j].Created != nil {
-				time = *sequence.Events[j].Created
-			}
-			events = append(events, e.JobRunRunning)
-			times = append(times, time)
+		if _, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
+			events = append(events, sequence.Events[j])
 		} else {
 			break
 		}
 	}
-	return events, times
+	return events
 }
 
 func (srv *SubmitFromLog) getLogger() *logrus.Entry {
@@ -587,12 +581,18 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 }
 
 // UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
-func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.JobRunRunning, times []time.Time) (bool, error) {
+func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
 	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
-	for i, jobRun := range es {
+	for _, event := range es {
+		jobRun := event.GetJobRunRunning()
 		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.GetJobId())
 		if err != nil {
 			logrus.WithError(err).Warnf("Invalid job id received when processing jobRunRunning Message")
+			continue
+		}
+
+		if event.Created == nil {
+			logrus.WithError(err).Warnf("Job run event for job %s has a missing timestamp.  Ignoring.", jobId)
 			continue
 		}
 		clusterId := ""
@@ -602,7 +602,7 @@ func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadae
 		jobStartsInfos = append(jobStartsInfos, &repository.JobStartInfo{
 			JobId:     jobId,
 			ClusterId: clusterId,
-			StartTime: times[i],
+			StartTime: *event.Created,
 		})
 	}
 	jobErrors, err := srv.SubmitServer.jobRepository.UpdateStartTime(jobStartsInfos)

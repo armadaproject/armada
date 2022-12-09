@@ -4,7 +4,6 @@ import (
 	ctx "context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -13,16 +12,21 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-var events = []*armadaevents.JobRunRunning{
+var events = []*armadaevents.EventSequence_Event{
 	{
-		RunId: testfixtures.RunIdProto,
-		JobId: testfixtures.JobIdProto,
-		ResourceInfos: []*armadaevents.KubernetesResourceInfo{
-			{
-				Info: &armadaevents.KubernetesResourceInfo_PodInfo{
-					PodInfo: &armadaevents.PodInfo{
-						NodeName:  testfixtures.NodeName,
-						PodNumber: testfixtures.PodNumber,
+		Created: &testfixtures.BaseTime,
+		Event: &armadaevents.EventSequence_Event_JobRunRunning{
+			JobRunRunning: &armadaevents.JobRunRunning{
+				RunId: testfixtures.RunIdProto,
+				JobId: testfixtures.JobIdProto,
+				ResourceInfos: []*armadaevents.KubernetesResourceInfo{
+					{
+						Info: &armadaevents.KubernetesResourceInfo_PodInfo{
+							PodInfo: &armadaevents.PodInfo{
+								NodeName:  testfixtures.NodeName,
+								PodNumber: testfixtures.PodNumber,
+							},
+						},
 					},
 				},
 			},
@@ -38,7 +42,7 @@ func TestUpdateJobStartTimes(t *testing.T) {
 		},
 	}
 
-	ok, err := s.UpdateJobStartTimes(ctx.Background(), events, []time.Time{testfixtures.BaseTime})
+	ok, err := s.UpdateJobStartTimes(ctx.Background(), events)
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
@@ -55,7 +59,7 @@ func TestUpdateJobStartTimes_NonExistentJob(t *testing.T) {
 			jobRepository: jobRepo,
 		},
 	}
-	ok, err := s.UpdateJobStartTimes(ctx.Background(), events, []time.Time{testfixtures.BaseTime})
+	ok, err := s.UpdateJobStartTimes(ctx.Background(), events)
 	assert.Nil(t, err)
 	assert.True(t, ok)
 
@@ -71,7 +75,7 @@ func TestUpdateJobStartTimes_RedisError(t *testing.T) {
 			jobRepository: jobRepo,
 		},
 	}
-	ok, err := s.UpdateJobStartTimes(ctx.Background(), events, []time.Time{testfixtures.BaseTime})
+	ok, err := s.UpdateJobStartTimes(ctx.Background(), events)
 	assert.Error(t, err)
 	assert.False(t, ok)
 
