@@ -20,25 +20,18 @@ jobs:
         # each other.
         go: [ '1.18' ]
     runs-on: buildjet-4vcpu-ubuntu-2204
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
-          cache: false
-      - run: |
-          go env -w GOBIN=/home/runner/go/bin
-          # go version
-          # go env
-          # go env GOPATH
-          # go env GOBIN
-          # go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
-          # ls $(go env GOPATH)/bin
-          # ls $(go env GOBIN)
-          # echo $PATH
-          # sqlc version
-          mkdir -p .kube/external/
-          mkdir -p .kube/internal/
+          cache: true
+      - name: Setup and integration tests
+        run: |
+          mkdir -p .kube # Kind creates automatically with wrong perms.
           go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       - name: Upload junit report
         uses: actions/upload-artifact@v3.1.1
