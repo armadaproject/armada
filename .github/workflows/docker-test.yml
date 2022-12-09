@@ -1,4 +1,4 @@
-name: JUnit test
+name: Go End to End (buildjet)
 
 on:
   push:
@@ -13,18 +13,16 @@ jobs:
     if: github.repository_owner == 'G-Research'
     strategy:
       fail-fast: false
+      matrix:
+        # WARN(JayF): If we begin attempting to support >1 golang version,
+        # we'll have to ensure that we don't use the same artifact name for
+        # both versions in the matrix -- this will lead to them overwriting
+        # each other.
+        go: [ '1.18' ]
     runs-on: buildjet-4vcpu-ubuntu-2204
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
       ARMADA_EXECUTOR_INGRESS_PORT: 5001
     steps:
       - uses: actions/checkout@v3
-      - name: Publish JUnit report
-        uses: mikepenz/action-junit-report@v3.6.1
-        if: always() # always run even if the previous step fails
-        with:
-          report_paths: 'junit.xml'
-          fail_on_failure: true
-          require_tests: true
-          detailed_summary: true
-
+      - run: docker buildx ls

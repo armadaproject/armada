@@ -114,6 +114,7 @@ env:
 
 dockers:
   - id: bundle
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -141,6 +142,7 @@ dockers:
       - config/eventingester/config.yaml
     dockerfile: ./build_goreleaser/armada/Dockerfile
   - id: server
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -164,6 +166,7 @@ dockers:
       - config/armada/config.yaml
     dockerfile: ./build_goreleaser/server/Dockerfile
   - id: executor
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -187,6 +190,7 @@ dockers:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/executor/Dockerfile
   - id: lookoutingester
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -210,6 +214,7 @@ dockers:
       - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/lookoutingester/Dockerfile
   - id: eventingester
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -233,6 +238,7 @@ dockers:
       - config/eventingester/config.yaml
     dockerfile: ./build_goreleaser/eventingester/Dockerfile
   - id: binoculars
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -256,6 +262,7 @@ dockers:
       - config/binoculars/config.yaml
     dockerfile: ./build_goreleaser/binoculars/Dockerfile
   - id: jobservice
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
@@ -279,6 +286,7 @@ dockers:
       - config/jobservice/config.yaml
     dockerfile: ./build_goreleaser/jobservice/Dockerfile
   - id: armadactl
+    use: buildx
     goos: linux
     goarch: amd64
     image_templates:
