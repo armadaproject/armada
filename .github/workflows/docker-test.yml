@@ -1,4 +1,4 @@
-name: Go End to End (buildjet)
+name: Docker test
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - gh-pages
 
 jobs:
-  go-integration-tests:
+  docker-tests:
     if: github.repository_owner == 'G-Research'
     strategy:
       fail-fast: false
@@ -20,9 +20,9 @@ jobs:
         # each other.
         go: [ '1.18' ]
     runs-on: buildjet-4vcpu-ubuntu-2204
-    env:
-      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
-      ARMADA_EXECUTOR_INGRESS_PORT: 5001
     steps:
       - uses: actions/checkout@v3
-      - run: docker buildx ls
+      - run: |
+        docker buildx ls
+        docker buildx create --use --driver=docker-container
+        docker buildx ls
