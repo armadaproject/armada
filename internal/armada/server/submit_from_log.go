@@ -6,6 +6,13 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/hashicorp/go-multierror"
+	pool "github.com/jolestar/go-commons-pool"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/compress"
@@ -16,12 +23,6 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/hashicorp/go-multierror"
-	pool "github.com/jolestar/go-commons-pool"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // SubmitFromLog is a service that reads messages from Pulsar and updates the state of the Armada server accordingly
@@ -587,7 +588,6 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 
 // UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
 func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.JobRunRunning, times []time.Time) (bool, error) {
-
 	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
 	for i, jobRun := range es {
 		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.GetJobId())
