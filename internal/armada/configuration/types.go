@@ -30,6 +30,7 @@ type ArmadaConfig struct {
 	EventsRedis           redis.UniversalOptions
 	EventsApiRedis        redis.UniversalOptions
 	DefaultToLegacyEvents bool
+	ForceNewEvents        bool
 
 	Scheduling        SchedulingConfig
 	NewScheduler      NewSchedulerConfig
