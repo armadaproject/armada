@@ -10,6 +10,10 @@ inputs:
     description: "Version of python to setup and run tests against"
     required: true
     type: string
+  tox-env:
+    description: "Tox environment to use for running the tests"
+    required: true
+    type: string
 
 runs:
   using: "composite"
@@ -31,19 +35,8 @@ runs:
       run: tox -e docs-check
       shell: bash
       working-directory: ${{ inputs.path }}
-    - name: Run tox python3.8 unit tests
-      if: ${{ inputs.python-version == '3.8'}}
-      run: tox -e py38
-      shell: bash
-      working-directory: ${{ inputs.path }}
-    - name: Run tox python3.9 unit tests
-      if: ${{ inputs.python-version == '3.9'}}
-      run: tox -e py39
-      shell: bash
-      working-directory: ${{ inputs.path }}
-    - name: Run tox python3.10 unit tests
-      if: ${{ inputs.python-version == '3.10'}}
-      run: tox -e py310
+    - name: Run tox python${{ inputs.python-version }} unit tests
+      run: tox -e ${{ inputs.tox-env }}
       shell: bash
       working-directory: ${{ inputs.path }}
     - name: Build and verify wheel
