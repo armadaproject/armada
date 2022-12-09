@@ -35,7 +35,7 @@ runs:
       run: tox -e docs-check
       shell: bash
       working-directory: ${{ inputs.path }}
-    - name: Run tox python${{ inputs.python-version }} unit tests
+    - name: Run tox python ${{ inputs.python-version }} unit tests
       run: tox -e ${{ inputs.tox-env }}
       shell: bash
       working-directory: ${{ inputs.path }}
