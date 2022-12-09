@@ -1,5 +1,5 @@
 import { isString } from "lodash"
-import { Job, JobFilter, JobKey, JobRun, JobRunStates, JobStates, Match, SortDirection } from "models/lookoutV2Models"
+import { Job, JobFilter, JobKey, JobRun, JobRunStates, JobState, Match, SortDirection } from "models/lookoutV2Models"
 import { v4 as uuidv4 } from "uuid"
 
 export function randomInt(min: number, max: number, rand: () => number) {
@@ -45,7 +45,8 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
 
   const jobs: Job[] = []
   for (let i = 0; i < nJobs; i++) {
-    const runs = createJobRuns(randomInt(0, 3, rand), i.toString(), rand, uuid)
+    const jobId = "01gkv9cj53h0rk9407mds" + i
+    const runs = createJobRuns(randomInt(0, 3, rand), jobId, rand, uuid)
 
     jobs.push({
       duplicate: false,
@@ -57,14 +58,14 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
       runs: runs,
       submitted: "17/02/2009",
       timeInState: "3d4h",
-      cpu: randomInt(1, 20, rand) * 1000,
-      ephemeralStorage: "32Gi",
-      memory: "24Gi",
+      cpu: randomInt(2, 200, rand) * 100,
+      ephemeralStorage: 34359738368,
+      memory: 134217728,
       queue: queues[i % queues.length],
       annotations: createAnnotations(annotationKeys, uuid),
-      jobId: i.toString(),
+      jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
-      state: randomProperty(JobStates, rand).name,
+      state: randomProperty(JobState, rand),
     })
   }
 
@@ -84,7 +85,7 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       exitCode: randomInt(0, 64, rand),
       finished: "17/02/2009",
       jobId: jobId,
-      jobRunState: randomProperty(JobRunStates, rand).name,
+      jobRunState: randomProperty(JobRunStates, rand).displayName,
       node: uuid(),
       pending: "17/02/2009",
       runId: uuid(),

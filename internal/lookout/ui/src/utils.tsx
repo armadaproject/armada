@@ -7,6 +7,7 @@ interface UIConfig {
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
   debugEnabled: boolean
+  fakeDataEnabled: boolean
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -32,6 +33,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     jobSetsAutoRefreshMs: 15000,
     jobsAutoRefreshMs: 30000,
     debugEnabled: queryParams.has("debug"),
+    fakeDataEnabled: queryParams.has("fakeData"),
   }
 
   try {

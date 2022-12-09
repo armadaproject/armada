@@ -2,8 +2,8 @@ import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-
 import _ from "lodash"
 import { JobRow, JobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import { RowIdParts, toRowId, RowId, findRowInData } from "./reactTableUtils"
 
@@ -66,7 +66,7 @@ export interface FetchRowRequest {
   take: number
   order: JobOrder
 }
-export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: GetJobsService) => {
+export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: IGetJobsService) => {
   const { filters, skip, take, order } = rowRequest
 
   return await getJobsService.getJobs(filters, order, skip, take, undefined)
@@ -74,7 +74,7 @@ export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: Get
 
 export const fetchJobGroups = async (
   rowRequest: FetchRowRequest,
-  groupJobsService: GroupJobsService,
+  groupJobsService: IGroupJobsService,
   groupedColumn: string,
   columnsToAggregate: string[],
 ) => {

@@ -1,10 +1,10 @@
 import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job } from "models/lookoutV2Models"
+import { formatJobState, Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
@@ -18,8 +18,8 @@ jest.setTimeout(15_000)
 describe("JobsTableContainer", () => {
   let numJobs: number, numQueues: number, numJobSets: number
   let jobs: Job[],
-    getJobsService: GetJobsService,
-    groupJobsService: GroupJobsService,
+    getJobsService: IGetJobsService,
+    groupJobsService: IGroupJobsService,
     cancelJobsService: CancelJobsService
 
   beforeEach(() => {
@@ -57,7 +57,7 @@ describe("JobsTableContainer", () => {
     getJobsService.getJobs = jest.fn(() =>
       Promise.resolve({
         jobs: [],
-        totalJobs: 0,
+        count: 0,
       }),
     )
     const { findByText, getByRole } = renderComponent()
@@ -223,7 +223,7 @@ describe("JobsTableContainer", () => {
   })
 
   it("should pass individual jobs to cancel dialog", async () => {
-    jobs[0].state = "Pending"
+    jobs[0].state = JobState.Pending
 
     const { getByRole, findByRole } = renderComponent()
     await waitForElementToBeRemoved(() => getByRole("progressbar"))
@@ -282,10 +282,10 @@ describe("JobsTableContainer", () => {
     await waitForElementToBeRemoved(() => getByRole("progressbar"))
     await assertNumDataRowsShown(jobs.length)
 
-    await toggleEnumFilterOption("State", jobs[0].state)
+    await toggleEnumFilterOption("State", formatJobState(jobs[0].state))
     await assertNumDataRowsShown(2)
 
-    await toggleEnumFilterOption("State", jobs[0].state)
+    await toggleEnumFilterOption("State", formatJobState(jobs[0].state))
     await assertNumDataRowsShown(jobs.length)
   })
 

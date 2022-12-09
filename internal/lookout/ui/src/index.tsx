@@ -1,5 +1,7 @@
 import ReactDOM from "react-dom"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
+import { GetJobsService } from "services/lookoutV2/GetJobsService"
+import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
@@ -36,9 +38,14 @@ import "./index.css"
     uiConfig.binocularsEnabled,
   )
 
-  const v2TestJobs = makeTestJobs(10000, 42)
-  const v2GetJobsService = new FakeGetJobsService(v2TestJobs)
-  const v2GroupJobsService = new FakeGroupJobsService(v2TestJobs)
+  const fakeDataEnabled = uiConfig.fakeDataEnabled
+  const lookoutV2BaseUrl = "http://localhost:10000/api/v1"
+
+  const v2TestJobs = fakeDataEnabled ? makeTestJobs(10000, 42) : []
+  const v2GetJobsService = fakeDataEnabled ? new FakeGetJobsService(v2TestJobs) : new GetJobsService(lookoutV2BaseUrl)
+  const v2GroupJobsService = fakeDataEnabled
+    ? new FakeGroupJobsService(v2TestJobs)
+    : new GroupJobsService(lookoutV2BaseUrl)
   const v2CancelJobsService = new CancelJobsService(submitApi)
 
   ReactDOM.render(
