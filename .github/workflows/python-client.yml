@@ -34,6 +34,12 @@ jobs:
       matrix:
         go: [ '1.18' ]
         python: [ '3.8', '3.9', '3.10' ]
+        include:
+          - tox-env: "py38"
+          - tox-env: "py39"
+            python: "3.9"
+          - tox-env: "py310"
+            python: "3.10"
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
@@ -46,13 +52,8 @@ jobs:
     strategy:
       matrix:
         go: [ '1.18' ]
-        include:
-          - python: "3.8"
-            tox-env: "py38"
-          - python: "3.9"
-            tox-env: "py39"
-          - python: "3.10"
-            tox-env: "py310"
+        python: [ '3.8' ]
+        tox-env: [ "py38" ]
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
