@@ -22,9 +22,9 @@ jobs:
       - name: Publish JUnit report
         uses: mikepenz/action-junit-report@v3.6.1
         if: always() # always run even if the previous step fails
-        fail_on_failure: true
-        require_tests: true
-        detailed_summary: true
+        # fail_on_failure: true
+        # require_tests: true
+        # detailed_summary: true
         with:
           report_paths: 'junit.xml'
 
