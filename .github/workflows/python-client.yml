@@ -46,6 +46,7 @@ jobs:
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
+          tox-env: ${{ matrix.tox-env }}
           path: 'client/python'
   python-client-integration-tests:
     runs-on: ubuntu-22.04
