@@ -201,6 +201,7 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetNewJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
 	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:     jobId,

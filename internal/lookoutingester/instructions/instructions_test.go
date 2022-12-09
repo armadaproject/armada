@@ -626,7 +626,6 @@ func TestHandlePodUnschedulable(t *testing.T) {
 }
 
 func TestHandleDuplicate(t *testing.T) {
-
 	duplicate := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
 		Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
