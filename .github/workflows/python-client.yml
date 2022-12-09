@@ -61,7 +61,6 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           tox-env: ${{ matrix.tox-env }}
- python-version: ${{ matrix.python }}
       - run: make build-ci
       - run: make tests-e2e-setup
       - run: make tests-e2e-python

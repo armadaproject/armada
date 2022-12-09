@@ -52,7 +52,6 @@ jobs:
             python: '3.9'
           - tox-env: 'py310'
             python: '3.10'
-env: "3.10"
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
