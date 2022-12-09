@@ -569,13 +569,14 @@ func TestHandleJobLeaseReturned(t *testing.T) {
 			Error:            pointer.String(leaseReturnedMsg),
 			UnableToSchedule: pointer.Bool(true),
 		}},
-		JobsToUpdate: []*model.UpdateJobInstruction{
-			{
-				JobId:   jobIdString,
-				Updated: baseTime,
-				State:   pointer.Int32(repository.JobQueuedOrdinal),
-			},
-		},
+		// TODO: re-enable this once the executor is fixed to no longer send spurious lease returned messages
+		//JobsToUpdate: []*model.UpdateJobInstruction{
+		//	{
+		//		JobId:   jobIdString,
+		//		Updated: baseTime,
+		//		State:   pointer.Int32(repository.JobQueuedOrdinal),
+		//	},
+		//},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
