@@ -350,7 +350,6 @@ func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.
                   duplicate = coalesce($5, duplicate)
 				WHERE job_id = $6`
 	for _, i := range instructions {
-		log.Infof("Job update: %s %d", i.JobId, *i.State)
 		err := withDatabaseRetryInsert(func() error {
 			_, err := l.db.Exec(ctx, sqlStatement, i.Priority, i.State, i.Updated, i.Cancelled, i.Duplicate, i.JobId)
 			if err != nil {
