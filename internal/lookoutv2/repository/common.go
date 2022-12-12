@@ -575,8 +575,7 @@ func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables ma
 				}
 				value = result
 			default:
-				fmt.Println(fmt.Sprintf("%T", filter.Value))
-				return nil, errors.Errorf("unsupported type for state: %v", filter.Value)
+				return nil, errors.Errorf("unsupported type for state: %v: %T", filter.Value, filter.Value)
 			}
 		}
 		result[i] = &queryFilter{
