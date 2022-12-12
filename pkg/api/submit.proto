@@ -66,6 +66,7 @@ message JobCancelRequest {
     string job_id = 1;
     string job_set_id = 2;
     string queue = 3;
+    repeated string job_ids = 4;
 }
 
 // swagger:model
