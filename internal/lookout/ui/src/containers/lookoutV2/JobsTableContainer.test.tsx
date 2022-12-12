@@ -2,9 +2,9 @@ import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@tes
 import userEvent from "@testing-library/user-event"
 import { formatJobState, Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
@@ -20,7 +20,7 @@ describe("JobsTableContainer", () => {
   let jobs: Job[],
     getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
-    cancelJobsService: CancelJobsService
+    updateJobsService: UpdateJobsService
 
   beforeEach(() => {
     numJobs = 5
@@ -30,7 +30,7 @@ describe("JobsTableContainer", () => {
     getJobsService = new FakeGetJobsService(jobs)
     groupJobsService = new FakeGroupJobsService(jobs)
 
-    cancelJobsService = {
+    updateJobsService = {
       cancelJobs: jest.fn(),
     } as any
   })
@@ -41,7 +41,7 @@ describe("JobsTableContainer", () => {
         <JobsTableContainer
           getJobsService={getJobsService}
           groupJobsService={groupJobsService}
-          cancelJobsService={cancelJobsService}
+          updateJobsService={updateJobsService}
           debug={false}
         />
       </SnackbarProvider>,

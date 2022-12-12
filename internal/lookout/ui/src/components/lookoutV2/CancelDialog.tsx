@@ -19,8 +19,8 @@ import {
 import _ from "lodash"
 import { formatJobState, isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl } from "utils"
 
 import styles from "./CancelDialog.module.css"
@@ -53,13 +53,13 @@ interface CancelDialogProps {
   onClose: () => void
   selectedItemFilters: JobFilter[][]
   getJobsService: IGetJobsService
-  cancelJobsService: CancelJobsService
+  updateJobsService: UpdateJobsService
 }
 export const CancelDialog = ({
   onClose,
   selectedItemFilters,
   getJobsService,
-  cancelJobsService,
+  updateJobsService,
 }: CancelDialogProps) => {
   const [isLoadingJobs, setIsLoadingJobs] = useState(true)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -97,7 +97,7 @@ export const CancelDialog = ({
       }
 
       const jobIdsToCancel = cancellableJobs.map((job) => job.jobId)
-      const response = await cancelJobsService.cancelJobs(jobIdsToCancel)
+      const response = await updateJobsService.cancelJobs(jobIdsToCancel)
 
       if (response.failedJobIds.length === 0) {
         enqueueSnackbar(
