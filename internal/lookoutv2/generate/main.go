@@ -21,11 +21,7 @@ func generateSwagger() error {
 	}
 	swaggerGenDirFull := filepath.Join(cwd, swaggerGenDir)
 	swaggerFilePathFull := filepath.Join(cwd, swaggerFilePath)
-	err = os.RemoveAll(swaggerGenDirFull)
-	if err != nil {
-		return err
-	}
-	err = os.Mkdir(swaggerGenDirFull, 0o755)
+	err = os.MkdirAll(swaggerGenDirFull, 0o755)
 	if err != nil {
 		return err
 	}

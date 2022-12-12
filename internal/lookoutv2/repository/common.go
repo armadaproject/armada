@@ -563,8 +563,19 @@ func (qb *QueryBuilder) makeQueryFilters(filters []*model.Filter, queryTables ma
 					result[i] = ordinal
 				}
 				value = result
+			case []interface{}:
+				result := make([]int, len(v))
+				for i := 0; i < len(v); i++ {
+					str := fmt.Sprintf("%v", v[i])
+					ordinal, err := stateToOrdinal(str)
+					if err != nil {
+						return nil, err
+					}
+					result[i] = ordinal
+				}
+				value = result
 			default:
-				return nil, errors.Errorf("unsupported type for state: %v", filter.Value)
+				return nil, errors.Errorf("unsupported type for state: %v: %T", filter.Value, filter.Value)
 			}
 		}
 		result[i] = &queryFilter{

@@ -1,6 +1,6 @@
 import { Job, JobFilter, JobKey, JobOrder } from "models/lookoutV2Models"
 import GetJobsService, { GetJobsResponse } from "services/lookoutV2/GetJobsService"
-import { compareValues, mergeFilters } from "utils/fakeJobsUtils"
+import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
 export default class FakeGetJobsService implements GetJobsService {
   jobs: Job[]
@@ -9,7 +9,7 @@ export default class FakeGetJobsService implements GetJobsService {
     this.jobs = jobs
   }
 
-  getJobs(
+  async getJobs(
     filters: JobFilter[],
     order: JobOrder,
     skip: number,
@@ -17,13 +17,14 @@ export default class FakeGetJobsService implements GetJobsService {
     signal: AbortSignal | undefined,
   ): Promise<GetJobsResponse> {
     console.log("Making GetJobs call with params:", { filters, order, skip, take, signal })
+    await simulateApiWait()
     const filtered = this.jobs.filter(mergeFilters(filters)).sort(comparator(order))
     const response = {
       totalJobs: filtered.length,
       jobs: filtered.slice(skip, skip + take),
     }
     console.log("GetJobs response", response)
-    return Promise.resolve(response)
+    return response
   }
 }
 

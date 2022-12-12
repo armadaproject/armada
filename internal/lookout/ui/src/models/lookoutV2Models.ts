@@ -7,6 +7,9 @@ export const JobStates: Record<string, ColoredState> = {
   Cancelled: { name: "Cancelled", color: "#999999" },
 }
 
+const terminatedJobStates = new Set(["Succeeded", "Failed", "Cancelled"])
+export const isTerminatedJobState = (state: string) => terminatedJobStates.has(state)
+
 export const JobRunStates: Record<string, ColoredState> = {
   RunPending: { name: "Run Pending", color: "#ff9900" },
   RunRunning: { name: "Run Running", color: "#00ff00" },

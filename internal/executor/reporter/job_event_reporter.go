@@ -238,7 +238,7 @@ func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
 		if err != nil {
 			return err
 		}
-		log.Infof("Reporting event %+v", m)
+		log.Debugf("Reporting event %+v", m)
 	}
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
@@ -252,7 +252,7 @@ func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
 		return err
 	}
 
-	log.Infof("Reporting event %+v", eventMessage)
+	log.Debugf("Reporting event %+v", eventMessage)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err = eventReporter.eventClient.Report(ctx, eventMessage)
