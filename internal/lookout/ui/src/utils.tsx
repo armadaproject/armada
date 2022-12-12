@@ -7,6 +7,7 @@ interface UIConfig {
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
   debugEnabled: boolean
+  lookoutV2ApiBaseUrl: string
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -32,6 +33,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     jobSetsAutoRefreshMs: 15000,
     jobsAutoRefreshMs: 30000,
     debugEnabled: queryParams.has("debug"),
+    lookoutV2ApiBaseUrl: "",
   }
 
   try {
@@ -44,6 +46,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
+    if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
   } catch (e) {
     console.error(e)
   }
