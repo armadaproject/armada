@@ -93,7 +93,8 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 	}()
 
 	server.Port = configuration.Port
-
+	restapi.SetCorsAllowedOrigins(configuration.CorsAllowedOrigins) // This needs to happen before ConfigureAPI
+	server.ConfigureAPI()
 	if err := server.Serve(); err != nil {
 		return err
 	}
