@@ -23,6 +23,7 @@ type LookoutUIConfig struct {
 	JobSetsAutoRefreshMs  int
 	JobsAutoRefreshMs     int
 
+	FakeDataEnabled     bool
 	LookoutV2ApiBaseUrl string
 }
 
