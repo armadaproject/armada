@@ -195,7 +195,7 @@ describe("JobsTableContainer", () => {
     await groupByColumn("Job Set")
 
     // Verify all rows are now collapsed
-    await waitFor(() => expect(queryAllByRole("button", { name: "Expand row" }).length).toBe(0))
+    await waitFor(() => expect(queryAllByRole("button", { name: "Collapse row" }).length).toBe(0))
   })
 
   it("should allow selecting of jobs", async () => {
@@ -357,7 +357,7 @@ describe("JobsTableContainer", () => {
 
     const dropdown = await screen.findByRole("listbox")
     const colToGroup = await within(dropdown).findByText(columnDisplayName)
-    userEvent.click(colToGroup)
+    await userEvent.click(colToGroup)
   }
 
   async function expandRow(buttonText: string) {
