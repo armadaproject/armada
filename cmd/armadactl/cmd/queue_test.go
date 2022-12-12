@@ -102,7 +102,10 @@ func TestCreate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				cmd.Flags().Set(flag.name, flag.value)
+				err := cmd.Flags().Set(flag.name, flag.value)
+				if err != nil {
+					t.Fatalf("Set Flags detected unexpected error: %s", err)
+				}
 			}
 
 			// Execute the command and check any error
@@ -233,7 +236,10 @@ func TestUpdate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				cmd.Flags().Set(flag.name, flag.value)
+				err := cmd.Flags().Set(flag.name, flag.value)
+				if err != nil {
+					t.Fatalf("command failed on setting flags: %s", err)
+				}
 			}
 
 			// Execute the command and check any error

@@ -55,11 +55,17 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 			case <-ctx.Done():
 				return ctx.Err()
 			case sig := <-stopSignal:
-				ctx.Err()
+				err := ctx.Err()
+				if err != nil {
+					log.Warnf("Error from stopping", err)
+				}
 				return fmt.Errorf("received signal %v", sig)
 			}
 		})
-		g.Wait()
+		errWait := g.Wait()
+		if errWait != nil {
+			return errWait
+		}
 		return nil
 	}
 }

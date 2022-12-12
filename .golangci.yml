@@ -16,6 +16,7 @@ linters:
     - goimports
     - ineffassign
     - misspell
+    - errcheck
 
 linters-settings:
   lll:
