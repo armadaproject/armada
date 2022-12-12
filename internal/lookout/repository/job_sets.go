@@ -9,6 +9,7 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
 
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/pkg/api/lookout"
 )
 
@@ -191,7 +192,7 @@ func (r *SQLJobRepository) rowsToJobSets(rows []*jobSetCountsRow, queue string) 
 			JobsSucceeded: uint32(ParseNullInt(row.Succeeded)),
 			JobsFailed:    uint32(ParseNullInt(row.Failed)),
 			JobsCancelled: uint32(ParseNullInt(row.Cancelled)),
-			Submitted:     ParseNullTime(row.Submitted),
+			Submitted:     database.ParseNullTime(row.Submitted),
 		}
 
 		if row.RunningStatsMax.Valid {

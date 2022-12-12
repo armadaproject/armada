@@ -569,13 +569,14 @@ func TestHandleJobLeaseReturned(t *testing.T) {
 			Error:            pointer.String(leaseReturnedMsg),
 			UnableToSchedule: pointer.Bool(true),
 		}},
-		JobsToUpdate: []*model.UpdateJobInstruction{
-			{
-				JobId:   jobIdString,
-				Updated: baseTime,
-				State:   pointer.Int32(repository.JobQueuedOrdinal),
-			},
-		},
+		// TODO: re-enable this once the executor is fixed to no longer send spurious lease returned messages
+		//JobsToUpdate: []*model.UpdateJobInstruction{
+		//	{
+		//		JobId:   jobIdString,
+		//		Updated: baseTime,
+		//		State:   pointer.Int32(repository.JobQueuedOrdinal),
+		//	},
+		//},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
@@ -620,6 +621,33 @@ func TestHandlePodUnschedulable(t *testing.T) {
 			UnableToSchedule: pointer.Bool(true),
 			Error:            pointer.String(unschedulableMsg),
 		}},
+		MessageIds: msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+func TestHandleDuplicate(t *testing.T) {
+	duplicate := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
+			JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
+				NewJobId: jobIdProto,
+			},
+		},
+	}
+
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(duplicate)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		JobsToUpdate: []*model.UpdateJobInstruction{
+			{
+				JobId:     jobIdString,
+				State:     pointer.Int32(repository.JobDuplicateOrdinal),
+				Updated:   baseTime,
+				Duplicate: pointer.Bool(true),
+			},
+		},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)

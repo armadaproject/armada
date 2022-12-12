@@ -4,16 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/G-Research/armada/internal/armada/repository/sequence"
-
 	"github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/armada/permissions"
 	"github.com/G-Research/armada/internal/armada/repository"
+	"github.com/G-Research/armada/internal/armada/repository/sequence"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/queue"
@@ -27,6 +26,7 @@ type EventServer struct {
 	jobRepository         repository.JobRepository
 	eventStore            repository.EventStore
 	defaultToLegacyEvents bool
+	forceNewEvents        bool
 }
 
 func NewEventServer(
@@ -37,6 +37,7 @@ func NewEventServer(
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 	defaultToLegacyEvents bool,
+	forceNewEvents bool,
 ) *EventServer {
 	return &EventServer{
 		permissions:           permissions,
@@ -46,6 +47,7 @@ func NewEventServer(
 		queueRepository:       queueRepository,
 		jobRepository:         jobRepository,
 		defaultToLegacyEvents: defaultToLegacyEvents,
+		forceNewEvents:        forceNewEvents,
 	}
 }
 
@@ -138,6 +140,16 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 
 	eventRepository := s.determineEventRepository(request)
 
+	// if we're forcing the new events, convert the seqNo over if necessary
+	if s.forceNewEvents && eventRepository == s.eventRepository && !sequence.IsValid(request.FromMessageId) {
+		convertedSeqId, err := sequence.FromRedisId(request.FromMessageId, 0, true)
+		if err != nil {
+			return errors.Wrapf(err, "Could not convert legacy message id over to new message id for request for queue %s, jobset %s", request.Queue, request.Id)
+		}
+		log.Warnf("Converted legacy sequene id [%s] for queues %s, jobset %s to new sequenceId [%s]", request.Id, request.Queue, request.Id, convertedSeqId)
+		request.FromMessageId = convertedSeqId.String()
+	}
+
 	return s.serveEventsFromRepository(request, eventRepository, stream)
 }
 
@@ -156,8 +168,14 @@ func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repos
 		return s.legacyEventRepository
 	}
 
+	// configuration says we should force new events
+	if s.forceNewEvents {
+		return s.eventRepository
+	}
+
 	// It's not a valid new-style sequence number so we have to default to the legacy store
 	if !sequence.IsValid(request.GetFromMessageId()) {
+		log.Infof("Received legacy event request for queue %s and jobset %s", request.Queue, request.Id)
 		return s.legacyEventRepository
 	}
 

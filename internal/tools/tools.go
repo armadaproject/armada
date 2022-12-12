@@ -15,6 +15,7 @@ import (
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
 	_ "github.com/jstemmer/go-junit-report"
 	_ "github.com/kyleconroy/sqlc/cmd/sqlc"
+	_ "github.com/matryer/moq"
 	_ "github.com/mitchellh/gox"
 	_ "github.com/wlbr/templify"
 	_ "golang.org/x/tools/cmd/goimports"
