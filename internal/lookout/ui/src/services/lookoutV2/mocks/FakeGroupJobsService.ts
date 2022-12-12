@@ -27,7 +27,6 @@ export default class FakeGroupJobsService implements IGroupJobsService {
       groups: sliced,
       totalGroups: groups.length,
     }
-    console.log("GroupJobs response", response)
     return response
   }
 }

@@ -23,7 +23,6 @@ export default class FakeGetJobsService implements IGetJobsService {
       count: filtered.length,
       jobs: filtered.slice(skip, skip + take),
     }
-    console.log("GetJobs response", response)
     return response
   }
 }
