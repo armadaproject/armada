@@ -57,7 +57,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFil
       displayEmpty={true}
       renderValue={(selected) =>
         selected.length > 0 ? (
-          selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName).join(", ")
+          selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName ?? s).join(", ")
         ) : (
           // Approximately matches the styling for a text input's placeholder
           <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>Filter...</div>
