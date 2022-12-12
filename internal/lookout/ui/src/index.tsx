@@ -39,7 +39,7 @@ import "./index.css"
   )
 
   const fakeDataEnabled = uiConfig.fakeDataEnabled
-  const lookoutV2BaseUrl = "http://localhost:10000/api/v1"
+  const lookoutV2BaseUrl = uiConfig.lookoutV2ApiBaseUrl
 
   const v2TestJobs = fakeDataEnabled ? makeTestJobs(10000, 42) : []
   const v2GetJobsService = fakeDataEnabled ? new FakeGetJobsService(v2TestJobs) : new GetJobsService(lookoutV2BaseUrl)
