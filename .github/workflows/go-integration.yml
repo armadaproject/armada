@@ -32,10 +32,6 @@ jobs:
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@v3
-      # Needed for docker/setup-buildx-action; see
-      # https://github.com/moby/buildkit#github-actions-cache-experimental
-      - name: Expose GitHub Runtime
-        uses: crazy-max/ghaction-github-runtime@v2
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
       - uses: actions/setup-go@v3
