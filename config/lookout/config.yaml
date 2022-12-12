@@ -19,6 +19,8 @@ uiConfig:
   overviewAutoRefreshMs: 15000
   jobSetsAutoRefreshMs: 15000
   jobsAutoRefreshMs: 30000
+  fakeDataEnabled: false
+  lookoutV2ApiBaseUrl: "http://localhost:10000"
 
 postgres:
   maxOpenConns: 100
