@@ -221,8 +221,14 @@ jobs:
 		t.Fatalf("error creating jobfile: %s", err)
 	}
 	jobPath := jobFile.Name()
-	jobFile.Write(jobData)
-	jobFile.Sync()
+	_, err = jobFile.Write(jobData)
+	if err != nil {
+		t.Fatalf("error writing jobFile: %s". err)
+	}
+	err = jobFile.Sync()
+	if err != nil {
+		t.Fatalf("error syncing: %s", err)
+	}
 	if err = jobFile.Close(); err != nil {
 		t.Fatalf("error closing temp. jobfile: %s", err)
 	}
