@@ -1,6 +1,6 @@
 import { Job, JobFilter, JobGroup, JobKey, JobOrder } from "models/lookoutV2Models"
 import GroupJobsService, { GroupJobsResponse } from "services/lookoutV2/GroupJobsService"
-import { compareValues, mergeFilters } from "utils/fakeJobsUtils"
+import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
 export default class FakeGroupJobsService implements GroupJobsService {
   jobs: Job[]
@@ -9,7 +9,7 @@ export default class FakeGroupJobsService implements GroupJobsService {
     this.jobs = jobs
   }
 
-  groupJobs(
+  async groupJobs(
     filters: JobFilter[],
     order: JobOrder,
     groupedField: string,
@@ -19,6 +19,7 @@ export default class FakeGroupJobsService implements GroupJobsService {
     signal: AbortSignal | undefined,
   ): Promise<GroupJobsResponse> {
     console.log("GroupJobs called with params:", { filters, order, groupedField, aggregates, skip, take, signal })
+    await simulateApiWait()
     const filtered = this.jobs.filter(mergeFilters(filters))
     const groups = groupBy(filtered, groupedField)
     const sliced = groups.sort(comparator(order)).slice(skip, skip + take)
@@ -27,7 +28,7 @@ export default class FakeGroupJobsService implements GroupJobsService {
       totalGroups: groups.length,
     }
     console.log("GroupJobs response", response)
-    return Promise.resolve(response)
+    return response
   }
 }
 
