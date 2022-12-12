@@ -49,7 +49,7 @@ type LookoutConfiguration struct {
 
 type LookoutIngesterDebugConfig struct {
 	// Disables DB update conflation. If conflation is disabled then update
-	// instructions	will not conflatined/coalesed. Meaning update instructions
+	// instructions	will not conflated/coalesced. Meaning update instructions
 	// that would immediately negate another update on the same table row will
 	// be retained.
 	DisableConflateDBUpdates bool
