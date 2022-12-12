@@ -208,6 +208,15 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 			}
 			return nil
 		})
+	case testSpec.Cancel == api.TestSpec_BY_IDS:
+		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			req.JobIds = jobIds
+			_, err := sc.CancelJobs(ctx, req)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			return nil
+		})
 	}
 	return nil
 }

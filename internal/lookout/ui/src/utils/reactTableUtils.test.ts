@@ -2,14 +2,14 @@ import { fromRowId, GroupedRow, mergeSubRows, NonGroupedRow, RowId, toRowId } fr
 
 describe("ReactTableUtils", () => {
   describe("Row IDs", () => {
-    const baseRowIdExample = "job:0"
-    const childRowIdExample = "queue:queue-2>job:0"
-    const deeplyNestedRowIdExample = "jobSet:job-set-2>queue:queue-2>job:0"
+    const baseRowIdExample = "jobId:0"
+    const childRowIdExample = "queue:queue-2>jobId:0"
+    const deeplyNestedRowIdExample = "jobSet:job-set-2>queue:queue-2>jobId:0"
 
     describe("toRowId", () => {
       it("returns base row ID format", () => {
         const result = toRowId({
-          type: "job",
+          type: "jobId",
           value: "0",
         })
         expect(result).toBe(baseRowIdExample)
@@ -17,7 +17,7 @@ describe("ReactTableUtils", () => {
 
       it("returns child row ID format", () => {
         const result = toRowId({
-          type: "job",
+          type: "jobId",
           value: "0",
           parentRowId: "queue:queue-2",
         })
@@ -26,7 +26,7 @@ describe("ReactTableUtils", () => {
 
       it("returns deeply nested row ID format", () => {
         const result = toRowId({
-          type: "job",
+          type: "jobId",
           value: "0",
           parentRowId: "jobSet:job-set-2>queue:queue-2",
         })
@@ -39,8 +39,8 @@ describe("ReactTableUtils", () => {
         const result = fromRowId(baseRowIdExample)
         expect(result).toStrictEqual({
           rowId: baseRowIdExample,
-          rowIdPartsPath: [{ type: "job", value: "0" }],
-          rowIdPathFromRoot: ["job:0"],
+          rowIdPartsPath: [{ type: "jobId", value: "0" }],
+          rowIdPathFromRoot: ["jobId:0"],
         })
       })
 
@@ -50,9 +50,9 @@ describe("ReactTableUtils", () => {
           rowId: childRowIdExample,
           rowIdPartsPath: [
             { type: "queue", value: "queue-2" },
-            { type: "job", value: "0" },
+            { type: "jobId", value: "0" },
           ],
-          rowIdPathFromRoot: ["queue:queue-2", "queue:queue-2>job:0"],
+          rowIdPathFromRoot: ["queue:queue-2", "queue:queue-2>jobId:0"],
         })
       })
 
@@ -63,12 +63,12 @@ describe("ReactTableUtils", () => {
           rowIdPartsPath: [
             { type: "jobSet", value: "job-set-2" },
             { type: "queue", value: "queue-2" },
-            { type: "job", value: "0" },
+            { type: "jobId", value: "0" },
           ],
           rowIdPathFromRoot: [
             "jobSet:job-set-2",
             "jobSet:job-set-2>queue:queue-2",
-            "jobSet:job-set-2>queue:queue-2>job:0",
+            "jobSet:job-set-2>queue:queue-2>jobId:0",
           ],
         })
       })
