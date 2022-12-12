@@ -22,6 +22,9 @@ type LookoutUIConfig struct {
 	OverviewAutoRefreshMs int
 	JobSetsAutoRefreshMs  int
 	JobsAutoRefreshMs     int
+
+	FakeDataEnabled     bool
+	LookoutV2ApiBaseUrl string
 }
 
 type PrunerConfig struct {
