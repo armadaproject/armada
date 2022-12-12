@@ -368,7 +368,7 @@ func (srv *PulsarSubmitServer) cancelJobsByIds(ctx context.Context, jobIds []str
 		userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 		if err != nil {
 			log.WithError(err).Errorf("user cannot cancel jobs in queue %s", q)
-			continue
+			return nil, errors.Errorf("user cannot cancel jobs in queue %s: %v", q, err)
 		}
 
 		for jobSet, jobIds := range jobSets {
