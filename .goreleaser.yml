@@ -111,17 +111,16 @@ sboms:
 
 env:
   - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}{{ end }}
+  # Goreleaser always uses the docker buildx builder with name "default"; see
+  # https://github.com/goreleaser/goreleaser/pull/3199
+  # To use a builder other than "default", set this variable.
+  # Necessary for, e.g., Github actions cache integration.
+  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}"default"{{ end }}
   # Setup to enable Docker to use, e.g., the Github actions cache; see
   # https://docs.docker.com/build/building/cache/backends/
   # https://github.com/moby/buildkit#export-cache
   - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}"type=registry"{{ end }}
   - DOCKER_BUILDX_CACHE_TO={{ if index .Env "DOCKER_BUILDX_CACHE_TO"  }}{{ .Env.DOCKER_BUILDX_CACHE_TO }}{{ else }}"type=inline"{{ end }}
-  # Goreleaser always uses the docker buildx builder with name "default",
-  # even when it's not the default builder; see
-  # https://github.com/goreleaser/goreleaser/pull/3199
-  # We enable using another build by setting this variable.
-  # The buildx builder with name "default" is always available.
-  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}"default"{{ end }}
 
 dockers:
   - id: bundle
@@ -134,6 +133,7 @@ dockers:
       - "{{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada:latest"
     build_flag_templates:
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada
