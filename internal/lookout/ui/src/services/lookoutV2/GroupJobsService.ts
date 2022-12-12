@@ -29,7 +29,7 @@ export class GroupJobsService implements IGroupJobsService {
     take: number,
     signal: AbortSignal | undefined,
   ): Promise<GroupJobsResponse> {
-    const response = await fetch(this.apiBase + "/jobGroups", {
+    const response = await fetch(this.apiBase + "/api/v1/jobGroups", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

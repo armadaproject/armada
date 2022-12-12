@@ -25,7 +25,7 @@ export class GetJobsService implements IGetJobsService {
     take: number,
     signal: AbortSignal | undefined,
   ): Promise<GetJobsResponse> {
-    const response = await fetch(this.apiBase + "/jobs", {
+    const response = await fetch(this.apiBase + "/api/v1/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
