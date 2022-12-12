@@ -93,7 +93,7 @@ export const fetchJobGroups = async (
 export const jobsToRows = (jobs: Job[]): JobRow[] => {
   return jobs.map(
     (job): JobRow => ({
-      rowId: toRowId({ type: "job", value: job.jobId }),
+      rowId: toRowId({ type: "jobId", value: job.jobId }),
       jobId: job.jobId,
       jobSet: job.jobSet,
       queue: job.queue,
