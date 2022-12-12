@@ -43,7 +43,12 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 		if err := recover(); err != nil {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
-			go srv.Run(ctx)
+			go func() {
+				err := srv.Run(ctx)
+				if err != nil {
+					log.WithField("error", err).Error("unexpected panic; restarting")
+				}
+			}()
 		} else {
 			// An expected shutdown.
 			log.Info("service stopped")

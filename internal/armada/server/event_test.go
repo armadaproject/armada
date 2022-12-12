@@ -100,12 +100,13 @@ func TestEventServer_ForceNew(t *testing.T) {
 				},
 			}
 
-			reportPulsarEvent(&armadaevents.EventSequence{
+			err := reportPulsarEvent(&armadaevents.EventSequence{
 				Queue:      queue,
 				JobSetName: jobSetId,
 				Events:     []*armadaevents.EventSequence_Event{assigned},
 			})
 
+			assert.NotNil(t, err)
 			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))

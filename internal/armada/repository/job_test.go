@@ -622,7 +622,8 @@ func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 			assert.Nil(t, err)
 		}
 
-		r.DeleteJobs([]*api.Job{testJob})
+		_, deleteErr := r.DeleteJobs([]*api.Job{testJob})
+		assert.Nil(t, deleteErr)
 
 		retries, err := r.GetNumberOfRetryAttempts(testJob.Id)
 

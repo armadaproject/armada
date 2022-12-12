@@ -186,7 +186,8 @@ func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
 func TestUpdateJobSetTime(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		r.SubscribeJobSet("test", "job-set-1")
-		r.UpdateJobSetTime("test", "job-set-1")
+		err := r.UpdateJobSetTime("test", "job-set-1")
+		assert.Nil(t, err)
 		_, ok := r.jobSetSubscribe.subscribeMap["testjob-set-1"]
 		assert.True(t, ok)
 	})
@@ -268,7 +269,9 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 		err := r.UpdateJobServiceDb(jobStatus1)
 		assert.Nil(t, err)
 		r.SubscribeJobSet("test-race", "job-set-race")
-		r.CleanupJobSetAndJobs("test-race", "job-set-race")
+		numberOfJobs, deleteErr := r.CleanupJobSetAndJobs("test-race", "job-set-race")
+		assert.Equal(t, numberOfJobs, 1)
+		assert.Nil(t, deleteErr)
 		actualSuccess, actualError := r.GetJobStatus("job-race")
 		assert.Equal(t, actualSuccess, noExist)
 		assert.Nil(t, actualError)

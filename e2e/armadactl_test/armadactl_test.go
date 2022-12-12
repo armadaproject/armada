@@ -223,7 +223,7 @@ jobs:
 	jobPath := jobFile.Name()
 	_, err = jobFile.Write(jobData)
 	if err != nil {
-		t.Fatalf("error writing jobFile: %s". err)
+		t.Fatalf("error writing jobFile: %s", err)
 	}
 	err = jobFile.Sync()
 	if err != nil {

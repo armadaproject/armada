@@ -57,12 +57,20 @@ func generateTempKeytab() (string, error) {
 
 	// Create a single entry.
 	kt := keytab.New()
-	kt.AddEntry(testUser, testRealm, testPass,
+	err = kt.AddEntry(testUser, testRealm, testPass,
 		time.Now(), 1, etypeID.AES128_CTS_HMAC_SHA256_128)
-
+	if err != nil {
+		return "", err
+	}
 	// Write to temp file and close it.
-	kt.Write(f)
-	defer f.Close()
+	_, err = kt.Write(f)
+	if err != nil {
+		return "", err
+	}
+	err = f.Close()
+	if err != nil {
+		return "", err
+	}
 
 	return f.Name(), nil
 }

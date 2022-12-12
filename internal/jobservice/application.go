@@ -56,7 +56,12 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	if err != nil {
 		log.Fatalf("Error Opening Sqlite DB from %s %v", config.DatabasePath, err)
 	}
-	defer db.Close()
+	defer func() {
+		err := db.Close()
+		if err != nil {
+			log.Warnf("Error Closing Database: %v", err)
+		}
+	}()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
 	sqlJobRepo.Setup()
 	jobService := server.NewJobService(config, sqlJobRepo)
@@ -73,7 +78,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("Subscribed job sets : %s", value)
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
-					sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+					return err
 				}
 			}
 		}
@@ -89,7 +95,10 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return nil
 	})
 
-	g.Wait()
+	err = g.Wait()
+	if err != nil {
+		log.Fatalf("Error detected on wait %v", err)
+	}
 
 	return nil
 }

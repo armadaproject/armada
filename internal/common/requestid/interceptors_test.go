@@ -6,6 +6,7 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/renstrom/shortuuid"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -61,11 +62,13 @@ func TestUnaryServerInterceptor(t *testing.T) {
 
 	replace := false
 	f := UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err := f(ctx, nil, nil, handler)
+	assert.NotNil(t, err)
 
 	replace = true
 	f = UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err = f(ctx, nil, nil, handler)
+	assert.NotNil(t, err)
 }
 
 func TestUnaryServerInterceptorWithExisting(t *testing.T) {
@@ -97,11 +100,13 @@ func TestUnaryServerInterceptorWithExisting(t *testing.T) {
 
 	replace = false
 	f := UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err := f(ctx, nil, nil, handler)
+	assert.NotNil(t, err)
 
 	replace = true
 	f = UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err = f(ctx, nil, nil, handler)
+	assert.NotNil(t, err)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -123,11 +128,13 @@ func TestStreamServerInterceptor(t *testing.T) {
 
 	replace := false
 	f := StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err := f(nil, stream, nil, handler)
+	assert.Nil(t, err)
 
 	replace = true
 	f = StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err = f(nil, stream, nil, handler)
+	assert.Nil(t, err)
 }
 
 func TestStreamServerInterceptorWithExisting(t *testing.T) {
@@ -161,9 +168,11 @@ func TestStreamServerInterceptorWithExisting(t *testing.T) {
 
 	replace = false
 	f := StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err := f(nil, stream, nil, handler)
+	assert.Nil(t, err)
 
 	replace = true
 	f = StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err = f(nil, stream, nil, handler)
+	assert.Nil(t, err)
 }

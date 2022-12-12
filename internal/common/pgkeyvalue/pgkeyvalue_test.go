@@ -217,7 +217,10 @@ func TestCleanup(t *testing.T) {
 		// Then try adding baz twice more to make sure it gets cleaned up both times.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		go store.PeriodicCleanup(ctx, time.Microsecond, time.Microsecond)
+		go func() {
+			err := store.PeriodicCleanup(ctx, time.Microsecond, time.Microsecond)
+			assert.NotNil(t, err)
+		}()
 
 		time.Sleep(100 * time.Millisecond)
 		store.cache.Purge()
@@ -249,7 +252,8 @@ func BenchmarkStore(b *testing.B) {
 			b.FailNow()
 		}
 		for i := 0; i < b.N; i++ {
-			store.AddKey(context.Background(), "foo")
+			_, err := store.AddKey(context.Background(), "foo")
+			assert.NotNil(b, err)
 		}
 		return nil
 	})
