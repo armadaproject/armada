@@ -13,7 +13,7 @@ export interface IGroupJobsService {
 }
 
 export type GroupJobsResponse = {
-  totalGroups: number
+  count: number
   groups: JobGroup[]
 }
 

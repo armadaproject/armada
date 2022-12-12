@@ -139,7 +139,7 @@ export const JobsTableContainer = ({
         } else {
           const groupedCol = grouping[expandedLevel]
           const colsToAggregate = allColumns.filter((c) => c.groupable).map((c) => c.key)
-          const { groups, totalGroups } = await fetchJobGroups(
+          const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
             groupedCol,

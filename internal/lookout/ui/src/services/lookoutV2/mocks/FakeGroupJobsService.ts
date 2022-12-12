@@ -25,7 +25,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
     const sliced = groups.sort(comparator(order)).slice(skip, skip + take)
     const response: GroupJobsResponse = {
       groups: sliced,
-      totalGroups: groups.length,
+      count: groups.length,
     }
     return response
   }
