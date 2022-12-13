@@ -9,9 +9,6 @@ jobs:
     strategy:
       matrix:
         go: [ '1.18' ]
-        python: [ '3.8']
-        include:
-          - tox-env: 'py38'
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
