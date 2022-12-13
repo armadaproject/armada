@@ -1,15 +1,15 @@
-import { render, waitFor } from "@testing-library/react"
+import { render, waitFor, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { formatJobState, Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
+import { Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
 
-import { CancelDialog } from "./CancelDialog"
+import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
-describe("CancelDialog", () => {
+describe("ReprioritiseDialog", () => {
   let numJobs = 5
   const numQueues = 2,
     numJobSets = 3
@@ -32,7 +32,7 @@ describe("CancelDialog", () => {
     ]
     getJobsService = new FakeGetJobsService(jobs)
     updateJobsService = {
-      cancelJobs: jest.fn(),
+      reprioritiseJobs: jest.fn(),
     } as any
     onClose = jest.fn()
   })
@@ -40,7 +40,7 @@ describe("CancelDialog", () => {
   const renderComponent = () =>
     render(
       <SnackbarProvider>
-        <CancelDialog
+        <ReprioritiseDialog
           onClose={onClose}
           selectedItemFilters={selectedItemFilters}
           getJobsService={getJobsService}
@@ -53,16 +53,16 @@ describe("CancelDialog", () => {
     const { getByRole, findByRole, getByText } = renderComponent()
 
     // Initial render
-    getByRole("heading", { name: "Cancel jobs" })
+    getByRole("heading", { name: "Reprioritise jobs" })
 
     // Once job details are fetched
-    await findByRole("heading", { name: "Cancel 1 job" })
+    await findByRole("heading", { name: "Reprioritise 1 job" })
 
     // Check basic job information is displayed
     getByText(jobs[0].jobId)
     getByText(jobs[0].queue)
     getByText(jobs[0].jobSet)
-    getByText(formatJobState(jobs[0].state))
+    getByText(jobs[0].priority)
   })
 
   it("shows an alert if all jobs in a terminated state", async () => {
@@ -92,26 +92,32 @@ describe("CancelDialog", () => {
     // 6000 total jobs, split between 2 queues = 3000 jobs per queue
     // But only a subset will be in a non-terminated state
     // These will always be the same numbers as long as the makeJobs random seed is the same
-    await findByRole("heading", { name: "Cancel 1480 jobs" }, { timeout: 3000 })
-    getByText("3000 jobs are selected, but only 1480 jobs are in a cancellable (non-terminated) state.")
+    await findByRole("heading", { name: "Reprioritise 1480 jobs" }, { timeout: 3000 })
+    getByText("3000 jobs are selected, but only 1480 jobs are in a non-terminated state.")
   })
 
-  it("allows the user to cancel jobs", async () => {
+  it("allows the user to reprioritise jobs", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritiseJobs = jest.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [],
       })
     })
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
+    await enterPriority("2")
+
+    const cancelButton = await waitFor(() => getByRole("button", { name: /Reprioritise 1 job/i }))
     await userEvent.click(cancelButton)
 
-    await findByText(/Successfully began cancellation/i)
+    await findByText(/Successfully changed priority./i)
+  })
 
-    expect(updateJobsService.cancelJobs).toHaveBeenCalled()
+  it("does not allow the user to enter an invalid priority", async () => {
+    const { getByRole } = renderComponent()
+    await enterPriority("abc")
+    expect(getByRole("button", { name: /Reprioritise/ })).toBeDisabled()
   })
 
   it("allows user to refetch jobs", async () => {
@@ -119,40 +125,41 @@ describe("CancelDialog", () => {
 
     // Check job details are being shown
     await findByText(jobs[0].jobId)
-    await findByText(formatJobState(jobs[0].state))
+    await findByRole("cell", { name: jobs[0].priority.toString() })
 
-    // Verify the job isn't already cancelled (fixed random seed means this will always be true)
-    expect(jobs[0].state).not.toBe("Pending")
+    // Verify the job doesn't already have the priority we'll use to test
+    expect(jobs[0].priority).not.toBe(1234)
 
-    // Now change the job's state
-    jobs[0].state = JobState.Pending
+    // Now change the job's priority on the "backend"
+    jobs[0].priority = 1234
 
     // User clicks refetch
     await userEvent.click(await findByRole("button", { name: /Refetch jobs/i }))
 
     // Verify the state was re-fetched and updated
     await findByText(jobs[0].jobId)
-    await findByText(formatJobState(jobs[0].state))
+    await findByRole("cell", { name: "1234" })
   })
 
-  it("shows error reasons if cancellation fails", async () => {
+  it("shows error reasons if reprioritisation fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritiseJobs = jest.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [],
         failedJobIds: [{ jobId: jobs[0].jobId, errorReason: "This is a test" }],
       })
     })
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 1 job/i }))
-    await userEvent.click(cancelButton)
+    await enterPriority("3")
+
+    const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 1 job/i }))
+    await userEvent.click(reprioritiseButton)
 
     // Snackbar popup
-    await findByText(/All jobs failed to cancel/i)
+    await findByText(/All jobs failed to reprioritise/i)
 
     // Verify reason is shown in table
-    // Longer timeout since another fetch call is made before this is shown
     await findByText("This is a test", {}, { timeout: 3000 })
   })
 
@@ -181,29 +188,36 @@ describe("CancelDialog", () => {
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
+    updateJobsService.reprioritiseJobs = jest.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [{ jobId: jobs[1].jobId, errorReason: "This is a test" }],
       })
     })
 
-    const cancelButton = await waitFor(() => getByRole("button", { name: /Cancel 2 jobs/i }))
-    await userEvent.click(cancelButton)
+    await enterPriority("0")
+
+    const reprioritiseButton = await waitFor(() => getByRole("button", { name: /Reprioritise 2 jobs/i }))
+    await userEvent.click(reprioritiseButton)
 
     // Snackbar popup
-    await findByText(/Some jobs failed to cancel/i)
+    await findByText(/Some jobs failed to reprioritise/i)
 
     // Verify reason is shown in table
-    // Longer timeout since another fetch call is made before this is shown
     await findByText("Success", {}, { timeout: 3000 })
     await findByText("This is a test")
 
-    // This job was successfully cancelled
-    jobs[0].state = JobState.Cancelled
+    // This job was successfully updated
+    jobs[0].priority = 0
 
-    // Check the user can re-attempt the other job after a refetch
+    // Check the user can re-attempt the request after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))
-    expect(await findByRole("button", { name: /Cancel 1 job/i })).toBeEnabled()
+    expect(await findByRole("button", { name: /Reprioritise 2 jobs/i })).toBeEnabled()
   })
+
+  async function enterPriority(priority: string) {
+    const priorityTextBox = await screen.findByRole("textbox", { name: "New priority for jobs" })
+    await userEvent.clear(priorityTextBox)
+    await userEvent.type(priorityTextBox, priority)
+  }
 })

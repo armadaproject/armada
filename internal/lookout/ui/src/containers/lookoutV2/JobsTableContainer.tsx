@@ -36,9 +36,9 @@ import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
 import { JobFilter } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { getErrorMessage } from "utils"
 import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
 import {
@@ -63,13 +63,13 @@ const DEFAULT_PAGE_SIZE = 30
 interface JobsTableContainerProps {
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  cancelJobsService: CancelJobsService
+  updateJobsService: UpdateJobsService
   debug: boolean
 }
 export const JobsTableContainer = ({
   getJobsService,
   groupJobsService,
-  cancelJobsService,
+  updateJobsService,
   debug,
 }: JobsTableContainerProps) => {
   const { enqueueSnackbar } = useSnackbar()
@@ -365,7 +365,7 @@ export const JobsTableContainer = ({
         onColumnsChanged={setAllColumns}
         onGroupsChanged={onGroupingChange}
         getJobsService={getJobsService}
-        cancelJobsService={cancelJobsService}
+        updateJobsService={updateJobsService}
       />
       <TableContainer component={Paper}>
         <Table sx={{ tableLayout: "fixed" }}>
