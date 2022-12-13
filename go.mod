@@ -38,7 +38,7 @@ require (
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
-	github.com/jackc/pgtype v1.12.0
+	github.com/jackc/pgtype v1.13.0
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
