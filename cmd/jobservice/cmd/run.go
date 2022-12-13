@@ -62,10 +62,6 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 				return fmt.Errorf("received signal %v", sig)
 			}
 		})
-		errWait := g.Wait()
-		if errWait != nil {
-			return errWait
-		}
-		return nil
+		return g.Wait()
 	}
 }
