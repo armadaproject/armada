@@ -7,8 +7,8 @@ import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
@@ -59,8 +59,8 @@ const themeV5 = createThemeV5(theme)
 
 type AppProps = {
   jobService: JobService
-  v2GetJobsService: GetJobsService
-  v2GroupJobsService: GroupJobsService
+  v2GetJobsService: IGetJobsService
+  v2GroupJobsService: IGroupJobsService
   v2CancelJobsService: CancelJobsService
   logService: LogService
   overviewAutoRefreshMs: number

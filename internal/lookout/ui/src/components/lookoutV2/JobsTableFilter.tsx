@@ -5,7 +5,7 @@ import { FilterType } from "utils/jobsTableColumns"
 export interface JobsTableFilterProps {
   currentFilter?: string | string[]
   filterType: FilterType
-  enumFilterValues?: string[]
+  enumFilterValues?: EnumFilterOption[]
   id: string
   onFilterChange: (newFilter: string | string[] | undefined) => void
 }
@@ -30,9 +30,13 @@ export const JobsTableFilter = ({
   )
 }
 
+export interface EnumFilterOption {
+  value: string
+  displayName: string
+}
 interface EnumFilterProps {
   currentFilter: string[]
-  enumFilterValues: string[]
+  enumFilterValues: EnumFilterOption[]
   onFilterChange: JobsTableFilterProps["onFilterChange"]
 }
 const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFilterProps) => {
@@ -53,7 +57,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFil
       displayEmpty={true}
       renderValue={(selected) =>
         selected.length > 0 ? (
-          selected.join(", ")
+          selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName ?? s).join(", ")
         ) : (
           // Approximately matches the styling for a text input's placeholder
           <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>Filter...</div>
@@ -73,9 +77,9 @@ const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFil
       }}
     >
       {(enumFilterValues ?? []).map((option) => (
-        <MenuItem key={option} value={option} dense>
-          <Checkbox checked={currentFilter.indexOf(option) > -1} size="small" sx={{ padding: "3px" }} />
-          <ListItemText primary={option} />
+        <MenuItem key={option.value} value={option.value} dense>
+          <Checkbox checked={currentFilter.indexOf(option.value) > -1} size="small" sx={{ padding: "3px" }} />
+          <ListItemText primary={option.displayName} />
         </MenuItem>
       ))}
     </Select>

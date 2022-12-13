@@ -17,21 +17,21 @@ import {
   Alert,
 } from "@mui/material"
 import _ from "lodash"
-import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { formatJobState, isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { pl } from "utils"
 
 import styles from "./CancelDialog.module.css"
 
 const MAX_JOBS_PER_REQUEST = 1000
 
-const getAllJobsMatchingFilters = async (filters: JobFilter[], getJobsService: GetJobsService): Promise<Job[]> => {
+const getAllJobsMatchingFilters = async (filters: JobFilter[], getJobsService: IGetJobsService): Promise<Job[]> => {
   const receivedJobs: Job[] = []
   let continuePaginating = true
   while (continuePaginating) {
-    const { jobs, totalJobs } = await getJobsService.getJobs(
+    const { jobs, count: totalJobs } = await getJobsService.getJobs(
       filters,
       { direction: "DESC", field: "jobId" },
       receivedJobs.length,
@@ -52,7 +52,7 @@ const getAllJobsMatchingFilters = async (filters: JobFilter[], getJobsService: G
 interface CancelDialogProps {
   onClose: () => void
   selectedItemFilters: JobFilter[][]
-  getJobsService: GetJobsService
+  getJobsService: IGetJobsService
   cancelJobsService: CancelJobsService
 }
 export const CancelDialog = ({
@@ -225,7 +225,7 @@ const CancelDialogBody = memo(
                       <TableCell>{job.jobId}</TableCell>
                       <TableCell>{job.queue}</TableCell>
                       <TableCell>{job.jobSet}</TableCell>
-                      <TableCell>{job.state}</TableCell>
+                      <TableCell>{formatJobState(job.state)}</TableCell>
                       <TableCell>{job.submitted}</TableCell>
                       {showResponseCol && <TableCell>{lastResponseStatus}</TableCell>}
                     </TableRow>

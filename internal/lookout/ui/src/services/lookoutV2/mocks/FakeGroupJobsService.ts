@@ -1,8 +1,8 @@
 import { Job, JobFilter, JobGroup, JobKey, JobOrder } from "models/lookoutV2Models"
-import GroupJobsService, { GroupJobsResponse } from "services/lookoutV2/GroupJobsService"
+import { IGroupJobsService, GroupJobsResponse } from "services/lookoutV2/GroupJobsService"
 import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
-export default class FakeGroupJobsService implements GroupJobsService {
+export default class FakeGroupJobsService implements IGroupJobsService {
   jobs: Job[]
 
   constructor(jobs: Job[]) {
@@ -23,11 +23,10 @@ export default class FakeGroupJobsService implements GroupJobsService {
     const filtered = this.jobs.filter(mergeFilters(filters))
     const groups = groupBy(filtered, groupedField)
     const sliced = groups.sort(comparator(order)).slice(skip, skip + take)
-    const response = {
+    const response: GroupJobsResponse = {
       groups: sliced,
-      totalGroups: groups.length,
+      count: groups.length,
     }
-    console.log("GroupJobs response", response)
     return response
   }
 }
