@@ -228,9 +228,22 @@ definitions:
         minLength: 1
         x-nullable: false
 
-basePath: /api/v1
 paths:
-  /jobs:
+  /health:
+    get:
+      produces:
+        - text/plain
+      responses:
+        200:
+          description: OK
+          schema:
+            type: string
+        400:
+          description: Error response
+          schema:
+            type: string
+
+  /api/v1/jobs:
     post:
       operationId: getJobs
       consumes:
@@ -291,7 +304,7 @@ paths:
           schema:
             $ref: "#/definitions/error"
 
-  /jobGroups:
+  /api/v1/jobGroups:
     post:
       operationId: groupJobs
       consumes:

@@ -34,6 +34,12 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
+	api.GetHealthHandler = operations.GetHealthHandlerFunc(
+		func(params operations.GetHealthParams) middleware.Responder {
+			return operations.NewGetHealthOK().WithPayload("Health check passed")
+		},
+	)
+
 	api.GetJobsHandler = operations.GetJobsHandlerFunc(
 		func(params operations.GetJobsParams) middleware.Responder {
 			filters := slices.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
