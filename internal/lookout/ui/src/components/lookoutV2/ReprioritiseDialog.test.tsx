@@ -114,7 +114,7 @@ describe("ReprioritiseDialog", () => {
     await findByText(/Successfully changed priority./i)
   })
 
-  it("does not allow the user to enter an invalid priorty", async () => {
+  it("does not allow the user to enter an invalid priority", async () => {
     const { getByRole } = renderComponent()
     await enterPriority("abc")
     expect(getByRole("button", { name: /Reprioritise/ })).toBeDisabled()
