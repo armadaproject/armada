@@ -106,7 +106,7 @@ func TestEventServer_ForceNew(t *testing.T) {
 				Events:     []*armadaevents.EventSequence_Event{assigned},
 			})
 
-			assert.NotNil(t, err)
+			assert.Nil(t, err)
 			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))

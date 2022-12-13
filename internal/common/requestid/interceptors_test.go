@@ -63,12 +63,12 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	replace := false
 	f := UnaryServerInterceptor(replace)
 	_, err := f(ctx, nil, nil, handler)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 
 	replace = true
 	f = UnaryServerInterceptor(replace)
 	_, err = f(ctx, nil, nil, handler)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func TestUnaryServerInterceptorWithExisting(t *testing.T) {
@@ -101,12 +101,12 @@ func TestUnaryServerInterceptorWithExisting(t *testing.T) {
 	replace = false
 	f := UnaryServerInterceptor(replace)
 	_, err := f(ctx, nil, nil, handler)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 
 	replace = true
 	f = UnaryServerInterceptor(replace)
 	_, err = f(ctx, nil, nil, handler)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {

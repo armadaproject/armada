@@ -80,7 +80,7 @@ func TestBatch_Time(t *testing.T) {
 	inputChan <- 1
 	inputChan <- 2
 	err := waitForBufferLength(ctx, batcher, 2)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	testClock.Step(5 * time.Second)
 	waitForExpectedEvents(ctx, result, 1)
 	assert.Equal(t, [][]int{{1, 2}}, result.result)
@@ -105,13 +105,13 @@ func TestBatch_Time_WithIntialQuiet(t *testing.T) {
 	inputChan <- 1
 	inputChan <- 2
 	err := waitForBufferLength(ctx, batcher, 2)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 	testClock.Step(5 * time.Second)
 	waitForExpectedEvents(ctx, result, 1)
 	inputChan <- 3
 	inputChan <- 4
 	err = waitForBufferLength(ctx, batcher, 2)
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 
 	testClock.Step(5 * time.Second)
 	waitForExpectedEvents(ctx, result, 2)
