@@ -161,7 +161,10 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 	// Get received jobs on the channel and send back acks.
 	g.Go(func() error {
-		defer stream.CloseSend()
+		defer func() {
+			err := stream.CloseSend()
+			log.WithError(err).Error("error receiving leases from server")
+		}()
 		for {
 			select {
 			case <-ctx.Done():
