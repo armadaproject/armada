@@ -253,7 +253,7 @@ func BenchmarkStore(b *testing.B) {
 		}
 		for i := 0; i < b.N; i++ {
 			_, err := store.AddKey(context.Background(), "foo")
-			assert.NotNil(b, err)
+			assert.Nil(b, err)
 		}
 		return nil
 	})
