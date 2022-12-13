@@ -444,7 +444,7 @@ func dropTestTriggers(db *sql.DB) {
 		// We don't care about the result. Just drop them.
 		_, err := db.Exec(fmt.Sprintf("DROP TRIGGER %s on %s", trigger.Name(), trigger.Table))
 		if err != nil {
-			panic(err)
+			fmt.Println("Error with dropping test triggers", err)
 		}
 	}
 }
