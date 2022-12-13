@@ -5,7 +5,7 @@ import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
 
 import { CancelDialog } from "./CancelDialog"
@@ -17,7 +17,7 @@ export interface JobsTableActionBarProps {
   selectedItemFilters: JobFilter[][]
   onColumnsChanged: (newColumns: ColumnSpec[]) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
-  getJobsService: GetJobsService
+  getJobsService: IGetJobsService
   cancelJobsService: CancelJobsService
 }
 export const JobsTableActionBar = memo(

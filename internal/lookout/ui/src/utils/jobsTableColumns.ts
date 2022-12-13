@@ -1,5 +1,7 @@
+import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { capitalize } from "lodash"
-import { Job, JobStates } from "models/lookoutV2Models"
+import { formatJobState, Job, JobState, jobStateDisplayInfo } from "models/lookoutV2Models"
+import prettyBytes from "pretty-bytes"
 
 export type ColumnId = keyof Job | "selectorCol"
 
@@ -12,7 +14,7 @@ export type ColumnSpec = {
   groupable: boolean
   sortable: boolean
   filterType?: FilterType
-  enumFitlerValues?: string[]
+  enumFitlerValues?: EnumFilterOption[]
   minSize: number
   isNumeric?: boolean
   formatter?: (value: unknown) => string
@@ -44,7 +46,7 @@ const COLUMN_SPECS: ColumnSpec[] = [
     groupable: false,
     sortable: true,
     filterType: FilterType.Text,
-    minSize: 30,
+    minSize: 100,
   },
   {
     key: "jobSet",
@@ -74,8 +76,12 @@ const COLUMN_SPECS: ColumnSpec[] = [
     groupable: true,
     sortable: false,
     filterType: FilterType.Enum,
-    enumFitlerValues: Object.values(JobStates).map((s) => s.name),
+    enumFitlerValues: Object.values(JobState).map((state) => ({
+      value: state,
+      displayName: formatJobState(state),
+    })),
     minSize: 60,
+    formatter: (state) => (state ? jobStateDisplayInfo[state as JobState].displayName : ""),
   },
   {
     key: "cpu",
@@ -86,7 +92,7 @@ const COLUMN_SPECS: ColumnSpec[] = [
     sortable: false,
     minSize: 60,
     isNumeric: true,
-    formatter: (cpu) => (cpu ? numFormatter.format(Number(cpu)) : ""),
+    formatter: (cpu) => (cpu !== undefined ? numFormatter.format(Number(cpu) / 1000) : ""),
   },
   {
     key: "memory",
@@ -96,6 +102,7 @@ const COLUMN_SPECS: ColumnSpec[] = [
     groupable: false,
     sortable: false,
     minSize: 70,
+    formatter: (bytes) => (bytes !== undefined ? prettyBytes(Number(bytes)) : ""),
   },
   {
     key: "ephemeralStorage",
@@ -105,6 +112,7 @@ const COLUMN_SPECS: ColumnSpec[] = [
     groupable: false,
     sortable: false,
     minSize: 95,
+    formatter: (bytes) => (bytes !== undefined ? prettyBytes(Number(bytes)) : ""),
   },
 ]
 

@@ -35,9 +35,11 @@ import { getSelectedColumnDef, SELECT_COLUMN_ID } from "components/lookoutV2/Sel
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
 import { JobFilter } from "models/lookoutV2Models"
+import { useSnackbar } from "notistack"
 import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { getErrorMessage } from "utils"
 import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
@@ -59,8 +61,8 @@ import styles from "./JobsTableContainer.module.css"
 const DEFAULT_PAGE_SIZE = 30
 
 interface JobsTableContainerProps {
-  getJobsService: GetJobsService
-  groupJobsService: GroupJobsService
+  getJobsService: IGetJobsService
+  groupJobsService: IGroupJobsService
   cancelJobsService: CancelJobsService
   debug: boolean
 }
@@ -70,6 +72,8 @@ export const JobsTableContainer = ({
   cancelJobsService,
   debug,
 }: JobsTableContainerProps) => {
+  const { enqueueSnackbar } = useSnackbar()
+
   // Data
   const [isLoading, setIsLoading] = useState(true)
   const [data, setData] = useState<JobTableRow[]>([])
@@ -127,16 +131,27 @@ export const JobsTableContainer = ({
       }
 
       let newData, totalCount
-      if (isJobFetch) {
-        const { jobs, totalJobs } = await fetchJobs(rowRequest, getJobsService)
-        newData = jobsToRows(jobs)
-        totalCount = totalJobs
-      } else {
-        const groupedCol = grouping[expandedLevel]
-        const colsToAggregate = allColumns.filter((c) => c.groupable).map((c) => c.key)
-        const { groups, totalGroups } = await fetchJobGroups(rowRequest, groupJobsService, groupedCol, colsToAggregate)
-        newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
-        totalCount = totalGroups
+      try {
+        if (isJobFetch) {
+          const { jobs, count: totalJobs } = await fetchJobs(rowRequest, getJobsService)
+          newData = jobsToRows(jobs)
+          totalCount = totalJobs
+        } else {
+          const groupedCol = grouping[expandedLevel]
+          const colsToAggregate = allColumns.filter((c) => c.groupable).map((c) => c.key)
+          const { groups, count: totalGroups } = await fetchJobGroups(
+            rowRequest,
+            groupJobsService,
+            groupedCol,
+            colsToAggregate,
+          )
+          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
+          totalCount = totalGroups
+        }
+      } catch (err) {
+        const errMsg = await getErrorMessage(err)
+        enqueueSnackbar("Failed to retrieve jobs. Error: " + errMsg, { variant: "error" })
+        return
       }
 
       const { rootData, parentRow } = mergeSubRows<JobRow, JobGroupRow>(

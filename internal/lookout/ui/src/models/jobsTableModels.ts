@@ -1,5 +1,7 @@
 import { RowId } from "utils/reactTableUtils"
 
+import { JobState } from "./lookoutV2Models"
+
 export interface BaseJobTableRow {
   rowId: RowId
 }
@@ -9,10 +11,10 @@ export interface JobRow extends BaseJobTableRow {
   jobId?: string
   jobSet?: string
   queue?: string
-  state?: string
+  state?: JobState
   cpu?: number
-  memory?: string
-  ephemeralStorage?: string
+  memory?: number
+  ephemeralStorage?: number
 }
 
 export interface JobGroupRow extends BaseJobTableRow {

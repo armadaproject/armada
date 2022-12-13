@@ -1,9 +1,9 @@
 import { render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job, JobFilter, Match } from "models/lookoutV2Models"
+import { formatJobState, Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { CancelJobsResponse, CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
 
@@ -15,7 +15,7 @@ describe("CancelDialog", () => {
     numJobSets = 3
   let jobs: Job[],
     selectedItemFilters: JobFilter[][],
-    getJobsService: GetJobsService,
+    getJobsService: IGetJobsService,
     cancelJobsService: CancelJobsService,
     onClose: () => void
 
@@ -62,11 +62,11 @@ describe("CancelDialog", () => {
     getByText(jobs[0].jobId)
     getByText(jobs[0].queue)
     getByText(jobs[0].jobSet)
-    getByText(jobs[0].state)
+    getByText(formatJobState(jobs[0].state))
   })
 
   it("shows an alert if all jobs in a terminated state", async () => {
-    jobs[0].state = "Failed"
+    jobs[0].state = JobState.Failed
     const { findByText } = renderComponent()
 
     // Once job details are fetched
@@ -117,20 +117,20 @@ describe("CancelDialog", () => {
 
     // Check job details are being shown
     await findByText(jobs[0].jobId)
-    await findByText(jobs[0].state)
+    await findByText(formatJobState(jobs[0].state))
 
     // Verify the job isn't already cancelled (fixed random seed means this will always be true)
     expect(jobs[0].state).not.toBe("Pending")
 
     // Now change the job's state
-    jobs[0].state = "Pending"
+    jobs[0].state = JobState.Pending
 
     // User clicks refetch
     await userEvent.click(await findByRole("button", { name: /Refetch jobs/i }))
 
     // Verify the state was re-fetched and updated
     await findByText(jobs[0].jobId)
-    await findByText("Pending")
+    await findByText(formatJobState(jobs[0].state))
   })
 
   it("shows error reasons if cancellation fails", async () => {
@@ -173,7 +173,7 @@ describe("CancelDialog", () => {
     ]
 
     // jobs[1] in the dataset is terminated, so lets just fix that for the test
-    jobs[1].state = "Pending"
+    jobs[1].state = JobState.Pending
 
     const { getByRole, findByText, findByRole } = renderComponent()
 
@@ -196,7 +196,7 @@ describe("CancelDialog", () => {
     await findByText("This is a test")
 
     // This job was successfully cancelled
-    jobs[0].state = "Cancelled"
+    jobs[0].state = JobState.Cancelled
 
     // Check the user can re-attempt the other job after a refetch
     await userEvent.click(getByRole("button", { name: /Refetch jobs/i }))

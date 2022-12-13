@@ -1,30 +1,42 @@
-export const JobStates: Record<string, ColoredState> = {
-  Queued: { name: "Queued", color: "#ffff00" },
-  Pending: { name: "Pending", color: "#ff9900" },
-  Running: { name: "Running", color: "#00ff00" },
-  Succeeded: { name: "Succeeded", color: "#0000ff" },
-  Failed: { name: "Failed", color: "#ff0000" },
-  Cancelled: { name: "Cancelled", color: "#999999" },
+// Values must match the server-side states
+export enum JobState {
+  Queued = "QUEUED",
+  Pending = "PENDING",
+  Running = "RUNNING",
+  Succeeded = "SUCCEEDED",
+  Failed = "FAILED",
+  Cancelled = "CANCELLED",
 }
 
-const terminatedJobStates = new Set(["Succeeded", "Failed", "Cancelled"])
-export const isTerminatedJobState = (state: string) => terminatedJobStates.has(state)
+export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
+  [JobState.Queued]: { displayName: "Queued", color: "#ffff00" },
+  [JobState.Pending]: { displayName: "Pending", color: "#ff9900" },
+  [JobState.Running]: { displayName: "Running", color: "#00ff00" },
+  [JobState.Succeeded]: { displayName: "Succeeded", color: "#0000ff" },
+  [JobState.Failed]: { displayName: "Failed", color: "#ff0000" },
+  [JobState.Cancelled]: { displayName: "Cancelled", color: "#999999" },
+}
+
+const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled])
+export const isTerminatedJobState = (state: JobState) => terminatedJobStates.has(state)
+
+export const formatJobState = (state: JobState): string => jobStateDisplayInfo[state]?.displayName || state
 
 export const JobRunStates: Record<string, ColoredState> = {
-  RunPending: { name: "Run Pending", color: "#ff9900" },
-  RunRunning: { name: "Run Running", color: "#00ff00" },
-  RunSucceeded: { name: "Run Succeeded", color: "#0000ff" },
-  RunFailed: { name: "Run Failed", color: "#ff0000" },
-  RunTerminated: { name: "Terminated", color: "#ffffff" },
-  RunPreempted: { name: "Preempted", color: "#ffff00" },
-  RunUnableToSchedule: { name: "Unable to Schedule", color: "#ff0000" },
-  RunLeaseReturned: { name: "Lease Returned", color: "#ff0000" },
-  RunLeaseExpired: { name: "Lease Expired", color: "#ff0000" },
-  RunMaxRunsExceeded: { name: "Max Runs Exceeded", color: "#ff0000" },
+  RunPending: { displayName: "Run Pending", color: "#ff9900" },
+  RunRunning: { displayName: "Run Running", color: "#00ff00" },
+  RunSucceeded: { displayName: "Run Succeeded", color: "#0000ff" },
+  RunFailed: { displayName: "Run Failed", color: "#ff0000" },
+  RunTerminated: { displayName: "Terminated", color: "#ffffff" },
+  RunPreempted: { displayName: "Preempted", color: "#ffff00" },
+  RunUnableToSchedule: { displayName: "Unable to Schedule", color: "#ff0000" },
+  RunLeaseReturned: { displayName: "Lease Returned", color: "#ff0000" },
+  RunLeaseExpired: { displayName: "Lease Expired", color: "#ff0000" },
+  RunMaxRunsExceeded: { displayName: "Max Runs Exceeded", color: "#ff0000" },
 }
 
 type ColoredState = {
-  name: string
+  displayName: string
   color: string
 }
 
@@ -35,10 +47,10 @@ export type Job = {
   queue: string
   owner: string
   jobSet: string
-  state: string
+  state: JobState
   cpu: number
-  memory: string
-  ephemeralStorage: string
+  memory: number
+  ephemeralStorage: number
   gpu: number
   priority: number
   priorityClass: string
