@@ -43,6 +43,10 @@ export class GroupJobsService implements IGroupJobsService {
       }),
     })
 
-    return await response.json()
+    const json = await response.json()
+    return {
+      count: json.count ?? 0,
+      groups: json.groups ?? [],
+    }
   }
 }

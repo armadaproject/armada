@@ -178,3 +178,7 @@ export function pl(itemsOrCount: unknown[] | number, singularForm: string, plura
 
   return `${count} ${pluralForm}`
 }
+
+export async function waitMillis(millisToWait: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, millisToWait))
+}

@@ -36,9 +36,9 @@ import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
 import { JobFilter } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { getErrorMessage } from "utils"
 import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
 import {
@@ -63,19 +63,18 @@ const DEFAULT_PAGE_SIZE = 30
 interface JobsTableContainerProps {
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  cancelJobsService: CancelJobsService
+  updateJobsService: UpdateJobsService
   debug: boolean
 }
 export const JobsTableContainer = ({
   getJobsService,
   groupJobsService,
-  cancelJobsService,
+  updateJobsService,
   debug,
 }: JobsTableContainerProps) => {
   const { enqueueSnackbar } = useSnackbar()
 
   // Data
-  const [isLoading, setIsLoading] = useState(true)
   const [data, setData] = useState<JobTableRow[]>([])
   const [rowsToFetch, setRowsToFetch] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
   const [totalRowCount, setTotalRowCount] = useState(0)
@@ -178,7 +177,6 @@ export const JobsTableContainer = ({
       }
 
       setData([...rootData]) // ReactTable will only re-render if the array identity changes
-      setIsLoading(false)
       setRowsToFetch(restOfRequests)
       if (parentRowInfo === undefined) {
         setPageCount(Math.ceil(totalCount / pageSize))
@@ -188,6 +186,11 @@ export const JobsTableContainer = ({
 
     fetchData().catch(console.error)
   }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting])
+
+  const onRefresh = useCallback(() => {
+    setSelectedRows({})
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+  }, [expanded, data, pageSize, pageIndex])
 
   const onGroupingChange = useCallback(
     (newState: ColumnId[]) => {
@@ -354,13 +357,15 @@ export const JobsTableContainer = ({
   return (
     <div className={styles.jobsTablePage}>
       <JobsTableActionBar
+        isLoading={rowsToFetch.length > 0}
         allColumns={allColumns}
         groupedColumns={grouping}
         selectedItemFilters={selectedItemsFilters}
+        onRefresh={onRefresh}
         onColumnsChanged={setAllColumns}
         onGroupsChanged={onGroupingChange}
         getJobsService={getJobsService}
-        cancelJobsService={cancelJobsService}
+        updateJobsService={updateJobsService}
       />
       <TableContainer component={Paper}>
         <Table sx={{ tableLayout: "fixed" }}>
@@ -375,7 +380,7 @@ export const JobsTableContainer = ({
           </TableHead>
 
           <JobsTableBody
-            dataIsLoading={isLoading}
+            dataIsLoading={rowsToFetch.length > 0}
             columns={selectedColumnDefs}
             topLevelRows={topLevelRows}
             onLoadMoreSubRows={onLoadMoreSubRows}
@@ -414,7 +419,7 @@ const JobsTableBody = ({ dataIsLoading, columns, topLevelRows, onLoadMoreSubRows
     <TableBody>
       {!canDisplay && (
         <TableRow>
-          {dataIsLoading && (
+          {dataIsLoading && topLevelRows.length === 0 && (
             <TableCell colSpan={columns.length}>
               <CircularProgress />
             </TableCell>
