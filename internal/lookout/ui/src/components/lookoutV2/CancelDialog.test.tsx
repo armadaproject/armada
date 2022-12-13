@@ -152,7 +152,8 @@ describe("CancelDialog", () => {
     await findByText(/All jobs failed to cancel/i)
 
     // Verify reason is shown in table
-    await findByText("This is a test")
+    // Longer timeout since another fetch call is made before this is shown
+    await findByText("This is a test", {}, { timeout: 3000 })
   })
 
   it("handles a partial success", async () => {
@@ -194,7 +195,8 @@ describe("CancelDialog", () => {
     await findByText(/Some jobs failed to cancel/i)
 
     // Verify reason is shown in table
-    await findByText("Success")
+    // Longer timeout since another fetch call is made before this is shown
+    await findByText("Success", {}, { timeout: 3000 })
     await findByText("This is a test")
 
     // This job was successfully cancelled

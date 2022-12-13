@@ -35,7 +35,7 @@ export const HeaderCell = ({ header }: HeaderCellProps) => {
       }}
       aria-label={colSpec.name}
     >
-      {header.isPlaceholder ? null : (
+      {header.isPlaceholder ? null : header.column.getCanSort() ? (
         <TableSortLabel
           active={Boolean(sortDirection)}
           direction={sortDirection || defaultSortDirection}
@@ -43,13 +43,16 @@ export const HeaderCell = ({ header }: HeaderCellProps) => {
             const desc = sortDirection ? sortDirection === "asc" : false
             header.column.toggleSorting(desc)
           }}
-          hideSortIcon={!header.column.getCanSort()}
           aria-label={"Toggle sort"}
-          disabled={!header.column.getCanSort()}
         >
           {flexRender(header.column.columnDef.header, header.getContext())}
           {header.column.getIsGrouped() && <> (# Jobs)</>}
         </TableSortLabel>
+      ) : (
+        <>
+          {flexRender(header.column.columnDef.header, header.getContext())}
+          {header.column.getIsGrouped() && <> (# Jobs)</>}
+        </>
       )}
 
       {header.column.getCanFilter() && colSpec.filterType && (
