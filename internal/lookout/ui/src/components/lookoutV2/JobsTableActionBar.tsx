@@ -1,6 +1,7 @@
 import { memo, useCallback, useState } from "react"
 
 import { Divider, Button } from "@mui/material"
+import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
@@ -13,9 +14,11 @@ import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
 export interface JobsTableActionBarProps {
+  isLoading: boolean
   allColumns: ColumnSpec[]
   groupedColumns: ColumnId[]
   selectedItemFilters: JobFilter[][]
+  onRefresh: () => void
   onColumnsChanged: (newColumns: ColumnSpec[]) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
@@ -23,9 +26,11 @@ export interface JobsTableActionBarProps {
 }
 export const JobsTableActionBar = memo(
   ({
+    isLoading,
     allColumns,
     groupedColumns,
     selectedItemFilters,
+    onRefresh,
     onColumnsChanged,
     onGroupsChanged,
     getJobsService,
@@ -92,6 +97,7 @@ export const JobsTableActionBar = memo(
         </div>
 
         <div className={styles.actionGroup}>
+          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <ColumnSelect
             allColumns={allColumns}
             groupedColumns={groupedColumns}
