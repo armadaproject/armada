@@ -12,18 +12,9 @@ spec:
   selector:
     {{- include "lookout_v2.labels.identity" . | nindent 4 }}
   ports:
-    - name: grpc
-      protocol: TCP
-      port: {{ .Values.applicationConfig.grpcPort }}
-      {{- if .Values.nodePort }}
-      nodePort: {{ .Values.nodePort }}
-      {{- end }}
     - name: web
       protocol: TCP
-      port: {{ .Values.applicationConfig.httpPort }}
+      port: {{ .Values.applicationConfig.apiPort }}
       {{- if .Values.httpNodePort }}
       nodePort: {{ .Values.httpNodePort }}
       {{- end }}
-    - name: metrics
-      protocol: TCP
-      port: {{ .Values.applicationConfig.metricsPort }}

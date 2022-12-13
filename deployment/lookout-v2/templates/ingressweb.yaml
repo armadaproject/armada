@@ -29,7 +29,7 @@ spec:
             service:
               name: {{ include "lookout_v2.name" $root }}
               port:
-                number: {{ $root.Values.applicationConfig.httpPort }}
+                number: {{ $root.Values.applicationConfig.apiPort }}
   {{ end }}
   tls:
     - hosts:

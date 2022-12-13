@@ -26,4 +26,4 @@ customServiceAccount: null
 serviceAccount: null
 
 applicationConfig:
-  port: 10000
+  apiPort: 10000
