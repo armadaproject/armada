@@ -264,13 +264,13 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
-
+		var actualNumberOfJobs int64 = 1
 		jobStatus1 := NewJobStatus("test-race", "job-set-race", "job-race", *responseSuccess)
 		err := r.UpdateJobServiceDb(jobStatus1)
 		assert.Nil(t, err)
 		r.SubscribeJobSet("test-race", "job-set-race")
 		numberOfJobs, deleteErr := r.CleanupJobSetAndJobs("test-race", "job-set-race")
-		assert.Equal(t, numberOfJobs, 1)
+		assert.Equal(t, numberOfJobs, actualNumberOfJobs)
 		assert.Nil(t, deleteErr)
 		actualSuccess, actualError := r.GetJobStatus("job-race")
 		assert.Equal(t, actualSuccess, noExist)

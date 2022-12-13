@@ -35,7 +35,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	submitPod(clusterContext)
+	_, err := submitPod(clusterContext)
+	assert.Nil(t, err)
 
 	deadline := time.Now().Add(time.Second)
 	for {
@@ -67,7 +68,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	submitPod(clusterContext)
+	_, err := submitPod(clusterContext)
+	assert.Nil(t, err)
 
 	deadline := time.Now().Add(time.Millisecond * 500)
 	count := 0
@@ -84,7 +86,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	assert.True(t, count > 0)
 }
 
-func submitPod(clusterContext context.ClusterContext) *v1.Pod {
+func submitPod(clusterContext context.ClusterContext) (*v1.Pod, error) {
 	podResources := map[v1.ResourceName]resource.Quantity{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("640Ki"),
@@ -107,8 +109,7 @@ func submitPod(clusterContext context.ClusterContext) *v1.Pod {
 		}},
 	}
 
-	clusterContext.SubmitPod(pod, "owner", nil)
-	return pod
+	return clusterContext.SubmitPod(pod, "owner", nil)
 }
 
 type fakePodUtilisationService struct {

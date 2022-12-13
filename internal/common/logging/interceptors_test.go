@@ -8,6 +8,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/renstrom/shortuuid"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -37,7 +38,8 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	}
 
 	f := UnaryServerInterceptor()
-	f(ctx, nil, nil, handler)
+	_, err := f(ctx, nil, nil, handler)
+	assert.Nil(t, err)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -66,5 +68,6 @@ func TestStreamServerInterceptor(t *testing.T) {
 	}
 
 	f := StreamServerInterceptor()
-	f(nil, stream, nil, handler)
+	err := f(nil, stream, nil, handler)
+	assert.Nil(t, err)
 }
