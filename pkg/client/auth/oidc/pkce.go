@@ -92,7 +92,7 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 	go func() {
 		err := server.Serve(listener)
 		if err != nil {
-			panic(err)
+			fmt.Printf("Error serving server: %s", err)
 		}
 	}()
 

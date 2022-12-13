@@ -163,7 +163,9 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	g.Go(func() error {
 		defer func() {
 			err := stream.CloseSend()
-			log.WithError(err).Error("error receiving leases from server")
+			if err != nil {
+				log.WithError(err).Error("error receiving leases from server")
+			}
 		}()
 		for {
 			select {
