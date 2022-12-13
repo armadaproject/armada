@@ -11,6 +11,8 @@ test_reports
 code_reports
 /jobservice
 jobservice.db
+jobservice.db-shm
+jobservice.db-wal
 
 # Intermediary build artifacts
 dist

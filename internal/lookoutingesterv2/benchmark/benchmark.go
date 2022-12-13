@@ -18,11 +18,11 @@ import (
 	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
+	"github.com/G-Research/armada/internal/lookoutv2/schema"
 )
 
 func withDbBenchmark(b *testing.B, config configuration.LookoutIngesterV2Configuration, action func(b *testing.B, db *pgxpool.Pool)) {
-	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
+	migrations, err := schema.LookoutMigrations()
 	if err != nil {
 		panic(err)
 	}

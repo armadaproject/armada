@@ -11,7 +11,7 @@ postgres:
     sslmode: disable
 
 metrics:
-  port: 9003
+  port: 9004
 
 pulsar:
   enabled: true
@@ -20,7 +20,7 @@ pulsar:
   receiveTimeout: 5s
   backoffTime: 1s
 
-subscriptionName: "lookout-ingester"
+subscriptionName: "lookout-ingester-v2"
 batchSize: 10000
 batchDuration: 500ms
 pulsarReceiveTimeout: 5s

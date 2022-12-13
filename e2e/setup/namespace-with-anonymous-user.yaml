@@ -4,10 +4,23 @@ metadata:
   name: job-submitter
 rules:
   - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "create"]
+    resources: 
+      - configmaps
+      - endpoints
+      - events
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - pods
+      - services
+      - ingresses
+      - serviceaccounts
+    verbs:
+      - get
+      - list
+      - watch
+      - create
 ---
-
 # namespace for anonymous user - when using no auth, this is the name of the user
 apiVersion: v1
 kind: Namespace
@@ -23,6 +36,13 @@ subjects:
   - kind: User
     name: anonymous
     apiGroup: rbac.authorization.k8s.io
+    namespace: personal-anonymous
+  - kind: ServiceAccount
+    name: default
+    namespace: personal-anonymous
+  - kind: ServiceAccount
+    name: ingress-nginx
+    namespace: ingress-nginx
 roleRef:
   kind: ClusterRole
   name: job-submitter
