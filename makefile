@@ -313,7 +313,7 @@ build-docker-lookout: node-setup
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
-build-docker-lookout-v2: node-setup
+build-docker-lookout-v2:
 	mkdir -p .build/lookoutv2
 	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutv2/lookoutv2 cmd/lookoutv2/main.go
 	cp -a ./config/lookoutv2 ./.build/lookoutv2/config
