@@ -41,13 +41,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           ports:
-            - containerPort:  {{ .Values.applicationConfig.grpcPort }}
-              protocol: TCP
-              name: grpc
-            - containerPort: {{ .Values.applicationConfig.metricsPort }}
-              protocol: TCP
-              name: metrics
-            - containerPort: {{ .Values.applicationConfig.httpPort }}
+            - containerPort: {{ .Values.applicationConfig.apiPort }}
               protocol: TCP
               name: web
           volumeMounts:
