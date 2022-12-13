@@ -12,8 +12,9 @@ import (
 // All other sub-commands should be registered here.
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "testsuite",
-		Short: "testsuite is a suite of automated tests for Armada deployments.",
+		Use:          "testsuite",
+		SilenceUsage: true,
+		Short:        "testsuite is a suite of automated tests for Armada deployments.",
 		Long: `testsuite is a suite of automated tests for Armada deployments.
 
 Persistent config can be saved in a config file so it doesn't have to be specified every command.

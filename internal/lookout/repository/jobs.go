@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/api/lookout"
@@ -218,7 +219,7 @@ func (r *SQLJobRepository) rowsToJobs(rows []*JobRow) ([]*lookout.JobInfo, error
 				if job != nil {
 					jobMap[jobId] = &lookout.JobInfo{
 						Job:              job,
-						Cancelled:        ParseNullTime(row.Cancelled),
+						Cancelled:        database.ParseNullTime(row.Cancelled),
 						JobState:         state,
 						JobStateDuration: stateDuration,
 						Runs:             []*lookout.RunInfo{},
@@ -319,17 +320,17 @@ func makeJobFromRow(row *JobRow) (*api.Job, string, error) {
 	jobJson := ""
 	unmarshalledJob, err := unmarshalJob(row.OrigJobSpec)
 	if err != nil {
-		log.Errorf("Failed to unmarshal job with job id %s: %v", ParseNullString(row.JobId), err)
+		log.Errorf("Failed to unmarshal job with job id %s: %v", database.ParseNullStringDefault(row.JobId), err)
 	} else {
 		annotations = unmarshalledJob.Annotations
 		jobJson = jobToJson(unmarshalledJob)
 	}
 
 	job := &api.Job{
-		Id:          ParseNullString(row.JobId),
-		JobSetId:    ParseNullString(row.JobSet),
-		Queue:       ParseNullString(row.Queue),
-		Owner:       ParseNullString(row.Owner),
+		Id:          database.ParseNullStringDefault(row.JobId),
+		JobSetId:    database.ParseNullStringDefault(row.JobSet),
+		Queue:       database.ParseNullStringDefault(row.Queue),
+		Owner:       database.ParseNullStringDefault(row.Owner),
 		Priority:    ParseNullFloat(row.Priority),
 		Created:     ParseNullTimeDefault(row.Submitted),
 		Annotations: annotations,
@@ -376,16 +377,16 @@ func makeRunFromRow(row *JobRow) *lookout.RunInfo {
 		return nil
 	}
 	return &lookout.RunInfo{
-		K8SId:     ParseNullString(row.RunId),
+		K8SId:     database.ParseNullStringDefault(row.RunId),
 		PodNumber: int32(ParseNullInt(row.PodNumber)),
-		Cluster:   ParseNullString(row.Cluster),
-		Node:      ParseNullString(row.Node),
+		Cluster:   database.ParseNullStringDefault(row.Cluster),
+		Node:      database.ParseNullStringDefault(row.Node),
 		Succeeded: ParseNullBool(row.Succeeded),
-		Error:     ParseNullString(row.Error),
-		Created:   ParseNullTime(row.Created), // Pod created (Pending)
-		Started:   ParseNullTime(row.Started), // Pod Running
-		Finished:  ParseNullTime(row.Finished),
-		Preempted: ParseNullTime(row.Preempted),
+		Error:     database.ParseNullStringDefault(row.Error),
+		Created:   database.ParseNullTime(row.Created), // Pod created (Pending)
+		Started:   database.ParseNullTime(row.Started), // Pod Running
+		Finished:  database.ParseNullTime(row.Finished),
+		Preempted: database.ParseNullTime(row.Preempted),
 	}
 }
 

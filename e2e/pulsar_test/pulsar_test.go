@@ -135,6 +135,7 @@ func TestSubmitJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TODO: Make testsuite test. Or unit test.
 func TestDedup(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 2
