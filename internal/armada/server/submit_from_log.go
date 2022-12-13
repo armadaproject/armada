@@ -49,7 +49,9 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			time.Sleep(time.Second)
 			go func() {
 				err := srv.Run(ctx)
-				log.WithField("error", err).Error("unexpected panic restarting again")
+				if err != nil {
+					log.WithField("error", err).Error("unexpected panic after restarting")
+				}
 			}()
 		} else {
 			// An expected shutdown.

@@ -44,7 +44,9 @@ func main() {
 		migrateDatabase(&config)
 	} else {
 		err := scheduler.Run(&config)
-		panic(errors.WithMessage(err, "Failed to run scheduler"))
+		if err != nil {
+			log.Errorf("Failed to run scheduler: %s", err)
+		}
 	}
 }
 
