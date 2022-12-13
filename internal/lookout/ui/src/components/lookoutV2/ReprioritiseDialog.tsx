@@ -18,7 +18,7 @@ import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "utils"
-import { getAllJobsMatchingFilters } from "utils/jobsDialogUtils"
+import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
@@ -52,10 +52,7 @@ export const ReprioritiseDialog = ({
   const fetchSelectedJobs = useCallback(async () => {
     setIsLoadingJobs(true)
 
-    const jobsBySelectedItem = await Promise.all(
-      selectedItemFilters.map(async (filters) => await getAllJobsMatchingFilters(filters, getJobsService)),
-    )
-    const uniqueJobsToReprioritise = _.uniqBy(jobsBySelectedItem.flat(), (job) => job.jobId)
+    const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToReprioritise, (job) => job.jobId, "desc")
 
     setSelectedJobs(sortedJobs)
@@ -69,8 +66,8 @@ export const ReprioritiseDialog = ({
 
     setIsReprioritising(true)
 
-    const jobIdsToreprioritise = reprioritisableJobs.map((job) => job.jobId)
-    const response = await updateJobsService.reprioritiseJobs(jobIdsToreprioritise, newPriority)
+    const jobIdsToReprioritise = reprioritisableJobs.map((job) => job.jobId)
+    const response = await updateJobsService.reprioritiseJobs(jobIdsToReprioritise, newPriority)
 
     if (response.failedJobIds.length === 0) {
       enqueueSnackbar(

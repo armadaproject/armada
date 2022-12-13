@@ -55,40 +55,49 @@ export class UpdateJobsService {
   reprioritiseJobs = async (jobIds: JobId[], newPriority: number): Promise<UpdateJobsResponse> => {
     const response: UpdateJobsResponse = { successfulJobIds: [], failedJobIds: [] }
 
-    const apiPromise = this.submitApi.reprioritizeJobs({
-      body: {
-        jobIds,
-        newPriority,
-      },
+    const maxJobsPerRequest = 5000
+    const jobIdChunks = _.chunk(jobIds, maxJobsPerRequest)
+
+    // Start all requests to allow them to fire off in parallel
+    const apiResponsePromises = jobIdChunks.map((batchedJobIds) => {
+      return this.submitApi.reprioritizeJobs({
+        body: {
+          jobIds: batchedJobIds,
+          newPriority,
+        },
+      })
     })
 
-    try {
-      const apiResponse = (await apiPromise)?.reprioritizationResults
+    // Wait for all the responses
+    for (const apiResponsePromise of apiResponsePromises) {
+      try {
+        const apiResponse = (await apiResponsePromise)?.reprioritizationResults
 
-      if (_.isNil(apiResponse)) {
-        const errorMessage = "No reprioritization results found in response body"
-        console.error(errorMessage)
-        for (const jobId of jobIds) {
-          response.failedJobIds.push({ jobId: jobId, errorReason: errorMessage })
-        }
-      } else {
-        for (const jobId of jobIds) {
-          if (jobId in apiResponse) {
-            const emptyOrError = apiResponse[jobId]
-            if (emptyOrError === "") {
-              response.successfulJobIds.push(jobId)
+        if (_.isNil(apiResponse)) {
+          const errorMessage = "No reprioritization results found in response body"
+          console.error(errorMessage)
+          for (const jobId of jobIds) {
+            response.failedJobIds.push({ jobId: jobId, errorReason: errorMessage })
+          }
+        } else {
+          for (const jobId of jobIds) {
+            if (jobId in apiResponse) {
+              const emptyOrError = apiResponse[jobId]
+              if (emptyOrError === "") {
+                response.successfulJobIds.push(jobId)
+              } else {
+                response.failedJobIds.push({ jobId, errorReason: emptyOrError })
+              }
             } else {
-              response.failedJobIds.push({ jobId, errorReason: emptyOrError })
+              response.successfulJobIds.push(jobId)
             }
-          } else {
-            response.successfulJobIds.push(jobId)
           }
         }
+      } catch (e) {
+        console.error(e)
+        const text = await getErrorMessage(e)
+        response.failedJobIds = jobIds.map((jobId) => ({ jobId, errorReason: text }))
       }
-    } catch (e) {
-      console.error(e)
-      const text = await getErrorMessage(e)
-      response.failedJobIds = jobIds.map((jobId) => ({ jobId, errorReason: text }))
     }
 
     return response
