@@ -4,12 +4,13 @@ import { Divider, Button } from "@mui/material"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
 
 import { CancelDialog } from "./CancelDialog"
 import styles from "./JobsTableActionBar.module.css"
+import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
 export interface JobsTableActionBarProps {
   allColumns: ColumnSpec[]
@@ -18,7 +19,7 @@ export interface JobsTableActionBarProps {
   onColumnsChanged: (newColumns: ColumnSpec[]) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
-  cancelJobsService: CancelJobsService
+  updateJobsService: UpdateJobsService
 }
 export const JobsTableActionBar = memo(
   ({
@@ -28,9 +29,10 @@ export const JobsTableActionBar = memo(
     onColumnsChanged,
     onGroupsChanged,
     getJobsService,
-    cancelJobsService,
+    updateJobsService,
   }: JobsTableActionBarProps) => {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+    const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
 
     function toggleColumn(key: string) {
       const newColumns = allColumns.map((col) => ({
@@ -66,6 +68,7 @@ export const JobsTableActionBar = memo(
     const numSelectedItems = selectedItemFilters.length
 
     const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
+    const reprioritiseDialogOnClose = useCallback(() => setReprioritiseDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
         {cancelDialogOpen && (
@@ -73,7 +76,15 @@ export const JobsTableActionBar = memo(
             onClose={cancelDialogOnClose}
             selectedItemFilters={selectedItemFilters}
             getJobsService={getJobsService}
-            cancelJobsService={cancelJobsService}
+            updateJobsService={updateJobsService}
+          />
+        )}
+        {reprioritiseDialogOpen && (
+          <ReprioritiseDialog
+            onClose={reprioritiseDialogOnClose}
+            selectedItemFilters={selectedItemFilters}
+            getJobsService={getJobsService}
+            updateJobsService={updateJobsService}
           />
         )}
         <div className={styles.actionGroup}>
@@ -93,7 +104,7 @@ export const JobsTableActionBar = memo(
           <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setCancelDialogOpen(true)}>
             Cancel selected
           </Button>
-          <Button variant="contained" disabled={numSelectedItems === 0}>
+          <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setReprioritiseDialogOpen(true)}>
             Reprioritize selected
           </Button>
         </div>

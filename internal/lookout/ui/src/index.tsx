@@ -1,7 +1,7 @@
 import ReactDOM from "react-dom"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { GetJobsService } from "services/lookoutV2/GetJobsService"
 import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
@@ -46,14 +46,14 @@ import "./index.css"
   const v2GroupJobsService = fakeDataEnabled
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(lookoutV2BaseUrl)
-  const v2CancelJobsService = new CancelJobsService(submitApi)
+  const v2UpdateJobsService = new UpdateJobsService(submitApi)
 
   ReactDOM.render(
     <App
       jobService={jobService}
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
-      v2CancelJobsService={v2CancelJobsService}
+      v2UpdateJobsService={v2UpdateJobsService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
