@@ -546,7 +546,8 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 func TestEmptyUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
-		ldb.Store(context.Background(), &model.InstructionSet{})
+		storeErr := ldb.Store(context.Background(), &model.InstructionSet{})
+		assert.NoError(t, storeErr)
 		assertNoRows(t, ldb.db, "job")
 		assertNoRows(t, ldb.db, "job_run")
 		assertNoRows(t, ldb.db, "user_annotation_lookup")
@@ -591,8 +592,8 @@ func TestUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
 		// Do the update
-		ldb.Store(context.Background(), defaultInstructionSet())
-
+		storeErr := ldb.Store(context.Background(), defaultInstructionSet())
+		assert.NoError(t, storeErr)
 		job := getJob(t, ldb.db, jobIdString)
 		jobRun := getJobRun(t, ldb.db, runIdString)
 		annotation := getUserAnnotationLookup(t, ldb.db, jobIdString)

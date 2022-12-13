@@ -127,61 +127,66 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 	submissionComplete = &sync.WaitGroup{}
 	submissionComplete.Add(1)
 
-	go WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
-		defer submissionComplete.Done()
+	go func() {
+		err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
+			defer submissionComplete.Done()
 
-		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
-		if status.Code(e) == codes.AlreadyExists {
-			log.Infof("Queue %s already exists so no need to create it.\n", queue)
-		} else if e != nil {
-			log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
-			return nil
-		} else {
-			log.Infof("Queue %s created.\n", queue)
-		}
-
-		for len(jobs) > 0 {
-			select {
-			case <-ctx.Done():
-				break
-			default:
+			e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
+			if status.Code(e) == codes.AlreadyExists {
+				log.Infof("Queue %s already exists so no need to create it.\n", queue)
+			} else if e != nil {
+				log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
+				return nil
+			} else {
+				log.Infof("Queue %s created.\n", queue)
 			}
-			readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
-			jobs = remainingJobs
 
-			readyRequests := createJobSubmitRequestItems(readyJobs)
-			requests := CreateChunkedSubmitRequests(queue, jobSetId, readyRequests)
-
-			for _, request := range requests {
-				response, e := SubmitJobs(client, request)
-
-				if e != nil {
-					log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
-					continue
+			for len(jobs) > 0 {
+				select {
+				case <-ctx.Done():
+					break
+				default:
 				}
-				failedJobs := 0
+				readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
+				jobs = remainingJobs
 
-				for _, jobSubmitResponse := range response.JobResponseItems {
-					if jobSubmitResponse.Error != "" {
-						failedJobs++
-					} else {
-						jobIds <- jobSubmitResponse.JobId
+				readyRequests := createJobSubmitRequestItems(readyJobs)
+				requests := CreateChunkedSubmitRequests(queue, jobSetId, readyRequests)
+
+				for _, request := range requests {
+					response, e := SubmitJobs(client, request)
+
+					if e != nil {
+						log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
+						continue
+					}
+					failedJobs := 0
+
+					for _, jobSubmitResponse := range response.JobResponseItems {
+						if jobSubmitResponse.Error != "" {
+							failedJobs++
+						} else {
+							jobIds <- jobSubmitResponse.JobId
+						}
+					}
+
+					log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+					if failedJobs > 0 {
+						log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
 					}
 				}
 
-				log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
-				if failedJobs > 0 {
-					log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+				if len(jobs) > 0 {
+					time.Sleep(time.Second)
 				}
 			}
-
-			if len(jobs) > 0 {
-				time.Sleep(time.Second)
-			}
+			close(jobIds)
+			return nil
+		})
+		if err != nil {
+			log.Errorf("ERROR: error detected when submitting jobs: %s", err)
 		}
-		close(jobIds)
-		return nil
-	})
+	}()
 	return jobIds, jobSetId, submissionComplete
 }
 
@@ -232,7 +237,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		}
 		submittedIds = ids
 	}()
-	WithEventClient(apiLoadTester.apiConnectionDetails, func(client api.EventClient) error {
+	err := WithEventClient(apiLoadTester.apiConnectionDetails, func(client api.EventClient) error {
 		WatchJobSet(client, queue, jobSetId, true, false, false, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
@@ -249,6 +254,9 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		})
 		return nil
 	})
+	if err != nil {
+		log.Errorf("Error Detecting in monitorJobsUntilCompletion: %s", err)
+	}
 	return submittedIds
 }
 
@@ -270,7 +278,7 @@ func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []
 }
 
 func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId string) {
-	WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
+	err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 		timeout, _ := common.ContextWithDefaultTimeout()
 		cancelRequest := &api.JobCancelRequest{
 			JobSetId: jobSetId,
@@ -279,6 +287,9 @@ func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId
 		_, err := client.CancelJobs(timeout, cancelRequest)
 		return err
 	})
+	if err != nil {
+		log.Errorf("Error detecting cancelRemainingJobs: %s", err)
+	}
 }
 
 type threadSafeStringSlice struct {

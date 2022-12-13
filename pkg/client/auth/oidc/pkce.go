@@ -89,10 +89,20 @@ func AuthenticatePkce(config PKCEDetails) (*TokenCredentials, error) {
 
 	server := &http.Server{}
 
-	go server.Serve(listener)
+	go func() {
+		err := server.Serve(listener)
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	cmd, err := openBrowser("http://" + localUrl)
-	defer cmd.Process.Kill()
+	defer func() {
+		err := cmd.Process.Kill()
+		if err != nil {
+			fmt.Printf("Error detecting when killing process: %s", err)
+		}
+	}()
 
 	if err != nil {
 		return nil, err

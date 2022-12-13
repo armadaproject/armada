@@ -32,7 +32,10 @@ func writeTemp(data []byte) (string, func(), error) {
 		cleanup()
 		return "", nil, fmt.Errorf("[writeTemp] error writing config to %s: %s", path, err)
 	}
-	file.Sync()
+	err = file.Sync()
+	if err != nil {
+		return path, cleanup, err
+	}
 
 	return path, cleanup, nil
 }

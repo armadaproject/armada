@@ -48,7 +48,10 @@ func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer cmd.Process.Kill()
+		defer func() {
+			err := cmd.Process.Kill()
+			fmt.Printf("Error killing your process: %s", err)
+		}()
 	}
 
 	for {

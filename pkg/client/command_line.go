@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/mitchellh/go-homedir"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
@@ -26,7 +27,10 @@ var cfgFile string
 // their initialization.
 func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
-	viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
+	err := viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
+	if err != nil {
+		log.Errorf("Error binding armadaUrl: %s", err)
+	}
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
 }
@@ -110,7 +114,11 @@ func LoadCommandlineArgsFromConfigFile(cfgFile string) error {
 // e.g., by calling LoadCommandlineArgsFromConfigFile.
 func ExtractCommandlineArmadaApiConnectionDetails() *ApiConnectionDetails {
 	apiConnectionDetails := &ApiConnectionDetails{}
-	viper.Unmarshal(apiConnectionDetails)
+	err := viper.Unmarshal(apiConnectionDetails)
+	if err != nil {
+		log.Errorf("Could not unmarshal apiConnectionDetails: %s", err)
+		return nil
+	}
 	return apiConnectionDetails
 }
 
@@ -241,7 +249,10 @@ func LoadClientConfig(configPath string) (*armadaClientConfig, error) {
 	// read config into an armadaConfig struct
 	// var config armadaClientConfig
 	config := &armadaClientConfig{}
-	viper.Unmarshal(config)
+	err := viper.Unmarshal(config)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := config.validate(); err != nil {
 		return nil, fmt.Errorf("[LoadClientConfig] error validating config: %s", err)
