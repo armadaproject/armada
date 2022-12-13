@@ -96,7 +96,7 @@ export class UpdateJobsService {
       } catch (e) {
         console.error(e)
         const text = await getErrorMessage(e)
-        response.failedJobIds = jobIds.map((jobId) => ({ jobId, errorReason: text }))
+        jobIds.forEach((jobId) => response.failedJobIds.push({ jobId, errorReason: text }))
       }
     }
 
