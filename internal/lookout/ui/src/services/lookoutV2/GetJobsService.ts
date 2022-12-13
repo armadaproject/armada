@@ -37,6 +37,10 @@ export class GetJobsService implements IGetJobsService {
       }),
     })
 
-    return await response.json()
+    const json = await response.json()
+    return {
+      count: json.count ?? 0,
+      jobs: json.jobs ?? []
+    }
   }
 }

@@ -10,11 +10,14 @@ import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
 
 import { CancelDialog } from "./CancelDialog"
 import styles from "./JobsTableActionBar.module.css"
+import RefreshButton from "components/RefreshButton"
 
 export interface JobsTableActionBarProps {
+  isLoading: boolean
   allColumns: ColumnSpec[]
   groupedColumns: ColumnId[]
   selectedItemFilters: JobFilter[][]
+  onRefresh: () => void
   onColumnsChanged: (newColumns: ColumnSpec[]) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
@@ -22,9 +25,11 @@ export interface JobsTableActionBarProps {
 }
 export const JobsTableActionBar = memo(
   ({
+    isLoading,
     allColumns,
     groupedColumns,
     selectedItemFilters,
+    onRefresh,
     onColumnsChanged,
     onGroupsChanged,
     getJobsService,
@@ -81,6 +86,7 @@ export const JobsTableActionBar = memo(
         </div>
 
         <div className={styles.actionGroup}>
+          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <ColumnSelect
             allColumns={allColumns}
             groupedColumns={groupedColumns}
