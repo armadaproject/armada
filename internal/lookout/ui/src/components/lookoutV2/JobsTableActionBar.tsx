@@ -1,6 +1,7 @@
 import { memo, useCallback, useState } from "react"
 
 import { Divider, Button } from "@mui/material"
+import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
@@ -10,7 +11,6 @@ import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
 
 import { CancelDialog } from "./CancelDialog"
 import styles from "./JobsTableActionBar.module.css"
-import RefreshButton from "components/RefreshButton"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
