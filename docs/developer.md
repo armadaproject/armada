@@ -66,22 +66,30 @@ still have to be running for this to work. Browse to `http://localhost:3000` wit
 yarn run start
 ```
 
-## Debugging localdev
+## Debugging
 
-With the `localdev` environment running, it's possible to replace one more more services with 
-a debugging instance. Below are the steps for replacing the `server` container with a debugging session.
+The `localdev` environment can be started with debug servers for all 
+Armada services. When started this way, you can connect to the debug 
+servers using remote debugging configurations in your IDE, or by using 
+the delve client (illustrated here). Note that the port numbers are 
+different for each service.
 
 ```bash
-cd localdev
-docker stop server && docker rm server
-docker-compose run --entrypoint bash --name server --rm --service-ports server
-
-root@11c57f54c993:/app# go install github.com/go-delve/delve/cmd/dlv@latest
-root@11c57f54c993:/app# dlv debug cmd/armada/main.go -- --config /config/armada/config.yaml
-
+localdev/run.sh debug
+dlv connect localhost:4000
 Type 'help' for list of commands.
 (dlv)
 ```
+
+|Armada service   |Debug host    |
+|-----------------|--------------|
+|Server           |localhost:4000|
+|Lookout          |localhost:4001|
+|Executor         |localhost:4002|
+|Binoculars       |localhost:4003|
+|Jobservice       |localhost:4004|
+|Lookout-ingester |localhost:4005|
+|Event-ingester   |localhost:4006|
 
 ## Usage metrics
 
