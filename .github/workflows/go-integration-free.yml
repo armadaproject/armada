@@ -10,6 +10,7 @@ on:
 
 jobs:
   go-integration-tests:
+    if: github.repository_owner != 'G-Research'
     strategy:
       fail-fast: false
       matrix:
