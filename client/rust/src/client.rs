@@ -76,6 +76,7 @@ impl ArmadaClient {
             queue: queue.into(),
             job_id: job_id.into(),
             job_set_id: job_set_id.into(),
+            job_ids: vec![],
         };
         self.submit_client.cancel_jobs(request).await
     }
