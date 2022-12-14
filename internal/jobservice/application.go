@@ -79,7 +79,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				log.Infof("Subscribed job sets : %s", value)
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
 					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
-					return err
+					if err != nil {
+						log.Warnf("Error detected from CleanupJobSetAndJobs", err)
+					}
 				}
 			}
 		}

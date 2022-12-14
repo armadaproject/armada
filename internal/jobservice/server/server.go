@@ -38,7 +38,6 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 	err := s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId)
 	if err != nil {
 		log.Warn(err)
-		return nil, err
 	}
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
