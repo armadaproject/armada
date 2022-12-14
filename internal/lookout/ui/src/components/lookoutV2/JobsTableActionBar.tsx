@@ -43,7 +43,7 @@ export const JobsTableActionBar = memo(
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
 
-    const selectableColumns = useMemo(() => allColumns.filter(col => col.enableHiding !== false), [allColumns])
+    const selectableColumns = useMemo(() => allColumns.filter((col) => col.enableHiding !== false), [allColumns])
 
     function toggleColumn(key: ColumnId) {
       toggleColumnVisibility(key)

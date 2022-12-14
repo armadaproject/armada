@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useState } from "react"
 
 import { Check, Delete, Edit } from "@mui/icons-material"
 import {
@@ -78,7 +78,7 @@ export default function ColumnSelect({
           value={visibleColumns}
           input={<OutlinedInput label="Column" />}
           renderValue={(selected) => {
-            return `${selectableColumns.filter(col => selected.includes(toColId(col.id))).length} columns selected`
+            return `${selectableColumns.filter((col) => selected.includes(toColId(col.id))).length} columns selected`
           }}
           size="small"
         >
