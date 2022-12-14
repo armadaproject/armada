@@ -94,13 +94,7 @@ export const jobsToRows = (jobs: Job[]): JobRow[] => {
   return jobs.map(
     (job): JobRow => ({
       rowId: toRowId({ type: "jobId", value: job.jobId }),
-      jobId: job.jobId,
-      jobSet: job.jobSet,
-      queue: job.queue,
-      state: job.state,
-      cpu: job.cpu,
-      memory: job.memory,
-      ephemeralStorage: job.ephemeralStorage,
+      ...job,
     }),
   )
 }
