@@ -5,7 +5,7 @@
 //  Schemes:
 //    http
 //  Host: localhost
-//  BasePath: /api/v1
+//  BasePath: /
 //  Version: 2.0.0
 //
 //  Consumes:
@@ -13,6 +13,7 @@
 //
 //  Produces:
 //    - application/json
+//    - text/plain
 //
 // swagger:meta
 package restapi

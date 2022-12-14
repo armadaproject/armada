@@ -16,16 +16,12 @@ COPY config/executor/config.yaml /app/config/executor/config.yaml
 COPY binoculars /app/
 COPY config/binoculars/config.yaml /app/config/binoculars/config.yaml
 
-# Lookout Ingester
+# Lookout ingester
 COPY lookoutingester /app/
 COPY config/eventingester/config.yaml /app/config/eventingester/config.yaml
 
-# Event Ingester
+# Event ingester
 COPY eventingester /app/
 COPY config/eventingester/config.yaml /app/config/eventingester/config.yaml
-
-# Job Service
-COPY jobservice /app/
-COPY config/jobservice/config.yaml /app/config/jobservice/config.yaml
 
 WORKDIR /app
