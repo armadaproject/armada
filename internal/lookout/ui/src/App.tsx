@@ -6,9 +6,9 @@ import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
-import { CancelJobsService } from "services/lookoutV2/CancelJobsService"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
@@ -59,9 +59,9 @@ const themeV5 = createThemeV5(theme)
 
 type AppProps = {
   jobService: JobService
-  v2GetJobsService: GetJobsService
-  v2GroupJobsService: GroupJobsService
-  v2CancelJobsService: CancelJobsService
+  v2GetJobsService: IGetJobsService
+  v2GroupJobsService: IGroupJobsService
+  v2UpdateJobsService: UpdateJobsService
   logService: LogService
   overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
@@ -92,7 +92,7 @@ export function App(props: AppProps) {
                       <JobsTableContainer
                         getJobsService={props.v2GetJobsService}
                         groupJobsService={props.v2GroupJobsService}
-                        cancelJobsService={props.v2CancelJobsService}
+                        updateJobsService={props.v2UpdateJobsService}
                         debug={props.debugEnabled}
                       />
                     </Route>

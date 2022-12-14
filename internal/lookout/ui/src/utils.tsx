@@ -7,6 +7,7 @@ interface UIConfig {
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
   debugEnabled: boolean
+  fakeDataEnabled: boolean
   lookoutV2ApiBaseUrl: string
 }
 
@@ -33,6 +34,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     jobSetsAutoRefreshMs: 15000,
     jobsAutoRefreshMs: 30000,
     debugEnabled: queryParams.has("debug"),
+    fakeDataEnabled: queryParams.has("fakeData"),
     lookoutV2ApiBaseUrl: "",
   }
 
@@ -175,4 +177,8 @@ export function pl(itemsOrCount: unknown[] | number, singularForm: string, plura
   }
 
   return `${count} ${pluralForm}`
+}
+
+export async function waitMillis(millisToWait: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, millisToWait))
 }
