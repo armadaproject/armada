@@ -8,13 +8,12 @@ import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
-import { formatJobState, formatTimeSince, formatUtcDate } from "utils/jobsTableFormatters"
+import { formatJobState, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { JobsTableContainer } from "./JobsTableContainer"
 
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(15_000)
-
 
 describe("JobsTableContainer", () => {
   let numJobs: number, numQueues: number, numJobSets: number

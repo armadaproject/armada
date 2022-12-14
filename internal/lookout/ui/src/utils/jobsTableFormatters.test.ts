@@ -1,4 +1,5 @@
 import { JobState } from "models/lookoutV2Models"
+
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
 describe("JobsTableFormatters", () => {
