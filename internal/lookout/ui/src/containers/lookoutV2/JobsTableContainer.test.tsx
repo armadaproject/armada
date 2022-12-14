@@ -15,7 +15,6 @@ import { JobsTableContainer } from "./JobsTableContainer"
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(15_000)
 
-jest.useFakeTimers().setSystemTime(new Date("2022-12-13T13:00:00.000Z"))
 
 describe("JobsTableContainer", () => {
   let numJobs: number, numQueues: number, numJobSets: number
@@ -81,7 +80,6 @@ describe("JobsTableContainer", () => {
     within(matchingRow).getByText(jobToSearchFor.jobSet)
     within(matchingRow).getByText(jobToSearchFor.queue)
     within(matchingRow).getByText(formatJobState(jobToSearchFor.state))
-    within(matchingRow).getByText(formatTimeSince(jobToSearchFor.lastTransitionTime))
     within(matchingRow).getByText(formatUtcDate(jobToSearchFor.submitted))
 
     await assertNumDataRowsShown(jobs.length)
