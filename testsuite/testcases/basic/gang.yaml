@@ -68,10 +68,10 @@ jobs:
                   fieldPath: metadata.annotations['armadaproject.io/gangCardinality']
           resources:
             limits:
-              memory: 10Mi
+              memory: 20Mi
               cpu: 100m
             requests:
-              memory: 10Mi
+              memory: 20Mi
               cpu: 100m
 ---
 timeout: "100s"
