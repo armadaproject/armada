@@ -455,7 +455,10 @@ func createTestTriggers(db *sql.DB) {
 func dropTestTriggers(db *sql.DB) {
 	for _, trigger := range testTriggers {
 		// We don't care about the result. Just drop them.
-		db.Exec(fmt.Sprintf("DROP TRIGGER %s on %s", trigger.Name(), trigger.Table))
+		_, err := db.Exec(fmt.Sprintf("DROP TRIGGER IF EXISTS %s on %s;", trigger.Name(), trigger.Table))
+		if err != nil {
+			panic(fmt.Sprintf("Encountered error trying to drop trigger: %s", err.Error()))
+		}
 	}
 }
 
