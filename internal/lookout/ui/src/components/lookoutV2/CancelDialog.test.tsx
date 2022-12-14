@@ -2,8 +2,8 @@ import { render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { formatJobState, Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { CancelJobsResponse, CancelJobsService } from "services/lookoutV2/CancelJobsService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
 
@@ -16,7 +16,7 @@ describe("CancelDialog", () => {
   let jobs: Job[],
     selectedItemFilters: JobFilter[][],
     getJobsService: IGetJobsService,
-    cancelJobsService: CancelJobsService,
+    updateJobsService: UpdateJobsService,
     onClose: () => void
 
   beforeEach(() => {
@@ -31,7 +31,7 @@ describe("CancelDialog", () => {
       ],
     ]
     getJobsService = new FakeGetJobsService(jobs)
-    cancelJobsService = {
+    updateJobsService = {
       cancelJobs: jest.fn(),
     } as any
     onClose = jest.fn()
@@ -44,7 +44,7 @@ describe("CancelDialog", () => {
           onClose={onClose}
           selectedItemFilters={selectedItemFilters}
           getJobsService={getJobsService}
-          cancelJobsService={cancelJobsService}
+          updateJobsService={updateJobsService}
         />
       </SnackbarProvider>,
     )
@@ -99,7 +99,7 @@ describe("CancelDialog", () => {
   it("allows the user to cancel jobs", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    cancelJobsService.cancelJobs = jest.fn((): Promise<CancelJobsResponse> => {
+    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [],
@@ -110,6 +110,8 @@ describe("CancelDialog", () => {
     await userEvent.click(cancelButton)
 
     await findByText(/Successfully began cancellation/i)
+
+    expect(updateJobsService.cancelJobs).toHaveBeenCalled()
   })
 
   it("allows user to refetch jobs", async () => {
@@ -136,7 +138,7 @@ describe("CancelDialog", () => {
   it("shows error reasons if cancellation fails", async () => {
     const { getByRole, findByText } = renderComponent()
 
-    cancelJobsService.cancelJobs = jest.fn((): Promise<CancelJobsResponse> => {
+    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [],
         failedJobIds: [{ jobId: jobs[0].jobId, errorReason: "This is a test" }],
@@ -150,7 +152,8 @@ describe("CancelDialog", () => {
     await findByText(/All jobs failed to cancel/i)
 
     // Verify reason is shown in table
-    await findByText("This is a test")
+    // Longer timeout since another fetch call is made before this is shown
+    await findByText("This is a test", {}, { timeout: 3000 })
   })
 
   it("handles a partial success", async () => {
@@ -178,7 +181,7 @@ describe("CancelDialog", () => {
     const { getByRole, findByText, findByRole } = renderComponent()
 
     // Fail 1, succeed the other
-    cancelJobsService.cancelJobs = jest.fn((): Promise<CancelJobsResponse> => {
+    updateJobsService.cancelJobs = jest.fn((): Promise<UpdateJobsResponse> => {
       return Promise.resolve({
         successfulJobIds: [jobs[0].jobId],
         failedJobIds: [{ jobId: jobs[1].jobId, errorReason: "This is a test" }],
@@ -192,7 +195,8 @@ describe("CancelDialog", () => {
     await findByText(/Some jobs failed to cancel/i)
 
     // Verify reason is shown in table
-    await findByText("Success")
+    // Longer timeout since another fetch call is made before this is shown
+    await findByText("Success", {}, { timeout: 3000 })
     await findByText("This is a test")
 
     // This job was successfully cancelled
