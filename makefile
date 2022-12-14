@@ -324,7 +324,7 @@ build-docker: build-docker-jobservice build-docker-server build-docker-executor 
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 # We still build lookout-ingester since that go code that is isolated from lookout itself.
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookoutingester
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
@@ -382,7 +382,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres || true
+	docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -428,8 +428,6 @@ tests-e2e-setup: setup-cluster
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	bash scripts/pulsar.sh
-
 	sleep 30 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
 		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
@@ -444,6 +442,8 @@ tests-e2e-setup: setup-cluster
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
 	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
+	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
+	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 
 	# Create test queue if it doesn't already exist
 	$(GO_CMD) go run cmd/armadactl/main.go create queue e2e-test-queue || true
@@ -474,7 +474,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester
+		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
@@ -494,6 +494,12 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
+# To run integration tests with jobservice and such, we can run this command
+# For now, let's just have it in rare cases that people need to test. 
+.ONESHELL:
+tests-e2e-airflow: airflow-operator tests-e2e-setup build-ci
+	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
+
 # Output test results in Junit format, e.g., to display in Jenkins.
 # Relies on go-junit-report
 # https://github.com/jstemmer/go-junit-report
@@ -503,7 +509,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-setup-proto: download
+setup-proto:
 	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
 	# first delete files in this directory - by default it has write perms disabled.
 	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
@@ -554,7 +560,7 @@ proto: setup-proto
 	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
 
 	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json
+	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json -x internal/lookoutv2
 
 	# combine swagger definitions
 	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
@@ -605,9 +611,7 @@ generate:
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
 		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
 
-	$(GO_CMD) go run github.com/rakyll/statik \
-		-dest=internal/lookoutv2/schema/ -src=internal/lookoutv2/schema/ -include=\*.sql -ns=lookoutv2/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookoutv2/schema/statik
+	go generate ./...
 
 helm-docs:
 	./scripts/helm-docs.sh

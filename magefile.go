@@ -22,7 +22,112 @@ import (
 )
 
 const PROTOC_VERSION_MIN = "3.21.8"
-const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted on recent versionf of protoc.
+const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
+
+func Kind() error {
+	mg.Deps(KindSetup)
+	mg.Deps(KindWriteKubeConfig)
+	mg.Deps(KindWaitUntilReady)
+	return nil
+}
+
+func KindSetup() error {
+	out, err := sh.Output("kind", "get", "clusters")
+	if err != nil {
+		return err
+	}
+	if strings.Contains(out, "armada-test") {
+		return nil
+	}
+	if err := sh.Run("kind", "create", "cluster", "--config", "e2e/setup/kind.yaml"); err != nil {
+		return err
+	}
+
+	// Images that need to be available in the Kind cluster,
+	// e.g., images required for e2e tests.
+	images := []string{
+		"alpine:3.10",
+		"nginx:1.21.6",
+		"bitnami/kubectl:1.24.8",
+		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
+		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
+	}
+	for _, image := range images {
+		if err := sh.Run("docker", "pull", image); err != nil {
+			return err
+		}
+	}
+	for _, image := range images {
+		if err := sh.Run("kind", "load", "docker-image", image, "--name", "armada-test"); err != nil {
+			return err
+		}
+	}
+
+	// Resources to create in the Kind cluster.
+	resources := []string{
+		"e2e/setup/ingress-nginx.yaml",
+		"e2e/setup/priorityclasses.yaml",
+		"e2e/setup/namespace-with-anonymous-user.yaml",
+	}
+	for _, f := range resources {
+		if err := sh.Run("kubectl", "apply", "-f", f, "--context", "kind-armada-test"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Write kubeconfig to disk.
+// Needed by the executor to interact with the cluster.
+func KindWriteKubeConfig() error {
+	out, err := sh.Output("kind", "get", "kubeconfig", "--name", "armada-test")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(".kube/external/", os.ModeDir); err != nil {
+		return err
+	}
+	if f, err := os.Create(".kube/external/config"); err != nil {
+		return err
+	} else {
+		defer f.Close()
+		if _, err := f.WriteString(out); err != nil {
+			return err
+		}
+	}
+
+	out, err = sh.Output("kind", "get", "kubeconfig", "--internal", "--name", "armada-test")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(".kube/internal/", os.ModeDir); err != nil {
+		return err
+	}
+	if f, err := os.Create(".kube/internal/config"); err != nil {
+		return err
+	} else {
+		defer f.Close()
+		if _, err := f.WriteString(out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func KindWaitUntilReady() error {
+	return sh.Run(
+		"kubectl", "wait", "--namespace", "ingress-nginx",
+		"--for=condition=ready", "pod",
+		"--selector=app.kubernetes.io/component=controller",
+		"--timeout=2m",
+		"--context", "kind-armada-test",
+	)
+}
+
+func KindTeardown() error {
+	return sh.Run("kind", "delete", "cluster", "--name", "armada-test")
+}
 
 // Clean up after yourself
 func Clean() {

@@ -64,7 +64,9 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
       aria-labelledby="cancel-jobs-modal-title"
       aria-describedby="cancel-jobs-modal-description"
       onClose={props.onClose}
-      onExited={cleanup}
+      TransitionProps={{
+        onExited: cleanup,
+      }}
       maxWidth={"md"}
     >
       <DialogTitle id="cancel-jobs-dialog-title">Cancel Jobs</DialogTitle>

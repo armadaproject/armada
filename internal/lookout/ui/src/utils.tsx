@@ -6,6 +6,9 @@ interface UIConfig {
   overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
+  debugEnabled: boolean
+  fakeDataEnabled: boolean
+  lookoutV2ApiBaseUrl: string
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -20,6 +23,8 @@ export interface Padding {
 }
 
 export async function getUIConfig(): Promise<UIConfig> {
+  const queryParams = new URLSearchParams(window.location.search)
+
   const config = {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
@@ -28,6 +33,9 @@ export async function getUIConfig(): Promise<UIConfig> {
     overviewAutoRefreshMs: 15000,
     jobSetsAutoRefreshMs: 15000,
     jobsAutoRefreshMs: 30000,
+    debugEnabled: queryParams.has("debug"),
+    fakeDataEnabled: queryParams.has("fakeData"),
+    lookoutV2ApiBaseUrl: "",
   }
 
   try {
@@ -40,6 +48,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
+    if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
   } catch (e) {
     console.error(e)
   }
@@ -148,4 +157,24 @@ const priorityRegex = new RegExp("^([0-9]+)$")
 
 export function priorityIsValid(priority: string): boolean {
   return priorityRegex.test(priority) && priority.length > 0
+}
+
+// Pluralization helper
+export function pl(itemsOrCount: unknown[] | number, singularForm: string, pluralForm?: string) {
+  const count = Array.isArray(itemsOrCount) ? itemsOrCount.length : itemsOrCount
+  if (count === 1) {
+    return `${count} ${singularForm}`
+  }
+
+  if (pluralForm !== undefined) {
+    return `${count} ${pluralForm}`
+  }
+
+  if (/[s|ss|sh|ch|x|z]$/.test(singularForm)) {
+    pluralForm = singularForm + "es"
+  } else {
+    pluralForm = singularForm + "s"
+  }
+
+  return `${count} ${pluralForm}`
 }
