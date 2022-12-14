@@ -26,9 +26,8 @@ func init() {
     "title": "Lookout v2 API",
     "version": "2.0.0"
   },
-  "basePath": "/api/v1",
   "paths": {
-    "/jobGroups": {
+    "/api/v1/jobGroups": {
       "post": {
         "consumes": [
           "application/json"
@@ -133,7 +132,7 @@ func init() {
         }
       }
     },
-    "/jobs": {
+    "/api/v1/jobs": {
       "post": {
         "consumes": [
           "application/json"
@@ -213,6 +212,27 @@ func init() {
             "description": "Error response",
             "schema": {
               "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "produces": [
+          "text/plain"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "type": "string"
             }
           }
         }
@@ -512,9 +532,8 @@ func init() {
     "title": "Lookout v2 API",
     "version": "2.0.0"
   },
-  "basePath": "/api/v1",
   "paths": {
-    "/jobGroups": {
+    "/api/v1/jobGroups": {
       "post": {
         "consumes": [
           "application/json"
@@ -619,7 +638,7 @@ func init() {
         }
       }
     },
-    "/jobs": {
+    "/api/v1/jobs": {
       "post": {
         "consumes": [
           "application/json"
@@ -699,6 +718,27 @@ func init() {
             "description": "Error response",
             "schema": {
               "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "produces": [
+          "text/plain"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "type": "string"
             }
           }
         }
