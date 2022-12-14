@@ -86,6 +86,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     aggregatedCell: undefined,
     enableColumnFilter: false,
     enableSorting: false,
+    enableHiding: false,
     header: ({ table }): JSX.Element => (
       <Checkbox
         checked={table.getIsAllRowsSelected()}
@@ -119,11 +120,11 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 120
+      size: 120,
     },
     additionalMetadata: {
-      filterType: FilterType.Text
-    }
+      filterType: FilterType.Text,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.JobSet,
@@ -132,11 +133,11 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 120
+      size: 120,
     },
     additionalMetadata: {
-      filterType: FilterType.Text
-    }
+      filterType: FilterType.Text,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.JobID,
@@ -145,11 +146,11 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableColumnFilter: true,
       enableSorting: true,
-      size: 120
+      size: 120,
     },
     additionalMetadata: {
-      filterType: FilterType.Text
-    }
+      filterType: FilterType.Text,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.State,

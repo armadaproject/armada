@@ -2,7 +2,7 @@ import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel } from "@mui/material"
 import { Cell, flexRender, Header } from "@tanstack/react-table"
 import { JobRow } from "models/jobsTableModels"
-import { ColumnId, getColumnMetadata, toColId } from "utils/jobsTableColumns"
+import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
 import { JobsTableFilter } from "./JobsTableFilter"
 

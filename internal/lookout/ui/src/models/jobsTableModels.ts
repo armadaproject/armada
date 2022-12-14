@@ -21,5 +21,3 @@ export type JobGroupRow = BaseJobTableRow & {
 export type JobTableRow = JobRow | JobGroupRow
 
 export const isJobGroupRow = (row?: JobTableRow): row is JobGroupRow => row !== undefined && "isGroup" in row
-
-export const isJobRow = (row?: JobTableRow): row is JobRow => row !== undefined && !isJobGroupRow(row)

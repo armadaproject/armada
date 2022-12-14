@@ -90,10 +90,12 @@ export const JobsTableContainer = ({
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(JOB_COLUMNS)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_COLUMN_VISIBILITY)
-  const visibleColumnIds = useMemo(() => Object.keys(columnVisibility)
-    .map(toColId)
-    .filter((colId) => columnVisibility[colId]),
-    [columnVisibility]
+  const visibleColumnIds = useMemo(
+    () =>
+      Object.keys(columnVisibility)
+        .map(toColId)
+        .filter((colId) => columnVisibility[colId]),
+    [columnVisibility],
   )
 
   // Grouping

@@ -15,9 +15,7 @@ import { JobsTableContainer } from "./JobsTableContainer"
 // This is quite a heavy component, and tests can timeout on a slower machine
 jest.setTimeout(15_000)
 
-jest
-  .useFakeTimers()
-  .setSystemTime(new Date('2022-12-13T13:00:00.000Z'));
+jest.useFakeTimers().setSystemTime(new Date("2022-12-13T13:00:00.000Z"))
 
 describe("JobsTableContainer", () => {
   let numJobs: number, numQueues: number, numJobSets: number

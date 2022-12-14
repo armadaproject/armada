@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 
 import { Divider, Button } from "@mui/material"
 import RefreshButton from "components/RefreshButton"
@@ -42,6 +42,8 @@ export const JobsTableActionBar = memo(
   }: JobsTableActionBarProps) => {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
+
+    const selectableColumns = useMemo(() => allColumns.filter(col => col.enableHiding !== false), [allColumns])
 
     function toggleColumn(key: ColumnId) {
       toggleColumnVisibility(key)
@@ -91,7 +93,7 @@ export const JobsTableActionBar = memo(
         <div className={styles.actionGroup}>
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <ColumnSelect
-            allColumns={allColumns}
+            selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}
             visibleColumns={visibleColumns}
             onAddAnnotation={addAnnotationColumn}

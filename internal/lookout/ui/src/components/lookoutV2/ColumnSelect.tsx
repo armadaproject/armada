@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import { Check, Delete, Edit } from "@mui/icons-material"
 import {
@@ -20,7 +20,7 @@ import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "utils/jobs
 import styles from "./ColumnSelect.module.css"
 
 type ColumnSelectProps = {
-  allColumns: JobTableColumn[]
+  selectableColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
   onAddAnnotation: (annotationKey: string) => void
@@ -30,7 +30,7 @@ type ColumnSelectProps = {
 }
 
 export default function ColumnSelect({
-  allColumns,
+  selectableColumns,
   groupedColumns,
   visibleColumns,
   onAddAnnotation,
@@ -78,13 +78,13 @@ export default function ColumnSelect({
           value={visibleColumns}
           input={<OutlinedInput label="Column" />}
           renderValue={(selected) => {
-            return `${selected.length} columns selected`
+            return `${selectableColumns.filter(col => selected.includes(toColId(col.id))).length} columns selected`
           }}
           size="small"
         >
           <div className={styles.columnMenu}>
             <div className={styles.columnSelect} style={{ height: "100%" }}>
-              {allColumns.map((column) => {
+              {selectableColumns.map((column) => {
                 const colId = toColId(column.id)
                 const colIsGrouped = groupedColumns.includes(colId)
                 const colIsVisible = visibleColumns.includes(colId)

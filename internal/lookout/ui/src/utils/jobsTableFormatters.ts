@@ -23,17 +23,20 @@ export const formatTimeSince = (date?: string, now = Date.now()): string => {
 
   const duration = intervalToDuration({
     start: parseISO(date),
-    end: now
+    end: now,
   })
 
   const denominations = [
-    {symbol: "y", value: duration.years ?? 0},
-    {symbol: "w", value: duration.weeks ?? 0},
-    {symbol: "d", value: duration.days ?? 0},
-    {symbol: "h", value: duration.hours ?? 0},
-    {symbol: "m", value: duration.minutes ?? 0},
-    {symbol: "s", value: duration.seconds ?? 0},
+    { symbol: "y", value: duration.years ?? 0 },
+    { symbol: "w", value: duration.weeks ?? 0 },
+    { symbol: "d", value: duration.days ?? 0 },
+    { symbol: "h", value: duration.hours ?? 0 },
+    { symbol: "m", value: duration.minutes ?? 0 },
+    { symbol: "s", value: duration.seconds ?? 0 },
   ]
 
-  return denominations.filter(d => d.value !== 0).map(d => `${d.value}${d.symbol}`).join(" ")
+  return denominations
+    .filter((d) => d.value !== 0)
+    .map((d) => `${d.value}${d.symbol}`)
+    .join(" ")
 }

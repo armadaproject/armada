@@ -1,9 +1,8 @@
 import { JobState } from "models/lookoutV2Models"
+
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
-jest
-  .useFakeTimers()
-  .setSystemTime(new Date('2022-12-13T13:00:00.000Z'));
+jest.useFakeTimers().setSystemTime(new Date("2022-12-13T13:00:00.000Z"))
 
 describe("JobsTableFormatters", () => {
   describe("formatCPU", () => {
