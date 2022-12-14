@@ -47,6 +47,7 @@ import {
   JobTableColumn,
   JOB_COLUMNS,
   StandardColumnId,
+  toColId,
 } from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
@@ -89,6 +90,11 @@ export const JobsTableContainer = ({
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(JOB_COLUMNS)
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_COLUMN_VISIBILITY)
+  const visibleColumnIds = useMemo(() => Object.keys(columnVisibility)
+    .map(toColId)
+    .filter((colId) => columnVisibility[colId]),
+    [columnVisibility]
+  )
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(DEFAULT_GROUPING)
@@ -358,7 +364,7 @@ export const JobsTableContainer = ({
         isLoading={rowsToFetch.length > 0}
         allColumns={allColumns}
         groupedColumns={grouping}
-        visibleColumns={Object.keys(columnVisibility).filter((colId) => columnVisibility[colId]) as ColumnId[]}
+        visibleColumns={visibleColumnIds}
         selectedItemFilters={selectedItemsFilters}
         onRefresh={onRefresh}
         onColumnsChanged={setAllColumns}
