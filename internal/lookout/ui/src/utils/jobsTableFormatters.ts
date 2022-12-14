@@ -20,7 +20,7 @@ export const formatTimeSince = (date?: string, now = Date.now()): string => {
   if (date === undefined || date.length === 0) {
     return ""
   }
-  
+
   const duration = intervalToDuration({
     start: parseISO(date),
     end: now

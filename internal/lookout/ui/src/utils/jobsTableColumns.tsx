@@ -10,183 +10,10 @@ import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate 
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 
-// TODO: Remove ColumnSpec indrection and just use Tanstack's ColumnDef?
-export type ColumnSpec = {
-  key: ColumnId
-  name: string
-  selected: boolean
-  isAnnotation: boolean
-  groupable: boolean
-  sortable: boolean
-  filterType?: FilterType
-  enumFitlerValues?: EnumFilterOption[]
-  minSize: number
-  isNumeric?: boolean
-  formatter?: (value: any) => string
-}
-
 export enum FilterType {
   Text = "Text",
   Enum = "Enum",
 }
-
-// const getDefaultColumnSpec = (colId: ColumnId): ColumnSpec => ({
-//   key: colId,
-//   name: capitalize(colId),
-//   selected: true,
-//   isAnnotation: false,
-//   groupable: false,
-//   sortable: false,
-//   minSize: 30,
-// })
-
-// const numFormatter = Intl.NumberFormat()
-
-// const COLUMN_SPECS: ColumnSpec[] = [
-//   {
-//     key: "jobId",
-//     name: "Job Id",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: true,
-//     filterType: FilterType.Text,
-//     minSize: 100,
-//   },
-//   {
-//     key: "jobSet",
-//     name: "Job Set",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: true,
-//     sortable: false,
-//     filterType: FilterType.Text,
-//     minSize: 100,
-//   },
-//   {
-//     key: "queue",
-//     name: "Queue",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: true,
-//     sortable: false,
-//     filterType: FilterType.Text,
-//     minSize: 95,
-//   },
-//   {
-//     key: "state",
-//     name: "State",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: true,
-//     sortable: false,
-//     filterType: FilterType.Enum,
-//     enumFitlerValues: Object.values(JobState).map((state) => ({
-//       value: state,
-//       displayName: formatJobState(state),
-//     })),
-//     minSize: 60,
-//     formatter: formatJobState,
-//   },
-//   {
-//     key: "cpu",
-//     name: "CPU",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 60,
-//     isNumeric: true,
-//     formatter: formatCPU,
-//   },
-//   {
-//     key: "memory",
-//     name: "Memory",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 70,
-//     formatter: formatBytes,
-//   },
-//   {
-//     key: "ephemeralStorage",
-//     name: "Eph. Storage",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//     formatter: formatBytes,
-//   },
-//   {
-//     key: "owner",
-//     name: "Owner",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//   },
-//   {
-//     key: "gpu",
-//     name: "GPU",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//   },
-//   {
-//     key: "priority",
-//     name: "Priority",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//   },
-//   {
-//     key: "lastTransitionTime",
-//     name: "Last Transition Time (UTC)",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//     formatter: formatUtcDate,
-//   },
-//   {
-//     key: "lastTransitionTime",
-//     name: "Time Since Transition",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//     formatter: formatTimeSince,
-//   },
-//   {
-//     key: "submitted",
-//     name: "Submitted (UTC)",
-//     selected: true,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//     formatter: formatUtcDate,
-//   },
-//   {
-//     key: "annotations",
-//     name: "All Annotations",
-//     selected: false,
-//     isAnnotation: false,
-//     groupable: false,
-//     sortable: false,
-//     minSize: 95,
-//     formatter: (annotations) => (annotations !== undefined ? JSON.stringify(annotations) : ""),
-//   },
-// ]
 
 export interface JobTableColumnMetadata {
   displayName: string
@@ -218,6 +45,8 @@ export type AnnotationColumnId = `annotation_${string}`
 export type ColumnId = StandardColumnId | AnnotationColumnId
 
 export const toColId = (columnId: string | undefined) => columnId as ColumnId
+
+export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
 
 const columnHelper = createColumnHelper<JobTableRow>()
 
@@ -290,6 +119,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
+      size: 120
     },
     additionalMetadata: {
       filterType: FilterType.Text
@@ -302,6 +132,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
+      size: 120
     },
     additionalMetadata: {
       filterType: FilterType.Text
@@ -327,7 +158,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 50,
+      size: 70,
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
@@ -384,17 +215,6 @@ export const JOB_COLUMNS: JobTableColumn[] = [
   }),
 ]
 
-export const COLUMNS_BY_ID = JOB_COLUMNS.reduce<Record<string, JobTableColumn>>((colsById, col) => {
-  if (col.id) {
-    colsById[col.id] = col
-  }
-  return colsById
-}, {})
-
-export const columnDefFor = (columnId: ColumnId): JobTableColumn => COLUMNS_BY_ID[columnId]
-
-export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
-
 export const DEFAULT_COLUMNS_TO_DISPLAY: Set<ColumnId> = new Set([
   StandardColumnId.SelectorCol,
   StandardColumnId.Queue,
@@ -413,7 +233,7 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   {},
 )
 
-export const DEFAULT_GROUPING: ColumnId[] = []
+export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({
