@@ -2,7 +2,7 @@ import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel } from "@mui/material"
 import { Cell, flexRender, Header } from "@tanstack/react-table"
 import { JobRow } from "models/jobsTableModels"
-import { ColumnId, getColumnMetadata } from "utils/jobsTableColumns"
+import { ColumnId, getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
 import { JobsTableFilter } from "./JobsTableFilter"
 
@@ -18,7 +18,7 @@ export interface HeaderCellProps {
   header: Header<JobRow, unknown>
 }
 export const HeaderCell = ({ header }: HeaderCellProps) => {
-  const id = header.id as ColumnId
+  const id = toColId(header.id)
   const columnDef = header.column.columnDef
 
   const metadata = getColumnMetadata(columnDef)

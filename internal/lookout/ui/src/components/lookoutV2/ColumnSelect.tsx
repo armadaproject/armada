@@ -24,9 +24,9 @@ type ColumnSelectProps = {
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
   onAddAnnotation: (annotationKey: string) => void
-  onToggleColumn: (columnKey: string) => void
-  onRemoveAnnotation: (columnKey: string) => void
-  onEditAnnotation: (columnKey: string, annotationKey: string) => void
+  onToggleColumn: (columnId: ColumnId) => void
+  onRemoveAnnotation: (columnId: ColumnId) => void
+  onEditAnnotation: (columnId: ColumnId, annotationKey: string) => void
 }
 
 export default function ColumnSelect({

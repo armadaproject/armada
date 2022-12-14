@@ -1,4 +1,4 @@
-import { formatDistanceStrict } from "date-fns"
+import { intervalToDuration } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 import { parseISO } from "date-fns/fp"
 import { JobState, jobStateDisplayInfo } from "models/lookoutV2Models"
@@ -16,5 +16,24 @@ export const formatBytes = (bytes?: number): string => (bytes !== undefined ? pr
 export const formatUtcDate = (date?: string): string =>
   date !== undefined ? formatInTimeZone(parseISO(date), "UTC", "yyyy-MM-dd HH:mm") : ""
 
-export const formatTimeSince = (date?: string, now = Date.now()): string =>
-  date !== undefined ? formatDistanceStrict(parseISO(date), now) : ""
+export const formatTimeSince = (date?: string, now = Date.now()): string => {
+  if (date === undefined || date.length === 0) {
+    return ""
+  }
+  
+  const duration = intervalToDuration({
+    start: parseISO(date),
+    end: now
+  })
+
+  const denominations = [
+    {symbol: "y", value: duration.years ?? 0},
+    {symbol: "w", value: duration.weeks ?? 0},
+    {symbol: "d", value: duration.days ?? 0},
+    {symbol: "h", value: duration.hours ?? 0},
+    {symbol: "m", value: duration.minutes ?? 0},
+    {symbol: "s", value: duration.seconds ?? 0},
+  ]
+
+  return denominations.filter(d => d.value !== 0).map(d => `${d.value}${d.symbol}`).join(" ")
+}

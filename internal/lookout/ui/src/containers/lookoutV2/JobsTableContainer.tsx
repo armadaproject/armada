@@ -402,6 +402,8 @@ export const JobsTableContainer = ({
                 onPageChange={(_, page) => table.setPageIndex(page)}
                 onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
                 colSpan={table.getVisibleLeafColumns().length}
+                showFirstButton={true}
+                showLastButton={true}
               />
             </TableRow>
           </TableFooter>

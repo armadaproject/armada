@@ -43,8 +43,8 @@ export const JobsTableActionBar = memo(
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
 
-    function toggleColumn(key: string) {
-      toggleColumnVisibility(key as ColumnId)
+    function toggleColumn(key: ColumnId) {
+      toggleColumnVisibility(key)
     }
 
     function addAnnotationColumn(name: string) {
@@ -52,12 +52,12 @@ export const JobsTableActionBar = memo(
       onColumnsChanged(newColumns)
     }
 
-    function removeAnnotationColumn(key: string) {
+    function removeAnnotationColumn(key: ColumnId) {
       const filtered = allColumns.filter((col) => col.id !== key)
       onColumnsChanged(filtered)
     }
 
-    function editAnnotationColumn(key: string, newName: string) {
+    function editAnnotationColumn(key: ColumnId, newName: string) {
       removeAnnotationColumn(key)
       addAnnotationColumn(newName)
     }
