@@ -1,7 +1,7 @@
 use anyhow::Result;
 use armada_client::{
     armada::{
-        api::{JobSubmitRequestItem, Queue},
+        api::{EventStreamMessage, JobState, JobSubmitRequestItem, Queue},
         k8s::io::{
             api::core::v1::{Container, PodSpec, ResourceRequirements, SecurityContext},
             apimachinery::pkg::api::resource::Quantity,
@@ -9,6 +9,7 @@ use armada_client::{
     },
     ArmadaClient,
 };
+use tokio::time::{sleep, Duration};
 use tonic::transport::Channel;
 
 fn create_dummy_job() -> Vec<JobSubmitRequestItem> {
@@ -60,6 +61,53 @@ fn create_dummy_job() -> Vec<JobSubmitRequestItem> {
     vec![jsr]
 }
 
+async fn create_queue(client: &mut ArmadaClient, queue: &str) -> Result<()> {
+    let mut queue_req = Queue::default();
+    queue_req.name = queue.to_string();
+    queue_req.priority_factor = 1.0;
+    client.create_queue(queue_req).await?;
+    println!("Created queue: {}", queue);
+    Ok(())
+}
+
+async fn wait_for_job_event(
+    client: &mut ArmadaClient,
+    event_stream: &mut tonic::Streaming<EventStreamMessage>,
+    job_set_id: &str,
+) -> Result<bool> {
+    while let Some(message) = event_stream.message().await? {}
+    todo!()
+}
+
+async fn create_and_monitor_jobs(
+    client: &mut ArmadaClient,
+    queue: &str,
+    job_set_id: &str,
+) -> Result<()> {
+    let request_items = create_dummy_job();
+
+    let resp = client.submit_jobs(queue, job_set_id, request_items).await?;
+
+    let job_id = &resp
+        .get_ref()
+        .job_response_items
+        .get(0)
+        .expect("Failed to get the job response")
+        .job_id;
+
+    client
+        .reprioritize_jobs(2.0, vec![], queue, job_set_id)
+        .await?;
+
+    sleep(Duration::from_millis(2000)).await;
+
+    let event_stream = client.get_job_events_stream(queue, "", job_set_id).await?;
+    todo!()
+
+    println!("Submitted job set: {}", job_set_id);
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let disable_ssl = std::env::var("DISABLE_SSL").map_or(false, |_| true);
@@ -67,11 +115,11 @@ async fn main() -> Result<()> {
     let port: u32 = std::env::var("ARMADA_PORT").map_or(50051, |p| p.parse::<u32>().unwrap());
 
     let channel = if disable_ssl {
-        Channel::from_shared(format!("https://{host}:{port}"))?
+        Channel::from_shared(format!("http://{host}:{port}"))?
             .connect()
             .await?
     } else {
-        Channel::from_shared(format!("http://{host}:{port}"))?
+        Channel::from_shared(format!("https://{host}:{port}"))?
             .connect()
             .await?
     };
@@ -79,21 +127,7 @@ async fn main() -> Result<()> {
     let queue = format!("simple-queue-{}", uuid::Uuid::new_v4());
     let job_set_id = format!("simple-jobset-{}", uuid::Uuid::new_v4());
 
-    let mut queue_req = Queue::default();
-    queue_req.name = queue.clone();
-    queue_req.priority_factor = 1.0;
-    client.create_queue(queue_req).await?;
-    println!("Created queue: {}", queue);
-
-    let request_items = create_dummy_job();
-    client
-        .submit_jobs(&queue, &job_set_id, request_items)
-        .await?;
-
-    println!("Submitted job set: {}", job_set_id);
-
-    println!("Watch with: ");
-    println!("go run ./cmd/armadactl/main.go watch {queue} {job_set_id}");
-
+    create_queue(&mut client, &queue).await?;
+    create_and_monitor_jobs(&mut client, &queue, &job_set_id).await?;
     Ok(())
 }

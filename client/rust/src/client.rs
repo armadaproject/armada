@@ -23,14 +23,14 @@ impl ArmadaClient {
     }
     pub async fn get_job_events_stream(
         &mut self,
-        queue: String,
-        id: String,
-        from_message_id: String,
+        queue: &str,
+        id: &str,
+        from_message_id: &str,
     ) -> Result<tonic::Response<tonic::Streaming<EventStreamMessage>>, tonic::Status> {
         let jsr = JobSetRequest {
-            queue,
-            id,
-            from_message_id,
+            queue: queue.into(),
+            id: id.into(),
+            from_message_id: from_message_id.into(),
             watch: true,
             error_if_missing: true,
             // these fields are only for testing
@@ -54,13 +54,13 @@ impl ArmadaClient {
 
     pub async fn submit_jobs(
         &mut self,
-        queue: String,
-        job_set_id: String,
+        queue: &str,
+        job_set_id: &str,
         job_request_items: Vec<JobSubmitRequestItem>,
     ) -> Result<tonic::Response<JobSubmitResponse>, tonic::Status> {
         let request = JobSubmitRequest {
-            queue,
-            job_set_id,
+            queue: queue.into(),
+            job_set_id: job_set_id.into(),
             job_request_items,
         };
         self.submit_client.submit_jobs(request).await
@@ -68,22 +68,22 @@ impl ArmadaClient {
 
     pub async fn cancel_jobs(
         &mut self,
-        queue: String,
-        job_id: String,
-        job_set_id: String,
+        queue: &str,
+        job_id: &str,
+        job_set_id: &str,
     ) -> Result<tonic::Response<CancellationResult>, tonic::Status> {
         let request = JobCancelRequest {
-            queue,
-            job_id,
-            job_set_id,
+            queue: queue.into(),
+            job_id: job_id.into(),
+            job_set_id: job_set_id.into(),
         };
         self.submit_client.cancel_jobs(request).await
     }
 
     pub async fn cancel_jobset(
         &mut self,
-        queue: String,
-        job_set_id: String,
+        queue: &str,
+        job_set_id: &str,
         filter_states: Vec<JobState>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let filter = JobSetFilter {
@@ -92,9 +92,10 @@ impl ArmadaClient {
                 .map(|s| s.try_into().unwrap())
                 .collect(),
         };
+        println!("{filter:?}");
         let request = JobSetCancelRequest {
-            queue,
-            job_set_id,
+            queue: queue.into(),
+            job_set_id: job_set_id.into(),
             filter: Some(filter),
         };
         self.submit_client.cancel_job_set(request).await
@@ -104,13 +105,13 @@ impl ArmadaClient {
         &mut self,
         new_priority: f64,
         job_ids: Vec<String>,
-        job_set_id: String,
-        queue: String,
+        job_set_id: &str,
+        queue: &str,
     ) -> Result<tonic::Response<JobReprioritizeResponse>, tonic::Status> {
         let request = JobReprioritizeRequest {
             job_ids,
-            job_set_id,
-            queue,
+            job_set_id: job_set_id.into(),
+            queue: queue.into(),
             new_priority,
         };
         self.submit_client.reprioritize_jobs(request).await
@@ -146,28 +147,24 @@ impl ArmadaClient {
         self.submit_client.update_queues(queue_list).await
     }
 
-    pub async fn delete_queue(
-        &mut self,
-        name: String,
-    ) -> Result<tonic::Response<()>, tonic::Status> {
+    pub async fn delete_queue(&mut self, name: &str) -> Result<tonic::Response<()>, tonic::Status> {
         self.submit_client
-            .delete_queue(QueueDeleteRequest { name })
+            .delete_queue(QueueDeleteRequest { name: name.into() })
             .await
     }
 
-    pub async fn get_queue(
-        &mut self,
-        name: String,
-    ) -> Result<tonic::Response<Queue>, tonic::Status> {
-        self.submit_client.get_queue(QueueGetRequest { name }).await
+    pub async fn get_queue(&mut self, name: &str) -> Result<tonic::Response<Queue>, tonic::Status> {
+        self.submit_client
+            .get_queue(QueueGetRequest { name: name.into() })
+            .await
     }
 
     pub async fn get_queue_info(
         &mut self,
-        name: String,
+        name: &str,
     ) -> Result<tonic::Response<QueueInfo>, tonic::Status> {
         self.submit_client
-            .get_queue_info(QueueInfoRequest { name })
+            .get_queue_info(QueueInfoRequest { name: name.into() })
             .await
     }
 }

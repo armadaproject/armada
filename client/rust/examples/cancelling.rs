@@ -1,7 +1,7 @@
 use anyhow::Result;
 use armada_client::{
     armada::{
-        api::{JobSubmitRequestItem, Queue},
+        api::{JobState, JobSubmitRequestItem, Queue},
         k8s::io::{
             api::core::v1::{Container, PodSpec, ResourceRequirements, SecurityContext},
             apimachinery::pkg::api::resource::Quantity,
@@ -60,6 +60,69 @@ fn create_dummy_job() -> Vec<JobSubmitRequestItem> {
     vec![jsr]
 }
 
+async fn create_queue(client: &mut ArmadaClient, queue: &str) -> Result<()> {
+    let mut queue_req = Queue::default();
+    queue_req.name = queue.to_string();
+    queue_req.priority_factor = 1.0;
+    client.create_queue(queue_req).await?;
+    println!("Created queue: {}", queue);
+    Ok(())
+}
+
+async fn cancel_jobs(client: &mut ArmadaClient, queue: &str) -> Result<()> {
+    let request_items1 = create_dummy_job();
+    let request_items2 = create_dummy_job();
+
+    let job_set_id1 = format!("simple-jobset-{}", uuid::Uuid::new_v4());
+    let job_set_id2 = format!("simple-jobset-{}", uuid::Uuid::new_v4());
+
+    let resp1 = client
+        .submit_jobs(queue, &job_set_id1, request_items1)
+        .await?;
+
+    println!("Submitted job set: {}", job_set_id1);
+
+    let job_id = &resp1
+        .get_ref()
+        .job_response_items
+        .get(0)
+        .expect("Failed to get the job response")
+        .job_id;
+
+    client.cancel_jobs("", job_id, "").await?;
+
+    client
+        .submit_jobs(queue, &job_set_id2, request_items2)
+        .await?;
+
+    println!("Submitted job set: {}", job_set_id2);
+
+    client.cancel_jobs(queue, "", &job_set_id2).await?;
+
+    Ok(())
+}
+
+async fn cancel_jobset_with_filter(client: &mut ArmadaClient, queue: &str) -> Result<()> {
+    let request_items1 = create_dummy_job();
+
+    let job_set_id1 = format!("simple-jobset-{}", uuid::Uuid::new_v4());
+
+    client
+        .submit_jobs(queue, &job_set_id1, request_items1)
+        .await?;
+
+    println!("Submitted job set: {}", job_set_id1);
+
+    client
+        .cancel_jobset(
+            queue,
+            &job_set_id1,
+            vec![JobState::Pending, JobState::Running],
+        )
+        .await?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let disable_ssl = std::env::var("DISABLE_SSL").map_or(false, |_| true);
@@ -67,33 +130,20 @@ async fn main() -> Result<()> {
     let port: u32 = std::env::var("ARMADA_PORT").map_or(50051, |p| p.parse::<u32>().unwrap());
 
     let channel = if disable_ssl {
-        Channel::from_shared(format!("https://{host}:{port}"))?
+        Channel::from_shared(format!("http://{host}:{port}"))?
             .connect()
             .await?
     } else {
-        Channel::from_shared(format!("http://{host}:{port}"))?
+        Channel::from_shared(format!("https://{host}:{port}"))?
             .connect()
             .await?
     };
     let mut client = ArmadaClient::new(channel);
     let queue = format!("simple-queue-{}", uuid::Uuid::new_v4());
-    let job_set_id = format!("simple-jobset-{}", uuid::Uuid::new_v4());
 
-    let mut queue_req = Queue::default();
-    queue_req.name = queue.clone();
-    queue_req.priority_factor = 1.0;
-    client.create_queue(queue_req).await?;
-    println!("Created queue: {}", queue);
-
-    let request_items = create_dummy_job();
-    client
-        .submit_jobs(&queue, &job_set_id, request_items)
-        .await?;
-
-    println!("Submitted job set: {}", job_set_id);
-
-    println!("Watch with: ");
-    println!("go run ./cmd/armadactl/main.go watch {queue} {job_set_id}");
+    create_queue(&mut client, &queue).await?;
+    cancel_jobs(&mut client, &queue).await?;
+    cancel_jobset_with_filter(&mut client, &queue).await?;
 
     Ok(())
 }
