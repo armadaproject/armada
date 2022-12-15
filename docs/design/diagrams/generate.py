@@ -8,9 +8,18 @@ from diagrams.onprem.client import Client
 graph_attr = {
     "concentrate": "false",
     "splines": "ortho",
-    "pad": "0.5",
+    "pad": "2",
     "nodesep": "0.60",
     "ranksep": "1.5",
+    "fontsize": "20",
+}
+
+node_attr = {
+    # decrease image size
+    "fixedsize": "true",
+    "width": "1.3",
+    "height": "1.3",
+    "fontsize": "15",
 }
 
 edge_attr = {
@@ -19,14 +28,21 @@ edge_attr = {
 
 cluster_attr_common = {
     "margin": "20",
+    "fontsize": "15",
 }
 
-cluster_attr_armada = {
+cluster_attr_server = {
     "labelloc": "b",
-    "margin": "1",
+    "bgcolor": "#c7ffd5",
 }
-cluster_attr_armada.update(cluster_attr_common)
+cluster_attr_server = {**cluster_attr_common, **cluster_attr_server}
 
+cluster_attr_exec = {
+    "labelloc": "t",
+    "bgcolor": "#c7ffd5",
+}
+
+cluster_attr_exec = {**cluster_attr_common, **cluster_attr_exec}
 
 armada_logo = "./images/armada.png"
 pulsar_logo = "./images/pulsar.png"
@@ -38,6 +54,7 @@ with Diagram(
     direction="BT",
     graph_attr=graph_attr,
     edge_attr=edge_attr,
+    node_attr=node_attr,
     filename="armada-system",
 ):
 
@@ -46,31 +63,32 @@ with Diagram(
         postgres = PostgreSQL("Postgres")
         redis = Redis("Redis")
 
-    armada_clients = Client("Armada Clients")
+    armada_clients = Client("Armada \nClients")
 
-    with Cluster("Armada Server Components", graph_attr=cluster_attr_armada):
+    with Cluster("Armada Server Cluster", graph_attr=cluster_attr_server):
 
-        with Cluster(
-            "Armada Server Cluster", graph_attr=cluster_attr_armada
-        ) as services:
+        lookout_api = Custom("Lookout API", armada_logo)
 
-            lookout_api = Custom("Lookout API", armada_logo)
+        lookout_ingester = Custom("Lookout \nIngester", armada_logo)
+        event_ingester = Custom("Event \nIngester", armada_logo)
 
-            lookout_ingester = Custom("Lookout Ingester", armada_logo)
-            event_ingester = Custom("Event Ingester", armada_logo)
+        armada_server = Custom("Armada \nServer", armada_logo)
 
-            armada_server = Custom("Armada Server", armada_logo)
+    with Cluster("Armada Executor Cluster 1", graph_attr=cluster_attr_exec):
 
-        with Cluster(
-            "Armada Executor Cluster", graph_attr=cluster_attr_armada
-        ) as workers:
+        armada_executor = Custom("Armada \nExecutor", armada_logo)
+        binoculars = Custom("Binoculars", armada_logo)
 
-            armada_executor = Custom("Armada Executor", armada_logo)
-            binoculars = Custom("Binoculars", armada_logo)
+        k8s_api = API("K8s API")
 
-    k8s_api = API("K8s API")
+    with Cluster("Armada Executor Cluster 2", graph_attr=cluster_attr_exec):
 
-    lookout_browser = Custom("Lookout Browser", browser_logo)
+        armada_executor2 = Custom("Armada \nExecutor", armada_logo)
+        binoculars2 = Custom("Binoculars", armada_logo)
+
+        k8s_api2 = API("K8s API")
+
+    lookout_browser = Custom("Lookout \nBrowser", browser_logo)
 
     # Relations
     # use edges to label the direction of the data flow
@@ -110,3 +128,11 @@ with Diagram(
 
     # lookout api gets data from postgres
     postgres >> Edge(color="blue") >> lookout_api
+
+    # recreate the re;ations for the second executor cluster
+    armada_server >> Edge(color="black") >> armada_executor2
+    armada_executor2 >> Edge(color="black") >> armada_server
+
+    k8s_api2 >> Edge(color="blue") >> armada_executor2
+    k8s_api2 >> Edge(color="blue") >> binoculars2
+    binoculars2 >> Edge(color="green") >> lookout_browser
