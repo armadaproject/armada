@@ -17,7 +17,7 @@ import (
 )
 
 type GetJobsRepository interface {
-	GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) *GetJobsResult
+	GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) (*GetJobsResult, error)
 }
 
 type SqlGetJobsRepository struct {

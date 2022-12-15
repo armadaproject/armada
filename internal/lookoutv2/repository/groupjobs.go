@@ -27,7 +27,7 @@ type GroupJobsRepository interface {
 		aggregates []string,
 		skip int,
 		take int,
-	) (GroupByResult, error)
+	) (*GroupByResult, error)
 }
 
 type SqlGroupJobsRepository struct {

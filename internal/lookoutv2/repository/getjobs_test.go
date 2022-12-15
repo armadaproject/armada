@@ -33,7 +33,7 @@ const (
 
 var (
 	baseTime, _      = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	cpu              = resource.MustParse("15000m")
+	cpu              = resource.MustParse("15")
 	memory           = resource.MustParse("48Gi")
 	ephemeralStorage = resource.MustParse("100Gi")
 	gpu              = resource.MustParse("8")
