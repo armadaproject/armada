@@ -2,9 +2,15 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 )
@@ -26,4 +32,50 @@ func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
 	}
 	err = db.Ping(context.Background())
 	return db, err
+}
+
+func UniqueTableName(table string) string {
+	suffix := strings.ReplaceAll(uuid.New().String(), "-", "")
+	return fmt.Sprintf("%s_tmp_%s", table, suffix)
+}
+
+func ParseNullStringDefault(nullString sql.NullString) string {
+	if !nullString.Valid {
+		return ""
+	}
+	return nullString.String
+}
+
+func ParseNullString(nullString sql.NullString) *string {
+	if !nullString.Valid {
+		return nil
+	}
+	return &nullString.String
+}
+
+func ParseNullTime(nullTime sql.NullTime) *time.Time {
+	if !nullTime.Valid {
+		return nil
+	}
+	return &nullTime.Time
+}
+
+func ParseNullInt32(nullInt sql.NullInt32) *int32 {
+	if !nullInt.Valid {
+		return nil
+	}
+	return &nullInt.Int32
+}
+
+func ReadInt(rows pgx.Rows) (int, error) {
+	defer rows.Close()
+	var val int
+	for rows.Next() {
+		err := rows.Scan(&val)
+		if err != nil {
+			return -1, err
+		}
+		return val, nil
+	}
+	return -1, errors.New("no rows found")
 }

@@ -22,6 +22,8 @@ type LookoutUIConfig struct {
 	OverviewAutoRefreshMs int
 	JobSetsAutoRefreshMs  int
 	JobsAutoRefreshMs     int
+
+	LookoutV2ApiBaseUrl string
 }
 
 type PrunerConfig struct {
@@ -40,7 +42,6 @@ type LookoutConfiguration struct {
 
 	EventQueue             string
 	Nats                   NatsConfig
-	Jetstream              configuration.JetstreamConfig
 	Postgres               configuration.PostgresConfig
 	PrunerConfig           PrunerConfig
 	DisableEventProcessing bool

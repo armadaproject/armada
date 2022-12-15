@@ -130,6 +130,9 @@ func transportCredentials(config *ApiConnectionDetails) grpc.DialOption {
 // ArmadaHealthCheck calls Armada Server /health endpoint.
 //
 // Returns true if response status code is in range [200-399], otherwise returns false.
+//
+// TODO: Shouldn't be a method on ApiConnectionDetails.
+// TODO: Break this up into one function to get the status code and another to check if that's a healthy one.
 func (a *ApiConnectionDetails) ArmadaHealthCheck() (ok bool, err error) {
 	url := a.ArmadaRestUrl
 	if url == "" {

@@ -1,27 +1,78 @@
 numBatches: 1
-batchSize: 8
+batchSize: 3
 queue: e2e-test-queue
 jobs:
   - priority: 0
     namespace: personal-anonymous
     annotations:
       armadaproject.io/gangId: "my-gang"
-      armadaproject.io/gangCardinality: "8"
+      armadaproject.io/gangCardinality: "3"
     podSpec:
       restartPolicy: Never
       containers:
         - name: sleep
           imagePullPolicy: IfNotPresent
-          image: alpine:3.10
+          image: bitnami/kubectl:1.24.8
+          command: ["bash", "-c"]
           args:
-            - "ls"
+            - |
+              echo "pod UID: ${UID}"
+              echo "gang id: ${GANG_ID}"
+              echo "gang cardinality: ${GANG_CARDINALITY}"
+
+              if [ ${GANG_ID} != "my-gang" ]
+              then
+                echo "expected gang id to be my-gang, but got ${GANG_ID}"
+                exit 1
+              fi
+
+              if [ ${GANG_CARDINALITY} != "3" ]
+              then
+                echo "expected gang cardinality to be 3, but got ${GANG_CARDINALITY}"
+                exit 1
+              fi
+
+              SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
+              NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
+              JSONPATH="{.items[?(@.metadata.annotations.armadaproject\.io/gangId=='${GANG_ID}')].status.podIP}"
+              for i in {1..6}
+              do
+                  out=$(kubectl get po -n ${NAMESPACE} -o jsonpath=${JSONPATH})
+                  IFS=' ' read -ra IPS <<< "$out"
+                  if [ "${#IPS[@]}" -ge "${GANG_CARDINALITY}" ]
+                  then
+                    echo "IPs:"
+                    for ip in "${IPS[@]}"; do
+                      echo $ip
+                    done
+                    exit 0
+                  fi
+                  sleep 5
+              done
+              echo "At least one gang job missing"
+              out=$(kubectl get po -n ${NAMESPACE} -o jsonpath=${JSONPATH})
+              echo $out
+              exit 1
+          env:
+            - name: UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: GANG_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['armadaproject.io/gangId']
+            - name: GANG_CARDINALITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['armadaproject.io/gangCardinality']
           resources:
             limits:
-              memory: 10Mi
-              cpu: 5
+              memory: 20Mi
+              cpu: 100m
             requests:
-              memory: 10Mi
-              cpu: 5
+              memory: 20Mi
+              cpu: 100m
 ---
 timeout: "100s"
 expectedEvents:
