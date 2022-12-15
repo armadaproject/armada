@@ -501,16 +501,16 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			queuedGangIterator := NewQueuedGangIterator(
+			queuedGangIterator := NewQueuedGangIterator[*api.Job](
 				ctx,
 				queuedJobsIterator,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
 			)
-			it := &QueueCandidateGangIterator{
+			it := &QueueCandidateGangIterator[*api.Job]{
 				ctx:                        ctx,
 				SchedulingConstraints:      tc.SchedulingConstraints,
-				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
+				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport[*api.Job](0, tc.InitialUsageByPriority),
 				queuedGangIterator:         queuedGangIterator,
 			}
 
@@ -525,7 +525,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
 					}
 					actual = append(actual, report.Job)
-					actualIndices = append(actualIndices, indexByJobId[report.Job.Id])
+					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
 				}
 			}
 			assert.Equal(t, tc.ExpectedIndices, actualIndices) // Redundant, but useful to debug tests.
@@ -1081,7 +1081,7 @@ func TestSchedule(t *testing.T) {
 				),
 			},
 		},
-		"node with no available capacity": {
+		"Node with no available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResources(
 				0,
@@ -1102,7 +1102,7 @@ func TestSchedule(t *testing.T) {
 				"A": nil,
 			},
 		},
-		"node with some available capacity": {
+		"Node with some available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResources(
 				0,
@@ -1218,7 +1218,7 @@ func TestSchedule(t *testing.T) {
 				"A": {1},
 			},
 		},
-		"node selector": {
+		"Node selector": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: append(
 				testNCpuNode(1, testPriorities),
@@ -1247,7 +1247,7 @@ func TestSchedule(t *testing.T) {
 				"A": {1},
 			},
 		},
-		"node selector (indexed)": {
+		"Node selector (indexed)": {
 			SchedulingConfig: withIndexedNodeLabels([]string{"foo"}, testSchedulingConfig()),
 			Nodes: append(
 				testNCpuNode(1, testPriorities),
@@ -1451,7 +1451,7 @@ func TestSchedule(t *testing.T) {
 							return
 						}
 
-						var jobReports map[uuid.UUID]*JobSchedulingReport
+						var jobReports map[uuid.UUID]*JobSchedulingReport[*api.Job]
 						if _, ok := leasedJobIds[jobId]; ok {
 							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
 						} else {
