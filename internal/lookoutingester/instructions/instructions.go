@@ -203,10 +203,10 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
-
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:     jobId,
 		Duplicate: pointer.Bool(true),
+		State:     pointer.Int32(int32(repository.JobDuplicateOrdinal)),
 		Updated:   ts,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
@@ -413,9 +413,11 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				jobRunUpdate.Started = &ts
 			}
 
-			// Both Error_PodLeaseReturned and Error_LeaseExpired have an implied reset of the job state to queued
+			// Error_LeaseExpired has an implied reset of the job state to queued
 			// Ideally we would send an explicit queued message here, but until this change is made we correct the job
 			// state here
+			// Note that this should also apply to PodLeaseReturned messages, but right now the executor can send
+			// phantom messages, which leads to the job being shown as queued in lookout forever.
 			resetStateToQueued := false
 
 			switch reason := e.Reason.(type) {
@@ -443,7 +445,8 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
-				resetStateToQueued = true
+				// TODO: re-enable this once the executor stops sending phantom PodLeaseReturned messages
+				// resetStateToQueued = true
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)

@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 
@@ -107,12 +108,20 @@ def search_for_job_complete(
                 f"Armada {airflow_task_name}:{job_id} failed\n"
                 f"failed with reason {job_status_return.error}"
             )
-
             break
         if job_status_return.state == jobservice_pb2.JobServiceResponse.CANCELLED:
             job_state = JobState.CANCELLED
             job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
             break
+        if job_status_return.state == jobservice_pb2.JobServiceResponse.CONNECTION_ERR:
+            armada_logger = logging.getLogger("airflow.task")
+            log_messages = (
+                f"Armada {airflow_task_name}:{job_id} connection error (will retry)"
+                f"failed with reason {job_status_return.error}"
+            )
+            armada_logger.warning(log_messages)
+            continue
+
         if (
             job_status_return.state
             == jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND

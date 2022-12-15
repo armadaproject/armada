@@ -1,0 +1,50 @@
+name: Release Armada
+
+on:
+  workflow_call: {}
+
+jobs:
+  upload-docker-images:
+    runs-on: ubuntu-latest
+    environment: armada-dockerhub
+    steps:
+      - name: Download saved docker-images artifact
+        uses: actions/download-artifact@v3.0.1
+        with:
+          name: docker-images
+      - name: Unzip docker-images artifacts
+        run: |
+          tar xf docker-images.tar.gz
+          rm docker-images.tar.gz
+      - name: Upload images to docker
+        run: |
+          # Note(JayF): All the offical docker actions for uploading these
+          # containers also assume you need to rebuild them. That makes them
+          # ill-suited for our workflow.
+          TAG_SUFFIX=$(echo "${{ github.sha }}" | sed 's|/|-|g')
+
+          if [ "${{github.ref_name}}" = "master" ]; then
+            TAG="$TAG_SUFFIX"
+          else
+            TAG="${{ github.ref_name }}-$TAG_SUFFIX"
+          fi
+
+          echo ${{ secrets.DOCKERHUB_PASS }} | docker login -u ${{ secrets.DOCKERHUB_USER }} --password-stdin
+
+          IMAGES_TO_UPLOAD=(
+            "armada"
+            "armada-executor"
+            "armadactl"
+            "testsuite"
+            "armada-lookout"
+            "armada-lookout-ingester"
+            "armada-event-ingester"
+            "armada-binoculars"
+            "armada-jobservice"
+          )
+          for image in "${IMAGES_TO_UPLOAD[@]}"; do
+              remote="gresearch/${image}-dev:${TAG}"
+              docker load -i docker-images/$image.tar.gz
+              docker tag $image:latest $remote
+              docker push $remote
+          done

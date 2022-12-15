@@ -16,15 +16,18 @@ dependencies:
   version: 2.9.3
 - name: armada
   repository: https://g-research.github.io/charts/
-  version: v0.3.20
+  version: v0.3.36
 - name: armada-executor
   repository: https://g-research.github.io/charts/
-  version: v0.3.20
+  version: v0.3.36
 - name: armada-lookout
   repository: https://g-research.github.io/charts/
-  version: v0.3.20
+  version: v0.3.36
+- name: armada-lookout-ingester
+  repository: https://g-research.github.io/charts/
+  version: v0.3.36
 - name: executor-cluster-monitoring
   repository: https://g-research.github.io/charts
   version: v0.1.9
-digest: sha256:bef9ade27bc2728c0a1204588c8f09240af19c5802239b8b6e5dd0c6b4dd20c1
-generated: "2022-09-29T16:50:16.711833+02:00"
+digest: sha256:07796bf433ad7f1f17836c7032692d6dc617fee16a34a05a9050ed3671d8fe81
+generated: "2022-10-26T17:56:44.975573+02:00"

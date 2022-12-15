@@ -76,6 +76,50 @@ Runs an Armada job and calls the job_service_client for polling.
     None
 
 
+
+### armada.operators.armada.annotate_job_request_items(context, job_request_items)
+Annotates the inbound job request items with Airflow context elements
+
+
+* **Parameters**
+
+    
+    * **context** – The airflow context.
+
+
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – The job request items to be sent to armada
+
+
+
+* **Returns**
+
+    annotated job request items for armada
+
+
+
+* **Return type**
+
+    *List*[*JobSubmitRequestItem*]
+
+
+
+### armada.operators.armada.get_annotation_key_prefix()
+Provides the annotation key perfix,
+which can be specified in env var ANNOTATION_KEY_PREFIX.
+A default is provided if the env var is not defined
+
+
+* **Returns**
+
+    string annotation key prefix
+
+
+
+* **Return type**
+
+    str
+
+
 ## armada.operators.jobservice module
 
 

@@ -1,7 +1,6 @@
 pulsar:
-  enabled: true
   URL: "pulsar://pulsar:6650"
-  jobsetEventsTopic: "persistent://armada/armada/events"
+  jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   pulsarFromPulsarSubscription: "PulsarFromPulsar"
   hostnameSuffix: "svc"

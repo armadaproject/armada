@@ -20,7 +20,7 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with `./localdev/run.sh` Once complete, you will have a fully functional local deployment of armada via docker.
+All of these components can be started and initialised with `./localdev/run.sh` When the script completes, you will have a fully functional local deployment of armada via docker.
 
 Create a queue and submit a job:
 ```bash
@@ -60,10 +60,36 @@ yarn run build
 
 Once completed, the Lookout UI should be accessible through your browser at `http://localhost:8089`
 
-For UI development you can also use the React development server. Note that the Lookout API will still have to be running for this to work.
+For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will 
+still have to be running for this to work. Browse to `http://localhost:3000` with this.
 ```bash
 yarn run start
 ```
+
+## Debugging
+
+The `localdev` environment can be started with debug servers for all 
+Armada services. When started this way, you can connect to the debug 
+servers using remote debugging configurations in your IDE, or by using 
+the delve client (illustrated here). Note that the port numbers are 
+different for each service.
+
+```bash
+localdev/run.sh debug
+dlv connect localhost:4000
+Type 'help' for list of commands.
+(dlv)
+```
+
+|Armada service   |Debug host    |
+|-----------------|--------------|
+|Server           |localhost:4000|
+|Lookout          |localhost:4001|
+|Executor         |localhost:4002|
+|Binoculars       |localhost:4003|
+|Jobservice       |localhost:4004|
+|Lookout-ingester |localhost:4005|
+|Event-ingester   |localhost:4006|
 
 ## Usage metrics
 
