@@ -48,5 +48,5 @@ runs:
     - name: Upload coverage to codecov
       uses: codecov/codecov-action@v3
       with:
-        files: ${{ inputs.path }}/.coverage.xml
+        files: ${{ inputs.path }}/coverage.xml
         verbose: true
