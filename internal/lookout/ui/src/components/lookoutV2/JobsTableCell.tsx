@@ -2,26 +2,28 @@ import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel } from "@mui/material"
 import { Cell, flexRender, Header } from "@tanstack/react-table"
 import { JobRow } from "models/jobsTableModels"
-import { ColumnId, ColumnSpec, columnSpecFor } from "utils/jobsTableColumns"
+import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
 import { JobsTableFilter } from "./JobsTableFilter"
 
 const sharedCellStyle = {
   padding: "0.5em",
+  overflowWrap: "break-word",
   "&:hover": {
     opacity: 0.85,
   },
 }
 
-const shouldRightAlign = (colSpec: ColumnSpec): boolean => Boolean(colSpec.isNumeric)
-
 export interface HeaderCellProps {
   header: Header<JobRow, unknown>
 }
 export const HeaderCell = ({ header }: HeaderCellProps) => {
-  const id = header.id as ColumnId
-  const colSpec = columnSpecFor(id)
-  const isRightAligned = shouldRightAlign(colSpec)
+  const id = toColId(header.id)
+  const columnDef = header.column.columnDef
+
+  const metadata = getColumnMetadata(columnDef)
+  const isRightAligned = metadata.isRightAligned ?? false
+
   const sortDirection = header.column.getIsSorted()
   const defaultSortDirection = "asc"
 
@@ -33,7 +35,7 @@ export const HeaderCell = ({ header }: HeaderCellProps) => {
         width: `${header.column.getSize()}px`,
         ...sharedCellStyle,
       }}
-      aria-label={colSpec.name}
+      aria-label={metadata.displayName}
     >
       {header.isPlaceholder ? null : header.column.getCanSort() ? (
         <TableSortLabel
@@ -45,22 +47,22 @@ export const HeaderCell = ({ header }: HeaderCellProps) => {
           }}
           aria-label={"Toggle sort"}
         >
-          {flexRender(header.column.columnDef.header, header.getContext())}
+          {flexRender(columnDef.header, header.getContext())}
           {header.column.getIsGrouped() && <> (# Jobs)</>}
         </TableSortLabel>
       ) : (
         <>
-          {flexRender(header.column.columnDef.header, header.getContext())}
+          {flexRender(columnDef.header, header.getContext())}
           {header.column.getIsGrouped() && <> (# Jobs)</>}
         </>
       )}
 
-      {header.column.getCanFilter() && colSpec.filterType && (
+      {header.column.getCanFilter() && metadata.filterType && (
         <JobsTableFilter
           id={header.id}
           currentFilter={header.column.getFilterValue() as string | string[]}
-          filterType={colSpec.filterType}
-          enumFilterValues={colSpec.enumFitlerValues}
+          filterType={metadata.filterType}
+          enumFilterValues={metadata.enumFitlerValues}
           onFilterChange={header.column.setFilterValue}
         />
       )}
@@ -76,10 +78,9 @@ export interface BodyCellProps {
   subCount: number | undefined
 }
 export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, subCount }: BodyCellProps) => {
-  const colId = cell.column.id as ColumnId
-  const colSpec = columnSpecFor(colId)
+  const columnMetadata = getColumnMetadata(cell.column)
   const cellHasValue = cell.renderValue()
-  const isRightAligned = shouldRightAlign(colSpec)
+  const isRightAligned = columnMetadata.isRightAligned ?? false
   return (
     <TableCell
       key={cell.id}

@@ -15,22 +15,24 @@ import {
   TextField,
   Typography,
 } from "@mui/material"
-import { ColumnId, ColumnSpec } from "utils/jobsTableColumns"
+import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "utils/jobsTableColumns"
 
 import styles from "./ColumnSelect.module.css"
 
 type ColumnSelectProps = {
-  allColumns: ColumnSpec[]
+  selectableColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
+  visibleColumns: ColumnId[]
   onAddAnnotation: (annotationKey: string) => void
-  onToggleColumn: (columnKey: string) => void
-  onRemoveAnnotation: (columnKey: string) => void
-  onEditAnnotation: (columnKey: string, annotationKey: string) => void
+  onToggleColumn: (columnId: ColumnId) => void
+  onRemoveAnnotation: (columnId: ColumnId) => void
+  onEditAnnotation: (columnId: ColumnId, annotationKey: string) => void
 }
 
 export default function ColumnSelect({
-  allColumns,
+  selectableColumns,
   groupedColumns,
+  visibleColumns,
   onAddAnnotation,
   onToggleColumn,
   onRemoveAnnotation,
@@ -73,30 +75,34 @@ export default function ColumnSelect({
           labelId="checkbox-select-label"
           id="demo-multiple-checkbox"
           multiple
-          value={allColumns.filter((col) => col.selected)}
+          value={visibleColumns}
           input={<OutlinedInput label="Column" />}
           renderValue={(selected) => {
-            return `${selected.length} columns selected`
+            return `${selectableColumns.filter((col) => selected.includes(toColId(col.id))).length} columns selected`
           }}
           size="small"
         >
           <div className={styles.columnMenu}>
             <div className={styles.columnSelect} style={{ height: "100%" }}>
-              {allColumns.map((column) => {
-                const colIsGrouped = groupedColumns.includes(column.key)
+              {selectableColumns.map((column) => {
+                const colId = toColId(column.id)
+                const colIsGrouped = groupedColumns.includes(colId)
+                const colIsVisible = visibleColumns.includes(colId)
+                const colMetadata = getColumnMetadata(column)
+                const colIsAnnotation = colMetadata.isAnnotation ?? false
                 return (
-                  <MenuItem key={column.key} value={column.name} disabled={colIsGrouped}>
-                    <Checkbox checked={column.selected} onClick={() => onToggleColumn(column.key)} />
-                    {column.isAnnotation ? (
+                  <MenuItem key={colId} value={colMetadata.displayName} disabled={colIsGrouped}>
+                    <Checkbox checked={colIsVisible} onClick={() => onToggleColumn(colId)} />
+                    {colIsAnnotation ? (
                       <>
-                        {currentlyEditing.has(column.key) ? (
+                        {currentlyEditing.has(colId) ? (
                           <>
                             <TextField
                               label="Annotation Key"
                               size="small"
                               variant="standard"
-                              value={currentlyEditing.get(column.key)}
-                              onChange={(e) => edit(column.key, e.target.value)}
+                              value={currentlyEditing.get(colId)}
+                              onChange={(e) => edit(colId, e.target.value)}
                               style={{
                                 maxWidth: 350,
                               }}
@@ -104,10 +110,10 @@ export default function ColumnSelect({
                             />
                             <IconButton
                               onClick={() => {
-                                if (currentlyEditing.has(column.key)) {
-                                  onEditAnnotation(column.key, currentlyEditing.get(column.key) ?? "")
+                                if (currentlyEditing.has(colId)) {
+                                  onEditAnnotation(colId, currentlyEditing.get(colId) ?? "")
                                 }
-                                stopEditing(column.key)
+                                stopEditing(colId)
                               }}
                             >
                               <Check />
@@ -116,21 +122,21 @@ export default function ColumnSelect({
                         ) : (
                           <>
                             <ListItemText
-                              primary={column.name}
+                              primary={colMetadata.displayName}
                               style={{
                                 maxWidth: 350,
                                 overflowX: "auto",
                               }}
                             />
-                            <IconButton onClick={() => edit(column.key, column.name)}>
+                            <IconButton onClick={() => edit(colId, colId)}>
                               <Edit />
                             </IconButton>
                           </>
                         )}
                         <IconButton
                           onClick={() => {
-                            stopEditing(column.key)
-                            onRemoveAnnotation(column.key)
+                            stopEditing(colId)
+                            onRemoveAnnotation(colId)
                           }}
                         >
                           <Delete />
@@ -138,7 +144,7 @@ export default function ColumnSelect({
                       </>
                     ) : (
                       <ListItemText
-                        primary={column.name + (colIsGrouped ? " (Grouped)" : "")}
+                        primary={colMetadata.displayName + (colIsGrouped ? " (Grouped)" : "")}
                         style={{
                           maxWidth: 350,
                           overflowX: "auto",

@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 
 import { Divider, Button } from "@mui/material"
 import RefreshButton from "components/RefreshButton"
@@ -7,7 +7,7 @@ import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
+import { ColumnId, createAnnotationColumn, JobTableColumn } from "utils/jobsTableColumns"
 
 import { CancelDialog } from "./CancelDialog"
 import styles from "./JobsTableActionBar.module.css"
@@ -15,11 +15,13 @@ import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean
-  allColumns: ColumnSpec[]
+  allColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
+  visibleColumns: ColumnId[]
   selectedItemFilters: JobFilter[][]
   onRefresh: () => void
-  onColumnsChanged: (newColumns: ColumnSpec[]) => void
+  onColumnsChanged: (newColumns: JobTableColumn[]) => void
+  toggleColumnVisibility: (columnId: ColumnId) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
@@ -29,9 +31,11 @@ export const JobsTableActionBar = memo(
     isLoading,
     allColumns,
     groupedColumns,
+    visibleColumns,
     selectedItemFilters,
     onRefresh,
     onColumnsChanged,
+    toggleColumnVisibility,
     onGroupsChanged,
     getJobsService,
     updateJobsService,
@@ -39,35 +43,25 @@ export const JobsTableActionBar = memo(
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
 
-    function toggleColumn(key: string) {
-      const newColumns = allColumns.map((col) => ({
-        ...col,
-        selected: col.key === key ? !col.selected : col.selected,
-      }))
-      onColumnsChanged(newColumns)
+    const selectableColumns = useMemo(() => allColumns.filter((col) => col.enableHiding !== false), [allColumns])
+
+    function toggleColumn(key: ColumnId) {
+      toggleColumnVisibility(key)
     }
 
     function addAnnotationColumn(name: string) {
-      const newColumns = allColumns.concat([
-        {
-          ...columnSpecFor(name as ColumnId),
-          isAnnotation: true,
-        },
-      ])
+      const newColumns = allColumns.concat([createAnnotationColumn(name)])
       onColumnsChanged(newColumns)
     }
 
-    function removeAnnotationColumn(key: string) {
-      const filtered = allColumns.filter((col) => !col.isAnnotation || col.key !== key)
+    function removeAnnotationColumn(key: ColumnId) {
+      const filtered = allColumns.filter((col) => col.id !== key)
       onColumnsChanged(filtered)
     }
 
-    function editAnnotationColumn(key: string, newName: string) {
-      const newColumns = allColumns.map((col) => ({
-        ...col,
-        name: col.key === key ? newName : col.name,
-      }))
-      onColumnsChanged(newColumns)
+    function editAnnotationColumn(key: ColumnId, newName: string) {
+      removeAnnotationColumn(key)
+      addAnnotationColumn(newName)
     }
 
     const numSelectedItems = selectedItemFilters.length
@@ -99,8 +93,9 @@ export const JobsTableActionBar = memo(
         <div className={styles.actionGroup}>
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <ColumnSelect
-            allColumns={allColumns}
+            selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}
+            visibleColumns={visibleColumns}
             onAddAnnotation={addAnnotationColumn}
             onToggleColumn={toggleColumn}
             onEditAnnotation={editAnnotationColumn}
