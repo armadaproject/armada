@@ -66,7 +66,8 @@ type SchedulingRoundReport[T LegacySchedulerJob] struct {
 }
 
 func NewSchedulingRoundReport[T LegacySchedulerJob](
-	totalResources schedulerobjects.ResourceList, priorityFactorByQueue map[string]float64, initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType) *SchedulingRoundReport[T] {
+	totalResources schedulerobjects.ResourceList, priorityFactorByQueue map[string]float64, initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+) *SchedulingRoundReport[T] {
 	queueSchedulingRoundReports := make(map[string]*QueueSchedulingRoundReport[T])
 	for queue := range priorityFactorByQueue {
 		queueSchedulingRoundReports[queue] = NewQueueSchedulingRoundReport[T](
