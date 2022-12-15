@@ -10,7 +10,9 @@
 .actionGroup {
     display: flex;
     flex-direction: row;
+    /* flex-wrap: wrap; */
     column-gap: 0.5em;
+    overflow-x: hidden;
 }
 
 /* Pull the last action group to the right-hand side */
