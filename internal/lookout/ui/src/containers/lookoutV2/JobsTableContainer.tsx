@@ -140,7 +140,7 @@ export const JobsTableContainer = ({
       const rowRequest: FetchRowRequest = {
         filters: [
           ...convertRowPartsToFilters(parentRowInfo?.rowIdPartsPath ?? []),
-          ...convertColumnFiltersToFilters(columnFilterState),
+          ...convertColumnFiltersToFilters(columnFilterState, allColumns),
         ],
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? pageSize,
@@ -205,7 +205,7 @@ export const JobsTableContainer = ({
     }
 
     fetchData().catch(console.error)
-  }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting])
+  }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting, allColumns])
 
   const onRefresh = useCallback(() => {
     setSelectedRows({})
@@ -304,12 +304,12 @@ export const JobsTableContainer = ({
   )
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
-    const tableFilters = convertColumnFiltersToFilters(columnFilterState)
+    const tableFilters = convertColumnFiltersToFilters(columnFilterState, allColumns)
     return Object.keys(selectedRows).map((rowId) => {
       const { rowIdPartsPath } = fromRowId(rowId as RowId)
       return tableFilters.concat(convertRowPartsToFilters(rowIdPartsPath))
     })
-  }, [selectedRows, columnFilterState])
+  }, [selectedRows, columnFilterState, allColumns])
 
   const table = useReactTable({
     data: data ?? [],
