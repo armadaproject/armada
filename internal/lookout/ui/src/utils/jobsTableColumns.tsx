@@ -7,6 +7,7 @@ import { JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
+import JobStateCell from "components/jobs/JobStateCell"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 
@@ -166,6 +167,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 70,
+      cell: cell => <JobStateCell cellData={cell.getValue()} />
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
