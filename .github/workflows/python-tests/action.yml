@@ -45,3 +45,15 @@ runs:
         twine check dist/*
       shell: bash
       working-directory: ${{ inputs.path }}
+    # run tox -e coverage, which then writes a .coverage file
+    # send this to codecov using the codecov action
+    - name: Run tox python ${{ inputs.python-version }} coverage
+      run: tox -e coverage
+      shell: bash
+      working-directory: ${{ inputs.path }}
+    - name: Upload coverage to codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ${{ inputs.path }}/.coverage
+        fail_ci_if_error: true
+        verbose: true
