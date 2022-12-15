@@ -4,8 +4,8 @@ import { JobRow, JobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
 
+import { getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
 import { RowIdParts, toRowId, RowId, findRowInData } from "./reactTableUtils"
 
 export interface PendingData {
@@ -53,9 +53,9 @@ export const convertRowPartsToFilters = (expandedRowIdParts: RowIdParts[]): JobF
 export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, columns: JobTableColumn[]): JobFilter[] => {
   return filters.map(({ id, value }) => {
     const isArray = _.isArray(value)
-    const columnInfo = columns.find(col => col.id === id)
+    const columnInfo = columns.find((col) => col.id === id)
     const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
-    console.log({id, columnInfo, metadata})
+    console.log({ id, columnInfo, metadata })
     return {
       field: id,
       value: isArray ? (value as string[]) : (value as string),

@@ -127,7 +127,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
-      defaultMatchType: Match.StartsWith
+      defaultMatchType: Match.StartsWith,
     },
   }),
   accessorColumn({
@@ -141,7 +141,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
-      defaultMatchType: Match.StartsWith
+      defaultMatchType: Match.StartsWith,
     },
   }),
   accessorColumn({
@@ -155,7 +155,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
-      defaultMatchType: Match.Exact // Job ID does not support startsWith
+      defaultMatchType: Match.Exact, // Job ID does not support startsWith
     },
   }),
   accessorColumn({
@@ -173,7 +173,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         value: state,
         displayName: formatJobState(state),
       })),
-      defaultMatchType: Match.AnyOf
+      defaultMatchType: Match.AnyOf,
     },
   }),
   accessorColumn({
@@ -190,8 +190,8 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
-      defaultMatchType: Match.StartsWith
-    }
+      defaultMatchType: Match.StartsWith,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.CPU,
