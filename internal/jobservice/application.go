@@ -80,7 +80,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
 					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 					if err != nil {
-						log.Warnf("Error detected from CleanupJobSetAndJobs", err)
+						log.Warnf("Error detected from CleanupJobSetAndJobs: %v", err)
 					}
 				}
 			}
