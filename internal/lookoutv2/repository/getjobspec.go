@@ -33,7 +33,7 @@ func (r *SqlGetJobSpecRepository) GetJobSpec(ctx context.Context, jobId string) 
 	var rawBytes []byte
 	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadWrite,
+		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, "SELECT job_spec FROM job WHERE job_id = $1", jobId)
