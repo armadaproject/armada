@@ -56,7 +56,19 @@ func TestGetJobsSingle(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(userAnnotationPrefix, converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				JobId:            jobId,
+				Priority:         priority,
+				PriorityClass:    "other-than-default",
+				Cpu:              cpu,
+				Memory:           memory,
+				EphemeralStorage: ephemeralStorage,
+				Gpu:              gpu,
+				Annotations: map[string]string{
+					"step_path": "/1/2/3",
+					"hello":     "world",
+				},
+			}).
 			Pending(runId, cluster, baseTime).
 			Running(runId, node, baseTime).
 			RunSucceeded(runId, baseTime).
