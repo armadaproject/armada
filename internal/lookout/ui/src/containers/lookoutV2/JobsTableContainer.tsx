@@ -28,10 +28,10 @@ import {
   ExpandedState,
   ColumnFiltersState,
   SortingState,
+  VisibilityState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
-import { getSelectedColumnDef, SELECT_COLUMN_ID } from "components/lookoutV2/SelectedColumn"
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
 import { JobFilter } from "models/lookoutV2Models"
@@ -40,7 +40,15 @@ import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { getErrorMessage } from "utils"
-import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
+import {
+  ColumnId,
+  DEFAULT_COLUMN_VISIBILITY,
+  DEFAULT_GROUPING,
+  JobTableColumn,
+  JOB_COLUMNS,
+  StandardColumnId,
+  toColId,
+} from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
   fetchJobGroups,
@@ -78,7 +86,17 @@ export const JobsTableContainer = ({
   const [data, setData] = useState<JobTableRow[]>([])
   const [rowsToFetch, setRowsToFetch] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
   const [totalRowCount, setTotalRowCount] = useState(0)
-  const [allColumns, setAllColumns] = useState(DEFAULT_COLUMN_SPECS)
+
+  // Columns
+  const [allColumns, setAllColumns] = useState<JobTableColumn[]>(JOB_COLUMNS)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_COLUMN_VISIBILITY)
+  const visibleColumnIds = useMemo(
+    () =>
+      Object.keys(columnVisibility)
+        .map(toColId)
+        .filter((colId) => columnVisibility[colId]),
+    [columnVisibility],
+  )
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(DEFAULT_GROUPING)
@@ -122,7 +140,7 @@ export const JobsTableContainer = ({
       const rowRequest: FetchRowRequest = {
         filters: [
           ...convertRowPartsToFilters(parentRowInfo?.rowIdPartsPath ?? []),
-          ...convertColumnFiltersToFilters(columnFilterState),
+          ...convertColumnFiltersToFilters(columnFilterState, allColumns),
         ],
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? pageSize,
@@ -137,7 +155,9 @@ export const JobsTableContainer = ({
           totalCount = totalJobs
         } else {
           const groupedCol = grouping[expandedLevel]
-          const colsToAggregate = allColumns.filter((c) => c.groupable).map((c) => c.key)
+
+          // TODO: Wire in aggregatable+visible columns (maybe use column metadata?)
+          const colsToAggregate: string[] = []
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
@@ -185,12 +205,22 @@ export const JobsTableContainer = ({
     }
 
     fetchData().catch(console.error)
-  }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting])
+  }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting, allColumns])
 
   const onRefresh = useCallback(() => {
     setSelectedRows({})
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }, [expanded, data, pageSize, pageIndex])
+
+  const onColumnVisibilityChange = useCallback(
+    (colIdToToggle: ColumnId) => {
+      setColumnVisibility({
+        ...columnVisibility,
+        [colIdToToggle]: !columnVisibility[colIdToToggle],
+      })
+    },
+    [columnVisibility],
+  )
 
   const onGroupingChange = useCallback(
     (newState: ColumnId[]) => {
@@ -199,19 +229,14 @@ export const JobsTableContainer = ({
       setExpanded({})
 
       // Check all grouping columns are displayed
-      setAllColumns(
-        allColumns.map((col) => ({
-          ...col,
-          selected: newState.includes(col.key) ? true : col.selected,
-        })),
-      )
+      setColumnVisibility(newState.reduce((a, s) => ({ ...a, [s]: true }), columnVisibility))
 
       setGrouping([...newState])
 
       // Refetch the root data
       setRowsToFetch([{ parentRowId: "ROOT", skip: 0 }])
     },
-    [allColumns],
+    [allColumns, columnVisibility],
   )
 
   const onRootPaginationChange = useCallback(
@@ -279,36 +304,16 @@ export const JobsTableContainer = ({
   )
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
-    const tableFilters = convertColumnFiltersToFilters(columnFilterState)
+    const tableFilters = convertColumnFiltersToFilters(columnFilterState, allColumns)
     return Object.keys(selectedRows).map((rowId) => {
       const { rowIdPartsPath } = fromRowId(rowId as RowId)
       return tableFilters.concat(convertRowPartsToFilters(rowIdPartsPath))
     })
-  }, [selectedRows, columnFilterState])
-
-  const selectedColumnDefs = useMemo<ColumnDef<JobTableRow>[]>(() => {
-    return allColumns
-      .filter((c) => c.selected)
-      .map(
-        (c): ColumnDef<JobTableRow> => ({
-          id: c.key,
-          accessorKey: c.key,
-          header: c.name,
-          enableGrouping: c.groupable,
-          enableColumnFilter: c.filterType !== undefined,
-          enableSorting: c.sortable,
-          aggregationFn: () => "-",
-          minSize: c.minSize,
-          size: c.minSize,
-          ...(c.formatter ? { cell: (info) => c.formatter?.(info.getValue()) } : {}),
-        }),
-      )
-      .concat([getSelectedColumnDef()])
-  }, [allColumns])
+  }, [selectedRows, columnFilterState, allColumns])
 
   const table = useReactTable({
     data: data ?? [],
-    columns: selectedColumnDefs,
+    columns: allColumns,
     state: {
       grouping,
       expanded,
@@ -316,8 +321,9 @@ export const JobsTableContainer = ({
       columnFilters: columnFilterState,
       rowSelection: selectedRows,
       columnPinning: {
-        left: [SELECT_COLUMN_ID],
+        left: [StandardColumnId.SelectorCol],
       },
+      columnVisibility,
       sorting,
     },
     getCoreRowModel: getCoreRowModel(),
@@ -360,10 +366,12 @@ export const JobsTableContainer = ({
         isLoading={rowsToFetch.length > 0}
         allColumns={allColumns}
         groupedColumns={grouping}
+        visibleColumns={visibleColumnIds}
         selectedItemFilters={selectedItemsFilters}
         onRefresh={onRefresh}
         onColumnsChanged={setAllColumns}
         onGroupsChanged={onGroupingChange}
+        toggleColumnVisibility={onColumnVisibilityChange}
         getJobsService={getJobsService}
         updateJobsService={updateJobsService}
       />
@@ -381,7 +389,7 @@ export const JobsTableContainer = ({
 
           <JobsTableBody
             dataIsLoading={rowsToFetch.length > 0}
-            columns={selectedColumnDefs}
+            columns={table.getVisibleLeafColumns()}
             topLevelRows={topLevelRows}
             onLoadMoreSubRows={onLoadMoreSubRows}
           />
@@ -395,7 +403,9 @@ export const JobsTableContainer = ({
                 page={pageIndex}
                 onPageChange={(_, page) => table.setPageIndex(page)}
                 onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
-                colSpan={selectedColumnDefs.length}
+                colSpan={table.getVisibleLeafColumns().length}
+                showFirstButton={true}
+                showLastButton={true}
               />
             </TableRow>
           </TableFooter>
