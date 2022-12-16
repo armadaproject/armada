@@ -55,7 +55,6 @@ export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, colum
     const isArray = _.isArray(value)
     const columnInfo = columns.find((col) => col.id === id)
     const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
-    console.log({ id, columnInfo, metadata })
     return {
       field: id,
       value: isArray ? (value as string[]) : (value as string),
