@@ -20,8 +20,6 @@ export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
 const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled])
 export const isTerminatedJobState = (state: JobState) => terminatedJobStates.has(state)
 
-export const formatJobState = (state: JobState): string => jobStateDisplayInfo[state]?.displayName || state
-
 export const JobRunStates: Record<string, ColoredState> = {
   RunPending: { displayName: "Run Pending", color: "#ff9900" },
   RunRunning: { displayName: "Run Running", color: "#00ff00" },
@@ -53,14 +51,11 @@ export type Job = {
   ephemeralStorage: number
   gpu: number
   priority: number
-  priorityClass: string
   submitted: string
-  cancelled?: string
-  timeInState: string
-  duplicate: boolean
   annotations: Record<string, string>
   runs: JobRun[]
   lastActiveRunId?: string
+  lastTransitionTime: string
 }
 
 export type JobKey = keyof Job

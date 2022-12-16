@@ -1,11 +1,12 @@
 import { render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { formatJobState, Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
+import { Job, JobFilter, JobState, Match } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
+import { formatJobState } from "utils/jobsTableFormatters"
 
 import { CancelDialog } from "./CancelDialog"
 
