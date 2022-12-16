@@ -31,10 +31,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
-	decompressor, err := compress.NewZlibDecompressor()
-	if err != nil {
-		return err
-	}
+	decompressor := compress.NewThreadSafeZlibDecompressor()
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
 
 	// create new service API

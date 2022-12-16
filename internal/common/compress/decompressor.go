@@ -22,7 +22,7 @@ func (c *NoOpDecompressor) Decompress(b []byte) ([]byte, error) {
 	return b, nil
 }
 
-// ZlibDecompressor decompresses Zlib,
+// ZlibDecompressor decompresses Zlib
 type ZlibDecompressor struct {
 	outputBuffer *bytes.Buffer
 	inputBuffer  *bytes.Buffer
@@ -60,5 +60,26 @@ func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
 		return nil, errors.WithStack(err)
 	}
 	decompressed := d.outputBuffer.Bytes()
+	return decompressed, nil
+}
+
+// ThreadSafeZlibDecompressor provides a thread safe decompressor, at the cost of instantiating a new ZlibDecompressor
+// for each Decompress call
+// Used in Lookout for
+type ThreadSafeZlibDecompressor struct{}
+
+func NewThreadSafeZlibDecompressor() *ThreadSafeZlibDecompressor {
+	return &ThreadSafeZlibDecompressor{}
+}
+
+func (d *ThreadSafeZlibDecompressor) Decompress(b []byte) ([]byte, error) {
+	decompressor, err := NewZlibDecompressor()
+	if err != nil {
+		return nil, err
+	}
+	decompressed, err := decompressor.Decompress(b)
+	if err != nil {
+		return nil, err
+	}
 	return decompressed, nil
 }
