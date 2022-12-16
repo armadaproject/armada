@@ -2,9 +2,10 @@ import { useCallback, useMemo } from "react"
 
 import { Checkbox } from "@mui/material"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
+import JobStateCell from "components/jobs/JobStateCell"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { JobTableRow } from "models/jobsTableModels"
-import { JobState } from "models/lookoutV2Models"
+import { JobState, Match } from "models/lookoutV2Models"
 
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
@@ -18,8 +19,11 @@ export enum FilterType {
 export interface JobTableColumnMetadata {
   displayName: string
   isRightAligned?: boolean
+
   filterType?: FilterType
   enumFitlerValues?: EnumFilterOption[]
+  defaultMatchType?: Match
+
   isAnnotation?: boolean
 }
 
@@ -124,6 +128,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
     },
   }),
   accessorColumn({
@@ -137,6 +142,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
     },
   }),
   accessorColumn({
@@ -150,6 +156,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      defaultMatchType: Match.Exact, // Job ID does not support startsWith
     },
   }),
   accessorColumn({
@@ -160,6 +167,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 70,
+      cell: (cell) => <JobStateCell cellData={cell.getValue()} />,
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
@@ -167,6 +175,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         value: state,
         displayName: formatJobState(state),
       })),
+      defaultMatchType: Match.AnyOf,
     },
   }),
   accessorColumn({
@@ -178,6 +187,13 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     id: StandardColumnId.Owner,
     accessor: "owner",
     displayName: "Owner",
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.CPU,
