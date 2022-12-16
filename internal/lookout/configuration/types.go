@@ -51,11 +51,8 @@ type LookoutIngesterDebugConfig struct {
 	// Disables DB update conflation. If conflation is disabled then update
 	// instructions	will not conflated/coalesced. Meaning update instructions
 	// that would immediately negate another update on the same table row will
-	// be retained.
+	// be retained.DB updates will also be force to be scalar.
 	DisableConflateDBUpdates bool
-	// Forces scalar DB updates. Default behavior is to batch updates to the
-	// database.
-	ForceScalarDBUpdates bool
 }
 
 type LookoutIngesterConfiguration struct {

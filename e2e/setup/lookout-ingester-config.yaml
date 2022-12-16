@@ -27,4 +27,3 @@ userAnnotationPrefix: "armadaproject.io/"
 
 debug:
   disableConflateDBUpdates: true
-  forceScalarDBUpdates: true

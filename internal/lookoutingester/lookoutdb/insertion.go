@@ -34,9 +34,6 @@ func NewLookoutDb(
 	if config.Debug.DisableConflateDBUpdates {
 		log.Warn("config.debug.disableConflateDBUpdates == true. Performance may be negatively impacted.")
 	}
-	if config.Debug.ForceScalarDBUpdates {
-		log.Warn("config.debug.forceScalarDBUpdates == true. Performance may be negatively impacted.")
-	}
 
 	return &LookoutDb{db: db, metrics: metrics, config: config}
 }
@@ -100,7 +97,7 @@ func (l *LookoutDb) CreateJobs(ctx context.Context, instructions []*model.Create
 		return
 	}
 
-	if l.config.Debug.ForceScalarDBUpdates {
+	if l.config.Debug.DisableConflateDBUpdates {
 		l.CreateJobsScalar(ctx, instructions)
 		return
 	}
@@ -118,7 +115,7 @@ func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.Update
 	}
 	instructions = filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
 
-	if l.config.Debug.ForceScalarDBUpdates {
+	if l.config.Debug.DisableConflateDBUpdates {
 		l.UpdateJobsScalar(ctx, instructions)
 		return
 	}
@@ -135,7 +132,7 @@ func (l *LookoutDb) CreateJobRuns(ctx context.Context, instructions []*model.Cre
 		return
 	}
 
-	if l.config.Debug.ForceScalarDBUpdates {
+	if l.config.Debug.DisableConflateDBUpdates {
 		l.CreateJobRunsScalar(ctx, instructions)
 		return
 	}
@@ -152,7 +149,7 @@ func (l *LookoutDb) UpdateJobRuns(ctx context.Context, instructions []*model.Upd
 		return
 	}
 
-	if l.config.Debug.ForceScalarDBUpdates {
+	if l.config.Debug.DisableConflateDBUpdates {
 		l.UpdateJobRunsScalar(ctx, instructions)
 		return
 	}
@@ -169,7 +166,7 @@ func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*m
 		return
 	}
 
-	if l.config.Debug.ForceScalarDBUpdates {
+	if l.config.Debug.DisableConflateDBUpdates {
 		l.CreateUserAnnotationsScalar(ctx, instructions)
 		return
 	}
@@ -186,7 +183,7 @@ func (l *LookoutDb) CreateJobRunContainers(ctx context.Context, instructions []*
 		return
 	}
 
-	if l.config.Debug.ForceScalarDBUpdates {
+	if l.config.Debug.DisableConflateDBUpdates {
 		l.CreateJobRunContainersScalar(ctx, instructions)
 		return
 	}
