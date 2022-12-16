@@ -440,7 +440,7 @@ describe("JobsTableContainer", () => {
 
   async function filterTextColumnTo(columnDisplayName: string, filterText: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
-    const filterInput = await within(headerCell).findByRole("textbox", { name: "Filter" })
+    const filterInput = await within(headerCell).findByRole("textbox")
     await userEvent.clear(filterInput)
     if (filterText.length > 0) {
       await userEvent.type(filterInput, filterText)
@@ -449,7 +449,7 @@ describe("JobsTableContainer", () => {
 
   async function toggleEnumFilterOption(columnDisplayName: string, filterOption: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
-    const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter" })
+    const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter..." })
     await userEvent.click(dropdownTrigger)
     const optionButton = await screen.findByRole("option", { name: filterOption })
     await userEvent.click(optionButton)
