@@ -46,6 +46,9 @@ func NewLookoutAPI(spec *loads.Document) *LookoutAPI {
 		GetHealthHandler: GetHealthHandlerFunc(func(params GetHealthParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetHealth has not yet been implemented")
 		}),
+		GetJobSpecHandler: GetJobSpecHandlerFunc(func(params GetJobSpecParams) middleware.Responder {
+			return middleware.NotImplemented("operation GetJobSpec has not yet been implemented")
+		}),
 		GetJobsHandler: GetJobsHandlerFunc(func(params GetJobsParams) middleware.Responder {
 			return middleware.NotImplemented("operation GetJobs has not yet been implemented")
 		}),
@@ -93,6 +96,8 @@ type LookoutAPI struct {
 
 	// GetHealthHandler sets the operation handler for the get health operation
 	GetHealthHandler GetHealthHandler
+	// GetJobSpecHandler sets the operation handler for the get job spec operation
+	GetJobSpecHandler GetJobSpecHandler
 	// GetJobsHandler sets the operation handler for the get jobs operation
 	GetJobsHandler GetJobsHandler
 	// GroupJobsHandler sets the operation handler for the group jobs operation
@@ -179,6 +184,9 @@ func (o *LookoutAPI) Validate() error {
 
 	if o.GetHealthHandler == nil {
 		unregistered = append(unregistered, "GetHealthHandler")
+	}
+	if o.GetJobSpecHandler == nil {
+		unregistered = append(unregistered, "GetJobSpecHandler")
 	}
 	if o.GetJobsHandler == nil {
 		unregistered = append(unregistered, "GetJobsHandler")
@@ -280,6 +288,10 @@ func (o *LookoutAPI) initHandlerCache() {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/health"] = NewGetHealth(o.context, o.GetHealthHandler)
+	if o.handlers["POST"] == nil {
+		o.handlers["POST"] = make(map[string]http.Handler)
+	}
+	o.handlers["POST"]["/api/v1/jobSpec"] = NewGetJobSpec(o.context, o.GetJobSpecHandler)
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
