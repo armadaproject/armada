@@ -65,7 +65,6 @@ func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
 
 // ThreadSafeZlibDecompressor provides a thread safe decompressor, at the cost of instantiating a new ZlibDecompressor
 // for each Decompress call
-// Used in Lookout for
 type ThreadSafeZlibDecompressor struct{}
 
 func NewThreadSafeZlibDecompressor() *ThreadSafeZlibDecompressor {
