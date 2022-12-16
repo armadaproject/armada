@@ -13,8 +13,8 @@ export const KeyValuePairTable = ({ data }: KeyValuePairTable) => {
         {data.map(({ key, value }) => {
           return (
             <TableRow key={key}>
-              <TableCell sx={{width: "50%"}}>{key}</TableCell>
-              <TableCell sx={{width: "50%"}}>{value}</TableCell>
+              <TableCell sx={{ width: "50%" }}>{key}</TableCell>
+              <TableCell sx={{ width: "50%" }}>{value}</TableCell>
             </TableRow>
           )
         })}

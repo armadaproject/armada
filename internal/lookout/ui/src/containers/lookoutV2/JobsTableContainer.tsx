@@ -12,9 +12,6 @@ import {
   TablePagination,
   TableFooter,
   Button,
-  Drawer,
-  Divider,
-  IconButton,
   Box,
 } from "@mui/material"
 import {
@@ -36,9 +33,10 @@ import {
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
+import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
-import { Job, JobFilter } from "models/lookoutV2Models"
+import { Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -69,7 +67,6 @@ import {
 import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
-import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
 
 const DEFAULT_PAGE_SIZE = 30
 
@@ -312,10 +309,13 @@ export const JobsTableContainer = ({
     [sorting, expanded, pageIndex, pageSize, data],
   )
 
-  const onJobRowClick = useCallback((jobRow: JobRow) => {
-    const clickedJob = jobRow as Job
-    setSidebarJob(sidebarJob?.jobId !== clickedJob.jobId ? clickedJob : undefined)
-  }, [sidebarJob])
+  const onJobRowClick = useCallback(
+    (jobRow: JobRow) => {
+      const clickedJob = jobRow as Job
+      setSidebarJob(sidebarJob?.jobId !== clickedJob.jobId ? clickedJob : undefined)
+    },
+    [sidebarJob],
+  )
   const onSideBarClose = useCallback(() => setSidebarJob(undefined), [])
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
@@ -377,7 +377,7 @@ export const JobsTableContainer = ({
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
   return (
     <Box sx={{ display: "flex" }}>
-      <Box sx={{overflowX: "auto", overflowY: "auto", margin: "0.5em"}}>
+      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em" }}>
         <JobsTableActionBar
           isLoading={rowsToFetch.length > 0}
           allColumns={allColumns}
@@ -407,6 +407,7 @@ export const JobsTableContainer = ({
               dataIsLoading={rowsToFetch.length > 0}
               columns={table.getVisibleLeafColumns()}
               topLevelRows={topLevelRows}
+              sidebarJobId={sidebarJob?.jobId}
               onLoadMoreSubRows={onLoadMoreSubRows}
               onClickJobRow={onJobRowClick}
             />
@@ -441,10 +442,18 @@ interface JobsTableBodyProps {
   dataIsLoading: boolean
   columns: ColumnDef<JobTableRow>[]
   topLevelRows: Row<JobTableRow>[]
+  sidebarJobId: JobId | undefined
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
   onClickJobRow: (row: JobRow) => void
 }
-const JobsTableBody = ({ dataIsLoading, columns, topLevelRows, onLoadMoreSubRows, onClickJobRow }: JobsTableBodyProps) => {
+const JobsTableBody = ({
+  dataIsLoading,
+  columns,
+  topLevelRows,
+  sidebarJobId,
+  onLoadMoreSubRows,
+  onClickJobRow,
+}: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
     <TableBody>
@@ -461,30 +470,36 @@ const JobsTableBody = ({ dataIsLoading, columns, topLevelRows, onLoadMoreSubRows
         </TableRow>
       )}
 
-      {topLevelRows.map((row) => recursiveRowRender(row, onLoadMoreSubRows, onClickJobRow))}
+      {topLevelRows.map((row) => recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow))}
     </TableBody>
   )
 }
 
 const recursiveRowRender = (
   row: Row<JobTableRow>,
+  sidebarJobId: JobId | undefined,
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void,
-  onClickJobRow: (row: JobRow) => void
+  onClickJobRow: (row: JobRow) => void,
 ): JSX.Element => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
   const rowCells = row.getVisibleCells()
 
   const depthGaugeLevelThicknessPixels = 6
+  const isOpenInSidebar = sidebarJobId !== undefined && original.jobId === sidebarJobId
 
   return (
     <React.Fragment key={`${row.id}_d${row.depth}`}>
       {/* Render the current row */}
-      <TableRow 
-        aria-label={row.id} 
-        hover 
-        className={styles.rowDepthIndicator} 
-        sx={{ backgroundSize: row.depth * 6, cursor: rowIsGroup ? "inherit" : "pointer" }}
+      <TableRow
+        aria-label={row.id}
+        hover
+        className={styles.rowDepthIndicator}
+        sx={{
+          backgroundSize: row.depth * 6,
+          cursor: rowIsGroup ? "inherit" : "pointer",
+          backgroundColor: isOpenInSidebar ? "rgba(0, 0, 0, 0.08)" : "initial",
+        }}
         onClick={() => {
           if (!rowIsGroup) {
             onClickJobRow(row.original)
@@ -504,7 +519,9 @@ const recursiveRowRender = (
       </TableRow>
 
       {/* Render any sub rows if expanded */}
-      {rowIsGroup && row.getIsExpanded() && row.subRows.map((row) => recursiveRowRender(row, onLoadMoreSubRows, onClickJobRow))}
+      {rowIsGroup &&
+        row.getIsExpanded() &&
+        row.subRows.map((row) => recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow))}
 
       {/* Render pagination tools for this expanded row */}
       {rowIsGroup && row.getIsExpanded() && (original.subRowCount ?? 0) > original.subRows.length && (

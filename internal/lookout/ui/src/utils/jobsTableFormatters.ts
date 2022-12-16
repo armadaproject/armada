@@ -1,3 +1,4 @@
+import { green, grey, orange, purple, red, yellow } from "@mui/material/colors"
 import { intervalToDuration } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 import { parseISO } from "date-fns/fp"
@@ -10,6 +11,25 @@ export const formatCPU = (cpuMillis?: number): string =>
 
 export const formatJobState = (state?: JobState): string =>
   state !== undefined ? jobStateDisplayInfo[state]?.displayName ?? state : ""
+
+export const colorForJobState = (state?: JobState): string | undefined => {
+  switch (state) {
+    case JobState.Queued:
+      return yellow["A100"]
+    case JobState.Pending:
+      return orange["A100"]
+    case JobState.Running:
+      return green["A100"]
+    case JobState.Succeeded:
+      return undefined
+    case JobState.Failed:
+      return red["A100"]
+    case JobState.Cancelled:
+      return grey[300]
+    default:
+      return purple["A100"]
+  }
+}
 
 export const formatBytes = (bytes?: number): string => (bytes !== undefined ? prettyBytes(bytes) : "")
 
