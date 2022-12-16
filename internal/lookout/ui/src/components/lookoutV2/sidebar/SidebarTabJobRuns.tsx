@@ -3,10 +3,10 @@ import { ExpandMore } from "@mui/icons-material"
 import { Job } from "models/lookoutV2Models"
 import { formatUtcDate } from "utils/jobsTableFormatters"
 import { KeyValuePairTable } from "./KeyValuePairTable"
-export interface SidebarJobRunsProps {
+export interface SidebarTabJobRuns {
   job: Job
 }
-export const SidebarJobRuns = ({ job }: SidebarJobRunsProps) => {
+export const SidebarTabJobRuns = ({ job }: SidebarTabJobRuns) => {
   const runsNewestFirst = job.runs.reverse()
   return (
 

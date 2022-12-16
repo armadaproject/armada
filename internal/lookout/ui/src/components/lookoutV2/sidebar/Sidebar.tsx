@@ -1,10 +1,10 @@
 import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs, Toolbar } from "@mui/material"
 import { Job } from "models/lookoutV2Models"
-import { useCallback, useState } from "react"
-import { SidebarJobDetails } from "./SidebarJobDetails"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { SidebarHeader } from "./SidebarHeader"
-import { SidebarJobRuns } from "./SidebarJobRuns"
+import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
+import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
 
 enum SidebarTab {
   JobDetails = "JobDetails",
@@ -18,26 +18,50 @@ export interface SidebarProps {
   onClose: () => void
 }
 export const Sidebar = ({ job, onClose }: SidebarProps) => {
-
+  const ref = useRef<HTMLDivElement>(null);
+  
   const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
   const handleTabChange = useCallback((_, newValue: SidebarTab) => {
     setOpenTab(newValue)
   }, [])
+
+  // Logic to keep the sidebar the correct height while accounting for possible page headers
+  const [visibleHeightAboveElement, setVisibleHeightAboveElement] = useState(0)
+  useEffect(() => {
+    const onScroll = () => {
+      if (ref.current !== null) {
+        setVisibleHeightAboveElement(ref.current.offsetTop - window.scrollY)
+      }
+    }
+    
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [ref]);
+  
   return (
     <Drawer
+      ref={ref}
       anchor="right"
       variant="permanent"
+
+      // Root element
       sx={{
+        position: "sticky",
+        top: 0,
+        height: `calc(100vh - ${visibleHeightAboveElement}px)`,
+
         width: "30%",
         minWidth: "350px",
-        // maxWidth: "30%",
-        flexShrink: 0,
-        '& .MuiDrawer-paper': {
-          minWidth: "350px",
-          width: "30%",
-          boxSizing: 'border-box',
-        },
       }}
+      
+      // Child element
+      PaperProps={{
+        sx: {
+          width: "100%",
+          position: "initial",
+        }
+      }}
+      
       open={true}
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: "0.5em", padding: "0.5em" }}>
@@ -51,10 +75,10 @@ export const Sidebar = ({ job, onClose }: SidebarProps) => {
             <Tab label="Logs" value={SidebarTab.Logs} disabled sx={{minWidth: "50px"}}></Tab>
           </Tabs>
           <TabPanel value={SidebarTab.JobDetails}>
-            <SidebarJobDetails job={job}/>
+            <SidebarTabJobDetails job={job}/>
           </TabPanel>
           <TabPanel value={SidebarTab.JobRuns}>
-            <SidebarJobRuns job={job} />
+            <SidebarTabJobRuns job={job} />
           </TabPanel>
           <TabPanel value={SidebarTab.Yaml}>
             TODO

@@ -376,8 +376,8 @@ export const JobsTableContainer = ({
 
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
   return (
-    <Box className={styles.jobsTablePage} sx={{ display: "flex" }}>
-      <Box sx={{overflowX: "auto", overflowY: "auto"}}>
+    <Box sx={{ display: "flex" }}>
+      <Box sx={{overflowX: "auto", overflowY: "auto", margin: "0.5em"}}>
         <JobsTableActionBar
           isLoading={rowsToFetch.length > 0}
           allColumns={allColumns}

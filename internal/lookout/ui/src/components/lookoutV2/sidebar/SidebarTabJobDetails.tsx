@@ -3,10 +3,10 @@ import { Job } from "models/lookoutV2Models"
 import { formatBytes, formatCPU } from "utils/jobsTableFormatters"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 
-export interface SidebarJobDetails {
+export interface SidebarTabJobDetails {
   job: Job
 }
-export const SidebarJobDetails = ({ job }: SidebarJobDetails) => {
+export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetails) => {
   return (
     <>
       <Typography variant="subtitle2">Info:</Typography>
