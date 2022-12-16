@@ -304,6 +304,82 @@ paths:
           schema:
             $ref: "#/definitions/error"
 
+  /api/v1/jobSpec:
+    post:
+      operationId: getJobSpec
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobSpecRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - jobId
+            properties:
+              jobId:
+                type: string
+                x-nullable: false
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns raw Job spec
+          schema:
+            type: object
+            properties:
+              job:
+                type: object
+                description: Job Spec object
+                x-nullable: false
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
+  /api/v1/jobRunError:
+    post:
+      operationId: getJobRunError
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobRunErrorRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - runId
+            properties:
+              runId:
+                type: string
+                x-nullable: false
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns error for specific job run (if present)
+          schema:
+            type: object
+            properties:
+              errorString:
+                type: string
+                description: Error for individual job run
+                x-nullable: false
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
   /api/v1/jobGroups:
     post:
       operationId: groupJobs

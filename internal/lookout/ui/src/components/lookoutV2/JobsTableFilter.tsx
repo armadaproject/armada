@@ -10,7 +10,7 @@ const FILTER_TYPE_DISPLAY_STRINGS: Record<Match, string> = {
   [Match.LessThan]: "Less than...",
   [Match.GreaterThanOrEqual]: "Greater than...",
   [Match.LessThanOrEqual]: "Less than...",
-  [Match.AnyOf]: "Filter..."
+  [Match.AnyOf]: "Filter...",
 }
 
 export interface JobsTableFilterProps {
