@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/database"
@@ -183,7 +184,19 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			RunId:       row.runId,
 			Started:     database.ParseNullTime(row.started),
 		}
-		jobMap[row.jobId].Runs = append(jobMap[row.jobId].Runs, run)
+		job, ok := jobMap[row.jobId]
+		if !ok {
+			return nil, errors.Errorf("job row with id %s not found", row.jobId)
+		}
+		job.Runs = append(jobMap[row.jobId].Runs, run)
+	}
+
+	for _, row := range annotationRows {
+		job, ok := jobMap[row.jobId]
+		if !ok {
+			return nil, errors.Errorf("job row with id %s not found", row.jobId)
+		}
+		job.Annotations[row.annotationKey] = row.annotationValue
 	}
 
 	jobs := make([]*model.Job, len(jobMap))

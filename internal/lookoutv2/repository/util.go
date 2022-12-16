@@ -146,7 +146,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 	js.apiJob = apiJob
 
 	js.job = &model.Job{
-		Annotations:        make(map[string]string),
+		Annotations:        opts.Annotations,
 		Cpu:                opts.Cpu.MilliValue(),
 		EphemeralStorage:   opts.EphemeralStorage.Value(),
 		Gpu:                opts.Gpu.Value(),
