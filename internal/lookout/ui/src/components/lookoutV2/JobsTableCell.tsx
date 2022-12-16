@@ -2,6 +2,7 @@ import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel } from "@mui/material"
 import { Cell, flexRender, Header } from "@tanstack/react-table"
 import { JobRow } from "models/jobsTableModels"
+import { Match } from "models/lookoutV2Models"
 import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
 import { JobsTableFilter } from "./JobsTableFilter"
@@ -62,6 +63,7 @@ export const HeaderCell = ({ header }: HeaderCellProps) => {
           id={header.id}
           currentFilter={header.column.getFilterValue() as string | string[]}
           filterType={metadata.filterType}
+          matchType={metadata.defaultMatchType ?? Match.Exact}
           enumFilterValues={metadata.enumFitlerValues}
           onFilterChange={header.column.setFilterValue}
         />
