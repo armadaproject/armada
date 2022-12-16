@@ -32,6 +32,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
 	decompressor := compress.NewThreadSafeZlibDecompressor()
+	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
 	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
 
 	// create new service API
@@ -89,6 +90,18 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 			return operations.NewGroupJobsOK().WithPayload(&operations.GroupJobsOKBody{
 				Count:  int64(result.Count),
 				Groups: slices.Map(result.Groups, conversions.ToSwaggerGroup),
+			})
+		},
+	)
+
+	api.GetJobRunErrorHandler = operations.GetJobRunErrorHandlerFunc(
+		func(params operations.GetJobRunErrorParams) middleware.Responder {
+			result, err := getJobRunErrorRepo.GetJobRunError(params.HTTPRequest.Context(), params.GetJobRunErrorRequest.RunID)
+			if err != nil {
+				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobRunErrorOK().WithPayload(&operations.GetJobRunErrorOKBody{
+				ErrorString: result,
 			})
 		},
 	)

@@ -132,6 +132,63 @@ func init() {
         }
       }
     },
+    "/api/v1/jobRunError": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunError",
+        "parameters": [
+          {
+            "name": "getJobRunErrorRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns error for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Error for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobSpec": {
       "post": {
         "consumes": [
@@ -676,6 +733,63 @@ func init() {
                   "items": {
                     "$ref": "#/definitions/group"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobRunError": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunError",
+        "parameters": [
+          {
+            "name": "getJobRunErrorRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns error for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Error for individual job run",
+                  "type": "string",
+                  "x-nullable": false
                 }
               }
             }
