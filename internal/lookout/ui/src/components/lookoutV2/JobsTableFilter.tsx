@@ -39,11 +39,7 @@ export const JobsTableFilter = ({
           onFilterChange={onFilterChange}
         />
       ) : (
-        <TextFilter 
-          currentFilter={(currentFilter ?? "") as string}
-          label={label}
-          onFilterChange={onFilterChange} 
-        />
+        <TextFilter currentFilter={(currentFilter ?? "") as string} label={label} onFilterChange={onFilterChange} />
       )}
     </Box>
   )

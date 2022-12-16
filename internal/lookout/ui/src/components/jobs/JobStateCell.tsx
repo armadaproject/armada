@@ -24,7 +24,7 @@ function colorForState(state: string): string | undefined {
   }
 }
 
-export default function JobStateCell(props: Pick<TableCellProps, 'cellData'>) {
+export default function JobStateCell(props: Pick<TableCellProps, "cellData">) {
   return (
     <div
       className="job-state-cell"
