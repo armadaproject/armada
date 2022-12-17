@@ -140,18 +140,18 @@ class ArmadaClient:
         :param queue: The name of the queue
         :param job_id: The name of the job id (this or job_set_id required)
         :param job_set_id: An array of JobSubmitRequestItems. (this or job_id required)
-        :return: A JobSubmitResponse object.
+        :return: A CancellationResult object.
         """
 
         # Checks to ensure that either job_id is provided,
         # or job_set_id AND queue is provided.
         # ensure that the others have appropriate empty values.
 
-        if job_id:
+        if job_id and not queue and not job_set_id:
             job_set_id = ""
             queue = ""
 
-        elif job_set_id and queue:
+        elif job_set_id and queue and not job_id:
             job_id = ""
 
         else:
@@ -207,17 +207,17 @@ class ArmadaClient:
         :param job_ids: A list of job ids to change priority of
         :param job_set_id: A job set id including jobs to change priority of
         :param queue: The queue the jobs are in
-        :return: ReprioritizeJobsResponse object. It is a map of strings.
+        :return: JobReprioritizeResponse object. It is a map of strings.
         """
 
         # Same as in cancel_jobs, ensure that either
         # job_ids or job_set_id and queue is provided.
 
-        if job_ids:
+        if job_ids and not job_set_id and not queue:
             job_set_id = ""
             queue = ""
 
-        elif job_set_id and queue:
+        elif job_set_id and queue and not job_ids:
             job_ids = []
 
         else:

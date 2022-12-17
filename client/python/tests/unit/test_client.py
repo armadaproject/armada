@@ -161,7 +161,15 @@ def test_get_queue_info():
 def test_cancel_jobs():
     test_create_queue()
     test_submit_job()
-    tester.cancel_jobs(queue="test", job_set_id="job-set-1", job_id="job1")
+
+    # Test that the right combination of jobid or jobsetid and queue is used
+    # also check that the Value error is raised
+    with pytest.raises(ValueError):
+        tester.cancel_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
+
+    tester.cancel_jobs(job_id="job-1")
+
+    tester.cancel_jobs(queue="test", job_set_id="job-set-1")
 
 
 def test_cancel_jobset():
@@ -226,8 +234,28 @@ def test_update_queues_full():
 
 
 def test_reprioritize_jobs():
+
+    # Similar to test_cancel_jobs(), test that the right combination of jobid
+    # or jobsetid and queue is used
+    # also check that the Value error is raised
+
+    with pytest.raises(ValueError):
+        tester.reprioritize_jobs(
+            queue="test",
+            job_ids=["job-1"],
+            job_set_id="job-set-1",
+            new_priority=1,
+        )
+
     tester.reprioritize_jobs(
-        new_priority=1.0, job_ids="test", job_set_id="job_test_1", queue="test"
+        job_ids=["job-1"],
+        new_priority=1,
+    )
+
+    tester.reprioritize_jobs(
+        queue="test",
+        job_set_id="job-set-1",
+        new_priority=1,
     )
 
 

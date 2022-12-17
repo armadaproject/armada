@@ -60,7 +60,7 @@ job_set_id is required.
 
 * **Returns**
 
-    A JobSubmitResponse object.
+    A CancellationResult object.
 
 
 
@@ -371,7 +371,7 @@ or job set.
 
 * **Returns**
 
-    ReprioritizeJobsResponse object. It is a map of strings.
+    JobReprioritizeResponse object. It is a map of strings.
 
 
 
