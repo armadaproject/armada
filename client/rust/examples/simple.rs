@@ -1,9 +1,14 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use armada_client::{
     armada::{
-        api::{JobSubmitRequestItem, Queue},
+        api::{JobSubmitRequestItem, JobSubmitRequestItemBuilder, Queue},
         k8s::io::{
-            api::core::v1::{Container, PodSpec, ResourceRequirements, SecurityContext},
+            api::core::v1::{
+                ContainerBuilder, PodSpecBuilder, ResourceRequirementsBuilder,
+                SecurityContextBuilder,
+            },
             apimachinery::pkg::api::resource::Quantity,
         },
     },
@@ -11,53 +16,49 @@ use armada_client::{
 };
 use tonic::transport::Channel;
 
-fn create_dummy_job() -> Vec<JobSubmitRequestItem> {
-    let mut pod_spec = PodSpec::default();
-    let mut container = Container::default();
-    container.name = Some(String::from("container1"));
-    container.image = Some("index.docker.io/library/ubuntu:latest".to_string());
-    container.args = vec![String::from("sleep"), String::from("10s")];
-    container.security_context = Some({
-        let mut sec_ctx = SecurityContext::default();
-        sec_ctx.run_as_user = Some(1000);
-        sec_ctx
-    });
-    container.resources = Some({
-        let mut reqs = ResourceRequirements::default();
-        reqs.requests.insert(
+fn create_dummy_job() -> Result<Vec<JobSubmitRequestItem>> {
+    let resources = HashMap::from([
+        (
             String::from("cpu"),
             Quantity {
                 string: Some(String::from("120m")),
             },
-        );
-        reqs.requests.insert(
+        ),
+        (
             String::from("memory"),
-            Quantity {
-                string: Some(String::from("510Mi")),
-            },
-        );
-
-        reqs.limits.insert(
-            String::from("cpu"),
             Quantity {
                 string: Some(String::from("120m")),
             },
-        );
-        reqs.limits.insert(
-            String::from("memory"),
-            Quantity {
-                string: Some(String::from("510Mi")),
-            },
-        );
-        reqs
-    });
-    pod_spec.containers = vec![container];
+        ),
+    ]);
 
-    let mut jsr = JobSubmitRequestItem::default();
-    jsr.priority = 1.0;
-    jsr.pod_specs = vec![pod_spec];
-    jsr.namespace = "personal-anonymous".to_string();
-    vec![jsr]
+    let container = ContainerBuilder::default()
+        .name(Some(String::from("container1")))
+        .image(Some("index.docker.io/library/ubuntu:latest".to_string()))
+        .args(vec![String::from("sleep"), String::from("10s")])
+        .security_context(Some(
+            SecurityContextBuilder::default()
+                .run_as_user(Some(1000))
+                .build()?,
+        ))
+        .resources(Some(
+            ResourceRequirementsBuilder::default()
+                .requests(resources.clone())
+                .limits(resources.clone())
+                .build()?,
+        ))
+        .build()?;
+
+    let pod_spec = PodSpecBuilder::default()
+        .containers(vec![container])
+        .build()?;
+
+    let jsr = JobSubmitRequestItemBuilder::default()
+        .priority(1.0)
+        .pod_specs(vec![pod_spec])
+        .namespace(String::from("personal-anonymous"))
+        .build()?;
+    Ok(vec![jsr])
 }
 
 #[tokio::main]
@@ -87,7 +88,7 @@ async fn main() -> Result<()> {
 
     let request_items = create_dummy_job();
     client
-        .submit_jobs(&queue, &job_set_id, request_items)
+        .submit_jobs(&queue, &job_set_id, request_items?)
         .await?;
 
     println!("Submitted job set: {}", job_set_id);
