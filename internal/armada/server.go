@@ -168,8 +168,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			config.Events.ProcessorMaxTimeBetweenBatches,
 			config.Events.ProcessorTimeout,
 		)
-		jobStatusProcessor := processor.NewEventJobStatusProcessor(config.Events.JobStatusQueue, jobRepository, eventStream, jobStatusBatcher)
-		jobStatusProcessor.Start()
 
 		defer func() {
 			err := eventRepoBatcher.Stop()
@@ -352,6 +350,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		queueRepository,
 		jobRepository,
 		config.DefaultToLegacyEvents,
+		config.ForceNewEvents,
 	)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 

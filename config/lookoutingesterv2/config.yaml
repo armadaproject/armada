@@ -16,11 +16,11 @@ metrics:
 pulsar:
   enabled: true
   URL: "pulsar://localhost:6650"
-  jobsetEventsTopic: "events"
+  jobsetEventsTopic: "persistent://armada/armada/events"
   receiveTimeout: 5s
   backoffTime: 1s
 
-subscriptionName: "lookout-ingester"
+subscriptionName: "lookout-ingester-v2"
 batchSize: 10000
 batchDuration: 500ms
 pulsarReceiveTimeout: 5s

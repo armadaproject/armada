@@ -16,7 +16,8 @@ jobs:
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8'
-          path: 'third_party/airflow'
+          tox-env: 'py38'
+          path: third_party/airflow
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

@@ -7,6 +7,7 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/slices"
 	"github.com/G-Research/armada/internal/lookoutv2/configuration"
@@ -30,9 +31,18 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	getJobsRepo := repository.NewSqlGetJobsRepository(db)
 	groupJobsRepo := repository.NewSqlGroupJobsRepository(db)
+	decompressor := compress.NewThreadSafeZlibDecompressor()
+	getJobRunErrorRepo := repository.NewSqlGetJobRunErrorRepository(db, decompressor)
+	getJobSpecRepo := repository.NewSqlGetJobSpecRepository(db, decompressor)
 
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
+
+	api.GetHealthHandler = operations.GetHealthHandlerFunc(
+		func(params operations.GetHealthParams) middleware.Responder {
+			return operations.NewGetHealthOK().WithPayload("Health check passed")
+		},
+	)
 
 	api.GetJobsHandler = operations.GetJobsHandlerFunc(
 		func(params operations.GetJobsParams) middleware.Responder {
@@ -84,6 +94,30 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		},
 	)
 
+	api.GetJobRunErrorHandler = operations.GetJobRunErrorHandlerFunc(
+		func(params operations.GetJobRunErrorParams) middleware.Responder {
+			result, err := getJobRunErrorRepo.GetJobRunError(params.HTTPRequest.Context(), params.GetJobRunErrorRequest.RunID)
+			if err != nil {
+				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobRunErrorOK().WithPayload(&operations.GetJobRunErrorOKBody{
+				ErrorString: result,
+			})
+		},
+	)
+
+	api.GetJobSpecHandler = operations.GetJobSpecHandlerFunc(
+		func(params operations.GetJobSpecParams) middleware.Responder {
+			result, err := getJobSpecRepo.GetJobSpec(params.HTTPRequest.Context(), params.GetJobSpecRequest.JobID)
+			if err != nil {
+				return operations.NewGetJobSpecBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
+			}
+			return operations.NewGetJobSpecOK().WithPayload(&operations.GetJobSpecOKBody{
+				Job: result,
+			})
+		},
+	)
+
 	server := restapi.NewServer(api)
 	defer func() {
 		shutdownErr := server.Shutdown()
@@ -92,8 +126,9 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		}
 	}()
 
-	server.Port = configuration.Port
-
+	server.Port = configuration.ApiPort
+	restapi.SetCorsAllowedOrigins(configuration.CorsAllowedOrigins) // This needs to happen before ConfigureAPI
+	server.ConfigureAPI()
 	if err := server.Serve(); err != nil {
 		return err
 	}

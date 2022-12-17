@@ -126,12 +126,6 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			}
 		}
 
-		// if benchmarkPath != "" {
-		// 	if err := writeBenchmarkReport(benchmarkPath, app.GetBenchmarkReport()); err != nil {
-		// 		return errors.WithMessage(err, "error writing benchmark report")
-		// 	}
-		// }
-
 		if numFailures != 0 {
 			return errors.Errorf("test failure")
 		}
@@ -158,23 +152,3 @@ func writeJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
 
 	return nil
 }
-
-// func writeBenchmarkReport(benchmarkPath string, report *eventbenchmark.GlobalBenchmarkReport) error {
-// 	benchmarkFile, err := os.Create(benchmarkPath)
-// 	if err != nil {
-// 		return errors.WithStack(err)
-// 	}
-// 	defer benchmarkFile.Close()
-
-// 	data, err := report.Generate(eventbenchmark.YamlFormatter)
-// 	if err != nil {
-// 		return errors.WithStack(err)
-// 	}
-
-// 	_, err = benchmarkFile.Write(data)
-// 	if err != nil {
-// 		return errors.WithStack(err)
-// 	}
-
-// 	return nil
-// }

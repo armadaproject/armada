@@ -22,6 +22,8 @@ type LookoutUIConfig struct {
 	OverviewAutoRefreshMs int
 	JobSetsAutoRefreshMs  int
 	JobsAutoRefreshMs     int
+
+	LookoutV2ApiBaseUrl string
 }
 
 type PrunerConfig struct {

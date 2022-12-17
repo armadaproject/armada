@@ -4,11 +4,11 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
+	"github.com/G-Research/armada/internal/lookoutv2/schema"
 )
 
 func WithLookoutDb(action func(db *pgxpool.Pool) error) error {
-	migrations, err := database.ReadMigrationsFromStatik(statik.Lookoutv2Sql)
+	migrations, err := schema.LookoutMigrations()
 	if err != nil {
 		return err
 	}

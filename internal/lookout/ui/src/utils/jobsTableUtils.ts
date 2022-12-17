@@ -2,9 +2,10 @@ import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-
 import _ from "lodash"
 import { JobRow, JobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
+import { getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
 import { RowIdParts, toRowId, RowId, findRowInData } from "./reactTableUtils"
 
 export interface PendingData {
@@ -49,13 +50,15 @@ export const convertRowPartsToFilters = (expandedRowIdParts: RowIdParts[]): JobF
   return filters
 }
 
-export const convertColumnFiltersToFilters = (filters: ColumnFiltersState): JobFilter[] => {
+export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, columns: JobTableColumn[]): JobFilter[] => {
   return filters.map(({ id, value }) => {
     const isArray = _.isArray(value)
+    const columnInfo = columns.find((col) => col.id === id)
+    const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
     return {
       field: id,
       value: isArray ? (value as string[]) : (value as string),
-      match: isArray ? Match.AnyOf : Match.Exact,
+      match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
     }
   })
 }
@@ -66,7 +69,7 @@ export interface FetchRowRequest {
   take: number
   order: JobOrder
 }
-export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: GetJobsService) => {
+export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: IGetJobsService) => {
   const { filters, skip, take, order } = rowRequest
 
   return await getJobsService.getJobs(filters, order, skip, take, undefined)
@@ -74,7 +77,7 @@ export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: Get
 
 export const fetchJobGroups = async (
   rowRequest: FetchRowRequest,
-  groupJobsService: GroupJobsService,
+  groupJobsService: IGroupJobsService,
   groupedColumn: string,
   columnsToAggregate: string[],
 ) => {
@@ -93,14 +96,8 @@ export const fetchJobGroups = async (
 export const jobsToRows = (jobs: Job[]): JobRow[] => {
   return jobs.map(
     (job): JobRow => ({
-      rowId: toRowId({ type: "job", value: job.jobId }),
-      jobId: job.jobId,
-      jobSet: job.jobSet,
-      queue: job.queue,
-      state: job.state,
-      cpu: job.cpu,
-      memory: job.memory,
-      ephemeralStorage: job.ephemeralStorage,
+      rowId: toRowId({ type: "jobId", value: job.jobId }),
+      ...job,
     }),
   )
 }

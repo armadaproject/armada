@@ -16,7 +16,7 @@ export default function RefreshButton(props: RefreshButtonProps) {
       {props.isLoading ? (
         <CircularProgress size={20} />
       ) : (
-        <IconButton title={"Refresh"} onClick={props.onClick} color={"primary"}>
+        <IconButton title={"Refresh"} onClick={props.onClick} color={"primary"} size="small">
           <RefreshIcon />
         </IconButton>
       )}
