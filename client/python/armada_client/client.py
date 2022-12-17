@@ -148,18 +148,14 @@ class ArmadaClient:
         # ensure that the others have appropriate empty values.
 
         if job_id and not queue and not job_set_id:
-            job_set_id = ""
-            queue = ""
+            request = submit_pb2.JobCancelRequest(job_id=job_id)
 
         elif job_set_id and queue and not job_id:
-            job_id = ""
+            request = submit_pb2.JobCancelRequest(queue=queue, job_set_id=job_set_id)
 
         else:
             raise ValueError("Either job_id or job_set_id and queue must be provided.")
 
-        request = submit_pb2.JobCancelRequest(
-            queue=queue, job_id=job_id, job_set_id=job_set_id
-        )
         response = self.submit_stub.CancelJobs(request)
         return response
 
@@ -214,21 +210,21 @@ class ArmadaClient:
         # job_ids or job_set_id and queue is provided.
 
         if job_ids and not job_set_id and not queue:
-            job_set_id = ""
-            queue = ""
+            request = submit_pb2.JobReprioritizeRequest(
+                job_ids=job_ids,
+                new_priority=new_priority,
+            )
 
         elif job_set_id and queue and not job_ids:
-            job_ids = []
+            request = submit_pb2.JobReprioritizeRequest(
+                job_set_id=job_set_id,
+                queue=queue,
+                new_priority=new_priority,
+            )
 
         else:
             raise ValueError("Either job_ids or job_set_id and queue must be provided.")
 
-        request = submit_pb2.JobReprioritizeRequest(
-            job_ids=job_ids,
-            job_set_id=job_set_id,
-            queue=queue,
-            new_priority=new_priority,
-        )
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
