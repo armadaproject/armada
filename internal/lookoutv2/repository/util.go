@@ -59,7 +59,7 @@ type runPatch struct {
 	started     *time.Time
 }
 
-func NewJobSimulator(annotationPrefix string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
+func NewJobSimulator(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
 	return &JobSimulator{
 		converter: converter,
 		store:     store,
