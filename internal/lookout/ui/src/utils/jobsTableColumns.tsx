@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react"
 
 import { Checkbox } from "@mui/material"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
+import JobStateCell from "components/jobs/JobStateCell"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
@@ -166,6 +167,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 70,
+      cell: (cell) => <JobStateCell cellData={cell.getValue()} />,
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
