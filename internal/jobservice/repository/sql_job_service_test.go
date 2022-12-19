@@ -7,10 +7,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/pkg/api/jobservice"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/G-Research/armada/pkg/api/jobservice"
 )
 
 func TestConstructInMemoryDoesNotExist(t *testing.T) {
