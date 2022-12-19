@@ -108,24 +108,42 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 }
 
 func (m *JobManager) handlePodIssues(allRunningJobs []*job.RunningJob) {
+	m.handleIssuesThatHaveSelfResolved(allRunningJobs)
 	m.reportJobsWithIssues(allRunningJobs)
 	jobsToDelete := []*job.RunningJob{}
 	for _, runningJob := range allRunningJobs {
-		if runningJob.Issue != nil {
-			if runningJob.Issue.Reported {
-				if len(runningJob.ActivePods) == 0 {
-					resolved := m.onPodDeleted(runningJob)
-					if resolved {
-						m.jobContext.MarkIssuesResolved(runningJob)
-					}
-				} else {
-					jobsToDelete = append(jobsToDelete, runningJob)
+		if runningJob.Issue != nil && runningJob.Issue.Reported {
+			if len(runningJob.ActivePods) == 0 {
+				resolved := m.onPodDeleted(runningJob)
+				if resolved {
+					m.jobContext.MarkIssuesResolved(runningJob)
 				}
+			} else {
+				jobsToDelete = append(jobsToDelete, runningJob)
 			}
 		}
 	}
 
 	m.jobContext.DeleteJobs(jobsToDelete)
+}
+
+func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {
+	for _, runningJob := range allRunningJobs {
+		if runningJob.Issue.Type == job.UnableToSchedule &&
+			(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported)) {
+			jobHasPendingPods := false
+			for _, pods := range runningJob.ActivePods {
+				if pods.Status.Phase == v1.PodPending {
+					jobHasPendingPods = true
+				}
+			}
+
+			//All pods have become unstuck, no longer has unable to schedule issue
+			if !jobHasPendingPods {
+				m.jobContext.MarkIssuesResolved(runningJob)
+			}
+		}
+	}
 }
 
 func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
