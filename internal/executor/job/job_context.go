@@ -20,6 +20,7 @@ type IssueType int
 
 const (
 	UnableToSchedule  IssueType = iota
+	StuckPending      IssueType = iota
 	StuckTerminating  IssueType = iota
 	ExternallyDeleted IssueType = iota
 )
@@ -247,6 +248,10 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
+				podIssueType := StuckPending
+				if pod.Status.NominatedNodeName == "" {
+					podIssueType = UnableToSchedule
+				}
 
 				log.Warnf("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
@@ -255,7 +260,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 					Pods:           runningJob.ActivePods,
 					Message:        message,
 					Retryable:      retryable,
-					Type:           UnableToSchedule,
+					Type:           podIssueType,
 				}
 				runningJob.Issue = issue
 				c.registerIssue(runningJob.JobId, issue)
