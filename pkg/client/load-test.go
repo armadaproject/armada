@@ -135,12 +135,12 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 
 			e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
 			if status.Code(e) == codes.AlreadyExists {
-				log.Infof("Queue %s already exists so no need to create it.\n", queue)
+				log.Infof("queue %s already exists so no need to create it.\n", queue)
 			} else if e != nil {
-				log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
+				log.Errorf("failed to create queue: %s because: %s\n", queue, e)
 				return nil
 			} else {
-				log.Infof("Queue %s created.\n", queue)
+				log.Infof("queue %s created.\n", queue)
 			}
 
 			for len(jobs) > 0 {
@@ -159,7 +159,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 					response, e := SubmitJobs(client, request)
 
 					if e != nil {
-						log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
+						log.Errorf("failed to submit jobs for job set: %s because %s\n", jobSetId, e)
 						continue
 					}
 					failedJobs := 0
@@ -172,9 +172,9 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 						}
 					}
 
-					log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+					log.Infof("submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
 					if failedJobs > 0 {
-						log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+						log.Errorf("%d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
 					}
 				}
 
@@ -186,7 +186,7 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 			return nil
 		})
 		if err != nil {
-			log.Errorf("ERROR: error detected when submitting jobs: %s", err)
+			log.Errorf("detected when submitting jobs: %s", err)
 		}
 	}()
 	return jobIds, jobSetId, submissionComplete
@@ -219,7 +219,7 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	}
 
 	if queue == "" {
-		log.Error("ERROR: Queue name is blank, please set queue or queuePrefix ")
+		log.Error("queue name is blank, please set queue or queuePrefix ")
 		panic("Queue name is blank")
 	}
 	return queue
@@ -231,6 +231,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 	jobIds chan string,
 	eventChannel chan api.Event,
 ) []string {
+	log := logrus.StandardLogger().WithField("Armada", "LoadTester")
 	var submittedIds []string = nil
 	go func() {
 		ids := []string{}
@@ -257,7 +258,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		return nil
 	})
 	if err != nil {
-		log.Errorf("Error Detecting in monitorJobsUntilCompletion: %s", err)
+		logging.WithStacktrace(log, err).Error(err)
 	}
 	return submittedIds
 }

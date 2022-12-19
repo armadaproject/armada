@@ -11,11 +11,12 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/repository"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/G-Research/armada/internal/common/logging"
 

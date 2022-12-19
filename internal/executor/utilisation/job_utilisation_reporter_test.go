@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +37,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
 	_, err := submitPod(clusterContext)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Second)
 	for {

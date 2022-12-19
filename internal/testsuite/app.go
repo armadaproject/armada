@@ -190,7 +190,7 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 		go func() {
 			err := testRunner.Run(ctx)
 			if err != nil {
-				fmt.Fprintf(a.Out, "Error with running %s", err)
+				fmt.Fprintf(a.Out, "error in test case %s: %s", rv.TestCaseReports[i].TestSpec.Name, err)
 			}
 			rv.TestCaseReports[i] = testRunner.TestCaseReport
 			wg.Done()
