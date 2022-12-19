@@ -116,7 +116,7 @@ func ExtractCommandlineArmadaApiConnectionDetails() *ApiConnectionDetails {
 	apiConnectionDetails := &ApiConnectionDetails{}
 	err := viper.Unmarshal(apiConnectionDetails)
 	if err != nil {
-		log.Errorf("Could not unmarshal apiConnectionDetails: %s", err)
+		log.Errorf("could not unmarshal apiConnectionDetails: %s", err)
 		return nil
 	}
 	return apiConnectionDetails
