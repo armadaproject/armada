@@ -9,14 +9,15 @@ export interface JobStateLabelProps {
   children: ReactNode
 }
 export const JobStateLabel = ({ state, children }: JobStateLabelProps) => {
+  const color = colorForJobState(state)
   return (
     <Box
       sx={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: colorForJobState(state),
-        padding: "0 0.5em",
+        backgroundColor: color,
+        padding: color ? "0 0.5em" : "",
       }}
     >
       {children}
