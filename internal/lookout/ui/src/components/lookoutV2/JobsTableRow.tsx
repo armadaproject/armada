@@ -45,7 +45,7 @@ export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProp
         },
       }}
       onMouseDown={(e) => setPagePosition(e)}
-      onMouseUp={(e) => {
+      onClick={(e) => {
         if (!isDragging(e) && onClick) {
           onClick(row.original)
         }
