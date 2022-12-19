@@ -1,5 +1,7 @@
 import { Table, TableBody, TableCell, TableRow } from "@mui/material"
 
+import styles from "./KeyValuePairTable.module.css"
+
 export interface KeyValuePairTable {
   data: {
     key: string
@@ -13,8 +15,8 @@ export const KeyValuePairTable = ({ data }: KeyValuePairTable) => {
         {data.map(({ key, value }) => {
           return (
             <TableRow key={key}>
-              <TableCell sx={{ width: "50%" }}>{key}</TableCell>
-              <TableCell sx={{ width: "50%" }}>{value}</TableCell>
+              <TableCell className={styles.cell}>{key}</TableCell>
+              <TableCell className={styles.cell}>{value}</TableCell>
             </TableRow>
           )
         })}

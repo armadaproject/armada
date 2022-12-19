@@ -1,7 +1,7 @@
 import { Accordion, AccordionSummary, Typography, AccordionDetails } from "@material-ui/core"
 import { ExpandMore } from "@mui/icons-material"
 import { Job } from "models/lookoutV2Models"
-import { formatUtcDate } from "utils/jobsTableFormatters"
+import { formatJobRunState, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 export interface SidebarTabJobRuns {
@@ -16,7 +16,7 @@ export const SidebarTabJobRuns = ({ job }: SidebarTabJobRuns) => {
           <Accordion key={run.runId}>
             <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1a-content">
               <Typography>
-                {formatUtcDate(run.pending)} UTC ({run.jobRunState})
+                {formatUtcDate(run.pending)} UTC ({formatJobRunState(run.jobRunState)})
               </Typography>
             </AccordionSummary>
             <AccordionDetails>
@@ -26,8 +26,8 @@ export const SidebarTabJobRuns = ({ job }: SidebarTabJobRuns) => {
                   { key: "Run ID", value: run.runId },
                   { key: "Cluster", value: run.cluster },
                   { key: "Node", value: run.node ?? "" },
-                  { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
                   { key: "Started (UTC)", value: formatUtcDate(run.started) },
+                  { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
                   { key: "Finished (UTC)", value: formatUtcDate(run.finished) },
                   { key: "Exit code", value: run.exitCode?.toString() ?? "" },
                   { key: "Error info", value: run.error ?? "None" },

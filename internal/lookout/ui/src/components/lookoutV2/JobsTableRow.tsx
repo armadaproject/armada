@@ -1,18 +1,20 @@
+import React, { useState } from "react"
+
 import { TableRow } from "@mui/material"
 import { Row } from "@tanstack/table-core"
 import { JobTableRow, JobRow, isJobGroupRow } from "models/jobsTableModels"
-import React, { useCallback, useState } from "react"
+
 import { BodyCell } from "./JobsTableCell"
-import styles from './JobsTableRow.module.css'
+import styles from "./JobsTableRow.module.css"
 
 export interface JobsTableRowProps {
-  row: Row<JobTableRow>,
-  isOpenInSidebar: boolean,
-  onClick?: (row: JobRow) => void,
+  row: Row<JobTableRow>
+  isOpenInSidebar: boolean
+  onClick?: (row: JobRow) => void
 }
-export const JobsTableRow = ({row, isOpenInSidebar, onClick}: JobsTableRowProps) => {
+export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProps) => {
   // Helpers to avoid triggering onClick if the user is selecting text
-  const [{pageX, pageY}, setPagePosition] = useState({pageX: -1, pageY: -1})
+  const [{ pageX, pageY }, setPagePosition] = useState({ pageX: -1, pageY: -1 })
   const isDragging = (e: React.MouseEvent) => {
     const dragThresholdPixels = 6
     const diffX = Math.abs(e.pageX - pageX)
@@ -25,40 +27,40 @@ export const JobsTableRow = ({row, isOpenInSidebar, onClick}: JobsTableRowProps)
   const rowCells = row.getVisibleCells()
   return (
     <TableRow
-        aria-label={row.id}
-        className={styles.rowDepthIndicator}
-        sx={{
-          backgroundSize: row.depth * 6,
+      aria-label={row.id}
+      className={styles.rowDepthIndicator}
+      sx={{
+        backgroundSize: row.depth * 6,
 
-          ...(onClick && {
-            cursor: "pointer"
-          }),
+        ...(onClick && {
+          cursor: "pointer",
+        }),
 
-          ...(isOpenInSidebar && {
-            backgroundColor: 'rgb(51, 187, 231, 0.5)'
-          }),
+        ...(isOpenInSidebar && {
+          backgroundColor: "rgb(51, 187, 231, 0.5)",
+        }),
 
-          '&:hover': {
-            backgroundColor: 'rgb(51, 187, 231, 0.2)'
-          }
-        }}
-        onMouseDown={e => setPagePosition(e)}
-        onMouseUp={e => {
-          if (!isDragging(e) && onClick) {
-            onClick(row.original)
-          }
-        }}
-      >
-        {rowCells.map((cell) => (
-          <BodyCell
-            cell={cell}
-            rowIsGroup={rowIsGroup}
-            rowIsExpanded={row.getIsExpanded()}
-            onExpandedChange={row.toggleExpanded}
-            subCount={rowIsGroup ? original.jobCount : undefined}
-            key={cell.id}
-          />
-        ))}
-      </TableRow>
+        "&:hover": {
+          backgroundColor: "rgb(51, 187, 231, 0.2)",
+        },
+      }}
+      onMouseDown={(e) => setPagePosition(e)}
+      onMouseUp={(e) => {
+        if (!isDragging(e) && onClick) {
+          onClick(row.original)
+        }
+      }}
+    >
+      {rowCells.map((cell) => (
+        <BodyCell
+          cell={cell}
+          rowIsGroup={rowIsGroup}
+          rowIsExpanded={row.getIsExpanded()}
+          onExpandedChange={row.toggleExpanded}
+          subCount={rowIsGroup ? original.jobCount : undefined}
+          key={cell.id}
+        />
+      ))}
+    </TableRow>
   )
 }

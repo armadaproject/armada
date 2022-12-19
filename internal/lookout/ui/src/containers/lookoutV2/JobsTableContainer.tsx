@@ -32,7 +32,8 @@ import {
   VisibilityState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
-import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
+import { HeaderCell } from "components/lookoutV2/JobsTableCell"
+import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
 import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
@@ -67,7 +68,6 @@ import {
 import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
-import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
 
 const DEFAULT_PAGE_SIZE = 30
 
@@ -487,15 +487,11 @@ const recursiveRowRender = (
 
   const depthGaugeLevelThicknessPixels = 6
   const isOpenInSidebar = sidebarJobId !== undefined && original.jobId === sidebarJobId
- 
+
   return (
     <React.Fragment key={`${row.id}_d${row.depth}`}>
       {/* Render the current row */}
-      <JobsTableRow
-        row={row}
-        isOpenInSidebar={isOpenInSidebar}
-        onClick={!rowIsGroup ? onClickJobRow : undefined}
-      />
+      <JobsTableRow row={row} isOpenInSidebar={isOpenInSidebar} onClick={!rowIsGroup ? onClickJobRow : undefined} />
 
       {/* Render any sub rows if expanded */}
       {rowIsGroup &&

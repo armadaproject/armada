@@ -1,5 +1,5 @@
 import { isString } from "lodash"
-import { Job, JobFilter, JobKey, JobRun, JobRunStates, JobState, Match, SortDirection } from "models/lookoutV2Models"
+import { Job, JobFilter, JobKey, JobRun, JobRunState, JobState, Match, SortDirection } from "models/lookoutV2Models"
 import { v4 as uuidv4 } from "uuid"
 
 export function randomInt(min: number, max: number, rand: () => number) {
@@ -81,13 +81,13 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       cluster: uuid(),
       error: "something bad might have happened?",
       exitCode: randomInt(0, 64, rand),
-      finished: "17/02/2009",
+      finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
-      jobRunState: randomProperty(JobRunStates, rand).displayName,
+      jobRunState: randomProperty(JobRunState, rand),
       node: uuid(),
-      pending: "17/02/2009",
+      pending: "2022-12-13T12:16:14.956Z",
       runId: uuid(),
-      started: "17/02/2009",
+      started: "2022-12-13T12:15:14.956Z",
     })
   }
   return runs

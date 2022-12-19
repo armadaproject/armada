@@ -24,9 +24,9 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetails) => {
       <Typography variant="subtitle2">Requests:</Typography>
       <KeyValuePairTable
         data={[
-          { key: "CPU", value: formatCPU(job.cpu) },
+          { key: "CPUs", value: formatCPU(job.cpu) },
           { key: "Memory", value: formatBytes(job.memory) },
-          { key: "GPU", value: job.gpu.toString() },
+          { key: "GPUs", value: job.gpu.toString() },
           { key: "Ephemeral storage", value: formatBytes(job.ephemeralStorage) },
         ]}
       />

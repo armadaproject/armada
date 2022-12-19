@@ -35,6 +35,10 @@ export const Sidebar = memo(({ job, onClose }: SidebarProps) => {
       }
     }
 
+    // Calculate on first load
+    onScroll()
+
+    // Recalculate on every scroll
     window.addEventListener("scroll", onScroll)
     return () => window.removeEventListener("scroll", onScroll)
   }, [ref])
