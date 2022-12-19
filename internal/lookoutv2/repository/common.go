@@ -630,8 +630,18 @@ func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 		return "=", nil
 	case model.MatchStartsWith:
 		return "LIKE", nil
+	case model.MatchContains:
+		return "LIKE", nil
 	case model.MatchAnyOf:
 		return "IN", nil
+	case model.MatchGreaterThan:
+		return ">", nil
+	case model.MatchLessThan:
+		return "<", nil
+	case model.MatchGreaterThanOrEqualTo:
+		return ">=", nil
+	case model.MatchLessThanOrEqualTo:
+		return "<=", nil
 	default:
 		err := errors.Errorf("unsupported match type: %s", match)
 		logrus.Error(err)
@@ -644,6 +654,9 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 	switch match {
 	case model.MatchStartsWith:
 		v := fmt.Sprintf("%v%%", value)
+		return qb.recordValue(v), nil
+	case model.MatchContains:
+		v := fmt.Sprintf("%%%v%%", value)
 		return qb.recordValue(v), nil
 	case model.MatchAnyOf:
 		switch v := value.(type) {
