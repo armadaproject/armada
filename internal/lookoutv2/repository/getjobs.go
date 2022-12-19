@@ -136,7 +136,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		return nil, err
 	}
 
-	jobs, err := rowsToJobs(jobRows, runRows, annotationRows, order)
+	jobs, err := rowsToJobs(jobRows, runRows, annotationRows)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 	}, nil
 }
 
-func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow, order *model.Order) ([]*model.Job, error) {
+func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow) ([]*model.Job, error) {
 	jobMap := make(map[string]*model.Job) // Map from Job ID to Job
 	orderedJobIds := make([]string, len(jobRows))
 
