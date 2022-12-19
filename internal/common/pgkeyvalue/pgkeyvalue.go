@@ -71,9 +71,8 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 	// If the table doesn't exist, create it and try again.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
-		err = c.createTable(ctx)
-		if err != nil {
-			return false, err
+		if err = c.createTable(ctx); err != nil {
+			return false, errors.WithStack(err)
 		}
 		ok, err = c.add(ctx, key, value)
 	}
@@ -90,9 +89,8 @@ func (c *PGKeyValueStore) LoadOrStoreBatch(ctx context.Context, batch []*KeyValu
 	// If the table doesn't exist, create it and try again.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
-		err = c.createTable(ctx)
-		if err != nil {
-			return nil, err
+		if err = c.createTable(ctx); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		ret, err = c.addBatch(ctx, batch)
 	}

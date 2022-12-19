@@ -22,17 +22,14 @@ func init() {
 	loadtestCmd.Flags().Bool("watch", false, "If enabled, the program will watch the events of all submitted jobs before exiting")
 	loadtestCmd.Flags().Duration("timeout", defaultTimeout, "The duration the test will last for, before cancelling all remaining jobs")
 	loadtestCmd.Flags().Bool("checkSuccess", false, "If enabled, the program will exit with -1 if any jobs submitted do not succeed")
-	errWatch := viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch"))
-	if errWatch != nil {
-		log.Error(errWatch)
+	if err := viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch")); err != nil {
+		log.Error(err)
 	}
-	errTimeout := viper.BindPFlag("timeout", loadtestCmd.Flags().Lookup("timeout"))
-	if errTimeout != nil {
-		log.Error(errTimeout)
+	if err := viper.BindPFlag("timeout", loadtestCmd.Flags().Lookup("timeout")); err != nil {
+		log.Error(err)
 	}
-	errCheck := viper.BindPFlag("checkSuccess", loadtestCmd.Flags().Lookup("checkSuccess"))
-	if errCheck != nil {
-		log.Error(errCheck)
+	if err := viper.BindPFlag("checkSuccess", loadtestCmd.Flags().Lookup("checkSuccess")); err != nil {
+		log.Error(err)
 	}
 }
 

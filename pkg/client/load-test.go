@@ -6,11 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/G-Research/armada/internal/common"
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/client/domain"
 )
@@ -278,6 +280,8 @@ func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []
 }
 
 func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId string) {
+	log := logrus.StandardLogger().WithField("Armada", "LoadTester")
+
 	err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 		timeout, _ := common.ContextWithDefaultTimeout()
 		cancelRequest := &api.JobCancelRequest{
@@ -288,7 +292,7 @@ func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId
 		return err
 	})
 	if err != nil {
-		log.Errorf("Error detecting cancelRemainingJobs: %s", err)
+		logging.WithStacktrace(log, err).Error(err)
 	}
 }
 

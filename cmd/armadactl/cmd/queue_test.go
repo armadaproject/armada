@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/G-Research/armada/internal/armadactl"
 	"github.com/G-Research/armada/pkg/api"
@@ -102,15 +103,14 @@ func TestCreate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				err := cmd.Flags().Set(flag.name, flag.value)
-				if err != nil {
-					t.Fatalf("Set Flags detected unexpected error: %s", err)
+				if err := cmd.Flags().Set(flag.name, flag.value); !assert.NoError(t, err) {
+					return
 				}
 			}
 
 			// Execute the command and check any error
-			if err := cmd.Execute(); err != test.err {
-				t.Fatalf("command failed with an unexpected error: %s", err)
+			if err := cmd.Execute(); !assert.NoError(t, err, "command failed with an unexpected error: %s", err) {
+				return
 			}
 		})
 	}

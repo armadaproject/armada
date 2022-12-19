@@ -25,6 +25,7 @@ type DeviceDetails struct {
 
 func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 	ctx := context.Background()
+
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
 		return nil, err

@@ -342,7 +342,7 @@ func Run(config *Configuration) error {
 	scheduler := NewScheduler(producer, db)
 	runErr := scheduler.Run(app.CreateContextWithShutdown())
 	if runErr != nil {
-		return errors.Wrapf(err, "error running scheduler %s", runErr)
+		return runErr
 	}
 	return nil
 }

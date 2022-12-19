@@ -45,7 +45,8 @@ func main() {
 	} else {
 		err := scheduler.Run(&config)
 		if err != nil {
-			log.Errorf("Failed to run scheduler: %s", err)
+			log.Errorf("failed to run scheduler: %s", err)
+			os.Exit(1)
 		}
 	}
 }

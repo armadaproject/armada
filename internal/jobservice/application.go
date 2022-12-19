@@ -9,13 +9,15 @@ import (
 	"path/filepath"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/repository"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/G-Research/armada/internal/common/logging"
 
 	"github.com/G-Research/armada/internal/jobservice/server"
 
@@ -35,6 +37,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
+	log := log.WithField("jobservice", "Startup")
+
 	grpcServer := grpcCommon.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
@@ -48,18 +52,18 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
 		err = os.Mkdir(dbDir, 0o755)
 		if err != nil {
-			log.Fatalf("Error: could not make directory at %s for Sqlite DB: %v", dbDir, err)
+			log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, err)
 		}
 	}
 
 	db, err := sql.Open("sqlite", config.DatabasePath)
 	if err != nil {
-		log.Fatalf("Error Opening Sqlite DB from %s %v", config.DatabasePath, err)
+		log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
 	}
 	defer func() {
 		err := db.Close()
 		if err != nil {
-			log.Warnf("Error Closing Database: %v", err)
+			log.Warnf("error closing database: %v", err)
 		}
 	}()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
@@ -80,7 +84,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
 					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 					if err != nil {
-						log.Warnf("Error detected from CleanupJobSetAndJobs: %v", err)
+						logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
 					}
 				}
 			}
@@ -88,9 +92,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return nil
 	})
 	g.Go(func() error {
-		defer log.Infof("Stopping server.")
+		defer log.Infof("stopping server.")
 
-		log.Info("JobService service listening on ", config.GrpcPort)
+		log.Info("jobService service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
@@ -99,7 +103,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 
 	err = g.Wait()
 	if err != nil {
-		log.Fatalf("Error detected on wait %v", err)
+		log.Fatalf("error detected on wait %v", err)
+		return err
 	}
 
 	return nil

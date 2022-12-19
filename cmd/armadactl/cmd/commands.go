@@ -23,9 +23,9 @@ func createCmd(a *armadactl.App) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "specify file for resource creation.")
-	err := cmd.MarkFlagRequired("file")
-	if err != nil {
-		log.Errorf("Error Detected on MarkFlagRequired: %v", err)
+	if err := cmd.MarkFlagRequired("file"); err != nil {
+		log.Errorf("error detected with MarkFlagRequired for file %v", err)
+		return nil
 	}
 	cmd.Flags().Bool("dry-run", false, "Validate the input file and exit without making any changes.")
 	cmd.AddCommand(queueCreateCmd())
