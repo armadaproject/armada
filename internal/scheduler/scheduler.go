@@ -2,8 +2,12 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
+
+	"github.com/G-Research/armada/internal/common/app"
+	"github.com/G-Research/armada/internal/common/database"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
@@ -14,7 +18,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -28,7 +33,7 @@ type Scheduler struct {
 	// i.e., succeed, failed, or been cancelled.
 	// Jobs are added when read from postgres.
 	// Jobs are removed when they terminate
-	ActiveJobs map[uuid.UUID]*Job
+	ActiveJobs map[uuid.UUID]*schedulerdb.Job
 	// Map from job id to a collection of all runs associated with that job.
 	RunsByJobId map[uuid.UUID]*JobRuns
 	// The queue consists of all active jobs that don't have at least one active run associated with it.
@@ -36,7 +41,7 @@ type Scheduler struct {
 	// Ids of jobs that have not yet been scheduled.
 	QueuedJobIds []uuid.UUID
 	// List of worker nodes available across all clusters.
-	Nodes map[string]*Nodeinfo
+	Nodes map[string]*schedulerdb.Nodeinfo
 	// Map from executor name to the last time we heard from that executor.
 	Executors map[string]time.Time
 	// Amount of time after which an executor is assumed to be unavailable
@@ -63,17 +68,17 @@ type Scheduler struct {
 type JobRuns struct {
 	// Any runs associated with this job that have not terminated.
 	// Map from run id to run.
-	ActiveRuns map[uuid.UUID]*Run
+	ActiveRuns map[uuid.UUID]*schedulerdb.Run
 	// Any runs associated with this job for which the ingester has received
 	// a terminal event (i.e., succeeded, failed, or cancelled).
 	// Map from run id to run.
-	InactiveRuns map[uuid.UUID]*Run
+	InactiveRuns map[uuid.UUID]*schedulerdb.Run
 }
 
 func NewJobRuns() *JobRuns {
 	return &JobRuns{
-		ActiveRuns:   make(map[uuid.UUID]*Run),
-		InactiveRuns: make(map[uuid.UUID]*Run),
+		ActiveRuns:   make(map[uuid.UUID]*schedulerdb.Run),
+		InactiveRuns: make(map[uuid.UUID]*schedulerdb.Run),
 	}
 }
 
@@ -81,9 +86,9 @@ func NewScheduler(producer pulsar.Producer, db *pgxpool.Pool) *Scheduler {
 	return &Scheduler{
 		Producer:              producer,
 		Db:                    db,
-		ActiveJobs:            make(map[uuid.UUID]*Job),
+		ActiveJobs:            make(map[uuid.UUID]*schedulerdb.Job),
 		RunsByJobId:           make(map[uuid.UUID]*JobRuns),
-		Nodes:                 make(map[string]*Nodeinfo),
+		Nodes:                 make(map[string]*schedulerdb.Nodeinfo),
 		Executors:             make(map[string]time.Time),
 		ExecutorAliveDuration: 5 * time.Minute,
 	}
@@ -130,7 +135,7 @@ func (srv *Scheduler) Run(ctx context.Context) error {
 
 func (srv *Scheduler) updateNodes(ctx context.Context) error {
 	log := ctxlogrus.Extract(ctx)
-	queries := New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 	nodes, err := queries.SelectNewNodeInfo(ctx, srv.NodesSerial)
 	if err != nil {
 		return errors.WithStack(err)
@@ -149,7 +154,7 @@ func (srv *Scheduler) updateNodes(ctx context.Context) error {
 
 func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 	log := ctxlogrus.Extract(ctx)
-	queries := New(srv.Db)
+	queries := schedulerdb.New(srv.Db)
 
 	// New jobs.
 	// TODO: We shouldn't load all columns.
@@ -192,7 +197,7 @@ func (srv *Scheduler) updateJobsRuns(ctx context.Context) error {
 		jobIds[i] = jobId
 		i++
 	}
-	runs, err := queries.SelectNewRunsForJobs(ctx, SelectNewRunsForJobsParams{
+	runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
 		JobIds: jobIds,
 		Serial: srv.RunsSerial,
 	})
@@ -299,4 +304,42 @@ func (srv *Scheduler) getActiveExecutors() []string {
 		}
 	}
 	return activeExecutors
+}
+
+func Run(config *Configuration) error {
+	pulsarCompressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
+	if err != nil {
+		return err
+	}
+	pulsarCompressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
+	if err != nil {
+		return err
+	}
+
+	db, err := database.OpenPgxPool(config.Postgres)
+	if err != nil {
+		panic(errors.WithMessage(err, "Error opening connection to postgres"))
+	}
+
+	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
+	if err != nil {
+		return errors.WithMessage(err, "Error creating pulsar client")
+	}
+
+	serverPulsarProducerName := fmt.Sprintf("armada-scheduler-%s", uuid.New())
+	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
+		Name:             serverPulsarProducerName,
+		CompressionType:  pulsarCompressionType,
+		CompressionLevel: pulsarCompressionLevel,
+		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
+		Topic:            config.Pulsar.JobsetEventsTopic,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "error creating pulsar producer %s", serverPulsarProducerName)
+	}
+	defer producer.Close()
+
+	scheduler := NewScheduler(producer, db)
+	scheduler.Run(app.CreateContextWithShutdown())
+	return nil
 }

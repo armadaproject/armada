@@ -11,6 +11,5 @@ grpc:
     minTime: 5m
     permitWithoutStream: false
 apiConnection:
-  armadaUrl: "localhost:50051"
-
-
+  armadaUrl: "server:50051"
+  forceNoTls: true

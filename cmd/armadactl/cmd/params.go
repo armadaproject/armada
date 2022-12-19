@@ -11,7 +11,10 @@ import (
 // initParams initialises the command parameters, flags, and a configuration file.
 func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	// Stuff above this is from the example
-	client.LoadCommandlineArgs()
+	err := client.LoadCommandlineArgs()
+	if err != nil {
+		return err
+	}
 	params.ApiConnectionDetails = client.ExtractCommandlineArmadaApiConnectionDetails()
 
 	// Setup the armadactl to use pkg/client as its backend for queue-related commands

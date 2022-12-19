@@ -165,7 +165,7 @@ func validatePorts(podSpec *v1.PodSpec) error {
 	return nil
 }
 
-func ValidatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
+func validatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
 	priorityClassName := podSpec.PriorityClassName
 	if priorityClassName != "" {
 		if !preemptionEnabled {

@@ -5,15 +5,95 @@ import (
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/scheduler"
 
 	"github.com/G-Research/armada/pkg/api"
 )
 
-func ValidateApiJob(j *api.Job, config configuration.PreemptionConfig) error {
-	if err := ValidateApiJobPodSpecs(j); err != nil {
+func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
+	err := validateGangs(jobs, config.GangIdAnnotation, config.GangCardinalityAnnotation)
+	if err != nil {
 		return err
 	}
-	return ValidatePodSpecPriorityClass(j.PodSpec, config.Enabled, config.PriorityClasses)
+	for _, job := range jobs {
+		if err := ValidateApiJob(job, config); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation string) error {
+	gangDetailsByGangId := make(map[string]struct {
+		actualCardinality         int
+		expectedCardinality       int
+		expectedPriorityClassName string
+	})
+	for i, job := range jobs {
+		annotations := job.Annotations
+		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations, gangIdAnnotation, gangCardinalityAnnotation)
+		if err != nil {
+			return errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId)
+		}
+		if !isGangJob {
+			continue
+		}
+		if gangId == "" {
+			return errors.Errorf("empty gang id for %d-th job with id %s", i, job.Id)
+		}
+		podSpec := util.PodSpecFromJob(job)
+		if details, ok := gangDetailsByGangId[gangId]; ok {
+			if details.expectedCardinality != gangCardinality {
+				return errors.Errorf(
+					"inconsistent gang cardinality for %d-th job with id %s in gang %s: expected %d but got %d",
+					i, job.Id, gangId, details.expectedCardinality, gangCardinality,
+				)
+			}
+			if podSpec != nil && details.expectedPriorityClassName != podSpec.PriorityClassName {
+				return errors.Errorf(
+					"inconsistent PriorityClassName for %d-th job with id %s in gang %s: expected %s but got %s",
+					i, job.Id, gangId, details.expectedPriorityClassName, podSpec.PriorityClassName,
+				)
+			}
+			details.actualCardinality++
+			gangDetailsByGangId[gangId] = details
+		} else {
+			details.actualCardinality = 1
+			details.expectedCardinality = gangCardinality
+			if podSpec != nil {
+				details.expectedPriorityClassName = podSpec.PriorityClassName
+			}
+			gangDetailsByGangId[gangId] = details
+		}
+	}
+	for gangId, details := range gangDetailsByGangId {
+		if details.expectedCardinality != details.actualCardinality {
+			return errors.Errorf(
+				"unexpected number of jobs for gang %s: expected %d jobs but got %d",
+				gangId, details.expectedCardinality, details.actualCardinality,
+			)
+		}
+	}
+	return nil
+}
+
+func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
+	if err := ValidateApiJobPodSpecs(job); err != nil {
+		return err
+	}
+	if config.Preemption.Enabled {
+		if err := validatePodSpecPriorityClass(job.PodSpec, config.Preemption.Enabled, config.Preemption.PriorityClasses); err != nil {
+			return err
+		}
+		for _, podSpec := range job.PodSpecs {
+			if err := validatePodSpecPriorityClass(podSpec, config.Preemption.Enabled, config.Preemption.PriorityClasses); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func ValidateApiJobPodSpecs(j *api.Job) error {

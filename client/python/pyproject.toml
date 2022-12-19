@@ -1,18 +1,24 @@
 [project]
 name = "armada_client"
-version = "0.2.3"
+version = "0.2.4"
 description = "Armada gRPC API python client"
 readme = "README.md"
-requires-python = ">=3.7,<3.9"
+requires-python = ">=3.7"
 dependencies = ["grpcio>=1.46.3", "grpcio-tools>=1.46.3", "mypy-protobuf>=3.2.0"]
 license = { text = "Apache Software License" }
 authors = [{ name = "G-Research Open Source Software", email = "armada@armadaproject.io" }]
 
 [project.optional-dependencies]
-format = ["black>=22.3.0", "flake8>=4.0.1", "pylint>=2.13.8", "mypy>=0.971" ]
+format = ["black>=22.3.0", "flake8>=4.0.1", "pylint>=2.13.8"]
 docs = ["sphinx", "sphinx-jekyll-builder", "sphinx-toolbox==3.2.0b1"]
-test = ["pytest>=7.1.2"]
+test = ["pytest>=7.1.2", "coverage>=6.5.0"]
 
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.coverage.run]
+omit = [
+    "*_pb2.py",
+    "*_pb2_grpc.py",
+]

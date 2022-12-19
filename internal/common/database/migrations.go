@@ -3,23 +3,34 @@ package database
 import (
 	"bytes"
 	"context"
+	"io/fs"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgtype/pgxtype"
 
-	"github.com/rakyll/statik/fs"
+	stakikfs "github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 )
 
-type migration struct {
+// Migration represents a single, versioned database migration script
+type Migration struct {
 	id   int
 	name string
 	sql  string
 }
 
-func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []migration) error {
+func NewMigration(id int, name string, sql string) Migration {
+	return Migration{
+		id:   id,
+		name: name,
+		sql:  sql,
+	}
+}
+
+func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migration) error {
 	log.Info("Updating postgres...")
 	version, err := readVersion(ctx, db)
 	if err != nil {
@@ -29,6 +40,7 @@ func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []migrat
 
 	for _, m := range migrations {
 		if m.id > version {
+			log.Debugf("Executing %s", m.name)
 			_, err := db.Exec(ctx, m.sql)
 			if err != nil {
 				return err
@@ -70,8 +82,42 @@ func setVersion(ctx context.Context, db pgxtype.Querier, version int) error {
 	return err
 }
 
-func GetMigrations(namespace string) ([]migration, error) {
-	vfs, err := fs.NewWithNamespace(namespace)
+func ReadMigrations(fsys fs.FS, basePath string) ([]Migration, error) {
+	files, err := fs.ReadDir(fsys, basePath)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
+
+	var migrations []Migration
+	for _, f := range files {
+
+		if f.IsDir() {
+			continue
+		}
+
+		bytes, err := fs.ReadFile(fsys, path.Join(basePath, f.Name()))
+		if err != nil {
+			return nil, err
+		}
+
+		id, err := strconv.Atoi(strings.Split(f.Name(), "_")[0])
+		if err != nil {
+			return nil, err
+		}
+		migrations = append(migrations, Migration{
+			id:   id,
+			name: f.Name(),
+			sql:  string(bytes),
+		})
+	}
+	return migrations, nil
+}
+
+// TODO: remove this when we've migrated over to iofs
+func ReadMigrationsFromStatik(namespace string) ([]Migration, error) {
+	vfs, err := stakikfs.NewWithNamespace(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +134,7 @@ func GetMigrations(namespace string) ([]migration, error) {
 
 	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
 
-	migrations := []migration{}
+	var migrations []Migration
 	for _, f := range files {
 		file, err := vfs.Open("/" + f.Name())
 		if err != nil {
@@ -103,7 +149,7 @@ func GetMigrations(namespace string) ([]migration, error) {
 		if err != nil {
 			return nil, err
 		}
-		migrations = append(migrations, migration{
+		migrations = append(migrations, Migration{
 			id:   id,
 			name: f.Name(),
 			sql:  buf.String(),

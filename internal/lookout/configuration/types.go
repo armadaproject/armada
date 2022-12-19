@@ -22,6 +22,8 @@ type LookoutUIConfig struct {
 	OverviewAutoRefreshMs int
 	JobSetsAutoRefreshMs  int
 	JobsAutoRefreshMs     int
+
+	LookoutV2ApiBaseUrl string
 }
 
 type PrunerConfig struct {
@@ -40,7 +42,6 @@ type LookoutConfiguration struct {
 
 	EventQueue             string
 	Nats                   NatsConfig
-	Jetstream              configuration.JetstreamConfig
 	Postgres               configuration.PostgresConfig
 	PrunerConfig           PrunerConfig
 	DisableEventProcessing bool
@@ -65,8 +66,6 @@ type LookoutIngesterConfiguration struct {
 	PulsarReceiveTimeout time.Duration
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
-	// Number of goroutines to be used for receiving messages and converting them to instructions
-	Paralellism int
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
