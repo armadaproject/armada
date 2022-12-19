@@ -67,6 +67,7 @@ import {
 import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
+import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
 
 const DEFAULT_PAGE_SIZE = 30
 
@@ -483,40 +484,18 @@ const recursiveRowRender = (
 ): JSX.Element => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
-  const rowCells = row.getVisibleCells()
 
   const depthGaugeLevelThicknessPixels = 6
   const isOpenInSidebar = sidebarJobId !== undefined && original.jobId === sidebarJobId
-
+ 
   return (
     <React.Fragment key={`${row.id}_d${row.depth}`}>
       {/* Render the current row */}
-      <TableRow
-        aria-label={row.id}
-        hover
-        className={styles.rowDepthIndicator}
-        sx={{
-          backgroundSize: row.depth * 6,
-          cursor: rowIsGroup ? "inherit" : "pointer",
-          backgroundColor: isOpenInSidebar ? "rgba(0, 0, 0, 0.08)" : "initial",
-        }}
-        onClick={() => {
-          if (!rowIsGroup) {
-            onClickJobRow(row.original)
-          }
-        }}
-      >
-        {rowCells.map((cell) => (
-          <BodyCell
-            cell={cell}
-            rowIsGroup={rowIsGroup}
-            rowIsExpanded={row.getIsExpanded()}
-            onExpandedChange={row.toggleExpanded}
-            subCount={rowIsGroup ? original.jobCount : undefined}
-            key={cell.id}
-          />
-        ))}
-      </TableRow>
+      <JobsTableRow
+        row={row}
+        isOpenInSidebar={isOpenInSidebar}
+        onClick={!rowIsGroup ? onClickJobRow : undefined}
+      />
 
       {/* Render any sub rows if expanded */}
       {rowIsGroup &&
