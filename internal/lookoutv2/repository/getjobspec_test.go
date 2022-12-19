@@ -20,7 +20,7 @@ func TestGetJobSpec(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,

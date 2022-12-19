@@ -24,7 +24,7 @@ func TestGetJobRunError(t *testing.T) {
 			"",
 		}
 		for _, expected := range errorStrings {
-			_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+			_ = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 				Pending(runId, cluster, baseTime).
 				Running(runId, node, baseTime).
