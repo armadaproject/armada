@@ -37,7 +37,7 @@ func NewGroupJobs(ctx *middleware.Context, handler GroupJobsHandler) *GroupJobs 
 	return &GroupJobs{Context: ctx, Handler: handler}
 }
 
-/* GroupJobs swagger:route POST /jobGroups groupJobs
+/* GroupJobs swagger:route POST /api/v1/jobGroups groupJobs
 
 GroupJobs group jobs API
 

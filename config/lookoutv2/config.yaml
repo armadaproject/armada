@@ -1,4 +1,4 @@
-port: 10000
+apiPort: 10000
 corsAllowedOrigins:
   - "http://localhost:3000"
   - "http://localhost:8089"

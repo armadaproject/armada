@@ -15,6 +15,7 @@ jobs:
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8'
+          tox-env: 'py38'
           path: 'client/python'
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

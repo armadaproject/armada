@@ -27,7 +27,7 @@ type GroupJobsRepository interface {
 		aggregates []string,
 		skip int,
 		take int,
-	) (GroupByResult, error)
+	) (*GroupByResult, error)
 }
 
 type SqlGroupJobsRepository struct {
@@ -56,7 +56,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 
 	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
-		AccessMode:     pgx.ReadWrite,
+		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, groupedField)

@@ -26,9 +26,8 @@ func init() {
     "title": "Lookout v2 API",
     "version": "2.0.0"
   },
-  "basePath": "/api/v1",
   "paths": {
-    "/jobGroups": {
+    "/api/v1/jobGroups": {
       "post": {
         "consumes": [
           "application/json"
@@ -133,7 +132,121 @@ func init() {
         }
       }
     },
-    "/jobs": {
+    "/api/v1/jobRunError": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunError",
+        "parameters": [
+          {
+            "name": "getJobRunErrorRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns error for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Error for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobSpec": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobSpec",
+        "parameters": [
+          {
+            "name": "getJobSpecRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "jobId"
+              ],
+              "properties": {
+                "jobId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns raw Job spec",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "job": {
+                  "description": "Job Spec object",
+                  "type": "object",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
       "post": {
         "consumes": [
           "application/json"
@@ -213,6 +326,27 @@ func init() {
             "description": "Error response",
             "schema": {
               "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "produces": [
+          "text/plain"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "type": "string"
             }
           }
         }
@@ -512,9 +646,8 @@ func init() {
     "title": "Lookout v2 API",
     "version": "2.0.0"
   },
-  "basePath": "/api/v1",
   "paths": {
-    "/jobGroups": {
+    "/api/v1/jobGroups": {
       "post": {
         "consumes": [
           "application/json"
@@ -619,7 +752,121 @@ func init() {
         }
       }
     },
-    "/jobs": {
+    "/api/v1/jobRunError": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobRunError",
+        "parameters": [
+          {
+            "name": "getJobRunErrorRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "runId"
+              ],
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns error for specific job run (if present)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "errorString": {
+                  "description": "Error for individual job run",
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobSpec": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "operationId": "getJobSpec",
+        "parameters": [
+          {
+            "name": "getJobSpecRequest",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "jobId"
+              ],
+              "properties": {
+                "jobId": {
+                  "type": "string",
+                  "x-nullable": false
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns raw Job spec",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "job": {
+                  "description": "Job Spec object",
+                  "type": "object",
+                  "x-nullable": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          },
+          "default": {
+            "description": "Error response",
+            "schema": {
+              "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
       "post": {
         "consumes": [
           "application/json"
@@ -699,6 +946,27 @@ func init() {
             "description": "Error response",
             "schema": {
               "$ref": "#/definitions/error"
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "produces": [
+          "text/plain"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "400": {
+            "description": "Error response",
+            "schema": {
+              "type": "string"
             }
           }
         }

@@ -250,7 +250,6 @@ build-event-ingester:
 build-jobservice:
 	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
 
-
 build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
 
 build-docker-server:
@@ -292,6 +291,12 @@ build-docker-lookout-ingester:
 	cp -a ./config/lookoutingester ./.build/lookoutingester/config
 	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
 
+build-docker-lookout-ingester-v2:
+	mkdir -p .build/lookoutingesterv2
+	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutingesterv2/lookoutingesterv2 cmd/lookoutingesterv2/main.go
+	cp -a ./config/lookoutingesterv2 ./.build/lookoutingesterv2/config
+	docker build $(dockerFlags) -t armada-lookout-ingester-v2 -f ./build/lookoutingesterv2/Dockerfile ./.build/lookoutingesterv2
+
 build-docker-event-ingester:
 	mkdir -p .build/eventingester
 	$(GO_CMD) $(gobuildlinux) -o ./.build/eventingester/eventingester cmd/eventingester/main.go
@@ -308,6 +313,12 @@ build-docker-lookout: node-setup
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
 	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
+build-docker-lookout-v2:
+	mkdir -p .build/lookoutv2
+	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutv2/lookoutv2 cmd/lookoutv2/main.go
+	cp -a ./config/lookoutv2 ./.build/lookoutv2/config
+	docker build $(dockerFlags) -t armada-lookout-v2 -f ./build/lookoutv2/Dockerfile ./.build/lookoutv2
+
 build-docker-binoculars:
 	mkdir -p .build/binoculars
 	$(GO_CMD) $(gobuildlinux) -o ./.build/binoculars/binoculars cmd/binoculars/main.go
@@ -320,11 +331,11 @@ build-docker-jobservice:
 	cp -a ./config/jobservice ./.build/jobservice/config
 	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
-build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-ingester build-docker-binoculars build-docker-event-ingester
+build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-v2 build-docker-lookout-ingester build-docker-lookout-ingester-v2 build-docker-binoculars build-docker-event-ingester
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 # We still build lookout-ingester since that go code that is isolated from lookout itself.
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester build-docker-lookout-ingester-v2
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
