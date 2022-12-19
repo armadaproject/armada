@@ -129,7 +129,7 @@ func (m *JobManager) handlePodIssues(allRunningJobs []*job.RunningJob) {
 
 func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {
 	for _, runningJob := range allRunningJobs {
-		if runningJob.Issue.Type == job.UnableToSchedule &&
+		if runningJob.Issue != nil && runningJob.Issue.Type == job.UnableToSchedule &&
 			(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported)) {
 			jobHasPendingPods := false
 			for _, pods := range runningJob.ActivePods {
