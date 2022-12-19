@@ -8,7 +8,7 @@ export interface SidebarTabJobRuns {
   job: Job
 }
 export const SidebarTabJobRuns = ({ job }: SidebarTabJobRuns) => {
-  const runsNewestFirst = job.runs.reverse()
+  const runsNewestFirst = [...job.runs].reverse()
   return (
     <>
       {runsNewestFirst.map((run) => {
