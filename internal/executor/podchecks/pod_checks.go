@@ -16,9 +16,10 @@ type PodChecker interface {
 }
 
 type PodChecks struct {
-	eventChecks          eventChecker
-	containerStateChecks containerStateChecker
-	deadlineForUpdates   time.Duration
+	eventChecks               eventChecker
+	containerStateChecks      containerStateChecker
+	deadlineForUpdates        time.Duration
+	deadlineForNodeAssignment time.Duration
 }
 
 func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
@@ -33,11 +34,21 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 		return nil, err
 	}
 
-	return &PodChecks{eventChecks: ec, containerStateChecks: csc, deadlineForUpdates: cfg.DeadlineForUpdates}, nil
+	return &PodChecks{
+		eventChecks:               ec,
+		containerStateChecks:      csc,
+		deadlineForUpdates:        cfg.DeadlineForUpdates,
+		deadlineForNodeAssignment: cfg.DeadlineForNodeAssignment,
+	}, nil
 }
 
 func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
 	messages := []string{}
+
+	isAssignedToNode := pod.Status.NominatedNodeName != ""
+	if timeInState > pc.deadlineForNodeAssignment && !isAssignedToNode {
+		return ActionRetry, "Pod could not been scheduled in within %s deadline. Retrying"
+	}
 
 	isNodeBad := pc.hasNoEventsOrStatus(pod, podEvents)
 	if timeInState > pc.deadlineForUpdates && isNodeBad {

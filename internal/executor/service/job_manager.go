@@ -170,7 +170,8 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 func (m *JobManager) onPodDeleted(job *job.RunningJob) (resolved bool) {
 	// this method is executed after stuck pod was deleted from the cluster
 	if job.Issue.Retryable {
-		err := m.jobLeaseService.ReturnLease(job.Issue.OriginatingPod, job.Issue.Message)
+		jobRunAttempted := job.Issue.OriginatingPod.Status.NominatedNodeName != ""
+		err := m.jobLeaseService.ReturnLease(job.Issue.OriginatingPod, job.Issue.Message, jobRunAttempted)
 		if err != nil {
 			log.Errorf("Failed to return lease for job %s because %s", job.JobId, err)
 			return false
