@@ -70,7 +70,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
 	_, err := submitPod(clusterContext)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Millisecond * 500)
 	count := 0
