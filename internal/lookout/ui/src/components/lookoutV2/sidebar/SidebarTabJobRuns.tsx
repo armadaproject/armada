@@ -22,7 +22,7 @@ export const SidebarTabJobRuns = ({ job }: SidebarTabJobRuns) => {
             <AccordionDetails>
               <KeyValuePairTable
                 data={[
-                  { key: "State", value: run.jobRunState },
+                  { key: "State", value: formatJobRunState(run.jobRunState) },
                   { key: "Run ID", value: run.runId },
                   { key: "Cluster", value: run.cluster },
                   { key: "Node", value: run.node ?? "" },
