@@ -34,9 +34,9 @@ func main() {
 
 func JsonTagCamelCase(field *descriptor.FieldDescriptorProto) {
 	if gogoproto.IsNullable(field) {
-		SetStringFieldOption(gogoproto.E_Jsontag, AppendOmitempty(LowerCaseFirst(generator.CamelCase(*field.Name))))(field)
+		SetStringFieldOption(gogoproto.E_Jsontag, AppendOmitempty(FixCasing(generator.CamelCase(*field.Name))))(field)
 	} else {
-		SetStringFieldOption(gogoproto.E_Jsontag, LowerCaseFirst(generator.CamelCase(*field.Name)))(field)
+		SetStringFieldOption(gogoproto.E_Jsontag, FixCasing(generator.CamelCase(*field.Name)))(field)
 	}
 }
 
@@ -52,7 +52,7 @@ func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(fie
 }
 
 // Necessary for consistency with the legacy method of generating json tags.
-func LowerCaseFirst(s string) string {
+func FixCasing(s string) string {
 	if len(s) == 0 {
 		return s
 	}
