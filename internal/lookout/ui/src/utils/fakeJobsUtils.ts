@@ -1,5 +1,5 @@
 import { isString } from "lodash"
-import { Job, JobFilter, JobKey, JobRun, JobRunStates, JobState, Match, SortDirection } from "models/lookoutV2Models"
+import { Job, JobFilter, JobKey, JobRun, JobRunState, JobState, Match, SortDirection } from "models/lookoutV2Models"
 import { v4 as uuidv4 } from "uuid"
 
 export function randomInt(min: number, max: number, rand: () => number) {
@@ -31,8 +31,14 @@ export function seededUuid(rand: () => number): () => string {
     })
 }
 
-export async function simulateApiWait(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, randomInt(200, 1000, Math.random)))
+export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
+  await new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(resolve, randomInt(200, 1000, Math.random))
+    abortSignal?.addEventListener("abort", () => {
+      clearTimeout(timeoutId)
+      reject()
+    })
+  })
 }
 
 export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100): Job[] {
@@ -49,15 +55,12 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
     const runs = createJobRuns(randomInt(0, 3, rand), jobId, rand, uuid)
 
     jobs.push({
-      duplicate: false,
       gpu: randomInt(0, 8, rand),
       lastActiveRunId: runs.length > 0 ? runs[runs.length - 1].runId : undefined,
       owner: uuid(),
       priority: randomInt(0, 1000, rand),
-      priorityClass: "default",
       runs: runs,
-      submitted: "17/02/2009",
-      timeInState: "3d4h",
+      submitted: "2022-12-13T11:57:25.733Z",
       cpu: randomInt(2, 200, rand) * 100,
       ephemeralStorage: 34359738368,
       memory: 134217728,
@@ -66,6 +69,7 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: randomProperty(JobState, rand),
+      lastTransitionTime: "2022-12-13T12:19:14.956Z",
     })
   }
 
@@ -83,13 +87,13 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       cluster: uuid(),
       error: "something bad might have happened?",
       exitCode: randomInt(0, 64, rand),
-      finished: "17/02/2009",
+      finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
-      jobRunState: randomProperty(JobRunStates, rand).displayName,
+      jobRunState: randomProperty(JobRunState, rand),
       node: uuid(),
-      pending: "17/02/2009",
+      pending: "2022-12-13T12:16:14.956Z",
       runId: uuid(),
-      started: "17/02/2009",
+      started: "2022-12-13T12:15:14.956Z",
     })
   }
   return runs

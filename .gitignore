@@ -81,3 +81,5 @@ third_party/airflow/docs/build/
 third_party/airflow/build/
 build/ssl/certs/ca-certificates.crt
 localdev/volumes/go/pkg/
+.coverage
+coverage.xml

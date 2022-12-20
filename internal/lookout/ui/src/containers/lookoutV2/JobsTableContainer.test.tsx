@@ -1,6 +1,6 @@
-import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@testing-library/react"
+import { render, within, waitFor, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { formatJobState, Job, JobState } from "models/lookoutV2Models"
+import { Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -8,7 +8,7 @@ import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
-import { DEFAULT_COLUMN_SPECS } from "utils/jobsTableColumns"
+import { formatJobState, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { JobsTableContainer } from "./JobsTableContainer"
 
@@ -27,8 +27,8 @@ describe("JobsTableContainer", () => {
     numQueues = 2
     numJobSets = 3
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
-    getJobsService = new FakeGetJobsService(jobs)
-    groupJobsService = new FakeGroupJobsService(jobs)
+    getJobsService = new FakeGetJobsService(jobs, false)
+    groupJobsService = new FakeGroupJobsService(jobs, false)
 
     updateJobsService = {
       cancelJobs: jest.fn(),
@@ -74,11 +74,12 @@ describe("JobsTableContainer", () => {
     // Check all details for the first job are shown
     const jobToSearchFor = jobs[0]
     const matchingRow = await findByRole("row", { name: "jobId:" + jobToSearchFor.jobId })
-    DEFAULT_COLUMN_SPECS.forEach((col) => {
-      const cellValue = jobToSearchFor[col.key as keyof Job]
-      const expectedText = col.formatter?.(cellValue) ?? cellValue
-      within(matchingRow).getByText(expectedText!.toString()) // eslint-disable-line @typescript-eslint/no-non-null-assertion
-    })
+
+    within(matchingRow).getByText(jobToSearchFor.jobId)
+    within(matchingRow).getByText(jobToSearchFor.jobSet)
+    within(matchingRow).getByText(jobToSearchFor.queue)
+    within(matchingRow).getByText(formatJobState(jobToSearchFor.state))
+    within(matchingRow).getByText(formatUtcDate(jobToSearchFor.submitted))
 
     await assertNumDataRowsShown(jobs.length)
   })
@@ -275,11 +276,11 @@ describe("JobsTableContainer", () => {
       await filterTextColumnTo("Queue", jobs[0].queue)
       await assertNumDataRowsShown(jobs.filter((j) => j.queue === jobs[0].queue).length)
 
-      await filterTextColumnTo("Job Id", jobs[0].jobId)
+      await filterTextColumnTo("Job ID", jobs[0].jobId)
       await assertNumDataRowsShown(1)
 
       await filterTextColumnTo("Queue", "")
-      await filterTextColumnTo("Job Id", "")
+      await filterTextColumnTo("Job ID", "")
 
       await assertNumDataRowsShown(jobs.length)
     })
@@ -302,7 +303,7 @@ describe("JobsTableContainer", () => {
       const { getAllByRole } = renderComponent()
       await waitForFinishedLoading()
 
-      await toggleSorting("Job Id")
+      await toggleSorting("Job ID")
 
       await waitFor(() => {
         const rows = getAllByRole("row")
@@ -311,7 +312,7 @@ describe("JobsTableContainer", () => {
         expect(rows[rows.length - 2]).toHaveTextContent((numJobs - 1).toString())
       })
 
-      await toggleSorting("Job Id")
+      await toggleSorting("Job ID")
 
       await waitFor(() => {
         const rows = getAllByRole("row")
@@ -380,7 +381,7 @@ describe("JobsTableContainer", () => {
 
       // Applying grouping and filtering
       await groupByColumn("Queue")
-      await filterTextColumnTo("Job Id", jobs[0].jobId)
+      await filterTextColumnTo("Job ID", jobs[0].jobId)
 
       // Check table is updated as expected
       await assertNumDataRowsShown(1)
@@ -396,8 +397,36 @@ describe("JobsTableContainer", () => {
     })
   })
 
+  describe("Sidebar", () => {
+    it("clicking job row should open sidebar", async () => {
+      const { findByRole, getByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      const firstJob = jobs[0]
+      const firstRow = await findByRole("row", { name: new RegExp(firstJob.jobId) })
+      await userEvent.click(within(firstRow).getByText(firstJob.jobId))
+
+      const sidebar = getByRole("complementary")
+      within(sidebar).getByText(firstJob.jobId)
+    })
+
+    it("clicking grouped row should not open", async () => {
+      const { findByRole, queryByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      await groupByColumn("Queue")
+      await waitForFinishedLoading()
+
+      const firstJob = jobs[0]
+      const firstRow = await findByRole("row", { name: new RegExp(firstJob.queue) })
+      await userEvent.click(within(firstRow).getByText(new RegExp(firstJob.queue)))
+
+      expect(queryByRole("complementary")).toBeNull()
+    })
+  })
+
   async function waitForFinishedLoading() {
-    await waitForElementToBeRemoved(() => screen.getAllByRole("progressbar"))
+    await waitFor(() => expect(screen.queryAllByRole("progressbar").length).toBe(0))
   }
 
   async function assertNumDataRowsShown(nDataRows: number) {
@@ -439,7 +468,7 @@ describe("JobsTableContainer", () => {
 
   async function filterTextColumnTo(columnDisplayName: string, filterText: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
-    const filterInput = await within(headerCell).findByRole("textbox", { name: "Filter" })
+    const filterInput = await within(headerCell).findByRole("textbox")
     await userEvent.clear(filterInput)
     if (filterText.length > 0) {
       await userEvent.type(filterInput, filterText)
@@ -448,7 +477,7 @@ describe("JobsTableContainer", () => {
 
   async function toggleEnumFilterOption(columnDisplayName: string, filterOption: string) {
     const headerCell = await getHeaderCell(columnDisplayName)
-    const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter" })
+    const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter..." })
     await userEvent.click(dropdownTrigger)
     const optionButton = await screen.findByRole("option", { name: filterOption })
     await userEvent.click(optionButton)
