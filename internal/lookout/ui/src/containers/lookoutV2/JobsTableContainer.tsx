@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 
 import {
   TableContainer,
@@ -35,14 +35,14 @@ import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
 import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
 import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
+import { useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
-import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
+import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { getErrorMessage } from "utils"
 import {
   ColumnId,
   DEFAULT_COLUMN_VISIBILITY,
@@ -54,18 +54,12 @@ import {
 } from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
-  fetchJobGroups,
-  fetchJobs,
-  groupsToRows,
-  jobsToRows,
   diffOfKeys,
   updaterToValue,
   convertColumnFiltersToFilters,
-  FetchRowRequest,
-  PendingData,
   pendingDataForAllVisibleData,
 } from "utils/jobsTableUtils"
-import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
+import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
 
@@ -84,11 +78,6 @@ export const JobsTableContainer = ({
   debug,
 }: JobsTableContainerProps) => {
   const { enqueueSnackbar } = useSnackbar()
-
-  // Data
-  const [data, setData] = useState<JobTableRow[]>([])
-  const [rowsToFetch, setRowsToFetch] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
-  const [totalRowCount, setTotalRowCount] = useState(0)
 
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(JOB_COLUMNS)
@@ -116,7 +105,6 @@ export const JobsTableContainer = ({
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   })
-  const [pageCount, setPageCount] = useState<number>(-1)
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
 
   // Filtering
@@ -125,91 +113,20 @@ export const JobsTableContainer = ({
   // Sorting
   const [sorting, setSorting] = useState<SortingState>([{ id: "jobId", desc: true }])
 
-  useEffect(() => {
-    async function fetchData() {
-      if (rowsToFetch.length === 0) {
-        return
-      }
-
-      const [nextRequest, ...restOfRequests] = rowsToFetch
-
-      const parentRowInfo = nextRequest.parentRowId !== "ROOT" ? fromRowId(nextRequest.parentRowId) : undefined
-
-      const groupingLevel = grouping.length
-      const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
-      const isJobFetch = expandedLevel === groupingLevel
-
-      const sortedField = sorting[0]
-
-      const rowRequest: FetchRowRequest = {
-        filters: [
-          ...convertRowPartsToFilters(parentRowInfo?.rowIdPartsPath ?? []),
-          ...convertColumnFiltersToFilters(columnFilterState, allColumns),
-        ],
-        skip: nextRequest.skip ?? 0,
-        take: nextRequest.take ?? pageSize,
-        order: { field: sortedField.id, direction: sortedField.desc ? "DESC" : "ASC" },
-      }
-
-      let newData, totalCount
-      try {
-        if (isJobFetch) {
-          const { jobs, count: totalJobs } = await fetchJobs(rowRequest, getJobsService)
-          newData = jobsToRows(jobs)
-          totalCount = totalJobs
-        } else {
-          const groupedCol = grouping[expandedLevel]
-
-          // TODO: Wire in aggregatable+visible columns (maybe use column metadata?)
-          const colsToAggregate: string[] = []
-          const { groups, count: totalGroups } = await fetchJobGroups(
-            rowRequest,
-            groupJobsService,
-            groupedCol,
-            colsToAggregate,
-          )
-          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
-          totalCount = totalGroups
-        }
-      } catch (err) {
-        const errMsg = await getErrorMessage(err)
-        enqueueSnackbar("Failed to retrieve jobs. Error: " + errMsg, { variant: "error" })
-        return
-      }
-
-      const { rootData, parentRow } = mergeSubRows<JobRow, JobGroupRow>(
-        data,
-        newData,
-        parentRowInfo?.rowId,
-        Boolean(nextRequest.append),
-      )
-
-      if (parentRow) {
-        parentRow.subRowCount = totalCount
-
-        // Update any new children of selected rows
-        if (parentRow.rowId in selectedRows) {
-          const newSelectedRows = parentRow.subRows.reduce(
-            (newSelectedSubRows, subRow) => {
-              newSelectedSubRows[subRow.rowId] = true
-              return newSelectedSubRows
-            },
-            { ...selectedRows },
-          )
-          setSelectedRows(newSelectedRows)
-        }
-      }
-
-      setData([...rootData]) // ReactTable will only re-render if the array identity changes
-      setRowsToFetch(restOfRequests)
-      if (parentRowInfo === undefined) {
-        setPageCount(Math.ceil(totalCount / pageSize))
-        setTotalRowCount(totalCount)
-      }
-    }
-
-    fetchData().catch(console.error)
-  }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting, allColumns])
+  // Data
+  const { data, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+    groupedColumns: grouping,
+    expandedState: expanded,
+    paginationState: pagination,
+    sortingState: sorting,
+    columnFilters: columnFilterState,
+    allColumns,
+    selectedRows,
+    updateSelectedRows: setSelectedRows,
+    getJobsService,
+    groupJobsService,
+    enqueueSnackbar,
+  })
 
   const onRefresh = useCallback(() => {
     setSelectedRows({})
