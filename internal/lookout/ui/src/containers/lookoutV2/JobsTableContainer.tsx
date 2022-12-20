@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 
 import {
   TableContainer,
@@ -35,14 +35,14 @@ import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
 import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
 import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
+import { useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
-import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
+import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { getErrorMessage } from "utils"
 import {
   ColumnId,
   DEFAULT_COLUMN_VISIBILITY,
@@ -54,21 +54,14 @@ import {
 } from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
-  fetchJobGroups,
-  fetchJobs,
-  groupsToRows,
-  jobsToRows,
   diffOfKeys,
   updaterToValue,
   convertColumnFiltersToFilters,
-  FetchRowRequest,
-  PendingData,
   pendingDataForAllVisibleData,
 } from "utils/jobsTableUtils"
-import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
+import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
-import { useFetchJobsTableData } from "hooks/useJobsTableData"
 
 const DEFAULT_PAGE_SIZE = 30
 
@@ -121,18 +114,18 @@ export const JobsTableContainer = ({
   const [sorting, setSorting] = useState<SortingState>([{ id: "jobId", desc: true }])
 
   // Data
-  const {data, pageCount, rowsToFetch, setRowsToFetch, totalRowCount} = useFetchJobsTableData({
-    groupedColumns: grouping, 
+  const { data, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+    groupedColumns: grouping,
     expandedState: expanded,
-    paginationState: pagination, 
-    sortingState: sorting, 
-    columnFilters: columnFilterState, 
-    allColumns, 
-    selectedRows, 
-    updateSelectedRows: setSelectedRows, 
-    getJobsService, 
-    groupJobsService, 
-    enqueueSnackbar, 
+    paginationState: pagination,
+    sortingState: sorting,
+    columnFilters: columnFilterState,
+    allColumns,
+    selectedRows,
+    updateSelectedRows: setSelectedRows,
+    getJobsService,
+    groupJobsService,
+    enqueueSnackbar,
   })
 
   const onRefresh = useCallback(() => {

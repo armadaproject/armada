@@ -67,9 +67,13 @@ export interface FetchRowRequest {
   filters: JobFilter[]
   skip: number
   take: number
-  order: JobOrder,
+  order: JobOrder
 }
-export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: IGetJobsService, abortSignal: AbortSignal) => {
+export const fetchJobs = async (
+  rowRequest: FetchRowRequest,
+  getJobsService: IGetJobsService,
+  abortSignal: AbortSignal,
+) => {
   const { filters, skip, take, order } = rowRequest
 
   return await getJobsService.getJobs(filters, order, skip, take, abortSignal)
@@ -80,7 +84,7 @@ export const fetchJobGroups = async (
   groupJobsService: IGroupJobsService,
   groupedColumn: string,
   columnsToAggregate: string[],
-  abortSignal: AbortSignal
+  abortSignal: AbortSignal,
 ) => {
   const { filters, skip, take } = rowRequest
   let { order } = rowRequest

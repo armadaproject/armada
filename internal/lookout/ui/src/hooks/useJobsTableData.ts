@@ -1,14 +1,29 @@
-import { SortingState, ColumnFiltersState, RowSelectionState, PaginationState, ExpandedStateList } from "@tanstack/react-table"
+import { useEffect, useState } from "react"
+
+import {
+  SortingState,
+  ColumnFiltersState,
+  RowSelectionState,
+  PaginationState,
+  ExpandedStateList,
+} from "@tanstack/react-table"
 import { JobTableRow, JobRow, JobGroupRow } from "models/jobsTableModels"
 import { SnackbarProvider } from "notistack"
-import { useEffect, useState } from "react"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
 import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
-import { PendingData, FetchRowRequest, convertRowPartsToFilters, convertColumnFiltersToFilters, fetchJobs, jobsToRows, fetchJobGroups, groupsToRows } from "utils/jobsTableUtils"
+import {
+  PendingData,
+  FetchRowRequest,
+  convertRowPartsToFilters,
+  convertColumnFiltersToFilters,
+  fetchJobs,
+  jobsToRows,
+  fetchJobGroups,
+  groupsToRows,
+} from "utils/jobsTableUtils"
 import { fromRowId, mergeSubRows } from "utils/reactTableUtils"
-
 
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
@@ -21,27 +36,27 @@ export interface UseFetchJobsTableDataArgs {
   updateSelectedRows: (newState: RowSelectionState) => void
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  enqueueSnackbar: SnackbarProvider['enqueueSnackbar']
+  enqueueSnackbar: SnackbarProvider["enqueueSnackbar"]
 }
 export interface UseFetchJobsTableDataResult {
   data: JobTableRow[]
   pageCount: number
-  rowsToFetch: PendingData[], 
-  setRowsToFetch: React.Dispatch<React.SetStateAction<PendingData[]>>, 
-  totalRowCount: number,
+  rowsToFetch: PendingData[]
+  setRowsToFetch: (toFetch: PendingData[]) => void
+  totalRowCount: number
 }
 export const useFetchJobsTableData = ({
-  groupedColumns, 
+  groupedColumns,
   expandedState,
   sortingState,
   paginationState,
-  columnFilters, 
-  allColumns, 
+  columnFilters,
+  allColumns,
   selectedRows,
   updateSelectedRows,
-  getJobsService, 
-  groupJobsService, 
-  enqueueSnackbar, 
+  getJobsService,
+  groupJobsService,
+  enqueueSnackbar,
 }: UseFetchJobsTableDataArgs): UseFetchJobsTableDataResult => {
   const [data, setData] = useState<JobTableRow[]>([])
   const [pendingData, setPendingData] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
@@ -49,7 +64,7 @@ export const useFetchJobsTableData = ({
   const [pageCount, setPageCount] = useState<number>(-1)
 
   useEffect(() => {
-    const abortController = new AbortController();
+    const abortController = new AbortController()
 
     async function fetchData() {
       if (pendingData.length === 0) {
@@ -92,7 +107,7 @@ export const useFetchJobsTableData = ({
             groupJobsService,
             groupedCol,
             colsToAggregate,
-            abortController.signal
+            abortController.signal,
           )
           newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
           totalCount = totalGroups
@@ -111,7 +126,7 @@ export const useFetchJobsTableData = ({
         data,
         newData,
         parentRowInfo?.rowId,
-        Boolean(nextRequest.append)
+        Boolean(nextRequest.append),
       )
 
       if (parentRow) {
@@ -124,7 +139,7 @@ export const useFetchJobsTableData = ({
               newSelectedSubRows[subRow.rowId] = true
               return newSelectedSubRows
             },
-            { ...selectedRows }
+            { ...selectedRows },
           )
           updateSelectedRows(newSelectedRows)
         }
@@ -145,15 +160,7 @@ export const useFetchJobsTableData = ({
     return () => {
       abortController.abort("Request is no longer needed")
     }
-  }, [
-    pendingData, 
-    paginationState, 
-    groupedColumns, 
-    expandedState, 
-    columnFilters, 
-    sortingState, 
-    allColumns
-  ])
+  }, [pendingData, paginationState, groupedColumns, expandedState, columnFilters, sortingState, allColumns])
 
   return {
     data,
