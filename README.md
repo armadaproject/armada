@@ -23,7 +23,12 @@ Armada is designed primarily for machine learning, AI, and data analytics worklo
 
 Armada is a [CNCF](https://www.cncf.io/) Sandbox project used in production at [G-Research](https://www.gresearch.co.uk/).
 
-For an overview of Armada, see [this video](https://www.youtube.com/watch?v=FT8pXYciD9A).
+For an overview of Armada, see these videos:
+
+- [Armada - high-throughput batch scheduling](https://www.youtube.com/watch?v=FT8pXYciD9A)
+- [Building Armada - Running Batch Jobs at Massive Scale on Kubernetes](https://www.youtube.com/watch?v=B3WPxw3OUl4)
+
+Armada adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
 
 ## Documentation
 
@@ -43,5 +48,3 @@ We expect readers of the documentation to have a basic understanding of Docker a
 
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
-
-Armada follows the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md)
