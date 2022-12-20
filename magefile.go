@@ -32,7 +32,7 @@ const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
-	if err := os.MkdirAll(".kube", os.ModeDir|0644); err != nil {
+	if err := os.MkdirAll(".kube", os.ModeDir|0755); err != nil {
 		return err
 	}
 	mg.Deps(BootstrapTools)
@@ -217,7 +217,7 @@ func KindWriteKubeConfig() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(".kube/external/", os.ModeDir|0644); err != nil {
+	if err := os.MkdirAll(".kube/external/", os.ModeDir|0755); err != nil {
 		return err
 	}
 	if f, err := os.Create(".kube/external/config"); err != nil {
@@ -233,7 +233,7 @@ func KindWriteKubeConfig() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(".kube/internal/", os.ModeDir|0644); err != nil {
+	if err := os.MkdirAll(".kube/internal/", os.ModeDir|0755); err != nil {
 		return err
 	}
 	if f, err := os.Create(".kube/internal/config"); err != nil {
@@ -503,7 +503,7 @@ func unzip(zipPath, dstPath string) error {
 	for _, file := range read.File {
 		name := path.Join(dstPath, file.Name)
 		if file.Mode().IsDir() {
-			os.MkdirAll(path.Dir(name), os.ModeDir|0644)
+			os.MkdirAll(path.Dir(name), os.ModeDir|0755)
 			continue
 		}
 		open, err := file.Open()
@@ -511,7 +511,7 @@ func unzip(zipPath, dstPath string) error {
 			return err
 		}
 		defer open.Close()
-		os.MkdirAll(path.Dir(name), os.ModeDir|0644)
+		os.MkdirAll(path.Dir(name), os.ModeDir|0755)
 		create, err := os.Create(name)
 		if err != nil {
 			return err
@@ -526,7 +526,7 @@ func unzip(zipPath, dstPath string) error {
 }
 
 func copy(srcPath, dstPath string) error {
-	os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0644)
+	os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0755)
 	src, err := os.Open(srcPath)
 	if err != nil {
 		return err
