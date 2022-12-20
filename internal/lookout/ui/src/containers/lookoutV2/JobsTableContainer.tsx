@@ -120,6 +120,7 @@ export const JobsTableContainer = ({
   // Sorting
   const [sorting, setSorting] = useState<SortingState>([{ id: "jobId", desc: true }])
 
+  // Data
   const {data, pageCount, rowsToFetch, setRowsToFetch, totalRowCount} = useFetchJobsTableData({
     groupedColumns: grouping, 
     expandedState: expanded,
