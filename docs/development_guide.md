@@ -5,13 +5,12 @@ Here, we give an overview of a development setup for Armada that is closely alig
 Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.18 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), and [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
 
 Then, use the following commands to setup a local Armada system.
-
 ```bash
 # Download Go dependencies.
 go get
 go mod tidy
 
-# Install necessary tooling
+# Install necessary tooling.
 mage BootstrapTools
 
 # Compile .pb.go files from .proto files
@@ -47,10 +46,10 @@ go run cmd/armadactl/main.go create queue e2e-test-queue
 
 # Run the Armada test suite against the local environment.
 # (The ingress test requires additional setup and will fail using this setup.)
-go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*", --junit junit.xml
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
-Tear down the local envirnment using the following:
+Tear down the local environment using the following:
 ```bash
 # Stop Armada components and dependencies.
 docker-compose down
@@ -61,7 +60,7 @@ mage KindTeardown
 
 ## Running the Armada server and executor in Visual Studio Code
 
-To run the Armada server and executor from Visual Studio Code for debugging purposes, add, e.g., the following config to `.vscode/launch.json` and start both from the "Run and Debug" menu - see the [documentation](https://code.visualstudio.com/docs/editor/debugging) for details.
+To run the Armada server and executor from Visual Studio Code for debugging purposes, add, e.g., the following config to `.vscode/launch.json` and start both from the "Run and Debug" menu (see the Visual Studio Code [documentation](https://code.visualstudio.com/docs/editor/debugging) for more information).
 
 ```json
 {
