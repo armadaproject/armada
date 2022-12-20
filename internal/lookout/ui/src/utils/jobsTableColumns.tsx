@@ -2,9 +2,10 @@ import { useCallback, useMemo } from "react"
 
 import { Checkbox } from "@mui/material"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
+import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { JobTableRow } from "models/jobsTableModels"
-import { JobState } from "models/lookoutV2Models"
+import { JobState, Match } from "models/lookoutV2Models"
 
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
@@ -18,8 +19,11 @@ export enum FilterType {
 export interface JobTableColumnMetadata {
   displayName: string
   isRightAligned?: boolean
+
   filterType?: FilterType
   enumFitlerValues?: EnumFilterOption[]
+  defaultMatchType?: Match
+
   isAnnotation?: boolean
 }
 
@@ -100,6 +104,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
         indeterminate={row.getIsSomeSelected()}
         onChange={useCallback(row.getToggleSelectedHandler(), [row])}
+        onClick={(e) => e.stopPropagation()}
         size="small"
         sx={useMemo(
           () => ({
@@ -124,6 +129,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
     },
   }),
   accessorColumn({
@@ -137,6 +143,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
     },
   }),
   accessorColumn({
@@ -150,16 +157,20 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Text,
+      defaultMatchType: Match.Exact, // Job ID does not support startsWith
     },
   }),
   accessorColumn({
     id: StandardColumnId.State,
-    accessor: (jobTableRow) => formatJobState(jobTableRow.state),
+    accessor: "state",
     displayName: "State",
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
       size: 70,
+      cell: (cell) => (
+        <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
+      ),
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
@@ -167,6 +178,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         value: state,
         displayName: formatJobState(state),
       })),
+      defaultMatchType: Match.AnyOf,
     },
   }),
   accessorColumn({
@@ -178,6 +190,13 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     id: StandardColumnId.Owner,
     accessor: "owner",
     displayName: "Owner",
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.CPU,

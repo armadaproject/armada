@@ -20,7 +20,7 @@ readme = "README.md"
 
 [project.optional-dependencies]
 format = ["black>=22.3.0", "flake8>=4.0.1", "mypy>=0.971"]
-test = ["pytest>=7.1.2"]
+test = ["pytest>=7.1.2", "coverage>=6.5.0"]
 docs = ["sphinx", "sphinx-jekyll-builder"]
 
 [build-system]
