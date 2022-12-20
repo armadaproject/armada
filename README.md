@@ -38,8 +38,9 @@ For an overview of the architecture and design of Armada, and instructions for s
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 
-For instructions of how to setup and develop Armada, see:
-- [Development guide](./docs/developer.md)
+There are two methods of setting Armada up for local development:
+- [Images with ad-hoc compilation](./docs/developer.md)
+- [Pre-built images or running on host](./docs/development_guide.md)
 
 For API reference, see:
 - [API Documentation](./docs/api.md)
