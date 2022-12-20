@@ -19,28 +19,53 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         return submit_pb2.Queue(name=request.name)
 
     def SubmitJobs(self, request, context):
-        return submit_pb2.JobSubmitResponse()
+        return submit_pb2.JobSubmitResponse(
+            job_response_items=[
+                submit_pb2.JobSubmitResponseItem(
+                    job_id="test",
+                )
+            ]
+        )
 
     def GetQueueInfo(self, request, context):
         return submit_pb2.QueueInfo()
 
     def CancelJobs(self, request, context):
-        return submit_pb2.CancellationResult()
+        return submit_pb2.CancellationResult(
+            cancelled_ids=["test"],
+        )
 
     def CancelJobSet(self, request, context):
         return empty_pb2.Empty()
 
     def ReprioritizeJobs(self, request, context):
-        return submit_pb2.JobReprioritizeResponse()
+
+        new_priority = request.new_priority
+
+        return submit_pb2.JobReprioritizeResponse(
+            reprioritization_results={"test", new_priority}
+        )
 
     def UpdateQueue(self, request, context):
         return empty_pb2.Empty()
 
     def CreateQueues(self, request, context):
-        return submit_pb2.BatchQueueCreateResponse()
+        return submit_pb2.BatchQueueCreateResponse(
+            failed_queues=[
+                submit_pb2.QueueCreateResponse(
+                    queue=submit_pb2.Queue(name="test"),
+                )
+            ]
+        )
 
     def UpdateQueues(self, request, context):
-        return submit_pb2.BatchQueueUpdateResponse()
+        return submit_pb2.BatchQueueUpdateResponse(
+            failed_queues=[
+                submit_pb2.QueueUpdateResponse(
+                    queue=submit_pb2.Queue(name="test"),
+                )
+            ]
+        )
 
     def Health(self, request, context):
         return health_pb2.HealthCheckResponse(

@@ -86,11 +86,13 @@ def test_submit_job():
         services=[services],
     )
 
-    tester.submit_jobs(
+    resp = tester.submit_jobs(
         queue="test",
         job_set_id="test",
         job_request_items=[request_item],
     )
+
+    assert resp.job_response_items[0].job_id == "test"
 
 
 def test_create_queue():
