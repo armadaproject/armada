@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -77,6 +78,7 @@ type JobRepository interface {
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
 	GetNumberOfRetryAttempts(jobId string) (int, error)
+	QueuedJobsIterator(ctx context.Context, queue string) (*QueuedJobsIterator, error)
 }
 
 type RedisJobRepository struct {
@@ -870,6 +872,10 @@ func (repo *RedisJobRepository) GetJobSetJobIds(queue string, jobSetId string, f
 		}
 	}
 	return activeJobSetIds, nil
+}
+
+func (repo *RedisJobRepository) QueuedJobsIterator(ctx context.Context, queue string) (*QueuedJobsIterator, error) {
+	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 
 // GetQueueActiveJobSets returns a list of length equal to the number of unique job sets

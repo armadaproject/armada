@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/G-Research/armada/internal/armada/repository"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -16,7 +17,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -103,86 +103,11 @@ func SchedulingConstraintsFromSchedulingConfig(
 
 // SchedulerJobRepository represents the underlying jobs database.
 type SchedulerJobRepository interface {
-	// GetQueueJobIds returns the ids of all queued jobs for some queue.
-	GetQueueJobIds(queue string) ([]string, error)
-	// GetExistingJobsByIds returns any jobs with an id in the provided list.
-	GetExistingJobsByIds(jobIds []string) ([]*api.Job, error)
+	// QueuedJobsIterator returns an iterator over the queued jobs
+	QueuedJobsIterator(ctx context.Context, queue string) (*repository.QueuedJobsIterator, error)
 	// TryLeaseJobs tries to create jobs leases and returns the jobs that were successfully leased.
 	// Leasing may fail, e.g., if the job was concurrently leased to another executor.
 	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
-}
-
-// QueuedJobsIterator is an iterator over all jobs in a queue.
-// It lazily loads jobs in batches from Redis asynch.
-type QueuedJobsIterator struct {
-	ctx context.Context
-	err error
-	c   chan *api.Job
-}
-
-func NewQueuedJobsIterator(ctx context.Context, queue string, repo SchedulerJobRepository) (*QueuedJobsIterator, error) {
-	batchSize := 16
-	g, ctx := errgroup.WithContext(ctx)
-	it := &QueuedJobsIterator{
-		ctx: ctx,
-		c:   make(chan *api.Job, 2*batchSize), // 2x batchSize to load one batch async.
-	}
-
-	jobIds, err := repo.GetQueueJobIds(queue)
-	if err != nil {
-		it.err = err
-		return nil, err
-	}
-	g.Go(func() error { return queuedJobsIteratorLoader(ctx, jobIds, it.c, batchSize, repo) })
-
-	return it, nil
-}
-
-func (it *QueuedJobsIterator) Next() (*api.Job, error) {
-	// Once this function has returned error,
-	// it will return this error on every invocation.
-	if it.err != nil {
-		return nil, it.err
-	}
-
-	// Get one job that was loaded asynchrounsly.
-	select {
-	case <-it.ctx.Done():
-		it.err = it.ctx.Err() // Return an error if called again.
-		return nil, it.err
-	case job, ok := <-it.c:
-		if !ok {
-			return nil, nil
-		}
-		return job, nil
-	}
-}
-
-// queuedJobsIteratorLoader loads jobs from Redis lazily.
-// Used with QueuedJobsIterator.
-func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan *api.Job, batchSize int, repo SchedulerJobRepository) error {
-	defer close(ch)
-	batch := make([]string, batchSize)
-	for i, jobId := range jobIds {
-		batch[i%len(batch)] = jobId
-		if (i+1)%len(batch) == 0 || i == len(jobIds)-1 {
-			jobs, err := repo.GetExistingJobsByIds(batch[:i%len(batch)+1])
-			if err != nil {
-				return err
-			}
-			for _, job := range jobs {
-				if job == nil {
-					continue
-				}
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case ch <- job:
-				}
-			}
-		}
-	}
-	return nil
 }
 
 type JobIterator[T LegacySchedulerJob] interface {
@@ -659,7 +584,7 @@ func NewLegacyScheduler(
 	iteratorsByQueue := make(map[string]*QueueCandidateGangIterator[*api.Job])
 	for queue := range priorityFactorByQueue {
 		// Load jobs from Redis.
-		queuedJobsIterator, err := NewQueuedJobsIterator(ctx, queue, jobRepository)
+		queuedJobsIterator, err := jobRepository.QueuedJobsIterator(ctx, queue)
 		if err != nil {
 			return nil, err
 		}
