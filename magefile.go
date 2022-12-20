@@ -491,7 +491,14 @@ func ProtocInstall() error {
 	}
 	defer os.RemoveAll("protoc.zip")
 
-	return unzip("protoc.zip", "./protoc")
+	if err := unzip("protoc.zip", "./protoc"); err != nil {
+		return err
+	}
+	if err := os.Chmod(protocPath(), 0755); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func unzip(zipPath, dstPath string) error {
@@ -540,20 +547,23 @@ func copy(srcPath, dstPath string) error {
 }
 
 func protocOutCmd() (func(args ...string) (string, error), error) {
-	var protocPath string
-	if runtime.GOOS == "windows" {
-		protocPath = "./protoc/bin/protoc.exe"
-	} else {
-		protocPath = "./protoc/bin/protoc"
-	}
-	ok, err := exists(protocPath)
+	p := protocPath()
+	ok, err := exists(p)
 	if err != nil {
 		return nil, err
 	}
 	if ok {
-		return sh.OutCmd(protocPath), nil
+		return sh.OutCmd(p), nil
 	}
 	return sh.OutCmd("protoc"), nil
+}
+
+func protocPath() string {
+	if runtime.GOOS == "windows" {
+		return "./protoc/bin/protoc.exe"
+	} else {
+		return "./protoc/bin/protoc"
+	}
 }
 
 func exists(path string) (bool, error) {
