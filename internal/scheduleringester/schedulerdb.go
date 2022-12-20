@@ -37,10 +37,7 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 			shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
 			return shouldRetry, err
 		}, s.initialBackOff, s.maxBackOff)
-		multiAppendErr := multierror.Append(result, err)
-		if multiAppendErr != nil {
-			return multiAppendErr.ErrorOrNil()
-		}
+		result = multierror.Append(result, err)
 	}
 	return result.ErrorOrNil()
 }
