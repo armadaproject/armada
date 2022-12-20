@@ -14,7 +14,7 @@ export default class FakeGetJobsService implements IGetJobsService {
   ): Promise<GetJobsResponse> {
     console.log("Making GetJobs call with params:", { filters, order, skip, take, signal })
     if (this.simulateApiWait) {
-      await simulateApiWait()
+      await simulateApiWait(signal)
     }
 
     const filtered = this.jobs.filter(mergeFilters(filters)).sort(comparator(order))
