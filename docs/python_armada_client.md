@@ -294,7 +294,7 @@ for event in events:
 
 * **Return type**
 
-    *Generator*[armada.event_pb2.EventStreamMessage, None, None]
+    *Iterator*[armada.event_pb2.EventStreamMessage]
 
 
 

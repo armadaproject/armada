@@ -7,7 +7,7 @@ https://armadaproject.io/api
 
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Generator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from google.protobuf import empty_pb2
 
@@ -49,7 +49,7 @@ class ArmadaClient:
         queue: str,
         job_set_id: str,
         from_message_id: Optional[str] = None,
-    ) -> Generator[event_pb2.EventStreamMessage, None, None]:
+    ) -> Iterator[event_pb2.EventStreamMessage]:
         """Get event stream for a job set.
 
         Uses the GetJobSetEvents rpc to get a stream of events relating
