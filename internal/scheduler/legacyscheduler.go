@@ -3,22 +3,13 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/armada/repository"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"math/rand"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
-
-	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/openconfig/goyang/pkg/indent"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
@@ -27,6 +18,13 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/openconfig/goyang/pkg/indent"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 type LegacySchedulerJob interface {
@@ -102,12 +100,12 @@ func SchedulingConstraintsFromSchedulingConfig(
 }
 
 // SchedulerJobRepository represents the underlying jobs database.
-type SchedulerJobRepository interface {
-	// QueuedJobsIterator returns an iterator over the queued jobs
-	QueuedJobsIterator(ctx context.Context, queue string) (*repository.QueuedJobsIterator, error)
+type SchedulerJobRepository[T LegacySchedulerJob] interface {
+	// GetJobIterator returns a iterqator over jqueued jobs for a given queue.
+	GetJobIterator(ctx context.Context, queue string) (JobIterator[T], error)
 	// TryLeaseJobs tries to create jobs leases and returns the jobs that were successfully leased.
 	// Leasing may fail, e.g., if the job was concurrently leased to another executor.
-	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
+	TryLeaseJobs(clusterId string, queue string, jobs []T) ([]T, error)
 }
 
 type JobIterator[T LegacySchedulerJob] interface {
@@ -483,56 +481,35 @@ func jobIsLargeEnough(jobTotalResourceRequests, minimumJobSize schedulerobjects.
 	return true, ""
 }
 
-func PodRequirementsFromJobs(priorityClasses map[string]configuration.PriorityClass, jobs []*api.Job) []*schedulerobjects.PodRequirements {
+func PodRequirementsFromJobs[T LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []T) ([]*schedulerobjects.PodRequirements, error) {
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
-		rv = append(rv, PodRequirementsFromJob(priorityClasses, job)...)
-	}
-	return rv
-}
-
-func PodRequirementsFromJob(priorityClasses map[string]configuration.PriorityClass, job *api.Job) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, 0, 1+len(job.PodSpecs))
-	if job.PodSpec != nil {
-		req := schedulerobjects.PodRequirementsFromPod(&v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: job.Annotations,
-			},
-			Spec: *job.PodSpec,
-		}, priorityClasses)
+		req, err := PodRequirementsFromJob(job, priorityClasses)
+		if err != nil {
+			return nil, err
+		}
 		rv = append(rv, req)
 	}
-	for _, spec := range job.PodSpecs {
-		if spec != nil {
-			req := schedulerobjects.PodRequirementsFromPod(&v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: job.Annotations,
-				},
-				Spec: *spec,
-			}, priorityClasses)
-			rv = append(rv, req)
-		}
-	}
-	return rv
+	return rv, nil
 }
 
-type LegacyScheduler struct {
+type LegacyScheduler[T LegacySchedulerJob] struct {
 	ctx context.Context
 	SchedulingConstraints
-	SchedulingRoundReport *SchedulingRoundReport[*api.Job]
-	CandidateGangIterator *CandidateGangIterator[*api.Job]
+	SchedulingRoundReport *SchedulingRoundReport[T]
+	CandidateGangIterator *CandidateGangIterator[T]
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
 	// Used to request jobs from Redis and to mark jobs as leased.
-	JobRepository SchedulerJobRepository
+	JobRepository SchedulerJobRepository[T]
 	// Jobs are grouped into gangs by this annotation.
 	GangIdAnnotation string
 	// Jobs in a gang specify the number of jobs in the gang via this annotation.
 	GangCardinalityAnnotation string
 }
 
-func (sched *LegacyScheduler) String() string {
+func (sched *LegacyScheduler[T]) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
@@ -555,15 +532,15 @@ func (sched *LegacyScheduler) String() string {
 	return sb.String()
 }
 
-func NewLegacyScheduler(
+func NewLegacyScheduler[T LegacySchedulerJob](
 	ctx context.Context,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
 	nodeDb *NodeDb,
-	jobRepository SchedulerJobRepository,
+	jobRepository SchedulerJobRepository[T],
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-) (*LegacyScheduler, error) {
+) (*LegacyScheduler[T], error) {
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, constraints.TotalResources) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
@@ -574,23 +551,23 @@ func NewLegacyScheduler(
 		return nil, errors.New("no resources with non-zero weight available for scheduling in NodeDb")
 	}
 
-	schedulingRoundReport := NewSchedulingRoundReport[*api.Job](
+	schedulingRoundReport := NewSchedulingRoundReport[T](
 		constraints.TotalResources,
 		priorityFactorByQueue,
 		initialResourcesByQueueAndPriority,
 	)
 
 	// Per-queue iterator pipelines.
-	iteratorsByQueue := make(map[string]*QueueCandidateGangIterator[*api.Job])
+	iteratorsByQueue := make(map[string]*QueueCandidateGangIterator[T])
 	for queue := range priorityFactorByQueue {
 		// Load jobs from Redis.
-		queuedJobsIterator, err := jobRepository.QueuedJobsIterator(ctx, queue)
+		queuedJobsIterator, err := jobRepository.GetJobIterator(ctx, queue)
 		if err != nil {
 			return nil, err
 		}
 
 		// Group jobs into gangs, to be scheduled together.
-		queuedGangIterator := NewQueuedGangIterator[*api.Job](
+		queuedGangIterator := NewQueuedGangIterator[T](
 			ctx,
 			queuedJobsIterator,
 			config.GangIdAnnotation,
@@ -598,7 +575,7 @@ func NewLegacyScheduler(
 		)
 
 		// Enforce per-queue constraints.
-		iteratorsByQueue[queue] = &QueueCandidateGangIterator[*api.Job]{
+		iteratorsByQueue[queue] = &QueueCandidateGangIterator[T]{
 			SchedulingConstraints:      constraints,
 			QueueSchedulingRoundReport: schedulingRoundReport.QueueSchedulingRoundReports[queue],
 			ctx:                        ctx,
@@ -607,7 +584,7 @@ func NewLegacyScheduler(
 	}
 
 	// Multiplex between queues and enforce cross-queue constraints.
-	candidateGangIterator := &CandidateGangIterator[*api.Job]{
+	candidateGangIterator := &CandidateGangIterator[T]{
 		SchedulingConstraints: constraints,
 		SchedulingRoundReport: schedulingRoundReport,
 		ctx:                   ctx,
@@ -615,7 +592,7 @@ func NewLegacyScheduler(
 		priorityFactorByQueue: maps.Clone(priorityFactorByQueue),
 	}
 
-	return &LegacyScheduler{
+	return &LegacyScheduler[T]{
 		ctx:                   ctx,
 		SchedulingConstraints: constraints,
 		SchedulingRoundReport: schedulingRoundReport,
@@ -625,13 +602,13 @@ func NewLegacyScheduler(
 	}, nil
 }
 
-func (sched *LegacyScheduler) Schedule() ([]*api.Job, error) {
+func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
 	log := ctxlogrus.Extract(sched.ctx)
 	defer func() {
 		sched.SchedulingRoundReport.Finished = time.Now()
 	}()
 
-	jobsToLeaseByQueue := make(map[string][]*api.Job, 0)
+	jobsToLeaseByQueue := make(map[string][]T, 0)
 	numJobsToLease := 0
 	for reports, err := sched.CandidateGangIterator.Next(); reports != nil; reports, err = sched.CandidateGangIterator.Next() {
 		if err != nil {
@@ -648,11 +625,15 @@ func (sched *LegacyScheduler) Schedule() ([]*api.Job, error) {
 		default:
 		}
 
-		jobs := make([]*api.Job, len(reports))
+		jobs := make([]T, len(reports))
 		for i, r := range reports {
 			jobs[i] = r.Job
 		}
-		reqs := PodRequirementsFromJobs(sched.PriorityClasses, jobs)
+
+		reqs, err := PodRequirementsFromJobs(sched.PriorityClasses, jobs)
+		if err != nil {
+			return nil, err
+		}
 
 		podSchedulingReports, ok, err := sched.NodeDb.ScheduleMany(reqs)
 		if err != nil {
@@ -686,7 +667,7 @@ func (sched *LegacyScheduler) Schedule() ([]*api.Job, error) {
 	sched.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
 
 	// Try to create leases.
-	jobs := make([]*api.Job, 0, numJobsToLease)
+	jobs := make([]T, 0, numJobsToLease)
 	for queue, jobsToLease := range jobsToLeaseByQueue {
 
 		// TryLeaseJobs returns a list of jobs that were successfully leased.
@@ -835,6 +816,21 @@ func extractSchedulerRequirements(j LegacySchedulerJob, pcs map[string]configura
 			podSpec,
 			pcs,
 		), nil
+	default:
+		return nil, errors.New(fmt.Sprintf("could not extract pod spec from type %T", j))
+	}
+}
+
+func PodRequirementsFromJob(j LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (*schedulerobjects.PodRequirements, error) {
+	switch job := j.(type) {
+	case *api.Job:
+		podSpec := util.PodSpecFromJob(job)
+		return schedulerobjects.PodRequirementsFromPod(&v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: job.Annotations,
+			},
+			Spec: *podSpec,
+		}, priorityClasses), nil
 	default:
 		return nil, errors.New(fmt.Sprintf("could not extract pod spec from type %T", j))
 	}

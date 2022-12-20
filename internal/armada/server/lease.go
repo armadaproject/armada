@@ -339,12 +339,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig,
 		totalCapacityRl,
 	)
-	sched, err := scheduler.NewLegacyScheduler(
+	legacySchedulerRepo := scheduler.NewJobRepositoryAdapter(q.jobRepository)
+	sched, err := scheduler.NewLegacyScheduler[*api.Job](
 		ctx,
 		*constraints,
 		q.schedulingConfig,
 		nodeDb,
-		q.jobRepository,
+		legacySchedulerRepo,
 		priorityFactorByActiveQueue,
 		aggregatedUsageByQueue,
 	)
