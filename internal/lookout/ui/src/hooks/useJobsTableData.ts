@@ -101,7 +101,7 @@ export const useFetchJobsTableData = ({
         if (abortController.signal.aborted) {
           return
         }
-        
+
         const errMsg = await getErrorMessage(err)
         enqueueSnackbar("Failed to retrieve jobs. Error: " + errMsg, { variant: "error" })
         return
@@ -140,6 +140,8 @@ export const useFetchJobsTableData = ({
 
     fetchData().catch(console.error)
 
+    // This will run when the current invocation is no longer needed (either because the
+    // component is unmounted, or the effect needs to run again)
     return () => {
       abortController.abort("Request is no longer needed")
     }
