@@ -36,7 +36,7 @@ func CiIntegrationTests() error {
 		return err
 	}
 	mg.Deps(BootstrapTools)
-	mg.Deps(DockerBundle, Kind)
+	mg.Deps(MinimalRelease, Kind)
 	err := sh.Run("docker-compose", "up", "-d", "redis", "postgres", "pulsar", "stan")
 	if err != nil {
 		return err
@@ -71,17 +71,17 @@ func CiIntegrationTests() error {
 	return nil
 }
 
-func DockerBundle() error {
-	mg.Deps(DockerBundleGoreleaserConfig)
+func MinimalRelease() error {
+	mg.Deps(MinimalGoreleaserConfig)
 	return sh.Run(
-		"goreleaser", "release", "--snapshot", "--rm-dist", "-f", ".goreleaser-docker.yml",
+		"goreleaser", "release", "--snapshot", "--rm-dist", "-f", ".goreleaser-minimal.yml",
 	)
 }
 
 // Write a minimal goreleaser config to .goreleaser-docker.yml
 // containing only the subset of targets in .goreleaser.yaml necessary
 // for building a set of specified Docker images.
-func DockerBundleGoreleaserConfig() error {
+func MinimalGoreleaserConfig() error {
 	// Docker targets to build and the build targets necessary to do so.
 	dockerIds := map[string]bool{
 		"bundle": true,
@@ -142,7 +142,7 @@ func DockerBundleGoreleaserConfig() error {
 	if err != nil {
 		return err
 	}
-	f, err := os.Create(".goreleaser-docker.yml")
+	f, err := os.Create(".goreleaser-minimal.yml")
 	if err != nil {
 		return err
 	}
@@ -560,6 +560,9 @@ func exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
 	}
 	return false, err
 }
