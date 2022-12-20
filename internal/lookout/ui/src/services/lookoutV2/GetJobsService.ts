@@ -6,7 +6,7 @@ export interface IGetJobsService {
     order: JobOrder,
     skip: number,
     take: number,
-    signal: AbortSignal | undefined,
+    abortSignal: AbortSignal | undefined,
   ): Promise<GetJobsResponse>
 }
 
@@ -23,7 +23,7 @@ export class GetJobsService implements IGetJobsService {
     order: JobOrder,
     skip: number,
     take: number,
-    signal: AbortSignal | undefined,
+    abortSignal: AbortSignal | undefined,
   ): Promise<GetJobsResponse> {
     const response = await fetch(this.apiBase + "/api/v1/jobs", {
       method: "POST",
@@ -33,8 +33,8 @@ export class GetJobsService implements IGetJobsService {
         order,
         skip,
         take,
-        signal,
       }),
+      signal: abortSignal,
     })
 
     const json = await response.json()
