@@ -296,6 +296,21 @@ describe("JobsTableContainer", () => {
       await toggleEnumFilterOption("State", formatJobState(jobs[0].state))
       await assertNumDataRowsShown(jobs.length)
     })
+
+    it("allows filtering on annotation columns", async () => {
+      const { findByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      await addAnnotationColumn("hyperparameter")
+      await assertNumDataRowsShown(numJobs)
+
+      const testAnnotationValue = jobs[0].annotations["hyperparameter"]
+      expect(testAnnotationValue).toBe("59052f3d-cfd1-4a3e-8f23-173f92764c3f")
+      await findByRole("cell", { name: testAnnotationValue })
+
+      await filterTextColumnTo("hyperparameter", testAnnotationValue)
+      await assertNumDataRowsShown(1)
+    })
   })
 
   describe("Sorting", () => {
@@ -495,5 +510,23 @@ describe("JobsTableContainer", () => {
   async function triggerRefresh() {
     const button = await screen.findByRole("button", { name: "Refresh" })
     await userEvent.click(button)
+  }
+
+  async function addAnnotationColumn(annotationKey: string) {
+    const editColumnsButton = await screen.findByRole("button", { name: /columns selected/i })
+    await userEvent.click(editColumnsButton)
+
+    const addColumnButton = await screen.findByRole("button", { name: /Add column/i })
+    await userEvent.click(addColumnButton)
+
+    const textbox = await screen.findByRole("textbox", { name: /Annotation key/i })
+    await userEvent.type(textbox, annotationKey)
+
+    const saveButton = await screen.findByRole("button", { name: /Save/i })
+    await userEvent.click(saveButton)
+
+    // Close pop up
+    await userEvent.click(screen.getByText(/Click here to add an annotation column/i))
+    await userEvent.keyboard("{Escape}")
   }
 })
