@@ -24,7 +24,9 @@ export interface JobTableColumnMetadata {
   enumFitlerValues?: EnumFilterOption[]
   defaultMatchType?: Match
 
-  isAnnotation?: boolean
+  annotation?: {
+    annotationKey: string
+  }
 }
 
 export enum StandardColumnId {
@@ -259,8 +261,15 @@ export const createAnnotationColumn = (annotationKey: string): JobTableColumn =>
     id: `annotation_${annotationKey}`,
     accessor: (jobTableRow) => jobTableRow.annotations?.[annotationKey],
     displayName: annotationKey,
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
     additionalMetadata: {
-      isAnnotation: true,
+      annotation: {
+        annotationKey,
+      },
+      filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
     },
   })
 }

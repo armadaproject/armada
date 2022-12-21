@@ -16,7 +16,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
   ): Promise<GroupJobsResponse> {
     console.log("GroupJobs called with params:", { filters, order, groupedField, aggregates, skip, take, signal })
     if (this.simulateApiWait) {
-      await simulateApiWait()
+      await simulateApiWait(signal)
     }
 
     const filtered = this.jobs.filter(mergeFilters(filters))
