@@ -23,13 +23,13 @@ func init() {
 	loadtestCmd.Flags().Duration("timeout", defaultTimeout, "The duration the test will last for, before cancelling all remaining jobs")
 	loadtestCmd.Flags().Bool("checkSuccess", false, "If enabled, the program will exit with -1 if any jobs submitted do not succeed")
 	if err := viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch")); err != nil {
-		log.Error(err)
+		panic(err)
 	}
 	if err := viper.BindPFlag("timeout", loadtestCmd.Flags().Lookup("timeout")); err != nil {
-		log.Error(err)
+		panic(err)
 	}
 	if err := viper.BindPFlag("checkSuccess", loadtestCmd.Flags().Lookup("checkSuccess")); err != nil {
-		log.Error(err)
+		panic(err)
 	}
 }
 

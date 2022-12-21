@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/G-Research/armada/internal/armadactl"
@@ -48,21 +47,21 @@ In bash, you can execute it directly like this:
 	}
 	cmd.Flags().String(
 		"jobId", "", "job to cancel")
-	errJobId := cmd.MarkFlagRequired("jobId")
-	if errJobId != nil {
-		log.Errorf("Error on MarkFlagRequired for JobId %v", errJobId)
+	err := cmd.MarkFlagRequired("jobId")
+	if err != nil {
+		panic(err)
 	}
 	cmd.Flags().String(
 		"queue", "", "queue of the job")
-	errQueue := cmd.MarkFlagRequired("queue")
-	if errQueue != nil {
-		log.Errorf("Error on MarkFlagRequired for Queue %v", errQueue)
+	err = cmd.MarkFlagRequired("queue")
+	if err != nil {
+		panic(err)
 	}
 	cmd.Flags().String(
 		"jobSet", "", "jobSet of the job")
-	errJobSet := cmd.MarkFlagRequired("jobSet")
-	if errJobSet != nil {
-		log.Errorf("Error on MarkFlagRequired for JobSet %v", errJobSet)
+	err = cmd.MarkFlagRequired("jobSet")
+	if err != nil {
+		panic(err)
 	}
 	cmd.Flags().Int(
 		"podNumber", 0, "[optional] for jobs with multiple pods, index of the pod")

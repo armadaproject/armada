@@ -36,7 +36,7 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 
 		configValue, configErr := cmd.Flags().GetString("config")
 		if configErr != nil {
-			log.Warnf("Error Parsing Config in Startup %v", configErr)
+			log.Warnf("error parsing config in startup %v", configErr)
 		}
 		configArray := strings.Split(configValue, " ")
 		common.LoadConfig(&config, "./config/jobservice", configArray)

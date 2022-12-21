@@ -38,7 +38,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	log := log.WithField("jobservice", "Startup")
+	log := log.WithField("JobService", "Startup")
 
 	grpcServer := grpcCommon.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
@@ -81,7 +81,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
-				log.Infof("Subscribed job sets : %s", value)
+				log.Infof("subscribed job sets : %s", value)
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
 					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 					if err != nil {

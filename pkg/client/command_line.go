@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/mitchellh/go-homedir"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
@@ -29,7 +28,7 @@ func AddArmadaApiConnectionCommandlineArgs(rootCmd *cobra.Command) {
 	rootCmd.PersistentFlags().String("armadaUrl", "localhost:50051", "specify armada server url")
 	err := viper.BindPFlag("armadaUrl", rootCmd.PersistentFlags().Lookup("armadaUrl"))
 	if err != nil {
-		log.Errorf("Error binding armadaUrl: %s", err)
+		panic(err)
 	}
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.armadactl.yaml)")
@@ -116,8 +115,7 @@ func ExtractCommandlineArmadaApiConnectionDetails() *ApiConnectionDetails {
 	apiConnectionDetails := &ApiConnectionDetails{}
 	err := viper.Unmarshal(apiConnectionDetails)
 	if err != nil {
-		log.Errorf("could not unmarshal apiConnectionDetails: %s", err)
-		return nil
+		panic(err)
 	}
 	return apiConnectionDetails
 }

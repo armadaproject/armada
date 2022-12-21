@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/G-Research/armada/internal/armadactl"
 	"github.com/G-Research/armada/pkg/api"
@@ -70,15 +70,10 @@ func TestCreate(t *testing.T) {
 					}
 
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
-					if q.Name != "arbitrary" {
-						t.Fatalf("expected Name to be 'arbitrary', but got %s", q.Name)
-					}
-					if test.PriorityFactor != nil && float64(q.PriorityFactor) != *test.PriorityFactor {
-						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, q.PriorityFactor)
-					}
-					if test.Owners != nil && !reflect.DeepEqual(q.Permissions, permissions) {
-						t.Fatalf("expected Permissions to be %#v, but got %#v", permissions, q.Permissions)
-					}
+					require.True(t, q.Name == "arbitrary")
+
+					require.True(t, test.PriorityFactor != nil && float64(q.PriorityFactor) == *test.PriorityFactor)
+					require.True(t, test.Owners != nil && reflect.DeepEqual(q.Permissions, permissions))
 
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
@@ -103,15 +98,11 @@ func TestCreate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				if err := cmd.Flags().Set(flag.name, flag.value); !assert.NoError(t, err) {
-					return
-				}
+				require.NoError(t, cmd.Flags().Set(flag.name, flag.value))
 			}
 
 			// Execute the command and check any error
-			if err := cmd.Execute(); !assert.NoError(t, err, "command failed with an unexpected error: %s", err) {
-				return
-			}
+			require.NoError(t, cmd.Execute())
 		})
 	}
 }
@@ -126,9 +117,7 @@ func TestDelete(t *testing.T) {
 			a.Out = io.Discard
 
 			// Check that the arguments passed into the API are equal to those provided via CLI flags
-			if name != "arbitrary" {
-				t.Fatalf("expected Name to be 'arbitrary', but got %s", name)
-			}
+			require.True(t, name == "arbitrary")
 			return nil
 		}
 		return nil

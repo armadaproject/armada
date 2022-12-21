@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	log "github.com/sirupsen/logrus"
-
 	"github.com/G-Research/armada/internal/armadactl"
 
 	"github.com/spf13/cobra"
@@ -24,8 +22,7 @@ func createCmd(a *armadactl.App) *cobra.Command {
 	}
 	cmd.Flags().StringP("file", "f", "", "specify file for resource creation.")
 	if err := cmd.MarkFlagRequired("file"); err != nil {
-		log.Errorf("error detected with MarkFlagRequired for file %v", err)
-		return nil
+		panic(err)
 	}
 	cmd.Flags().Bool("dry-run", false, "Validate the input file and exit without making any changes.")
 	cmd.AddCommand(queueCreateCmd())
