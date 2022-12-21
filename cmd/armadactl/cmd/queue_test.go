@@ -72,20 +72,16 @@ func TestCreate(t *testing.T) {
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
 					require.True(t, q.Name == "arbitrary")
 
-					require.True(t, test.PriorityFactor != nil && float64(q.PriorityFactor) == *test.PriorityFactor)
-					require.True(t, test.Owners != nil && reflect.DeepEqual(q.Permissions, permissions))
+					if test.PriorityFactor != nil {
+						require.True(t, float64(q.PriorityFactor) == *test.PriorityFactor)
+					}
+					if test.Owners != nil {
+						require.True(t, reflect.DeepEqual(q.Permissions, permissions))
+					}
 
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
-							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
-								t.Fatalf(
-									"invalid resource limit: [%s]%f expected: [%s]%f",
-									resourceName,
-									test.ResourceLimits[string(resourceName)],
-									resourceName,
-									resourceLimit,
-								)
-							}
+							require.Equal(t, test.ResourceLimits[string(resourceName)], float64(resourceLimit), "resource limit mismatch")
 						}
 					}
 					return nil
@@ -142,9 +138,7 @@ func TestDescribe(t *testing.T) {
 			a.Out = io.Discard
 
 			// Check that the arguments passed into the API are equal to those provided via CLI flags
-			if name != "arbitrary" {
-				t.Fatalf("expected Name to be 'arbitrary', but got %s", name)
-			}
+			require.Equal(t, name, "arbitrary")
 			return nil, fmt.Errorf("expected test error to force armadactl.DescribeQueue to return")
 		}
 		return nil
@@ -192,27 +186,17 @@ func TestUpdate(t *testing.T) {
 					}
 
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
-					if q.Name != "arbitrary" {
-						t.Fatalf("expected Name to be 'arbitrary', but got %s", q.Name)
+					require.Equal(t, q.Name, "arbitrary")
+					if test.PriorityFactor != nil {
+						require.True(t, float64(q.PriorityFactor) == *test.PriorityFactor)
 					}
-					if test.PriorityFactor != nil && float64(q.PriorityFactor) != *test.PriorityFactor {
-						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, q.PriorityFactor)
-					}
-					if test.Owners != nil && !reflect.DeepEqual(q.Permissions, permissions) {
-						t.Fatalf("expected Permissions to be %#v, but got %#v", permissions, q.Permissions)
+					if test.Owners != nil {
+						require.True(t, reflect.DeepEqual(q.Permissions, permissions))
 					}
 
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
-							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
-								t.Fatalf(
-									"invalid resource limit: [%s]%f expected: [%s]%f",
-									resourceName,
-									test.ResourceLimits[string(resourceName)],
-									resourceName,
-									resourceLimit,
-								)
-							}
+							require.Equal(t, test.ResourceLimits[string(resourceName)], float64(resourceLimit), "resource limit mismatch")
 						}
 					}
 					return nil
@@ -225,16 +209,11 @@ func TestUpdate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				err := cmd.Flags().Set(flag.name, flag.value)
-				if err != nil {
-					t.Fatalf("command failed on setting flags: %s", err)
-				}
+				require.NoError(t, cmd.Flags().Set(flag.name, flag.value))
 			}
 
 			// Execute the command and check any error
-			if err := cmd.Execute(); err != test.err {
-				t.Fatalf("command failed with an unexpected error: %s", err)
-			}
+			require.NoError(t, cmd.Execute())
 		})
 	}
 }
