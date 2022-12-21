@@ -1,4 +1,4 @@
-import { render, within, waitFor, waitForElementToBeRemoved, screen } from "@testing-library/react"
+import { render, within, waitFor, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
@@ -27,8 +27,8 @@ describe("JobsTableContainer", () => {
     numQueues = 2
     numJobSets = 3
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
-    getJobsService = new FakeGetJobsService(jobs)
-    groupJobsService = new FakeGroupJobsService(jobs)
+    getJobsService = new FakeGetJobsService(jobs, false)
+    groupJobsService = new FakeGroupJobsService(jobs, false)
 
     updateJobsService = {
       cancelJobs: jest.fn(),
@@ -397,8 +397,36 @@ describe("JobsTableContainer", () => {
     })
   })
 
+  describe("Sidebar", () => {
+    it("clicking job row should open sidebar", async () => {
+      const { findByRole, getByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      const firstJob = jobs[0]
+      const firstRow = await findByRole("row", { name: new RegExp(firstJob.jobId) })
+      await userEvent.click(within(firstRow).getByText(firstJob.jobId))
+
+      const sidebar = getByRole("complementary")
+      within(sidebar).getByText(firstJob.jobId)
+    })
+
+    it("clicking grouped row should not open", async () => {
+      const { findByRole, queryByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      await groupByColumn("Queue")
+      await waitForFinishedLoading()
+
+      const firstJob = jobs[0]
+      const firstRow = await findByRole("row", { name: new RegExp(firstJob.queue) })
+      await userEvent.click(within(firstRow).getByText(new RegExp(firstJob.queue)))
+
+      expect(queryByRole("complementary")).toBeNull()
+    })
+  })
+
   async function waitForFinishedLoading() {
-    await waitForElementToBeRemoved(() => screen.getAllByRole("progressbar"))
+    await waitFor(() => expect(screen.queryAllByRole("progressbar").length).toBe(0))
   }
 
   async function assertNumDataRowsShown(nDataRows: number) {
