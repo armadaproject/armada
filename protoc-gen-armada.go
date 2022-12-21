@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -31,7 +33,11 @@ func main() {
 }
 
 func JsonTagCamelCase(field *descriptor.FieldDescriptorProto) {
-	SetStringFieldOption(gogoproto.E_Jsontag, generator.CamelCase(*field.Name))(field)
+	if gogoproto.IsNullable(field) {
+		SetStringFieldOption(gogoproto.E_Jsontag, AppendOmitempty(FixCasing(generator.CamelCase(*field.Name))))(field)
+	} else {
+		SetStringFieldOption(gogoproto.E_Jsontag, FixCasing(generator.CamelCase(*field.Name)))(field)
+	}
 }
 
 func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(field *descriptor.FieldDescriptorProto) {
@@ -45,19 +51,17 @@ func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(fie
 	}
 }
 
-func FieldHasStringExtension(field *descriptor.FieldDescriptorProto, extension *proto.ExtensionDesc) bool {
-	if field.Options == nil {
-		return false
+// Necessary for consistency with the legacy method of generating json tags.
+func FixCasing(s string) string {
+	if len(s) == 0 {
+		return s
 	}
-	value, err := proto.GetExtension(field.Options, extension)
-	if err != nil {
-		return false
-	}
-	if value == nil {
-		return false
-	}
-	if value.(*string) == nil {
-		return false
-	}
-	return true
+	s = strings.ReplaceAll(s, "k8S", "k8s")
+	s = strings.ReplaceAll(s, "K8S", "K8s")
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// Necessary for consistency with the legacy method of generating json tags.
+func AppendOmitempty(s string) string {
+	return s + ",omitempty"
 }
