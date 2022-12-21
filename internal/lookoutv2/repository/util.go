@@ -15,7 +15,6 @@ import (
 	"github.com/G-Research/armada/internal/common/database/lookout"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
@@ -60,7 +59,7 @@ type runPatch struct {
 	started     *time.Time
 }
 
-func NewJobSimulator(annotationPrefix string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
+func NewJobSimulator(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
 	return &JobSimulator{
 		converter: converter,
 		store:     store,
@@ -143,11 +142,11 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 	}
 	js.events = append(js.events, submitEvent)
 
-	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submitEvent.GetSubmitJob())
+	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, submitEvent.GetSubmitJob())
 	js.apiJob = apiJob
 
 	js.job = &model.Job{
-		Annotations:        make(map[string]string),
+		Annotations:        opts.Annotations,
 		Cpu:                opts.Cpu.MilliValue(),
 		EphemeralStorage:   opts.EphemeralStorage.Value(),
 		Gpu:                opts.Gpu.Value(),

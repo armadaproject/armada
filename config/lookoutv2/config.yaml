@@ -1,4 +1,8 @@
-port: 10000
+apiPort: 10000
+corsAllowedOrigins:
+  - "http://localhost:3000"
+  - "http://localhost:8089"
+  - "http://localhost:10000"
 
 postgres:
   maxOpenConns: 100

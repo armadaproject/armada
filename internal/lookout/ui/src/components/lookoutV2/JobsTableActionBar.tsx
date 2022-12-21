@@ -1,77 +1,112 @@
-import { memo } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 
 import { Divider, Button } from "@mui/material"
+import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
-import { JobId } from "models/lookoutV2Models"
-import { ColumnSpec, columnSpecFor, ColumnId } from "utils/jobsTableColumns"
+import { JobFilter } from "models/lookoutV2Models"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
+import { ColumnId, createAnnotationColumn, JobTableColumn } from "utils/jobsTableColumns"
 
+import { CancelDialog } from "./CancelDialog"
 import styles from "./JobsTableActionBar.module.css"
+import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
 export interface JobsTableActionBarProps {
-  allColumns: ColumnSpec[]
+  isLoading: boolean
+  allColumns: JobTableColumn[]
   groupedColumns: ColumnId[]
-  selectedJobs: JobId[]
-  onColumnsChanged: (newColumns: ColumnSpec[]) => void
+  visibleColumns: ColumnId[]
+  selectedItemFilters: JobFilter[][]
+  onRefresh: () => void
+  onColumnsChanged: (newColumns: JobTableColumn[]) => void
+  toggleColumnVisibility: (columnId: ColumnId) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
+  getJobsService: IGetJobsService
+  updateJobsService: UpdateJobsService
 }
 export const JobsTableActionBar = memo(
-  ({ allColumns, groupedColumns, selectedJobs, onColumnsChanged, onGroupsChanged }: JobsTableActionBarProps) => {
-    function toggleColumn(key: string) {
-      const newColumns = allColumns.map((col) => ({
-        ...col,
-        selected: col.key === key ? !col.selected : col.selected,
-      }))
-      onColumnsChanged(newColumns)
+  ({
+    isLoading,
+    allColumns,
+    groupedColumns,
+    visibleColumns,
+    selectedItemFilters,
+    onRefresh,
+    onColumnsChanged,
+    toggleColumnVisibility,
+    onGroupsChanged,
+    getJobsService,
+    updateJobsService,
+  }: JobsTableActionBarProps) => {
+    const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+    const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
+
+    const selectableColumns = useMemo(() => allColumns.filter((col) => col.enableHiding !== false), [allColumns])
+
+    function toggleColumn(key: ColumnId) {
+      toggleColumnVisibility(key)
     }
 
     function addAnnotationColumn(name: string) {
-      const newColumns = allColumns.concat([
-        {
-          ...columnSpecFor(name as ColumnId),
-          isAnnotation: true,
-        },
-      ])
+      const newColumns = allColumns.concat([createAnnotationColumn(name)])
       onColumnsChanged(newColumns)
     }
 
-    function removeAnnotationColumn(key: string) {
-      const filtered = allColumns.filter((col) => !col.isAnnotation || col.key !== key)
+    function removeAnnotationColumn(key: ColumnId) {
+      const filtered = allColumns.filter((col) => col.id !== key)
       onColumnsChanged(filtered)
     }
 
-    function editAnnotationColumn(key: string, newName: string) {
-      const newColumns = allColumns.map((col) => ({
-        ...col,
-        name: col.key === key ? newName : col.name,
-      }))
-      onColumnsChanged(newColumns)
+    function editAnnotationColumn(key: ColumnId, newName: string) {
+      removeAnnotationColumn(key)
+      addAnnotationColumn(newName)
     }
 
-    const jobCount = selectedJobs.length
-    const jobCountString = `${jobCount} job${jobCount === 1 ? "" : "s"}`
+    const numSelectedItems = selectedItemFilters.length
 
+    const cancelDialogOnClose = useCallback(() => setCancelDialogOpen(false), [])
+    const reprioritiseDialogOnClose = useCallback(() => setReprioritiseDialogOpen(false), [])
     return (
       <div className={styles.actionBar}>
+        {cancelDialogOpen && (
+          <CancelDialog
+            onClose={cancelDialogOnClose}
+            selectedItemFilters={selectedItemFilters}
+            getJobsService={getJobsService}
+            updateJobsService={updateJobsService}
+          />
+        )}
+        {reprioritiseDialogOpen && (
+          <ReprioritiseDialog
+            onClose={reprioritiseDialogOnClose}
+            selectedItemFilters={selectedItemFilters}
+            getJobsService={getJobsService}
+            updateJobsService={updateJobsService}
+          />
+        )}
         <div className={styles.actionGroup}>
           <GroupBySelect columns={allColumns} groups={groupedColumns} onGroupsChanged={onGroupsChanged} />
         </div>
 
         <div className={styles.actionGroup}>
+          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <ColumnSelect
-            allColumns={allColumns}
+            selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}
+            visibleColumns={visibleColumns}
             onAddAnnotation={addAnnotationColumn}
             onToggleColumn={toggleColumn}
             onEditAnnotation={editAnnotationColumn}
             onRemoveAnnotation={removeAnnotationColumn}
           />
           <Divider orientation="vertical" />
-          <Button variant="contained" disabled={jobCount === 0}>
-            Cancel{jobCount > 0 ? ` ${jobCountString}` : ""}
+          <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setCancelDialogOpen(true)}>
+            Cancel selected
           </Button>
-          <Button variant="contained" disabled={jobCount === 0}>
-            Reprioritize{jobCount > 0 ? ` ${jobCountString}` : ""}
+          <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setReprioritiseDialogOpen(true)}>
+            Reprioritize selected
           </Button>
         </div>
       </div>

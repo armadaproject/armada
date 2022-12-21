@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 
 import {
   TableContainer,
@@ -12,6 +12,7 @@ import {
   TablePagination,
   TableFooter,
   Button,
+  Box,
 } from "@mui/material"
 import {
   ColumnDef,
@@ -28,47 +29,66 @@ import {
   ExpandedState,
   ColumnFiltersState,
   SortingState,
+  VisibilityState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
-import { BodyCell, HeaderCell } from "components/lookoutV2/JobsTableCell"
-import { getSelectedColumnDef, SELECT_COLUMN_ID } from "components/lookoutV2/SelectedColumn"
+import { HeaderCell } from "components/lookoutV2/JobsTableCell"
+import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
+import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
+import { useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
-import { JobTableRow, isJobGroupRow, JobRow, JobGroupRow } from "models/jobsTableModels"
-import { JobId } from "models/lookoutV2Models"
-import GetJobsService from "services/lookoutV2/GetJobsService"
-import GroupJobsService from "services/lookoutV2/GroupJobsService"
-import { ColumnId, DEFAULT_COLUMN_SPECS, DEFAULT_GROUPING } from "utils/jobsTableColumns"
+import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
+import { Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { useSnackbar } from "notistack"
+import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
+import {
+  ColumnId,
+  DEFAULT_COLUMN_VISIBILITY,
+  DEFAULT_GROUPING,
+  JobTableColumn,
+  JOB_COLUMNS,
+  StandardColumnId,
+  toColId,
+} from "utils/jobsTableColumns"
 import {
   convertRowPartsToFilters,
-  fetchJobGroups,
-  fetchJobs,
-  groupsToRows,
-  jobsToRows,
   diffOfKeys,
   updaterToValue,
   convertColumnFiltersToFilters,
-  FetchRowRequest,
-  PendingData,
   pendingDataForAllVisibleData,
 } from "utils/jobsTableUtils"
-import { fromRowId, mergeSubRows, RowId } from "utils/reactTableUtils"
+import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
 
 const DEFAULT_PAGE_SIZE = 30
 
 interface JobsTableContainerProps {
-  getJobsService: GetJobsService
-  groupJobsService: GroupJobsService
+  getJobsService: IGetJobsService
+  groupJobsService: IGroupJobsService
+  updateJobsService: UpdateJobsService
   debug: boolean
 }
-export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: JobsTableContainerProps) => {
-  // Data
-  const [isLoading, setIsLoading] = useState(true)
-  const [data, setData] = useState<JobTableRow[]>([])
-  const [rowsToFetch, setRowsToFetch] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
-  const [totalRowCount, setTotalRowCount] = useState(0)
-  const [allColumns, setAllColumns] = useState(DEFAULT_COLUMN_SPECS)
+export const JobsTableContainer = ({
+  getJobsService,
+  groupJobsService,
+  updateJobsService,
+  debug,
+}: JobsTableContainerProps) => {
+  const { enqueueSnackbar } = useSnackbar()
+
+  // Columns
+  const [allColumns, setAllColumns] = useState<JobTableColumn[]>(JOB_COLUMNS)
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(DEFAULT_COLUMN_VISIBILITY)
+  const visibleColumnIds = useMemo(
+    () =>
+      Object.keys(columnVisibility)
+        .map(toColId)
+        .filter((colId) => columnVisibility[colId]),
+    [columnVisibility],
+  )
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(DEFAULT_GROUPING)
@@ -78,23 +98,13 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
 
   // Selecting
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({})
-  const selectedJobs: JobId[] = useMemo(
-    () =>
-      Object.keys(selectedRows)
-        .map((rowId) => {
-          const { rowIdPartsPath } = fromRowId(rowId as RowId)
-          return rowIdPartsPath.find((part) => part.type === "job")?.value
-        })
-        .filter((jobId): jobId is JobId => jobId !== undefined),
-    [selectedRows],
-  )
+  const [sidebarJob, setSidebarJob] = useState<Job | undefined>(undefined)
 
   // Pagination
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   })
-  const [pageCount, setPageCount] = useState<number>(-1)
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
 
   // Filtering
@@ -103,100 +113,52 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
   // Sorting
   const [sorting, setSorting] = useState<SortingState>([{ id: "jobId", desc: true }])
 
-  useEffect(() => {
-    async function fetchData() {
-      if (rowsToFetch.length === 0) {
-        return
-      }
+  // Data
+  const { data, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+    groupedColumns: grouping,
+    expandedState: expanded,
+    paginationState: pagination,
+    sortingState: sorting,
+    columnFilters: columnFilterState,
+    allColumns,
+    selectedRows,
+    updateSelectedRows: setSelectedRows,
+    getJobsService,
+    groupJobsService,
+    enqueueSnackbar,
+  })
 
-      const [nextRequest, ...restOfRequests] = rowsToFetch
+  const onRefresh = useCallback(() => {
+    setSelectedRows({})
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+  }, [expanded, data, pageSize, pageIndex])
 
-      const parentRowInfo = nextRequest.parentRowId !== "ROOT" ? fromRowId(nextRequest.parentRowId) : undefined
-
-      const groupingLevel = grouping.length
-      const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
-      const isJobFetch = expandedLevel === groupingLevel
-
-      const sortedField = sorting[0]
-
-      const rowRequest: FetchRowRequest = {
-        filters: [
-          ...convertRowPartsToFilters(parentRowInfo?.rowIdPartsPath ?? []),
-          ...convertColumnFiltersToFilters(columnFilterState),
-        ],
-        skip: nextRequest.skip ?? 0,
-        take: nextRequest.take ?? pageSize,
-        order: { field: sortedField.id, direction: sortedField.desc ? "DESC" : "ASC" },
-      }
-
-      let newData, totalCount
-      if (isJobFetch) {
-        const { jobs, totalJobs } = await fetchJobs(rowRequest, getJobsService)
-        newData = jobsToRows(jobs)
-        totalCount = totalJobs
-      } else {
-        const groupedCol = grouping[expandedLevel]
-        const colsToAggregate = allColumns.filter((c) => c.groupable).map((c) => c.key)
-        const { groups, totalGroups } = await fetchJobGroups(rowRequest, groupJobsService, groupedCol, colsToAggregate)
-        newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
-        totalCount = totalGroups
-      }
-
-      const { rootData, parentRow } = mergeSubRows<JobRow, JobGroupRow>(
-        data,
-        newData,
-        parentRowInfo?.rowId,
-        Boolean(nextRequest.append),
-      )
-
-      if (parentRow) {
-        parentRow.subRowCount = totalCount
-
-        // Update any new children of selected rows
-        if (parentRow.rowId in selectedRows) {
-          const newSelectedRows = parentRow.subRows.reduce(
-            (newSelectedSubRows, subRow) => {
-              newSelectedSubRows[subRow.rowId] = true
-              return newSelectedSubRows
-            },
-            { ...selectedRows },
-          )
-          setSelectedRows(newSelectedRows)
-        }
-      }
-
-      setData([...rootData]) // ReactTable will only re-render if the array identity changes
-      setIsLoading(false)
-      setRowsToFetch(restOfRequests)
-      if (parentRowInfo === undefined) {
-        setPageCount(Math.ceil(totalCount / pageSize))
-        setTotalRowCount(totalCount)
-      }
-    }
-
-    fetchData().catch(console.error)
-  }, [rowsToFetch, pagination, grouping, expanded, columnFilterState, sorting])
+  const onColumnVisibilityChange = useCallback(
+    (colIdToToggle: ColumnId) => {
+      setColumnVisibility({
+        ...columnVisibility,
+        [colIdToToggle]: !columnVisibility[colIdToToggle],
+      })
+    },
+    [columnVisibility],
+  )
 
   const onGroupingChange = useCallback(
     (newState: ColumnId[]) => {
       // Reset currently expanded/selected when grouping changes
       setSelectedRows({})
+      setSidebarJob(undefined)
       setExpanded({})
 
       // Check all grouping columns are displayed
-      setAllColumns(
-        allColumns.map((col) => ({
-          ...col,
-          selected: newState.includes(col.key) ? true : col.selected,
-        })),
-      )
+      setColumnVisibility(newState.reduce((a, s) => ({ ...a, [s]: true }), columnVisibility))
 
       setGrouping([...newState])
 
       // Refetch the root data
       setRowsToFetch([{ parentRowId: "ROOT", skip: 0 }])
     },
-    [allColumns],
+    [allColumns, columnVisibility],
   )
 
   const onRootPaginationChange = useCallback(
@@ -205,6 +167,7 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
       // Reset currently expanded/selected when grouping changes
       // TODO: Consider allowing rows to be selected across pages?
       setSelectedRows({})
+      setSidebarJob(undefined)
       setExpanded({})
       setPagination(newPagination)
 
@@ -246,6 +209,8 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
     (updater: Updater<ColumnFiltersState>) => {
       const newFilterState = updaterToValue(updater, columnFilterState)
       setColumnFilterState(newFilterState)
+      setSelectedRows({})
+      setSidebarJob(undefined)
       setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
     },
     [columnFilterState, expanded, data, pageSize],
@@ -262,29 +227,26 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
     [sorting, expanded, pageIndex, pageSize, data],
   )
 
-  const selectedColumnDefs = useMemo<ColumnDef<JobTableRow>[]>(() => {
-    return allColumns
-      .filter((c) => c.selected)
-      .map(
-        (c): ColumnDef<JobTableRow> => ({
-          id: c.key,
-          accessorKey: c.key,
-          header: c.name,
-          enableGrouping: c.groupable,
-          enableColumnFilter: c.filterType !== undefined,
-          enableSorting: c.sortable,
-          aggregationFn: () => "-",
-          minSize: c.minSize,
-          size: c.minSize,
-          ...(c.formatter ? { cell: (info) => c.formatter?.(info.getValue()) } : {}),
-        }),
-      )
-      .concat([getSelectedColumnDef()])
-  }, [allColumns])
+  const onJobRowClick = useCallback(
+    (jobRow: JobRow) => {
+      const clickedJob = jobRow as Job
+      setSidebarJob(sidebarJob?.jobId !== clickedJob.jobId ? clickedJob : undefined)
+    },
+    [sidebarJob],
+  )
+  const onSideBarClose = useCallback(() => setSidebarJob(undefined), [])
+
+  const selectedItemsFilters: JobFilter[][] = useMemo(() => {
+    const tableFilters = convertColumnFiltersToFilters(columnFilterState, allColumns)
+    return Object.keys(selectedRows).map((rowId) => {
+      const { rowIdPartsPath } = fromRowId(rowId as RowId)
+      return tableFilters.concat(convertRowPartsToFilters(rowIdPartsPath))
+    })
+  }, [selectedRows, columnFilterState, allColumns])
 
   const table = useReactTable({
     data: data ?? [],
-    columns: selectedColumnDefs,
+    columns: allColumns,
     state: {
       grouping,
       expanded,
@@ -292,8 +254,9 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
       columnFilters: columnFilterState,
       rowSelection: selectedRows,
       columnPinning: {
-        left: [SELECT_COLUMN_ID],
+        left: [StandardColumnId.SelectorCol],
       },
+      columnVisibility,
       sorting,
     },
     getCoreRowModel: getCoreRowModel(),
@@ -331,51 +294,65 @@ export const JobsTableContainer = ({ getJobsService, groupJobsService, debug }: 
 
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
   return (
-    <div className={styles.jobsTablePage}>
-      <JobsTableActionBar
-        allColumns={allColumns}
-        groupedColumns={grouping}
-        selectedJobs={selectedJobs} // TODO: This may need to be change to reflect that queues/jobsets can be selected (e.g. to cancel all within)
-        onColumnsChanged={setAllColumns}
-        onGroupsChanged={onGroupingChange}
-      />
-      <TableContainer component={Paper}>
-        <Table sx={{ tableLayout: "fixed" }}>
-          <TableHead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <HeaderCell header={header} key={header.id} />
-                ))}
+    <Box sx={{ display: "flex" }}>
+      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em" }}>
+        <JobsTableActionBar
+          isLoading={rowsToFetch.length > 0}
+          allColumns={allColumns}
+          groupedColumns={grouping}
+          visibleColumns={visibleColumnIds}
+          selectedItemFilters={selectedItemsFilters}
+          onRefresh={onRefresh}
+          onColumnsChanged={setAllColumns}
+          onGroupsChanged={onGroupingChange}
+          toggleColumnVisibility={onColumnVisibilityChange}
+          getJobsService={getJobsService}
+          updateJobsService={updateJobsService}
+        />
+        <TableContainer component={Paper}>
+          <Table sx={{ tableLayout: "fixed" }}>
+            <TableHead>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <HeaderCell header={header} key={header.id} />
+                  ))}
+                </TableRow>
+              ))}
+            </TableHead>
+
+            <JobsTableBody
+              dataIsLoading={rowsToFetch.length > 0}
+              columns={table.getVisibleLeafColumns()}
+              topLevelRows={topLevelRows}
+              sidebarJobId={sidebarJob?.jobId}
+              onLoadMoreSubRows={onLoadMoreSubRows}
+              onClickJobRow={onJobRowClick}
+            />
+
+            <TableFooter>
+              <TableRow>
+                <TablePagination
+                  rowsPerPageOptions={[3, 10, 20, 30, 40, 50]}
+                  count={totalRowCount}
+                  rowsPerPage={pageSize}
+                  page={pageIndex}
+                  onPageChange={(_, page) => table.setPageIndex(page)}
+                  onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
+                  colSpan={table.getVisibleLeafColumns().length}
+                  showFirstButton={true}
+                  showLastButton={true}
+                />
               </TableRow>
-            ))}
-          </TableHead>
+            </TableFooter>
+          </Table>
+        </TableContainer>
 
-          <JobsTableBody
-            dataIsLoading={isLoading}
-            columns={selectedColumnDefs}
-            topLevelRows={topLevelRows}
-            onLoadMoreSubRows={onLoadMoreSubRows}
-          />
+        {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+      </Box>
 
-          <TableFooter>
-            <TableRow>
-              <TablePagination
-                rowsPerPageOptions={[3, 10, 20, 30, 40, 50]}
-                count={totalRowCount}
-                rowsPerPage={pageSize}
-                page={pageIndex}
-                onPageChange={(_, page) => table.setPageIndex(page)}
-                onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
-                colSpan={selectedColumnDefs.length}
-              />
-            </TableRow>
-          </TableFooter>
-        </Table>
-      </TableContainer>
-
-      {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
-    </div>
+      {sidebarJob !== undefined && <Sidebar job={sidebarJob} onClose={onSideBarClose} />}
+    </Box>
   )
 }
 
@@ -383,15 +360,24 @@ interface JobsTableBodyProps {
   dataIsLoading: boolean
   columns: ColumnDef<JobTableRow>[]
   topLevelRows: Row<JobTableRow>[]
+  sidebarJobId: JobId | undefined
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
+  onClickJobRow: (row: JobRow) => void
 }
-const JobsTableBody = ({ dataIsLoading, columns, topLevelRows, onLoadMoreSubRows }: JobsTableBodyProps) => {
+const JobsTableBody = ({
+  dataIsLoading,
+  columns,
+  topLevelRows,
+  sidebarJobId,
+  onLoadMoreSubRows,
+  onClickJobRow,
+}: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
     <TableBody>
       {!canDisplay && (
         <TableRow>
-          {dataIsLoading && (
+          {dataIsLoading && topLevelRows.length === 0 && (
             <TableCell colSpan={columns.length}>
               <CircularProgress />
             </TableCell>
@@ -402,39 +388,32 @@ const JobsTableBody = ({ dataIsLoading, columns, topLevelRows, onLoadMoreSubRows
         </TableRow>
       )}
 
-      {topLevelRows.map((row) => recursiveRowRender(row, onLoadMoreSubRows))}
+      {topLevelRows.map((row) => recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow))}
     </TableBody>
   )
 }
 
 const recursiveRowRender = (
   row: Row<JobTableRow>,
+  sidebarJobId: JobId | undefined,
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void,
+  onClickJobRow: (row: JobRow) => void,
 ): JSX.Element => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
-  const rowCells = row.getVisibleCells()
 
   const depthGaugeLevelThicknessPixels = 6
+  const isOpenInSidebar = sidebarJobId !== undefined && original.jobId === sidebarJobId
 
   return (
     <React.Fragment key={`${row.id}_d${row.depth}`}>
       {/* Render the current row */}
-      <TableRow aria-label={row.id} hover className={styles.rowDepthIndicator} sx={{ backgroundSize: row.depth * 6 }}>
-        {rowCells.map((cell) => (
-          <BodyCell
-            cell={cell}
-            rowIsGroup={rowIsGroup}
-            rowIsExpanded={row.getIsExpanded()}
-            onExpandedChange={row.toggleExpanded}
-            subCount={rowIsGroup ? original.jobCount : undefined}
-            key={cell.id}
-          />
-        ))}
-      </TableRow>
+      <JobsTableRow row={row} isOpenInSidebar={isOpenInSidebar} onClick={!rowIsGroup ? onClickJobRow : undefined} />
 
       {/* Render any sub rows if expanded */}
-      {rowIsGroup && row.getIsExpanded() && row.subRows.map((row) => recursiveRowRender(row, onLoadMoreSubRows))}
+      {rowIsGroup &&
+        row.getIsExpanded() &&
+        row.subRows.map((row) => recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow))}
 
       {/* Render pagination tools for this expanded row */}
       {rowIsGroup && row.getIsExpanded() && (original.subRowCount ?? 0) > original.subRows.length && (
