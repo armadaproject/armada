@@ -56,7 +56,8 @@ export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, colum
     const columnInfo = columns.find((col) => col.id === id)
     const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
     return {
-      field: id,
+      isAnnotation: Boolean(metadata?.annotation),
+      field: metadata?.annotation?.annotationKey ?? id,
       value: isArray ? (value as string[]) : (value as string),
       match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
     }
