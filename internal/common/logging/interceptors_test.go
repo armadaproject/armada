@@ -8,7 +8,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/renstrom/shortuuid"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -20,9 +20,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
 	id := shortuuid.New()
 	ctx, ok := requestid.AddToIncomingContext(ctx, id)
-	if !ok {
-		t.Fatal("error adding request id to context")
-	}
+	require.True(t, ok, "error adding request id to context")
 	logger := logrus.New()
 	entry := logrus.NewEntry(logger)
 	ctx = ctxlogrus.ToContext(ctx, entry)
@@ -39,7 +37,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 
 	f := UnaryServerInterceptor()
 	_, err := f(ctx, nil, nil, handler)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -47,9 +45,8 @@ func TestStreamServerInterceptor(t *testing.T) {
 	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
 	id := shortuuid.New()
 	ctx, ok := requestid.AddToIncomingContext(ctx, id)
-	if !ok {
-		t.Fatal("error adding request id to context")
-	}
+	require.True(t, ok, "error adding request id to context")
+
 	logger := logrus.New()
 	entry := logrus.NewEntry(logger)
 	ctx = ctxlogrus.ToContext(ctx, entry)
@@ -69,5 +66,5 @@ func TestStreamServerInterceptor(t *testing.T) {
 
 	f := StreamServerInterceptor()
 	err := f(nil, stream, nil, handler)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
