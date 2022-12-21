@@ -46,7 +46,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			go func() {
 				err := srv.Run(ctx)
 				if err != nil {
-					log.WithField("error", err).Error()
+					logging.WithStacktrace(err).Error("eventsprinter failure")
 				}
 			}()
 		} else {
