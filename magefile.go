@@ -29,6 +29,15 @@ import (
 
 const PROTOC_VERSION_MIN = "3.21.8"
 const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
+const KIND_CONFIG_INTERNAL = ".kube/internal/config"
+const KIND_CONFIG_EXTERNAL = ".kube/external/config"
+const KIND_NAME = "armada-test"
+
+var kubectl func(...string) (string, error) = sh.OutCmd(
+	"kubectl",
+	"--kubeconfig", KIND_CONFIG_EXTERNAL,
+	"--context", "kind-" + KIND_NAME,
+)
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
@@ -158,7 +167,6 @@ func MinimalGoreleaserConfig() error {
 
 func Kind() error {
 	mg.Deps(KindSetup)
-	mg.Deps(KindWriteKubeConfig)
 	mg.Deps(KindWaitUntilReady)
 	return nil
 }
@@ -168,10 +176,13 @@ func KindSetup() error {
 	if err != nil {
 		return err
 	}
-	if strings.Contains(out, "armada-test") {
+	if strings.Contains(out, KIND_NAME) {
 		return nil
 	}
 	if err := sh.Run("kind", "create", "cluster", "--config", "e2e/setup/kind.yaml"); err != nil {
+		return err
+	}
+	if err := writeKindKubeConfig(); err != nil {
 		return err
 	}
 
@@ -190,7 +201,7 @@ func KindSetup() error {
 		}
 	}
 	for _, image := range images {
-		if err := sh.Run("kind", "load", "docker-image", image, "--name", "armada-test"); err != nil {
+		if err := sh.Run("kind", "load", "docker-image", image, "--name", KIND_NAME); err != nil {
 			return err
 		}
 	}
@@ -212,15 +223,15 @@ func KindSetup() error {
 
 // Write kubeconfig to disk.
 // Needed by the executor to interact with the cluster.
-func KindWriteKubeConfig() error {
-	out, err := sh.Output("kind", "get", "kubeconfig", "--name", "armada-test")
+func writeKindKubeConfig() error {
+	out, err := sh.Output("kind", "get", "kubeconfig", "--name", KIND_NAME)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(".kube/external/", os.ModeDir|0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_EXTERNAL), os.ModeDir|0755); err != nil {
 		return err
 	}
-	if f, err := os.Create(".kube/external/config"); err != nil {
+	if f, err := os.Create(KIND_CONFIG_EXTERNAL); err != nil {
 		return err
 	} else {
 		defer f.Close()
@@ -229,14 +240,14 @@ func KindWriteKubeConfig() error {
 		}
 	}
 
-	out, err = sh.Output("kind", "get", "kubeconfig", "--internal", "--name", "armada-test")
+	out, err = sh.Output("kind", "get", "kubeconfig", "--internal", "--name", KIND_NAME)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(".kube/internal/", os.ModeDir|0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_INTERNAL), os.ModeDir|0755); err != nil {
 		return err
 	}
-	if f, err := os.Create(".kube/internal/config"); err != nil {
+	if f, err := os.Create(KIND_CONFIG_INTERNAL); err != nil {
 		return err
 	} else {
 		defer f.Close()
@@ -248,17 +259,18 @@ func KindWriteKubeConfig() error {
 }
 
 func KindWaitUntilReady() error {
-	return sh.Run(
-		"kubectl", "wait", "--namespace", "ingress-nginx",
+	_, err := kubectl(
+		"wait",
+		"--namespace", "ingress-nginx",
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
 		"--timeout=2m",
-		"--context", "kind-armada-test",
 	)
+	return err
 }
 
 func KindTeardown() error {
-	return sh.Run("kind", "delete", "cluster", "--name", "armada-test")
+	return sh.Run("kind", "delete", "cluster", "--name", KIND_NAME)
 }
 
 // Clean up after yourself
