@@ -60,6 +60,12 @@ describe("JobsTableContainer", () => {
         count: 0,
       }),
     )
+    groupJobsService.groupJobs = jest.fn(() =>
+      Promise.resolve({
+        groups: [],
+        count: 0,
+      }),
+    )
     const { findByText } = renderComponent()
     await waitForFinishedLoading()
 
@@ -67,24 +73,36 @@ describe("JobsTableContainer", () => {
     await findByText("0–0 of 0")
   })
 
-  it("should show jobs by default", async () => {
-    const { findByRole } = renderComponent()
-    await waitForFinishedLoading()
-
-    // Check all details for the first job are shown
-    const jobToSearchFor = jobs[0]
-    const matchingRow = await findByRole("row", { name: "jobId:" + jobToSearchFor.jobId })
-
-    within(matchingRow).getByText(jobToSearchFor.jobId)
-    within(matchingRow).getByText(jobToSearchFor.jobSet)
-    within(matchingRow).getByText(jobToSearchFor.queue)
-    within(matchingRow).getByText(formatJobState(jobToSearchFor.state))
-    within(matchingRow).getByText(formatUtcDate(jobToSearchFor.submitted))
-
-    await assertNumDataRowsShown(jobs.length)
-  })
-
   describe("Grouping", () => {
+    it("should be grouped by queue+jobset by default", async () => {
+      jobs = makeTestJobs(6, 1, numQueues, numJobSets)
+      getJobsService = new FakeGetJobsService(jobs, false)
+      groupJobsService = new FakeGroupJobsService(jobs, false)
+
+      const { findByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      await assertNumDataRowsShown(numQueues)
+
+      const job = jobs[1] // Pick the second job as a bit of variation
+
+      // Expand the first level
+      await expandRow(job.queue)
+      await assertNumDataRowsShown(numQueues + numJobSets)
+
+      // Expand the second level
+      await expandRow(job.jobSet)
+      await assertNumDataRowsShown(numQueues + numJobSets + 1)
+
+      // Should be able to see job-level information
+      const matchingRow = await findByRole("row", { name: "jobId:" + job.jobId })
+      within(matchingRow).getByText(job.jobId)
+      within(matchingRow).getByText(job.jobSet)
+      within(matchingRow).getByText(job.queue)
+      within(matchingRow).getByText(formatJobState(job.state))
+      within(matchingRow).getByText(formatUtcDate(job.submitted))
+    })
+
     it.each([
       ["Job Set", "jobSet"],
       ["Queue", "queue"],
@@ -96,6 +114,8 @@ describe("JobsTableContainer", () => {
 
       renderComponent()
       await waitForFinishedLoading()
+
+      await clearAllGroupings()
 
       await groupByColumn(displayString)
 
@@ -111,34 +131,10 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(numUniqueForJobKey + numShownJobs)
     })
 
-    it("should allow 2 level grouping", async () => {
-      jobs = makeTestJobs(6, 1, numQueues, numJobSets)
-      getJobsService = new FakeGetJobsService(jobs)
-      groupJobsService = new FakeGroupJobsService(jobs)
-
-      renderComponent()
-      await waitForFinishedLoading()
-
-      // Group to both levels
-      await groupByColumn("Queue")
-      await groupByColumn("Job Set")
-      await assertNumDataRowsShown(numQueues)
-
-      const job = jobs[1] // Pick the second job as a bit of variation
-
-      // Expand the first level
-      await expandRow(job.queue)
-      await assertNumDataRowsShown(numQueues + numJobSets)
-
-      // Expand the second level
-      await expandRow(job.jobSet)
-      await assertNumDataRowsShown(numQueues + numJobSets + 1)
-    })
-
     it("should allow 3 level grouping", async () => {
       jobs = makeTestJobs(1000, 1, numQueues, numJobSets)
-      getJobsService = new FakeGetJobsService(jobs)
-      groupJobsService = new FakeGroupJobsService(jobs)
+      getJobsService = new FakeGetJobsService(jobs, false)
+      groupJobsService = new FakeGroupJobsService(jobs, false)
 
       const numStates = new Set(jobs.map((j) => j.state)).size
 
@@ -147,22 +143,20 @@ describe("JobsTableContainer", () => {
 
       // Group to 3 levels
       await groupByColumn("State")
-      await groupByColumn("Job Set")
-      await groupByColumn("Queue")
-      await assertNumDataRowsShown(numStates)
+      await assertNumDataRowsShown(numQueues)
 
       const job = jobs[0]
 
       // Expand the first level
-      await expandRow(job.state)
-      await assertNumDataRowsShown(numStates + numJobSets)
+      await expandRow(job.queue)
+      await assertNumDataRowsShown(numQueues + numJobSets)
 
       // Expand the second level
       await expandRow(job.jobSet)
-      await assertNumDataRowsShown(numStates + numJobSets + numQueues)
+      await assertNumDataRowsShown(numQueues + numJobSets + numStates)
 
       // Expand the third level
-      await expandRow(job.queue)
+      await expandRow(job.state)
       const numJobsExpectedToShow = jobs.filter(
         (j) => j.state === job.state && j.jobSet === job.jobSet && j.queue === job.queue,
       ).length
@@ -171,13 +165,11 @@ describe("JobsTableContainer", () => {
 
     it("should reset currently-expanded if grouping changes", async () => {
       jobs = makeTestJobs(5, 1, numQueues, numJobSets)
-      getJobsService = new FakeGetJobsService(jobs)
-      groupJobsService = new FakeGroupJobsService(jobs)
+      getJobsService = new FakeGetJobsService(jobs, false)
+      groupJobsService = new FakeGroupJobsService(jobs, false)
 
       const { getByRole, queryAllByRole } = renderComponent()
       await waitForFinishedLoading()
-
-      await groupByColumn("Queue")
 
       // Check we're only showing one row for each queue
       await assertNumDataRowsShown(numQueues)
@@ -187,14 +179,13 @@ describe("JobsTableContainer", () => {
       await expandRow(job.queue)
 
       // Check the row right number of rows is being shown
-      const numShownJobs = jobs.filter((j) => j.queue === job.queue).length
-      await assertNumDataRowsShown(numQueues + numShownJobs)
+      await assertNumDataRowsShown(numQueues + numJobSets)
 
       // Assert arrow down icon is shown
       getByRole("button", { name: "Collapse row" })
 
       // Group by another header
-      await groupByColumn("Job Set")
+      await groupByColumn("State")
 
       // Verify all rows are now collapsed
       await waitFor(() => expect(queryAllByRole("button", { name: "Collapse row" }).length).toBe(0))
@@ -202,25 +193,26 @@ describe("JobsTableContainer", () => {
   })
 
   describe("Selecting", () => {
-    it("should allow selecting of jobs", async () => {
+    it("should allow selecting rows", async () => {
       const { findByRole } = renderComponent()
       await waitForFinishedLoading()
 
       expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
       expect(await findByRole("button", { name: "Reprioritize selected" })).toBeDisabled()
 
-      await toggleSelectedRow("jobId", jobs[0].jobId)
-      await toggleSelectedRow("jobId", jobs[2].jobId)
+      expect(jobs[0].queue).not.toBe(jobs[1].queue)
+      await toggleSelectedRow("queue", jobs[0].queue)
+      await toggleSelectedRow("queue", jobs[1].queue)
 
       expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
       expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
-      await toggleSelectedRow("jobId", jobs[2].jobId)
+      await toggleSelectedRow("queue", jobs[1].queue)
 
       expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
       expect(await findByRole("button", { name: "Cancel selected" })).toBeEnabled()
 
-      await toggleSelectedRow("jobId", jobs[0].jobId)
+      await toggleSelectedRow("queue", jobs[0].queue)
 
       expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
       expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
@@ -233,6 +225,9 @@ describe("JobsTableContainer", () => {
 
       const { findByRole } = renderComponent()
       await waitForFinishedLoading()
+
+      await expandRow(jobs[0].queue)
+      await expandRow(jobs[0].jobSet)
 
       await toggleSelectedRow("jobId", jobs[0].jobId)
 
@@ -248,8 +243,6 @@ describe("JobsTableContainer", () => {
 
       const { findByRole } = renderComponent()
       await waitForFinishedLoading()
-
-      await groupByColumn("Queue")
 
       // Wait for table to update
       await assertNumDataRowsShown(numQueues)
@@ -271,23 +264,22 @@ describe("JobsTableContainer", () => {
     it("should allow text filtering", async () => {
       renderComponent()
       await waitForFinishedLoading()
-      await assertNumDataRowsShown(jobs.length)
+      await assertNumDataRowsShown(numQueues)
 
       await filterTextColumnTo("Queue", jobs[0].queue)
-      await assertNumDataRowsShown(jobs.filter((j) => j.queue === jobs[0].queue).length)
-
-      await filterTextColumnTo("Job ID", jobs[0].jobId)
       await assertNumDataRowsShown(1)
 
       await filterTextColumnTo("Queue", "")
       await filterTextColumnTo("Job ID", "")
 
-      await assertNumDataRowsShown(jobs.length)
+      await assertNumDataRowsShown(numQueues)
     })
 
     it("should allow enum filtering", async () => {
       renderComponent()
       await waitForFinishedLoading()
+      await clearAllGroupings()
+
       await assertNumDataRowsShown(jobs.length)
 
       await toggleEnumFilterOption("State", formatJobState(jobs[0].state))
@@ -302,6 +294,7 @@ describe("JobsTableContainer", () => {
     it("should allow sorting jobs", async () => {
       const { getAllByRole } = renderComponent()
       await waitForFinishedLoading()
+      await clearAllGroupings()
 
       await toggleSorting("Job ID")
 
@@ -322,40 +315,13 @@ describe("JobsTableContainer", () => {
         expect(rows[rows.length - 2]).toHaveTextContent("1") // Job ID
       })
     })
-
-    // Commented out until sorting by group name is supported
-    // it("should allow sorting groups", async () => {
-    //   const { getAllByRole, getByRole } = renderComponent()
-    //   await waitForFinishedLoading()
-
-    //   await groupByColumn("Queue")
-    //   await assertNumDataRowsShown(numQueues)
-
-    //   await toggleSorting("Queue")
-
-    //   await waitFor(() => {
-    //     const rows = getAllByRole("row")
-    //     // Skipping header and footer rows
-    //     expect(rows[1]).toHaveTextContent("queue-1")
-    //     expect(rows[rows.length - 2]).toHaveTextContent("queue-2")
-    //   })
-
-    //   await toggleSorting("Queue")
-
-    //   await waitFor(() => {
-    //     const rows = getAllByRole("row")
-
-    //     // Order should be reversed now
-    //     expect(rows[1]).toHaveTextContent("queue-2")
-    //     expect(rows[rows.length - 2]).toHaveTextContent("queue-1")
-    //   })
-    // })
   })
 
   describe("Refreshing data", () => {
     it("should allow refreshing data", async () => {
       const { findByRole } = renderComponent()
       await waitForFinishedLoading()
+      await clearAllGroupings()
       await assertNumDataRowsShown(numJobs)
 
       const firstRow = await findByRole("row", { name: new RegExp(jobs[0].jobId) })
@@ -377,9 +343,9 @@ describe("JobsTableContainer", () => {
     it("should maintain grouping and filtering state when refreshing", async () => {
       const { findByText } = renderComponent()
       await waitForFinishedLoading()
-      await assertNumDataRowsShown(numJobs)
 
       // Applying grouping and filtering
+      await clearAllGroupings()
       await groupByColumn("Queue")
       await filterTextColumnTo("Job ID", jobs[0].jobId)
 
@@ -403,8 +369,11 @@ describe("JobsTableContainer", () => {
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
-      const firstRow = await findByRole("row", { name: new RegExp(firstJob.jobId) })
-      await userEvent.click(within(firstRow).getByText(firstJob.jobId))
+      await expandRow(firstJob.queue)
+      await expandRow(firstJob.jobSet)
+
+      const jobRow = await findByRole("row", { name: new RegExp(firstJob.jobId) })
+      await userEvent.click(within(jobRow).getByText(firstJob.jobId))
 
       const sidebar = getByRole("complementary")
       within(sidebar).getByText(firstJob.jobId)
@@ -412,9 +381,6 @@ describe("JobsTableContainer", () => {
 
     it("clicking grouped row should not open", async () => {
       const { findByRole, queryByRole } = renderComponent()
-      await waitForFinishedLoading()
-
-      await groupByColumn("Queue")
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
@@ -448,12 +414,20 @@ describe("JobsTableContainer", () => {
     await userEvent.click(colToGroup)
   }
 
+  async function clearAllGroupings() {
+    const clearGroupingButtons = screen.queryAllByRole("button", { name: /Clear grouping/i })
+    for (const clearGroupingButton of clearGroupingButtons) {
+      await userEvent.click(clearGroupingButton)
+    }
+  }
+
   async function expandRow(buttonText: string) {
     const rowToExpand = await screen.findByRole("row", {
       name: new RegExp(buttonText),
     })
     const expandButton = within(rowToExpand).getByRole("button", { name: "Expand row" })
     await userEvent.click(expandButton)
+    await waitForFinishedLoading()
   }
 
   async function toggleSelectedRow(rowType: string, rowId: string) {

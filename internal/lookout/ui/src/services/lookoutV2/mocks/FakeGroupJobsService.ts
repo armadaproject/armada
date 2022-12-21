@@ -18,7 +18,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
     if (this.simulateApiWait) {
       await simulateApiWait()
     }
-    await simulateApiWait()
+
     const filtered = this.jobs.filter(mergeFilters(filters))
     const groups = groupBy(filtered, groupedField)
     const sliced = groups.sort(comparator(order)).slice(skip, skip + take)
