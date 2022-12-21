@@ -92,7 +92,7 @@ def test_submit_job():
         job_request_items=[request_item],
     )
 
-    assert resp.job_response_items[0].job_id == "test"
+    assert resp.job_response_items[0].job_id == "job-1"
 
 
 def test_create_queue():
@@ -123,7 +123,10 @@ def test_create_queue_full():
 def test_create_queues():
     queue = tester.create_queue_request(name="test", priority_factor=1)
     queue2 = tester.create_queue_request(name="test2", priority_factor=1)
-    tester.create_queues([queue, queue2])
+
+    resp = tester.create_queues([queue, queue2])
+
+    assert len(resp.failed_queues) == 2
 
 
 def test_create_queues_full():
@@ -145,7 +148,9 @@ def test_create_queues_full():
 
     queue2 = tester.create_queue_request(name="test2", priority_factor=1)
 
-    tester.create_queues([queue, queue2])
+    resp = tester.create_queues([queue, queue2])
+
+    assert len(resp.failed_queues) == 2
 
 
 def test_get_queue():
@@ -157,7 +162,7 @@ def test_delete_queue():
 
 
 def test_get_queue_info():
-    tester.get_queue_info(name="test")
+    assert tester.get_queue_info(name="test").name == "test"
 
 
 def test_cancel_jobs():
@@ -169,9 +174,13 @@ def test_cancel_jobs():
     with pytest.raises(ValueError):
         tester.cancel_jobs(queue="test", job_id="job-1", job_set_id="job-set-1")
 
-    tester.cancel_jobs(job_id="job-1")
+    resp = tester.cancel_jobs(job_id="job-1")
 
-    tester.cancel_jobs(queue="test", job_set_id="job-set-1")
+    assert resp.cancelled_ids[0] == "job-1"
+
+    resp = tester.cancel_jobs(queue="test", job_set_id="job-set-1")
+
+    assert len(list(resp.cancelled_ids)) > 0
 
 
 def test_cancel_jobset():
@@ -211,7 +220,10 @@ def test_update_queue_full():
 def test_update_queues():
     queue = tester.create_queue_request(name="test", priority_factor=1)
     queue2 = tester.create_queue_request(name="test2", priority_factor=1)
-    tester.update_queues([queue, queue2])
+
+    resp = tester.update_queues([queue, queue2])
+
+    assert len(resp.failed_queues) == 2
 
 
 def test_update_queues_full():
@@ -232,7 +244,9 @@ def test_update_queues_full():
     )
     queue2 = tester.create_queue_request(name="test2", priority_factor=1)
 
-    tester.update_queues([queue, queue2])
+    resp = tester.update_queues([queue, queue2])
+
+    assert len(resp.failed_queues) == 2
 
 
 def test_reprioritize_jobs():
@@ -249,16 +263,20 @@ def test_reprioritize_jobs():
             new_priority=1,
         )
 
-    tester.reprioritize_jobs(
+    resp = tester.reprioritize_jobs(
         job_ids=["job-1"],
         new_priority=1,
     )
 
-    tester.reprioritize_jobs(
+    assert resp.reprioritization_results == {"job-1": "1.0"}
+
+    resp = tester.reprioritize_jobs(
         queue="test",
         job_set_id="job-set-1",
         new_priority=1,
     )
+
+    assert resp.reprioritization_results == {"test/job-set-1": "1.0"}
 
 
 def test_get_job_events_stream():
