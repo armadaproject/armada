@@ -79,7 +79,7 @@ describe("JobsTableContainer", () => {
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
-      const {getByText, findByRole} = renderComponent()
+      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
 
       await assertNumDataRowsShown(numQueues)
@@ -415,8 +415,8 @@ describe("JobsTableContainer", () => {
   }
 
   async function clearAllGroupings() {
-    const clearGroupingButtons = screen.queryAllByRole("button", {name: /Clear grouping/i})
-    for (let clearGroupingButton of clearGroupingButtons) {
+    const clearGroupingButtons = screen.queryAllByRole("button", { name: /Clear grouping/i })
+    for (const clearGroupingButton of clearGroupingButtons) {
       await userEvent.click(clearGroupingButton)
     }
   }

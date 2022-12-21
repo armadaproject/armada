@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react"
+import { useCallback } from "react"
 
 import { Checkbox } from "@mui/material"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
@@ -97,7 +97,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         indeterminate={table.getIsSomeRowsSelected()}
         onChange={table.getToggleAllRowsSelectedHandler()}
         size="small"
-        sx={{p: 0}}
+        sx={{ p: 0 }}
       />
     ),
     cell: ({ row }) => (
@@ -252,10 +252,7 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   {},
 )
 
-export const DEFAULT_GROUPING: ColumnId[] = [
-  StandardColumnId.Queue,
-  StandardColumnId.JobSet,
-]
+export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({

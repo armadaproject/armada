@@ -93,7 +93,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, su
     >
       {rowIsGroup && cell.column.getIsGrouped() && cellHasValue ? (
         // If it's a grouped cell, add an expander and row count
-        <Box sx={{display: "flex", gap: "0.25em"}}>
+        <Box sx={{ display: "flex", gap: "0.25em" }}>
           <IconButton size="small" sx={{ padding: 0 }} edge="start" onClick={() => onExpandedChange()}>
             {rowIsExpanded ? (
               <KeyboardArrowDown fontSize="small" aria-label="Collapse row" aria-hidden="false" />
