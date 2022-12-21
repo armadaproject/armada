@@ -3,13 +3,12 @@ from diagrams.onprem.database import PostgreSQL
 from diagrams.onprem.inmemory import Redis
 from diagrams.k8s.controlplane import API
 from diagrams.custom import Custom
-from diagrams.onprem.client import Client
 
 graph_attr = {
     "concentrate": "false",
     "splines": "ortho",
     "pad": "2",
-    "nodesep": "0.60",
+    "nodesep": "0.30",
     "ranksep": "1.5",
     "fontsize": "20",
 }
@@ -17,8 +16,8 @@ graph_attr = {
 node_attr = {
     # decrease image size
     "fixedsize": "true",
-    "width": "1.3",
-    "height": "1.3",
+    "width": "1",
+    "height": "1",
     "fontsize": "15",
 }
 
@@ -51,88 +50,87 @@ browser_logo = "./images/browser.png"
 with Diagram(
     name="Armada Systems Diagram",
     show=False,
-    direction="BT",
+    direction="LR",
     graph_attr=graph_attr,
     edge_attr=edge_attr,
     node_attr=node_attr,
     filename="armada-system",
 ):
 
-    with Cluster("External Services", graph_attr=cluster_attr_common):
-        pulsar = Custom("Pulsar", pulsar_logo)
-        postgres = PostgreSQL("Postgres")
-        redis = Redis("Redis")
+    pulsar = Custom("Pulsar", pulsar_logo)
 
-    armada_clients = Client("Armada \nClients")
+    # Databases
+    postgres_lookout = PostgreSQL("Postgres (Lookout)")
+    postgres_scheduler = PostgreSQL("Postgres (Scheduler)")
+    redis_events = Redis("Redis (Events)")
+    redis_scheduler = Redis("Redis (Scheduler)")
 
-    with Cluster("Armada Server Cluster", graph_attr=cluster_attr_server):
+    # Components
+    submit_api = Custom("Submit API", armada_logo)
 
-        lookout_api = Custom("Lookout API", armada_logo)
+    # Ingesters
+    lookout_ingester = Custom("Lookout Ingester", armada_logo)
+    scheduler_ingester = Custom("Scheduler Ingester", armada_logo)
+    event_ingerster = Custom("Event Ingester", armada_logo)
+    job_ingester = Custom("Job Ingester", armada_logo)
 
-        lookout_ingester = Custom("Lookout \nIngester", armada_logo)
-        event_ingester = Custom("Event \nIngester", armada_logo)
+    legacy_scheduler = Custom("Legacy Scheduler", armada_logo)
+    scheduler = Custom("Scheduler", armada_logo)
 
-        armada_server = Custom("Armada \nServer", armada_logo)
+    executor_api = Custom("Executor API", armada_logo)
 
-    with Cluster("Armada Executor Cluster 1", graph_attr=cluster_attr_exec):
+    with Cluster("Executor Cluster", graph_attr=cluster_attr_server):
 
-        armada_executor = Custom("Armada \nExecutor", armada_logo)
-        binoculars = Custom("Binoculars", armada_logo)
-
+        executor = Custom("Executor", armada_logo)
         k8s_api = API("K8s API")
 
-    with Cluster("Armada Executor Cluster 2", graph_attr=cluster_attr_exec):
+    with Cluster("Executor Cluster 2", graph_attr=cluster_attr_server):
 
-        armada_executor2 = Custom("Armada \nExecutor", armada_logo)
-        binoculars2 = Custom("Binoculars", armada_logo)
+        executor2 = Custom("Executor 2", armada_logo)
+        k8s_api2 = API("K8s API 2")
 
-        k8s_api2 = API("K8s API")
+    # Relationships
 
-    lookout_browser = Custom("Lookout \nBrowser", browser_logo)
+    # submit api talks to pulsar
+    submit_api >> Edge(color="red") >> pulsar
 
-    # Relations
-    # use edges to label the direction of the data flow
-
-    # clients all send requests to server both ways
-    armada_clients >> Edge(color="black") >> armada_server
-
-    # executor sends its data to the server
-    # the server then responds with jobs to execute
-    armada_server >> Edge(color="black") >> armada_executor
-    armada_executor >> Edge(color="black") >> armada_server
-
-    # event ingester recieves from pulsar and sends to redis
-    pulsar >> Edge(color="red") >> event_ingester
-    event_ingester >> Edge(color="orange") >> redis
-
-    # lookout ingester recieves from pulsar and sends to postgres
+    # pulsar talks to each of the ingesters
     pulsar >> Edge(color="red") >> lookout_ingester
-    lookout_ingester >> Edge(color="blue") >> postgres
+    pulsar >> Edge(color="red") >> scheduler_ingester
+    pulsar >> Edge(color="red") >> event_ingerster
+    pulsar >> Edge(color="red") >> job_ingester
 
-    # lookout broswer sends requests to the lookout api
-    lookout_api >> Edge(color="green") >> lookout_browser
+    # make postgres blue, redis orange
+    # lookout and scheduler ingesters talk to postgres
+    # the other ingesters talk to redis
+    lookout_ingester >> Edge(color="blue") >> postgres_lookout
+    scheduler_ingester >> Edge(color="blue") >> postgres_scheduler
 
-    # binoculars gets data from k8s, and is used by the browser
-    k8s_api >> Edge(color="blue") >> binoculars
-    binoculars >> Edge(color="green") >> lookout_browser
+    event_ingerster >> Edge(color="orange") >> redis_events
+    job_ingester >> Edge(color="orange") >> redis_scheduler
 
-    # executor gets data from k8s
-    k8s_api >> Edge(color="blue") >> armada_executor
+    # the legacy scheduler talks to the jobs redis in both directions
+    legacy_scheduler >> Edge(color="orange") >> redis_scheduler
+    redis_scheduler >> Edge(color="orange") >> legacy_scheduler
 
-    # lookout browser sends requests to armada server
-    lookout_browser >> Edge(color="green") >> armada_server
+    # the postgres scheduler talks to the scheduler and executor api
+    postgres_scheduler >> Edge(color="blue") >> scheduler
+    postgres_scheduler >> Edge(color="blue") >> executor_api
 
-    # armada server gets dats from pulsar and redis
-    pulsar >> Edge(color="red") >> armada_server
-    redis >> Edge(color="orange") >> armada_server
+    # the scheduler talks to pulsar
+    scheduler >> Edge(color="red") >> pulsar
 
-    # lookout api gets data from postgres
-    postgres >> Edge(color="blue") >> lookout_api
+    # the executor api talks to the executor on both clusters in both directions
+    # the executor talks to the k8s api
 
-    # recreate the re;ations for the second executor cluster
-    armada_server >> Edge(color="black") >> armada_executor2
-    armada_executor2 >> Edge(color="black") >> armada_server
+    executor_api >> Edge(color="black") >> executor
+    executor >> Edge(color="black") >> executor_api
 
-    k8s_api2 >> Edge(color="blue") >> armada_executor2
-    k8s_api2 >> Edge(color="blue") >> binoculars2
-    binoculars2 >> Edge(color="green") >> lookout_browser
+    executor_api >> Edge(color="black") >> executor2
+    executor2 >> Edge(color="black") >> executor_api
+
+    executor >> Edge(color="blue") >> k8s_api
+    k8s_api >> Edge(color="blue") >> executor
+
+    executor2 >> Edge(color="blue") >> k8s_api2
+    k8s_api2 >> Edge(color="blue") >> executor2
