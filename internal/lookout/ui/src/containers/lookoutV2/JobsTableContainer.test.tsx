@@ -292,6 +292,7 @@ describe("JobsTableContainer", () => {
     it("allows filtering on annotation columns", async () => {
       const { findByRole } = renderComponent()
       await waitForFinishedLoading()
+      await clearAllGroupings()
 
       await addAnnotationColumn("hyperparameter")
       await assertNumDataRowsShown(numJobs)
