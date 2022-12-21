@@ -63,7 +63,8 @@ import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import styles from "./JobsTableContainer.module.css"
 
-const DEFAULT_PAGE_SIZE = 30
+const DEFAULT_PAGE_SIZE = 50
+const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
   getJobsService: IGetJobsService
@@ -333,7 +334,7 @@ export const JobsTableContainer = ({
             <TableFooter>
               <TableRow>
                 <TablePagination
-                  rowsPerPageOptions={[3, 10, 20, 30, 40, 50]}
+                  rowsPerPageOptions={PAGE_SIZE_OPTIONS}
                   count={totalRowCount}
                   rowsPerPage={pageSize}
                   page={pageIndex}
