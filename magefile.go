@@ -278,6 +278,7 @@ func BootstrapTools() error {
 	if err != nil {
 		return err
 	}
+
 	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
 		if err := sh.Run("go", "install", p); err != nil {
 			return err
@@ -287,15 +288,13 @@ func BootstrapTools() error {
 }
 
 func Proto() error {
-	mg.Deps(ProtocBootstrap)
-	mg.Deps(ProtoBootstrap)
-	mg.Deps(GogoBootstrap)
+	mg.Deps(ProtocBootstrap, ProtoBootstrap, GogoBootstrap)
 	cmd, err := protocOutCmd()
 	if err != nil {
 		return err
 	}
 
-	paths := []string{
+	patterns := []string{
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
@@ -303,13 +302,20 @@ func Proto() error {
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
 	}
-	for _, path := range paths {
-		_, err = cmd(
-			"--proto_path=.",
-			"--proto_path=proto",
-			fmt.Sprintf("--armada_out=%s,plugins=grpc:./", protoGoPackageArgs()),
-			path,
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return err
+		}
+		args := append(
+			[]string{
+				"--proto_path=.",
+				"--proto_path=proto",
+				fmt.Sprintf("--armada_out=%s,plugins=grpc:./", protoGoPackageArgs()),
+			},
+			matches...,
 		)
+		_, err = cmd(args...)
 		if err != nil {
 			return err
 		}
@@ -374,12 +380,12 @@ func ProtoBootstrap() error {
 		if err != nil {
 			return err
 		}
-		tokens := []string{os.Getenv("GOPATH"), "pkg", "mod"}
+		tokens := []string{gopath(), "pkg", "mod"}
 		prefix := filepath.Join(tokens...)
 		tokens = append(tokens, strings.Split(module, "/")...)
 		tokens[len(tokens)-1] = tokens[len(tokens)-1] + "@" + v
 		err = filepath.WalkDir(filepath.Join(tokens...), func(path string, d fs.DirEntry, err error) error {
-			if d.IsDir() || filepath.Ext(path) != ".proto" {
+			if (d != nil && d.IsDir()) || filepath.Ext(path) != ".proto" {
 				return nil
 			}
 			s := path
@@ -595,4 +601,15 @@ func protocArchOs() (string, error) {
 		return "win64", nil
 	}
 	return "", errors.Errorf("protoc not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
+func gopath() string {
+	rv, err := sh.Output("go", "env", "GOPATH")
+	if err != nil {
+		panic(err)
+	}
+	if rv == "" {
+		panic("GOPATH not set")
+	}
+	return rv
 }
