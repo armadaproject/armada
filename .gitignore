@@ -16,7 +16,7 @@ jobservice.db-wal
 
 # Build artifacts
 dist
-.goreleaser-docker.yml
+.goreleaser-minimal.yml
 
 # Proto compiler and dependencies
 proto

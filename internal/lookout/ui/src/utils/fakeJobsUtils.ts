@@ -121,12 +121,14 @@ export function mergeFilters(filters: JobFilter[]): (job: Job) => boolean {
 
 export function filterFn(filter: JobFilter): (job: Job) => boolean {
   return (job) => {
-    if (!Object.prototype.hasOwnProperty.call(job, filter.field)) {
-      console.error(`Unknown filter field provided: ${filter.field}`)
+    const objectToFilter = filter.isAnnotation ? job.annotations : job
+
+    if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
+      console.error(`Unknown filter field provided: ${filter}`)
       return false
     }
     const matcher = getMatch(filter.match)
-    return matcher(job[filter.field as JobKey], filter.value)
+    return matcher(objectToFilter[filter.field as JobKey], filter.value)
   }
 }
 

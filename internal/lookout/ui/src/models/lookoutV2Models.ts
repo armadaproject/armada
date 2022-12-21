@@ -97,6 +97,7 @@ export enum Match {
 }
 
 export type JobFilter = {
+  isAnnotation?: boolean
   field: string
   value: string | number | string[] | number[]
   match: Match
