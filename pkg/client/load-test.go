@@ -293,7 +293,7 @@ func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId
 		return err
 	})
 	if err != nil {
-		logging.WithStacktrace(log, err).Error(err)
+		logging.WithStacktrace(log, err).Error("unable to cancel jobs")
 	}
 }
 
