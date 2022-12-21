@@ -16,6 +16,7 @@ import (
 	"github.com/jcmturner/gokrb5/v8/service"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/G-Research/armada/internal/common/armadaerrors"
 	"github.com/G-Research/armada/internal/common/auth/configuration"
@@ -54,6 +55,11 @@ func generateTempKeytab() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
 	// Create a single entry.
 	kt := keytab.New()
@@ -64,10 +70,6 @@ func generateTempKeytab() (string, error) {
 	}
 	// Write to temp file and close it.
 	_, err = kt.Write(f)
-	if err != nil {
-		return "", err
-	}
-	err = f.Close()
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +132,7 @@ func TestKerberosAuthenticateMissingCreds(t *testing.T) {
 
 		// Nothing on the context, should result in ErrMissingCredentials
 		principal, err := kAuthSvc.Authenticate(context.Background())
-		assert.Nil(t, principal)
+		require.Nil(t, principal)
 		missingCredsErr := &armadaerrors.ErrMissingCredentials{}
 		assert.ErrorAs(t, err, &missingCredsErr)
 	})
@@ -229,7 +231,7 @@ func TestKerberosAuthenticateFailedToReadADCreds(t *testing.T) {
 			}
 		}
 		token, err := hex.DecodeString(testGSSAPIInit)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.Nil(t, principal)
@@ -264,11 +266,11 @@ func TestKerberosAuthenticateSuccess(t *testing.T) {
 		}
 
 		token, err := hex.DecodeString(testGSSAPIInit)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.NotNil(t, principal)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -298,7 +300,7 @@ func TestKerberosAuthenticateAuthFailure(t *testing.T) {
 		}
 
 		token, err := hex.DecodeString(testGSSAPIInit)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		principal, err := kAuthSvc.Authenticate(
 			getContextWithEncodedKerberosToken(token))
 		assert.Nil(t, principal)

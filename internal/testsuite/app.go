@@ -187,14 +187,14 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			testSpec:             testSpec,
 			eventLogger:          eventLogger,
 		}
-		go func() {
+		go func(testSpec *api.TestSpec) {
 			err := testRunner.Run(ctx)
 			if err != nil {
-				fmt.Fprintf(a.Out, "error in test case %s: %s", rv.TestCaseReports[i].TestSpec.Name, err)
+				fmt.Fprintf(a.Out, "error in test case %s: %s", testSpec.Name, err)
 			}
 			rv.TestCaseReports[i] = testRunner.TestCaseReport
 			wg.Done()
-		}()
+		}(testSpec)
 	}
 
 	time.Sleep(100 * time.Millisecond)
