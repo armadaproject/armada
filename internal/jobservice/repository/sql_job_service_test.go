@@ -271,7 +271,7 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 		require.NoError(t, err)
 		r.SubscribeJobSet("test-race", "job-set-race")
 		numberOfJobs, deleteErr := r.CleanupJobSetAndJobs("test-race", "job-set-race")
-		assert.Equal(t, numberOfJobs, actualNumberOfJobs)
+		assert.Equal(t, expectedNumberOfJobs, actualNumberOfJobs)
 		require.NoError(t, deleteErr)
 		actualSuccess, actualError := r.GetJobStatus("job-race")
 		assert.Equal(t, actualSuccess, noExist)
