@@ -17,60 +17,99 @@ grpc:
     permitWithoutStream: false
 redis:
   addrs:
-    - "localhost:6379"
+    - "redis:6379"
   password: ""
   db: 0
   poolSize: 1000
 eventsRedis:
   addrs:
-    - "localhost:6379"
+    - "redis:6379"
   password: ""
   db: 0
   poolSize: 1000
 eventsApiRedis:
   addrs:
-    - "localhost:6379"
+    - "redis:6379"
   password: ""
   db: 1
   poolSize: 1000
 defaultToLegacyEvents: true
 scheduling:
   preemption:
-    # if enabled, Armada will accept submitted jobs which have a priorityClassName field
-    # otherwise it will refuse the jobs on submit
-    enabled: false
-    # priorityClasses field is a map of priority class names to priority values
-    # defined priority classes should exist with the same priority in all executor clusters
-    priorityClasses: {}
-    # if preemption is enabled, Armada server will set the priorityClassName in the job's podSpec
-    # with the value of defaultPriorityClass, if the podSpec does not already reference a priority class
+    enabled: true
+    priorityClasses:
+      armada-default:
+        priority: 1000
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+      "": # Treat missing PC the same as armada-default.
+        priority: 1000
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+      armada-preemptible:
+        priority: 900
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+    # Default to empty PC to not require PCs be set up in worker clusters.
     defaultPriorityClass: ""
-  useProbabilisticSchedulingForAllResources: true
-  queueLeaseBatchSize: 200
-  maximumLeasePayloadSizeBytes: 7340032 # 1024 * 1024 * 7
+  queueLeaseBatchSize: 1000
   minimumResourceToSchedule:
-    memory: 100000000 # 100Mb
-    cpu: 0.25
+    memory: 1000000
+    cpu: 0.1
+  maximalResourceFractionToSchedulePerQueue:
+    memory: 1.0
+    cpu: 1.0
+  maximalResourceFractionPerQueue:
+    memory: 1.0
+    cpu: 1.0
   maximalClusterFractionToSchedule:
-    memory: 0.25
-    cpu: 0.25
+    memory: 1.0
+    cpu: 1.0
   maximumJobsToSchedule: 5000
   maxQueueReportsToStore: 1000
-  MaxJobReportsToStore: 100000
-  resourceScarcity:
-    cpu: 1.0
+  MaxJobReportsToStore: 10000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
+  defaultJobLimits:
+    cpu: 1
+    memory: 1Gi
+    ephemeral-storage: 8Gi
+  defaultJobTolerations:
+    - key: "armadaproject.io/armada"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  defaultJobTolerationsByPriorityClass:
+    "":
+      - key: "armadaproject.io/pc-armada-default"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    armada-default:
+      - key: "armadaproject.io/pc-armada-default"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    armada-preemptible:
+      - key: "armadaproject.io/pc-armada-preemptible"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
   maxRetries: 5
+  resourceScarcity:
+    cpu: 1.0
   maxPodSpecSizeBytes: 65535
   minJobResources:
     memory: 1Mi
-  minTerminationGracePeriod: 1s
-  maxTerminationGracePeriod: 300s
   indexedResources:
     - cpu
     - memory
+  minTerminationGracePeriod: 1s
+  maxTerminationGracePeriod: 300s
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
 queueManagement:
@@ -83,20 +122,37 @@ events:
   processorMaxTimeBetweenBatches: 1s
   processorTimeout: 10s
 eventsNats:
+  clusterID: "test-cluster"
+  subject: "ArmadaTest"
   timeout: 10s
+  servers:
+    - "nats://localhost:4223"
+    - "nats://stan:4223"
 databaseRetention:
-  jobRetentionDuration: 168h # Specified as a Go duration
+  jobRetentionDuration: 168h
 eventRetention:
   expiryEnabled: true
-  retentionDuration: 336h # Specified as a Go duration
+  retentionDuration: 336h
 metrics:
   refreshInterval: 30s
 pulsar:
-  URL: "pulsar://localhost:6650"
-  maxAllowedMessageSize: 4194304 # 4MB
+  URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
+  dedupTable: pulsar_submit_dedup
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
+  maxAllowedMessageSize: 4194304 # 4MB
+postgres:
+  maxOpenConns: 100
+  maxIdleConns: 25
+  connMaxLifetime: 30m
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable
