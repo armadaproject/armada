@@ -50,7 +50,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			go func() {
 				err := srv.Run(ctx)
 				if err != nil {
-					log.WithField("error", err).Error("error after restarting")
+					log.WithField("error", err).Error("service failure")
 				}
 			}()
 		} else {

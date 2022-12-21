@@ -258,7 +258,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		return nil
 	})
 	if err != nil {
-		logging.WithStacktrace(log, err).Error(err)
+		logging.WithStacktrace(log, err).Error("unable to monitor jobs")
 	}
 	return submittedIds
 }
