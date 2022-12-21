@@ -1,6 +1,6 @@
 [project]
 name = "armada_client"
-version = "0.2.5"
+version = "0.2.6"
 description = "Armada gRPC API python client"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -16,6 +16,18 @@ test = ["pytest>=7.1.2", "coverage>=6.5.0"]
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[tool.mypy]
+exclude = [
+    '^typings\.py$',
+    '_pb2_\.pyi$',
+    '_pb2\.pyi$',
+    '_pb2_grpc\.pyi$',
+
+    '_pb2_\.py$',
+    '_pb2\.py$',
+    '_pb2_grpc\.py$',
+]
 
 [tool.coverage.run]
 omit = [
