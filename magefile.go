@@ -29,14 +29,23 @@ import (
 
 const PROTOC_VERSION_MIN = "3.21.8"
 const PROTOC_VERSION_DOWNLOAD = "21.8" // The "3." is omitted.
+const KIND_CONFIG_INTERNAL = ".kube/internal/config"
+const KIND_CONFIG_EXTERNAL = ".kube/external/config"
+const KIND_NAME = "armada-test"
+
+var kubectl func(...string) (string, error) = sh.OutCmd(
+	"kubectl",
+	"--kubeconfig", KIND_CONFIG_EXTERNAL,
+	"--context", "kind-" + KIND_NAME,
+)
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiIntegrationTests() error {
-	if err := os.MkdirAll(".kube", os.ModeDir); err != nil {
+	if err := os.MkdirAll(".kube", os.ModeDir|0755); err != nil {
 		return err
 	}
 	mg.Deps(BootstrapTools)
-	mg.Deps(DockerBundle, Kind)
+	mg.Deps(MinimalRelease, Kind)
 	err := sh.Run("docker-compose", "up", "-d", "redis", "postgres", "pulsar", "stan")
 	if err != nil {
 		return err
@@ -71,17 +80,17 @@ func CiIntegrationTests() error {
 	return nil
 }
 
-func DockerBundle() error {
-	mg.Deps(DockerBundleGoreleaserConfig)
+func MinimalRelease() error {
+	mg.Deps(MinimalGoreleaserConfig)
 	return sh.Run(
-		"goreleaser", "release", "--snapshot", "--rm-dist", "-f", ".goreleaser-docker.yml",
+		"goreleaser", "release", "--snapshot", "--rm-dist", "-f", ".goreleaser-minimal.yml",
 	)
 }
 
 // Write a minimal goreleaser config to .goreleaser-docker.yml
 // containing only the subset of targets in .goreleaser.yaml necessary
 // for building a set of specified Docker images.
-func DockerBundleGoreleaserConfig() error {
+func MinimalGoreleaserConfig() error {
 	// Docker targets to build and the build targets necessary to do so.
 	dockerIds := map[string]bool{
 		"bundle": true,
@@ -142,7 +151,7 @@ func DockerBundleGoreleaserConfig() error {
 	if err != nil {
 		return err
 	}
-	f, err := os.Create(".goreleaser-docker.yml")
+	f, err := os.Create(".goreleaser-minimal.yml")
 	if err != nil {
 		return err
 	}
@@ -158,7 +167,6 @@ func DockerBundleGoreleaserConfig() error {
 
 func Kind() error {
 	mg.Deps(KindSetup)
-	mg.Deps(KindWriteKubeConfig)
 	mg.Deps(KindWaitUntilReady)
 	return nil
 }
@@ -168,10 +176,13 @@ func KindSetup() error {
 	if err != nil {
 		return err
 	}
-	if strings.Contains(out, "armada-test") {
+	if strings.Contains(out, KIND_NAME) {
 		return nil
 	}
 	if err := sh.Run("kind", "create", "cluster", "--config", "e2e/setup/kind.yaml"); err != nil {
+		return err
+	}
+	if err := writeKindKubeConfig(); err != nil {
 		return err
 	}
 
@@ -190,7 +201,7 @@ func KindSetup() error {
 		}
 	}
 	for _, image := range images {
-		if err := sh.Run("kind", "load", "docker-image", image, "--name", "armada-test"); err != nil {
+		if err := sh.Run("kind", "load", "docker-image", image, "--name", KIND_NAME); err != nil {
 			return err
 		}
 	}
@@ -212,15 +223,15 @@ func KindSetup() error {
 
 // Write kubeconfig to disk.
 // Needed by the executor to interact with the cluster.
-func KindWriteKubeConfig() error {
-	out, err := sh.Output("kind", "get", "kubeconfig", "--name", "armada-test")
+func writeKindKubeConfig() error {
+	out, err := sh.Output("kind", "get", "kubeconfig", "--name", KIND_NAME)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(".kube/external/", os.ModeDir); err != nil {
+	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_EXTERNAL), os.ModeDir|0755); err != nil {
 		return err
 	}
-	if f, err := os.Create(".kube/external/config"); err != nil {
+	if f, err := os.Create(KIND_CONFIG_EXTERNAL); err != nil {
 		return err
 	} else {
 		defer f.Close()
@@ -229,14 +240,14 @@ func KindWriteKubeConfig() error {
 		}
 	}
 
-	out, err = sh.Output("kind", "get", "kubeconfig", "--internal", "--name", "armada-test")
+	out, err = sh.Output("kind", "get", "kubeconfig", "--internal", "--name", KIND_NAME)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(".kube/internal/", os.ModeDir); err != nil {
+	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_INTERNAL), os.ModeDir|0755); err != nil {
 		return err
 	}
-	if f, err := os.Create(".kube/internal/config"); err != nil {
+	if f, err := os.Create(KIND_CONFIG_INTERNAL); err != nil {
 		return err
 	} else {
 		defer f.Close()
@@ -248,17 +259,18 @@ func KindWriteKubeConfig() error {
 }
 
 func KindWaitUntilReady() error {
-	return sh.Run(
-		"kubectl", "wait", "--namespace", "ingress-nginx",
+	_, err := kubectl(
+		"wait",
+		"--namespace", "ingress-nginx",
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
 		"--timeout=2m",
-		"--context", "kind-armada-test",
 	)
+	return err
 }
 
 func KindTeardown() error {
-	return sh.Run("kind", "delete", "cluster", "--name", "armada-test")
+	return sh.Run("kind", "delete", "cluster", "--name", KIND_NAME)
 }
 
 // Clean up after yourself
@@ -278,6 +290,7 @@ func BootstrapTools() error {
 	if err != nil {
 		return err
 	}
+
 	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
 		if err := sh.Run("go", "install", p); err != nil {
 			return err
@@ -287,15 +300,13 @@ func BootstrapTools() error {
 }
 
 func Proto() error {
-	mg.Deps(ProtocBootstrap)
-	mg.Deps(ProtoBootstrap)
-	mg.Deps(GogoBootstrap)
+	mg.Deps(ProtocBootstrap, ProtoBootstrap, GogoBootstrap)
 	cmd, err := protocOutCmd()
 	if err != nil {
 		return err
 	}
 
-	paths := []string{
+	patterns := []string{
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
@@ -303,13 +314,20 @@ func Proto() error {
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
 	}
-	for _, path := range paths {
-		_, err = cmd(
-			"--proto_path=.",
-			"--proto_path=proto",
-			fmt.Sprintf("--armada_out=%s,plugins=grpc:./", protoGoPackageArgs()),
-			path,
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return err
+		}
+		args := append(
+			[]string{
+				"--proto_path=.",
+				"--proto_path=proto",
+				fmt.Sprintf("--armada_out=%s,plugins=grpc:./", protoGoPackageArgs()),
+			},
+			matches...,
 		)
+		_, err = cmd(args...)
 		if err != nil {
 			return err
 		}
@@ -374,12 +392,12 @@ func ProtoBootstrap() error {
 		if err != nil {
 			return err
 		}
-		tokens := []string{os.Getenv("GOPATH"), "pkg", "mod"}
+		tokens := []string{gopath(), "pkg", "mod"}
 		prefix := filepath.Join(tokens...)
 		tokens = append(tokens, strings.Split(module, "/")...)
 		tokens[len(tokens)-1] = tokens[len(tokens)-1] + "@" + v
 		err = filepath.WalkDir(filepath.Join(tokens...), func(path string, d fs.DirEntry, err error) error {
-			if d.IsDir() || filepath.Ext(path) != ".proto" {
+			if (d != nil && d.IsDir()) || filepath.Ext(path) != ".proto" {
 				return nil
 			}
 			s := path
@@ -491,7 +509,14 @@ func ProtocInstall() error {
 	}
 	defer os.RemoveAll("protoc.zip")
 
-	return unzip("protoc.zip", "./protoc")
+	if err := unzip("protoc.zip", "./protoc"); err != nil {
+		return err
+	}
+	if err := os.Chmod(protocPath(), 0755); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func unzip(zipPath, dstPath string) error {
@@ -503,7 +528,7 @@ func unzip(zipPath, dstPath string) error {
 	for _, file := range read.File {
 		name := path.Join(dstPath, file.Name)
 		if file.Mode().IsDir() {
-			os.MkdirAll(path.Dir(name), os.ModeDir)
+			os.MkdirAll(path.Dir(name), os.ModeDir|0755)
 			continue
 		}
 		open, err := file.Open()
@@ -511,7 +536,7 @@ func unzip(zipPath, dstPath string) error {
 			return err
 		}
 		defer open.Close()
-		os.MkdirAll(path.Dir(name), os.ModeDir)
+		os.MkdirAll(path.Dir(name), os.ModeDir|0755)
 		create, err := os.Create(name)
 		if err != nil {
 			return err
@@ -526,7 +551,7 @@ func unzip(zipPath, dstPath string) error {
 }
 
 func copy(srcPath, dstPath string) error {
-	os.MkdirAll(filepath.Dir(dstPath), os.ModeDir)
+	os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0755)
 	src, err := os.Open(srcPath)
 	if err != nil {
 		return err
@@ -540,26 +565,32 @@ func copy(srcPath, dstPath string) error {
 }
 
 func protocOutCmd() (func(args ...string) (string, error), error) {
-	var protocPath string
-	if runtime.GOOS == "windows" {
-		protocPath = "./protoc/bin/protoc.exe"
-	} else {
-		protocPath = "./protoc/bin/protoc"
-	}
-	ok, err := exists(protocPath)
+	p := protocPath()
+	ok, err := exists(p)
 	if err != nil {
 		return nil, err
 	}
 	if ok {
-		return sh.OutCmd(protocPath), nil
+		return sh.OutCmd(p), nil
 	}
 	return sh.OutCmd("protoc"), nil
+}
+
+func protocPath() string {
+	if runtime.GOOS == "windows" {
+		return "./protoc/bin/protoc.exe"
+	} else {
+		return "./protoc/bin/protoc"
+	}
 }
 
 func exists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
 	}
 	return false, err
 }
@@ -582,4 +613,15 @@ func protocArchOs() (string, error) {
 		return "win64", nil
 	}
 	return "", errors.Errorf("protoc not supported on %s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
+func gopath() string {
+	rv, err := sh.Output("go", "env", "GOPATH")
+	if err != nil {
+		panic(err)
+	}
+	if rv == "" {
+		panic("GOPATH not set")
+	}
+	return rv
 }
