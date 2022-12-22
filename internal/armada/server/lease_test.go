@@ -168,7 +168,7 @@ func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
 	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
 	assert.Nil(t, addJobsErr)
 
-	//Does not count towards retries if JobRunAttempted is false
+	// Does not count towards retries if JobRunAttempted is false
 	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
 		ClusterId:       clusterId,
 		JobId:           jobId,
@@ -179,7 +179,7 @@ func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 0, numberOfRetries)
 
-	//Does count towards reties if JobRunAttempted is true
+	// Does count towards reties if JobRunAttempted is true
 	_, err = aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
 		ClusterId:       clusterId,
 		JobId:           jobId,
@@ -189,7 +189,6 @@ func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
 	numberOfRetries, err = mockJobRepository.GetNumberOfRetryAttempts(jobId)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, numberOfRetries)
-
 }
 
 func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *fakeEventStore, *AggregatedQueueServer) {

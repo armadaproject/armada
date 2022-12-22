@@ -49,12 +49,12 @@ func podChecksWithMocks(eventResult Action, containerStateResult Action) *PodChe
 func Test_GetAction_PodNotScheduled(t *testing.T) {
 	podChecks := podChecksWithMocks(ActionWait, ActionWait)
 
-	//No issue if pod isn't scheduled in less than deadlineForNodeAssignment
+	// No issue if pod isn't scheduled in less than deadlineForNodeAssignment
 	result, cause, _ := podChecks.GetAction(createBasicPod(false), []*v1.Event{{Message: "MockEvent", Type: "None"}}, 10*time.Second)
 	assert.Equal(t, result, ActionWait)
 	assert.Equal(t, cause, None)
 
-	//Issue if pod isn't scheduled for longer than deadlineForNodeAssignment
+	// Issue if pod isn't scheduled for longer than deadlineForNodeAssignment
 	result, cause, _ = podChecks.GetAction(createBasicPod(false), []*v1.Event{{Message: "MockEvent", Type: "None"}}, 2*time.Minute)
 	assert.Equal(t, result, ActionRetry)
 	assert.Equal(t, cause, NoNodeAssigned)
