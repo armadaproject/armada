@@ -106,7 +106,7 @@ func protoGenerate() error {
 			[]string{
 				"--proto_path=.",
 				"--proto_path=proto",
-				fmt.Sprintf("--armada_out=%s,plugins=grpc:./", protoGoPackageArgs),
+				fmt.Sprintf("--armada_out=%s,paths=source_relative,plugins=grpc:./", protoGoPackageArgs),
 			},
 			matches...,
 		)
@@ -116,10 +116,15 @@ func protoGenerate() error {
 		}
 	}
 
-	err := protocRun(
+	err := sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
+	if err != nil {
+		return err
+	}
+
+	err = protocRun(
 		"--proto_path=.",
 		"--proto_path=proto",
-		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,%s:.", protoGoPackageArgs),
+		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", protoGoPackageArgs),
 		fmt.Sprintf("--swagger_out=logtostderr=true,%s,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/api:.", protoGoPackageArgs),
 		"pkg/api/event.proto",
 		"pkg/api/submit.proto",
@@ -131,7 +136,7 @@ func protoGenerate() error {
 	err = protocRun(
 		"--proto_path=.",
 		"--proto_path=proto",
-		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,%s:.", protoGoPackageArgs),
+		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", protoGoPackageArgs),
 		fmt.Sprintf("--swagger_out=logtostderr=true,%s,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/lookout/api:.", protoGoPackageArgs),
 		"pkg/api/lookout/lookout.proto",
 	)
@@ -142,20 +147,13 @@ func protoGenerate() error {
 	err = protocRun(
 		"--proto_path=.",
 		"--proto_path=proto",
-		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,%s:.", protoGoPackageArgs),
+		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", protoGoPackageArgs),
 		fmt.Sprintf("--swagger_out=logtostderr=true,%s,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/binoculars/api:.", protoGoPackageArgs),
 		"pkg/api/binoculars/binoculars.proto",
 	)
 	if err != nil {
 		return err
 	}
-
-	//err = sh.Run("sed", "-i", "s/api \"pkg/api\"/api \"github.com/G-Research/armada/pkg/api\"/g", "pkg/api/lookout/*.pb.go")
-	//err = sh.Run("sed", "-i", "s/api \"pkg/api\"/api \"github.com/G-Research/armada/pkg/api\"/g", "pkg/api/binoculars/*.pb.go")
-
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")
 
 	return nil
 }
