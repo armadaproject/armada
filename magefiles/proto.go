@@ -150,6 +150,9 @@ func protoGenerate() error {
 		return err
 	}
 
+	//err = sh.Run("sed", "-i", "s/api \"pkg/api\"/api \"github.com/G-Research/armada/pkg/api\"/g", "pkg/api/lookout/*.pb.go")
+	//err = sh.Run("sed", "-i", "s/api \"pkg/api\"/api \"github.com/G-Research/armada/pkg/api\"/g", "pkg/api/binoculars/*.pb.go")
+
 	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
 	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
 	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")

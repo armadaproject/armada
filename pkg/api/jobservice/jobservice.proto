@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package jobservice;
+option go_package = "github.com/G-Research/armada/pkg/jobservice";
 option csharp_namespace = "ArmadaProject.Io.JobService";
 
 import "google/protobuf/empty.proto";
