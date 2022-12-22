@@ -1,8 +1,8 @@
 syntax = 'proto3';
 
 package lookout;
-option go_package = "github.com/G-Research/armada/pkg/lookout";
-option csharp_namespace = "ArmadaProject.Io.Lookout";
+option go_package = "github.com/G-Research/armada/pkg/api/lookout";
+option csharp_namespace = "ArmadaProject.Io.Api.Lookout";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
