@@ -209,7 +209,8 @@ func makeTerminatingPod() *v1.Pod {
 
 func makeUnretryableStuckPod() *v1.Pod {
 	return makeTestPod(v1.PodStatus{
-		Phase: "Pending",
+		NominatedNodeName: "node1",
+		Phase:             "Pending",
 		ContainerStatuses: []v1.ContainerStatus{
 			{
 				State: v1.ContainerState{
