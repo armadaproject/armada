@@ -243,13 +243,13 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 				continue
 			}
 
-			action, podCheckMessage := c.pendingPodChecker.GetAction(pod, podEvents, time.Now().Sub(lastStateChange))
+			action, cause, podCheckMessage := c.pendingPodChecker.GetAction(pod, podEvents, time.Now().Sub(lastStateChange))
 
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
 				podIssueType := StuckStartingUp
-				if pod.Status.NominatedNodeName == "" {
+				if cause == podchecks.NoNodeAssigned {
 					podIssueType = UnableToSchedule
 				}
 

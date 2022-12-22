@@ -12,7 +12,7 @@ import (
 )
 
 type PodChecker interface {
-	GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string)
+	GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, Cause, string)
 }
 
 type PodChecks struct {
@@ -42,19 +42,19 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 	}, nil
 }
 
-func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, string) {
+func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, Cause, string) {
 	messages := []string{}
 
 	isAssignedToNode := pod.Status.NominatedNodeName != ""
 	if timeInState > pc.deadlineForNodeAssignment && !isAssignedToNode {
-		return ActionRetry, "Pod could not been scheduled in within %s deadline. Retrying"
+		return ActionRetry, NoNodeAssigned, "Pod could not been scheduled in within %s deadline. Retrying"
 	}
 
 	isNodeBad := pc.hasNoEventsOrStatus(pod, podEvents)
 	if timeInState > pc.deadlineForUpdates && isNodeBad {
-		return ActionRetry, "Pod status and pod events are both empty. Retrying"
+		return ActionRetry, NoStatusUpdates, "Pod status and pod events are both empty. Retrying"
 	} else if isNodeBad {
-		return ActionWait, "Pod status and pod events are both empty but we are under timelimit. Waiting"
+		return ActionWait, NoStatusUpdates, "Pod status and pod events are both empty but we are under timelimit. Waiting"
 	}
 	eventAction, message := pc.eventChecks.getAction(pod.Name, podEvents, timeInState)
 	if eventAction != ActionWait {
@@ -68,8 +68,12 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 
 	resultAction := maxAction(eventAction, containerStateAction)
 	resultMessage := strings.Join(messages, "\n")
+	var cause Cause
+	if resultAction != ActionWait {
+		cause = PodStartupIssue
+	}
 	log.Infof("Pod checks for pod %s returned %s %s\n", pod.Name, resultAction, resultMessage)
-	return resultAction, resultMessage
+	return resultAction, cause, resultMessage
 }
 
 // If a node is bad, we can have no pod status and no pod events.
