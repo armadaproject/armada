@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// tools
+// install go tools
 func BootstrapTools() error {
 	mg.Deps(goCheck)
 	packages, err := goOutput("list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
@@ -25,7 +25,7 @@ func BootstrapTools() error {
 	return nil
 }
 
-// check deps
+// check dependent tools are present and the correct version
 func CheckDeps() error {
 	checks := []struct {
 		name  string
@@ -55,47 +55,40 @@ func CheckDeps() error {
 	return nil
 }
 
-// clean
+// cleans proto files
 func Clean() {
 	fmt.Println("Cleaning...")
-	for _, path := range []string{"proto", "protoc", "protoc.zip"} {
+	for _, path := range []string{"proto"} {
 		os.RemoveAll(path)
 	}
 }
 
-// kind
+// setup kind and wait for it to be ready
 func Kind() {
 	mg.Deps(kindCheck)
 	mg.Deps(kindSetup)
 	mg.Deps(kindWaitUntilReady)
 }
 
+// teardown kind
 func KindTeardown() {
 	mg.Deps(kindCheck)
 	mg.Deps(kindTeardown)
 }
 
-// sql
+// generate scheduler sql
 func Sql() error {
 	mg.Deps(sqlcCheck)
 	return sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml")
 }
 
-// proto
-func GogoBootstrap() {
-	mg.Deps(protoInstallProtocGenArmada)
-}
-
-func ProtoBootstrap() {
-	mg.Deps(protoPrepareThirdPartyProtos)
-}
-
+// generate protos
 func Proto() {
 	mg.Deps(protocCheck, protoInstallProtocGenArmada, protoPrepareThirdPartyProtos)
 	mg.Deps(protoGenerate)
 }
 
-// ci
+// run integration test
 func CiIntegrationTests() {
 	mg.Deps(BootstrapTools)
 	mg.Deps(ciMinimalRelease, Kind)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 )
 
@@ -148,6 +149,11 @@ func protoGenerate() error {
 	if err != nil {
 		return err
 	}
+
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")
+
 	return nil
 }
 
