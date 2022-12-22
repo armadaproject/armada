@@ -84,13 +84,14 @@ func Sql() error {
 
 // generate protos
 func Proto() {
-	mg.Deps(protocCheck, protoInstallProtocGenArmada, protoPrepareThirdPartyProtos)
+	mg.Deps(protocCheck, protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 	mg.Deps(protoGenerate)
 }
 
 // run integration test
 func CiIntegrationTests() {
 	mg.Deps(BootstrapTools)
+	mg.Deps(ciWriteMinimalReleaseConfig)
 	mg.Deps(ciMinimalRelease, Kind)
 	mg.Deps(ciRunTests)
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func protoInstallProtocGenArmada() error {
+func protoInstallProtocArmadaPlugin() error {
 	return goRun("install", "protoc-gen-armada.go")
 }
 

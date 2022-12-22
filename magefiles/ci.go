@@ -9,7 +9,7 @@ import (
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"sigs.k8s.io/yaml"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
@@ -118,16 +118,5 @@ func ciWriteMinimalReleaseConfig() error {
 	if err != nil {
 		return err
 	}
-	f, err := os.Create(".goreleaser-minimal.yml")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if n, err := f.Write(bytes); err != nil {
-		return err
-	} else if n != len(bytes) {
-		return errors.Errorf("only $d out of $d bytes were written", n, len(bytes))
-	}
-
-	return nil
+	return os.WriteFile(".goreleaser-minimal.yml", bytes, 0644)
 }
