@@ -1,0 +1,103 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/magefile/mage/mg"
+	"github.com/pkg/errors"
+)
+
+// tools
+func BootstrapTools() error {
+	mg.Deps(goCheck)
+	packages, err := goOutput("list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
+	if err != nil {
+		return err
+	}
+	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
+		err := goRun("install", p)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// check deps
+func CheckDeps() error {
+	checks := []struct {
+		name  string
+		check func() error
+	}{
+		{"docker", dockerCheck},
+		{"docker-compose", dockerComposeCheck},
+		{"go", goCheck},
+		{"kind", kindCheck},
+		{"kubectl", kubectlCheck},
+		{"protoc", protocCheck},
+		{"sqlc", sqlcCheck},
+	}
+	failures := false
+	for _, check := range checks {
+		fmt.Printf("Checking %s... ", check.name)
+		if err := check.check(); err != nil {
+			fmt.Printf("FAILED\nReason: %v\n", err)
+			failures = true
+		} else {
+			fmt.Println("PASSED")
+		}
+	}
+	if failures {
+		return errors.New("check(s) failed.")
+	}
+	return nil
+}
+
+// clean
+func Clean() {
+	fmt.Println("Cleaning...")
+	for _, path := range []string{"proto", "protoc", "protoc.zip"} {
+		os.RemoveAll(path)
+	}
+}
+
+// kind
+func Kind() {
+	mg.Deps(kindCheck)
+	mg.Deps(kindSetup)
+	mg.Deps(kindWaitUntilReady)
+}
+
+func KindTeardown() {
+	mg.Deps(kindCheck)
+	mg.Deps(kindTeardown)
+}
+
+// sql
+func Sql() error {
+	mg.Deps(sqlcCheck)
+	return sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml")
+}
+
+// proto
+func GogoBootstrap() {
+	mg.Deps(protoInstallProtocGenArmada)
+}
+
+func ProtoBootstrap() {
+	mg.Deps(protoPrepareThirdPartyProtos)
+}
+
+func Proto() {
+	mg.Deps(protocCheck, protoInstallProtocGenArmada, protoPrepareThirdPartyProtos)
+	mg.Deps(protoGenerate)
+}
+
+// ci
+func CiIntegrationTests() {
+	mg.Deps(BootstrapTools)
+	mg.Deps(ciMinimalRelease, Kind)
+	mg.Deps(ciRunTests)
+}
