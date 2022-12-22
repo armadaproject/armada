@@ -20,7 +20,7 @@ type IssueType int
 
 const (
 	UnableToSchedule  IssueType = iota
-	StuckPending      IssueType = iota
+	StuckStartingUp   IssueType = iota
 	StuckTerminating  IssueType = iota
 	ExternallyDeleted IssueType = iota
 )
@@ -248,7 +248,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
-				podIssueType := StuckPending
+				podIssueType := StuckStartingUp
 				if pod.Status.NominatedNodeName == "" {
 					podIssueType = UnableToSchedule
 				}

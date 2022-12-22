@@ -151,7 +151,7 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 			continue
 		}
 
-		if runningJob.Issue.Type == job.StuckPending {
+		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
 			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
 			err := m.eventReporter.Report(event)
 			if err != nil {
