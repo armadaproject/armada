@@ -45,7 +45,7 @@ func NewPodChecks(cfg config.Checks) (*PodChecks, error) {
 func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState time.Duration) (Action, Cause, string) {
 	messages := []string{}
 
-	isAssignedToNode := pod.Status.NominatedNodeName != ""
+	isAssignedToNode := pod.Spec.NodeName != ""
 	if timeInState > pc.deadlineForNodeAssignment && !isAssignedToNode {
 		return ActionRetry, NoNodeAssigned, "Pod could not been scheduled in within %s deadline. Retrying"
 	}

@@ -79,7 +79,7 @@ func Test_GetAction_BadNodeButUnderTimeLimit(t *testing.T) {
 func createBasicPod(scheduled bool) *v1.Pod {
 	pod := &v1.Pod{}
 	if scheduled {
-		pod.Status = v1.PodStatus{NominatedNodeName: "node1"}
+		pod.Spec = v1.PodSpec{NodeName: "node1"}
 	}
 	return pod
 }
