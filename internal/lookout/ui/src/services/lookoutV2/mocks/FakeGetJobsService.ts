@@ -3,11 +3,7 @@ import { IGetJobsService, GetJobsResponse } from "services/lookoutV2/GetJobsServ
 import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
 export default class FakeGetJobsService implements IGetJobsService {
-  jobs: Job[]
-
-  constructor(jobs: Job[]) {
-    this.jobs = jobs
-  }
+  constructor(private jobs: Job[], private simulateApiWait = true) {}
 
   async getJobs(
     filters: JobFilter[],
@@ -17,7 +13,10 @@ export default class FakeGetJobsService implements IGetJobsService {
     signal: AbortSignal | undefined,
   ): Promise<GetJobsResponse> {
     console.log("Making GetJobs call with params:", { filters, order, skip, take, signal })
-    await simulateApiWait()
+    if (this.simulateApiWait) {
+      await simulateApiWait(signal)
+    }
+
     const filtered = this.jobs.filter(mergeFilters(filters)).sort(comparator(order))
     const response: GetJobsResponse = {
       count: filtered.length,

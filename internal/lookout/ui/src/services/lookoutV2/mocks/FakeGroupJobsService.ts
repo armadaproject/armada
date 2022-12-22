@@ -3,11 +3,7 @@ import { IGroupJobsService, GroupJobsResponse } from "services/lookoutV2/GroupJo
 import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
 export default class FakeGroupJobsService implements IGroupJobsService {
-  jobs: Job[]
-
-  constructor(jobs: Job[]) {
-    this.jobs = jobs
-  }
+  constructor(private jobs: Job[], private simulateApiWait = true) {}
 
   async groupJobs(
     filters: JobFilter[],
@@ -19,7 +15,10 @@ export default class FakeGroupJobsService implements IGroupJobsService {
     signal: AbortSignal | undefined,
   ): Promise<GroupJobsResponse> {
     console.log("GroupJobs called with params:", { filters, order, groupedField, aggregates, skip, take, signal })
-    await simulateApiWait()
+    if (this.simulateApiWait) {
+      await simulateApiWait(signal)
+    }
+
     const filtered = this.jobs.filter(mergeFilters(filters))
     const groups = groupBy(filtered, groupedField)
     const sliced = groups.sort(comparator(order)).slice(skip, skip + take)
