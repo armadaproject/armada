@@ -256,9 +256,10 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
 
 export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 
+export const ANNOTATION_COLUMN_PREFIX = "annotation_"
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({
-    id: `annotation_${annotationKey}`,
+    id: `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`,
     accessor: (jobTableRow) => jobTableRow.annotations?.[annotationKey],
     displayName: annotationKey,
     additionalOptions: {
