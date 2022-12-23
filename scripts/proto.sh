@@ -11,37 +11,37 @@ Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---gogofaster_out=$TYPES,plugins=grpc:./ \
+--gogofaster_out=$TYPES,paths=source_relative,plugins=grpc:./ \
 pkg/api/*.proto
 
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---gogofaster_out=$TYPES:./ \
+--gogofaster_out=$TYPES,paths=source_relative:./ \
 pkg/armadaevents/*.proto
 
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---gogofaster_out=$TYPES,plugins=grpc:./ \
+--gogofaster_out=$TYPES,paths=source_relative,plugins=grpc:./ \
 internal/scheduler/schedulerobjects/*.proto
 
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---gogofaster_out=$TYPES,plugins=grpc:./ \
+--gogofaster_out=$TYPES,paths=source_relative,plugins=grpc:./ \
 pkg/api/lookout/*.proto
 
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---gogofaster_out=$TYPES,plugins=grpc:./ \
+--gogofaster_out=$TYPES,paths=source_relative,plugins=grpc:./ \
 pkg/api/binoculars/*.proto
 
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---gogofaster_out=$TYPES,plugins=grpc:./ \
+--gogofaster_out=$TYPES,paths=source_relative,plugins=grpc:./ \
 pkg/api/jobservice/*.proto
 
 # gogo proto generates correct json name inside protobuf tag but wrong json tag, for example:
@@ -61,7 +61,7 @@ sed -i 's|api "pkg/api"|api "github.com/G-Research/armada/pkg/api"|g'  pkg/api/b
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---grpc-gateway_out=logtostderr=true,$TYPES:. \
+--grpc-gateway_out=logtostderr=true,paths=source_relative,$TYPES:. \
 --swagger_out=logtostderr=true,$TYPES,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/api:. \
 pkg/api/event.proto \
 pkg/api/submit.proto
@@ -69,13 +69,13 @@ pkg/api/submit.proto
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---grpc-gateway_out=logtostderr=true,$TYPES:. \
+--grpc-gateway_out=logtostderr=true,paths=source_relative,$TYPES:. \
 --swagger_out=logtostderr=true,$TYPES,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/lookout/api:. \
 pkg/api/lookout/lookout.proto \
 
 protoc \
 --proto_path=. \
 --proto_path=/proto \
---grpc-gateway_out=logtostderr=true,$TYPES:. \
+--grpc-gateway_out=logtostderr=true,paths=source_relative,$TYPES:. \
 --swagger_out=logtostderr=true,$TYPES,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/binoculars/api:. \
 pkg/api/binoculars/binoculars.proto
