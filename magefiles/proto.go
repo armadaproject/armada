@@ -78,85 +78,6 @@ func protoPrepareThirdPartyProtos() error {
 	return nil
 }
 
-func protoGenerate() error {
-	patterns := []string{
-		"pkg/api/*.proto",
-		"pkg/armadaevents/*.proto",
-		"internal/scheduler/schedulerobjects/*.proto",
-		"pkg/api/lookout/*.proto",
-		"pkg/api/binoculars/*.proto",
-		"pkg/api/jobservice/*.proto",
-	}
-	paths := []string{
-		"Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types",
-		"Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types",
-		"Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types",
-		"Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types",
-		"Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types",
-		"Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types",
-	}
-	protoGoPackageArgs := strings.Join(paths, ",")
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			return err
-		}
-		args := append(
-			[]string{
-				"--proto_path=.",
-				"--proto_path=proto",
-				fmt.Sprintf("--armada_out=%s,paths=source_relative,plugins=grpc:./", protoGoPackageArgs),
-			},
-			matches...,
-		)
-		err = protocRun(args...)
-		if err != nil {
-			return err
-		}
-	}
-
-	err := sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
-	if err != nil {
-		return err
-	}
-
-	err = protocRun(
-		"--proto_path=.",
-		"--proto_path=proto",
-		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", protoGoPackageArgs),
-		fmt.Sprintf("--swagger_out=logtostderr=true,%s,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/api:.", protoGoPackageArgs),
-		"pkg/api/event.proto",
-		"pkg/api/submit.proto",
-	)
-	if err != nil {
-		return err
-	}
-
-	err = protocRun(
-		"--proto_path=.",
-		"--proto_path=proto",
-		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", protoGoPackageArgs),
-		fmt.Sprintf("--swagger_out=logtostderr=true,%s,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/lookout/api:.", protoGoPackageArgs),
-		"pkg/api/lookout/lookout.proto",
-	)
-	if err != nil {
-		return err
-	}
-
-	err = protocRun(
-		"--proto_path=.",
-		"--proto_path=proto",
-		fmt.Sprintf("--grpc-gateway_out=logtostderr=true,paths=source_relative,%s:.", protoGoPackageArgs),
-		fmt.Sprintf("--swagger_out=logtostderr=true,%s,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=./pkg/api/binoculars/api:.", protoGoPackageArgs),
-		"pkg/api/binoculars/binoculars.proto",
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func copy(srcPath, dstPath string) error {
 	err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755)
 	if err != nil {
@@ -174,4 +95,77 @@ func copy(srcPath, dstPath string) error {
 	defer dst.Close()
 	_, err = io.Copy(dst, src)
 	return err
+}
+
+func protoGenerate() error {
+	patterns := []string{
+		"pkg/api/*.proto",
+		"pkg/armadaevents/*.proto",
+		"internal/scheduler/schedulerobjects/*.proto",
+		"pkg/api/lookout/*.proto",
+		"pkg/api/binoculars/*.proto",
+		"pkg/api/jobservice/*.proto",
+	}
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return err
+		}
+		err = protoProtocRun(true, false, "", matches...)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
+	if err != nil {
+		return err
+	}
+
+	err = protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
+	if err != nil {
+		return err
+	}
+
+	err = protoProtocRun(false, true, "./pkg/api/lookout/api", "pkg/api/lookout/lookout.proto")
+	if err != nil {
+		return err
+	}
+
+	err = protoProtocRun(false, true, "./pkg/api/binoculars/api", "pkg/api/binoculars/binoculars.proto")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...string) error {
+	modules := "Mgoogle/protobuf/any.proto=github.com/gogo/protobuf/types," +
+		"Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types," +
+		"Mgoogle/protobuf/struct.proto=github.com/gogo/protobuf/types," +
+		"Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types," +
+		"Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types," +
+		"Mgoogle/protobuf/wrappers.proto=github.com/gogo/protobuf/types"
+
+	args := []string{
+		"--proto_path=.",
+		"--proto_path=proto",
+	}
+
+	if armada {
+		args = append(args, fmt.Sprintf("--armada_out=paths=source_relative,plugins=grpc,%s:./", modules))
+	}
+
+	if grpcGateway {
+		args = append(args, "--grpc-gateway_out=logtostderr=true,paths=source_relative:.")
+	}
+
+	if swaggerFileName != "" {
+		args = append(args, fmt.Sprintf("--swagger_out=logtostderr=true,allow_merge=true,simple_operation_ids=true,json_names_for_fields=true,merge_file_name=%s:.", swaggerFileName))
+	}
+
+	args = append(args, paths...)
+
+	return protocRun(args...)
 }
