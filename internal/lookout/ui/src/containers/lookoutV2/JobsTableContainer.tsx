@@ -141,7 +141,7 @@ export const JobsTableContainer = ({
     [sidebarJobId, jobInfoMap],
   )
 
-  // Update query params + local storage with table state
+  // Update query params with table state
   useEffect(() => {
     jobsTablePreferencesService.saveNewPrefs({
       groupedColumns: grouping,

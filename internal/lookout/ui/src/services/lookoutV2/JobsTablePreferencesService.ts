@@ -80,39 +80,29 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringSafePrefs =>
 
   // The order of these keys are the order they'll show in the URL bar (in modern browsers)
   return {
-    // Current page number
     page: prefs.pageIndex.toString(),
 
-    // Grouped columns
     g: padEmptyArrayWithNull(prefs.groupedColumns),
 
-    // Column filters
     f: prefs.filterState.map(({ id, value }) => ({ id, value: value as string })),
 
-    // Sorting order
     sort: prefs.sortingState.map(({ id, desc }) => ({ id, desc: desc.toString() })),
 
-    // Visible columns
     vCols: Object.entries(prefs.visibleColumns)
       .filter(([_, visible]) => visible)
       .map(([columnId]) => columnId),
 
-    // Annotation columns
-    // TODO: Re-use constant, or add a helper
     aCols: prefs.allColumnsInfo
       .filter((col) => col.id?.startsWith(ANNOTATION_COLUMN_PREFIX))
       .map((col) => col.id?.slice(ANNOTATION_COLUMN_PREFIX.length))
       .filter((annotationKey): annotationKey is string => annotationKey !== undefined),
 
-    // Expanded rows
     e: Object.entries(prefs.expandedState)
       .filter(([_, expanded]) => expanded)
       .map(([rowId, _]) => rowId),
 
-    // Page size
     pS: prefs.pageSize.toString(),
 
-    // Sidebar job
     sb: prefs.sidebarJobId,
   }
 }
@@ -198,13 +188,3 @@ export class JobsTablePreferencesService {
     }
   }
 }
-
-/**
- * page=0&
- * g[0]=queue&
- * sort[0][id]=jobId&sort[0][desc]=true&
- * vCols[0]=selectorCol&vCols[1]=queue&vCols[2]=jobSet&vCols[3]=jobId&vCols[4]=state&vCols[5]=timeInState&vCols[6]=timeSubmittedUtc&
- * pS=50&
- * page=NaN&
- * f[0][id]=queue&f[0][value]=hello%20test
- */
