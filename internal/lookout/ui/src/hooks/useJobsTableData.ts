@@ -8,6 +8,7 @@ import {
   ExpandedStateList,
 } from "@tanstack/react-table"
 import { JobTableRow, JobRow, JobGroupRow } from "models/jobsTableModels"
+import { Job, JobId } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -40,6 +41,7 @@ export interface UseFetchJobsTableDataArgs {
 }
 export interface UseFetchJobsTableDataResult {
   data: JobTableRow[]
+  jobInfoMap: Map<JobId, Job>
   pageCount: number
   rowsToFetch: PendingData[]
   setRowsToFetch: (toFetch: PendingData[]) => void
@@ -59,7 +61,8 @@ export const useFetchJobsTableData = ({
   enqueueSnackbar,
 }: UseFetchJobsTableDataArgs): UseFetchJobsTableDataResult => {
   const [data, setData] = useState<JobTableRow[]>([])
-  const [pendingData, setPendingData] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
+  const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
+  const [pendingData, setPendingData] = useState<PendingData[]>([])
   const [totalRowCount, setTotalRowCount] = useState(0)
   const [pageCount, setPageCount] = useState<number>(-1)
 
@@ -97,6 +100,8 @@ export const useFetchJobsTableData = ({
           const { jobs, count: totalJobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
           newData = jobsToRows(jobs)
           totalCount = totalJobs
+
+          setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
 
@@ -164,6 +169,7 @@ export const useFetchJobsTableData = ({
 
   return {
     data,
+    jobInfoMap,
     pageCount,
     rowsToFetch: pendingData,
     setRowsToFetch: setPendingData,
