@@ -25,11 +25,11 @@ describe("JobsTablePreferencesService", () => {
         // From query string above
         pageIndex: 3,
         groupedColumns: ["state" as ColumnId],
-        sortingState: [{id: "jobId", desc: false}],
+        sortingState: [{ id: "jobId", desc: false }],
 
         // Some defaults not provided via query string
         pageSize: 50,
-        allColumnsInfo: JOB_COLUMNS
+        allColumnsInfo: JOB_COLUMNS,
       })
     })
   })
@@ -37,7 +37,7 @@ describe("JobsTablePreferencesService", () => {
   describe("saveNewPrefs", () => {
     it("does not remove other unrelated query params", () => {
       history.push({
-        search: '?debug&someOtherKey=test'
+        search: "?debug&someOtherKey=test",
       })
 
       service.saveNewPrefs(DEFAULT_PREFERENCES)
@@ -86,7 +86,9 @@ describe("JobsTablePreferencesService", () => {
     it("round-trips special characters", () => {
       savePrefWithDefaults({ filterState: [{ id: "queue", value: "test & why / do $ this" }] })
       expect(history.location.search).toContain("f[0][id]=queue&f[0][value]=test%20%26%20why%20%2F%20do%20%24%20this")
-      expect(service.getInitialUserPrefs().filterState).toStrictEqual([{ id: "queue", value: "test & why / do $ this" }])
+      expect(service.getInitialUserPrefs().filterState).toStrictEqual([
+        { id: "queue", value: "test & why / do $ this" },
+      ])
     })
 
     it("round-trips empty list", () => {

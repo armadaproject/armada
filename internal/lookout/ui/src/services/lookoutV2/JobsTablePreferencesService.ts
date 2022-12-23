@@ -2,6 +2,7 @@ import { ExpandedStateList, ColumnFiltersState, SortingState, VisibilityState } 
 import { History } from "history"
 import { JobId } from "models/lookoutV2Models"
 import qs from "qs"
+
 import {
   ANNOTATION_COLUMN_PREFIX,
   ColumnId,
@@ -155,14 +156,14 @@ export class JobsTablePreferencesService {
   private savePrefsToQueryParams(newPrefs: JobsTablePreferences) {
     try {
       // Avoids overwriting existing unrelated query params
-      const existingQueryParams = qs.parse(this.historyService.location.search, {ignoreQueryPrefix: true,})
+      const existingQueryParams = qs.parse(this.historyService.location.search, { ignoreQueryPrefix: true })
       const prefsQueryParams = toQueryStringSafe(newPrefs)
       const mergedQueryParams = {
         ...existingQueryParams,
-        ...prefsQueryParams
+        ...prefsQueryParams,
       }
 
-      console.log({mergedQueryParams})
+      console.log({ mergedQueryParams })
 
       this.historyService.push({
         search: qs.stringify(mergedQueryParams, {
