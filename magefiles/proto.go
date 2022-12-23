@@ -79,7 +79,6 @@ func protoPrepareThirdPartyProtos() error {
 }
 
 func protoGenerate() error {
-
 	patterns := []string{
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
@@ -159,7 +158,7 @@ func protoGenerate() error {
 }
 
 func copy(srcPath, dstPath string) error {
-	err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0755)
+	err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755)
 	if err != nil {
 		return err
 	}

@@ -5,16 +5,17 @@ import (
 	"os"
 	"time"
 
-	"github.com/G-Research/armada/pkg/client/util"
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/G-Research/armada/pkg/client/util"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func ciRunTests() error {
-	if err := os.MkdirAll(".kube", os.ModeDir|0755); err != nil {
+	if err := os.MkdirAll(".kube", os.ModeDir|0o755); err != nil {
 		return err
 	}
 	err := dockerComposeRun("up", "-d", "redis", "postgres", "pulsar", "stan")
@@ -118,5 +119,5 @@ func ciWriteMinimalReleaseConfig() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(".goreleaser-minimal.yml", bytes, 0644)
+	return os.WriteFile(".goreleaser-minimal.yml", bytes, 0o644)
 }

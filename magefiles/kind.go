@@ -10,10 +10,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-const KIND_VERSION_CONSTRAINT = ">= 0.14.0"
-const KIND_CONFIG_INTERNAL = ".kube/internal/config"
-const KIND_CONFIG_EXTERNAL = ".kube/external/config"
-const KIND_NAME = "armada-test"
+const (
+	KIND_VERSION_CONSTRAINT = ">= 0.14.0"
+	KIND_CONFIG_INTERNAL    = ".kube/internal/config"
+	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
+	KIND_NAME               = "armada-test"
+)
 
 func kindBinary() string {
 	return binaryWithExt("kind")
@@ -119,7 +121,7 @@ func kindWriteKubeConfig() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_EXTERNAL), os.ModeDir|0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_EXTERNAL), os.ModeDir|0o755); err != nil {
 		return err
 	}
 	if f, err := os.Create(KIND_CONFIG_EXTERNAL); err != nil {
@@ -135,7 +137,7 @@ func kindWriteKubeConfig() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_INTERNAL), os.ModeDir|0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(KIND_CONFIG_INTERNAL), os.ModeDir|0o755); err != nil {
 		return err
 	}
 	if f, err := os.Create(KIND_CONFIG_INTERNAL); err != nil {

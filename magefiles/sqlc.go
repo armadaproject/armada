@@ -19,6 +19,7 @@ func sqlcOutput(args ...string) (string, error) {
 func sqlcRun(args ...string) error {
 	return sh.Run(sqlcBinary(), args...)
 }
+
 func sqlcVersion() (*semver.Version, error) {
 	output, err := sqlcOutput("version")
 	if err != nil {
