@@ -63,13 +63,13 @@ func protoPrepareThirdPartyProtos() error {
 			if (d != nil && d.IsDir()) || filepath.Ext(path) != ".proto" {
 				return nil
 			}
-			// get relative path
-			dest := strings.ReplaceAll(path, goModPath, ".")
-			// replace versioned path with clean path
+			// get path relative to go mod path
+			dest := trimSlashPrefix(strings.TrimPrefix(path, goModPath))
+			// remove version
 			dest = strings.ReplaceAll(dest, relModPathWithVersion, relModPath)
-			// root sub-directories (if applicable)
+			// re-root (if applicable)
 			for _, root := range module.roots {
-				dest = strings.ReplaceAll(dest, root, ".")
+				dest = trimSlashPrefix(strings.TrimPrefix(dest, root))
 			}
 			// copy to proto folder
 			dest = filepath.Join("proto", dest)
@@ -80,6 +80,10 @@ func protoPrepareThirdPartyProtos() error {
 		}
 	}
 	return nil
+}
+
+func trimSlashPrefix(path string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(path, "/"), "\\")
 }
 
 func copy(srcPath, dstPath string) error {
