@@ -1,9 +1,11 @@
 import { render, within, waitFor, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { History, createMemoryHistory } from "history"
 import { Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
@@ -20,7 +22,9 @@ describe("JobsTableContainer", () => {
   let jobs: Job[],
     getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
-    updateJobsService: UpdateJobsService
+    updateJobsService: UpdateJobsService,
+    historyService: History,
+    jobsTablePreferencesService: JobsTablePreferencesService
 
   beforeEach(() => {
     numJobs = 5
@@ -29,6 +33,9 @@ describe("JobsTableContainer", () => {
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
     getJobsService = new FakeGetJobsService(jobs, false)
     groupJobsService = new FakeGroupJobsService(jobs, false)
+
+    historyService = createMemoryHistory()
+    jobsTablePreferencesService = new JobsTablePreferencesService(historyService)
 
     updateJobsService = {
       cancelJobs: jest.fn(),
@@ -39,6 +46,7 @@ describe("JobsTableContainer", () => {
     render(
       <SnackbarProvider>
         <JobsTableContainer
+          jobsTablePreferencesService={jobsTablePreferencesService}
           getJobsService={getJobsService}
           groupJobsService={groupJobsService}
           updateJobsService={updateJobsService}
@@ -381,15 +389,14 @@ describe("JobsTableContainer", () => {
 
   describe("Sidebar", () => {
     it("clicking job row should open sidebar", async () => {
-      const { findByRole, getByRole } = renderComponent()
+      const { getByRole } = renderComponent()
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
       await expandRow(firstJob.queue)
       await expandRow(firstJob.jobSet)
 
-      const jobRow = await findByRole("row", { name: new RegExp(firstJob.jobId) })
-      await userEvent.click(within(jobRow).getByText(firstJob.jobId))
+      await clickOnJobRow(firstJob.jobId)
 
       const sidebar = getByRole("complementary")
       within(sidebar).getByText(firstJob.jobId)
@@ -407,6 +414,54 @@ describe("JobsTableContainer", () => {
     })
   })
 
+  describe("Query Params", () => {
+    it("should save table state to query params on load", async () => {
+      renderComponent()
+      await waitForFinishedLoading()
+
+      expect(historyService.location.search).toContain("page=0")
+      expect(historyService.location.search).toContain("g[0]=queue&g[1]=jobSet")
+      expect(historyService.location.search).toContain("sort[0][id]=jobId&sort[0][desc]=true")
+    })
+
+    it("should save modifications to query params", async () => {
+      renderComponent()
+      await waitForFinishedLoading()
+
+      await clearAllGroupings()
+      await groupByColumn("Job Set")
+
+      await filterTextColumnTo("Job Set", jobs[0].jobSet)
+
+      await expandRow(jobs[0].jobSet)
+
+      await clickOnJobRow(jobs[0].jobId)
+
+      expect(historyService.location.search).toContain("g[0]=jobSet")
+      expect(historyService.location.search).not.toContain("g[1]")
+      expect(historyService.location.search).toContain("sb=01gkv9cj53h0rk9407mds0")
+      expect(historyService.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
+    })
+
+    it("should populate table state from query params", async () => {
+      // Set query param to the same as the test above
+      historyService.push({
+        ...historyService.location,
+        search: `?page=0&g[0]=jobSet&sort[0][id]=jobId&sort[0][desc]=true&vCols[0]=jobId&vCols[1]=queue&vCols[2]=jobSet&vCols[3]=state&vCols[4]=timeSubmittedUtc&vCols[5]=timeInState&vCols[6]=selectorCol&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&e[0]=jobSet%3Ajob-set-1&sb=01gkv9cj53h0rk9407mds0`,
+      })
+
+      const { findByRole } = renderComponent()
+      await waitForFinishedLoading()
+
+      // 1 jobset + jobs for expanded jobset
+      await assertNumDataRowsShown(1 + jobs.filter((j) => j.jobSet === "job-set-1").length)
+
+      const sidebar = await findByRole("complementary")
+      within(sidebar).getByText(jobs[0].jobId)
+      within(sidebar).getByText(jobs[0].queue)
+    })
+  })
+
   async function waitForFinishedLoading() {
     await waitFor(() => expect(screen.queryAllByRole("progressbar").length).toBe(0))
   }
@@ -414,7 +469,8 @@ describe("JobsTableContainer", () => {
   async function assertNumDataRowsShown(nDataRows: number) {
     await waitFor(
       async () => {
-        const rows = await screen.findAllByRole("row")
+        const table = await screen.findByRole("table", { name: "Jobs table" })
+        const rows = await within(table).findAllByRole("row")
         expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
       },
       { timeout: 3000 },
@@ -503,5 +559,10 @@ describe("JobsTableContainer", () => {
     // Close pop up
     await userEvent.click(screen.getByText(/Click here to add an annotation column/i))
     await userEvent.keyboard("{Escape}")
+  }
+
+  async function clickOnJobRow(jobId: string) {
+    const jobRow = await screen.findByRole("row", { name: new RegExp(jobId) })
+    await userEvent.click(within(jobRow).getByText(jobId))
   }
 })
