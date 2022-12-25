@@ -23,9 +23,9 @@ impl ArmadaClient {
     }
     pub async fn get_job_events_stream(
         &mut self,
-        queue: &str,
-        id: &str,
-        from_message_id: &str,
+        queue: impl Into<String>,
+        id: impl Into<String>,
+        from_message_id: impl Into<String>,
     ) -> Result<tonic::Response<tonic::Streaming<EventStreamMessage>>, tonic::Status> {
         let jsr = JobSetRequest {
             queue: queue.into(),
@@ -54,8 +54,8 @@ impl ArmadaClient {
 
     pub async fn submit_jobs(
         &mut self,
-        queue: &str,
-        job_set_id: &str,
+        queue: impl Into<String>,
+        job_set_id: impl Into<String>,
         job_request_items: Vec<JobSubmitRequestItem>,
     ) -> Result<tonic::Response<JobSubmitResponse>, tonic::Status> {
         let request = JobSubmitRequest {
@@ -68,9 +68,9 @@ impl ArmadaClient {
 
     pub async fn cancel_jobs(
         &mut self,
-        queue: &str,
-        job_id: &str,
-        job_set_id: &str,
+        queue: impl Into<String>,
+        job_id: impl Into<String>,
+        job_set_id: impl Into<String>,
     ) -> Result<tonic::Response<CancellationResult>, tonic::Status> {
         let request = JobCancelRequest {
             queue: queue.into(),
@@ -83,8 +83,8 @@ impl ArmadaClient {
 
     pub async fn cancel_jobset(
         &mut self,
-        queue: &str,
-        job_set_id: &str,
+        queue: impl Into<String>,
+        job_set_id: impl Into<String>,
         filter_states: Vec<JobState>,
     ) -> Result<tonic::Response<()>, tonic::Status> {
         let filter = JobSetFilter {
@@ -93,7 +93,6 @@ impl ArmadaClient {
                 .map(|s| s.try_into().unwrap())
                 .collect(),
         };
-        println!("{filter:?}");
         let request = JobSetCancelRequest {
             queue: queue.into(),
             job_set_id: job_set_id.into(),
@@ -106,8 +105,8 @@ impl ArmadaClient {
         &mut self,
         new_priority: f64,
         job_ids: Vec<String>,
-        job_set_id: &str,
-        queue: &str,
+        job_set_id: impl Into<String>,
+        queue: impl Into<String>,
     ) -> Result<tonic::Response<JobReprioritizeResponse>, tonic::Status> {
         let request = JobReprioritizeRequest {
             job_ids,
@@ -148,7 +147,10 @@ impl ArmadaClient {
         self.submit_client.update_queues(queue_list).await
     }
 
-    pub async fn delete_queue(&mut self, name: &str) -> Result<tonic::Response<()>, tonic::Status> {
+    pub async fn delete_queue(
+        &mut self,
+        name: impl Into<String>,
+    ) -> Result<tonic::Response<()>, tonic::Status> {
         self.submit_client
             .delete_queue(QueueDeleteRequest { name: name.into() })
             .await
@@ -162,7 +164,7 @@ impl ArmadaClient {
 
     pub async fn get_queue_info(
         &mut self,
-        name: &str,
+        name: impl Into<String>,
     ) -> Result<tonic::Response<QueueInfo>, tonic::Status> {
         self.submit_client
             .get_queue_info(QueueInfoRequest { name: name.into() })
