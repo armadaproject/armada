@@ -31,8 +31,14 @@ export function seededUuid(rand: () => number): () => string {
     })
 }
 
-export async function simulateApiWait(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, randomInt(200, 1000, Math.random)))
+export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
+  await new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(resolve, randomInt(200, 1000, Math.random))
+    abortSignal?.addEventListener("abort", () => {
+      clearTimeout(timeoutId)
+      reject()
+    })
+  })
 }
 
 export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100): Job[] {
@@ -115,12 +121,14 @@ export function mergeFilters(filters: JobFilter[]): (job: Job) => boolean {
 
 export function filterFn(filter: JobFilter): (job: Job) => boolean {
   return (job) => {
-    if (!Object.prototype.hasOwnProperty.call(job, filter.field)) {
-      console.error(`Unknown filter field provided: ${filter.field}`)
+    const objectToFilter = filter.isAnnotation ? job.annotations : job
+
+    if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
+      console.error(`Unknown filter field provided: ${filter}`)
       return false
     }
     const matcher = getMatch(filter.match)
-    return matcher(job[filter.field as JobKey], filter.value)
+    return matcher(objectToFilter[filter.field as JobKey], filter.value)
   }
 }
 
