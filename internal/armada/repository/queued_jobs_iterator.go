@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
-	"github.com/G-Research/armada/pkg/api"
+
 	"golang.org/x/sync/errgroup"
+
+	"github.com/G-Research/armada/pkg/api"
 )
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.

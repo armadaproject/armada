@@ -101,7 +101,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 
 // SchedulerJobRepository represents the underlying jobs database.
 type SchedulerJobRepository[T LegacySchedulerJob] interface {
-	// GetJobIterator returns a iterqator over jqueued jobs for a given queue.
+	// GetJobIterator returns a iterator over queued jobs for a given queue.
 	GetJobIterator(ctx context.Context, queue string) (JobIterator[T], error)
 	// TryLeaseJobs tries to create jobs leases and returns the jobs that were successfully leased.
 	// Leasing may fail, e.g., if the job was concurrently leased to another executor.

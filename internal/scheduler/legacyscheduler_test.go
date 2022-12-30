@@ -1430,7 +1430,7 @@ func TestSchedule(t *testing.T) {
 				)
 				leasedJobIds := make(map[uuid.UUID]interface{})
 				for _, job := range jobs {
-					jobId, err := uuidFromUlidString(job.Id)
+					jobId, err := uuidFromUlidString(job.GetId())
 					if !assert.NoError(t, err) {
 						return
 					}
