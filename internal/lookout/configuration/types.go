@@ -7,12 +7,6 @@ import (
 	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
 )
 
-type NatsConfig struct {
-	Servers   []string
-	ClusterID string
-	Subject   string
-}
-
 type LookoutUIConfig struct {
 	ArmadaApiBaseUrl         string
 	UserAnnotationPrefix     string

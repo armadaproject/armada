@@ -26,7 +26,6 @@ type ArmadaConfig struct {
 	CancelJobsBatchSize int
 	Redis               redis.UniversalOptions
 	Events              EventsConfig
-	EventsNats          NatsConfig
 	EventsApiRedis      redis.UniversalOptions
 	Scheduling          SchedulingConfig
 	NewScheduler        NewSchedulerConfig
@@ -238,13 +237,6 @@ type PostgresConfig struct {
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	Connection      map[string]string
-}
-
-type NatsConfig struct {
-	Servers   []string
-	ClusterID string
-	Subject   string
-	Timeout   time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
 }
 
 type QueueManagementConfig struct {

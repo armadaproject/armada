@@ -26,7 +26,7 @@ import (
 )
 
 // SubmitFromLog is a service that reads messages from Pulsar and updates the state of the Armada server accordingly
-// (in particular, it writes to Redis and Nats).
+// (in particular, it writes to Redis).
 // Calls into an embedded Armada submit server object.
 type SubmitFromLog struct {
 	SubmitServer *SubmitServer
