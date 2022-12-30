@@ -2,7 +2,7 @@ redis:
   addrs:
     - "localhost:6379"
   password: ""
-  db: 0
+  db: 1
   poolSize: 1000
 
 pulsar:

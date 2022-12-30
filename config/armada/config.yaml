@@ -33,7 +33,8 @@ eventsApiRedis:
   password: ""
   db: 1
   poolSize: 1000
-defaultToLegacyEvents: true
+defaultToLegacyEvents: false
+forceNewEvents: true
 scheduling:
   preemption:
     # if enabled, Armada will accept submitted jobs which have a priorityClassName field

@@ -36,7 +36,7 @@ const KIND_NAME = "armada-test"
 var kubectl func(...string) (string, error) = sh.OutCmd(
 	"kubectl",
 	"--kubeconfig", KIND_CONFIG_EXTERNAL,
-	"--context", "kind-" + KIND_NAME,
+	"--context", "kind-"+KIND_NAME,
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
@@ -53,7 +53,7 @@ func CiIntegrationTests() error {
 
 	// TODO: Necessary to avoid connection error on Armada server startup.
 	time.Sleep(10 * time.Second)
-	err = sh.Run("docker-compose", "up", "-d", "server", "executor")
+	err = sh.Run("docker-compose", "up", "-d", "server", "executor", "eventingester")
 	if err != nil {
 		return err
 	}
@@ -64,6 +64,7 @@ func CiIntegrationTests() error {
 	}
 	sh.Run("docker", "logs", "server")
 	sh.Run("docker", "logs", "executor")
+	sh.Run("docker", "logs", "eventingester")
 
 	err = sh.Run("go", "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err != nil {
