@@ -145,5 +145,5 @@ services:
     volumes:
       - ./localdev/config:/config
     working_dir: /app
-    entrypoint: eventingester
+    entrypoint: ./eventingester
     command: --config /config/eventingester/config.yaml
