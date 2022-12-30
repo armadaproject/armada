@@ -46,7 +46,7 @@ func CiIntegrationTests() error {
 	}
 	mg.Deps(BootstrapTools)
 	mg.Deps(MinimalRelease, Kind)
-	err := sh.Run("docker-compose", "up", "-d", "redis", "postgres", "pulsar", "stan")
+	err := sh.Run("docker-compose", "up", "-d", "redis", "postgres", "pulsar")
 	if err != nil {
 		return err
 	}

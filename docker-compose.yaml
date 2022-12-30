@@ -38,17 +38,6 @@ services:
     networks:
       - kind
 
-  # TODO: Remove
-  stan:
-    container_name: stan
-    image: nats-streaming
-    command: "-p 4223 -m 8223"
-    ports:
-      - "4223:4223"
-      - "8223:8223"
-    networks:
-      - kind
-
   #
   # Armada services.
   #
@@ -66,7 +55,6 @@ services:
       - redis
       - postgres
       - pulsar
-      - stan
     working_dir: /app
     entrypoint: ./server
     command: --config /config/armada/config.yaml

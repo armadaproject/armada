@@ -1,7 +1,6 @@
 grpcPort: 50059
 httpPort: 8089
 metricsPort: 9009
-disableEventProcessing: true
 
 grpc:
   keepaliveParams:
