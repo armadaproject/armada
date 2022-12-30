@@ -3,13 +3,21 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"math/rand"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/openconfig/goyang/pkg/indent"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/common"
@@ -18,13 +26,6 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/openconfig/goyang/pkg/indent"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 type LegacySchedulerJob interface {
@@ -54,7 +55,7 @@ type SchedulingConstraints struct {
 	// Per-queue resource limits.
 	// Map from resource type to the limit for that resource.
 	MaximalResourceFractionPerQueue map[string]float64
-	// Limit- as a fraction of total resources across workers clusters- of resource types at each priority.
+	// Limit- as a fraction of total resources across worker clusters- of resource types at each priority.
 	// The limits are cumulative, i.e., the limit at priority p includes all higher levels.
 	MaximalCumulativeResourceFractionPerQueueAndPriority map[int32]map[string]float64
 	// Max resources to schedule per queue at a time.
@@ -121,7 +122,7 @@ type QueuedGangIterator[T LegacySchedulerJob] struct {
 	queuedJobsIterator JobIterator[T]
 	// Jobs are grouped into gangs by this annotation.
 	gangIdAnnotation string
-	// Jobs in a gang must specify the total number of jsobs in the gang via this annotation.
+	// Jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
 	jobsByGangId map[string][]T
