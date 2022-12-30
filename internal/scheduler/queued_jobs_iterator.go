@@ -2,10 +2,14 @@ package scheduler
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/pkg/api"
 	"golang.org/x/sync/errgroup"
 )
+
+type JobRepository interface {
+	GetQueueJobIds(queueName string) ([]string, error)
+	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
+}
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 // It lazily loads jobs in batches from Redis asynch.
@@ -15,7 +19,7 @@ type QueuedJobsIterator struct {
 	c   chan *api.Job
 }
 
-func NewQueuedJobsIterator(ctx context.Context, queue string, repo repository.JobRepository) (*QueuedJobsIterator, error) {
+func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
 	batchSize := 16
 	g, ctx := errgroup.WithContext(ctx)
 	it := &QueuedJobsIterator{
@@ -55,7 +59,7 @@ func (it *QueuedJobsIterator) Next() (*api.Job, error) {
 
 // queuedJobsIteratorLoader loads jobs from Redis lazily.
 // Used with QueuedJobsIterator.
-func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan *api.Job, batchSize int, repo repository.JobRepository) error {
+func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan *api.Job, batchSize int, repo JobRepository) error {
 	defer close(ch)
 	batch := make([]string, batchSize)
 	for i, jobId := range jobIds {

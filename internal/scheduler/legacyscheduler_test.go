@@ -1346,7 +1346,7 @@ func TestSchedule(t *testing.T) {
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
-			sched, err := NewLegacyScheduler(
+			sched, err := NewLegacyScheduler[*api.Job](
 				context.Background(),
 				*constraints,
 				tc.SchedulingConfig,
@@ -1629,6 +1629,10 @@ func (repo *mockJobRepository) EnqueueMany(jobs []*api.Job) {
 func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsByQueue[job.Queue] = append(repo.jobsByQueue[job.Queue], job)
 	repo.jobsById[job.Id] = job
+}
+
+func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator[*api.Job], error) {
+	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 
 func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {
