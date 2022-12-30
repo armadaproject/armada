@@ -28,7 +28,6 @@ import (
 func TestEventServer_Health(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.EventRetentionPolicy{ExpiryEnabled: false},
 		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			health, err := s.Health(context.Background(), &types.Empty{})
@@ -38,46 +37,9 @@ func TestEventServer_Health(t *testing.T) {
 	)
 }
 
-func TestEventServer_ReportUsage(t *testing.T) {
-	withEventServer(
-		t,
-		configuration.EventRetentionPolicy{ExpiryEnabled: false},
-		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
-		func(s *EventServer) {
-			jobSetId := "set1"
-			stream := &eventStreamMock{}
-
-			reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobQueuedEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobLeasedEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobLeaseExpiredEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobPendingEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobRunningEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobUnableToScheduleEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobFailedEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobSucceededEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobReprioritizedEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobCancelledEvent{JobSetId: jobSetId})
-			reportEvent(t, s, &api.JobTerminatedEvent{JobSetId: jobSetId})
-
-			e := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-			assert.Nil(t, e)
-			assert.Equal(t, 12, len(stream.sendMessages))
-
-			lastMessage := stream.sendMessages[len(stream.sendMessages)-1]
-			reportEvent(t, s, &api.JobCancelledEvent{JobSetId: jobSetId})
-			e = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessage.Id, Watch: false}, stream)
-			assert.Nil(t, e)
-			assert.Equal(t, 13, len(stream.sendMessages),
-				"Just new messages should be added when reading from last one.")
-		},
-	)
-}
-
 func TestEventServer_ForceNew(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.EventRetentionPolicy{ExpiryEnabled: false},
 		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			jobSetId := "set1"
@@ -123,7 +85,6 @@ func TestEventServer_ForceNew(t *testing.T) {
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.EventRetentionPolicy{ExpiryEnabled: false},
 		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
@@ -134,42 +95,9 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 	)
 }
 
-func TestDetermineEventRepository(t *testing.T) {
-	withEventServer(
-		t,
-		configuration.EventRetentionPolicy{ExpiryEnabled: false},
-		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
-		func(s *EventServer) {
-			// Test with legacy as default
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: true}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: false}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: false}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:4", ForceNew: false}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceLegacy: true}))
-
-			// Test with new repo as default
-			s.defaultToLegacyEvents = false
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: true}))
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: false}))
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceNew: false}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3", ForceNew: false}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceLegacy: true}))
-
-			// Test with forcing new
-			s.forceNewEvents = true
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: true}))
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "", ForceNew: false}))
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceNew: false}))
-			assert.Equal(t, s.eventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3", ForceNew: false}))
-			assert.Equal(t, s.legacyEventRepository, s.determineEventRepository(&api.JobSetRequest{FromMessageId: "1:2:3:0", ForceLegacy: true}))
-		},
-	)
-}
-
 func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.EventRetentionPolicy{ExpiryEnabled: false},
 		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
@@ -196,7 +124,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set non existent ErrorIfMissing true", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
@@ -219,7 +146,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set non existent ErrorIfMissing false", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
@@ -239,14 +165,33 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set exists ErrorIfMissing true", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
-				reportEvent(t, s, &api.JobQueuedEvent{Queue: "test-queue", JobSetId: "job-set-1"})
+				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
+				runIdString := "123e4567-e89b-12d3-a456-426614174000"
+				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
+				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+
+				assigned := &armadaevents.EventSequence_Event{
+					Created: &baseTime,
+					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+						JobRunAssigned: &armadaevents.JobRunAssigned{
+							RunId: runIdProto,
+							JobId: jobIdProto,
+						},
+					},
+				}
+
+				reportPulsarEvent(&armadaevents.EventSequence{
+					Queue:      "test-queue",
+					JobSetName: "job-set-1",
+					Events:     []*armadaevents.EventSequence_Event{assigned},
+				})
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
 					Id:             "job-set-1",
@@ -263,14 +208,33 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set exists ErrorIfMissing false", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
 				stream := &eventStreamMock{}
 
-				reportEvent(t, s, &api.JobQueuedEvent{Queue: "test-queue", JobSetId: "job-set-1"})
+				jobIdString := "01f3j0g1md4qx7z5qb148qnh4r"
+				runIdString := "123e4567-e89b-12d3-a456-426614174000"
+				baseTime, _ := time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+				jobIdProto, _ := armadaevents.ProtoUuidFromUlidString(jobIdString)
+				runIdProto := armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+
+				assigned := &armadaevents.EventSequence_Event{
+					Created: &baseTime,
+					Event: &armadaevents.EventSequence_Event_JobRunAssigned{
+						JobRunAssigned: &armadaevents.JobRunAssigned{
+							RunId: runIdProto,
+							JobId: jobIdProto,
+						},
+					},
+				}
+
+				reportPulsarEvent(&armadaevents.EventSequence{
+					Queue:      "test-queue",
+					JobSetName: "job-set-1",
+					Events:     []*armadaevents.EventSequence_Event{assigned},
+				})
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
 					Id:             "job-set-1",
@@ -282,30 +246,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 				assert.Equal(t, 1, len(stream.sendMessages))
 			},
 		)
-	})
-}
-
-func TestEventServer_EventsShouldBeRemovedAfterEventRetentionTime(t *testing.T) {
-	eventRetention := configuration.EventRetentionPolicy{ExpiryEnabled: true, RetentionDuration: time.Second * 2}
-	withEventServer(t, eventRetention, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(s *EventServer) {
-		jobSetId := "set1"
-		stream := &eventStreamMock{}
-		reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
-
-		err := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-		if ok := assert.NoError(t, err); !ok {
-			t.FailNow()
-		}
-		assert.Equal(t, 1, len(stream.sendMessages))
-
-		time.Sleep(eventRetention.RetentionDuration + time.Millisecond*100)
-
-		stream = &eventStreamMock{}
-		err = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-		if ok := assert.NoError(t, err); !ok {
-			t.FailNow()
-		}
-		assert.Equal(t, 0, len(stream.sendMessages))
 	})
 }
 
@@ -332,7 +272,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("no permissions", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
@@ -358,7 +297,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("global permissions", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
@@ -384,7 +322,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("queue permission without specific global permission", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.EventRetentionPolicy{ExpiryEnabled: false},
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
@@ -408,7 +345,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	})
 
 	t.Run("queue permission", func(t *testing.T) {
-		withEventServer(t, configuration.EventRetentionPolicy{ExpiryEnabled: false}, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(s *EventServer) {
+		withEventServer(t, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(s *EventServer) {
 			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
@@ -427,12 +364,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			assert.Equal(t, codes.OK, e.Code())
 		})
 	})
-}
-
-func reportEvent(t *testing.T, s *EventServer, event api.Event) {
-	msg, _ := api.Wrap(event)
-	_, e := s.Report(context.Background(), msg)
-	assert.Nil(t, e)
 }
 
 func reportPulsarEvent(es *armadaevents.EventSequence) error {
@@ -462,7 +393,6 @@ func reportPulsarEvent(es *armadaevents.EventSequence) error {
 
 func withEventServer(
 	t *testing.T,
-	eventRetention configuration.EventRetentionPolicy,
 	databaseRetention configuration.DatabaseRetentionPolicy,
 	action func(s *EventServer),
 ) {
@@ -472,11 +402,10 @@ func withEventServer(
 	legacyClient := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 11})
 
-	legacyEventRepo := repository.NewLegacyRedisEventRepository(legacyClient, eventRetention)
 	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	jobRepo := repository.NewRedisJobRepository(client, databaseRetention)
-	server := NewEventServer(&FakePermissionChecker{}, eventRepo, legacyEventRepo, legacyEventRepo, queueRepo, jobRepo, true, false)
+	server := NewEventServer(&FakePermissionChecker{}, eventRepo, nil, queueRepo, jobRepo)
 
 	client.FlushDB()
 	legacyClient.FlushDB()

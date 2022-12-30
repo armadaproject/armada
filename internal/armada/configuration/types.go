@@ -22,25 +22,20 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime      time.Duration
-	CancelJobsBatchSize   int
-	Redis                 redis.UniversalOptions
-	Events                EventsConfig
-	EventsNats            NatsConfig
-	EventsRedis           redis.UniversalOptions
-	EventsApiRedis        redis.UniversalOptions
-	DefaultToLegacyEvents bool
-	ForceNewEvents        bool
-
-	Scheduling        SchedulingConfig
-	NewScheduler      NewSchedulerConfig
-	QueueManagement   QueueManagementConfig
-	DatabaseRetention DatabaseRetentionPolicy
-	EventRetention    EventRetentionPolicy
-	Pulsar            PulsarConfig
-	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi          EventApiConfig
-	Metrics           MetricsConfig
+	PriorityHalfTime    time.Duration
+	CancelJobsBatchSize int
+	Redis               redis.UniversalOptions
+	Events              EventsConfig
+	EventsNats          NatsConfig
+	EventsApiRedis      redis.UniversalOptions
+	Scheduling          SchedulingConfig
+	NewScheduler        NewSchedulerConfig
+	QueueManagement     QueueManagementConfig
+	DatabaseRetention   DatabaseRetentionPolicy
+	Pulsar              PulsarConfig
+	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
+	EventApi            EventApiConfig
+	Metrics             MetricsConfig
 }
 
 type PulsarConfig struct {
@@ -222,11 +217,6 @@ type PriorityClass struct {
 
 type DatabaseRetentionPolicy struct {
 	JobRetentionDuration time.Duration
-}
-
-type EventRetentionPolicy struct {
-	ExpiryEnabled     bool
-	RetentionDuration time.Duration
 }
 
 type LeaseSettings struct {

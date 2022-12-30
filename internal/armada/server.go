@@ -6,16 +6,14 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/armada/cache"
@@ -28,7 +26,6 @@ import (
 	"github.com/G-Research/armada/internal/common/auth"
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/eventstream"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
 	"github.com/G-Research/armada/internal/common/health"
 	"github.com/G-Research/armada/internal/common/pgkeyvalue"
@@ -103,16 +100,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 	}()
 
-	legacyEventDb := createRedisClient(&config.EventsRedis)
-	defer func() {
-		if err := legacyEventDb.Close(); err != nil {
-			log.WithError(err).Error("failed to close events Redis client")
-		}
-	}()
-
 	eventDb := createRedisClient(&config.EventsApiRedis)
 	defer func() {
-		if err := legacyEventDb.Close(); err != nil {
+		if err := eventDb.Close(); err != nil {
 			log.WithError(err).Error("failed to close events api Redis client")
 		}
 	}()
@@ -123,75 +113,15 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
 	healthChecks.Add(repository.NewRedisHealth(db))
 
-	legacyEventRepository := repository.NewLegacyRedisEventRepository(legacyEventDb, config.EventRetention)
 	eventRepository := repository.NewEventRepository(eventDb)
-	var streamEventStore *processor.StreamEventStore
-	var eventStore repository.EventStore
-	var eventStream eventstream.EventStream
-
-	// TODO It looks like multiple backends can be provided.
-	// We should ensure that only 1 system is provided.
-	if len(config.EventsNats.Servers) > 0 {
-		stanClient, err := eventstream.NewStanClientConnection(
-			config.EventsNats.ClusterID,
-			"armada-server-"+util.NewULID(),
-			config.EventsNats.Servers)
-		if err != nil {
-			return err
-		}
-
-		eventStream = eventstream.NewStanEventStream(
-			config.EventsNats.Subject,
-			stanClient,
-			stan.SetManualAckMode(),
-			stan.StartWithLastReceived(),
-		)
-		defer eventStream.Close() // Closes the stanClient
-		healthChecks.Add(stanClient)
-	}
-
-	var eventProcessor *processor.RedisEventProcessor
-	if eventStream != nil {
-		streamEventStore = processor.NewEventStore(eventStream)
-		eventStore = streamEventStore
-
-		eventRepoBatcher := eventstream.NewTimedEventBatcher(
-			config.Events.ProcessorBatchSize,
-			config.Events.ProcessorMaxTimeBetweenBatches,
-			config.Events.ProcessorTimeout,
-		)
-		eventProcessor = processor.NewEventRedisProcessor(config.Events.StoreQueue, legacyEventRepository, eventStream, eventRepoBatcher)
-		eventProcessor.Start()
-
-		jobStatusBatcher := eventstream.NewTimedEventBatcher(
-			config.Events.ProcessorBatchSize,
-			config.Events.ProcessorMaxTimeBetweenBatches,
-			config.Events.ProcessorTimeout,
-		)
-
-		defer func() {
-			err := eventRepoBatcher.Stop()
-			if err != nil {
-				log.Errorf("failed to flush event processor buffer for redis")
-			}
-			err = jobStatusBatcher.Stop()
-			if err != nil {
-				log.Errorf("failed to flush job status batcher processor")
-			}
-			err = eventStream.Close()
-			if err != nil {
-				log.Errorf("failed to close event stream connection: %v", err)
-			}
-		}()
-	} else {
-		eventStore = legacyEventRepository
-	}
 
 	permissions := authorization.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,
 		config.Auth.PermissionScopeMapping,
 		config.Auth.PermissionClaimMapping,
 	)
+
+	eventStore := processor.NewEventStore()
 
 	submitServer := server.NewSubmitServer(
 		permissions,
@@ -286,13 +216,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		log.Info("Pulsar submit API deduplication disabled")
 	}
 
-	// If there's a streamEventProcessor,
-	// insert the PulsarSubmitServer so it can publish state transitions to Pulsar too.
-	if streamEventStore != nil {
-		streamEventStore.PulsarSubmitServer = pulsarSubmitServer
-	}
+	eventStore.PulsarSubmitServer = pulsarSubmitServer
 
-	// Service that consumes Pulsar messages and writes to Redis and Nats.
+	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
 		Topic:            config.Pulsar.JobsetEventsTopic,
 		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
@@ -345,12 +271,9 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	eventServer := server.NewEventServer(
 		permissions,
 		eventRepository,
-		legacyEventRepository,
 		eventStore,
 		queueRepository,
 		jobRepository,
-		config.DefaultToLegacyEvents,
-		config.ForceNewEvents,
 	)
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 

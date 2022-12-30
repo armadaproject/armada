@@ -40,11 +40,8 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
-	EventQueue             string
-	Nats                   NatsConfig
-	Postgres               configuration.PostgresConfig
-	PrunerConfig           PrunerConfig
-	DisableEventProcessing bool
+	Postgres     configuration.PostgresConfig
+	PrunerConfig PrunerConfig
 }
 
 type LookoutIngesterConfiguration struct {
