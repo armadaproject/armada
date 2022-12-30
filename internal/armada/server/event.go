@@ -19,12 +19,11 @@ import (
 )
 
 type EventServer struct {
-	permissions           authorization.PermissionChecker
-	eventRepository       repository.EventRepository
-	legacyEventRepository repository.EventRepository
-	queueRepository       repository.QueueRepository
-	jobRepository         repository.JobRepository
-	eventStore            repository.EventStore
+	permissions     authorization.PermissionChecker
+	eventRepository repository.EventRepository
+	queueRepository repository.QueueRepository
+	jobRepository   repository.JobRepository
+	eventStore      repository.EventStore
 }
 
 func NewEventServer(
