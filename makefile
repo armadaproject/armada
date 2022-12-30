@@ -393,7 +393,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice || true
+	docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice event-ingester || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -487,7 +487,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
+		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice event-ingester
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
