@@ -422,7 +422,7 @@ func uuidFromUlidString(ulid string) (uuid.UUID, error) {
 
 // exceedsResourceLimits returns true if used[t]/total[t] > limits[t] for some resource t,
 // and, if that is the case, a string indicating which resource limit was exceeded.
-func exceedsResourceLimits(ctx context.Context, used, total schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
+func exceedsResourceLimits(_ context.Context, used, total schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
 	for resourceType, limit := range limits {
 		totalAmount := total.Get(resourceType)
 		usedAmount := used.Get(resourceType)
