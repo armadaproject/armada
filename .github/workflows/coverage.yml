@@ -1,0 +1,54 @@
+name: Go Coverage
+
+on:
+  push:
+  pull_request:
+
+go-unit-coverage:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [ '1.18' ]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/go-setup
+
+      - name: make tests
+        run: make tests
+
+      - name: Go Test Coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./internal_coverage.xml,./cmd_coverage.xml # optional
+          flags: armada-server
+
+python-unit-coverage:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [ '3.10' ]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/workflows/python-setup
+
+      # Tox to run tests; build to build the wheel after tests pass
+      - run: pip install tox==3.27.1 build twine
+        shell: bash
+
+      # Generate the proto files for python, required for later steps
+      - run: make python
+        shell: bash
+
+      - name: Run tox python ${{ inputs.python-version }} unit tests
+        run: tox -e ${{ inputs.tox-env }}
+        shell: bash
+
+      - name: Upload coverage to codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ${{ inputs.path }}/coverage.xml
+          flags: python-client
