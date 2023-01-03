@@ -93,7 +93,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	g.Go(func() error {
 		defer log.Infof("stopping server.")
 
-		log.Info("jobService service listening on ", config.GrpcPort)
+		log.Info("jobservice service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}

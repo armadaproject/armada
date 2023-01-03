@@ -44,8 +44,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
 			go func() {
-				err := srv.Run(ctx)
-				if err != nil {
+				if err := srv.Run(ctx); err != nil {
 					logging.WithStacktrace(log, err).Error("eventsprinter failure")
 				}
 			}()
@@ -86,8 +85,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			consumer.Ack(msg)
 
 			sequence := &armadaevents.EventSequence{}
-			err = proto.Unmarshal(msg.Payload(), sequence)
-			if err != nil {
+			if err := proto.Unmarshal(msg.Payload(), sequence); err != nil {
 				logging.WithStacktrace(log, err).Warnf("unmarshalling Pulsar message failed")
 				break
 			}
