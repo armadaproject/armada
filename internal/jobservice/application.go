@@ -51,9 +51,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 
 	dbDir := filepath.Dir(config.DatabasePath)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		err = os.Mkdir(dbDir, 0o755)
-		if err != nil {
-			log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, err)
+		if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
+			log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
 		}
 	}
 
@@ -62,8 +61,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
 	}
 	defer func() {
-		err := db.Close()
-		if err != nil {
+		if err := db.Close(); err != nil {
 			log.Warnf("error closing database: %v", err)
 		}
 	}()
@@ -102,8 +100,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return nil
 	})
 
-	err = g.Wait()
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		log.Fatalf("error detected on wait %v", err)
 		return err
 	}

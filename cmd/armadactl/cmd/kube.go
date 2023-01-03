@@ -47,20 +47,17 @@ In bash, you can execute it directly like this:
 	}
 	cmd.Flags().String(
 		"jobId", "", "job to cancel")
-	err := cmd.MarkFlagRequired("jobId")
-	if err != nil {
+	if err := cmd.MarkFlagRequired("jobId"); err != nil {
 		panic(err)
 	}
 	cmd.Flags().String(
 		"queue", "", "queue of the job")
-	err = cmd.MarkFlagRequired("queue")
-	if err != nil {
+	if err := cmd.MarkFlagRequired("queue"); err != nil {
 		panic(err)
 	}
 	cmd.Flags().String(
 		"jobSet", "", "jobSet of the job")
-	err = cmd.MarkFlagRequired("jobSet")
-	if err != nil {
+	if err := cmd.MarkFlagRequired("jobSet"); err != nil {
 		panic(err)
 	}
 	cmd.Flags().Int(

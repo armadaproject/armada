@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -44,13 +43,12 @@ func TestCreate(t *testing.T) {
 		Owners         []string
 		GroupOwners    []string
 		ResourceLimits map[string]float64
-		err            error // expected error, or nil if no error is expected
 	}{
-		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
+		"default flags":         {nil, nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}},
 	}
 
 	for name, test := range tests {
@@ -97,7 +95,6 @@ func TestCreate(t *testing.T) {
 				require.NoError(t, cmd.Flags().Set(flag.name, flag.value))
 			}
 
-			// Execute the command and check any error
 			require.NoError(t, cmd.Execute())
 		})
 	}
@@ -122,10 +119,7 @@ func TestDelete(t *testing.T) {
 	// Arbitrary queue name
 	cmd.SetArgs([]string{"arbitrary"})
 
-	// Execute the command and check any error
-	if err := cmd.Execute(); err != nil && !strings.Contains(err.Error(), "expected test error") {
-		t.Fatalf("command failed with an unexpected error: %s", err)
-	}
+	require.ErrorContains(t, cmd.Execute(), "expected test error")
 }
 
 func TestDescribe(t *testing.T) {
@@ -148,9 +142,7 @@ func TestDescribe(t *testing.T) {
 	cmd.SetArgs([]string{"arbitrary"})
 
 	// Execute the command and check any error
-	if err := cmd.Execute(); err != nil && !strings.Contains(err.Error(), "expected test error") {
-		t.Fatalf("command failed with an unexpected error: %s", err)
-	}
+	require.ErrorContains(t, cmd.Execute(), "expected test error")
 }
 
 func TestUpdate(t *testing.T) {
@@ -161,13 +153,12 @@ func TestUpdate(t *testing.T) {
 		Owners         []string
 		GroupOwners    []string
 		ResourceLimits map[string]float64
-		err            error // expected error, or nil if no error is expected
 	}{
-		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
+		"default flags":         {nil, nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}},
 	}
 
 	for name, test := range tests {
