@@ -23,6 +23,10 @@ const PAGES: Page[] = [
     title: "Jobs",
     location: "/jobs",
   },
+  {
+    title: "V2",
+    location: "/v2",
+  },
 ]
 
 // Creates mapping from location to index of element in ordered navbar

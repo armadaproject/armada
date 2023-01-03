@@ -56,7 +56,8 @@ export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, colum
     const columnInfo = columns.find((col) => col.id === id)
     const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
     return {
-      field: id,
+      isAnnotation: Boolean(metadata?.annotation),
+      field: metadata?.annotation?.annotationKey ?? id,
       value: isArray ? (value as string[]) : (value as string),
       match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
     }
@@ -69,10 +70,14 @@ export interface FetchRowRequest {
   take: number
   order: JobOrder
 }
-export const fetchJobs = async (rowRequest: FetchRowRequest, getJobsService: IGetJobsService) => {
+export const fetchJobs = async (
+  rowRequest: FetchRowRequest,
+  getJobsService: IGetJobsService,
+  abortSignal: AbortSignal,
+) => {
   const { filters, skip, take, order } = rowRequest
 
-  return await getJobsService.getJobs(filters, order, skip, take, undefined)
+  return await getJobsService.getJobs(filters, order, skip, take, abortSignal)
 }
 
 export const fetchJobGroups = async (
@@ -80,6 +85,7 @@ export const fetchJobGroups = async (
   groupJobsService: IGroupJobsService,
   groupedColumn: string,
   columnsToAggregate: string[],
+  abortSignal: AbortSignal,
 ) => {
   const { filters, skip, take } = rowRequest
   let { order } = rowRequest
@@ -90,7 +96,7 @@ export const fetchJobGroups = async (
     direction: "DESC",
   }
 
-  return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, undefined)
+  return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
 }
 
 export const jobsToRows = (jobs: Job[]): JobRow[] => {

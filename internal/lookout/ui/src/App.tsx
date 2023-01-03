@@ -8,6 +8,7 @@ import { SnackbarProvider } from "notistack"
 import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 
 import NavBar from "./components/NavBar"
@@ -59,6 +60,7 @@ const themeV5 = createThemeV5(theme)
 
 type AppProps = {
   jobService: JobService
+  v2JobsTablePrefsService: JobsTablePreferencesService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2UpdateJobsService: UpdateJobsService
@@ -90,6 +92,7 @@ export function App(props: AppProps) {
                     </Route>
                     <Route exact path="/v2">
                       <JobsTableContainer
+                        jobsTablePreferencesService={props.v2JobsTablePrefsService}
                         getJobsService={props.v2GetJobsService}
                         groupJobsService={props.v2GroupJobsService}
                         updateJobsService={props.v2UpdateJobsService}
