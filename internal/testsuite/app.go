@@ -188,8 +188,7 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			eventLogger:          eventLogger,
 		}
 		go func(testSpec *api.TestSpec) {
-			err := testRunner.Run(ctx)
-			if err != nil {
+			if err := testRunner.Run(ctx); err != nil {
 				fmt.Fprintf(a.Out, "error in test case %s: %s", testSpec.Name, err)
 			}
 			rv.TestCaseReports[i] = testRunner.TestCaseReport

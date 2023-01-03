@@ -50,8 +50,7 @@ func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 			return nil, err
 		}
 		defer func() {
-			err := cmd.Process.Kill()
-			if err != nil {
+			if err := cmd.Process.Kill(); err != nil {
 				fmt.Printf("Error killing your process: %s", err)
 			}
 		}()
@@ -112,8 +111,7 @@ func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFl
 	}
 
 	var deviceFlowResponse deviceFlowResponse
-	err = json.NewDecoder(resp.Body).Decode(&deviceFlowResponse)
-	if err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&deviceFlowResponse); err != nil {
 		return nil, err
 	}
 	return &deviceFlowResponse, nil
@@ -141,8 +139,7 @@ func requestToken(c *http.Client, config DeviceDetails, deviceCode string) (*oau
 		return &token, nil
 	} else if resp.StatusCode == 400 {
 		var errResp oauthErrorResponse
-		err = json.NewDecoder(resp.Body).Decode(&errResp)
-		if err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, err
 		}
 		return nil, errors.New(errResp.Error)

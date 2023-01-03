@@ -247,8 +247,7 @@ func LoadClientConfig(configPath string) (*armadaClientConfig, error) {
 	// read config into an armadaConfig struct
 	// var config armadaClientConfig
 	config := &armadaClientConfig{}
-	err := viper.Unmarshal(config)
-	if err != nil {
+	if err := viper.Unmarshal(config); err != nil {
 		return nil, err
 	}
 
