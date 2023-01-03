@@ -119,7 +119,7 @@ func TestDelete(t *testing.T) {
 	// Arbitrary queue name
 	cmd.SetArgs([]string{"arbitrary"})
 
-	require.ErrorContains(t, cmd.Execute(), "expected test error")
+	require.NoError(t, cmd.Execute())
 }
 
 func TestDescribe(t *testing.T) {
