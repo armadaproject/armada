@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"fmt"
+	"github.com/G-Research/armada/internal/common/util"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,16 +14,16 @@ import (
 )
 
 func TestMerge(t *testing.T) {
-	jobId1 := uuid.New()
-	jobId2 := uuid.New()
-	jobId3 := uuid.New()
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
+	jobId3 := util.NewULID()
 	markJobsCancelled1 := MarkJobsCancelled{jobId1: false, jobId2: false}
 	markJobsCancelled2 := MarkJobsCancelled{jobId2: true, jobId3: true}
 	ok := markJobsCancelled1.Merge(markJobsCancelled2)
 	assert.True(t, ok)
 	assert.Equal(t, MarkJobsCancelled{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
 
-	jobId4 := uuid.New()
+	jobId4 := util.NewULID()
 	markJobsSucceeded1 := MarkJobsSucceeded{jobId1: true, jobId4: true}
 	ok = markJobsCancelled1.Merge(markJobsSucceeded1)
 	assert.False(t, ok)
@@ -33,9 +34,9 @@ func TestMerge(t *testing.T) {
 // 1. produces the expected number of ops after optimisations and
 // 2. results in the same end state as if no optimisation had been applied.
 func TestDbOperationOptimisation(t *testing.T) {
-	jobIds := make([]uuid.UUID, 10)
+	jobIds := make([]string, 10)
 	for i := range jobIds {
-		jobIds[i] = uuid.New()
+		jobIds[i] = util.NewULID()
 	}
 	runIds := make([]uuid.UUID, 10)
 	for i := range runIds {
@@ -172,14 +173,14 @@ func TestDbOperationOptimisation(t *testing.T) {
 func TestInsertJobCancel(t *testing.T) {
 	// Submit jobs to two different job sets.
 	var ops []DbOperation
-	expectedCancelledIds := make(map[uuid.UUID]bool)
+	expectedCancelledIds := make(map[string]bool)
 	for i := 0; i < 2; i++ {
-		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set1"}
+		job := &schedulerdb.Job{JobID: util.NewULID(), JobSet: "set1"}
 		expectedCancelledIds[job.JobID] = true
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 	for i := 0; i < 2; i++ {
-		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set2"}
+		job := &schedulerdb.Job{JobID: util.NewULID(), JobSet: "set2"}
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 
@@ -188,11 +189,11 @@ func TestInsertJobCancel(t *testing.T) {
 
 	// Submit some more jobs to both job sets.
 	for i := 0; i < 2; i++ {
-		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set2"}
+		job := &schedulerdb.Job{JobID: util.NewULID(), JobSet: "set2"}
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 	for i := 0; i < 2; i++ {
-		job := &schedulerdb.Job{JobID: uuid.New(), JobSet: "set1"}
+		job := &schedulerdb.Job{JobID: util.NewULID(), JobSet: "set1"}
 		ops = append(ops, InsertJobs{job.JobID: job})
 	}
 
@@ -230,14 +231,14 @@ func TestInsertJobCancel(t *testing.T) {
 }
 
 type mockDb struct {
-	Jobs           map[uuid.UUID]*schedulerdb.Job
+	Jobs           map[string]*schedulerdb.Job
 	Runs           map[uuid.UUID]*schedulerdb.Run
 	RunAssignments map[uuid.UUID]*schedulerdb.JobRunAssignment
 }
 
 func newMockDb() *mockDb {
 	return &mockDb{
-		Jobs:           make(map[uuid.UUID]*schedulerdb.Job),
+		Jobs:           make(map[string]*schedulerdb.Job),
 		Runs:           make(map[uuid.UUID]*schedulerdb.Run),
 		RunAssignments: make(map[uuid.UUID]*schedulerdb.JobRunAssignment),
 	}

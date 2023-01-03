@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/common/util"
 	"testing"
 	"time"
 
@@ -15,9 +16,9 @@ import (
 )
 
 func TestWriteOps(t *testing.T) {
-	jobIds := make([]uuid.UUID, 10)
+	jobIds := make([]string, 10)
 	for i := range jobIds {
-		jobIds[i] = uuid.New()
+		jobIds[i] = util.ULID().String()
 	}
 	runIds := make([]uuid.UUID, 10)
 	for i := range runIds {
@@ -271,7 +272,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -329,7 +330,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			return errors.WithStack(err)
 		}
 		numChanged := 0
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			if _, ok := expected[job.JobSet]; ok {
 				assert.True(t, job.Cancelled)
@@ -356,7 +357,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			return errors.WithStack(err)
 		}
 		numChanged := 0
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			if _, ok := expected[job.JobID]; ok {
 				assert.True(t, job.Cancelled)
@@ -421,7 +422,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -446,7 +447,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -471,7 +472,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
