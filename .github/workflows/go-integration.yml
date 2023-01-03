@@ -11,7 +11,6 @@ on:
 jobs:
   go-integration-tests:
     if: github.repository_owner == 'armadaproject'
-    runs-on: buildjet-4vcpu-ubuntu-2204
     strategy:
       fail-fast: false
       matrix:
