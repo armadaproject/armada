@@ -20,19 +20,30 @@ export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
 const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled])
 export const isTerminatedJobState = (state: JobState) => terminatedJobStates.has(state)
 
-export const formatJobState = (state: JobState): string => jobStateDisplayInfo[state]?.displayName || state
+export enum JobRunState {
+  RunPending = "RUN_PENDING",
+  RunRunning = "RUN_RUNNING",
+  RunSucceeded = "RUN_SUCCEEDED",
+  RunFailed = "RUN_FAILED",
+  RunTerminated = "RUN_TERMINATED",
+  RunPreempted = "RUN_PREEMPTED",
+  RunUnableToSchedule = "RUN_UNABLE_TO_SCHEDULE",
+  RunLeaseReturned = "RUN_LEASE_RETURNED",
+  RunLeaseExpired = "RUN_LEASE_EXPIRED",
+  RunMaxRunsExceeded = "RUN_MAX_RUNS_EXCEEDED",
+}
 
-export const JobRunStates: Record<string, ColoredState> = {
-  RunPending: { displayName: "Run Pending", color: "#ff9900" },
-  RunRunning: { displayName: "Run Running", color: "#00ff00" },
-  RunSucceeded: { displayName: "Run Succeeded", color: "#0000ff" },
-  RunFailed: { displayName: "Run Failed", color: "#ff0000" },
-  RunTerminated: { displayName: "Terminated", color: "#ffffff" },
-  RunPreempted: { displayName: "Preempted", color: "#ffff00" },
-  RunUnableToSchedule: { displayName: "Unable to Schedule", color: "#ff0000" },
-  RunLeaseReturned: { displayName: "Lease Returned", color: "#ff0000" },
-  RunLeaseExpired: { displayName: "Lease Expired", color: "#ff0000" },
-  RunMaxRunsExceeded: { displayName: "Max Runs Exceeded", color: "#ff0000" },
+export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }> = {
+  [JobRunState.RunPending]: { displayName: "Pending" },
+  [JobRunState.RunRunning]: { displayName: "Running" },
+  [JobRunState.RunSucceeded]: { displayName: "Succeeded" },
+  [JobRunState.RunFailed]: { displayName: "Failed" },
+  [JobRunState.RunTerminated]: { displayName: "Terminated" },
+  [JobRunState.RunUnableToSchedule]: { displayName: "Unable To Schedule" },
+  [JobRunState.RunLeaseReturned]: { displayName: "Lease Returned" },
+  [JobRunState.RunPreempted]: { displayName: "Preempted" },
+  [JobRunState.RunLeaseExpired]: { displayName: "Lease Expired" },
+  [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Expired" },
 }
 
 type ColoredState = {
@@ -53,14 +64,11 @@ export type Job = {
   ephemeralStorage: number
   gpu: number
   priority: number
-  priorityClass: string
   submitted: string
-  cancelled?: string
-  timeInState: string
-  duplicate: boolean
   annotations: Record<string, string>
   runs: JobRun[]
   lastActiveRunId?: string
+  lastTransitionTime: string
 }
 
 export type JobKey = keyof Job
@@ -73,7 +81,7 @@ export type JobRun = {
   pending: string
   started?: string
   finished?: string
-  jobRunState: string
+  jobRunState: JobRunState
   error?: string
   exitCode?: number
 }
@@ -89,6 +97,7 @@ export enum Match {
 }
 
 export type JobFilter = {
+  isAnnotation?: boolean
   field: string
   value: string | number | string[] | number[]
   match: Match

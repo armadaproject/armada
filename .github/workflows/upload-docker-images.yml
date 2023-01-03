@@ -31,20 +31,25 @@ jobs:
 
           echo ${{ secrets.DOCKERHUB_PASS }} | docker login -u ${{ secrets.DOCKERHUB_USER }} --password-stdin
 
-          IMAGES_TO_UPLOAD=(
-            "armada"
-            "armada-executor"
-            "armadactl"
-            "testsuite"
-            "armada-lookout"
-            "armada-lookout-ingester"
-            "armada-event-ingester"
-            "armada-binoculars"
-            "armada-jobservice"
-          )
-          for image in "${IMAGES_TO_UPLOAD[@]}"; do
-              remote="gresearch/${image}-dev:${TAG}"
-              docker load -i docker-images/$image.tar.gz
-              docker tag $image:latest $remote
-              docker push $remote
+          # Map local images to Docker Hub remote repos, because the source
+          # image names have inconsistent prefixes and do not map exactly
+          # to the pre-configured DH repo names.
+          declare -A uploads
+
+          uploads['armada']='armada-server'
+          uploads['armada-binoculars']='armada-binoculars'
+          uploads['armada-event-ingester']='armada-event-ingester'
+          uploads['armada-executor']='armada-executor'
+          uploads['armada-jobservice']='armada-jobservice'
+          uploads['armada-lookout']='armada-lookout'
+          uploads['armada-lookout-ingester']='armada-lookout-ingester'
+          uploads['armadactl']='armada-armadactl'
+          uploads['testsuite']='armada-testsuite'
+
+          for img in "${!uploads[@]}" ; do
+            remote="gresearch/${uploads[$img]}:${TAG}"
+            docker load -i docker-images/$img.tar.gz
+            docker tag $img:latest $remote
+            echo "Pushing $img to Docker Hub $remote"
+            docker push $remote
           done

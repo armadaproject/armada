@@ -173,6 +173,23 @@ def test_submit_job_and_cancel_by_queue_job_set(client: ArmadaClient, queue_name
     assert expected == cancelled_message.cancelled_ids[0]
 
 
+def test_submit_job_and_cancel_by_job_id(client: ArmadaClient, queue_name):
+    job_set_name = f"set-{uuid.uuid1()}"
+    jobs = client.submit_jobs(
+        queue=queue_name,
+        job_set_id=job_set_name,
+        job_request_items=submit_sleep_job(client),
+    )
+
+    job_id = jobs.job_response_items[0].job_id
+
+    wait_for(client, queue=queue_name, job_set_id=job_set_name)
+
+    cancelled_message = client.cancel_jobs(job_id=job_id)
+
+    assert cancelled_message.cancelled_ids[0] == job_id
+
+
 def test_submit_job_and_cancelling_with_filter(client: ArmadaClient, queue_name):
     job_set_name = f"set-{uuid.uuid4()}"
     client.submit_jobs(

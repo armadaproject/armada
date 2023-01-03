@@ -1,10 +1,22 @@
 import { Select, OutlinedInput, MenuItem, Checkbox, ListItemText, Box } from "@mui/material"
 import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
+import { Match } from "models/lookoutV2Models"
 import { FilterType } from "utils/jobsTableColumns"
+
+const FILTER_TYPE_DISPLAY_STRINGS: Record<Match, string> = {
+  [Match.Exact]: "Matches...",
+  [Match.StartsWith]: "Starts with...",
+  [Match.GreaterThan]: "Greater than...",
+  [Match.LessThan]: "Less than...",
+  [Match.GreaterThanOrEqual]: "Greater than...",
+  [Match.LessThanOrEqual]: "Less than...",
+  [Match.AnyOf]: "Filter...",
+}
 
 export interface JobsTableFilterProps {
   currentFilter?: string | string[]
   filterType: FilterType
+  matchType: Match
   enumFilterValues?: EnumFilterOption[]
   id: string
   onFilterChange: (newFilter: string | string[] | undefined) => void
@@ -12,19 +24,22 @@ export interface JobsTableFilterProps {
 export const JobsTableFilter = ({
   currentFilter,
   filterType,
+  matchType,
   enumFilterValues,
   onFilterChange,
 }: JobsTableFilterProps) => {
+  const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
   return (
     <Box sx={{ display: "block", width: "100%" }}>
       {filterType === FilterType.Enum ? (
         <EnumFilter
           currentFilter={(currentFilter ?? []) as string[]}
           enumFilterValues={enumFilterValues ?? []}
+          label={label}
           onFilterChange={onFilterChange}
         />
       ) : (
-        <TextFilter currentFilter={(currentFilter ?? "") as string} onFilterChange={onFilterChange} />
+        <TextFilter currentFilter={(currentFilter ?? "") as string} label={label} onFilterChange={onFilterChange} />
       )}
     </Box>
   )
@@ -37,9 +52,10 @@ export interface EnumFilterOption {
 interface EnumFilterProps {
   currentFilter: string[]
   enumFilterValues: EnumFilterOption[]
+  label: string
   onFilterChange: JobsTableFilterProps["onFilterChange"]
 }
-const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFilterProps) => {
+const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: EnumFilterProps) => {
   return (
     <Select
       variant="standard"
@@ -60,7 +76,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFil
           selected.map((s) => enumFilterValues.find((v) => v.value === s)?.displayName ?? s).join(", ")
         ) : (
           // Approximately matches the styling for a text input's placeholder
-          <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>Filter...</div>
+          <div style={{ color: "rgba(0, 0, 0, 0.3)" }}>{label}</div>
         )
       }
       // Matches the styling for TextFilter component below
@@ -69,7 +85,7 @@ const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFil
         height: "1.5em",
       }}
       SelectDisplayProps={{
-        "aria-label": "Filter",
+        "aria-label": label,
         style: {
           padding: 0,
           paddingLeft: "7px",
@@ -88,21 +104,22 @@ const EnumFilter = ({ currentFilter, enumFilterValues, onFilterChange }: EnumFil
 
 interface TextFilterProps {
   currentFilter: string
+  label: string
   onFilterChange: JobsTableFilterProps["onFilterChange"]
 }
-const TextFilter = ({ currentFilter, onFilterChange }: TextFilterProps) => {
+const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) => {
   return (
     <DebouncedTextField
       debounceWaitMs={300}
-      debouncedOnChange={onFilterChange}
+      debouncedOnChange={(newFilter) => onFilterChange(newFilter.trim())}
       textFieldProps={{
         type: "text",
         size: "small",
         defaultValue: currentFilter,
 
-        placeholder: "Filter...",
+        placeholder: label,
         inputProps: {
-          "aria-label": "Filter",
+          "aria-label": label,
           sx: {
             padding: "3.5px 7px",
             height: "1em",
