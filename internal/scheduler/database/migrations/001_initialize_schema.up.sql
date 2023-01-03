@@ -4,13 +4,17 @@ CREATE TABLE queues (
 );
 
 CREATE TABLE jobs (
-    job_id UUID PRIMARY KEY,
+    job_id text PRIMARY KEY,
     job_set text NOT NULL,
     queue text NOT NULL,
     user_id text NOT NULL,
+    -- timestamp that tells us when the job has been submitted
+    submitted TIMESTAMPTZ NOT NULL,
     groups bytea, -- compressed
     priority bigint NOT NULL,
-    -- Indicates if this job has been cancelled by a user.
+    -- Indicates that the user has requested the job be cancelled
+    cancel_requested boolean NOT NULL DEFAULT false,
+    -- Indicates if this job has been cancelled
     cancelled boolean NOT NULL DEFAULT false,
     -- Set to true when a JobSucceeded event has been received for this job by the ingester.
     succeeded boolean NOT NULL DEFAULT false,
@@ -29,7 +33,7 @@ ALTER TABLE jobs ALTER COLUMN submit_message SET STORAGE EXTERNAL;
 
 CREATE TABLE runs (
     run_id UUID PRIMARY KEY,
-    job_id UUID NOT NULL,
+    job_id TEXT NOT NULL,
     -- Needed to efficiently cancel all runs for a particular job set.
     job_set TEXT NOT NULL,
     -- Executor this job run is assigned to.
@@ -46,6 +50,8 @@ CREATE TABLE runs (
     succeeded boolean NOT NULL DEFAULT false,
     -- Set to true when a terminal JobRunErrors event has been received for this run by the ingester.
     failed boolean NOT NULL DEFAULT false,
+    -- Set to true when the lease is returned by the executor.
+    returned boolean NOT NULL DEFAULT false,
     serial bigserial NOT NULL,
     last_modified TIMESTAMPTZ NOT NULL
 );
