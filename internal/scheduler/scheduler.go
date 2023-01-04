@@ -4,10 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/hashicorp/go-memdb"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"

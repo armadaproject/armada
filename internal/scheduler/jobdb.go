@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 )
 
 const (

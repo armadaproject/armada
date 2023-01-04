@@ -4,13 +4,12 @@ import (
 	"math/rand"
 	"testing"
 
-	"math/rand"
-	"testing"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+
+	"github.com/G-Research/armada/internal/common/util"
 )
 
 func TestJobDbSchema(t *testing.T) {
