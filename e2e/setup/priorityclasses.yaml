@@ -3,7 +3,7 @@ kind: PriorityClass
 metadata:
   name: armada-default
 value: 1000
-globalDefault: true
+globalDefault: false
 description: "Default priority class for pods created by Armada."
 ---
 apiVersion: scheduling.k8s.io/v1
