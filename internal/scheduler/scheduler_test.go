@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -194,7 +195,7 @@ func TestCycle(t *testing.T) {
 			clusterTimeout := 1 * time.Hour
 
 			// Test objects
-			jobRepo := testJobRepository{
+			jobRepo := &testJobRepository{
 				updatedJobs: tc.jobUpdates,
 				updatedRuns: tc.runUpdates,
 				shouldError: tc.fetchError,
@@ -210,7 +211,7 @@ func TestCycle(t *testing.T) {
 				updateTimes: map[string]time.Time{"testExecutor": heartbeatTime},
 			}
 			sched, err := NewScheduler(
-				&jobRepo,
+				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
 				NewStandaloneLeaderController(),
@@ -327,12 +328,73 @@ func TestCycle(t *testing.T) {
 	}
 }
 
+// Test running multiple scheduler cycles
+func TestRun(t *testing.T) {
+
+	// Test objects
+	jobRepo := testJobRepository{numReceivedPartitions: 100}
+	testClock := clock.NewFakeClock(time.Now())
+	schedulingAlgo := &testSchedulingAlgo{}
+	publisher := &testPublisher{}
+	clusterRepo := &testExecutorRepository{}
+	leaderController := NewStandaloneLeaderController()
+
+	sched, err := NewScheduler(
+		&jobRepo,
+		clusterRepo,
+		schedulingAlgo,
+		leaderController,
+		publisher,
+		1*time.Second,
+		1*time.Hour,
+		maxLeaseReturns)
+	require.NoError(t, err)
+
+	sched.clock = testClock
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go sched.Run(ctx)
+
+	time.Sleep(1 * time.Second)
+
+	// Function that runs a cycle and waits until it sees published messages
+	fireCycle := func() {
+		publisher.Reset()
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		sched.onCycleCompleted = func() { wg.Done() }
+		jobId := util.NewULID()
+		jobRepo.updatedJobs = []database.Job{{JobID: jobId, Queue: "testQueue"}}
+		schedulingAlgo.jobsToSchedule = []string{jobId}
+		testClock.Step(10 * time.Second)
+		wg.Wait()
+	}
+
+	// fire a cycle and assert that we became leader and published
+	fireCycle()
+	assert.Equal(t, 1, len(publisher.events))
+
+	// invalidate our leadership: we should not publish
+	leaderController.token = InvalidLeaderToken()
+	fireCycle()
+	assert.Equal(t, 0, len(publisher.events))
+
+	// become master again: we should publish
+	leaderController.token = NewLeaderToken()
+	fireCycle()
+	assert.Equal(t, 1, len(publisher.events))
+
+	cancel()
+}
+
 // Test implementations of the interfaces needed by the Scheduler
 type testJobRepository struct {
-	updatedJobs []database.Job
-	updatedRuns []database.Run
-	errors      map[uuid.UUID]*armadaevents.JobRunErrors
-	shouldError bool
+	updatedJobs           []database.Job
+	updatedRuns           []database.Run
+	errors                map[uuid.UUID]*armadaevents.JobRunErrors
+	shouldError           bool
+	numReceivedPartitions uint32
 }
 
 func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
@@ -350,7 +412,10 @@ func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid
 }
 
 func (t *testJobRepository) CountReceivedPartitions(ctx context.Context, groupId uuid.UUID) (uint32, error) {
-	panic("CountReceivedPartitions not implemented yet")
+	if t.shouldError {
+		return 0, errors.New("error counting received partitions")
+	}
+	return t.numReceivedPartitions, nil
 }
 
 type testExecutorRepository struct {
@@ -383,7 +448,7 @@ func (t *testSchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedule
 		job, _ := jobDb.GetById(txn, id)
 		if job != nil {
 			if !job.Queued {
-				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but was already leased", job.JobId))
+				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job was already leased", job.JobId))
 			}
 			job = job.DeepCopy()
 			job.Queued = false
@@ -408,15 +473,19 @@ type testPublisher struct {
 }
 
 func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ LeaderToken) error {
+	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")
 	}
-	t.events = events
 	return nil
 }
 
+func (t *testPublisher) Reset() {
+	t.events = nil
+}
+
 func (t *testPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID) (uint32, error) {
-	panic("PublishMarkers not implemented yet")
+	return 100, nil
 }
 
 func stringSet(src []string) map[string]bool {

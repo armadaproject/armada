@@ -55,6 +55,8 @@ type Scheduler struct {
 	jobsSerial int64
 	// Highest offset we've read from Postgres on the Job Runs table.
 	runsSerial int64
+	// Function that is called every time a cycle is completed.  Useful for testing
+	onCycleCompleted func()
 }
 
 func NewScheduler(
@@ -133,6 +135,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			taken := s.clock.Now().Sub(start)
 			log.Infof("Completed scheduling cycle in %s", taken)
 			prevLeaderToken = leaderToken
+			if s.onCycleCompleted != nil {
+				s.onCycleCompleted()
+			}
 		}
 	}
 }
@@ -565,7 +570,6 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 	var groupId uuid.UUID
 	var numSent uint32
 	var err error
-	ticker := s.clock.NewTicker(pollInterval)
 
 	// Send messages to Pulsar
 	var messagesSent = false
@@ -573,10 +577,11 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C():
+		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
 				log.WithError(err).Error("Error sending marker messages to pulsar")
+				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
 			}
@@ -588,7 +593,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C():
+		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
 				log.WithError(err).Error("Error querying the database  or marker messages")
@@ -598,6 +603,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 				return nil
 			}
 			log.Infof("Recevied %d partitions, still waiting on  %d", numSent, numSent-numReceived)
+			s.clock.Sleep(pollInterval)
 		}
 	}
 }
