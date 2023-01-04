@@ -1,5 +1,4 @@
 apiConnection:
-  armadaUrl: "server:50051"
   basicAuth:
     Username: test
     Password: asdfasdf
