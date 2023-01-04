@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/database"
 	"io"
 	"sync/atomic"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/G-Research/armada/internal/common/database"
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
