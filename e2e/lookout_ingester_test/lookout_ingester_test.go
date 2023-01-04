@@ -213,11 +213,18 @@ func NewJobStateTracker(jobId string, db *sql.DB) *JobStateTracker {
 
 func (jst *JobStateTracker) Scan() error {
 	pJob := &PartialJob{}
-	row := jst.db.QueryRow("SELECT job_id,state FROM job WHERE job_id = $1", jst.JobId)
-	if err := row.Scan(&pJob.JobId, &pJob.State); err != nil {
+	rows, err := jst.db.Query("SELECT job_id,state FROM job_shadow WHERE job_id = $1", jst.JobId)
+	if err != nil {
 		return err
 	}
-	jst.AddState(pJob.State)
+	defer rows.Close()
+
+	for rows.Next() {
+		if err = rows.Scan(&pJob.JobId, &pJob.State); err != nil {
+			return err
+		}
+		jst.AddState(pJob.State)
+	}
 	return nil
 }
 
@@ -377,6 +384,7 @@ func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest
 // when using plpgsql language.
 const triggerNotifyFuncSql = `CREATE OR REPLACE FUNCTION %s() RETURNS trigger AS $$ 
 	BEGIN 
+		INSERT into %s_shadow SELECT NEW.*;
 		PERFORM pg_notify('%s', NEW.job_id) as notify; 
 		RETURN NEW; 
 	END; 
@@ -385,7 +393,8 @@ const triggerNotifyFuncSql = `CREATE OR REPLACE FUNCTION %s() RETURNS trigger AS
 
 func createNotifyFuncs(db *sql.DB) {
 	for _, trigger := range testTriggers {
-		_, err := db.Exec(fmt.Sprintf(triggerNotifyFuncSql, trigger.Func(), trigger.NotifyChannel()))
+		_, err := db.Exec(fmt.Sprintf(triggerNotifyFuncSql,
+			trigger.Func(), trigger.Table, trigger.NotifyChannel()))
 		if err != nil {
 			panic(err)
 		}
@@ -423,12 +432,16 @@ var testTriggers = []triggerInfo{
 func dbTestSetup(db *sql.DB) {
 	// Just in case they're hanging around from a previous test run.
 	dropTestTriggers(db)
+	dropShadowTables(db)
+
 	createNotifyFuncs(db)
 	createTestTriggers(db)
+	createShadowTables(db)
 }
 
 func dbTestTeardown(db *sql.DB) {
 	dropTestTriggers(db)
+	dropShadowTables(db)
 }
 
 func createTestTriggers(db *sql.DB) {
@@ -443,10 +456,9 @@ func createTestTriggers(db *sql.DB) {
 func dropTestTriggers(db *sql.DB) {
 	for _, trigger := range testTriggers {
 		// We don't care about the result. Just drop them.
-		_, err := db.Exec(fmt.Sprintf("DROP TRIGGER %s on %s", trigger.Name(), trigger.Table))
+		_, err := db.Exec(fmt.Sprintf("DROP TRIGGER IF EXISTS %s on %s;", trigger.Name(), trigger.Table))
 		if err != nil {
-			// TODO: Remove once we fix triggers.
-			fmt.Println("Error with dropping test triggers", err)
+			panic(fmt.Sprintf("Encountered error trying to drop trigger: %s", err.Error()))
 		}
 	}
 }
@@ -459,5 +471,29 @@ func generateNotificationConnectionEventHandler(channelName string) func(pq.List
 		case pq.ListenerEventConnectionAttemptFailed:
 			panic(fmt.Sprintf("Listener %q could not connect: %s", channelName, err.Error()))
 		}
+	}
+}
+
+var (
+	createShadowTableSql = "CREATE TABLE %s_shadow (LIKE %s INCLUDING ALL, update_num SERIAL);"
+	alterShadowTableSql  = "ALTER TABLE %s_shadow DROP CONSTRAINT %s_shadow_pkey, ADD PRIMARY KEY (job_id, update_num);"
+)
+
+func createShadowTables(db *sql.DB) {
+	for _, trigger := range testTriggers {
+		_, err := db.Exec(fmt.Sprintf(createShadowTableSql, trigger.Table, trigger.Table))
+		if err != nil {
+			panic(err)
+		}
+		_, err = db.Exec(fmt.Sprintf(alterShadowTableSql, trigger.Table, trigger.Table))
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func dropShadowTables(db *sql.DB) {
+	for _, trigger := range testTriggers {
+		db.Exec(fmt.Sprintf("DROP TABLE %s_shadow", trigger.Table))
 	}
 }
