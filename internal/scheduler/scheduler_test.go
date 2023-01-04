@@ -180,13 +180,11 @@ func TestCycle(t *testing.T) {
 		"Schedule fails": {
 			initialJobs:    []*SchedulerJob{&leasedJob},
 			scheduleError:  true,
-			staleExecutor:  true,
 			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
 		},
 		"Publish fails": {
 			initialJobs:    []*SchedulerJob{&leasedJob},
 			publishError:   true,
-			staleExecutor:  true,
 			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
 		},
 	}

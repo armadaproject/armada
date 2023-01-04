@@ -9,7 +9,7 @@ CREATE TABLE jobs (
     queue text NOT NULL,
     user_id text NOT NULL,
     -- timestamp that tells us when the job has been submitted
-    submitted TIMESTAMPTZ NOT NULL,
+    submitted bigint NOT NULL,
     groups bytea, -- compressed
     priority bigint NOT NULL,
     -- Indicates that the user has requested the job be cancelled

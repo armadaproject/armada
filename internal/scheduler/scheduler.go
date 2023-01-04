@@ -622,7 +622,7 @@ func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 		jobSchedulingInfo: schedulingInfo,
 		CancelRequested:   dbJob.CancelRequested,
 		Cancelled:         dbJob.Cancelled,
-		Timestamp:         dbJob.Submitted.UnixMicro(),
+		Timestamp:         dbJob.Submitted,
 	}, nil
 }
 

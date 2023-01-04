@@ -15,7 +15,7 @@ type Job struct {
 	JobSet          string    `db:"job_set"`
 	Queue           string    `db:"queue"`
 	UserID          string    `db:"user_id"`
-	Submitted       time.Time `db:"submitted"`
+	Submitted       int64     `db:"submitted"`
 	Groups          []byte    `db:"groups"`
 	Priority        int64     `db:"priority"`
 	CancelRequested bool      `db:"cancel_requested"`
