@@ -1,6 +1,6 @@
 -- Jobs
 -- name: SelectJobsFromIds :many
-SELECT * FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+SELECT * FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: SelectQueueJobSetFromId :one
 SELECT job_id, queue, job_set FROM jobs where job_id = $1;
@@ -19,7 +19,7 @@ SELECT * FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AN
 SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false);
 
 -- name: SelectRunsFromExecutorAndJobs :many
-SELECT * FROM runs WHERE (executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::UUID[]));
+SELECT * FROM runs WHERE (executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]));
 
 -- name: SelectNewRunsForJobs :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::string[]) ORDER BY serial;

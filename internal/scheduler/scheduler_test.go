@@ -3,31 +3,32 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
-	"strings"
-	"testing"
-	"time"
+
+	"github.com/G-Research/armada/internal/common/util"
+	"github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
+// Data to be used in tests
 const maxLeaseReturns = 1
 
-// Data to be used in tests
-var job1 = SchedulerJob{
-	JobId:  strings.ToLower(ulid.MustParse("01f3j0g1md4qx7z5qb148qnh4r").String()),
+var queuedJob = SchedulerJob{
+	JobId:  util.NewULID(),
 	Queue:  "testQueue",
 	Jobset: "testJobset",
 }
 
-var job2 = SchedulerJob{
-	JobId:  strings.ToLower(ulid.MustParse("01f3j0g1md4qx7z5qb148qnh5r").String()),
+var leasedJob = SchedulerJob{
+	JobId:  util.NewULID(),
 	Queue:  "testQueue",
 	Jobset: "testJobset",
 	Leased: true,
@@ -57,36 +58,36 @@ func TestDoCycle(t *testing.T) {
 		expectedQueued       []string
 	}{
 		"Lease a single job already in the db": {
-			initialJobs:          []*SchedulerJob{&job1},
-			expectedJobRunLeased: []string{job1.JobId},
-			expectedLeased:       []string{job1.JobId},
+			initialJobs:          []*SchedulerJob{&queuedJob},
+			expectedJobRunLeased: []string{queuedJob.JobId},
+			expectedLeased:       []string{queuedJob.JobId},
 		},
 		"Lease a single job from an update": {
 			jobUpdates: []database.Job{
 				{
-					JobID:  job1.JobId,
+					JobID:  queuedJob.JobId,
 					JobSet: "testJobSet",
 					Queue:  "testQueue",
 					Serial: 1,
 				},
 			},
-			expectedJobRunLeased: []string{job1.JobId},
-			expectedLeased:       []string{job1.JobId},
+			expectedJobRunLeased: []string{queuedJob.JobId},
+			expectedLeased:       []string{queuedJob.JobId},
 		},
 		"Nothing leased": {
-			initialJobs:    []*SchedulerJob{&job1},
-			expectedQueued: []string{job1.JobId},
+			initialJobs:    []*SchedulerJob{&queuedJob},
+			expectedQueued: []string{queuedJob.JobId},
 		},
 		"No updates to an already leased job": {
-			initialJobs:    []*SchedulerJob{&job2},
-			expectedLeased: []string{job2.JobId},
+			initialJobs:    []*SchedulerJob{&leasedJob},
+			expectedLeased: []string{leasedJob.JobId},
 		},
 		"Lease Returned and Re-queued": {
-			initialJobs: []*SchedulerJob{&job2},
+			initialJobs: []*SchedulerJob{&leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:    job2.Runs[0].RunID,
-					JobID:    job2.JobId,
+					RunID:    leasedJob.Runs[0].RunID,
+					JobID:    leasedJob.JobId,
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
@@ -94,15 +95,15 @@ func TestDoCycle(t *testing.T) {
 					Serial:   1,
 				},
 			},
-			expectedQueued: []string{job2.JobId},
+			expectedQueued: []string{leasedJob.JobId},
 		},
 		"Lease Returned and Failed": {
-			initialJobs: []*SchedulerJob{&job2},
+			initialJobs: []*SchedulerJob{&leasedJob},
 			// 2 failures here so the second one should trigger a run failure
 			runUpdates: []database.Run{
 				{
-					RunID:    job2.Runs[0].RunID,
-					JobID:    job2.JobId,
+					RunID:    leasedJob.Runs[0].RunID,
+					JobID:    leasedJob.JobId,
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
@@ -111,7 +112,7 @@ func TestDoCycle(t *testing.T) {
 				},
 				{
 					RunID:    uuid.New(),
-					JobID:    job2.JobId,
+					JobID:    leasedJob.JobId,
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
@@ -119,76 +120,75 @@ func TestDoCycle(t *testing.T) {
 					Serial:   2,
 				},
 			},
-			expectedJobErrors: []string{job2.JobId},
+			expectedJobErrors: []string{leasedJob.JobId},
 		},
 		"Job Cancelled": {
-			initialJobs: []*SchedulerJob{&job1},
+			initialJobs: []*SchedulerJob{&queuedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:           job1.JobId,
+					JobID:           queuedJob.JobId,
 					JobSet:          "testJobSet",
 					Queue:           "testQueue",
 					CancelRequested: true,
 					Serial:          1,
 				},
 			},
-			expectedJobCancelled: []string{job1.JobId},
+			expectedJobCancelled: []string{queuedJob.JobId},
 		},
 		"Lease Expired": {
-			initialJobs:          []*SchedulerJob{&job2},
+			initialJobs:          []*SchedulerJob{&leasedJob},
 			staleExecutor:        true,
-			expectedJobRunErrors: []string{job2.JobId},
-			expectedJobErrors:    []string{job2.JobId},
+			expectedJobRunErrors: []string{leasedJob.JobId},
+			expectedJobErrors:    []string{leasedJob.JobId},
 		},
 		"Job Failed": {
-			initialJobs: []*SchedulerJob{&job2},
+			initialJobs: []*SchedulerJob{&leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:    job2.Runs[0].RunID,
-					JobID:    job2.JobId,
+					RunID:    leasedJob.Runs[0].RunID,
+					JobID:    leasedJob.JobId,
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
 					Serial:   1,
 				},
 			},
-			expectedJobErrors: []string{job2.JobId},
+			expectedJobErrors: []string{leasedJob.JobId},
 		},
 		"Job Succeeded": {
-			initialJobs: []*SchedulerJob{&job2},
+			initialJobs: []*SchedulerJob{&leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:     job2.Runs[0].RunID,
-					JobID:     job2.JobId,
+					RunID:     leasedJob.Runs[0].RunID,
+					JobID:     leasedJob.JobId,
 					JobSet:    "testJobSet",
 					Executor:  "testExecutor",
 					Succeeded: true,
 					Serial:    1,
 				},
 			},
-			expectedJobSucceeded: []string{job2.JobId},
+			expectedJobSucceeded: []string{leasedJob.JobId},
 		},
 		"Fetch Fails": {
-			initialJobs:    []*SchedulerJob{&job2},
+			initialJobs:    []*SchedulerJob{&leasedJob},
 			fetchError:     true,
-			expectedLeased: []string{job2.JobId},
+			expectedLeased: []string{leasedJob.JobId},
 		},
 		"Schedule Fails": {
-			initialJobs:    []*SchedulerJob{&job2},
+			initialJobs:    []*SchedulerJob{&leasedJob},
 			scheduleError:  true,
 			staleExecutor:  true,
-			expectedLeased: []string{job2.JobId}, // job should still be leased as error was thrown and transaction rolled back
+			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
 		},
 		"Publish Fails": {
-			initialJobs:    []*SchedulerJob{&job2},
+			initialJobs:    []*SchedulerJob{&leasedJob},
 			publishError:   true,
 			staleExecutor:  true,
-			expectedLeased: []string{job2.JobId}, // job should still be leased as error was thrown and transaction rolled back
+			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			clusterTimeout := 1 * time.Hour
 
 			// Test objects
@@ -228,7 +228,7 @@ func TestDoCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.doCycle(ctx, true)
+			err = sched.doCycle(ctx, false, sched.leaderController.GetToken())
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -347,8 +347,7 @@ func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid
 }
 
 func (t *testJobRepository) CountReceivedPartitions(ctx context.Context, groupId uuid.UUID) (uint32, error) {
-	//TODO implement me
-	panic("implement me")
+	panic("CountReceivedPartitions not implemented yet")
 }
 
 type testClusterRepository struct {
@@ -357,7 +356,7 @@ type testClusterRepository struct {
 }
 
 func (t testClusterRepository) GetClusters() ([]*database.Cluster, error) {
-	panic("implement me")
+	panic("GetClusters not implemented yet")
 }
 
 func (t testClusterRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
@@ -405,7 +404,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ *LeaderToken) error {
+func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ LeaderToken) error {
 	if t.shouldError {
 		return errors.New("Error when publishing")
 	}
@@ -413,27 +412,8 @@ func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaeve
 	return nil
 }
 
-func (t *testPublisher) waitUntilEventsReceived(ctx context.Context, expected int) ([]*armadaevents.EventSequence, error) {
-	ticker := time.NewTicker(10 * time.Millisecond)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-ticker.C:
-			numEvents := 0
-			for _, e := range t.events {
-				numEvents += len(e.Events)
-			}
-			if numEvents == expected {
-				return t.events, nil
-			}
-		}
-	}
-}
-
 func (t *testPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID) (uint32, error) {
-	//TODO implement me
-	panic("implement me")
+	panic("PublishMarkers not implemented yet")
 }
 
 func stringSet(src []string) map[string]bool {

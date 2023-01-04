@@ -3,8 +3,6 @@ package database
 import (
 	"time"
 
-	"time"
-
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
@@ -16,7 +14,7 @@ type Cluster struct {
 	Usage          *schedulerobjects.ClusterResourceUsageReport
 	Nodes          []*schedulerobjects.Node
 	MinimumJobSize map[string]resource.Quantity
-	lastUpdateTime time.Time
+	LastUpdateTime time.Time
 }
 
 type ClusterRepository interface {

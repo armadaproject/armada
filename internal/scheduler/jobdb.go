@@ -3,11 +3,12 @@ package scheduler
 import (
 	"fmt"
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"math"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
-	"math"
 )
 
 const (

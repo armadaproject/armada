@@ -240,11 +240,11 @@ func (q *Queries) MarkRunsAsSentByExecutorAndJobId(ctx context.Context, arg Mark
 }
 
 const selectJobsFromIds = `-- name: SelectJobsFromIds :many
-SELECT job_id, job_set, queue, user_id, submitted, groups, priority, cancel_requested, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE job_id = ANY($1::UUID[])
+SELECT job_id, job_set, queue, user_id, submitted, groups, priority, cancel_requested, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE job_id = ANY($1::text[])
 `
 
 // Jobs
-func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]Job, error) {
+func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []string) ([]Job, error) {
 	rows, err := q.db.Query(ctx, selectJobsFromIds, jobIds)
 	if err != nil {
 		return nil, err
@@ -554,12 +554,12 @@ func (q *Queries) SelectQueueJobSetFromIds(ctx context.Context, jobIds []uuid.UU
 }
 
 const selectRunsFromExecutorAndJobs = `-- name: SelectRunsFromExecutorAndJobs :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE (executor = $1 AND job_id = ANY($2::UUID[]))
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE (executor = $1 AND job_id = ANY($2::text[]))
 `
 
 type SelectRunsFromExecutorAndJobsParams struct {
-	Executor string      `db:"executor"`
-	JobIds   []uuid.UUID `db:"job_ids"`
+	Executor string   `db:"executor"`
+	JobIds   []string `db:"job_ids"`
 }
 
 func (q *Queries) SelectRunsFromExecutorAndJobs(ctx context.Context, arg SelectRunsFromExecutorAndJobsParams) ([]Run, error) {

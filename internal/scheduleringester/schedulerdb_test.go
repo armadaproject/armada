@@ -2,7 +2,6 @@ package scheduleringester
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/util"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/constraints"
 
+	"github.com/G-Research/armada/internal/common/util"
 	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
 )
 

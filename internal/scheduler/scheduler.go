@@ -2,8 +2,9 @@ package scheduler
 
 import (
 	"context"
-	"github.com/hashicorp/go-memdb"
 	"time"
+
+	"github.com/hashicorp/go-memdb"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -16,6 +17,10 @@ import (
 	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
+
+func Run(config *Configuration) {
+	// TODO instantiate scheduler and run
+}
 
 type Scheduler struct {
 	// Provides job updates from Postgres
@@ -52,7 +57,8 @@ func NewScheduler(
 	publisher Publisher,
 	cyclePeriod time.Duration,
 	clusterTimeout time.Duration,
-	maxLeaseReturns uint) (*Scheduler, error) {
+	maxLeaseReturns uint,
+) (*Scheduler, error) {
 	jobDb, err := NewJobDb()
 	if err != nil {
 		return nil, err
@@ -74,7 +80,6 @@ func NewScheduler(
 }
 
 func (s *Scheduler) Run(ctx context.Context) error {
-
 	//  Do initial population of Job Db
 	err := s.initialise(ctx)
 	if err != nil {
@@ -83,7 +88,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 
-	var prevLeaderToken = LeaderToken{leader: false, id: uuid.New()}
+	prevLeaderToken := LeaderToken{leader: false, id: uuid.New()}
 	for {
 		select {
 		case <-ctx.Done():
@@ -111,7 +116,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 }
 
 func (s *Scheduler) doCycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
-
 	// Update job state
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -160,6 +164,9 @@ func (s *Scheduler) doCycle(ctx context.Context, updateAll bool, leaderToken Lea
 		return err
 	}
 	scheduledJobEvents, err := s.generateLeaseMessages(scheduledJobs)
+	if err != nil {
+		return err
+	}
 	events = append(events, scheduledJobEvents...)
 
 	err = s.publisher.PublishMessages(ctx, events, leaderToken)
@@ -171,7 +178,6 @@ func (s *Scheduler) doCycle(ctx context.Context, updateAll bool, leaderToken Lea
 }
 
 func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
-
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
@@ -229,7 +235,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			continue
 		}
 
-		var returnProcessed = false
+		returnProcessed := false
 		run, ok := job.RunById(dbRun.RunID)
 		if !ok {
 			run = createSchedulerRun(&dbRun)
@@ -307,7 +313,6 @@ func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJ
 }
 
 func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*SchedulerJob) ([]*armadaevents.EventSequence, error) {
-
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.CurrentRun()
@@ -355,7 +360,7 @@ func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.Event
 
 	events := make([]*armadaevents.EventSequence, 0)
 
-	//TODO: this is inefficient.  We should create a iterator of the jobs running on the affected clusters
+	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected clusters
 	jobs, err := s.jobDb.GetAll(txn)
 	if err != nil {
 		return nil, err
@@ -411,7 +416,6 @@ func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.Event
 }
 
 func (s *Scheduler) updateMessageFromJob(job *SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors) (*armadaevents.EventSequence, error) {
-
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
@@ -427,13 +431,12 @@ func (s *Scheduler) updateMessageFromJob(job *SchedulerJob, jobRunErrors map[uui
 	// Has the job been requested cancelled.  If so, cancel the job
 	if job.CancelRequested {
 		job.Cancelled = true
-		cancel :=
-			&armadaevents.EventSequence_Event{
-				Created: s.now(),
-				Event: &armadaevents.EventSequence_Event_CancelledJob{
-					CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
-				},
-			}
+		cancel := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_CancelledJob{
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+			},
+		}
 		events = append(events, cancel)
 	} else if len(job.Runs) > 0 {
 		lastRun := job.CurrentRun()
