@@ -539,9 +539,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return nil, err
 	}
 
-	err = q.jobRepository.AddRetryAttempt(request.JobId)
-	if err != nil {
-		return nil, err
+	if request.JobRunAttempted {
+		err = q.jobRepository.AddRetryAttempt(request.JobId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &types.Empty{}, nil
