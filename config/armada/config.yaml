@@ -2,38 +2,37 @@ grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
 corsAllowedOrigins:
-  - "http://localhost:3000"
-  - "http://localhost:8089"
-  - "http://localhost:10000"
-priorityHalfTime: 20m
+  - http://localhost:3000
+  - http://localhost:8089
+  - http://localhost:10000
 cancelJobsBatchSize: 1000
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
-    time: 2h
+    time: 120s
     timeout: 20s
   keepaliveEnforcementPolicy:
     minTime: 10s
-    permitWithoutStream: false
+    permitWithoutStream: true
 redis:
   addrs:
-    - "redis:6379"
+    - redis:6379
   password: ""
   db: 0
   poolSize: 1000
 eventsRedis:
   addrs:
-    - "redis:6379"
+    - redis:6379
   password: ""
   db: 0
   poolSize: 1000
 eventsApiRedis:
   addrs:
-    - "redis:6379"
+    - redis:6379
   password: ""
   db: 1
   poolSize: 1000
-defaultToLegacyEvents: true
+forceNewEvents: true
 scheduling:
   preemption:
     enabled: true
@@ -43,21 +42,15 @@ scheduling:
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
-      "": # Treat missing PC the same as armada-default.
-        priority: 1000
-        maximalResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
       armada-preemptible:
         priority: 900
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
-    # Default to empty PC to not require PCs be set up in worker clusters.
-    defaultPriorityClass: ""
+    defaultPriorityClass: armada-default
   queueLeaseBatchSize: 1000
   minimumResourceToSchedule:
-    memory: 1000000
+    memory: 1000000 # 1Mb
     cpu: 0.1
   maximalResourceFractionToSchedulePerQueue:
     memory: 1.0
@@ -142,6 +135,9 @@ pulsar:
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
   dedupTable: pulsar_submit_dedup
+  maxConnectionsPerBroker: 1
+  compressionType: zlib
+  compressionLevel: faster
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
   maxAllowedMessageSize: 4194304 # 4MB
