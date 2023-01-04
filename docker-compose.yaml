@@ -18,7 +18,7 @@ services:
       - kind
 
   postgres:
-    container_name: postgres
+    container_name: postgres:12.13-alpine
     image: postgres
     environment:
       - "POSTGRES_PASSWORD=psw"
