@@ -1,0 +1,17 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: armada-default
+  namespace: {{ .Release.Namespace }}  
+value: 1000
+globalDefault: false
+description: "Default priority class for pods created by Armada."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: armada-preemptible
+  namespace: {{ .Release.Namespace }}
+value: 900
+globalDefault: false
+description: "Priority class to be used for preemptible jobs."
