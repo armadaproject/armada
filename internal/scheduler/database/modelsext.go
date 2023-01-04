@@ -1,21 +1,16 @@
 package database
 
+// Terminal returns true if Job is in a terminal state
 func (job Job) Terminal() bool {
 	return job.Failed || job.Succeeded || job.Cancelled
 }
 
+// GetSerial is needed for the HasSerial interface
 func (job Job) GetSerial() int64 {
 	return job.Serial
 }
 
-func (job Job) JobIdString() string {
-	return job.JobID
-}
-
-func (run Run) RunIdString() string {
-	return run.JobID
-}
-
+// GetSerial is needed for the HasSerial interface
 func (run Run) GetSerial() int64 {
 	return run.Serial
 }

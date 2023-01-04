@@ -7166,7 +7166,7 @@ func (this *EventMessage_Leased) String() string {
 		return "nil"
 	}
 	s := strings.Join([]string{`&EventMessage_Leased{`,
-		`Queued:` + strings.Replace(fmt.Sprintf("%v", this.Leased), "JobLeasedEvent", "JobLeasedEvent", 1) + `,`,
+		`Leased:` + strings.Replace(fmt.Sprintf("%v", this.Leased), "JobLeasedEvent", "JobLeasedEvent", 1) + `,`,
 		`}`,
 	}, "")
 	return s
@@ -13750,7 +13750,7 @@ func (m *EventMessage) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Queued", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Leased", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {

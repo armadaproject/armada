@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	leasedPhase       = "Queued"
+	leasedPhase       = "Leased"
 	queueLabel        = "queue"
 	phaseLabel        = "phase"
 	resourceTypeLabel = "resourceType"

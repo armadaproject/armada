@@ -22,7 +22,7 @@ SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false);
 SELECT * FROM runs WHERE (executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]));
 
 -- name: SelectNewRunsForJobs :many
-SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::string[]) ORDER BY serial;
+SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
 -- name: SelectNewRunsForExecutorWithLimit :many
 SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false) LIMIT $2;

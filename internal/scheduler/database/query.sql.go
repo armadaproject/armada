@@ -465,7 +465,7 @@ func (q *Queries) SelectNewRunsForExecutorWithLimit(ctx context.Context, arg Sel
 }
 
 const selectNewRunsForJobs = `-- name: SelectNewRunsForJobs :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::string[]) ORDER BY serial
+SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
 `
 
 type SelectNewRunsForJobsParams struct {

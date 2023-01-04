@@ -22,7 +22,7 @@ const (
 	jobObjectPrefix    = "Job:"          // {jobId}            - job protobuf object
 	jobStartTimePrefix = "Job:StartTime" // {jobId}            - map clusterId -> startTime
 	jobQueuePrefix     = "Job:Queue:"    // {queue}            - sorted set of jobIds by priority
-	jobLeasedPrefix    = "Job:Queued:"   // {queue}            - sorted set of jobIds by lease renewal time
+	jobLeasedPrefix    = "Job:Leased:"   // {queue}            - sorted set of jobIds by lease renewal time
 	jobSetPrefix       = "Job:Set:"      // {jobSetId}         - set of jobIds
 	jobClusterMapKey   = "Job:ClusterId" //                    - map jobId -> cluster
 	jobRetriesPrefix   = "Job:Retries:"  // {jobId}            - number of retry attempts

@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"github.com/G-Research/armada/internal/common/database"
 	"io"
 	"sync/atomic"
 	"time"
@@ -214,23 +216,22 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 }
 
 // writeNodeInfoToPostgres writes the NodeInfo messages received from an executor into postgres
-// with the name of the Node set as the primary key, i.e., the Node name must be unique across all clusters.
+// with the name of the node set as the primary key, i.e., the node name must be unique across all clusters.
 func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorName string, nodeInfos []api.NodeInfo) error {
-	//records := make([]interface{}, 0)
-	//for _, nodeInfo := range nodeInfos {
-	//	message, err := proto.Marshal(&nodeInfo)
-	//	if err != nil {
-	//		return errors.WithStack(err)
-	//	}
-	//	records = append(records, schedulerdb.Nodeinfo{
-	//		ExecutorNodeName: fmt.Sprintf("%s-%s", executorName, nodeInfo.GetName()),
-	//		NodeName:         nodeInfo.GetName(),
-	//		Executor:         executorName,
-	//		Message:          message,
-	//	})
-	//}
-	//return database.Upsert(ctx, srv.Db, "nodeinfo", records)
-	return nil
+	records := make([]interface{}, 0)
+	for _, nodeInfo := range nodeInfos {
+		message, err := proto.Marshal(&nodeInfo)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		records = append(records, schedulerdb.Nodeinfo{
+			ExecutorNodeName: fmt.Sprintf("%s-%s", executorName, nodeInfo.GetName()),
+			NodeName:         nodeInfo.GetName(),
+			Executor:         executorName,
+			Message:          message,
+		})
+	}
+	return database.Upsert(ctx, srv.Db, "nodeinfo", records)
 }
 
 func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {

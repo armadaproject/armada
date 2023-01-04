@@ -379,7 +379,7 @@ func TestHappyPathMultiUpdate(t *testing.T) {
 	}
 	assert.Equal(t, expected, instructions)
 
-	// Queued
+	// Leased
 	msg2 := NewMsg(assigned)
 	instructions = svc.Convert(context.Background(), msg2)
 	expected = &model.InstructionSet{

@@ -19,11 +19,10 @@ const (
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
-// It allows for efficiently iterating over jobs in a specified queue sorted first by priority class value (greater to smaller),
-// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority), and third by
-// submission time.
+// It allows for efficiently iterating over jobs in a specified queue sorted first by in-queue priority value (smaller to
+// greater, since smaller values indicate higher priority), and second by submission time.
 // JobDb is implemented on top of https://github.com/hashicorp/go-memdb which is a simple in-memory database built on immutable
-// radix trees
+// radix trees.
 type JobDb struct {
 	// In-memory database. Stores *SchedulerJob.
 	// Used to efficiently iterate over jobs in sorted order.

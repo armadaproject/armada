@@ -222,16 +222,15 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	jobsToDelete := make([]string, 0, len(updatedJobs))
 	jobsToUpdateById := make(map[string]*SchedulerJob, len(updatedJobs))
 	for _, dbJob := range updatedJobs {
-		jobId := dbJob.JobIdString()
 		// Scheduler has sent a terminal message therefore we can safely remove the job
 		if dbJob.Terminal() {
-			jobsToDelete = append(jobsToDelete, jobId)
+			jobsToDelete = append(jobsToDelete, dbJob.JobID)
 		}
 
 		// Try and retrieve the job from the jobDb.  If it doesn't exist then create it.
-		job, err := s.jobDb.GetById(txn, jobId)
+		job, err := s.jobDb.GetById(txn, dbJob.JobID)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", jobId)
+			return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", dbJob.JobID)
 		}
 		job = job.DeepCopy()
 		if job == nil {
@@ -243,7 +242,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			// make the scheduler job look like the db job
 			updateSchedulerJob(job, &dbJob)
 		}
-		jobsToUpdateById[jobId] = job
+		jobsToUpdateById[job.JobId] = job
 	}
 
 	for _, dbRun := range updatedRuns {
@@ -613,10 +612,10 @@ func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
 		return nil, errors.Wrapf(
-			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobIdString())
+			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 	return &SchedulerJob{
-		JobId:             dbJob.JobIdString(),
+		JobId:             dbJob.JobID,
 		Jobset:            dbJob.JobSet,
 		Queue:             dbJob.Queue,
 		Queued:            true,
