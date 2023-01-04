@@ -19,14 +19,22 @@ import (
 )
 
 func Run(config *Configuration) {
-	// TODO instantiate scheduler and run
+	// TODO instantiate scheduler and start cycling
 }
 
+// Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are performed:
+// * Determine if we are leader
+// * Update internal state from postgres (via the jobRepository)
+// * If Leader:
+//   * Generate any armada events resulting from the state update
+//   * Expire any jobs that are running on  stale clusters
+//   * Attempt to schedule jobs from the queue
+//   * Publish any armada events resulting from the cycle to Pulsar
 type Scheduler struct {
 	// Provides job updates from Postgres
 	jobRepository database.JobRepository
 	// Used to determine whether a cluster is active
-	clusterRepository database.ClusterRepository
+	executorRepository database.ExecutorRepository
 	// Responsible for assigning jobs to nodes
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs
@@ -38,7 +46,7 @@ type Scheduler struct {
 	// Maximum number of times a lease can be returned before the job is considered failed
 	maxLeaseReturns uint
 	// ClusterTimeout
-	clusterTimeout time.Duration
+	executorTimeout time.Duration
 	// Used for all timing decisions (sleep etc). Injected here so that we can mock out for testing
 	clock clock.Clock
 	// Stores active jobs (i.e queued/running) and provides fast in-memory lookups on them
@@ -51,12 +59,12 @@ type Scheduler struct {
 
 func NewScheduler(
 	jobRepository database.JobRepository,
-	clusterRepository database.ClusterRepository,
+	executorRepository database.ExecutorRepository,
 	schedulingAlgo SchedulingAlgo,
 	leaderController LeaderController,
 	publisher Publisher,
 	cyclePeriod time.Duration,
-	clusterTimeout time.Duration,
+	executorTimeout time.Duration,
 	maxLeaseReturns uint,
 ) (*Scheduler, error) {
 	jobDb, err := NewJobDb()
@@ -64,21 +72,22 @@ func NewScheduler(
 		return nil, err
 	}
 	return &Scheduler{
-		jobRepository:     jobRepository,
-		clusterRepository: clusterRepository,
-		schedulingAlgo:    schedulingAlgo,
-		leaderController:  leaderController,
-		publisher:         publisher,
-		jobDb:             jobDb,
-		clock:             clock.RealClock{},
-		cyclePeriod:       cyclePeriod,
-		clusterTimeout:    clusterTimeout,
-		maxLeaseReturns:   maxLeaseReturns,
-		jobsSerial:        -1,
-		runsSerial:        -1,
+		jobRepository:      jobRepository,
+		executorRepository: executorRepository,
+		schedulingAlgo:     schedulingAlgo,
+		leaderController:   leaderController,
+		publisher:          publisher,
+		jobDb:              jobDb,
+		clock:              clock.RealClock{},
+		cyclePeriod:        cyclePeriod,
+		executorTimeout:    executorTimeout,
+		maxLeaseReturns:    maxLeaseReturns,
+		jobsSerial:         -1,
+		runsSerial:         -1,
 	}, nil
 }
 
+// Run enters the scheduling loop, which will continue until the ctx is cancelled
 func (s *Scheduler) Run(ctx context.Context) error {
 	//  Do initial population of Job Db
 	err := s.initialise(ctx)
@@ -87,26 +96,38 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
-
+	log.Infof("Will run scheduling cycle every %s", s.cyclePeriod)
 	prevLeaderToken := LeaderToken{leader: false, id: uuid.New()}
 	for {
 		select {
 		case <-ctx.Done():
+			log.Infof("Context cancelled, returning..")
 			return nil
 		case <-ticker.C():
 			start := s.clock.Now()
 			leaderToken := s.leaderController.GetToken()
+			log.Infof("Received a leaderToken. Leader status is %t", leaderToken.leader)
+
+			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
-				err := s.becomeMaster(ctx, 1*time.Minute)
+				log.Infof("Becoming leader")
+				err := s.ensurePulsarCaughtUp(ctx, 1*time.Second)
 				if err != nil {
 					log.WithError(err).Error("Could not become master")
-					leaderToken = NewFollowerToken()
+					leaderToken = InvalidLeaderToken()
 				}
 			}
-			err := s.doCycle(ctx, false, leaderToken)
+			// Run a scheduler cycle
+			err := s.cycle(ctx, false, leaderToken)
+
+			// If the scheduler cycle has returned an error, we must invalidate our leader token
+			// This is because right now we cannot use pulsar transactions which means that there
+			// is a possibility that only a subset of messages were published onto  Pulsar and we are thus in an
+			// inconsistent state.  Once the Pulsar go client supports transactions we should be able to remove this
+			// limitation
 			if err != nil {
 				log.WithError(err).Error("Error in scheduling cycle")
-				leaderToken = NewFollowerToken()
+				leaderToken = InvalidLeaderToken()
 			}
 			taken := s.clock.Now().Sub(start)
 			log.Infof("Completed scheduling cycle in %s", taken)
@@ -115,7 +136,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Scheduler) doCycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+// cycle is a single invocation of the main scheduling cycle
+// if updateAll is true then we will generate armada events from all jobs in the jobDb, else we only
+// generate updates from those jobs which have been updated since the last cycle
+func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
 	// Update job state
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -177,6 +201,8 @@ func (s *Scheduler) doCycle(ctx context.Context, updateAll bool, leaderToken Lea
 	return nil
 }
 
+// syncState updates the state of the jobs in jobDb to match the state in postgres
+// It returns all jobs that have been updated
 func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
@@ -236,8 +262,8 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		}
 
 		returnProcessed := false
-		run, ok := job.RunById(dbRun.RunID)
-		if !ok {
+		run := job.RunById(dbRun.RunID)
+		if run == nil {
 			run = createSchedulerRun(&dbRun)
 			job.Runs = append(job.Runs, run)
 		} else {
@@ -256,7 +282,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 
 	}
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.BatchDeleteById(txn, jobsToDelete)
+	err = s.jobDb.BatchDelete(txn, jobsToDelete)
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +300,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	return jobsToUpdate, nil
 }
 
+// generateLeaseMessages generates EventSequences from the supplied slice of leased jobs
 func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*armadaevents.EventSequence, error) {
 	events := make([]*armadaevents.EventSequence, len(scheduledJobs))
 	for i, job := range scheduledJobs {
@@ -302,6 +329,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 	return events, nil
 }
 
+// removeTerminalJobs takes the supplied list of jobs and removes any that are in a terminal state from the Job Db
 func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJob) error {
 	idsToDelete := make([]string, 0)
 	for _, job := range updatedJobs {
@@ -309,9 +337,11 @@ func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJ
 			idsToDelete = append(idsToDelete, job.JobId)
 		}
 	}
-	return s.jobDb.BatchDeleteById(txn, idsToDelete)
+	return s.jobDb.BatchDelete(txn, idsToDelete)
 }
 
+// generateUpdateMessages generates EventSequences representing the state changes on updated jobs
+// If there are no state changes then an empty slice will be returned
 func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*SchedulerJob) ([]*armadaevents.EventSequence, error) {
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
@@ -328,7 +358,7 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*S
 	// Generate any events that came out of synchronising the db state
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.updateMessageFromJob(job, jobRunErrors)
+		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors)
 		if err != nil {
 			return nil, err
 		}
@@ -339,83 +369,9 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*S
 	return events, nil
 }
 
-func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
-	heartbeatTimes, err := s.clusterRepository.GetLastUpdateTimes()
-	if err != nil {
-		return nil, err
-	}
-	missingClusters := make(map[string]bool, 0)
-	cutOff := s.clock.Now().Add(-s.clusterTimeout)
-	for cluster, heartbeat := range heartbeatTimes {
-		if heartbeat.Before(cutOff) {
-			log.Warnf("Cluster %s has not reported a hearbeart since %v. Will expire all jobs running on this cluster", cluster, heartbeat)
-			missingClusters[cluster] = true
-		}
-	}
-
-	// All clusters have had a heartbeat recently.  No need to expire any jobs
-	if len(missingClusters) == 0 {
-		return nil, nil
-	}
-
-	events := make([]*armadaevents.EventSequence, 0)
-
-	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected clusters
-	jobs, err := s.jobDb.GetAll(txn)
-	if err != nil {
-		return nil, err
-	}
-
-	jobsToDelete := make([]string, 0)
-	for _, job := range jobs {
-		run := job.CurrentRun()
-		if job.Leased && run != nil && missingClusters[run.Executor] {
-			log.Warnf("Cancelling job %s as it is running on lost cluster %s", job.JobId, run.Executor)
-			jobId, err := armadaevents.ProtoUuidFromUlidString(job.JobId)
-			if err != nil {
-				return nil, err
-			}
-
-			leaseExpiredErrror := &armadaevents.Error{
-				Terminal: true,
-				Reason: &armadaevents.Error_LeaseExpired{
-					LeaseExpired: &armadaevents.LeaseExpired{},
-				},
-			}
-			es := &armadaevents.EventSequence{
-				Queue:      job.Queue,
-				JobSetName: job.Jobset,
-				Events: []*armadaevents.EventSequence_Event{
-					{
-						Created: s.now(),
-						Event: &armadaevents.EventSequence_Event_JobRunErrors{
-							JobRunErrors: &armadaevents.JobRunErrors{
-								RunId:  armadaevents.ProtoUuidFromUuid(run.RunID),
-								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredErrror},
-							},
-						},
-					},
-					{
-						Created: s.now(),
-						Event: &armadaevents.EventSequence_Event_JobErrors{
-							JobErrors: &armadaevents.JobErrors{
-								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredErrror},
-							},
-						},
-					},
-				},
-			}
-			events = append(events, es)
-			jobsToDelete = append(jobsToDelete, job.JobId)
-		}
-	}
-	s.jobDb.BatchDeleteById(txn, jobsToDelete)
-	return events, nil
-}
-
-func (s *Scheduler) updateMessageFromJob(job *SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors) (*armadaevents.EventSequence, error) {
+// generateUpdateMessages generates EventSequence representing the state change on a single jobs
+// If there are no state changes then nil will be returned
+func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
@@ -479,31 +435,100 @@ func (s *Scheduler) updateMessageFromJob(job *SchedulerJob, jobRunErrors map[uui
 	return nil, nil
 }
 
+// expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
+// It also generates an EventSequence for each job, indicating that both the run and the job has failed
+// Note that this is different behaviour from the old scheduler which wouldallow expired jobs to be rerun
+func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
+	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes()
+	if err != nil {
+		return nil, err
+	}
+	staleExecutors := make(map[string]bool, 0)
+	cutOff := s.clock.Now().Add(-s.executorTimeout)
+
+	// TODO: this will only detect stale clusters if they exist in the database
+	// Right now this is fine because nothing will delete this jobs, but we should consider the case where an executor
+	// has been completely removed
+	for executor, heartbeat := range heartbeatTimes {
+		if heartbeat.Before(cutOff) {
+			log.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
+			staleExecutors[executor] = true
+		}
+	}
+
+	// All clusters have had a heartbeat recently.  No need to expire any jobs
+	if len(staleExecutors) == 0 {
+		log.Infof("No stale executors found. No jobs need to be expired")
+		return nil, nil
+	}
+
+	events := make([]*armadaevents.EventSequence, 0)
+
+	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected executors
+	jobs, err := s.jobDb.GetAll(txn)
+	if err != nil {
+		return nil, err
+	}
+
+	jobsToDelete := make([]string, 0)
+	for _, job := range jobs {
+		run := job.CurrentRun()
+		if job.Leased && run != nil && staleExecutors[run.Executor] {
+			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.JobId, run.Executor)
+			jobId, err := armadaevents.ProtoUuidFromUlidString(job.JobId)
+			if err != nil {
+				return nil, err
+			}
+
+			leaseExpiredErrror := &armadaevents.Error{
+				Terminal: true,
+				Reason: &armadaevents.Error_LeaseExpired{
+					LeaseExpired: &armadaevents.LeaseExpired{},
+				},
+			}
+			es := &armadaevents.EventSequence{
+				Queue:      job.Queue,
+				JobSetName: job.Jobset,
+				Events: []*armadaevents.EventSequence_Event{
+					{
+						Created: s.now(),
+						Event: &armadaevents.EventSequence_Event_JobRunErrors{
+							JobRunErrors: &armadaevents.JobRunErrors{
+								RunId:  armadaevents.ProtoUuidFromUuid(run.RunID),
+								JobId:  jobId,
+								Errors: []*armadaevents.Error{leaseExpiredErrror},
+							},
+						},
+					},
+					{
+						Created: s.now(),
+						Event: &armadaevents.EventSequence_Event_JobErrors{
+							JobErrors: &armadaevents.JobErrors{
+								JobId:  jobId,
+								Errors: []*armadaevents.Error{leaseExpiredErrror},
+							},
+						},
+					},
+				},
+			}
+			events = append(events, es)
+			jobsToDelete = append(jobsToDelete, job.JobId)
+		}
+	}
+	s.jobDb.BatchDelete(txn, jobsToDelete)
+	return events, nil
+}
+
+// now is a convenience function for generating a pointer to  a time.Time (as required by armadaevents).  It exists
+// because Go won't let you do &s.clock.Now()
 func (s *Scheduler) now() *time.Time {
 	now := s.clock.Now()
 	return &now
 }
 
-func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
-	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
-	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
-	if err != nil {
-		return nil, errors.Wrapf(
-			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobIdString())
-	}
-	return &SchedulerJob{
-		JobId:             dbJob.JobIdString(),
-		Jobset:            dbJob.JobSet,
-		Queue:             dbJob.Queue,
-		Leased:            false,
-		Priority:          uint32(dbJob.Priority),
-		jobSchedulingInfo: schedulingInfo,
-		CancelRequested:   dbJob.CancelRequested,
-		Cancelled:         dbJob.Cancelled,
-		Timestamp:         dbJob.Submitted.UnixMicro(),
-	}, nil
-}
-
+// initialise builds the initial job db based on the current database state
+// right now this is quite dim and loads the entire database but in the future
+// we should be  able to make it load active jobs/runs only
 func (s *Scheduler) initialise(ctx context.Context) error {
 	for {
 		_, err := s.syncState(ctx)
@@ -516,7 +541,10 @@ func (s *Scheduler) initialise(ctx context.Context) error {
 	return nil
 }
 
-func (s *Scheduler) becomeMaster(ctx context.Context, pollInterval time.Duration) error {
+// ensurePulsarCaughtUp  ensures that the database state contains all Pulsar messages *after* this
+// function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
+// database until all messages have been written
+func (s *Scheduler) ensurePulsarCaughtUp(ctx context.Context, pollInterval time.Duration) error {
 	var groupId uuid.UUID
 	var numSent uint32
 	var err error
@@ -541,6 +569,28 @@ func (s *Scheduler) becomeMaster(ctx context.Context, pollInterval time.Duration
 	}
 }
 
+// createSchedulerJob creates a new scheduler job from a database job
+func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
+	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
+	if err != nil {
+		return nil, errors.Wrapf(
+			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobIdString())
+	}
+	return &SchedulerJob{
+		JobId:             dbJob.JobIdString(),
+		Jobset:            dbJob.JobSet,
+		Queue:             dbJob.Queue,
+		Leased:            false,
+		Priority:          uint32(dbJob.Priority),
+		jobSchedulingInfo: schedulingInfo,
+		CancelRequested:   dbJob.CancelRequested,
+		Cancelled:         dbJob.Cancelled,
+		Timestamp:         dbJob.Submitted.UnixMicro(),
+	}, nil
+}
+
+// createSchedulerRun creates a new scheduler job run from a database job run
 func createSchedulerRun(dbRun *database.Run) *JobRun {
 	return &JobRun{
 		RunID:     dbRun.RunID,
@@ -553,6 +603,7 @@ func createSchedulerRun(dbRun *database.Run) *JobRun {
 	}
 }
 
+// updateSchedulerRun updates the scheduler job run (in-place) to match the database job run
 func updateSchedulerRun(run *JobRun, dbRun *database.Run) {
 	run.Succeeded = dbRun.Succeeded
 	run.Failed = dbRun.Failed
@@ -560,6 +611,7 @@ func updateSchedulerRun(run *JobRun, dbRun *database.Run) {
 	run.Returned = dbRun.Returned
 }
 
+// updateSchedulerJob updates the scheduler job  (in-place) to match the database job
 func updateSchedulerJob(job *SchedulerJob, dbJob *database.Job) {
 	job.CancelRequested = dbJob.CancelRequested
 	job.Succeeded = dbJob.Succeeded

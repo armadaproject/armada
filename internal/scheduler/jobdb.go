@@ -13,15 +13,16 @@ import (
 
 const (
 	jobsTable  = "jobs"
-	idIndex    = "id"
-	orderIndex = "order"
+	idIndex    = "id"    // index for looking up jobs by id
+	orderIndex = "order" // index for looking up jobs on a given queue by the order in which they should be scheduled
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
-// It allows for efficiently iterating over jobs in a specified queue sorted
-// first by priority class value (greater to smaller),
-// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority),
-// and third by submission time.
+// It allows for efficiently iterating over jobs in a specified queue sorted first by priority class value (greater to smaller),
+// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority), and third by
+// submission time.
+// JobDb is implemented on top of https://github.com/hashicorp/go-memdb which is a simple in-memory database built on immutable
+// radix trees
 type JobDb struct {
 	// In-memory database. Stores *SchedulerJob.
 	// Used to efficiently iterate over jobs in sorted order.
@@ -30,11 +31,9 @@ type JobDb struct {
 
 // SchedulerJob is the scheduler-internal representation of a job.
 type SchedulerJob struct {
-	// String representation of the job id UUID.
-	// We use a string rather than a uuid.UUID because go-memdb only
-	// supports the string representation natively.
+	// String representation of the job id
 	JobId string
-	// Name of the queue this job is part of.
+	// Name of the queue this job belongs to.
 	Queue string
 	// Jobset the job belongs to
 	// We store this so we can send messages about the job
@@ -42,7 +41,7 @@ type SchedulerJob struct {
 	// Per-queue priority of this job.
 	Priority uint32
 	// Logical timestamp indicating the order in which jobs are submitted.
-	// Jobs with identical queue and Priority
+	// Jobs with identical Queue and Priority
 	// are sorted by timestamp.
 	Timestamp int64
 	// Name of the executor to which this job has been assigned.
@@ -56,26 +55,36 @@ type SchedulerJob struct {
 	Leased bool
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
-	CancelRequested   bool
-	Cancelled         bool
-	Failed            bool
-	Succeeded         bool
-	// Job Runs in the order they were received
+	// True if the user has requested this job be cancelled
+	CancelRequested bool
+	// True if the scheduler has cancelled the job
+	Cancelled bool
+	// True if the scheduler has failed the job
+	Failed bool
+	// True if the scheduler has marked the job as succeeded
+	Succeeded bool
+	// Job Runs in the order they were received.
+	// For now there can be only one active job run which will be the last element of the slice
 	Runs []*JobRun
 }
 
+// GetQueue returns the queue this job belongs to.
 func (job *SchedulerJob) GetQueue() string {
 	return job.Queue
 }
 
+// GetAnnotations returns the annotations on the job.
 func (job *SchedulerJob) GetAnnotations() map[string]string {
 	return job.GetAnnotations()
 }
 
+// GetId returns the id of the Job.
 func (job *SchedulerJob) GetId() string {
 	return job.JobId
 }
 
+// NumReturned returns the number of times this job has been returned by executors
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small
 func (job *SchedulerJob) NumReturned() uint {
 	returned := uint(0)
 	for _, run := range job.Runs {
@@ -86,6 +95,7 @@ func (job *SchedulerJob) NumReturned() uint {
 	return returned
 }
 
+// CurrentRun returns the currently active job run or nil if there are no runs yet
 func (job *SchedulerJob) CurrentRun() *JobRun {
 	if len(job.Runs) == 0 {
 		return nil
@@ -93,15 +103,18 @@ func (job *SchedulerJob) CurrentRun() *JobRun {
 	return job.Runs[len(job.Runs)-1]
 }
 
-func (job *SchedulerJob) RunById(id uuid.UUID) (*JobRun, bool) {
+// RunById returns the Run corresponding to the provided run id or nil if no such Run exists
+func (job *SchedulerJob) RunById(id uuid.UUID) *JobRun {
 	for _, run := range job.Runs {
 		if run.RunID == id {
-			return run, true
+			return run
 		}
 	}
-	return nil, false
+	return nil
 }
 
+// DeepCopy deep copies the entire job including the runs.
+// This is needed because when jobs are stored in the JobDb they cannot be modified in-place
 func (job *SchedulerJob) DeepCopy() *SchedulerJob {
 	if job == nil {
 		return nil
@@ -127,22 +140,35 @@ func (job *SchedulerJob) DeepCopy() *SchedulerJob {
 	}
 }
 
+// JobRun is the scheduler-internal representation of a job run.
 type JobRun struct {
-	RunID     uuid.UUID
-	Executor  string
-	Pending   bool
-	Running   bool
+	// Unique identifier for the run
+	RunID uuid.UUID
+	// The name of the executor this run has been leased to
+	Executor string
+	// True if the job has been reported as pending by the executor
+	Pending bool
+	// True if the job has been reported as running by the executor
+	Running bool
+	// True if the job has been reported as succeeded by the executor
 	Succeeded bool
-	Failed    bool
+	// True if the job has been reported as failed by the executor
+	Failed bool
+	// True if the job has been reported as cancelled by the executor
 	Cancelled bool
-	Returned  bool
-	Expired   bool
+	// True if the job has been returned by the executor
+	Returned bool
+	// True if the job has been expired by the scheduler
+	Expired bool
 }
 
+// Terminal returns true if the JobRun is in a terminal state
 func (run *JobRun) Terminal() bool {
 	return run.Succeeded || run.Failed || run.Cancelled || run.Expired || run.Returned
 }
 
+// DeepCopy deep copies the entire JobRun
+// This is needed because when runs are stored in the JobDb they cannot be modified in-place
 func (run *JobRun) DeepCopy() *JobRun {
 	return &JobRun{
 		RunID:     run.RunID,
@@ -167,6 +193,8 @@ func NewJobDb() (*JobDb, error) {
 	}, nil
 }
 
+// Upsert will insert the given jobs if they don't already exist or update the if they do
+// Any jobs passed to this function *must not* be subsequently modified
 func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*SchedulerJob) error {
 	for _, job := range jobs {
 		err := txn.Insert(jobsTable, job)
@@ -177,6 +205,8 @@ func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*SchedulerJob) error {
 	return nil
 }
 
+// GetById returns the job with the given Id or nil if no such job exists
+// The Job returned by this function *must not* be subsequently modified
 func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
 	var job *SchedulerJob = nil
 	iter, err := txn.Get(jobsTable, idIndex, id)
@@ -190,6 +220,8 @@ func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
 	return job, err
 }
 
+// GetAll returns all jobs in the database.
+// The Jobs returned by this function *must not* be subsequently modified
 func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
 	iter, err := txn.Get(jobsTable, idIndex)
 	if err != nil {
@@ -203,7 +235,8 @@ func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
 	return result, nil
 }
 
-func (jobDb *JobDb) BatchDeleteById(txn *memdb.Txn, ids []string) error {
+// BatchDelete removes the jobs with the given ids from the database, ignoring any  ids that don't already exist.
+func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
 	for _, id := range ids {
 		err := txn.Delete(jobsTable, &SchedulerJob{JobId: id})
 		if err != nil {
@@ -213,16 +246,20 @@ func (jobDb *JobDb) BatchDeleteById(txn *memdb.Txn, ids []string) error {
 	return nil
 }
 
+// ReadTxn returns a read-only transaction.
+// Multiple read-only transactions can access the db concurrently
 func (jobDb *JobDb) ReadTxn() *memdb.Txn {
 	return jobDb.Db.Txn(false)
 }
 
+// WriteTxn returns a writeable transaction.
+// Only a single write transaction may access the db at any given time
 func (jobDb *JobDb) WriteTxn() *memdb.Txn {
 	return jobDb.Db.Txn(true)
 }
 
 // JobQueueIterator is an iterator over all jobs in a given queue.
-// Jobs are sorted first by PriorityClassValue, second by per-queue priority, and third by submission time.
+// Jobs are sorted first by per-queue priority, and secondly by submission time.
 type JobQueueIterator struct {
 	queue string
 	it    memdb.ResultIterator
@@ -241,10 +278,12 @@ func NewJobQueueIterator(txn *memdb.Txn, queue string) (*JobQueueIterator, error
 	}, nil
 }
 
+// WatchCh is needed to implement the memdb.ResultIterator interface but is not needed for our use case
 func (it *JobQueueIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
+// NextJobItem returns the next SchedulerJob or nil if the end of the iterator has been reached
 func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 	obj := it.it.Next()
 	if obj == nil {
@@ -262,19 +301,23 @@ func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 	return jobItem
 }
 
+// Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which provides
+// a typesafe mechanism for getting the next SchedulerJob
 func (it *JobQueueIterator) Next() interface{} {
 	return it.NextJobItem()
 }
 
+//  jobDbSchema() creates the database schema.
+// This is a simple schema consisting of a single "jobs" table with indexes for fast lookups
 func jobDbSchema() *memdb.DBSchema {
 	indexes := make(map[string]*memdb.IndexSchema)
 	indexes[idIndex] = &memdb.IndexSchema{
-		Name:    idIndex,
+		Name:    idIndex, // lookup by primary key
 		Unique:  true,
 		Indexer: &memdb.StringFieldIndex{Field: "JobId"},
 	}
 	indexes[orderIndex] = &memdb.IndexSchema{
-		Name:   orderIndex,
+		Name:   orderIndex, // lookup leased or running jobs for a given queue
 		Unique: false,
 		Indexer: &memdb.CompoundIndex{
 			Indexes: []memdb.Indexer{

@@ -228,7 +228,7 @@ func TestDoCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.doCycle(ctx, false, sched.leaderController.GetToken())
+			err = sched.cycle(ctx, false, sched.leaderController.GetToken())
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -355,8 +355,8 @@ type testClusterRepository struct {
 	shouldError bool
 }
 
-func (t testClusterRepository) GetClusters() ([]*database.Cluster, error) {
-	panic("GetClusters not implemented yet")
+func (t testClusterRepository) GetExecutors() ([]*database.Executor, error) {
+	panic("GetExecutors not implemented yet")
 }
 
 func (t testClusterRepository) GetLastUpdateTimes() (map[string]time.Time, error) {

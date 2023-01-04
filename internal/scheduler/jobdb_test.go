@@ -30,7 +30,7 @@ func TestDelete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, items[0], job)
 
-	err = db.BatchDeleteById(txn, []string{items[0].JobId})
+	err = db.BatchDelete(txn, []string{items[0].JobId})
 	assert.NoError(t, err)
 
 	job, err = db.GetById(txn, items[0].JobId)
@@ -68,7 +68,7 @@ func TestPerformance(t *testing.T) {
 		ids[i] = items[i].JobId
 	}
 	startDelete := time.Now()
-	err = db.BatchDeleteById(txn, ids)
+	err = db.BatchDelete(txn, ids)
 	assert.NoError(t, err)
 	taken = time.Now().Sub(startDelete).Milliseconds()
 	println(fmt.Sprintf("Deleted in %dms", taken))
