@@ -494,9 +494,6 @@ func createShadowTables(db *sql.DB) {
 
 func dropShadowTables(db *sql.DB) {
 	for _, trigger := range testTriggers {
-		_, err := db.Exec(fmt.Sprintf("DROP TABLE %s_shadow", trigger.Table))
-		if err != nil {
-			panic(err)
-		}
+		db.Exec(fmt.Sprintf("DROP TABLE %s_shadow", trigger.Table)) //nolint:errcheck
 	}
 }

@@ -556,7 +556,7 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 
 func TestEmptyUpdate(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		ldb := &LookoutDb{db: db, metrics: metrics.Get()}
+		ldb := getTestLookoutDb(db)
 		storeErr := ldb.Store(context.Background(), &model.InstructionSet{})
 		require.NoError(t, storeErr)
 		assertNoRows(t, ldb.db, "job")
