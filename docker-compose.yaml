@@ -13,15 +13,15 @@ services:
     container_name: redis
     image: redis
     ports:
-      - "6379:6379"
+      - 6379:6379
     networks:
       - kind
 
   postgres:
-    container_name: postgres:12.13-alpine
-    image: postgres
+    container_name: postgres
+    image: postgres:12.13-alpine
     environment:
-      - "POSTGRES_PASSWORD=psw"
+      - POSTGRES_PASSWORD=psw
     ports:
       - "5432:5432"
     networks:
@@ -34,7 +34,7 @@ services:
       - ./localdev/pulsar.conf:/conf/pulsar.conf
     entrypoint: bin/pulsar standalone
     ports:
-      - "0.0.0.0:6650:6650"
+      - 0.0.0.0:6650:6650
     networks:
       - kind
 
@@ -44,8 +44,8 @@ services:
     image: nats-streaming
     command: "-p 4223 -m 8223"
     ports:
-      - "4223:4223"
-      - "8223:8223"
+      - 4223:4223
+      - 8223:8223
     networks:
       - kind
 
