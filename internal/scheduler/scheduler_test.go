@@ -44,20 +44,20 @@ var leasedJob = SchedulerJob{
 // Test a single scheduler cycle
 func TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs          []*SchedulerJob
-		jobUpdates           []database.Job
-		runUpdates           []database.Run
-		staleExecutor        bool
-		fetchError           bool
-		scheduleError        bool
-		publishError         bool
-		expectedJobRunLeased []string
-		expectedJobRunErrors []string
-		expectedJobErrors    []string
-		expectedJobCancelled []string
-		expectedJobSucceeded []string
-		expectedLeased       []string
-		expectedQueued       []string
+		initialJobs          []*SchedulerJob // jobs in the jobdb at the start of the cycle
+		jobUpdates           []database.Job  // job updates from the database
+		runUpdates           []database.Run  // run updates from the database
+		staleExecutor        bool            // if true then the executorRepository will report the executor as stale
+		fetchError           bool            // if true then the jobRepository will throw an error
+		scheduleError        bool            // if true then the schedulingalgo will throw an error
+		publishError         bool            // if true the publisher will throw an error
+		expectedJobRunLeased []string        // ids of jobs we expect to have produced leased messages
+		expectedJobRunErrors []string        // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobErrors    []string        // ids of jobs we expect to have produced jobErrors messages
+		expectedJobCancelled []string        // ids of jobs we expect to have  produced cancelled messages
+		expectedJobSucceeded []string        // ids of jobs we expect to have  produced suceeeded messages
+		expectedLeased       []string        // ids of jobs we expected to be leased in jobdb at the end of the cycle
+		expectedQueued       []string        // ids of jobs we expected to be queued in jobdb at the end of the cycle
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:          []*SchedulerJob{&queuedJob},
@@ -327,6 +327,7 @@ func TestCycle(t *testing.T) {
 	}
 }
 
+// Test implementations of the interfaces needed by the Scheduler
 type testJobRepository struct {
 	updatedJobs []database.Job
 	updatedRuns []database.Run
