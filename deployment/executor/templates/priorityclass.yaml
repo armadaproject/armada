@@ -1,17 +1,21 @@
-apiVersion: scheduling.k8s.io/v1
-kind: PriorityClass
-metadata:
-  name: armada-default
-  namespace: {{ .Release.Namespace }}  
-value: 1000
-globalDefault: false
-description: "Default priority class for pods created by Armada."
+{{- if .Values.priorityClasses }}
+{{- range $PriorityClass := .Values.priorityClasses }}
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
-  name: armada-preemptible
-  namespace: {{ .Release.Namespace }}
-value: 900
-globalDefault: false
-description: "Priority class to be used for preemptible jobs."
+  name: {{ $PriorityClass.name }}
+  labels:
+    {{- include "priority-classes.labels" $ | nindent 4 }}
+{{- if $PriorityClass.description }}
+description: {{ $PriorityClass.description }}
+{{- end }}
+{{- if or (eq $PriorityClass.globalDefault true) (eq $PriorityClass.globalDefault false) }}
+globalDefault: {{ $PriorityClass.globalDefault }}
+{{- end }}
+{{- if $PriorityClass.preemptionPolicy }}
+preemptionPolicy: {{ $PriorityClass.preemptionPolicy }}
+{{- end }}
+value: {{ $PriorityClass.value }}
+{{- end }}
+{{- end }}
