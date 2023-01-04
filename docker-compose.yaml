@@ -13,15 +13,15 @@ services:
     container_name: redis
     image: redis
     ports:
-      - "6379:6379"
+      - 6379:6379
     networks:
       - kind
 
   postgres:
     container_name: postgres
-    image: postgres
+    image: postgres:12.13-alpine
     environment:
-      - "POSTGRES_PASSWORD=psw"
+      - POSTGRES_PASSWORD=psw
     ports:
       - "5432:5432"
     networks:
@@ -34,7 +34,7 @@ services:
       - ./localdev/pulsar.conf:/conf/pulsar.conf
     entrypoint: bin/pulsar standalone
     ports:
-      - "0.0.0.0:6650:6650"
+      - 0.0.0.0:6650:6650
     networks:
       - kind
 
@@ -44,8 +44,8 @@ services:
     image: nats-streaming
     command: "-p 4223 -m 8223"
     ports:
-      - "4223:4223"
-      - "8223:8223"
+      - 4223:4223
+      - 8223:8223
     networks:
       - kind
 
@@ -61,7 +61,7 @@ services:
       - 50051:50051
       - 8080:8080
     volumes:
-      - ./localdev/config:/config
+      - ./e2e/setup/insecure-armada-auth-config.yaml:/config/insecure-armada-auth-config.yaml
     depends_on:
       - redis
       - postgres
@@ -69,7 +69,7 @@ services:
       - stan
     working_dir: /app
     entrypoint: ./server
-    command: --config /config/armada/config.yaml
+    command: --config /config/insecure-armada-auth-config.yaml
 
   executor:
     container_name: executor
@@ -81,13 +81,13 @@ services:
     depends_on:
       - server
     volumes:
-      - ./localdev/config:/config
+      - ./e2e/setup/insecure-executor-config.yaml:/config/insecure-executor-config.yaml
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
     entrypoint: ./executor
-    command: --config /config/executor/config.yaml
+    command: --config /config/insecure-executor-config.yaml
 
   binoculars:
     container_name: binoculars
@@ -99,13 +99,11 @@ services:
     depends_on:
       - server
     volumes:
-      - ./localdev/config:/config
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
     entrypoint: ./binoculars
-    command: --config /config/binoculars/config.yaml
 
   jobservice:
     container_name: jobservice
@@ -116,11 +114,8 @@ services:
       - 60003:60003
     depends_on:
       - server
-    volumes:
-      - ./localdev/config:/config
     working_dir: "/app"
     entrypoint: ./jobservice
-    command: --config /config/jobservice/config.yaml
 
   lookoutingester:
     container_name: lookoutingester
@@ -142,8 +137,6 @@ services:
       - kind
     depends_on:
       - redis
-    volumes:
-      - ./localdev/config:/config
     working_dir: /app
     entrypoint: ./eventingester
     command: --config /config/eventingester/config.yaml

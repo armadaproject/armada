@@ -36,7 +36,7 @@ func (ls *MockLeaseService) RenewJobLeases(jobs []*job.RunningJob) ([]*job.Runni
 	return failedRenewJobs, nil
 }
 
-func (ls *MockLeaseService) ReturnLease(pod *v1.Pod, reason string) error {
+func (ls *MockLeaseService) ReturnLease(pod *v1.Pod, reason string, jobRunAttempted bool) error {
 	ls.ReturnLeaseArg = pod
 	ls.ReturnLeaseCalls++
 	return nil
