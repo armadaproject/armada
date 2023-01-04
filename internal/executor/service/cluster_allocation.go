@@ -140,7 +140,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 }
 
 func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
-	err := allocationService.leaseService.ReturnLease(pod, reason)
+	err := allocationService.leaseService.ReturnLease(pod, reason, true)
 	if err != nil {
 		log.Errorf("Failed to return lease for job %s because %s", util.ExtractJobId(pod), err)
 	}

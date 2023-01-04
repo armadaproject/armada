@@ -24,7 +24,7 @@ import (
 )
 
 type LeaseService interface {
-	ReturnLease(pod *v1.Pod, reason string) error
+	ReturnLease(pod *v1.Pod, reason string, jobRunAttempted bool) error
 	RequestJobLeases(
 		availableResource *common.ComputeResources,
 		nodes []api.NodeInfo,
@@ -204,29 +204,29 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 	// Expire jobs the server never confirmed the ack of.
 	jobsToReturn := jobs[numServerAcks:]
-	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing")
+	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing", false)
 	return receivedJobs, nil
 }
 
-func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string) {
+func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string, jobRunAttempted bool) {
 	for _, j := range jobs {
-		if err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason); err != nil {
+		if err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason, jobRunAttempted); err != nil {
 			log.Errorf("Failed to return lease for job %s because %s", j.Id, err)
 		}
 	}
 }
 
-func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string) error {
+func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string, jobRunAttempted bool) error {
 	jobId := util.ExtractJobId(pod)
 	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
 		avoidNodeLabels = emptyOrderedStringMap()
 	}
-	return jobLeaseService.ReturnLeaseById(jobId, string(pod.UID), avoidNodeLabels, reason)
+	return jobLeaseService.ReturnLeaseById(jobId, string(pod.UID), avoidNodeLabels, reason, jobRunAttempted)
 }
 
-func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetesId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string) error {
+func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetesId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string, jobRunAttempted bool) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 
@@ -242,6 +242,7 @@ func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetes
 			AvoidNodeLabels: nodeLabelsToAvoid,
 			Reason:          reason,
 			KubernetesId:    kubernetesId,
+			JobRunAttempted: jobRunAttempted,
 		})
 	return err
 }
