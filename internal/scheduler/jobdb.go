@@ -50,9 +50,9 @@ type SchedulerJob struct {
 	// Name of the node to which this job has been assigned.
 	// Empty if this job has not yet been assigned.
 	Node string
-	// True if the job  is currently Leased.
+	// True if the job  is currently Queued.
 	// If this is set then the job will not be considered for scheduling
-	Leased bool
+	Queued bool
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
 	// True if the user has requested this job be cancelled
@@ -81,6 +81,11 @@ func (job *SchedulerJob) GetAnnotations() map[string]string {
 // GetId returns the id of the Job.
 func (job *SchedulerJob) GetId() string {
 	return job.JobId
+}
+
+// Terminal returns true if the job  is in a terminal state
+func (job *SchedulerJob) Terminal() bool {
+	return job.Succeeded || job.Cancelled || job.Failed
 }
 
 // NumReturned returns the number of times this job has been returned by executors
@@ -130,7 +135,7 @@ func (job *SchedulerJob) DeepCopy() *SchedulerJob {
 		Priority:          job.Priority,
 		Timestamp:         job.Timestamp,
 		Node:              job.Node,
-		Leased:            job.Leased,
+		Queued:            job.Queued,
 		jobSchedulingInfo: proto.Clone(job.jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo),
 		CancelRequested:   job.CancelRequested,
 		Cancelled:         job.Cancelled,
@@ -235,12 +240,20 @@ func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
 	return result, nil
 }
 
-// BatchDelete removes the jobs with the given ids from the database, ignoring any  ids that don't already exist.
+// BatchDelete removes the jobs with the given ids from the database.  Any ids that are not in the database will be ignored
 func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
 	for _, id := range ids {
 		err := txn.Delete(jobsTable, &SchedulerJob{JobId: id})
 		if err != nil {
-			return errors.WithStack(err)
+			// this could be because the job doesn't exist
+			// unfortunately the error from memdb isn't nice for parsing so we do an explicit check
+			job, err := jobDb.GetById(txn, id)
+			if err != nil {
+				return err
+			}
+			if job != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
 	return nil
@@ -317,12 +330,12 @@ func jobDbSchema() *memdb.DBSchema {
 		Indexer: &memdb.StringFieldIndex{Field: "JobId"},
 	}
 	indexes[orderIndex] = &memdb.IndexSchema{
-		Name:   orderIndex, // lookup leased or running jobs for a given queue
+		Name:   orderIndex, // lookup leased jobs for a given queue
 		Unique: false,
 		Indexer: &memdb.CompoundIndex{
 			Indexes: []memdb.Indexer{
 				&memdb.StringFieldIndex{Field: "Queue"},
-				&memdb.BoolFieldIndex{Field: "Leased"},
+				&memdb.BoolFieldIndex{Field: "Queued"},
 				&memdb.UintFieldIndex{Field: "Priority"},
 				&memdb.IntFieldIndex{Field: "Timestamp"},
 			},

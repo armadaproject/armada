@@ -25,13 +25,14 @@ var queuedJob = SchedulerJob{
 	JobId:  util.NewULID(),
 	Queue:  "testQueue",
 	Jobset: "testJobset",
+	Queued: true,
 }
 
 var leasedJob = SchedulerJob{
 	JobId:  util.NewULID(),
 	Queue:  "testQueue",
 	Jobset: "testJobset",
-	Leased: true,
+	Queued: false,
 	Runs: []*JobRun{
 		{
 			RunID:    uuid.New(),
@@ -40,7 +41,8 @@ var leasedJob = SchedulerJob{
 	},
 }
 
-func TestDoCycle(t *testing.T) {
+// Test a single scheduler cycle
+func TestCycle(t *testing.T) {
 	tests := map[string]struct {
 		initialJobs          []*SchedulerJob
 		jobUpdates           []database.Job
@@ -82,7 +84,7 @@ func TestDoCycle(t *testing.T) {
 			initialJobs:    []*SchedulerJob{&leasedJob},
 			expectedLeased: []string{leasedJob.JobId},
 		},
-		"Lease Returned and Re-queued": {
+		"Lease returned and re-queued": {
 			initialJobs: []*SchedulerJob{&leasedJob},
 			runUpdates: []database.Run{
 				{
@@ -97,7 +99,7 @@ func TestDoCycle(t *testing.T) {
 			},
 			expectedQueued: []string{leasedJob.JobId},
 		},
-		"Lease Returned and Failed": {
+		"Lease returned too many times": {
 			initialJobs: []*SchedulerJob{&leasedJob},
 			// 2 failures here so the second one should trigger a run failure
 			runUpdates: []database.Run{
@@ -122,7 +124,7 @@ func TestDoCycle(t *testing.T) {
 			},
 			expectedJobErrors: []string{leasedJob.JobId},
 		},
-		"Job Cancelled": {
+		"Job cancelled": {
 			initialJobs: []*SchedulerJob{&queuedJob},
 			jobUpdates: []database.Job{
 				{
@@ -135,13 +137,13 @@ func TestDoCycle(t *testing.T) {
 			},
 			expectedJobCancelled: []string{queuedJob.JobId},
 		},
-		"Lease Expired": {
+		"Lease expired": {
 			initialJobs:          []*SchedulerJob{&leasedJob},
 			staleExecutor:        true,
 			expectedJobRunErrors: []string{leasedJob.JobId},
 			expectedJobErrors:    []string{leasedJob.JobId},
 		},
-		"Job Failed": {
+		"Job failed": {
 			initialJobs: []*SchedulerJob{&leasedJob},
 			runUpdates: []database.Run{
 				{
@@ -155,7 +157,7 @@ func TestDoCycle(t *testing.T) {
 			},
 			expectedJobErrors: []string{leasedJob.JobId},
 		},
-		"Job Succeeded": {
+		"Job succeeded": {
 			initialJobs: []*SchedulerJob{&leasedJob},
 			runUpdates: []database.Run{
 				{
@@ -169,18 +171,18 @@ func TestDoCycle(t *testing.T) {
 			},
 			expectedJobSucceeded: []string{leasedJob.JobId},
 		},
-		"Fetch Fails": {
+		"Fetch fails": {
 			initialJobs:    []*SchedulerJob{&leasedJob},
 			fetchError:     true,
 			expectedLeased: []string{leasedJob.JobId},
 		},
-		"Schedule Fails": {
+		"Schedule fails": {
 			initialJobs:    []*SchedulerJob{&leasedJob},
 			scheduleError:  true,
 			staleExecutor:  true,
 			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
 		},
-		"Publish Fails": {
+		"Publish fails": {
 			initialJobs:    []*SchedulerJob{&leasedJob},
 			publishError:   true,
 			staleExecutor:  true,
@@ -204,7 +206,7 @@ func TestDoCycle(t *testing.T) {
 			if tc.staleExecutor {
 				heartbeatTime = heartbeatTime.Add(-2 * clusterTimeout)
 			}
-			clusterRepo := &testClusterRepository{
+			clusterRepo := &testExecutorRepository{
 				updateTimes: map[string]time.Time{"testExecutor": heartbeatTime},
 			}
 			sched, err := NewScheduler(
@@ -308,14 +310,14 @@ func TestDoCycle(t *testing.T) {
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
 			for _, job := range jobs {
-				if job.Leased {
-					_, ok := remainingLeased[job.JobId]
-					assert.True(t, ok)
-					delete(remainingLeased, job.JobId)
-				} else {
+				if job.Queued {
 					_, ok := remainingQueued[job.JobId]
 					assert.True(t, ok)
 					delete(remainingQueued, job.JobId)
+				} else {
+					_, ok := remainingLeased[job.JobId]
+					assert.True(t, ok)
+					delete(remainingLeased, job.JobId)
 				}
 			}
 			assert.Equal(t, 0, len(remainingLeased))
@@ -350,16 +352,16 @@ func (t *testJobRepository) CountReceivedPartitions(ctx context.Context, groupId
 	panic("CountReceivedPartitions not implemented yet")
 }
 
-type testClusterRepository struct {
+type testExecutorRepository struct {
 	updateTimes map[string]time.Time
 	shouldError bool
 }
 
-func (t testClusterRepository) GetExecutors() ([]*database.Executor, error) {
+func (t testExecutorRepository) GetExecutors() ([]*database.Executor, error) {
 	panic("GetExecutors not implemented yet")
 }
 
-func (t testClusterRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
@@ -379,11 +381,11 @@ func (t *testSchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedule
 	for _, id := range t.jobsToSchedule {
 		job, _ := jobDb.GetById(txn, id)
 		if job != nil {
-			if job.Leased {
+			if !job.Queued {
 				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but was already leased", job.JobId))
 			}
 			job = job.DeepCopy()
-			job.Leased = true
+			job.Queued = false
 			job.Runs = append(job.Runs, &JobRun{
 				RunID:    uuid.New(),
 				Executor: "test-executor",

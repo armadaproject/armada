@@ -18,8 +18,8 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-func Run(config *Configuration) {
-	// TODO instantiate scheduler and start cycling
+func Run(_ *Configuration) {
+	// TODO: instantiate scheduler and start cycling
 }
 
 // Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are performed:
@@ -47,9 +47,9 @@ type Scheduler struct {
 	maxLeaseReturns uint
 	// ClusterTimeout
 	executorTimeout time.Duration
-	// Used for all timing decisions (sleep etc). Injected here so that we can mock out for testing
+	// Used for all timing decisions (sleep etc.). Injected here so that we can mock out for testing
 	clock clock.Clock
-	// Stores active jobs (i.e queued/running) and provides fast in-memory lookups on them
+	// Stores active jobs (i.e. queued/running) and provides fast in-memory lookups on them
 	jobDb *JobDb
 	// Highest offset we've read from Postgres on the Jobs table.
 	jobsSerial int64
@@ -106,25 +106,26 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		case <-ticker.C():
 			start := s.clock.Now()
 			leaderToken := s.leaderController.GetToken()
+			fullUpdate := false
 			log.Infof("Received a leaderToken. Leader status is %t", leaderToken.leader)
 
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
 				log.Infof("Becoming leader")
-				err := s.ensurePulsarCaughtUp(ctx, 1*time.Second)
+				fullUpdate = true
+				err := s.ensureDbUpToDate(ctx, 1*time.Second)
 				if err != nil {
 					log.WithError(err).Error("Could not become master")
 					leaderToken = InvalidLeaderToken()
 				}
 			}
 			// Run a scheduler cycle
-			err := s.cycle(ctx, false, leaderToken)
+			err := s.cycle(ctx, fullUpdate, leaderToken)
 
 			// If the scheduler cycle has returned an error, we must invalidate our leader token
-			// This is because right now we cannot use pulsar transactions which means that there
-			// is a possibility that only a subset of messages were published onto  Pulsar and we are thus in an
-			// inconsistent state.  Once the Pulsar go client supports transactions we should be able to remove this
-			// limitation
+			// This is because right now we cannot use pulsar transactions which in turn means the possibility of
+			// a partial publish and consequently an inconsistent state.  Once the Pulsar client supports transactions
+			// we should be able to remove this limitation
 			if err != nil {
 				log.WithError(err).Error("Error in scheduling cycle")
 				leaderToken = InvalidLeaderToken()
@@ -151,7 +152,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		return nil
 	}
 
-	// start a transaction- we'll roll this back if we don't publish
+	// Start a transaction- we'll roll this back if we don't publish
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
@@ -193,6 +194,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 	events = append(events, scheduledJobEvents...)
 
+	// Publish to pulsar
 	err = s.publisher.PublishMessages(ctx, events, leaderToken)
 	if err != nil {
 		return err
@@ -273,14 +275,26 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		}
 
 		// work out if the job needs to be re-queued.  This is a bit awkward as the old scheduler
-		// didn't send an explicit queued message here which means we have to infer it. For now we
+		// didn't send an explicit queued message here which means we have to infer it. For now, we
 		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
 		if !returnProcessed && run.Returned && job.NumReturned() <= s.maxLeaseReturns {
-			job.Leased = false
+			job.Queued = true
+			job.Node = ""
+			job.Executor = ""
 			run.Failed = false // unset failed here so that we don't generate a job failed message later
 		}
-
 	}
+
+	// any jobs that have don't have active run need to be marked as queued
+	for _, job := range jobsToUpdateById {
+		run := job.CurrentRun()
+		if run == nil || run.Terminal() {
+			job.Queued = true
+			job.Node = ""
+			job.Executor = ""
+		}
+	}
+
 	jobsToUpdate := maps.Values(jobsToUpdateById)
 	err = s.jobDb.BatchDelete(txn, jobsToDelete)
 	if err != nil {
@@ -375,7 +389,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
-	if job.Cancelled || job.Succeeded || job.Failed {
+	if job.Terminal() {
 		return nil, nil
 	}
 
@@ -410,13 +424,13 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed || lastRun.Expired {
 			job.Failed = true
-			errors := jobRunErrors[lastRun.RunID]
+			runErrors := jobRunErrors[lastRun.RunID]
 			jobErrors := &armadaevents.EventSequence_Event{
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobErrors{
 					JobErrors: &armadaevents.JobErrors{
 						JobId:  jobId,
-						Errors: errors.GetErrors(),
+						Errors: runErrors.GetErrors(),
 					},
 				},
 			}
@@ -437,7 +451,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
-// Note that this is different behaviour from the old scheduler which wouldallow expired jobs to be rerun
+// Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
 func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
 	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes()
 	if err != nil {
@@ -473,14 +487,14 @@ func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.Event
 	jobsToDelete := make([]string, 0)
 	for _, job := range jobs {
 		run := job.CurrentRun()
-		if job.Leased && run != nil && staleExecutors[run.Executor] {
+		if run != nil && !job.Queued && staleExecutors[run.Executor] {
 			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.JobId, run.Executor)
 			jobId, err := armadaevents.ProtoUuidFromUlidString(job.JobId)
 			if err != nil {
 				return nil, err
 			}
 
-			leaseExpiredErrror := &armadaevents.Error{
+			leaseExpiredError := &armadaevents.Error{
 				Terminal: true,
 				Reason: &armadaevents.Error_LeaseExpired{
 					LeaseExpired: &armadaevents.LeaseExpired{},
@@ -496,7 +510,7 @@ func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.Event
 							JobRunErrors: &armadaevents.JobRunErrors{
 								RunId:  armadaevents.ProtoUuidFromUuid(run.RunID),
 								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredErrror},
+								Errors: []*armadaevents.Error{leaseExpiredError},
 							},
 						},
 					},
@@ -505,7 +519,7 @@ func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.Event
 						Event: &armadaevents.EventSequence_Event_JobErrors{
 							JobErrors: &armadaevents.JobErrors{
 								JobId:  jobId,
-								Errors: []*armadaevents.Error{leaseExpiredErrror},
+								Errors: []*armadaevents.Error{leaseExpiredError},
 							},
 						},
 					},
@@ -515,7 +529,10 @@ func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.Event
 			jobsToDelete = append(jobsToDelete, job.JobId)
 		}
 	}
-	s.jobDb.BatchDelete(txn, jobsToDelete)
+	err = s.jobDb.BatchDelete(txn, jobsToDelete)
+	if err != nil {
+		return nil, err
+	}
 	return events, nil
 }
 
@@ -541,31 +558,47 @@ func (s *Scheduler) initialise(ctx context.Context) error {
 	return nil
 }
 
-// ensurePulsarCaughtUp  ensures that the database state contains all Pulsar messages *after* this
+// ensureDbUpToDate  blocks until that the database state contains all Pulsar messages sent *before* this
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
-// database until all messages have been written
-func (s *Scheduler) ensurePulsarCaughtUp(ctx context.Context, pollInterval time.Duration) error {
+// database until all messages have been written.
+func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Duration) error {
 	var groupId uuid.UUID
 	var numSent uint32
 	var err error
-	for {
-		numSent, err = s.publisher.PublishMarkers(ctx, groupId)
-		if err != nil {
-			log.WithError(err).Error("Error counting received partitions")
-		} else {
-			break
+	ticker := s.clock.NewTicker(pollInterval)
+
+	// Send messages to Pulsar
+	var messagesSent = false
+	for !messagesSent {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C():
+			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
+			if err != nil {
+				log.WithError(err).Error("Error sending marker messages to pulsar")
+			} else {
+				messagesSent = true
+			}
 		}
 	}
 
+	// Try to read these messages back from the DB
 	for {
-		numRecevied, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
-		if err != nil {
-			log.WithError(err).Error("Error counting received partitions")
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C():
+			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
+			if err != nil {
+				log.WithError(err).Error("Error querying the database  or marker messages")
+			}
+			if numSent == numReceived {
+				log.Infof("Sucessfully ensured that database state is up to date")
+				return nil
+			}
+			log.Infof("Recevied %d partitions, still waiting on  %d", numSent, numSent-numReceived)
 		}
-		if numSent == numRecevied {
-			return nil
-		}
-		s.clock.Sleep(pollInterval)
 	}
 }
 
@@ -581,7 +614,7 @@ func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 		JobId:             dbJob.JobIdString(),
 		Jobset:            dbJob.JobSet,
 		Queue:             dbJob.Queue,
-		Leased:            false,
+		Queued:            true,
 		Priority:          uint32(dbJob.Priority),
 		jobSchedulingInfo: schedulingInfo,
 		CancelRequested:   dbJob.CancelRequested,

@@ -18,7 +18,7 @@ const (
 	Submitted = "Submitted"
 	Duplicate = "Duplicate"
 	Queued    = "Queued"
-	Leased    = "Leased"
+	Leased    = "Queued"
 	Pending   = "Pending"
 	Running   = "Running"
 	Succeeded = "Succeeded"

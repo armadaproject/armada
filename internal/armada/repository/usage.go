@@ -20,7 +20,7 @@ type Usage struct {
 const (
 	clusterReportKey             = "Cluster:Report"
 	clusterQueueResourceUsageKey = "Cluster:QueueResourceUsage"
-	clusterLeasedReportKey       = "Cluster:Leased"
+	clusterLeasedReportKey       = "Cluster:Queued"
 	clusterPrioritiesPrefix      = "Cluster:Priority:"
 )
 
