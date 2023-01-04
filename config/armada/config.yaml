@@ -32,7 +32,6 @@ eventsApiRedis:
   password: ""
   db: 1
   poolSize: 1000
-forceNewEvents: true
 scheduling:
   preemption:
     enabled: true
@@ -108,6 +107,7 @@ scheduling:
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
+  autoCreateQueues: true
 events:
   storeQueue: "ArmadaEventRedisProcessor"
   jobStatusQueue: "ArmadaEventJobStatusProcessor"
@@ -127,7 +127,7 @@ eventRetention:
   expiryEnabled: true
   retentionDuration: 336h
 metrics:
-  refreshInterval: 30s
+  refreshInterval: 5m
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
