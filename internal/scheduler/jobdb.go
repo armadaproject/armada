@@ -2,8 +2,9 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 	"math"
+
+	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -320,7 +321,8 @@ func (it *JobQueueIterator) Next() interface{} {
 	return it.NextJobItem()
 }
 
-//  jobDbSchema() creates the database schema.
+//	jobDbSchema() creates the database schema.
+//
 // This is a simple schema consisting of a single "jobs" table with indexes for fast lookups
 func jobDbSchema() *memdb.DBSchema {
 	indexes := make(map[string]*memdb.IndexSchema)

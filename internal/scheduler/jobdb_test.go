@@ -1,13 +1,16 @@
 package scheduler
 
 import (
-	"github.com/G-Research/armada/internal/common/util"
+	"math/rand"
+	"testing"
+
+	"math/rand"
+	"testing"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"math/rand"
-	"testing"
 )
 
 func TestJobDbSchema(t *testing.T) {
@@ -34,7 +37,6 @@ var job2 = &SchedulerJob{
 }
 
 func TestBatchDelete(t *testing.T) {
-
 	tests := map[string]struct {
 		initialJobs          []*SchedulerJob
 		idsToDelete          []string
@@ -49,7 +51,7 @@ func TestBatchDelete(t *testing.T) {
 			idsToDelete:          []string{job1.JobId},
 			expectedRemainingIds: []string{job2.JobId},
 		},
-		"Delete non-existant job": {
+		"Delete non-existent job": {
 			initialJobs:          []*SchedulerJob{job1, job2},
 			idsToDelete:          []string{"notaJobId", job1.JobId},
 			expectedRemainingIds: []string{job2.JobId},
@@ -67,7 +69,6 @@ func TestBatchDelete(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Set up JobDb
 			jobDb := createPopulatedJobDb(t, tc.initialJobs)
 
@@ -91,7 +92,6 @@ func TestBatchDelete(t *testing.T) {
 }
 
 func TestUpsert(t *testing.T) {
-
 	tests := map[string]struct {
 		initialJobs  []*SchedulerJob
 		jobsToUpsert []*SchedulerJob
@@ -116,7 +116,6 @@ func TestUpsert(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Set up JobDb
 			jobDb := createPopulatedJobDb(t, tc.initialJobs)
 
@@ -155,7 +154,6 @@ func TestGetById(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Set up JobDb
 			jobDb := createPopulatedJobDb(t, tc.initialJobs)
 
@@ -188,7 +186,6 @@ func TestGetAll(t *testing.T) {
 }
 
 func TestJobQueuePriorityClassIterator(t *testing.T) {
-
 	// jobs in the db at the start of the test
 	initialJobs := []*SchedulerJob{
 		// Jobs on queue A
@@ -250,7 +247,6 @@ func TestJobQueuePriorityClassIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Shuffle and insert jobs.
 			jobs := slices.Clone(initialJobs)
 			slices.SortFunc(jobs, func(a, b *SchedulerJob) bool { return rand.Float64() < 0.5 })

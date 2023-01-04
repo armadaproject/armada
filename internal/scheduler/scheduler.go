@@ -26,10 +26,10 @@ func Run(_ *Configuration) {
 // * Determine if we are leader
 // * Update internal state from postgres (via the jobRepository)
 // * If Leader:
-//   * Generate any armada events resulting from the state update
-//   * Expire any jobs that are running on  stale clusters
-//   * Attempt to schedule jobs from the queue
-//   * Publish any armada events resulting from the cycle to Pulsar
+//   - Generate any armada events resulting from the state update
+//   - Expire any jobs that are running on  stale clusters
+//   - Attempt to schedule jobs from the queue
+//   - Publish any armada events resulting from the cycle to Pulsar
 type Scheduler struct {
 	// Provides job updates from Postgres
 	jobRepository database.JobRepository
@@ -123,7 +123,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			}
 			// Run a scheduler cycle
 			err := s.cycle(ctx, fullUpdate, leaderToken)
-
 			// If the scheduler cycle has returned an error, we must invalidate our leader token
 			// This is because right now we cannot use pulsar transactions which in turn means the possibility of
 			// a partial publish and consequently an inconsistent state.  Once the Pulsar client supports transactions
@@ -572,7 +571,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 	var err error
 
 	// Send messages to Pulsar
-	var messagesSent = false
+	messagesSent := false
 	for !messagesSent {
 		select {
 		case <-ctx.Done():
@@ -599,7 +598,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 				log.WithError(err).Error("Error querying the database  or marker messages")
 			}
 			if numSent == numReceived {
-				log.Infof("Sucessfully ensured that database state is up to date")
+				log.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
 			log.Infof("Recevied %d partitions, still waiting on  %d", numSent, numSent-numReceived)

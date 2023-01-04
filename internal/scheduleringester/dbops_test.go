@@ -2,8 +2,9 @@ package scheduleringester
 
 import (
 	"fmt"
-	"github.com/G-Research/armada/internal/common/util"
 	"testing"
+
+	"github.com/G-Research/armada/internal/common/util"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"

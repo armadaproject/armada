@@ -330,7 +330,6 @@ func TestCycle(t *testing.T) {
 
 // Test running multiple scheduler cycles
 func TestRun(t *testing.T) {
-
 	// Test objects
 	jobRepo := testJobRepository{numReceivedPartitions: 100}
 	testClock := clock.NewFakeClock(time.Now())

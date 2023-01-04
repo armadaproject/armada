@@ -10,7 +10,6 @@ import (
 
 // JobRepository is an interface to be implemented by structs which provide job and job run information
 type JobRepository interface {
-
 	// FetchJobUpdates returns all jobs and job runs that have been updated after jobSerial and jobRunSerial respectively
 	// These updates are guaranteed to be consistent with each other
 	FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
