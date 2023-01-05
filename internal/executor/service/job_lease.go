@@ -114,8 +114,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// The first message sent over the stream includes all information necessary
 	// for the server to choose jobs to lease.
 	// Subsequent messages only include ids of received jobs.
-	err = stream.Send(leaseRequest)
-	if err != nil {
+	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -161,7 +160,11 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 	// Get received jobs on the channel and send back acks.
 	g.Go(func() error {
-		defer stream.CloseSend()
+		defer func() {
+			if err := stream.CloseSend(); err != nil {
+				log.WithError(err).Error("error receiving leases from server")
+			}
+		}()
 		for {
 			select {
 			case <-ctx.Done():
@@ -191,8 +194,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	})
 
 	// Wait for receiver to exit.
-	err = g.Wait()
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		log.WithError(err).Error("error receiving leases from server")
 	}
 
@@ -208,8 +210,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string, jobRunAttempted bool) {
 	for _, j := range jobs {
-		err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason, jobRunAttempted)
-		if err != nil {
+		if err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason, jobRunAttempted); err != nil {
 			log.Errorf("Failed to return lease for job %s because %s", j.Id, err)
 		}
 	}
