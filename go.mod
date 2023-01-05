@@ -86,6 +86,7 @@ require (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/go-openapi/errors v0.20.2
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.21.1
@@ -97,6 +98,7 @@ require (
 	github.com/matryer/moq v0.3.0
 	github.com/openconfig/goyang v1.2.0
 	github.com/sanity-io/litter v1.5.5
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -128,7 +130,6 @@ require (
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20210512092938-c05353c2d58c // indirect
@@ -349,7 +350,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect

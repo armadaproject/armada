@@ -506,7 +506,7 @@ tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 # To run integration tests with jobservice and such, we can run this command
-# For now, let's just have it in rare cases that people need to test. 
+# For now, let's just have it in rare cases that people need to test.
 .ONESHELL:
 tests-e2e-airflow: airflow-operator tests-e2e-setup build-ci
 	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
@@ -566,34 +566,8 @@ airflow-operator:
 	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
-proto: setup-proto
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
-
-	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json -x internal/lookoutv2
-
-	# combine swagger definitions
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
-	mv -f pkg/api/api.swagger.merged.json pkg/api/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go lookout/api.swagger.json > pkg/api/lookout/api.swagger.merged.json
-	mv -f pkg/api/lookout/api.swagger.merged.json pkg/api/lookout/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go binoculars/api.swagger.json > pkg/api/binoculars/api.swagger.merged.json
-	mv -f pkg/api/binoculars/api.swagger.merged.json pkg/api/binoculars/api.swagger.json
-
-	rm -f pkg/api/api.swagger.definitions.json
-
-	# embed swagger json into go binary
-	$(GO_TEST_CMD) templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
-
-	# fix all imports ordering
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/scheduler/schedulerobjects/
+proto:
+	go run github.com/magefile/mage@v1.14.0 proto
 
 sql:
 	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
