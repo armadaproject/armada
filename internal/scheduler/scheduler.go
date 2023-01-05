@@ -340,6 +340,8 @@ func Run(config *Configuration) error {
 	defer producer.Close()
 
 	scheduler := NewScheduler(producer, db)
-	scheduler.Run(app.CreateContextWithShutdown())
+	if runErr := scheduler.Run(app.CreateContextWithShutdown()); runErr != nil {
+		return runErr
+	}
 	return nil
 }
