@@ -176,20 +176,20 @@ func protoGenerate() error {
 		return err
 	}
 
-	// // Fix import ordering.
-	// err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
-	// if err != nil {
-	// 	return err
-	// }
+	// Fix import ordering.
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
+	if err != nil {
+		return err
+	}
 
-	// err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
-	// if err != nil {
-	// 	return err
-	// }
-	// err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")
-	// if err != nil {
-	// 	return err
-	// }
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
+	if err != nil {
+		return err
+	}
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
