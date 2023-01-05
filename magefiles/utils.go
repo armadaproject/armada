@@ -49,8 +49,7 @@ func unzip(zipPath, dstPath string) error {
 			if err != nil {
 				return err
 			}
-			err = os.WriteFile(name, data, 0o755)
-			if err != nil {
+			if err := os.WriteFile(name, data, 0o755); err != nil {
 				return err
 			}
 		}
@@ -59,8 +58,7 @@ func unzip(zipPath, dstPath string) error {
 }
 
 func copy(srcPath, dstPath string) error {
-	err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755); err != nil {
 		return err
 	}
 	src, err := os.Open(srcPath)
