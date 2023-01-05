@@ -9,6 +9,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -122,7 +123,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 	err := client.WithConnection(connectionDetails(), func(connection *grpc.ClientConn) error {
 		submitClient := api.NewSubmitClient(connection)
 		db, err := openPgDbTestConnection()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		dbTestSetup(db)
 		defer dbTestTeardown(db)
 
@@ -146,7 +147,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 				createQueue(submitClient, jobRequest, t)
 
 				submitResponse, err := client.SubmitJobs(submitClient, jobRequest)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, len(submitResponse.JobResponseItems), 1)
 
 				jobId := submitResponse.JobResponseItems[0].JobId
@@ -166,20 +167,20 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 					case notification := <-jobUpdateListener.NotificationChannel():
 						if notification.Extra == jobId {
 							err := jst.Scan()
-							assert.NoError(t, err)
+							require.NoError(t, err)
 						}
 					case notification := <-jobRunUpdateListener.NotificationChannel():
 						if notification.Extra == jobId {
 							err := jrt.Scan()
-							assert.NoError(t, err)
+							require.NoError(t, err)
 						}
 					case notification := <-annotationUpdateLisener.NotificationChannel():
 						if notification.Extra == jobId {
 							err := uslt.Scan()
-							assert.NoError(t, err)
+							require.NoError(t, err)
 						}
 					case <-ctx.Done():
-						assert.NoError(t, ctx.Err())
+						require.NoError(t, ctx.Err())
 						return
 					}
 
@@ -192,7 +193,7 @@ func TestLookoutIngesterUpdatesPostgresWithJobInfo(t *testing.T) {
 		}
 		return nil
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 type JobStateTracker struct {
@@ -336,7 +337,7 @@ func openTestListener(t *testing.T, channelName string) *pq.Listener {
 	listener := pq.NewListener(testPGConnectionString, 10*time.Second, time.Minute,
 		generateNotificationConnectionEventHandler(channelName))
 	err := listener.Listen(channelName)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return listener
 }
 
@@ -372,7 +373,7 @@ func createJobRequest(namespace string, args []string) *api.JobSubmitRequest {
 // TODO: Copy paste of func from e2e/basic_test/basic_test.go, refactor
 func createQueue(submitClient api.SubmitClient, jobRequest *api.JobSubmitRequest, t *testing.T) {
 	err := client.CreateQueue(submitClient, &api.Queue{Name: jobRequest.Queue, PriorityFactor: 1})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // NOTE Some important points on trigger functions
@@ -493,6 +494,6 @@ func createShadowTables(db *sql.DB) {
 
 func dropShadowTables(db *sql.DB) {
 	for _, trigger := range testTriggers {
-		db.Exec(fmt.Sprintf("DROP TABLE %s_shadow", trigger.Table))
+		db.Exec(fmt.Sprintf("DROP TABLE %s_shadow", trigger.Table)) //nolint:errcheck
 	}
 }
