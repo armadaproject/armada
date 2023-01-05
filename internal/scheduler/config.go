@@ -22,3 +22,12 @@ type Configuration struct {
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
 }
+
+type LeaderConfig struct {
+	LeaseLockName      string
+	LeaseLockNamespace string
+	LeaseDuration      time.Duration
+	RenewDeadline      time.Duration
+	RetryPeriod        time.Duration
+	PodName            string
+}

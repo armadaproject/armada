@@ -1,7 +1,15 @@
 package scheduler
 
 import (
+	"context"
+	"sync/atomic"
+
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
 // LeaderController is an interface to be implemented by structs that control which scheduler is leader
@@ -14,7 +22,7 @@ type LeaderController interface {
 }
 
 // StandaloneLeaderController returns a token that always indicates you are leader
-// This can be used when only a single instance of the scheduler is  needed
+// This can be used when only a single instance of the scheduler is needed
 type StandaloneLeaderController struct {
 	token LeaderToken
 }
@@ -34,6 +42,75 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 		return lc.token.id == tok.id
 	}
 	return false
+}
+
+// KubernetesLeaderController uses the Kubernetes Leader election mechanism to determine who is leader
+// This allows multiple instances of the scheduler to be run for HA.
+type KubernetesLeaderController struct {
+	client coordinationv1client.LeasesGetter
+	token  atomic.Value
+	config LeaderConfig
+}
+
+func NewKubernetesLeaderController(config LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
+	return &KubernetesLeaderController{
+		client: client,
+		token:  atomic.Value{},
+		config: config,
+	}
+}
+
+func (lc *KubernetesLeaderController) GetToken() LeaderToken {
+	return lc.token.Load().(LeaderToken)
+}
+
+func (lc *KubernetesLeaderController) ValidateTok(tok LeaderToken) bool {
+	if tok.leader {
+		return lc.token.Load().(LeaderToken).id == tok.id
+	}
+	return false
+}
+
+// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
+func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
+
+	lock := lc.getNewLock()
+
+	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+		Lock:            lock,
+		ReleaseOnCancel: true,
+		LeaseDuration:   lc.config.LeaseDuration,
+		RenewDeadline:   lc.config.RenewDeadline,
+		RetryPeriod:     lc.config.RetryPeriod,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(c context.Context) {
+				log.Infof("I am now leader")
+				lc.token.Store(NewLeaderToken())
+			},
+			OnStoppedLeading: func() {
+				log.Infof("I am no longer leader")
+				lc.token.Store(InvalidLeaderToken())
+			},
+			OnNewLeader: func(leaderId string) {
+				log.Infof("leader is now %s", leaderId)
+			},
+		},
+	})
+	return nil
+}
+
+// getNewLock returns a resourcelock.LeaseLock which is the resource used for locking when attempting leader election
+func (lc *KubernetesLeaderController) getNewLock() *resourcelock.LeaseLock {
+	return &resourcelock.LeaseLock{
+		LeaseMeta: metav1.ObjectMeta{
+			Name:      lc.config.LeaseLockName,
+			Namespace: lc.config.LeaseLockNamespace,
+		},
+		Client: lc.client,
+		LockConfig: resourcelock.ResourceLockConfig{
+			Identity: lc.config.PodName,
+		},
+	}
 }
 
 // LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
