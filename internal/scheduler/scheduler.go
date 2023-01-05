@@ -39,7 +39,7 @@ type Scheduler struct {
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs
 	leaderController LeaderController
-	// Responsible for publishing messaged to Pulsar.  Only the leader publishes
+	// Responsible for publishing messages to Pulsar.  Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduling cycles.
 	cyclePeriod time.Duration
