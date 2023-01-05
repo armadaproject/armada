@@ -19,10 +19,10 @@ const (
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
-// It allows for efficiently iterating over jobs in a specified queue sorted first by in-queue priority value (smaller to
-// greater, since smaller values indicate higher priority), and second by submission time.
-// JobDb is implemented on top of https://github.com/hashicorp/go-memdb which is a simple in-memory database built on immutable
-// radix trees.
+// It allows for efficiently iterating over jobs in a specified queue sorted first by in-queue priority value (smaller
+// to greater, since smaller values indicate higher priority), and second by submission time.
+// JobDb is implemented on top of https://github.com/hashicorp/go-memdb which is a simple in-memory database built on
+// immutable radix trees.
 type JobDb struct {
 	// In-memory database. Stores *SchedulerJob.
 	// Used to efficiently iterate over jobs in sorted order.
@@ -50,7 +50,7 @@ type SchedulerJob struct {
 	// Name of the node to which this job has been assigned.
 	// Empty if this job has not yet been assigned.
 	Node string
-	// True if the job  is currently Queued.
+	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling
 	Queued bool
 	// Scheduling requirements of this job.
@@ -109,6 +109,7 @@ func (job *SchedulerJob) CurrentRun() *JobRun {
 }
 
 // RunById returns the Run corresponding to the provided run id or nil if no such Run exists
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small
 func (job *SchedulerJob) RunById(id uuid.UUID) *JobRun {
 	for _, run := range job.Runs {
 		if run.RunID == id {
@@ -240,7 +241,8 @@ func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
 	return result, nil
 }
 
-// BatchDelete removes the jobs with the given ids from the database.  Any ids that are not in the database will be ignored
+// BatchDelete removes the jobs with the given ids from the database.  Any ids that are not in the database will be
+// ignored
 func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
 	for _, id := range ids {
 		err := txn.Delete(jobsTable, &SchedulerJob{JobId: id})
@@ -314,14 +316,13 @@ func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 	return jobItem
 }
 
-// Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which provides
-// a typesafe mechanism for getting the next SchedulerJob
+// Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which
+// provides a typesafe mechanism for getting the next SchedulerJob
 func (it *JobQueueIterator) Next() interface{} {
 	return it.NextJobItem()
 }
 
-//	jobDbSchema() creates the database schema.
-//
+// jobDbSchema() creates the database schema.
 // This is a simple schema consisting of a single "jobs" table with indexes for fast lookups
 func jobDbSchema() *memdb.DBSchema {
 	indexes := make(map[string]*memdb.IndexSchema)

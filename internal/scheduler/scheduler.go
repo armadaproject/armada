@@ -21,7 +21,8 @@ func Run(_ *Configuration) {
 	// TODO: instantiate scheduler and start cycling
 }
 
-// Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are performed:
+// Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
+// performed:
 // * Determine if we are leader
 // * Update internal state from postgres (via the jobRepository)
 // * If Leader:
@@ -159,7 +160,8 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
-	// If we've been asked to generate messages for all jobs do so, else generate messages only for jobs updated this cycle
+	// If we've been asked to generate messages for all jobs do so, else generate messages only for jobs updated this
+	// cycle
 	if updateAll {
 		updatedJobs, err = s.jobDb.GetAll(txn)
 		if err != nil {
