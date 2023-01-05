@@ -604,7 +604,7 @@ func TestUpdate(t *testing.T) {
 		ldb := getTestLookoutDb(db)
 		// Do the update
 		storeErr := ldb.Store(context.Background(), defaultInstructionSet())
-		assert.NoError(t, storeErr)
+		require.NoError(t, storeErr)
 		job := getJob(t, ldb.db, jobIdString)
 		jobRun := getJobRun(t, ldb.db, runIdString)
 		annotation := getUserAnnotationLookup(t, ldb.db, jobIdString)

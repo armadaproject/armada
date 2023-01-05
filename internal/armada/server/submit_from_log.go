@@ -49,7 +49,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			time.Sleep(time.Second)
 			go func() {
 				if err := srv.Run(ctx); err != nil {
-					log.WithField("error", err).Error("service failure")
+					logging.WithStacktrace(log, err).Error("service failure")
 				}
 			}()
 		} else {

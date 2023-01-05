@@ -9,19 +9,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/G-Research/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
+	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/G-Research/armada/internal/jobservice/configuration"
 	"github.com/G-Research/armada/internal/jobservice/repository"
-
-	"github.com/G-Research/armada/internal/common/logging"
-
 	"github.com/G-Research/armada/internal/jobservice/server"
-
 	js "github.com/G-Research/armada/pkg/api/jobservice"
 )
 
