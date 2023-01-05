@@ -31,12 +31,6 @@ func ciRunTests() error {
 	}
 
 	time.Sleep(5 * time.Second)
-	if err := dockerRun("ps", "-a"); err != nil {
-		return err
-	}
-	dockerRun("logs", "server")
-	dockerRun("logs", "executor")
-
 	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err != nil {
 		return err
