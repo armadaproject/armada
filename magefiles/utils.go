@@ -36,24 +36,21 @@ func unzip(zipPath, dstPath string) error {
 	defer read.Close()
 	for _, file := range read.File {
 		name := path.Join(dstPath, file.Name)
-		if file.Mode().IsDir() {
-			os.MkdirAll(path.Dir(name), os.ModeDir|0o755)
-			continue
-		}
-		open, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer open.Close()
 		os.MkdirAll(path.Dir(name), os.ModeDir|0o755)
-		create, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		defer create.Close()
-		_, err = io.Copy(create, open)
-		if err != nil {
-			return err
+		if file.Mode().IsRegular() {
+			open, err := file.Open()
+			if err != nil {
+				return err
+			}
+			defer open.Close()
+			data, err := io.ReadAll(open)
+			if err != nil {
+				return err
+			}
+			err = os.WriteFile(name, data, 0o755)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
