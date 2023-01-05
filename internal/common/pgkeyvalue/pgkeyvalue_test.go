@@ -185,7 +185,7 @@ func TestCleanup(t *testing.T) {
 		defer cancel()
 		go func() {
 			err := store.PeriodicCleanup(ctx, time.Microsecond, time.Microsecond)
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 		}()
 
 		time.Sleep(100 * time.Millisecond)
