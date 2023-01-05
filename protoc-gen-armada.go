@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/proto"
@@ -33,11 +34,24 @@ func main() {
 }
 
 func JsonTagCamelCase(field *descriptor.FieldDescriptorProto) {
+	s := generator.CamelCase(*field.Name)
+
+	// For consistency with previous tooling.
 	if gogoproto.IsNullable(field) {
-		SetStringFieldOption(gogoproto.E_Jsontag, AppendOmitempty(FixCasing(generator.CamelCase(*field.Name))))(field)
-	} else {
-		SetStringFieldOption(gogoproto.E_Jsontag, FixCasing(generator.CamelCase(*field.Name)))(field)
+		s = s + ",omitempty"
 	}
+	s = strings.ReplaceAll(s, "k8S", "k8s")
+	s = strings.ReplaceAll(s, "K8S", "K8s")
+
+	// Preserve casing of the first char.
+	// Necessary for consistency with previous tooling.
+	if unicode.IsLower(rune((*field.Name)[0])) {
+		s = strings.ToLower(s[:1]) + s[1:]
+	} else {
+		s = strings.ToUpper(s[:1]) + s[1:]
+	}
+
+	SetStringFieldOption(gogoproto.E_Jsontag, s)(field)
 }
 
 func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(field *descriptor.FieldDescriptorProto) {
@@ -49,19 +63,4 @@ func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(fie
 			panic(err)
 		}
 	}
-}
-
-// Necessary for consistency with the legacy method of generating json tags.
-func FixCasing(s string) string {
-	if len(s) == 0 {
-		return s
-	}
-	s = strings.ReplaceAll(s, "k8S", "k8s")
-	s = strings.ReplaceAll(s, "K8S", "K8s")
-	return strings.ToLower(s[:1]) + s[1:]
-}
-
-// Necessary for consistency with the legacy method of generating json tags.
-func AppendOmitempty(s string) string {
-	return s + ",omitempty"
 }
