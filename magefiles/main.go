@@ -84,6 +84,7 @@ func Sql() error {
 
 // generate protos
 func Proto() {
+	mg.Deps(protocInstall)
 	mg.Deps(protocCheck, protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 	mg.Deps(protoGenerate)
 }

@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,25 +86,6 @@ func trimSlashPrefix(path string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(path, "/"), "\\")
 }
 
-func copy(srcPath, dstPath string) error {
-	err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755)
-	if err != nil {
-		return err
-	}
-	src, err := os.Open(srcPath)
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-	dst, err := os.Create(dstPath)
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-	_, err = io.Copy(dst, src)
-	return err
-}
-
 func protoGenerate() error {
 	patterns := []string{
 		"pkg/api/*.proto",
@@ -144,6 +125,71 @@ func protoGenerate() error {
 	if err != nil {
 		return err
 	}
+
+	err = sh.Run(
+		"swagger", "generate", "spec",
+		"-m", "-o", "pkg/api/api.swagger.definitions.json",
+		"-x", "internal/lookoutv2",
+	)
+	if err != nil {
+		return err
+	}
+
+	// Combine swagger definitions.
+	if s, err := goOutput("run", "./scripts/merge_swagger.go", "api.swagger.json"); err != nil {
+		return err
+	} else {
+		if err := ioutil.WriteFile("pkg/api/api.swagger.json", []byte(s), 0o755); err != nil {
+			return err
+		}
+	}
+	if s, err := goOutput("run", "./scripts/merge_swagger.go", "lookout/api.swagger.json"); err != nil {
+		return err
+	} else {
+		if err := ioutil.WriteFile("pkg/api/lookout/api.swagger.json", []byte(s), 0o755); err != nil {
+			return err
+		}
+	}
+	if s, err := goOutput("run", "./scripts/merge_swagger.go", "binoculars/api.swagger.json"); err != nil {
+		return err
+	} else {
+		if err := ioutil.WriteFile("pkg/api/binoculars/api.swagger.json", []byte(s), 0o755); err != nil {
+			return err
+		}
+	}
+
+	if err := os.Remove("pkg/api/api.swagger.definitions.json"); err != nil {
+		return err
+	}
+
+	// Embed swagger json in go binary.
+	err = sh.Run("templify", "-e", "-p=api", "-f=SwaggerJson", "pkg/api/api.swagger.json")
+	if err != nil {
+		return err
+	}
+	err = sh.Run("templify", "-e", "-p=lookout", "-f=SwaggerJson", "pkg/api/lookout/api.swagger.json")
+	if err != nil {
+		return err
+	}
+	err = sh.Run("templify", "-e", "-p=binoculars", "-f=SwaggerJson", "pkg/api/binoculars/api.swagger.json")
+	if err != nil {
+		return err
+	}
+
+	// // Fix import ordering.
+	// err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
+	// if err != nil {
+	// 	return err
+	// }
+
+	// err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
+	// if err != nil {
+	// 	return err
+	// }
+	// err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
