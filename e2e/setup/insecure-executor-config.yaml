@@ -1,12 +1,2 @@
 apiConnection:
-  armadaUrl: "server:50051"
   forceNoTls: true
-kubernetes:
-  QPS: 100
-  Burst: 100
-  etcd:
-    fractionOfStorageInUseSoftLimit: 0.8
-    fractionOfStorageInUseHardLimit: 0.9
-  podDefaults:
-    ingress:
-      hostnameSuffix: "localhost" # Address on which Kind is setup to handle ingress
