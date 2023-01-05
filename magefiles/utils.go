@@ -36,7 +36,9 @@ func unzip(zipPath, dstPath string) error {
 	defer read.Close()
 	for _, file := range read.File {
 		name := path.Join(dstPath, file.Name)
-		os.MkdirAll(path.Dir(name), os.ModeDir|0o755)
+		if err := os.MkdirAll(path.Dir(name), os.ModeDir|0o755); err != nil {
+			return err
+		}
 		if file.Mode().IsRegular() {
 			open, err := file.Open()
 			if err != nil {

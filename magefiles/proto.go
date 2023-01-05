@@ -106,21 +106,14 @@ func protoGenerate() error {
 		}
 	}
 
-	err := sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
+	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
 	if err != nil {
 		return err
 	}
-
-	err = protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
-	if err != nil {
-		return err
-	}
-
 	err = protoProtocRun(false, true, "./pkg/api/lookout/api", "pkg/api/lookout/lookout.proto")
 	if err != nil {
 		return err
 	}
-
 	err = protoProtocRun(false, true, "./pkg/api/binoculars/api", "pkg/api/binoculars/binoculars.proto")
 	if err != nil {
 		return err
@@ -135,7 +128,6 @@ func protoGenerate() error {
 		return err
 	}
 
-	// Combine swagger definitions.
 	if s, err := goOutput("run", "./scripts/merge_swagger.go", "api.swagger.json"); err != nil {
 		return err
 	} else {
@@ -157,12 +149,10 @@ func protoGenerate() error {
 			return err
 		}
 	}
-
 	if err := os.Remove("pkg/api/api.swagger.definitions.json"); err != nil {
 		return err
 	}
 
-	// Embed swagger json in go binary.
 	err = sh.Run("templify", "-e", "-p=api", "-f=SwaggerJson", "pkg/api/api.swagger.json")
 	if err != nil {
 		return err
@@ -176,17 +166,7 @@ func protoGenerate() error {
 		return err
 	}
 
-	// Fix import ordering.
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/")
-	if err != nil {
-		return err
-	}
-
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/armadaevents/")
-	if err != nil {
-		return err
-	}
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./internal/scheduler/schedulerobjects/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
 	if err != nil {
 		return err
 	}
