@@ -35,7 +35,9 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 			return eventJob.SubscribeToJobSetId(context.Background(), s.jobServiceConfig.SubscribeJobSetTime)
 		})
 	}
-	s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId)
+	if err := s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId); err != nil {
+		log.Warn(err)
+	}
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
 		log.Warn(err)
