@@ -114,12 +114,15 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
 				log.Infof("Becoming leader")
-				fullUpdate = true
-				err := s.ensureDbUpToDate(ctx, 1*time.Second)
+				syncContext, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
 					log.WithError(err).Error("Could not become master")
 					leaderToken = InvalidLeaderToken()
+				} else {
+					fullUpdate = true
 				}
+				cancel()
 			}
 			// Run a scheduler cycle
 			err := s.cycle(ctx, fullUpdate, leaderToken)
@@ -351,7 +354,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJob) error {
 	idsToDelete := make([]string, 0)
 	for _, job := range updatedJobs {
-		if job.Succeeded || job.Cancelled || job.Failed {
+		if job.Terminal() {
 			idsToDelete = append(idsToDelete, job.JobId)
 		}
 	}
