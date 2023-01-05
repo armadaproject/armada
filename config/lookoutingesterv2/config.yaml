@@ -23,8 +23,6 @@ pulsar:
 subscriptionName: "lookout-ingester-v2"
 batchSize: 10000
 batchDuration: 500ms
-pulsarReceiveTimeout: 5s
-pulsarBackoffTime: 1s
 minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"
 maxAttempts: 10
