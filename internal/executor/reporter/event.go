@@ -139,8 +139,12 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 }
 
 func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
+	eventTime := clusterEvent.LastTimestamp.Time
+	if eventTime.IsZero() {
+		eventTime = time.Now()
+	}
 	event = &api.JobPreemptedEvent{
-		Created:   clusterEvent.LastTimestamp.Time,
+		Created:   eventTime,
 		ClusterId: clusterId,
 	}
 
