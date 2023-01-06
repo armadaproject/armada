@@ -144,12 +144,6 @@ env:
 
 dockers:
   - id: bundle
-    ids:
-      - server
-      - executor
-      - binoculars
-      - lookoutingester
-      - eventingester
     use: buildx
     goos: linux
     goarch: amd64
@@ -172,6 +166,12 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - server
+      - executor
+      - binoculars
+      - lookoutingester
+      - eventingester
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
@@ -202,6 +202,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - server
     extra_files:
       - config/armada/config.yaml
     dockerfile: ./build_goreleaser/server/Dockerfile
@@ -228,6 +230,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - executor
     extra_files:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/executor/Dockerfile
@@ -254,6 +258,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookoutingester
     extra_files:
       - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/lookoutingester/Dockerfile
@@ -280,6 +286,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookoutingesterv2
     extra_files:
       - config/lookoutingesterv2/config.yaml
     dockerfile: ./build_goreleaser/lookoutingesterv2/Dockerfile
@@ -306,6 +314,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookoutv2
     extra_files:
       - config/lookoutv2/config.yaml
     dockerfile: ./build_goreleaser/lookoutv2/Dockerfile
@@ -332,6 +342,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - eventingester
     extra_files:
       - config/eventingester/config.yaml
     dockerfile: ./build_goreleaser/eventingester/Dockerfile
@@ -358,6 +370,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - binoculars
     extra_files:
       - config/binoculars/config.yaml
     dockerfile: ./build_goreleaser/binoculars/Dockerfile
@@ -384,6 +398,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - jobservice
     extra_files:
       - config/jobservice/config.yaml
     dockerfile: ./build_goreleaser/jobservice/Dockerfile
@@ -410,6 +426,8 @@ dockers:
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - armadactl
     dockerfile: ./build_goreleaser/armadactl/Dockerfile
 
 changelog:
