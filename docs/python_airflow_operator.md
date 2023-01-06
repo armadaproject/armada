@@ -39,7 +39,7 @@ Airflow operators inherit from BaseOperator.
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
 
 
-    * **lookout_url_template** (*Optional**[**str**]*) – A URL template to be used to provide users
+    * **lookout_url_template** (*str** | **None*) – A URL template to be used to provide users
     a valid link to the related lookout job in this operator’s log.
     The format should be:
     “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will
@@ -139,7 +139,7 @@ Implementation of gRPC stubs from JobService
     for more information.
 
 
-    * **max_workers** (*Optional**[**int**]*) – number of cores for thread pools, if unset, defaults
+    * **max_workers** (*int** | **None*) – number of cores for thread pools, if unset, defaults
     to number of CPUs
 
 
@@ -277,7 +277,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
     * **job_id** (*str*) – The name of the job id that armada assigns to it
 
 
-    * **job_service_client** (*Optional**[**JobServiceClient**]*) – A JobServiceClient that is used for polling.
+    * **job_service_client** (*JobServiceClient** | **None*) – A JobServiceClient that is used for polling.
     It is optional only for testing
 
 
