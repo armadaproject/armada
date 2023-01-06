@@ -8,6 +8,9 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func binaryWithExt(name string) string {
@@ -35,6 +38,9 @@ func unzip(zipPath, dstPath string) error {
 	}
 	defer read.Close()
 	for _, file := range read.File {
+		if strings.Contains(file.Name, "..") {
+			return errors.Errorf("filename %s contains illegal '..' element (zip slip sanitation)", file.Name)
+		}
 		name := path.Join(dstPath, file.Name)
 		if err := os.MkdirAll(path.Dir(name), os.ModeDir|0o755); err != nil {
 			return err

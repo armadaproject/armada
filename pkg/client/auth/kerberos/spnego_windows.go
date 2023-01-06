@@ -3,11 +3,12 @@ package kerberos
 import (
 	"context"
 
-	"github.com/G-Research/armada/internal/common/logging"
 	"github.com/alexbrainman/sspi/negotiate"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/G-Research/armada/internal/common/logging"
 )
 
 type spnego struct {

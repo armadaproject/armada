@@ -13,7 +13,7 @@ import (
 )
 
 func protoInstallProtocArmadaPlugin() error {
-	return goRun("install", "protoc-gen-armada.go")
+	return goRun("install", "scripts/protoc-gen-armada/protoc-gen-armada.go")
 }
 
 func protoPrepareThirdPartyProtos() error {
@@ -128,21 +128,21 @@ func protoGenerate() error {
 		return err
 	}
 
-	if s, err := goOutput("run", "./scripts/merge_swagger.go", "api.swagger.json"); err != nil {
+	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "api.swagger.json"); err != nil {
 		return err
 	} else {
 		if err := ioutil.WriteFile("pkg/api/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}
-	if s, err := goOutput("run", "./scripts/merge_swagger.go", "lookout/api.swagger.json"); err != nil {
+	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "lookout/api.swagger.json"); err != nil {
 		return err
 	} else {
 		if err := ioutil.WriteFile("pkg/api/lookout/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}
-	if s, err := goOutput("run", "./scripts/merge_swagger.go", "binoculars/api.swagger.json"); err != nil {
+	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "binoculars/api.swagger.json"); err != nil {
 		return err
 	} else {
 		if err := ioutil.WriteFile("pkg/api/binoculars/api.swagger.json", []byte(s), 0o755); err != nil {

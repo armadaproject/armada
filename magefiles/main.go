@@ -58,7 +58,7 @@ func CheckDeps() error {
 // cleans proto files
 func Clean() {
 	fmt.Println("Cleaning...")
-	for _, path := range []string{"proto"} {
+	for _, path := range []string{"proto", "protoc", ".goreleaser-minimal.yml", "dist", ".kube"} {
 		os.RemoveAll(path)
 	}
 }
@@ -84,9 +84,13 @@ func Sql() error {
 
 // generate protos
 func Proto() {
+	mg.Deps(BootstrapProto)
+	mg.Deps(protoGenerate)
+}
+
+func BootstrapProto() {
 	mg.Deps(protocInstall)
 	mg.Deps(protocCheck, protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
-	mg.Deps(protoGenerate)
 }
 
 // run integration test

@@ -63,7 +63,7 @@ func protocCheck() error {
 }
 
 func protocInstall() error {
-	if ok, err := exists("./protoc"); ok || err != nil {
+	if ok, err := exists(protocBinary()); ok || err != nil {
 		return err
 	}
 

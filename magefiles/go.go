@@ -64,7 +64,7 @@ func goModuleVersion(name string) (string, error) {
 	}
 	fields := strings.Fields(out)
 	if len(fields) != 2 {
-		return "", errors.Errorf("unexpected protoc version output: %v", fields)
+		return "", errors.Errorf("unexpected go list output: %v", fields)
 	}
 	return fields[1], nil
 }
