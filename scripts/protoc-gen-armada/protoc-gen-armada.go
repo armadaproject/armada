@@ -12,7 +12,7 @@ import (
 	"github.com/gogo/protobuf/vanity/command"
 )
 
-// Used to compile proto files into go.
+// Used to compile proto files into go via gogo.
 // Identical to protoc-gen-gogofaster, but with json tags in camelCase.
 func main() {
 	req := command.Read()
