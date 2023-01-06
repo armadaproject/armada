@@ -13,7 +13,7 @@ import (
 )
 
 func protoInstallProtocArmadaPlugin() error {
-	return goRun("install", "protoc-gen-armada.go")
+	return goRun("install", "scripts/protoc-gen-armada.go")
 }
 
 func protoPrepareThirdPartyProtos() error {
