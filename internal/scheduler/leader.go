@@ -2,11 +2,11 @@ package scheduler
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -45,12 +45,18 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
+type LeaseListener interface {
+	onStartedLeading(context.Context)
+	onStoppedLeading()
+}
+
 // KubernetesLeaderController uses the Kubernetes Leader election mechanism to determine who is leader
 // This allows multiple instances of the scheduler to be run for HA.
 type KubernetesLeaderController struct {
-	client coordinationv1client.LeasesGetter
-	token  atomic.Value
-	config LeaderConfig
+	client   coordinationv1client.LeasesGetter
+	token    atomic.Value
+	config   LeaderConfig
+	listener LeaseListener
 }
 
 func NewKubernetesLeaderController(config LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
@@ -65,7 +71,7 @@ func (lc *KubernetesLeaderController) GetToken() LeaderToken {
 	return lc.token.Load().(LeaderToken)
 }
 
-func (lc *KubernetesLeaderController) ValidateTok(tok LeaderToken) bool {
+func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 	if tok.leader {
 		return lc.token.Load().(LeaderToken).id == tok.id
 	}
@@ -74,30 +80,39 @@ func (lc *KubernetesLeaderController) ValidateTok(tok LeaderToken) bool {
 
 // Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
 func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
-
-	lock := lc.getNewLock()
-
-	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
-		Lock:            lock,
-		ReleaseOnCancel: true,
-		LeaseDuration:   lc.config.LeaseDuration,
-		RenewDeadline:   lc.config.RenewDeadline,
-		RetryPeriod:     lc.config.RetryPeriod,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(c context.Context) {
-				log.Infof("I am now leader")
-				lc.token.Store(NewLeaderToken())
-			},
-			OnStoppedLeading: func() {
-				log.Infof("I am no longer leader")
-				lc.token.Store(InvalidLeaderToken())
-			},
-			OnNewLeader: func(leaderId string) {
-				log.Infof("leader is now %s", leaderId)
-			},
-		},
-	})
-	return nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			lock := lc.getNewLock()
+			log.Infof("attempting to become leader")
+			leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+				Lock:            lock,
+				ReleaseOnCancel: true,
+				LeaseDuration:   lc.config.LeaseDuration,
+				RenewDeadline:   lc.config.RenewDeadline,
+				RetryPeriod:     lc.config.RetryPeriod,
+				Callbacks: leaderelection.LeaderCallbacks{
+					OnStartedLeading: func(c context.Context) {
+						log.Infof("I am now leader")
+						lc.token.Store(NewLeaderToken())
+						if lc.listener != nil {
+							lc.listener.onStartedLeading(ctx)
+						}
+					},
+					OnStoppedLeading: func() {
+						log.Infof("I am no longer leader")
+						lc.token.Store(InvalidLeaderToken())
+						if lc.listener != nil {
+							lc.listener.onStoppedLeading()
+						}
+					},
+				},
+			})
+			log.Infof("leader election round finished")
+		}
+	}
 }
 
 // getNewLock returns a resourcelock.LeaseLock which is the resource used for locking when attempting leader election
