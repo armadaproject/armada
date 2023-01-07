@@ -83,8 +83,8 @@ func (job *SchedulerJob) GetId() string {
 	return job.JobId
 }
 
-// Terminal returns true if the job  is in a terminal state
-func (job *SchedulerJob) Terminal() bool {
+// InTerminalState returns true if the job  is in a terminal state
+func (job *SchedulerJob) InTerminalState() bool {
 	return job.Succeeded || job.Cancelled || job.Failed
 }
 
@@ -168,8 +168,8 @@ type JobRun struct {
 	Expired bool
 }
 
-// Terminal returns true if the JobRun is in a terminal state
-func (run *JobRun) Terminal() bool {
+// InTerminalState returns true if the JobRun is in a terminal state
+func (run *JobRun) InTerminalState() bool {
 	return run.Succeeded || run.Failed || run.Cancelled || run.Expired || run.Returned
 }
 

@@ -228,7 +228,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	jobsToUpdateById := make(map[string]*SchedulerJob, len(updatedJobs))
 	for _, dbJob := range updatedJobs {
 		// Scheduler has sent a terminal message therefore we can safely remove the job
-		if dbJob.Terminal() {
+		if dbJob.InTerminalState() {
 			jobsToDelete = append(jobsToDelete, dbJob.JobID)
 		}
 
@@ -296,7 +296,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	// any jobs that have don't have active run need to be marked as queued
 	for _, job := range jobsToUpdateById {
 		run := job.CurrentRun()
-		if run == nil || run.Terminal() {
+		if run == nil || run.InTerminalState() {
 			job.Queued = true
 			job.Node = ""
 			job.Executor = ""
@@ -355,7 +355,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJob) error {
 	idsToDelete := make([]string, 0)
 	for _, job := range updatedJobs {
-		if job.Terminal() {
+		if job.InTerminalState() {
 			idsToDelete = append(idsToDelete, job.JobId)
 		}
 	}
@@ -397,7 +397,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
-	if job.Terminal() {
+	if job.InTerminalState() {
 		return nil, nil
 	}
 
@@ -418,7 +418,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 		events = append(events, cancel)
 	} else if len(job.Runs) > 0 {
 		lastRun := job.CurrentRun()
-		// Terminal states. Can only have one of these
+		// InTerminalState states. Can only have one of these
 		if lastRun.Succeeded {
 			job.Succeeded = true
 			jobSucceeded := &armadaevents.EventSequence_Event{
