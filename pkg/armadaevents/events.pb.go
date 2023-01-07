@@ -12699,7 +12699,7 @@ func (m *Error) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Terminal", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field InTerminalState", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {

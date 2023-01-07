@@ -1,7 +1,7 @@
 package database
 
-// Terminal returns true if Job is in a terminal state
-func (job Job) Terminal() bool {
+// InTerminalState returns true if Job is in a terminal state
+func (job Job) InTerminalState() bool {
 	return job.Failed || job.Succeeded || job.Cancelled
 }
 
