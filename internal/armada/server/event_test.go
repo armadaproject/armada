@@ -10,6 +10,8 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,7 +35,7 @@ func TestEventServer_Health(t *testing.T) {
 		func(s *EventServer) {
 			health, err := s.Health(context.Background(), &types.Empty{})
 			assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		},
 	)
 }
@@ -67,7 +69,7 @@ func TestEventServer_ReportUsage(t *testing.T) {
 			lastMessage := stream.sendMessages[len(stream.sendMessages)-1]
 			reportEvent(t, s, &api.JobCancelledEvent{JobSetId: jobSetId})
 			e = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, FromMessageId: lastMessage.Id, Watch: false}, stream)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, 13, len(stream.sendMessages),
 				"Just new messages should be added when reading from last one.")
 		},
@@ -100,12 +102,13 @@ func TestEventServer_ForceNew(t *testing.T) {
 				},
 			}
 
-			reportPulsarEvent(&armadaevents.EventSequence{
+			err := reportPulsarEvent(&armadaevents.EventSequence{
 				Queue:      queue,
 				JobSetName: jobSetId,
 				Events:     []*armadaevents.EventSequence_Event{assigned},
 			})
 
+			require.NoError(t, err)
 			e := s.GetJobSetEvents(&api.JobSetRequest{Queue: queue, Id: jobSetId, Watch: false, ForceNew: true}, stream)
 			assert.NoError(t, e)
 			assert.Equal(t, 1, len(stream.sendMessages))
@@ -128,7 +131,7 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
 			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
-			assert.Nil(t, e)
+			require.NoError(t, e)
 			assert.Equal(t, 0, len(stream.sendMessages))
 		},
 	)
@@ -254,7 +257,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					Queue:          "test-queue",
 					ErrorIfMissing: true,
 				}, stream)
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, 1, len(stream.sendMessages))
 			},
 		)
@@ -267,7 +270,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				stream := &eventStreamMock{}
 
 				reportEvent(t, s, &api.JobQueuedEvent{Queue: "test-queue", JobSetId: "job-set-1"})
@@ -278,7 +281,7 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					Queue:          "test-queue",
 					ErrorIfMissing: false,
 				}, stream)
-				assert.Nil(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, 1, len(stream.sendMessages))
 			},
 		)
@@ -293,18 +296,14 @@ func TestEventServer_EventsShouldBeRemovedAfterEventRetentionTime(t *testing.T) 
 		reportEvent(t, s, &api.JobSubmittedEvent{JobSetId: jobSetId})
 
 		err := s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-		if ok := assert.NoError(t, err); !ok {
-			t.FailNow()
-		}
+		require.NoError(t, err)
 		assert.Equal(t, 1, len(stream.sendMessages))
 
 		time.Sleep(eventRetention.RetentionDuration + time.Millisecond*100)
 
 		stream = &eventStreamMock{}
 		err = s.GetJobSetEvents(&api.JobSetRequest{Id: jobSetId, Watch: false}, stream)
-		if ok := assert.NoError(t, err); !ok {
-			t.FailNow()
-		}
+		require.NoError(t, err)
 		assert.Equal(t, 0, len(stream.sendMessages))
 	})
 }
@@ -488,7 +487,7 @@ func withEventServer(
 		PriorityFactor: 1,
 		ResourceLimits: nil,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	action(server)
 
 	client.FlushDB()

@@ -47,7 +47,11 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		if err := recover(); err != nil {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
-			go srv.Run(ctx)
+			go func() {
+				if err := srv.Run(ctx); err != nil {
+					logging.WithStacktrace(log, err).Error("service failure")
+				}
+			}()
 		} else {
 			// An expected shutdown.
 			log.Info("service stopped")
