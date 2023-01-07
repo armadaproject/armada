@@ -2,9 +2,9 @@ package scheduler
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
 	"sync/atomic"
-	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -149,38 +149,4 @@ func NewLeaderToken() LeaderToken {
 		leader: true,
 		id:     uuid.New(),
 	}
-}
-
-type SimpleLeader struct {
-	amLeader atomic.Value
-}
-
-func (s *SimpleLeader) run(ctx context.Context, client coordinationv1client.LeasesGetter) {
-
-	lock := &resourcelock.LeaseLock{
-		LeaseMeta: metav1.ObjectMeta{
-			Name:      "testname",
-			Namespace: "testnamespace",
-		},
-		Client: client,
-		LockConfig: resourcelock.ResourceLockConfig{
-			Identity: "testidentity",
-		},
-	}
-
-	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
-		Lock:            lock,
-		ReleaseOnCancel: true,
-		LeaseDuration:   15 * time.Second,
-		RenewDeadline:   10 * time.Second,
-		RetryPeriod:     2 * time.Second,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(c context.Context) {
-				s.amLeader.Store(true)
-			},
-			OnStoppedLeading: func() {
-				s.amLeader.Store(false)
-			},
-		},
-	})
 }

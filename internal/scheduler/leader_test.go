@@ -3,14 +3,15 @@ package scheduler
 
 import (
 	"context"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
-	"sync"
-	"testing"
-	"time"
 )
 
 const (
@@ -168,7 +169,7 @@ func (t *TestLeaseListener) GetMessages() []LeaderToken {
 	return append([]LeaderToken(nil), t.tokens...)
 }
 
-func (t *TestLeaseListener) onStartedLeading(ctx context.Context) {
+func (t *TestLeaseListener) onStartedLeading(_ context.Context) {
 	t.handleNewToken()
 }
 

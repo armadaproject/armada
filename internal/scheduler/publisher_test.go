@@ -4,8 +4,10 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"math"
+	"testing"
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -14,28 +16,27 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math"
-	"testing"
-	"time"
+
+	"github.com/G-Research/armada/internal/common/pulsarutils"
+	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
 const (
-	topic          = "testTopic"
-	numPartititons = 100
-	messageSize    = 1024 // 1kb
+	topic         = "testTopic"
+	numPartitions = 100
+	messageSize   = 1024 // 1kb
 )
 
 func TestPulsarPublisher_TestPublish(t *testing.T) {
-
 	tests := map[string]struct {
-		eventSequences        []*armadaevents.EventSequence
-		numSucessfulPublishes int
-		amLeader              bool
-		expectedError         bool
+		eventSequences         []*armadaevents.EventSequence
+		numSuccessfulPublishes int
+		amLeader               bool
+		expectedError          bool
 	}{
 		"Publish if leader": {
-			amLeader:              true,
-			numSucessfulPublishes: math.MaxInt,
+			amLeader:               true,
+			numSuccessfulPublishes: math.MaxInt,
 			eventSequences: []*armadaevents.EventSequence{
 				{
 					JobSetName: "jobset1",
@@ -52,8 +53,8 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			},
 		},
 		"Don't publish if not leader": {
-			amLeader:              false,
-			numSucessfulPublishes: math.MaxInt,
+			amLeader:               false,
+			numSuccessfulPublishes: math.MaxInt,
 			eventSequences: []*armadaevents.EventSequence{
 				{
 					JobSetName: "jobset1",
@@ -62,8 +63,8 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			},
 		},
 		"Return error if all events fail to publish": {
-			amLeader:              true,
-			numSucessfulPublishes: 0,
+			amLeader:               true,
+			numSuccessfulPublishes: 0,
 			eventSequences: []*armadaevents.EventSequence{
 				{
 					JobSetName: "jobset1",
@@ -73,8 +74,8 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			expectedError: true,
 		},
 		"Return error if some events fail to publish": {
-			amLeader:              true,
-			numSucessfulPublishes: 1,
+			amLeader:               true,
+			numSuccessfulPublishes: 1,
 			eventSequences: []*armadaevents.EventSequence{
 				{
 					JobSetName: "jobset1",
@@ -94,9 +95,9 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			mockPulsarClient := NewMockClient(ctrl)
 			mockPulsarProducer := NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
-			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartititons), nil)
+			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			leaderController := NewStandaloneLeaderController()
-			var numPublished = 0
+			numPublished := 0
 			var capturedEvents []*armadaevents.EventSequence
 			expectedCounts := make(map[string]int)
 			if tc.amLeader {
@@ -112,7 +113,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 					require.NoError(t, err)
 					capturedEvents = append(capturedEvents, es)
 					numPublished++
-					if numPublished > tc.numSucessfulPublishes {
+					if numPublished > tc.numSuccessfulPublishes {
 						callback(pulsarutils.NewMessageId(numPublished), msg, errors.New("error from mock pulsar producer"))
 					} else {
 						callback(pulsarutils.NewMessageId(numPublished), msg, nil)
@@ -148,7 +149,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 
 func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 	allPartitions := make(map[string]bool, 0)
-	for i := 0; i < numPartititons; i++ {
+	for i := 0; i < numPartitions; i++ {
 		allPartitions[fmt.Sprintf("%d", i)] = true
 	}
 	tests := map[string]struct {
@@ -176,10 +177,10 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 			mockPulsarClient := NewMockClient(ctrl)
 			mockPulsarProducer := NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
-			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartititons), nil)
+			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			leaderController := NewStandaloneLeaderController()
-			var numPublished = 0
-			var capturedPartitons = make(map[string]bool)
+			numPublished := 0
+			capturedPartitons := make(map[string]bool)
 
 			mockPulsarProducer.
 				EXPECT().
@@ -212,7 +213,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 			}
 
 			if !tc.expectedError {
-				assert.Equal(t, uint32(numPartititons), published)
+				assert.Equal(t, uint32(numPartitions), published)
 				assert.Equal(t, tc.expectedPartitons, capturedPartitons)
 			}
 		})

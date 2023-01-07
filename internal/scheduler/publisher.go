@@ -3,17 +3,17 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
+	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -51,7 +51,8 @@ func NewPulsarPublisher(
 	producerOptions pulsar.ProducerOptions,
 	leaderController LeaderController,
 	pulsarSendTimeout time.Duration,
-	maxMessageBatchSize int) (*PulsarPublisher, error) {
+	maxMessageBatchSize int,
+) (*PulsarPublisher, error) {
 	partitions, err := pulsarClient.TopicPartitions(producerOptions.Topic)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -72,7 +73,7 @@ func NewPulsarPublisher(
 
 // PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
 // single event sequences up to maxMessageBatchSize.
-// Note that we do validate that we are leader before starting the publish, but there are still a couple of edge cases:
+// Note that we do validate that we are leader before starting to publish, but there are still a couple of edge cases:
 // * We experience an error during publishing which means that some messages are published while others are not
 // * We lose leadership while publishing
 // It should be possible to eliminate the first issue and greatly reduce the time period for the second once the Pulsar
@@ -131,7 +132,7 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 func (p *PulsarPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID) (uint32, error) {
 	for i := 0; i < p.numPartitions; i++ {
 		pm := &armadaevents.PartitionMarker{
-			GroupId:   nil,
+			GroupId:   armadaevents.ProtoUuidFromUuid(groupId),
 			Partition: uint32(i),
 		}
 		bytes, err := proto.Marshal(pm)
@@ -159,7 +160,6 @@ func (p *PulsarPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID)
 // explicitPartitionKey msg property. If this property isn't present then it will fall back to the default Pulsar
 // message routing logic
 func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMessage, pulsar.TopicMetadata) int {
-
 	defaultRouter := pulsar.NewDefaultRouter(
 		JavaStringHash,
 		options.BatchingMaxMessages,
