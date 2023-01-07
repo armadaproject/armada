@@ -351,6 +351,7 @@ func TestRun(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	//nolint:errcheck
 	go sched.Run(ctx)
 
 	time.Sleep(1 * time.Second)
@@ -459,7 +460,10 @@ func (t *testSchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedule
 		}
 	}
 	if len(jobs) > 0 {
-		jobDb.Upsert(txn, jobs)
+		err := jobDb.Upsert(txn, jobs)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return jobs, nil
 }

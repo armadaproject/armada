@@ -17,8 +17,9 @@ import (
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
-func Run(_ *Configuration) {
+func Run(_ *Configuration) error {
 	// TODO: instantiate scheduler and start cycling
+	return nil
 }
 
 // Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
