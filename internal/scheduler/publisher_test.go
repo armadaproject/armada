@@ -108,7 +108,8 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
 				DoAndReturn(func(_ context.Context, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 					es := &armadaevents.EventSequence{}
-					proto.Unmarshal(msg.Payload, es)
+					err := proto.Unmarshal(msg.Payload, es)
+					require.NoError(t, err)
 					capturedEvents = append(capturedEvents, es)
 					numPublished++
 					if numPublished > tc.numSucessfulPublishes {
@@ -214,6 +215,45 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 				assert.Equal(t, uint32(numPartititons), published)
 				assert.Equal(t, tc.expectedPartitons, capturedPartitons)
 			}
+		})
+	}
+}
+
+type TopicMetadata struct{}
+
+func (t TopicMetadata) NumPartitions() uint32 {
+	return 20
+}
+
+func TestMessageRouter(t *testing.T) {
+	options := pulsar.ProducerOptions{Topic: topic}
+	router := createMessageRouter(options)
+
+	t.Run("Route explicit partition", func(t *testing.T) {
+		for i := 0; i < 20; i++ {
+			msg := &pulsar.ProducerMessage{
+				Properties: map[string]string{explicitPartitionKey: fmt.Sprintf("%d", i)},
+			}
+			assert.Equal(t, i, router(msg, TopicMetadata{}))
+		}
+	})
+
+	t.Run("Route with key", func(t *testing.T) {
+		keys := []string{"foo", "bar", "baz"}
+		for _, key := range keys {
+			msg := &pulsar.ProducerMessage{
+				Key: key,
+			}
+			assert.Equal(t, int(JavaStringHash(key)%20), router(msg, TopicMetadata{}))
+		}
+	})
+}
+
+func TestJavaStringHash(t *testing.T) {
+	javaHashValues := map[string]uint32{"": 0x0, "hello": 0x5e918d2, "test": 0x364492}
+	for str, expectedHash := range javaHashValues {
+		t.Run(str, func(t *testing.T) {
+			assert.Equal(t, expectedHash, JavaStringHash(str))
 		})
 	}
 }
