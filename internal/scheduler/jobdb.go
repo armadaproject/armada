@@ -248,7 +248,7 @@ func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
 		err := txn.Delete(jobsTable, &SchedulerJob{JobId: id})
 		if err != nil {
 			// this could be because the job doesn't exist
-			// unfortunately the error from memdb isn't nice for parsing so we do an explicit check
+			// unfortunately the error from memdb isn't nice for parsing, so we do an explicit check
 			job, err := jobDb.GetById(txn, id)
 			if err != nil {
 				return err

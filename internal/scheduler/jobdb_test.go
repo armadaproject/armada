@@ -71,7 +71,7 @@ func TestBatchDelete(t *testing.T) {
 			// Set up JobDb
 			jobDb := createPopulatedJobDb(t, tc.initialJobs)
 
-			// do the delete
+			// delete
 			txn := jobDb.WriteTxn()
 			err := jobDb.BatchDelete(txn, tc.idsToDelete)
 			require.NoError(t, err)

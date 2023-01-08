@@ -26,7 +26,7 @@ type Publisher interface {
 	PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, token LeaderToken) error
 
 	// PublishMarkers publishes a single marker message for each Pulsar partition.  Each marker
-	// massage contains the supplied group id, which allows nall marker messages for a given call
+	// massage contains the supplied group id, which allows all marker messages for a given call
 	// to be identified.  The uint32 returned is the number of messages published
 	PublishMarkers(ctx context.Context, groupId uuid.UUID) (uint32, error)
 }
