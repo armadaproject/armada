@@ -90,7 +90,7 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	jobTime := time.Now()
 	jobsToLease := make([]*api.Job, len(logJobs))
 
-	srv.withDecompressor(func(decompressor compress.Decompressor) error {
+	decompErr := srv.withDecompressor(func(decompressor compress.Decompressor) error {
 		for i, sqlJob := range sqlJobs {
 			submitMessage, err := decompressor.Decompress(sqlJob.SubmitMessage)
 			if err != nil {
@@ -126,6 +126,10 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 		}
 		return nil
 	})
+
+	if decompErr != nil {
+		log.WithError(err).Error("error decompressing")
+	}
 
 	// The server streams jobs to the executor.
 	// The executor streams back an ack for each received job.
