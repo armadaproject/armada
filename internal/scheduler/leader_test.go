@@ -1,8 +1,9 @@
-//go:generate mockgen -destination=./mock_leases_getter.go -package=scheduler "k8s.io/client-go/kubernetes/typed/coordination/v1" LeasesGetter,LeaseInterface
+//go:generate mockgen -destination=./mocks/mock_leases_getter.go -package=schedulermocks "k8s.io/client-go/kubernetes/typed/coordination/v1" LeasesGetter,LeaseInterface
 package scheduler
 
 import (
 	"context"
+	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
 	"sync"
 	"testing"
 	"time"
@@ -54,8 +55,8 @@ func TestK8sLeaderController_Becoming(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Set up the mocks
 			ctrl := gomock.NewController(t)
-			client := NewMockLeasesGetter(ctrl)
-			leaseInterface := NewMockLeaseInterface(ctrl)
+			client := schedulermocks.NewMockLeasesGetter(ctrl)
+			leaseInterface := schedulermocks.NewMockLeaseInterface(ctrl)
 			client.EXPECT().Leases(lockNamespace).Return(leaseInterface).AnyTimes()
 
 			var lease *v1.Lease

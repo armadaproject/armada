@@ -1,4 +1,4 @@
-//go:generate mockgen -destination=./mock_pulsar.go -package=scheduler "github.com/apache/pulsar-client-go/pulsar" Client,Producer
+//go:generate mockgen -destination=./mocks/mock_pulsar.go -package=schedulermocks "github.com/apache/pulsar-client-go/pulsar" Client,Producer
 package scheduler
 
 import (
@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/G-Research/armada/internal/common/pulsarutils"
+	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
@@ -92,8 +93,8 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockPulsarClient := NewMockClient(ctrl)
-			mockPulsarProducer := NewMockProducer(ctrl)
+			mockPulsarClient := schedulermocks.NewMockClient(ctrl)
+			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			leaderController := NewStandaloneLeaderController()
@@ -174,8 +175,8 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockPulsarClient := NewMockClient(ctrl)
-			mockPulsarProducer := NewMockProducer(ctrl)
+			mockPulsarClient := schedulermocks.NewMockClient(ctrl)
+			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			leaderController := NewStandaloneLeaderController()
