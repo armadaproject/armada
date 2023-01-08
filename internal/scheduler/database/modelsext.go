@@ -14,3 +14,7 @@ func (job Job) GetSerial() int64 {
 func (run Run) GetSerial() int64 {
 	return run.Serial
 }
+
+func (row SelectUpdatedJobsRow) GetSerial() int64 {
+	return row.Serial
+}
