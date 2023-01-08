@@ -111,7 +111,7 @@ func (l *LegacySchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedu
 		updatedJobs := make([]*SchedulerJob, len(jobs))
 		for _, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 			copy := report.Job.DeepCopy()
-			copy.Leased = true
+			copy.Queued = false
 			copy.Executor = cluster.Name
 			if len(report.PodSchedulingReports) > 0 {
 				copy.Node = report.PodSchedulingReports[0].Node.GetId()
