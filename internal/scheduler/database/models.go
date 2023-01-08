@@ -47,6 +47,15 @@ type Marker struct {
 	PartitionID int32     `db:"partition_id"`
 }
 
+type Nodeinfo struct {
+	ExecutorNodeName string    `db:"executor_node_name"`
+	NodeName         string    `db:"node_name"`
+	Executor         string    `db:"executor"`
+	Message          []byte    `db:"message"`
+	Serial           int64     `db:"serial"`
+	LastModified     time.Time `db:"last_modified"`
+}
+
 type Queue struct {
 	Name   string  `db:"name"`
 	Weight float64 `db:"weight"`

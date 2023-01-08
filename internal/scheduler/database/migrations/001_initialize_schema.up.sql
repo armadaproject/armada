@@ -85,6 +85,21 @@ CREATE TABLE job_run_errors (
 
 ALTER TABLE job_run_errors ALTER COLUMN error SET STORAGE EXTERNAL;
 
+
+CREATE TABLE nodeinfo (
+    -- The concatenation of executor and node name.
+    -- TODO: We need a unique primary key for the upsert logic. But we should do something smarter.
+                          executor_node_name text PRIMARY KEY,
+    -- Name of the node. Must be unique across all clusters.
+                          node_name text NOT NULL,
+    -- Name of the executor responsible for this node.
+                          executor text NOT NULL,
+    -- Most recently received NodeInfo message for this node.
+                          message bytea NOT NULL,
+                          serial bigserial NOT NULL,
+                          last_modified timestamptz NOT NULL DEFAULT NOW()
+);
+
 -- Automatically increment serial and set last_modified on insert.
 -- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.
 -- All new/updated rows can be queried by querying for all rows with serial larger than that of the most recent query.
