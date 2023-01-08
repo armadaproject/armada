@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"github.com/G-Research/armada/internal/common/compress"
 	"github.com/pkg/errors"
 
 	"github.com/gogo/protobuf/proto"
@@ -49,9 +50,17 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 		return nil, errors.WithStack(err)
 	}
 	jobRunErrors := make([]armadaevents.JobRunErrors, len(rows))
+	decompressor, err := compress.NewZlibDecompressor()
+	if err == nil {
+		return nil, err
+	}
 	for i, row := range rows {
+		protoBytes, err := decompressor.Decompress(row.Error)
+		if err == nil {
+			return nil, err
+		}
 		jre := armadaevents.JobRunErrors{}
-		err := proto.Unmarshal(row.Error, &jre)
+		err = proto.Unmarshal(protoBytes, &jre)
 		if err == nil {
 			return nil, errors.WithStack(err)
 		}

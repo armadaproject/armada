@@ -226,6 +226,11 @@ func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
 	return job, err
 }
 
+// HasQueuedJobs returns true if the queue has any jobs in the running state or false otherwise
+func (jobDb *JobDb) HasQueuedJobs(txn *memdb.Txn, queue string) (bool, error) {
+	panic("not yet implemented")
+}
+
 // GetAll returns all jobs in the database.
 // The Jobs returned by this function *must not* be subsequently modified
 func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
