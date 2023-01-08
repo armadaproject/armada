@@ -73,6 +73,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 	var updatedJobs []Job = nil
 	var updatedRuns []Run = nil
 
+	// Use a RepeatableRead transaction here so that we get consistency between jobs and runs
 	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
