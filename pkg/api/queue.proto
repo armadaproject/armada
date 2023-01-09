@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option go_package = "github.com/G-Research/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
@@ -158,6 +159,7 @@ message ReturnLeaseRequest {
     OrderedStringMap avoid_node_labels = 4;
     string reason = 5;
     string kubernetes_id = 6;
+    bool job_run_attempted = 7;
 }
 
 service AggregatedQueue {
