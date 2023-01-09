@@ -2,6 +2,7 @@ name: Code Coverage
 
 on:
   push:
+  pull_request:
 
 jobs:
   go-unit-coverage:
