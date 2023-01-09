@@ -2,7 +2,11 @@ name: Code Coverage
 
 on:
   push:
+    branches:
+      - master
   pull_request:
+    branches-ignore:
+      - master
 
 jobs:
   go-unit-coverage:
@@ -34,6 +38,8 @@ jobs:
         include:
           - tox-env: 'py310'
             python: '3.10'
+            airflow-path: './third_party/airflow/'
+            client-path: './client/python/'
 
     steps:
       - uses: actions/checkout@v3
@@ -42,32 +48,28 @@ jobs:
           python-version: ${{ matrix.python }}
           tox-env: ${{ matrix.tox-env }}
 
-      # Tox to run tests; build to build the wheel after tests pass
-      - run: pip install tox==3.27.1 build twine
-        shell: bash
+      - name: Run Python Tests for Python Client
+        uses: ./.github/workflows/python-tests
+        with:
+          python-version: ${{ matrix.python }}
+          tox-env: ${{ matrix.tox-env }}
+          path: ${{ matrix.client-path }}
 
-      # Generate the proto files for python, required for later steps
-      - run: make python airflow-operator
-        shell: bash
+      - name: Run Python Tests for Airflow Operator
+        uses: ./.github/workflows/python-tests
+        with:
+          python-version: ${{ matrix.python }}
+          tox-env: ${{ matrix.tox-env }}
+          path: ${{ matrix.airflow-path }}
 
-      - name: Coverage for Python Client
-        run: tox -e ${{ matrix.tox-env }}
-        shell: bash
-        working-directory: ./client/python
-
-      - name: Coverage for Airflow Operator
-        run: tox -e ${{ matrix.tox-env }}
-        shell: bash
-        working-directory: ./third_party/airflow
-
-      - name: Upload Python Client Coverage to codecov
+      - name: Upload Coverage to codecov (${{ matrix.client-path }})
         uses: codecov/codecov-action@v3
         with:
-          files: ./client/python/coverage.xml
+          files: ${{ matrix.client-path }}/coverage.xml
           flags: python-client
 
-      - name: Upload Airflow Operator Coverage to codecov
+      - name: Upload Coverage to codecov (${{ matrix.airflow-path }})
         uses: codecov/codecov-action@v3
         with:
-          files: ./third_party/airflow/coverage.xml
+          files: ${{ matrix.airflow-path }}/coverage.xml
           flags: airflow-operator
