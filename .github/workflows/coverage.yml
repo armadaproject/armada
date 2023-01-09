@@ -33,7 +33,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
-      - run: make airflow-operator
 
       - name: Run Python Tests for Python Client
         uses: ./.github/workflows/python-tests
@@ -42,18 +41,30 @@ jobs:
           tox-env: 'py310'
           path: 'client/python'
 
+      - name: Upload Coverage to codecov (./client/python)
+        uses: codecov/codecov-action@v3
+        with:
+          files: 'client/python/coverage.xml'
+          flags: python-client
+
+
+
+  airflow-unit-coverage:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./.github/workflows/go-setup
+      - run: make airflow-operator
+
       - name: Run Python Tests for Airflow Operator
         uses: ./.github/workflows/python-tests
         with:
           python-version: '3.10'
           tox-env: 'py310'
           path: 'third_party/airflow'
-
-      - name: Upload Coverage to codecov (./client/python)
-        uses: codecov/codecov-action@v3
-        with:
-          files: 'client/python/coverage.xml'
-          flags: python-client
 
       - name: Upload Coverage to codecov (./third_party/airflow)
         uses: codecov/codecov-action@v3
