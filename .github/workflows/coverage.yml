@@ -35,7 +35,6 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: 3.10
-          tox-env: py310
 
       - name: Run Python Tests for Python Client
         uses: ./.github/workflows/python-tests
