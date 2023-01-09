@@ -41,6 +41,13 @@ type PostgresJobRepository struct {
 	batchSize int32
 }
 
+func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRepository {
+	return &PostgresJobRepository{
+		db:        db,
+		batchSize: batchSize,
+	}
+}
+
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any runs which don't have errors wil be absent from the map.
 func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error) {
