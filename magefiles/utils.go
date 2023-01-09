@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 )
 
 func binaryWithExt(name string) string {
@@ -80,12 +79,4 @@ func copy(srcPath, dstPath string) error {
 	defer dst.Close()
 	_, err = io.Copy(dst, src)
 	return err
-}
-
-func unique[S ~[]E, E comparable](s S) S {
-	M := make(map[E]bool)
-	for _, v := range s {
-		M[v] = true
-	}
-	return maps.Keys(M)
 }
