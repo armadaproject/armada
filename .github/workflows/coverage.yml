@@ -34,19 +34,19 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v2
         with:
-          python-version: 3.10
+          python-version: '3.10'
 
       - name: Run Python Tests for Python Client
         uses: ./.github/workflows/python-tests
         with:
-          python-version: 3.10
+          python-version: '3.10'
           tox-env: py310
           path: ./client/python
 
       - name: Run Python Tests for Airflow Operator
         uses: ./.github/workflows/python-tests
         with:
-          python-version: 3.10
+          python-version: '3.10'
           tox-env: py310
           path: ./third_party/airflow
 
