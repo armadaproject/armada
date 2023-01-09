@@ -4,7 +4,8 @@ on:
   push:
   pull_request:
 
-go-unit-coverage:
+jobs:
+  go-unit-coverage:
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -24,7 +25,7 @@ go-unit-coverage:
           files: ./internal_coverage.xml,./cmd_coverage.xml # optional
           flags: armada-server
 
-python-unit-coverage:
+  python-unit-coverage:
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -40,15 +41,27 @@ python-unit-coverage:
         shell: bash
 
       # Generate the proto files for python, required for later steps
-      - run: make python
+      - run: make python airflow-operator
         shell: bash
 
-      - name: Run tox python ${{ inputs.python-version }} unit tests
-        run: tox -e ${{ inputs.tox-env }}
+      - name: Coverage for Python Client
+        run: tox -e py310
         shell: bash
+        working-directory: ./client/python
 
-      - name: Upload coverage to codecov
+      - name: Coverage for Airflow Operator
+        run: tox -e py310
+        shell: bash
+        working-directory: ./third_party/airflow
+
+      - name: Upload Python Client Coverage to codecov
         uses: codecov/codecov-action@v3
         with:
-          files: ${{ inputs.path }}/coverage.xml
+          files: ./client/python/coverage.xml
           flags: python-client
+
+      - name: Upload Airflow Operator Coverage to codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./third_party/airflow/coverage.xml
+          flags: airflow-operator
