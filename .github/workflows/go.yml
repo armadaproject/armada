@@ -59,8 +59,3 @@ jobs:
         with:
           name: junit.xml
           path: test_reports/junit.xml
-      
-      - name: Go Test Coverage
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./internal_coverage.xml,./cmd_coverage.xml # optional
