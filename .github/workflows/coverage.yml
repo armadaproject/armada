@@ -31,10 +31,16 @@ jobs:
       fail-fast: false
       matrix:
         python: [ '3.10' ]
+        include:
+          - tox-env: 'py310'
+            python: '3.10'
 
     steps:
       - uses: actions/checkout@v3
-      - uses: ./.github/workflows/python-setup
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python }}
+          tox-env: ${{ matrix.tox-env }}
 
       # Tox to run tests; build to build the wheel after tests pass
       - run: pip install tox==3.27.1 build twine
@@ -45,12 +51,12 @@ jobs:
         shell: bash
 
       - name: Coverage for Python Client
-        run: tox -e py310
+        run: tox -e ${{ matrix.tox-env }}
         shell: bash
         working-directory: ./client/python
 
       - name: Coverage for Airflow Operator
-        run: tox -e py310
+        run: tox -e ${{ matrix.tox-env }}
         shell: bash
         working-directory: ./third_party/airflow
 
