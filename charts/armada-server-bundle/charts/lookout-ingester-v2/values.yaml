@@ -1,0 +1,23 @@
+image:
+  repository: gresearch/armada-lookout-ingester-v2
+  tag: latest
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 300m
+  requests:
+    memory: 512Mi
+    cpu: 200m
+additionalLabels: {}
+terminationGracePeriodSeconds: 30
+replicas: 1
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
+customServiceAccount: null
+serviceAccount: null
+
+applicationConfig:
+  pulsar:
+    authenticationEnabled: false

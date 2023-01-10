@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "armada.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada.labels.all" . | nindent 4 }}
+spec:
+  {{- if .Values.nodePort }}
+  type: NodePort
+  {{- end }}
+  selector:
+    {{- include "armada.labels.identity" . | nindent 4 }}
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: {{ .Values.applicationConfig.grpcPort }}
+      {{- if .Values.nodePort }}
+      nodePort: {{ .Values.nodePort }}
+      {{- end }}
+    - name: rest
+      protocol: TCP
+      port: {{ .Values.applicationConfig.httpPort }}
+      {{- if .Values.httpNodePort }}
+      nodePort: {{ .Values.httpNodePort }}
+      {{- end }}
+    - name: metrics
+      protocol: TCP
+      port: 9000
