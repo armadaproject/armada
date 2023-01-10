@@ -96,7 +96,17 @@ func BootstrapProto() {
 // run integration test
 func CiIntegrationTests() {
 	mg.Deps(BootstrapTools)
-	mg.Deps(ciWriteMinimalReleaseConfig)
-	mg.Deps(ciMinimalRelease, Kind)
+	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
 	mg.Deps(ciRunTests)
+}
+
+func BuildDockers(arg string) error {
+	dockerIds := make([]string, 0)
+	for _, s := range strings.Split(arg, ",") {
+		dockerIds = append(dockerIds, strings.TrimSpace(s))
+	}
+	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
+		return err
+	}
+	return nil
 }
