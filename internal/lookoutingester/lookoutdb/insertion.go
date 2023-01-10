@@ -788,7 +788,7 @@ func filterEventsForTerminalJobs(
 
 	rowsRaw, err := withDatabaseRetryQuery(func() (interface{}, error) {
 		terminalStates := []int{repository.JobFailedOrdinal, repository.JobFailedOrdinal, repository.JobCancelledOrdinal}
-		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = ANY($1) AND job_id = any($2)", terminalStates, jobIds)
+		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = any($1) AND job_id = any($2)", terminalStates, jobIds)
 	})
 	if err != nil {
 		m.RecordDBError(metrics.DBOperationRead)
