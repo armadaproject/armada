@@ -1,0 +1,52 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "executor-cluster-monitoring.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "executor-cluster-monitoring.labels.all" . | nindent 4 }}
+spec:
+  groups:
+    - name: armada-pod-details
+      interval: {{ .Values.interval }}
+      rules:
+        - record: armada:monitoring:armada_pod_by_queue:sum
+          expr: |
+            sum(kube_pod_labels{label_armada_queue_id!=""}) by (pod, label_armada_queue_id)
+            * on (pod) group_left(phase) sum(kube_pod_status_phase==1) by (pod, namespace, phase)
+        - record: armada:monitoring:armada_pod_cpu_request:sum
+          expr: |
+            sum(
+              sum(kube_pod_container_resource_requests_cpu_cores) by (pod)
+              * on (pod) group_left(label_armada_queue_id, phase) armada:monitoring:armada_pod_by_queue:sum
+            ) by (label_armada_queue_id, phase)
+        - record: armada:monitoring:armada_pod_memory_request:sum
+          expr: |
+            sum(
+              sum(kube_pod_container_resource_requests_memory_bytes) by (pod)
+              * on (pod) group_left(label_armada_queue_id, phase) armada:monitoring:armada_pod_by_queue:sum
+            ) by (label_armada_queue_id, phase)
+        - record: armada:monitoring:armada_pods_per_phase:sum
+          expr: sum(armada:monitoring:armada_pod_by_queue:sum) by (label_armada_queue_id, phase)
+
+        - record: namespace:pods_per_phase:sum
+          expr: sum(kube_pod_status_phase) by (namespace, phase)
+        - record: namespace:running_pods:sum
+          expr: sum(kube_pod_status_phase{phase!="Succeeded", phase!="Failed"}==1) by (pod, namespace, phase)
+        - record: container:worker_node_cpu_core_request:sum
+          expr: sum(kube_pod_container_resource_requests_cpu_cores) by (pod, namespace, node) * on  (pod, namespace) group_left() namespace:running_pods:sum * on (node) group_left() (node:schedulable_worker_nodes:sum)
+        - record: container:worker_node_memory_bytes_request:sum
+          expr: sum(kube_pod_container_resource_requests_memory_bytes) by (pod, namespace, node) * on  (pod, namespace) group_left() namespace:running_pods:sum * on (node) group_left() (node:schedulable_worker_nodes:sum)
+        - record: container:worker_node_cpu_usage_seconds_total:sum
+          expr: sum(rate(container_cpu_usage_seconds_total{container_name!=""}[1m]) * on (node) group_left(job) node:schedulable_worker_nodes:sum)
+        - record: container:worker_node_memory_usage_bytes:sum
+          expr: sum(container_memory_usage_bytes{container_name!=""}  * on  (pod, namespace) group_left() namespace:running_pods:sum * on (node) group_left(job) node:schedulable_worker_nodes:sum)
+    - name: armada-nodes-details
+      interval: {{ .Values.interval }}
+      rules:
+        - record: node:schedulable_worker_nodes:sum
+          expr: sum(kube_node_info) by (node) unless (sum(kube_node_spec_unschedulable > 0) by (node) or sum(kube_node_spec_taint{effect="NoSchedule"}) by (node))
+        - record: node:worker_node_allocatable_cpu_cores:sum
+          expr: sum(kube_node_status_allocatable_cpu_cores * on (node) node:schedulable_worker_nodes:sum)
+        - record: node:worker_node_allocatable_memory_bytes:sum
+          expr: sum(kube_node_status_allocatable_memory_bytes  * on (node) node:schedulable_worker_nodes:sum)

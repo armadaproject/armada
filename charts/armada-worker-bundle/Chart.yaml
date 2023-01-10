@@ -9,3 +9,5 @@ dependencies:
     version: 0.0.1
   - name: armada-executor
     version: 0.0.1
+  # - name: armada-worker-cluster-monitoring
+  #   version: 0.0.1
