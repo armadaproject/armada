@@ -1,0 +1,39 @@
+dependencies:
+- name: redis-ha
+  repository: https://dandydeveloper.github.io/charts
+  version: 4.15.0
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 12.1.8
+- name: stan
+  repository: https://nats-io.github.io/k8s/helm/charts
+  version: 0.13.0
+- name: pulsar
+  repository: https://pulsar.apache.org/charts
+  version: 2.9.3
+- name: armada-server
+  repository: ""
+  version: 0.0.1
+- name: armada-event-ingester
+  repository: ""
+  version: 0.0.1
+- name: armada-lookout
+  repository: ""
+  version: 0.0.1
+- name: armada-lookout-ingester
+  repository: ""
+  version: 0.0.1
+- name: armada-lookout-migration
+  repository: ""
+  version: 0.0.1
+- name: armada-lookout-v2
+  repository: ""
+  version: 0.0.1
+- name: armada-lookout-ingester-v2
+  repository: ""
+  version: 0.0.1
+- name: armada-lookout-migration-v2
+  repository: ""
+  version: 0.0.1
+digest: sha256:49b8f31e6ab60a3ed0b544a8cf037b97487a6d3cf34b238f77af831a3e3ea798
+generated: "2023-01-10T17:41:58.482846Z"

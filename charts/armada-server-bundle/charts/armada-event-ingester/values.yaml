@@ -1,5 +1,5 @@
 image:
-  repository: gresearch/event-ingester-ingester
+  repository: gresearch/event-ingester
   tag: latest
 resources:
   limits:
