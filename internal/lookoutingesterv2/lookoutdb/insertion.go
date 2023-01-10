@@ -714,8 +714,8 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 	for _, update := range updates {
 		existing, ok := updatesById[update.JobId]
 
-		// Unfortunately once a job has been cancelled we still get state updates for it e.g. we can get an event to
-		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
+		// Unfortunately once a job has reached a terminal state we still get state updates for it e.g. we can get an event to
+		// say it's now "running".  We have to throw these away else we'll end up with a zombie job.
 		if !ok {
 			updatesById[update.JobId] = update
 		} else if !isTerminal(existing.State) {
