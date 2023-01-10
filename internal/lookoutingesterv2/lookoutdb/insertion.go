@@ -701,7 +701,6 @@ func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) e
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {
-
 	isTerminal := func(p *int32) bool {
 		if p == nil {
 			return false

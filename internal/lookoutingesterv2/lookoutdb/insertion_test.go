@@ -362,7 +362,8 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				LastTransitionTimeSeconds: baseTime.Unix(),
 				JobProto:                  []byte(jobProto),
 				PriorityClass:             pointer.String(priorityClass),
-			}}
+			},
+		}
 
 		update1 := []*model.UpdateJobInstruction{
 			{

@@ -311,16 +311,17 @@ func TestUpdateJobsScalar(t *testing.T) {
 
 func TestUpdateJobsWithTerminal(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
-		initial := []*model.CreateJobInstruction{{
-			JobId:     jobIdString,
-			Queue:     queue,
-			Owner:     userId,
-			JobSet:    jobSetName,
-			Priority:  priority,
-			Submitted: baseTime,
-			State:     repository.JobQueuedOrdinal,
-			JobProto:  []byte(jobProto),
-		},
+		initial := []*model.CreateJobInstruction{
+			{
+				JobId:     jobIdString,
+				Queue:     queue,
+				Owner:     userId,
+				JobSet:    jobSetName,
+				Priority:  priority,
+				Submitted: baseTime,
+				State:     repository.JobQueuedOrdinal,
+				JobProto:  []byte(jobProto),
+			},
 			{
 				JobId:     "job2",
 				Queue:     queue,
@@ -340,13 +341,15 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				Submitted: baseTime,
 				State:     repository.JobQueuedOrdinal,
 				JobProto:  []byte(jobProto),
-			}}
+			},
+		}
 
-		update1 := []*model.UpdateJobInstruction{{
-			JobId:     jobIdString,
-			State:     pointer.Int32(repository.JobCancelledOrdinal),
-			Cancelled: &baseTime,
-		},
+		update1 := []*model.UpdateJobInstruction{
+			{
+				JobId:     jobIdString,
+				State:     pointer.Int32(repository.JobCancelledOrdinal),
+				Cancelled: &baseTime,
+			},
 			{
 				JobId:     "job2",
 				State:     pointer.Int32(repository.JobSucceededOrdinal),
