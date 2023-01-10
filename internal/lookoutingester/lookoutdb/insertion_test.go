@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/G-Research/armada/internal/common/database/lookout"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -316,21 +318,56 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 			JobSet:    jobSetName,
 			Priority:  priority,
 			Submitted: baseTime,
+			State:     repository.JobQueuedOrdinal,
 			JobProto:  []byte(jobProto),
-			State:     0,
-			Updated:   baseTime,
-		}}
+		},
+			{
+				JobId:     "job2",
+				Queue:     queue,
+				Owner:     userId,
+				JobSet:    jobSetName,
+				Priority:  priority,
+				Submitted: baseTime,
+				State:     repository.JobQueuedOrdinal,
+				JobProto:  []byte(jobProto),
+			},
+			{
+				JobId:     "job3",
+				Queue:     queue,
+				Owner:     userId,
+				JobSet:    jobSetName,
+				Priority:  priority,
+				Submitted: baseTime,
+				State:     repository.JobQueuedOrdinal,
+				JobProto:  []byte(jobProto),
+			}}
 
 		update1 := []*model.UpdateJobInstruction{{
-			JobId:   jobIdString,
-			State:   pointer.Int32(repository.JobCancelledOrdinal),
-			Updated: baseTime,
-		}}
+			JobId:     jobIdString,
+			State:     pointer.Int32(repository.JobCancelledOrdinal),
+			Cancelled: &baseTime,
+		},
+			{
+				JobId:     "job2",
+				State:     pointer.Int32(repository.JobSucceededOrdinal),
+				Cancelled: &baseTime,
+			},
+			{
+				JobId:     "job3",
+				State:     pointer.Int32(repository.JobFailedOrdinal),
+				Cancelled: &baseTime,
+			},
+		}
 
 		update2 := []*model.UpdateJobInstruction{{
-			JobId:   jobIdString,
-			State:   pointer.Int32(repository.JobRunningOrdinal),
-			Updated: baseTime,
+			JobId: jobIdString,
+			State: pointer.Int32(repository.JobRunningOrdinal),
+		}, {
+			JobId: "job2",
+			State: pointer.Int32(repository.JobRunningOrdinal),
+		}, {
+			JobId: "job3",
+			State: pointer.Int32(repository.JobRunningOrdinal),
 		}}
 
 		ldb := getTestLookoutDb(db)
@@ -338,19 +375,25 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		// Insert
 		ldb.CreateJobs(context.Background(), initial)
 
-		// Cancel the job
+		// Mark the jobs terminal
 		ldb.UpdateJobs(context.Background(), update1)
 
-		// Update the job - this should be discarded
+		// Update the jobs - these should be discarded
 		ldb.UpdateJobs(context.Background(), update2)
 
-		// Assert the state is still cancelled
+		// Assert the states are still terminal
 		job := getJob(t, db, jobIdString)
-		assert.Equal(t, repository.JobCancelledOrdinal, int(job.State))
+		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
+
+		job2 := getJob(t, db, "job2")
+		assert.Equal(t, lookout.JobSucceededOrdinal, int(job2.State))
+
+		job3 := getJob(t, db, "job3")
+		assert.Equal(t, lookout.JobFailedOrdinal, int(job3.State))
 
 		return nil
 	})
-	require.NoError(t, err)
+	assert.NoError(t, err)
 }
 
 func TestCreateJobsScalar(t *testing.T) {
@@ -650,11 +693,25 @@ func TestConflateJobUpdatesWithTerminal(T *testing.T) {
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
 		{JobId: jobIdString, State: pointer.Int32(repository.JobRunningOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(repository.JobSucceededOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(repository.JobRunningOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(repository.JobFailedOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(repository.JobRunningOrdinal)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(repository.JobSucceededOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(repository.JobFailedOrdinal)},
 	}
+
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].JobId < updates[j].JobId
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].JobId < expected[j].JobId
+	})
 	assert.Equal(T, expected, updates)
 }
 

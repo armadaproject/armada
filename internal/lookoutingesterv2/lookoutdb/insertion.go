@@ -807,7 +807,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 	}
 
 	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
-		terminalStates := []int{repository.JobFailedOrdinal, repository.JobFailedOrdinal, repository.JobCancelledOrdinal}
+		terminalStates := []int{repository.JobSucceededOrdinal, repository.JobFailedOrdinal, repository.JobCancelledOrdinal}
 		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = any($1) AND job_id = any($2)", terminalStates, jobIds)
 	})
 	if err != nil {
