@@ -309,7 +309,7 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdateJobsWithCancelled(t *testing.T) {
+func TestUpdateJobsWithTerminal(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		initial := []*model.CreateJobInstruction{{
 			JobId:                     jobIdString,
@@ -655,7 +655,7 @@ func TestConflateJobUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
-func TestConflateJobUpdatesWithCancelled(t *testing.T) {
+func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},

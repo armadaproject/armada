@@ -307,7 +307,7 @@ func TestUpdateJobsScalar(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestUpdateJobsWithCancelled(t *testing.T) {
+func TestUpdateJobsWithTerminal(t *testing.T) {
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		initial := []*model.CreateJobInstruction{{
 			JobId:     jobIdString,
@@ -645,7 +645,7 @@ func TestConflateJobUpdates(T *testing.T) {
 	assert.Equal(T, expected, updates)
 }
 
-func TestConflateJobUpdatesWithCancelled(T *testing.T) {
+func TestConflateJobUpdatesWithTerminal(T *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(repository.JobCancelledOrdinal)},
