@@ -110,7 +110,7 @@ func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
 			defer cancelFunc()
 			summary, err := q.clusterContext.GetNodeStatsSummary(ctx, node)
 			if err != nil {
-				log.Errorf("Error when getting stats for node %s: %s", node.Name, err)
+				log.Warnf("Error when getting stats for node %s: %s", node.Name, err)
 				return
 			}
 			summaries <- summary
