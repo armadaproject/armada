@@ -1,0 +1,18 @@
+image:
+  repository: gresearch/armada-executor
+  tag: latest
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 300m
+  requests:
+    memory: 512Mi
+    cpu: 200m
+prometheus:
+  enabled: false
+  labels: {}
+  scrapeInterval: 10s
+
+applicationConfig:
+  metric:
+    port: 9001

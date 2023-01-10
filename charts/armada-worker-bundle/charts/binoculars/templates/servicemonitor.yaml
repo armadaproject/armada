@@ -1,0 +1,19 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "binoculars.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "binoculars.labels.all" . | nindent 4 -}}
+    {{- if .Values.prometheus.labels }}
+    {{- toYaml .Values.prometheus.labels | nindent 4 -}}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "binoculars.labels.identity" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.prometheus.scrapeInterval }}
+{{- end }}

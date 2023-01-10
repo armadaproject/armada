@@ -1,0 +1,5 @@
+apiVersion: v2
+description: Armada executor.
+name: armada-executor
+version: 0.0.1
+appVersion: "latest"

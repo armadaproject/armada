@@ -1,0 +1,11 @@
+apiVersion: v2
+name: armada-worker-bundle
+version: 0.0.1 # Set automatically as part of the release process.
+description: Armada worker cluster components.
+home: https://armadaproject.io/
+appVersion: "latest" # Set automatically as part of the release process.
+dependencies:
+  - name: armada-binoculars
+    version: 0.0.1
+  - name: armada-executor
+    version: 0.0.1

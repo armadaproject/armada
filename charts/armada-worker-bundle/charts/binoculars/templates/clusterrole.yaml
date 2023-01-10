@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "binoculars.name" . }}
+  labels:
+    {{- include "binoculars.labels.all" . | nindent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  verbs:
+  - impersonate

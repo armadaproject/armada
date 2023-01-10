@@ -1,0 +1,5 @@
+apiVersion: v2
+description: Armada Binoculars.
+name: armada-binoculars
+version: 0.0.1
+appVersion: latest
