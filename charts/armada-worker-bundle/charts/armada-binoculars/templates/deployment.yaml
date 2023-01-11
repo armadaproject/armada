@@ -31,9 +31,7 @@ spec:
         - name: binoculars
           imagePullPolicy: IfNotPresent
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
-          args:
-            - --config
-            - /config/application_config.yaml
+          command: ["./binoculars", "--config", "/config/application_config.yaml"]
           {{- if .Values.env }}
           env:
             {{- toYaml .Values.env | nindent 12 -}}

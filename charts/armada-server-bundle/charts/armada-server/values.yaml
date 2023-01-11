@@ -1,6 +1,10 @@
 image:
-  repository: gresearch/armada-server
-  tag: latest
+  repository: "gresearch/armada"
+  tag: "latest"
+ingressClass: "nginx"
+clusterIssuer: "k8s-cluster-issuer"
+hostnames:
+  - "armada"
 resources:
   limits:
     memory: 1Gi
@@ -29,4 +33,25 @@ serviceAccount: null
 applicationConfig:
   grpcPort: 50051
   httpPort: 8080
-  pulsar: {}
+  pulsar:
+    url: "pulsar://pulsar-broker:6650"
+  eventsNats:
+    clusterID: "stan"
+  auth:
+    basicAuth:
+      enableAuthentication: false
+    anonymousAuth: true
+    permissionGroupMapping:
+      submit_jobs: ["everyone"]
+      submit_any_jobs: ["everyone"]
+      create_queue: ["everyone"]
+      delete_queue: ["everyone"]
+      cancel_jobs: ["everyone"]
+      cancel_any_jobs: ["everyone"]
+      reprioritize_jobs: ["everyone"]
+      reprioritize_any_jobs: ["everyone"]
+      watch_events: ["everyone"]
+      watch_all_events: ["everyone"]
+      execute_jobs: ["everyone"]
+
+

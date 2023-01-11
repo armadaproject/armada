@@ -1,5 +1,5 @@
 image:
-  repository: gresearch/armada-executor
+  repository: gresearch/armada
   tag: latest
 resources:
   limits:
@@ -16,3 +16,6 @@ prometheus:
 applicationConfig:
   metric:
     port: 9001
+  apiConnection:
+    armadaUrl : "armada-server:50051"
+    forceNoTls: true

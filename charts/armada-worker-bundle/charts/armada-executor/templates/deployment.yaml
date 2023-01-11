@@ -27,9 +27,7 @@ spec:
         - name: executor
           imagePullPolicy: IfNotPresent
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
-          args:
-            - --config
-            - /config/application_config.yaml
+          command: ["./executor", "--config", "/config/application_config.yaml"]
 {{- if .Values.env }}
           env:
 {{ toYaml .Values.env | indent 12 }}

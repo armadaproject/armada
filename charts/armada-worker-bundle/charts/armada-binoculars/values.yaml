@@ -1,5 +1,5 @@
 image:
-  repository: gresearch/armada-binoculars
+  repository: gresearch/armada
   tag: latest
 resources:
   limits:
