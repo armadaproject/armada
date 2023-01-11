@@ -79,7 +79,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
                 // Necessary config overrides.
                 "ARMADA_REDIS_ADDRS": "localhost:6379",
                 "ARMADA_EVENTSREDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4223",
+                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4222",
                 "ARMADA_EVENTAPI_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
