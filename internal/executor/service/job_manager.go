@@ -129,17 +129,22 @@ func (m *JobManager) handlePodIssues(allRunningJobs []*job.RunningJob) {
 
 func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {
 	for _, runningJob := range allRunningJobs {
-		if runningJob.Issue != nil && runningJob.Issue.Type == job.UnableToSchedule &&
-			(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported)) {
-			jobHasPendingPods := false
+		if runningJob.Issue != nil {
+			continue
+		}
+		isStuckStartingUpAndResolvable := runningJob.Issue.Type == job.StuckStartingUp &&
+			(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported))
+		if runningJob.Issue.Type == job.UnableToSchedule || isStuckStartingUpAndResolvable {
+			allPodsPending := true
 			for _, pods := range runningJob.ActivePods {
-				if pods.Status.Phase == v1.PodPending {
-					jobHasPendingPods = true
+				if pods.Status.Phase != v1.PodPending {
+					allPodsPending = false
+					break
 				}
 			}
 
 			// All pods have become unstuck, no longer has unable to schedule issue
-			if !jobHasPendingPods {
+			if !allPodsPending {
 				m.jobContext.MarkIssuesResolved(runningJob)
 			}
 		}
