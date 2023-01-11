@@ -1,14 +1,10 @@
 name: "protoc setup"
 description: "Installs protoc."
 runs:
-  using: "composite"  
+  using: "composite"
   steps:
     - name: Install Protoc
       uses: arduino/setup-protoc@v1
       with:
         version: '3.17.3'
-        repo-token: ${{ secrets.GITHUB_TOKEN }}  
-    - uses: actions/setup-go@v3
-      with:
-        go-version: ${{ matrix.go }}
-        cache: true
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
