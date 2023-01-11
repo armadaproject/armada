@@ -120,8 +120,8 @@ eventsNats:
   subject: "ArmadaTest"
   timeout: 10s
   servers:
-    - "nats://localhost:4223"
-    - "nats://stan:4223"
+    - "nats://localhost:4222"
+    - "nats://stan:4222"
 databaseRetention:
   jobRetentionDuration: 168h
 eventRetention:
