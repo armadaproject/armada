@@ -39,12 +39,10 @@ jobs:
         # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
 
     steps:
-    - uses: ./.github/workflows/protoc-setup
     - name: Checkout repository
       uses: actions/checkout@v2
-
     # The ArmadaProject.Io.Client needs the generated proto files
-
+    - uses: ./.github/workflows/protoc-setup
     - uses: ./.github/workflows/go-setup
     - name: Make Proto
       run: make proto
