@@ -129,7 +129,7 @@ func (m *JobManager) handlePodIssues(allRunningJobs []*job.RunningJob) {
 
 func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {
 	for _, runningJob := range allRunningJobs {
-		if runningJob.Issue != nil {
+		if runningJob.Issue == nil {
 			continue
 		}
 		isStuckStartingUpAndResolvable := runningJob.Issue.Type == job.StuckStartingUp &&
