@@ -143,7 +143,7 @@ func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.Runn
 				}
 			}
 
-			// All pods have become unstuck, no longer has unable to schedule issue
+			// Pods are not longer all stuck
 			if !allPodsPending {
 				m.jobContext.MarkIssuesResolved(runningJob)
 			}
