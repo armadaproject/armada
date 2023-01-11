@@ -1,7 +1,7 @@
 grpcPort: 60003
 httpPort: 8090
-subscribeJobSetTime: 10000
-databasePath: "jobservice/jobservice.db"
+subscribeJobSetTime: 1000
+databasePath: "/var/jobservice.db"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -12,4 +12,3 @@ grpc:
     permitWithoutStream: false
 apiConnection:
   armadaUrl: "server:50051"
-  forceNoTls: true

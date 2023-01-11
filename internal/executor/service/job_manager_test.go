@@ -252,6 +252,9 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
 			UID:               types.UID(commonutil.NewULID()),
 		},
+		Spec: v1.PodSpec{
+			NodeName: "node1",
+		},
 		Status: status,
 	}
 }

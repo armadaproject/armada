@@ -60,13 +60,13 @@ job_set_id is required.
 
 * **Returns**
 
-    A JobSubmitResponse object.
+    A CancellationResult object.
 
 
 
 * **Return type**
 
-    armada.submit_pb2.JobCancelRequest
+    armada.submit_pb2.CancellationResult
 
 
 
@@ -294,7 +294,7 @@ for event in events:
 
 * **Return type**
 
-    *Generator*[armada.event_pb2.EventMessage, None, None]
+    *Iterator*[armada.event_pb2.EventStreamMessage]
 
 
 
@@ -371,7 +371,7 @@ or job set.
 
 * **Returns**
 
-    ReprioritizeJobsResponse object. It is a map of strings.
+    JobReprioritizeResponse object. It is a map of strings.
 
 
 

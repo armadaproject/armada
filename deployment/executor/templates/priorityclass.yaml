@@ -1,0 +1,22 @@
+{{- if .Values.priorityClasses }}
+{{- $root := . -}}
+{{- range $priorityClass := .Values.priorityClasses }}
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $priorityClass.name }}
+  labels:
+    {{- include "executor.labels.all" $root | nindent 4 }}
+{{- if $priorityClass.description }}
+description: {{ $priorityClass.description }}
+{{- end }}
+{{- if or (eq $priorityClass.globalDefault true) (eq $priorityClass.globalDefault false) }}
+globalDefault: {{ $priorityClass.globalDefault }}
+{{- end }}
+{{- if $priorityClass.preemptionPolicy }}
+preemptionPolicy: {{ $priorityClass.preemptionPolicy }}
+{{- end }}
+value: {{ $priorityClass.value }}
+{{- end }}
+{{- end }}

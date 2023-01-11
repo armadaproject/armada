@@ -1,6 +1,9 @@
 package main
 
 import (
+	"strings"
+	"unicode"
+
 	"github.com/gogo/protobuf/gogoproto"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -9,7 +12,7 @@ import (
 	"github.com/gogo/protobuf/vanity/command"
 )
 
-// Used to compile proto files into go.
+// Used to compile proto files into go via gogo.
 // Identical to protoc-gen-gogofaster, but with json tags in camelCase.
 func main() {
 	req := command.Read()
@@ -31,7 +34,24 @@ func main() {
 }
 
 func JsonTagCamelCase(field *descriptor.FieldDescriptorProto) {
-	SetStringFieldOption(gogoproto.E_Jsontag, generator.CamelCase(*field.Name))(field)
+	s := generator.CamelCase(*field.Name)
+
+	// For consistency with previous tooling.
+	if gogoproto.IsNullable(field) {
+		s = s + ",omitempty"
+	}
+	s = strings.ReplaceAll(s, "k8S", "k8s")
+	s = strings.ReplaceAll(s, "K8S", "K8s")
+
+	// Preserve casing of the first char.
+	// Necessary for consistency with previous tooling.
+	if unicode.IsLower(rune((*field.Name)[0])) {
+		s = strings.ToLower(s[:1]) + s[1:]
+	} else {
+		s = strings.ToUpper(s[:1]) + s[1:]
+	}
+
+	SetStringFieldOption(gogoproto.E_Jsontag, s)(field)
 }
 
 func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(field *descriptor.FieldDescriptorProto) {
@@ -43,21 +63,4 @@ func SetStringFieldOption(extension *proto.ExtensionDesc, value string) func(fie
 			panic(err)
 		}
 	}
-}
-
-func FieldHasStringExtension(field *descriptor.FieldDescriptorProto, extension *proto.ExtensionDesc) bool {
-	if field.Options == nil {
-		return false
-	}
-	value, err := proto.GetExtension(field.Options, extension)
-	if err != nil {
-		return false
-	}
-	if value == nil {
-		return false
-	}
-	if value.(*string) == nil {
-		return false
-	}
-	return true
 }

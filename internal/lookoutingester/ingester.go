@@ -45,7 +45,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	lookoutDb := lookoutdb.NewLookoutDb(db, metrics)
+	lookoutDb := lookoutdb.NewLookoutDb(db, metrics, config)
 
 	compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)
 	if err != nil {
