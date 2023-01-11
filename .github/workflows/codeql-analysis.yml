@@ -42,8 +42,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
     # The ArmadaProject.Io.Client needs the generated proto files
-    - uses: ./.github/workflows/protoc-setup
-      secrets: inherit
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+      with:
+        version: '3.17.3'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - uses: ./.github/workflows/go-setup
     - name: Make Proto
       run: make proto
