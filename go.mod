@@ -69,7 +69,7 @@ require (
 	golang.org/x/net v0.5.0
 	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
 	golang.org/x/sync v0.1.0
-	golang.org/x/tools v0.3.0
+	golang.org/x/tools v0.5.0
 	google.golang.org/genproto v0.0.0-20220616135557-88e70c0c3a90
 	google.golang.org/grpc v1.47.0
 	gopkg.in/yaml.v2 v2.4.0
