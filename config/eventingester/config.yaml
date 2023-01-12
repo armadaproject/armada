@@ -12,7 +12,7 @@ pulsar:
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
 batchSize: 1048576  #1MB
-batchDuration: 500ms
+batchDuration: 100ms
 batchMessages: 10000
 eventRetentionPolicy:
   expiryEnabled: true

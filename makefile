@@ -393,7 +393,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice || true
+	docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice event-ingester || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -450,10 +450,9 @@ tests-e2e-setup: setup-cluster
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 	docker run -d --name lookout-ingester-migrate  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
-	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
+	docker run -d --name lookout-ingester --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
-	docker run -d --name event-ingester  --network=kind -v ${PWD}/e2e:/e2e \
-    		armada-event-ingester --config /e2e/setup/event-ingester-config.yaml
+	docker run -d --name event-ingester --network=kind -v ${PWD}/e2e:/e2e armada-event-ingester
 	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
 	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 

@@ -1,4 +1,4 @@
-xversion: "3.8"
+version: "3.8"
 
 networks:
   kind:
@@ -55,6 +55,7 @@ services:
       - redis
       - postgres
       - pulsar
+      - eventingester
     working_dir: /app
     entrypoint: ./server
     command: --config /config/insecure-armada-auth-config.yaml
@@ -84,8 +85,6 @@ services:
       - kind
     ports:
       - 8082:8082
-    depends_on:
-      - server
     volumes:
       - ./.kube/internal:/.kube
     environment:
@@ -112,6 +111,7 @@ services:
       - kind
     depends_on:
       - postgres
+      - pulsar
     volumes:
       - ./localdev/config:/config
     working_dir: /app
@@ -125,5 +125,6 @@ services:
       - kind
     depends_on:
       - redis
+      - pulsar
     working_dir: /app
-    entrypoint: eventingester
+    entrypoint: ./eventingester
