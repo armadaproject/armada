@@ -248,6 +248,29 @@ jobs:
       - run: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       - store_test_results:
           path: junit.xml
+  unittests:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - go/mod-download-cached
+      - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      - run: docker-compose up -d redis postgres
+      - run: mkdir -p test_reports
+      - run: go test -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
+	    - run: go test -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	    - run: go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+      - run: rm -f test_reports/junit.xml
+      - run: cat test_reports/*.txt | go-junit-report > test_reports/junit.xml
+      - store_test_results:
+          path: junit.xml
 
   release-armadactl:
     machine:
@@ -408,9 +431,14 @@ jobs:
 
 workflows:
   version: 2
-  build_and_deploy:
+  unittests:
+    jobs:
+      - unittests
+  testsuite:
     jobs:
       - testsuite
+  # build_and_deploy:
+  #   jobs:
       # - build_and_integration_tests
       # - release-armadactl:
       #     filters:
