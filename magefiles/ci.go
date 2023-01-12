@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"time"
+
+	"github.com/avast/retry-go"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
@@ -22,11 +24,17 @@ func ciRunTests() error {
 		return err
 	}
 
-	time.Sleep(5 * time.Second)
-	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
-	if err != nil {
-		return err
-	}
+	retry.Do(
+		func() error {
+			err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+		retry.Delay(time.Second),
+	)
+
 	err = goRun("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",

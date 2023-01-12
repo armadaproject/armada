@@ -238,6 +238,8 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
