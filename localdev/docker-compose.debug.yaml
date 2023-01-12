@@ -22,7 +22,6 @@ services:
       - redis
       - postgres
       - pulsar
-      - stan
     working_dir: /app
     entrypoint: dlv
     command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/armada/main.go -- --config /config/armada/config.yaml

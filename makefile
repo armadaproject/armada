@@ -377,7 +377,7 @@ code-checks: lint
 rebuild-server: build-docker-server
 	docker rm -f server || true
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml --config /e2e/setup/server/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml --config /e2e/setup/server/armada-config.yaml
 
 # Rebuild and restart the executor.
 .ONESHELL:
@@ -393,7 +393,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice || true
+	docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice event-ingester || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -434,14 +434,13 @@ tests-e2e-setup: setup-cluster
 	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
-	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.2 bin/pulsar standalone
-	docker run -d --name nats --network=kind nats-streaming:0.24.5
+	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.2 bin/pulsar standalon
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	sleep 30 # give dependencies time to start up
+	sleep 60 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
@@ -451,8 +450,9 @@ tests-e2e-setup: setup-cluster
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 	docker run -d --name lookout-ingester-migrate  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
-	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
+	docker run -d --name lookout-ingester --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
+	docker run -d --name event-ingester --network=kind -v ${PWD}/e2e:/e2e armada-event-ingester
 	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
 	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 
@@ -485,7 +485,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
+		docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
