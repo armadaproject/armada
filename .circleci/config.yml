@@ -269,7 +269,7 @@ jobs:
       - run: go test -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
       - run: go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
       - run: rm -f test_reports/junit.xml
-      - run: cat test_reports/*.txt | go-junit-report > test_reports/junit.xml
+      - run: cat test_reports/*.txt | go-junit-report > junit.xml
       - store_test_results:
           path: junit.xml
 
