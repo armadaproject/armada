@@ -81,7 +81,7 @@ func kindSetup() error {
 	images := []string{
 		"alpine:3.10",
 		"nginx:1.21.6",
-		"bitnami/kubectl:1.24.8",
+		"rancher/kubectl:v1.23.7",
 		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
 		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
 	}
