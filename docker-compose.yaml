@@ -56,7 +56,7 @@ services:
       - postgres
       - pulsar
       - eventingester
-    command: --config /config/insecure-armada-auth-config.yaml
+    command: ./server --config /config/insecure-armada-auth-config.yaml
 
   executor:
     container_name: executor
