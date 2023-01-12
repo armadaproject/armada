@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 
 	"github.com/G-Research/armada/internal/common/eventutil"
