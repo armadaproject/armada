@@ -190,11 +190,12 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					},
 				}
 
-				reportPulsarEvent(&armadaevents.EventSequence{
+				err = reportPulsarEvent(&armadaevents.EventSequence{
 					Queue:      "test-queue",
 					JobSetName: "job-set-1",
 					Events:     []*armadaevents.EventSequence_Event{assigned},
 				})
+				require.NoError(t, err)
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
 					Id:             "job-set-1",
@@ -233,11 +234,12 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 					},
 				}
 
-				reportPulsarEvent(&armadaevents.EventSequence{
+				err = reportPulsarEvent(&armadaevents.EventSequence{
 					Queue:      "test-queue",
 					JobSetName: "job-set-1",
 					Events:     []*armadaevents.EventSequence_Event{assigned},
 				})
+				require.NoError(t, err)
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
 					Id:             "job-set-1",
