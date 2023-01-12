@@ -32,6 +32,7 @@ eventsApiRedis:
   password: ""
   db: 1
   poolSize: 1000
+forceNewEvents: true
 scheduling:
   preemption:
     enabled: true

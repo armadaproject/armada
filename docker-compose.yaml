@@ -67,6 +67,7 @@ services:
       - postgres
       - pulsar
       - stan
+      - eventingester      
     command: ./server --config /config/insecure-armada-auth-config.yaml
 
   executor:
@@ -92,8 +93,6 @@ services:
       - kind
     ports:
       - 8082:8082
-    depends_on:
-      - server
     volumes:
       - ./.kube/internal:/.kube
     environment:
@@ -118,6 +117,7 @@ services:
       - kind
     depends_on:
       - postgres
+      - pulsar
     volumes:
       - ./localdev/config:/config
     command: ./lookoutingester --config /config/lookoutingester/config.yaml

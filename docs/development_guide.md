@@ -24,7 +24,7 @@ mage Kind
 # Start necessary dependencies.
 # On Arm-based Macs, you may need to change the pulsar image
 # in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis stan postgres pulsar
+docker-compose up -d redis stan postgres pulsar eventingester
 
 # Verify that dependencies started successfully
 # (check that redis, stan, postgres, and pulsar are all up).
