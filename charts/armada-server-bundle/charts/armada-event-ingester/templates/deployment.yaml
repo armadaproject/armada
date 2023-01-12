@@ -31,9 +31,7 @@ spec:
         - name: event-ingester
           imagePullPolicy: IfNotPresent
           image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
-          args:
-            - --config
-            - /config/application_config.yaml
+          command: ["./eventingester", "--config", "/config/application_config.yaml"]
           {{- if .Values.env }}
           env:
             {{- toYaml .Values.env | nindent 12 -}}

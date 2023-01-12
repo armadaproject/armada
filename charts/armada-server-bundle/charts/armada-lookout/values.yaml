@@ -1,6 +1,10 @@
 image:
-  repository: gresearch/armada-lookout
-  tag: latest
+  repository: "gresearch/armada-lookout"
+  tag: "latest"
+ingressClass: "nginx"
+clusterIssuer: "k8s-cluster-issuer"
+hostnames:
+  - "lookout"
 resources:
   limits:
     memory: 1Gi

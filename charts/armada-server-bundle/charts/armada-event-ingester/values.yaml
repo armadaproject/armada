@@ -1,6 +1,6 @@
 image:
-  repository: gresearch/event-ingester
-  tag: latest
+  repository: "gresearch/armada"
+  tag: "latest"
 resources:
   limits:
     memory: 1Gi
@@ -20,6 +20,4 @@ serviceAccount: null
 
 applicationConfig:
   pulsar:
-    authenticationEnabled: false
-  batchSize: 1048576  #1MB
-  batchMessages: 10000
+    url: "pulsar://pulsar-broker:6650"

@@ -2,6 +2,9 @@ redis-ha:
   enabled: true
   fullnameOverride: redis
   replicas: 1
+  redis:
+    config:
+      min-replicas-to-write: 0
 postgresql:
   enabled: true
   fullnameOverride: postgresql
@@ -41,7 +44,7 @@ pulsar:
 armada-server:
   enabled: true
 armada-event-ingester:
-  enabled: false
+  enabled: true
 armada-lookout:
   enabled: false
 armada-lookout-ingester:

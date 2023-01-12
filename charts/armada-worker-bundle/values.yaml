@@ -7,3 +7,7 @@ priorityClasses:
     description: "Priority class to be used for preemptible jobs."
     globalDefault: false
     value: 900
+armada-binoculars:
+  enabled: false
+armada-executor:
+  enabled: true

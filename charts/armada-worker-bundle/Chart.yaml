@@ -7,7 +7,9 @@ appVersion: "latest" # Set automatically as part of the release process.
 dependencies:
   - name: armada-binoculars
     version: 0.0.1
+    condition: armada-binoculars.enabled
   - name: armada-executor
     version: 0.0.1
+    condition: armada-executor.enabled
   # - name: armada-worker-cluster-monitoring
   #   version: 0.0.1
