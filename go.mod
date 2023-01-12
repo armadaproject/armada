@@ -98,7 +98,6 @@ require (
 	github.com/matryer/moq v0.3.0
 	github.com/openconfig/goyang v1.2.0
 	github.com/sanity-io/litter v1.5.5
-	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -350,6 +349,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.9.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect
