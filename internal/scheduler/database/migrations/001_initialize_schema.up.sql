@@ -57,7 +57,7 @@ CREATE TABLE runs (
 );
 
 CREATE TABLE markers (
-    group_id UUID PRIMARY KEY,
+    group_id uuid NOT NULL,
     partition_id integer NOT NULL,
     PRIMARY KEY (group_id, partition_id)
 );

@@ -109,6 +109,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 				JobSet:          row.JobSet,
 				Queue:           row.Queue,
 				Priority:        row.Priority,
+				Submitted:       row.Submitted,
 				CancelRequested: row.CancelRequested,
 				Cancelled:       row.Cancelled,
 				Succeeded:       row.Succeeded,
