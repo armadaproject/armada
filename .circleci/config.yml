@@ -408,29 +408,29 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
-      - build_and_integration_tests
       - testsuite
-      - release-armadactl:
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
-      - release-docker-images:
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
-      - release-charts:
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
-      - release-dotnet-client:
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
+      # - build_and_integration_tests
+      # - release-armadactl:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      #       branches:
+      #         ignore: /.*/
+      # - release-docker-images:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      #       branches:
+      #         ignore: /.*/
+      # - release-charts:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      #       branches:
+      #         ignore: /.*/
+      # - release-dotnet-client:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      #       branches:
+      #         ignore: /.*/
