@@ -17,13 +17,7 @@ func ciRunTests() error {
 		return err
 	}
 
-	// TODO: Necessary to avoid connection error on Armada server startup.
-	time.Sleep(10 * time.Second)
-	err = dockerComposeRun("up", "-d", "server", "executor")
-	if err != nil {
-		return err
-	}
-
+	// Retry on failure. Since it may take time for components to become ready.
 	retry.Do(
 		func() error {
 			if err := dockerComposeRun("up", "-d", "server", "executor"); err != nil {

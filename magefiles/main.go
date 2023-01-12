@@ -100,6 +100,10 @@ func CiIntegrationTests() {
 	mg.Deps(ciRunTests)
 }
 
+func CiRunTests() {
+	mg.Deps(ciRunTests)
+}
+
 func BuildDockers(arg string) error {
 	dockerIds := make([]string, 0)
 	for _, s := range strings.Split(arg, ",") {

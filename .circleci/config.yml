@@ -275,14 +275,32 @@ jobs:
       - store_test_results:
           path: junit.xml
   release:
-    run:
-      name: "Exit if branch"
-      command: |
-        if [ -z "${DOCKERHUB_USER}" ]
-        then
-          echo "Images are not pushed on forks."
-          exit 0
-        fi
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:      
+      - run:
+        name: "Exit if on a fork."
+        command: |
+          if [ -z "${DOCKERHUB_USER}" ]
+          then
+            echo "Images are not pushed on forks."
+            exit 0
+          fi
+      - checkout
+      - go/mod-download-cached
+      - kubernetes/install-kubectl
+      - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      - run: goreleaser release --skip-publish --rm-dist
+      - run: go run github.com/magefile/mage@v1.14.0 -v CiRunTests
+      - run: echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+      # - run: docker push $(docker image ls --format "{{ .Image }}:{{ .Tag }}" --filter "label=org.opencontainers.image.revision=$(git rev-parse HEAD)")
   release-armadactl:
     machine:
       docker_layer_caching: true
