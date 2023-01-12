@@ -618,5 +618,5 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 
 func logQuery(query *Query) {
 	log.Debug(query.Sql)
-	log.Debug("%v", query.Args)
+	log.Debugf("%v", query.Args)
 }
