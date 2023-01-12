@@ -102,19 +102,6 @@ queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
   autoCreateQueues: true
-events:
-  storeQueue: "ArmadaEventRedisProcessor"
-  jobStatusQueue: "ArmadaEventJobStatusProcessor"
-  processorBatchSize: 100
-  processorMaxTimeBetweenBatches: 1s
-  processorTimeout: 10s
-eventsNats:
-  clusterID: "test-cluster"
-  subject: "ArmadaTest"
-  timeout: 10s
-  servers:
-    - "nats://localhost:4223"
-    - "nats://stan:4223"
 databaseRetention:
   jobRetentionDuration: 168h
 eventRetention:
