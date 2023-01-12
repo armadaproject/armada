@@ -32,7 +32,6 @@ eventsApiRedis:
   password: ""
   db: 1
   poolSize: 1000
-defaultToLegacyEvents: true
 scheduling:
   preemption:
     enabled: true

@@ -8,7 +8,7 @@ pulsar:
   URL: pulsar://pulsar:6650
   jobsetEventsTopic: events
   receiveTimeout: 5s
-  backoffTime: 1s
+  backoffTime: 1s  
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
 batchSize: 1048576  #1MB
