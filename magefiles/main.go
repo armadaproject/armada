@@ -89,8 +89,8 @@ func Proto() {
 }
 
 func BootstrapProto() {
-	mg.Deps(protocInstall)
-	mg.Deps(protocCheck, protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
+	mg.Deps(protocCheck)
+	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
 // run integration test
