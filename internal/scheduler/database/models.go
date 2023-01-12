@@ -11,19 +11,21 @@ import (
 )
 
 type Job struct {
-	JobID          uuid.UUID `db:"job_id"`
-	JobSet         string    `db:"job_set"`
-	Queue          string    `db:"queue"`
-	UserID         string    `db:"user_id"`
-	Groups         []byte    `db:"groups"`
-	Priority       int64     `db:"priority"`
-	Cancelled      bool      `db:"cancelled"`
-	Succeeded      bool      `db:"succeeded"`
-	Failed         bool      `db:"failed"`
-	SubmitMessage  []byte    `db:"submit_message"`
-	SchedulingInfo []byte    `db:"scheduling_info"`
-	Serial         int64     `db:"serial"`
-	LastModified   time.Time `db:"last_modified"`
+	JobID           string    `db:"job_id"`
+	JobSet          string    `db:"job_set"`
+	Queue           string    `db:"queue"`
+	UserID          string    `db:"user_id"`
+	Submitted       int64     `db:"submitted"`
+	Groups          []byte    `db:"groups"`
+	Priority        int64     `db:"priority"`
+	CancelRequested bool      `db:"cancel_requested"`
+	Cancelled       bool      `db:"cancelled"`
+	Succeeded       bool      `db:"succeeded"`
+	Failed          bool      `db:"failed"`
+	SubmitMessage   []byte    `db:"submit_message"`
+	SchedulingInfo  []byte    `db:"scheduling_info"`
+	Serial          int64     `db:"serial"`
+	LastModified    time.Time `db:"last_modified"`
 }
 
 type JobRunAssignment struct {
@@ -49,7 +51,7 @@ type Queue struct {
 
 type Run struct {
 	RunID          uuid.UUID `db:"run_id"`
-	JobID          uuid.UUID `db:"job_id"`
+	JobID          string    `db:"job_id"`
 	JobSet         string    `db:"job_set"`
 	Executor       string    `db:"executor"`
 	SentToExecutor bool      `db:"sent_to_executor"`
@@ -57,6 +59,7 @@ type Run struct {
 	Running        bool      `db:"running"`
 	Succeeded      bool      `db:"succeeded"`
 	Failed         bool      `db:"failed"`
+	Returned       bool      `db:"returned"`
 	Serial         int64     `db:"serial"`
 	LastModified   time.Time `db:"last_modified"`
 }

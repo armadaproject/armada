@@ -45,7 +45,7 @@ type AggregatedQueueServer struct {
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
-	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
+	SchedulingReportsRepository *scheduler.SchedulingReportsRepository[*api.Job]
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
 	SubmitChecker *scheduler.SubmitChecker
@@ -339,12 +339,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig,
 		totalCapacityRl,
 	)
-	sched, err := scheduler.NewLegacyScheduler(
+	legacySchedulerRepo := scheduler.NewJobRepositoryAdapter(q.jobRepository)
+	sched, err := scheduler.NewLegacyScheduler[*api.Job](
 		ctx,
 		*constraints,
 		q.schedulingConfig,
 		nodeDb,
-		q.jobRepository,
+		legacySchedulerRepo,
 		priorityFactorByActiveQueue,
 		aggregatedUsageByQueue,
 	)
