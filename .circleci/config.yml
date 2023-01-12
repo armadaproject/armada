@@ -243,8 +243,7 @@ jobs:
       - checkout
       - go/mod-download-cached
       - kubernetes/install-kubectl
-      - run:
-        command: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+      - run: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
       - store_test_results:
           path: junit.xml
 
