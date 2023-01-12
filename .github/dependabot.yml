@@ -9,7 +9,7 @@ updates:
     directory: "./internal/lookout"
     # Check the npm registry for updates every day (weekdays)
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Enable version updates for yarn
   - package-ecosystem: "yarn"
@@ -17,14 +17,14 @@ updates:
     directory: "./internal/lookout"
     # Check the yarn registry for updates every day (weekdays)
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Maintain dependencies for Golang
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       # Check for updates managed by Composer once a week
-      interval: "daily"
+      interval: "monthly"
 
   # Enable version updates for Docker
   - package-ecosystem: "docker"
@@ -32,18 +32,18 @@ updates:
     directory: "./build"
     # Check for updates once a week
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Enable version updates for pip -- client/python dir
   - package-ecosystem: "pip"
     directory: "./client/python"
     # Check the pip registry for updates every day (weekdays)
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Enable version updates for pip -- third_party/airflow dir
   - package-ecosystem: "pip"
     directory: "./third_party/airflow"
     # Check the pip registry for updates every day (weekdays)
     schedule:
-      interval: "daily"
+      interval: "monthly"
