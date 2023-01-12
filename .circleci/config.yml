@@ -229,25 +229,6 @@ jobs:
             docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
             docker push gresearchdev/armada-jobservice-dev:${TAG}
 
-  testsuite:
-    machine:
-      docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
-      ARMADA_EXECUTOR_INGRESS_PORT: 5001
-    working_directory: ~/go/src/github.com/G-Research/armada
-    steps:
-      - checkout
-      - go/mod-download-cached
-      - kubernetes/install-kubectl
-      - run: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
-      - store_test_results:
-          path: junit.xml
   unittests:
     machine:
       docker_layer_caching: true
@@ -268,11 +249,40 @@ jobs:
       - run: go test -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
       - run: go test -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
       - run: go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
-      - run: rm -f test_reports/junit.xml
-      - run: cat test_reports/*.txt | go-junit-report > junit.xml
+      - run:
+          name: junit-report
+          command: cat test_reports/*.txt | go-junit-report > junit.xml
+          when: always
       - store_test_results:
           path: junit.xml
-
+  testsuite:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - go/mod-download-cached
+      - kubernetes/install-kubectl
+      - run: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+      - store_test_results:
+          path: junit.xml
+  release:
+    run:
+      name: "Exit if branch"
+      command: |
+        if [ -z "${DOCKERHUB_USER}" ]
+        then
+          echo "Images are not pushed on forks."
+          exit 0
+        fi
   release-armadactl:
     machine:
       docker_layer_caching: true
