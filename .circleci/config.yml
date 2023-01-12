@@ -1,4 +1,7 @@
 version: 2.1
+orbs:
+  go: circleci/go@1.7.1
+  kubernetes: circleci/kubernetes@1.3.1
 
 commands:
   deploy-executor:
@@ -156,7 +159,7 @@ jobs:
       - run:
           name: e2e test environment teardown
           command: make tests-e2e-teardown
-          
+
       - run:
           name: Prepare reports
           command: make junit-report
@@ -226,6 +229,24 @@ jobs:
             docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
             docker push gresearchdev/armada-jobservice-dev:${TAG}
 
+  testsuite:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/G-Research/armada
+    steps:
+      - checkout
+      - go/mod-download-cached
+      - kubernetes/install-kubectl
+      - run:
+        command: go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+      - store_test_results:
+          path: junit.xml
 
   release-armadactl:
     machine:
@@ -374,7 +395,7 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache            
+            make download # no-op if we restored from cache
 
       - run:
           name: Push dotnet clients to nuget
@@ -388,7 +409,8 @@ workflows:
   version: 2
   build_and_deploy:
     jobs:
-      -  build_and_integration_tests
+      - build_and_integration_tests
+      - testsuite
       - release-armadactl:
           filters:
             tags:
