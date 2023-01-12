@@ -132,7 +132,7 @@ func TestQueryBuilder_CreateTempTable(t *testing.T) {
 func TestQueryBuilder_JobCountEmpty(t *testing.T) {
 	query, err := NewQueryBuilder(NewTables()).JobCount([]*model.Filter{})
 	assert.NoError(t, err)
-	assert.Equal(t, splitByWhitespace("SELECT COUNT(DISTINCT j.job_id) FROM job AS j"),
+	assert.Equal(t, splitByWhitespace("SELECT COUNT(*) FROM job AS j"),
 		splitByWhitespace(query.Sql))
 	assert.Equal(t, []interface{}(nil), query.Args)
 }
@@ -258,7 +258,7 @@ func TestQueryBuilder_GroupByEmpty(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
-			SELECT j.jobset, COUNT(DISTINCT j.job_id) AS count
+			SELECT j.jobset, COUNT(*) AS count
 			FROM job AS j
 			GROUP BY j.jobset
 			LIMIT 10 OFFSET 0
@@ -280,7 +280,7 @@ func TestQueryBuilder_GroupBy(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
-			SELECT j.jobset, COUNT(DISTINCT j.job_id) AS count
+			SELECT j.jobset, COUNT(*) AS count
 			FROM job AS j
 			INNER JOIN (
 				SELECT job_id
