@@ -3,7 +3,6 @@ package scheduler
 
 import (
 	"context"
-	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
+
+	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
 )
 
 const (
