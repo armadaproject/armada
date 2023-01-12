@@ -53,16 +53,10 @@ func ciMinimalRelease() error {
 // containing only the subset of targets in .goreleaser.yaml necessary
 // for building a set of specified Docker images.
 func ciWriteMinimalReleaseConfig() error {
-	// Docker targets to build and the build targets necessary to do so.
+	// Docker targets to build.
+	// Necessary build targets are picked up from docker.Ids.
 	dockerIds := map[string]bool{
 		"bundle": true,
-	}
-	buildIds := map[string]bool{
-		"server":          true,
-		"executor":        true,
-		"binoculars":      true,
-		"lookoutingester": true,
-		"eventingester":   true,
 	}
 
 	goreleaserConfigPath := "./.goreleaser.yml"
@@ -72,9 +66,13 @@ func ciWriteMinimalReleaseConfig() error {
 	}
 
 	dockers := make([]goreleaserConfig.Docker, 0)
+	buildIds := make(map[string]bool)
 	for _, docker := range config.Dockers {
 		if dockerIds[docker.ID] {
 			dockers = append(dockers, docker)
+			for _, id := range docker.IDs {
+				buildIds[id] = true
+			}
 		}
 	}
 	if len(dockers) == 0 {
@@ -91,7 +89,7 @@ func ciWriteMinimalReleaseConfig() error {
 		return errors.Errorf("%v matched no builds in %s", buildIds, goreleaserConfigPath)
 	}
 
-	targets := make(map[string]interface{})
+	targets := make(map[string]bool)
 	for _, docker := range dockers {
 		targets[fmt.Sprintf("%s_%s", docker.Goos, docker.Goarch)] = true
 	}
