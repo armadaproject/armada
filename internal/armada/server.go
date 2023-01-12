@@ -336,7 +336,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 	aggregatedQueueServer.SubmitChecker = submitChecker
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
-		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
+		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository[*api.Job](
 			config.Scheduling.MaxQueueReportsToStore,
 			config.Scheduling.MaxJobReportsToStore,
 		)
