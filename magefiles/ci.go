@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	"github.com/magefile/mage/sh"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
@@ -26,6 +27,9 @@ func ciRunTests() error {
 
 	retry.Do(
 		func() error {
+
+			sh.Run("docker", "ps")
+
 			err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 			if err != nil {
 				return err
