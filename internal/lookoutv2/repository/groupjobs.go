@@ -63,6 +63,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
+		logQuery(countQuery)
 		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
 		if err != nil {
 			return err
@@ -75,6 +76,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
+		logQuery(groupByQuery)
 		groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
 		if err != nil {
 			return err
