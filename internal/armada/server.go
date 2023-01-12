@@ -19,7 +19,6 @@ import (
 	"github.com/G-Research/armada/internal/armada/cache"
 	"github.com/G-Research/armada/internal/armada/configuration"
 	"github.com/G-Research/armada/internal/armada/metrics"
-	"github.com/G-Research/armada/internal/armada/processor"
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/internal/armada/scheduling"
 	"github.com/G-Research/armada/internal/armada/server"
@@ -121,19 +120,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Auth.PermissionClaimMapping,
 	)
 
-	eventStore := processor.NewEventStore()
-
-	submitServer := server.NewSubmitServer(
-		permissions,
-		jobRepository,
-		queueRepository,
-		eventStore,
-		schedulingInfoRepository,
-		config.CancelJobsBatchSize,
-		&config.QueueManagement,
-		&config.Scheduling,
-	)
-
 	// If pool settings are provided, open a connection pool to be shared by all services.
 	var pool *pgxpool.Pool
 	if len(config.Postgres.Connection) != 0 {
@@ -185,6 +171,19 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 	defer producer.Close()
 
+	eventStore := repository.NewEventStore(producer, int(config.Pulsar.MaxAllowedMessageSize))
+
+	submitServer := server.NewSubmitServer(
+		permissions,
+		jobRepository,
+		queueRepository,
+		eventStore,
+		schedulingInfoRepository,
+		config.CancelJobsBatchSize,
+		&config.QueueManagement,
+		&config.Scheduling,
+	)
+
 	pulsarSubmitServer := &server.PulsarSubmitServer{
 		Producer:              producer,
 		QueueRepository:       queueRepository,
@@ -215,8 +214,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	} else {
 		log.Info("Pulsar submit API deduplication disabled")
 	}
-
-	eventStore.PulsarSubmitServer = pulsarSubmitServer
 
 	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
