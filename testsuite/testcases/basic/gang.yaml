@@ -12,7 +12,7 @@ jobs:
       containers:
         - name: sleep
           imagePullPolicy: IfNotPresent
-          image: rancher/kubectl:v1.23.7
+          image: kubesphere/kubectl:v1.22.9
           command: ["bash", "-c"]
           args:
             - |
