@@ -262,6 +262,7 @@ jobs:
       - checkout
       - go/mod-download-cached
       - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      - run: docker network create kind
       - run: docker-compose up -d redis postgres
       - run: mkdir -p test_reports
       - run: go test -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
