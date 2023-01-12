@@ -2,10 +2,10 @@ package repository
 
 import (
 	"context"
+
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/apache/pulsar-client-go/pulsar"
 )
 
 type EventStore interface {
@@ -53,5 +53,4 @@ func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
 		return err
 	}
 	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences)
-
 }
