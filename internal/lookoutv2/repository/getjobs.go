@@ -90,6 +90,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		if err != nil {
 			return err
 		}
+		logQuery(countQuery)
 		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
 		if err != nil {
 			return err
@@ -100,6 +101,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		}
 
 		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
+		logQuery(createTempTableQuery)
 		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
 		if err != nil {
 			return err
@@ -109,6 +111,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		if err != nil {
 			return err
 		}
+		logQuery(createTempTableQuery)
 		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
 		if err != nil {
 			return err

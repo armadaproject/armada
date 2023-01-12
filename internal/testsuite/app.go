@@ -188,7 +188,7 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			eventLogger:          eventLogger,
 		}
 		go func() {
-			testRunner.Run(ctx)
+			_ = testRunner.Run(ctx)
 			rv.TestCaseReports[i] = testRunner.TestCaseReport
 			wg.Done()
 		}()
