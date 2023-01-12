@@ -1,16 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"time"
-
-	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
-	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
-	yaml "gopkg.in/yaml.v3"
-
-	"github.com/G-Research/armada/pkg/client/util"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
@@ -43,73 +35,4 @@ func ciRunTests() error {
 		return err
 	}
 	return nil
-}
-
-func ciMinimalRelease() error {
-	return goreleaserRun("release", "--snapshot", "--rm-dist", "-f", ".goreleaser-minimal.yml")
-}
-
-// Write a minimal goreleaser config to .goreleaser-docker.yml
-// containing only the subset of targets in .goreleaser.yaml necessary
-// for building a set of specified Docker images.
-func ciWriteMinimalReleaseConfig() error {
-	// Docker targets to build.
-	// Necessary build targets are picked up from docker.Ids.
-	dockerIds := map[string]bool{
-		"bundle": true,
-	}
-
-	goreleaserConfigPath := "./.goreleaser.yml"
-	config := goreleaserConfig.Project{}
-	if err := util.BindJsonOrYaml(goreleaserConfigPath, &config); err != nil {
-		return err
-	}
-
-	dockers := make([]goreleaserConfig.Docker, 0)
-	buildIds := make(map[string]bool)
-	for _, docker := range config.Dockers {
-		if dockerIds[docker.ID] {
-			dockers = append(dockers, docker)
-			for _, id := range docker.IDs {
-				buildIds[id] = true
-			}
-		}
-	}
-	if len(dockers) == 0 {
-		return errors.Errorf("%v matched no dockers in %s", dockerIds, goreleaserConfigPath)
-	}
-
-	builds := make([]goreleaserConfig.Build, 0)
-	for _, build := range config.Builds {
-		if buildIds[build.ID] {
-			builds = append(builds, build)
-		}
-	}
-	if len(builds) == 0 {
-		return errors.Errorf("%v matched no builds in %s", buildIds, goreleaserConfigPath)
-	}
-
-	targets := make(map[string]bool)
-	for _, docker := range dockers {
-		targets[fmt.Sprintf("%s_%s", docker.Goos, docker.Goarch)] = true
-	}
-	for i := range builds {
-		builds[i].Goos = nil
-		builds[i].Goarch = nil
-		builds[i].Targets = maps.Keys(targets)
-	}
-
-	minimalConfig := goreleaserConfig.Project{
-		ProjectName: config.ProjectName,
-		Dist:        config.Dist,
-		GoMod:       config.GoMod,
-		Env:         config.Env,
-		Builds:      builds,
-		Dockers:     dockers,
-	}
-	bytes, err := yaml.Marshal(minimalConfig)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(".goreleaser-minimal.yml", bytes, 0o644)
 }
