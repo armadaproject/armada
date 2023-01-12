@@ -1,5 +1,0 @@
-apiVersion: v2
-description: A helm chart for Armada Lookout Ingester v2 component
-name: armada-lookout-ingester-v2
-version: 0.0.1
-appVersion: "latest"
