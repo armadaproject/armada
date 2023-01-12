@@ -32,3 +32,11 @@ func copy(srcPath, dstPath string) error {
 	_, err = io.Copy(dst, src)
 	return err
 }
+
+func set[S ~[]E, E comparable](s S) map[E]bool {
+	m := make(map[E]bool)
+	for _, v := range s {
+		m[v] = true
+	}
+	return m
+}

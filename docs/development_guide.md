@@ -2,7 +2,7 @@
 
 Here, we give an overview of a development setup for Armada that is closely aligned with how Armada is built and tested in CI.
 
-Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.18 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), and [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
+Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.18 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl), and, if you need to compile `.proto` files, [protoc](https://github.com/protocolbuffers/protobuf/releases).
 
 Then, use the following commands to setup a local Armada system.
 ```bash
@@ -79,7 +79,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
                 // Necessary config overrides.
                 "ARMADA_REDIS_ADDRS": "localhost:6379",
                 "ARMADA_EVENTSREDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4223",
+                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4222",
                 "ARMADA_EVENTAPI_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
