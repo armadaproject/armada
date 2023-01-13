@@ -228,7 +228,11 @@ func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
 
 // HasQueuedJobs returns true if the queue has any jobs in the running state or false otherwise
 func (jobDb *JobDb) HasQueuedJobs(txn *memdb.Txn, queue string) (bool, error) {
-	panic("not yet implemented")
+	iter, err := NewJobQueueIterator(txn, queue)
+	if err != nil {
+		return false, err
+	}
+	return iter.Next() != nil, nil
 }
 
 // GetAll returns all jobs in the database.
