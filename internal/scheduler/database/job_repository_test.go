@@ -6,6 +6,7 @@ import (
 	"github.com/G-Research/armada/internal/common/util"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -106,6 +107,50 @@ func TestFetchJobUpdates(t *testing.T) {
 	}
 }
 
+func TestCountReceivedPartitions(t *testing.T) {
+	tests := map[string]struct {
+		numPartitions int
+	}{
+		"100 partitions": {
+			numPartitions: 100,
+		},
+		"0 partitions": {
+			numPartitions: 0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withJobRepository(func(repo *PostgresJobRepository) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+				markers := make([]Marker, tc.numPartitions)
+				groupId := uuid.New()
+				for i := 0; i < tc.numPartitions; i++ {
+					markers[i] = Marker{
+						GroupID:     groupId,
+						PartitionID: int32(i),
+					}
+				}
+
+				// Set up db
+				err := insertMarkers(ctx, markers, repo.db)
+				require.NoError(t, err)
+
+				// Fetch updates
+				received, err := repo.CountReceivedPartitions(ctx, groupId)
+				require.NoError(t, err)
+
+				assert.Equal(t, uint32(tc.numPartitions), received)
+
+				cancel()
+				return nil
+			})
+			require.NoError(t, err)
+		})
+
+	}
+}
+
 func createTestJobs(numJobs int) ([]Job, []Job) {
 	dbJobs := make([]Job, numJobs)
 	expectedJobs := make([]Job, numJobs)
@@ -186,4 +231,14 @@ func withJobRepository(action func(repository *PostgresJobRepository) error) err
 		repo := NewPostgresJobRepository(db, defaultBatchSize)
 		return action(repo)
 	})
+}
+
+func insertMarkers(ctx context.Context, markers []Marker, db *pgxpool.Pool) error {
+	for _, marker := range markers {
+		_, err := db.Exec(ctx, "INSERT INTO markers VALUES ($1, $2)", marker.GroupID, marker.PartitionID)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
