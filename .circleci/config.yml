@@ -261,8 +261,9 @@ jobs:
       - install-protobuf
       - go/mod-download-cached
       - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      - run:
         name: Check that generated files are consistent.
-        run: |
+        command: |
           go run github.com/magefile/mage@v1.14.0 -v proto
           git status -s -uno
           git --no-pager diff
