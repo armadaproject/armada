@@ -44,8 +44,11 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
+// LeaseListener  allows clients to listen for lease events
 type LeaseListener interface {
+	// Called when the client has started leading
 	onStartedLeading(context.Context)
+	// Called when the client has stopped leading
 	onStoppedLeading()
 }
 

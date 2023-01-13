@@ -30,10 +30,10 @@ const (
 	Leader
 )
 
-func TestK8sLeaderController_Becoming(t *testing.T) {
+func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	tests := map[string]struct {
-		states         []State
-		expectedStates []State
+		states         []State // states to be returned from the server.
+		expectedStates []State //state transitions observed by the client
 	}{
 		"Always Leader": {
 			states:         []State{Leader, Leader, Leader},
@@ -157,6 +157,7 @@ func config() LeaderConfig {
 	}
 }
 
+// Captures the state transitions returned by the LeaderController
 type TestLeaseListener struct {
 	tokens      []LeaderToken
 	validations []bool
