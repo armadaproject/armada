@@ -170,14 +170,14 @@ func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMe
 	return func(msg *pulsar.ProducerMessage, md pulsar.TopicMetadata) int {
 		explicitPartition, ok := msg.Properties[explicitPartitionKey]
 		if ok {
-			partition, err := strconv.Atoi(explicitPartition)
+			partition, err := strconv.ParseInt(explicitPartition, 10, 32)
 			if err != nil {
 				panic(errors.Errorf("cannot parse %s as int", explicitPartition))
 			}
 			if partition < 0 || uint32(partition) >= md.NumPartitions() {
 				panic(errors.Errorf("requested partiton %d is not in the range 0-%d", partition, md.NumPartitions()-1))
 			}
-			return partition
+			return int(partition)
 		}
 		return defaultRouter(msg, md.NumPartitions())
 	}
