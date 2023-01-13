@@ -21,6 +21,7 @@ interface CancelDialogProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
+
 export const CancelDialog = ({
   onClose,
   selectedItemFilters,
@@ -51,8 +52,7 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const jobIdsToCancel = cancellableJobs.map((job) => job.jobId)
-    const response = await updateJobsService.cancelJobs(jobIdsToCancel)
+    const response = await updateJobsService.cancelJobs(cancellableJobs)
 
     if (response.failedJobIds.length === 0) {
       enqueueSnackbar(
