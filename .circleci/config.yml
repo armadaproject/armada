@@ -25,6 +25,23 @@ commands:
             else
               echo Unable to connect to worker << parameters.worker-id >>
             fi
+  install-protobuf:
+    description: Install protobuf (protoc command and standard libs)
+    parameters:
+      prefix:
+        default: /usr/local
+        type: string
+      version:
+        default: 3.17.3
+        type: string
+    steps:
+    - run:
+        command: |
+          archive=protoc-<<parameters.version>>-linux-x86_64
+          curl -O -L https://github.com/protocolbuffers/protobuf/releases/download/v<<parameters.version>>/$archive.zip
+          sudo unzip -d '/usr/local' $archive.zip 'bin/*' 'include/*'
+          rm -rf $archive.zip
+        name: '[protobuf] Install'
 
   install-helm-client:
     description: |
@@ -241,8 +258,15 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
+      - install-protobuf
       - go/mod-download-cached
       - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+        name: Check that generated files are consistent.
+        run: |
+          go run github.com/magefile/mage@v1.14.0 -v proto
+          git status -s -uno
+          git --no-pager diff
+          exit $(git status -s -uno | wc -l)
       - run: docker network create kind
       - run: docker-compose up -d redis postgres
       - run: mkdir -p test_reports
@@ -284,7 +308,7 @@ jobs:
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
-    steps:      
+    steps:
       - run:
         name: "Exit if on a fork."
         command: |
