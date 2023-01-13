@@ -38,17 +38,6 @@ services:
     networks:
       - kind
 
-  # TODO: Remove
-  stan:
-    container_name: stan
-    image: nats-streaming
-    command: "-p 4222 -m 8223"
-    ports:
-      - 4222:4222
-      - 8223:8223
-    networks:
-      - kind
-
   #
   # Armada services.
   #
@@ -66,8 +55,7 @@ services:
       - redis
       - postgres
       - pulsar
-      - stan
-      - eventingester      
+      - eventingester
     command: ./server --config /config/insecure-armada-auth-config.yaml
 
   executor:
