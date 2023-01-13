@@ -248,6 +248,7 @@ jobs:
       GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
+      - run: export GOPATH=/home/circleci/go
       - checkout
       - install-protobuf
       - go/mod-download-cached
