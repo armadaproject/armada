@@ -431,7 +431,7 @@ setup-cluster:
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
 tests-e2e-setup: setup-cluster
-	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
+	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.24.8 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
 	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.2 bin/pulsar standalone

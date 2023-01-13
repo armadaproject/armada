@@ -11,14 +11,6 @@ updates:
     schedule:
       interval: "monthly"
 
-  # Enable version updates for yarn
-  - package-ecosystem: "yarn"
-    # Look for `package.json` and `lock` files in the `internal/lookout` directory
-    directory: "./internal/lookout"
-    # Check the yarn registry for updates monthly
-    schedule:
-      interval: "monthly"
-
   # Maintain dependencies for Golang
   - package-ecosystem: "gomod"
     directory: "/"
