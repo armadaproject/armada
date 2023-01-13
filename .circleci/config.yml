@@ -286,29 +286,27 @@ jobs:
       # https://github.com/hashicorp/vault/pull/15292/files
       - run: export GOPATH=/home/circleci/go
       - checkout
-      - run:
-          command: |
-            GO_VERSION=$(cat .go-version)
-            [ -n "$GO_VERSION" ] || { echo "You must set GO_VERSION"; exit 1; }
-            # Install Go
-            cd ~
-            curl -sSLO "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz"
-            sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
-            rm -f "go${GO_VERSION}.linux-amd64.tar.gz"
-            GOPATH="/home/circleci/go"
-            mkdir $GOPATH 2>/dev/null || { sudo mkdir $GOPATH && sudo chmod 777 $GOPATH; }
-            mkdir $GOPATH/bin 2>/dev/null || { sudo mkdir $GOPATH/bin && sudo chmod 777 $GOPATH/bin; }
-            echo "export GOPATH='$GOPATH'" >> "$BASH_ENV"
-            echo "export PATH='$PATH:$GOPATH/bin:/usr/local/go/bin'" >> "$BASH_ENV"
-            echo "export GOPROXY=off" >> "$BASH_ENV"
-            echo "export GOPRIVATE=github.com/hashicorp/*" >> "$BASH_ENV"
-            echo "$ go version"
-            go version
-          name: Setup Go      
+      # - run:
+      #     command: |
+      #       GO_VERSION=$(cat .go-version)
+      #       [ -n "$GO_VERSION" ] || { echo "You must set GO_VERSION"; exit 1; }
+      #       # Install Go
+      #       cd ~
+      #       curl -sSLO "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz"
+      #       sudo rm -rf /usr/local/go
+      #       sudo tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
+      #       rm -f "go${GO_VERSION}.linux-amd64.tar.gz"
+      #       GOPATH="/home/circleci/go"
+      #       mkdir $GOPATH 2>/dev/null || { sudo mkdir $GOPATH && sudo chmod 777 $GOPATH; }
+      #       mkdir $GOPATH/bin 2>/dev/null || { sudo mkdir $GOPATH/bin && sudo chmod 777 $GOPATH/bin; }
+      #       echo "export GOPATH='$GOPATH'" >> "$BASH_ENV"
+      #       echo "export PATH='$PATH:$GOPATH/bin:/usr/local/go/bin'" >> "$BASH_ENV"
+      #       echo "$ go version"
+      #       go version
+      #     name: Setup Go      
       - install-protobuf
-      # - go/install:
-      #     version: 1.18.10
+      - go/install:
+          version: 1.18.10
       - go/load-cache
       - run:
           name: go mod download cached
@@ -336,8 +334,8 @@ jobs:
           name: ls GOBIN
           command: |
             export GOPATH=/home/circleci/go
-            echo gobin ${GOBIN}
-            ls ${GOBIN}
+            # echo gobin ${GOBIN}
+            # ls ${GOBIN}
             ls ${GOPATH}/bin
           when: always
       - run: docker network create kind
