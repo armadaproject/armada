@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/magefile/mage/sh"
-	"github.com/pkg/errors"
 )
 
 func protoInstallProtocArmadaPlugin() error {
@@ -44,14 +43,11 @@ func protoPrepareThirdPartyProtos() error {
 		},
 	}
 
-	goPath, err := goEnv("GOPATH")
+	gopath, err := goPath()
 	if err != nil {
-		return errors.Errorf("error getting GOPATH: %v", err)
+		return err
 	}
-	if goPath == "" {
-		return errors.New("error GOPATH is not set")
-	}
-	goModPath := filepath.Join(goPath, "pkg", "mod")
+	goModPath := filepath.Join(gopath, "pkg", "mod")
 	for _, module := range modules {
 		version, err := goModuleVersion(module.name)
 		if err != nil {
@@ -72,7 +68,7 @@ func protoPrepareThirdPartyProtos() error {
 				dest = trimSlashPrefix(strings.TrimPrefix(dest, root))
 			}
 			// copy to proto folder
-			dest = filepath.Join("./proto", dest)
+			dest = filepath.Join("proto", dest)
 			return copy(path, dest)
 		})
 		if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -55,6 +56,19 @@ func goCheck() error {
 
 func goEnv(name string) (string, error) {
 	return goOutput("env", name)
+}
+
+func goPath() (string, error) {
+	if s := os.Getenv("GOPATH"); s != "" {
+		return s, nil
+	}
+	if s, err := goEnv("GOPATH"); err != nil {
+		return "", err
+	} else if s == "" {
+		return "", errors.New("GOPATH not set")
+	} else {
+		return s, nil
+	}
 }
 
 func goModuleVersion(name string) (string, error) {
