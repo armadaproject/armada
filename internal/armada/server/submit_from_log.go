@@ -26,7 +26,7 @@ import (
 )
 
 // SubmitFromLog is a service that reads messages from Pulsar and updates the state of the Armada server accordingly
-// (in particular, it writes to Redis and Nats).
+// (in particular, it writes to Redis).
 // Calls into an embedded Armada submit server object.
 type SubmitFromLog struct {
 	SubmitServer *SubmitServer
@@ -47,7 +47,11 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		if err := recover(); err != nil {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
-			go srv.Run(ctx)
+			go func() {
+				if err := srv.Run(ctx); err != nil {
+					logging.WithStacktrace(log, err).Error("service failure")
+				}
+			}()
 		} else {
 			// An expected shutdown.
 			log.Info("service stopped")

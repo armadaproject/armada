@@ -4,9 +4,8 @@ import (
 	"context"
 	"sync/atomic"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -45,8 +44,11 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
+// LeaseListener  allows clients to listen for lease events
 type LeaseListener interface {
+	// Called when the client has started leading
 	onStartedLeading(context.Context)
+	// Called when the client has stopped leading
 	onStoppedLeading()
 }
 

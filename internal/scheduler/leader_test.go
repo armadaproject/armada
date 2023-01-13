@@ -3,7 +3,6 @@ package scheduler
 
 import (
 	"context"
-	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
+
+	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
 )
 
 const (
@@ -29,10 +30,16 @@ const (
 	Leader
 )
 
-func TestK8sLeaderController_Becoming(t *testing.T) {
+// Test becoming leader.  This test is slightly awkward as the K8s leader election code
+// in client-go doesn't seem to have a mechanism for manipulating the internal clock.
+// As a result, the test works as follows:
+// * Set up a mock K8s client that updates the lease owener ever 100ms
+// * Set up the client such that it checks for updates every 10ms
+// * assert thart the state transitions are as expected
+func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	tests := map[string]struct {
-		states         []State
-		expectedStates []State
+		states         []State // states to be returned from the server.
+		expectedStates []State //state transitions observed by the client
 	}{
 		"Always Leader": {
 			states:         []State{Leader, Leader, Leader},
@@ -59,8 +66,10 @@ func TestK8sLeaderController_Becoming(t *testing.T) {
 			leaseInterface := schedulermocks.NewMockLeaseInterface(ctrl)
 			client.EXPECT().Leases(lockNamespace).Return(leaseInterface).AnyTimes()
 
-			var lease *v1.Lease
+			lease := &v1.Lease{}
 			idx := 0
+			// update holderIdentity every 100 milliseconds
+			// the sleep here should be fine because the client is polling every 10 millis
 			go func() {
 				var holderIdentity string
 				for idx < len(tc.states) {
@@ -100,8 +109,12 @@ func TestK8sLeaderController_Becoming(t *testing.T) {
 			testListener := NewTestLeaseListener(controller)
 			controller.listener = testListener
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			go controller.Run(ctx)
+			go func() {
+				err := controller.Run(ctx)
+				assert.NoError(t, err)
+			}()
 
+			// Loop that periodically checks to see if we have all the messages we expect
 			shouldLoop := true
 			var msgs []LeaderToken
 			for shouldLoop {
@@ -150,6 +163,7 @@ func config() LeaderConfig {
 	}
 }
 
+// Captures the state transitions returned by the LeaderController
 type TestLeaseListener struct {
 	tokens      []LeaderToken
 	validations []bool

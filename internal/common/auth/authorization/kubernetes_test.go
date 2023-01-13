@@ -77,7 +77,10 @@ func TestGetClusterURL(t *testing.T) {
 	}
 	defer os.Remove(path)
 	defer kidfile.Close()
-	kidfile.Write([]byte(testUrl))
+	_, err = kidfile.Write([]byte(testUrl))
+	if err != nil {
+		t.Errorf("KidFile Write Error: %s", err)
+	}
 
 	testAuthService := NewKubernetesNativeAuthService(configuration.KubernetesAuthConfig{
 		KidMappingFileLocation: tempdir + "/",
@@ -141,7 +144,10 @@ func TestAuthenticateKubernetes(t *testing.T) {
 	}
 	defer os.Remove(path)
 	defer kidfile.Close()
-	kidfile.Write([]byte(testUrl))
+	_, err = kidfile.Write([]byte(testUrl))
+	if err != nil {
+		t.Errorf("KidFile Write returned error: %s", err)
+	}
 
 	// Create authentication context
 	payload := createKubernetesAuthPayload(testToken, testCA)
