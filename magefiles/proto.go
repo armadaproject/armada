@@ -12,7 +12,7 @@ import (
 )
 
 func protoInstallProtocArmadaPlugin() error {
-	return goRun("install", "scripts/protoc-gen-armada/protoc-gen-armada.go")
+	return goRun("install", "./scripts/protoc-gen-armada/protoc-gen-armada.go")
 }
 
 func protoPrepareThirdPartyProtos() error {
@@ -58,7 +58,6 @@ func protoPrepareThirdPartyProtos() error {
 		relModPath := filepath.FromSlash(module.name)
 		relModPathWithVersion := relModPath + "@" + version
 		err = filepath.WalkDir(filepath.Join(goModPath, relModPathWithVersion), func(path string, d fs.DirEntry, err error) error {
-			fmt.Println("path: ", path)
 			if (d != nil && d.IsDir()) || filepath.Ext(path) != ".proto" {
 				return nil
 			}
@@ -71,7 +70,7 @@ func protoPrepareThirdPartyProtos() error {
 				dest = trimSlashPrefix(strings.TrimPrefix(dest, root))
 			}
 			// copy to proto folder
-			dest = filepath.Join("proto", dest)
+			dest = filepath.Join("./proto", dest)
 			return copy(path, dest)
 		})
 		if err != nil {
@@ -183,7 +182,7 @@ func protoProtocRun(armada, grpcGateway bool, swaggerFileName string, paths ...s
 
 	args := []string{
 		"--proto_path=.",
-		"--proto_path=proto",
+		"--proto_path=./proto",
 	}
 
 	if armada {

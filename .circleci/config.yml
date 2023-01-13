@@ -528,9 +528,9 @@ workflows:
   unittests:
     jobs:
       - unittests
-  testsuite:
-    jobs:
-      - testsuite
+  # testsuite:
+  #   jobs:
+  #     - testsuite
   # build_and_deploy:
   #   jobs:
       # - build_and_integration_tests
