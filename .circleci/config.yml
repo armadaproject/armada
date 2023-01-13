@@ -259,11 +259,11 @@ jobs:
       - run:
           name: go mod download cached        
           command: |
-            echo gopath in shell (go mod download 1): ${GOPATH}
+            echo gopath in go mod download 1: ${GOPATH}
             export GOPATH=$HOME/go
-            echo gopath in shell (go mod download 2): ${GOPATH}
+            echo gopath in go mod download 2: ${GOPATH}
             go mod download
-            echo gopath in shell (go mod download 3): ${GOPATH}
+            echo gopath in go mod download 3: ${GOPATH}
       - run: go/save-cache
       # - go/mod-download-cached
       - run: export GOPATH=/home/circleci/go
