@@ -24,10 +24,17 @@ type Configuration struct {
 }
 
 type LeaderConfig struct {
-	LeaseLockName      string
+	// Name of the K8s Lock Object
+	LeaseLockName string
+	// Namespace of the K8s Lock Object
 	LeaseLockNamespace string
-	LeaseDuration      time.Duration
-	RenewDeadline      time.Duration
-	RetryPeriod        time.Duration
-	PodName            string
+	// The name of the pod
+	PodName string
+	// How long the lease is held for.
+	// Non leaders much wait this long before trying to acquire the lease
+	LeaseDuration time.Duration
+	// RenewDeadline is the duration that the acting leader will retry refreshing leadership before giving up.
+	RenewDeadline time.Duration
+	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
+	RetryPeriod time.Duration
 }

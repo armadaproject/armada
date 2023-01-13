@@ -30,6 +30,12 @@ const (
 	Leader
 )
 
+// Test becoming leader.  This test is slightly awkward as the K8s leader election code
+// in client-go doesn't seem to have a mechanism for manipulating the internal clock.
+// As a result, the test works as follows:
+// * Set up a mock K8s client that updates the lease owener ever 100ms
+// * Set up the client such that it checks for updates every 10ms
+// * assert thart the state transitions are as expected
 func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	tests := map[string]struct {
 		states         []State // states to be returned from the server.
