@@ -332,6 +332,14 @@ jobs:
             git status -s -uno
             git --no-pager diff
             exit $(git status -s -uno | wc -l)
+      - run:
+          name: ls GOBIN
+          command: |
+            export GOPATH=/home/circleci/go
+            echo gobin ${GOBIN}
+            ls ${GOBIN}
+            ls ${GOPATH}/bin
+          when: always
       - run: docker network create kind
       - run: docker-compose up -d redis postgres
       - run: mkdir -p test_reports
