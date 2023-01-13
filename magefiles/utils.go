@@ -16,6 +16,7 @@ func binaryWithExt(name string) string {
 }
 
 func copy(srcPath, dstPath string) error {
+	fmt.Println("copying from ", srcPath, " to ", dstPath)
 	if err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755); err != nil {
 		return err
 	}

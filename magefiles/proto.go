@@ -72,7 +72,7 @@ func protoPrepareThirdPartyProtos() error {
 				dest = trimSlashPrefix(strings.TrimPrefix(dest, root))
 			}
 			// copy to proto folder
-			dest = filepath.Join("proto", dest)
+			dest = filepath.Join("./proto", dest)
 			return copy(path, dest)
 		})
 		if err != nil {
