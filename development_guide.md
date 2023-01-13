@@ -24,7 +24,7 @@ mage Kind
 # Start necessary dependencies.
 # On Arm-based Macs, you may need to change the pulsar image
 # in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis stan postgres pulsar eventingester
+docker-compose up -d redis postgres pulsar eventingester
 
 # Verify that dependencies started successfully
 # (check that redis, stan, postgres, and pulsar are all up).
@@ -34,8 +34,7 @@ docker ps
 # and run them in separate containers.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for more information.
-mage DockerBundleGoreleaserConfig
-goreleaser release --snapshot --rm-dist -f .goreleaser-docker.yml
+mage buildDockers "bundle"
 docker-compose up -d server executor
 ```
 
