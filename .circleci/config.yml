@@ -264,7 +264,7 @@ jobs:
             echo gopath in go mod download 2: ${GOPATH}
             go mod download
             echo gopath in go mod download 3: ${GOPATH}
-      - run: go/save-cache
+      - go/save-cache
       # - go/mod-download-cached
       - run: export GOPATH=/home/circleci/go
       # - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
