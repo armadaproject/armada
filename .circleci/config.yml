@@ -275,7 +275,7 @@ jobs:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
-    shell: /usr/bin/env bash -euo pipefail -c      
+    # shell: /usr/bin/env bash -euo pipefail -c
     # environment:
     #   GO111MODULE: "on"
     #   GOPATH: "/home/circleci/go"
@@ -303,7 +303,7 @@ jobs:
       #       echo "export PATH='$PATH:$GOPATH/bin:/usr/local/go/bin'" >> "$BASH_ENV"
       #       echo "$ go version"
       #       go version
-      #     name: Setup Go      
+      #     name: Setup Go
       - install-protobuf
       - go/install:
           version: 1.18.10
