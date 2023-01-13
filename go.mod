@@ -82,10 +82,12 @@ require (
 )
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/go-openapi/errors v0.20.2
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3
 	github.com/go-openapi/validate v0.21.0
+	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.11.5
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/kyleconroy/sqlc v1.16.0
@@ -124,7 +126,6 @@ require (
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Masterminds/semver/v3 v3.1.1 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20210512092938-c05353c2d58c // indirect
@@ -204,7 +205,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/go-github/v47 v47.1.0 // indirect

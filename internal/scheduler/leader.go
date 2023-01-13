@@ -4,9 +4,8 @@ import (
 	"context"
 	"sync/atomic"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"

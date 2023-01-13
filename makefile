@@ -506,7 +506,7 @@ tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 # To run integration tests with jobservice and such, we can run this command
-# For now, let's just have it in rare cases that people need to test. 
+# For now, let's just have it in rare cases that people need to test.
 .ONESHELL:
 tests-e2e-airflow: airflow-operator tests-e2e-setup build-ci
 	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
@@ -520,42 +520,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-setup-proto:
-	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
-	# first delete files in this directory - by default it has write perms disabled.
-	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
-	rm -rf proto
-	mkdir -p proto/google/api
-	mkdir -p proto/google/protobuf
-	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
-	mkdir -p proto/k8s.io/apimachinery/pkg/apis/meta/v1
-
-	mkdir -p proto/k8s.io/apimachinery/pkg/runtime
-	mkdir -p proto/k8s.io/apimachinery/pkg/runtime/schema
-	mkdir -p proto/k8s.io/apimachinery/pkg/util/intstr/
-	mkdir -p proto/k8s.io/api/networking/v1
-	mkdir -p proto/k8s.io/api/core/v1
-	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
-
-	# Copy third party annotations from grpc-ecosystem
-	$(GO_CMD) bash -c " \
-	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
-	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
-	 cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google ; \
-	 cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/ ; \
-	 \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/ ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1 ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/ ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/ ; \
-	 \
-	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1 ; \
-	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1 "
-
-	chmod -R ug+w proto
-
-python: setup-proto
+python: proto-setup
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
@@ -566,46 +531,23 @@ airflow-operator:
 	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
-proto: setup-proto
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+proto-setup:
+	go run github.com/magefile/mage@v1.14.0 BootstrapProto
 
-	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json -x internal/lookoutv2
-
-	# combine swagger definitions
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
-	mv -f pkg/api/api.swagger.merged.json pkg/api/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go lookout/api.swagger.json > pkg/api/lookout/api.swagger.merged.json
-	mv -f pkg/api/lookout/api.swagger.merged.json pkg/api/lookout/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go binoculars/api.swagger.json > pkg/api/binoculars/api.swagger.merged.json
-	mv -f pkg/api/binoculars/api.swagger.merged.json pkg/api/binoculars/api.swagger.json
-
-	rm -f pkg/api/api.swagger.definitions.json
-
-	# embed swagger json into go binary
-	$(GO_TEST_CMD) templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
-
-	# fix all imports ordering
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/scheduler/schedulerobjects/
+proto:
+	go run github.com/magefile/mage@v1.14.0 proto
 
 sql:
 	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
 	$(GO_TEST_CMD) templify -e -p=sql internal/scheduler/sql/schema.sql
 
 # Target for compiling the dotnet Armada REST client
-dotnet: dotnet-setup setup-proto
+dotnet: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
 	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
 # Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
-push-nuget: dotnet-setup setup-proto
+push-nuget: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
