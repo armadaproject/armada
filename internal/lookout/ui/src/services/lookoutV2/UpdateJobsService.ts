@@ -19,7 +19,6 @@ export class UpdateJobsService {
 
     const maxJobsPerRequest = 10000
     const chunks = createJobBatches(jobs, maxJobsPerRequest)
-    console.log(chunks)
 
     // Start all requests to allow them to fire off in parallel
     const apiResponsePromises = []
@@ -72,7 +71,6 @@ export class UpdateJobsService {
 
     const maxJobsPerRequest = 10000
     const chunks = createJobBatches(jobs, maxJobsPerRequest)
-    console.log(chunks)
 
     // Start all requests to allow them to fire off in parallel
     const apiResponsePromises = []
