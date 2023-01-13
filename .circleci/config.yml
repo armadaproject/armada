@@ -317,8 +317,8 @@ jobs:
             go mod download
             echo gopath in go mod download 3: ${GOPATH}
       - go/save-cache
-      # - go/mod-download-cached
-      # - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      - go/mod-download-cached
+      - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
       - run:
           name: Check that generated files are consistent.
           command: |
