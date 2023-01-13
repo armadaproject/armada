@@ -66,7 +66,40 @@ commands:
             # Get helm
             curl -LSs https://get.helm.sh/helm-v$HELM_VERSION-$HELM_PLATFORM.tar.gz | tar xvz --strip-components=1 -C /home/circleci/bin $HELM_PLATFORM/helm
           fi
-
+  setup-go:
+    description:
+      Ensure the right version of Go is installed and set GOPATH to $HOME/go.
+    parameters:
+      GOPROXY:
+        description: >
+          Set GOPROXY. By default this is set to "off" meaning you have to have all modules pre-downloaded.
+        type: string
+        default: "off"
+      GOPRIVATE:
+        description: Set GOPRIVATE, defaults to github.com/hashicorp/*
+        type: string
+        default: github.com/hashicorp/*
+    steps:
+      - run:
+          name: Setup Go
+          command: |
+            GO_VERSION=$(cat .go-version)
+            [ -n "$GO_VERSION" ] || { echo "You must set GO_VERSION"; exit 1; }
+            # Install Go
+            cd ~
+            curl -sSLO "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz"
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
+            rm -f "go${GO_VERSION}.linux-amd64.tar.gz"
+            GOPATH="/home/circleci/go"
+            mkdir $GOPATH 2>/dev/null || { sudo mkdir $GOPATH && sudo chmod 777 $GOPATH; }
+            mkdir $GOPATH/bin 2>/dev/null || { sudo mkdir $GOPATH/bin && sudo chmod 777 $GOPATH/bin; }
+            echo "export GOPATH='$GOPATH'" >> "$BASH_ENV"
+            echo "export PATH='$PATH:$GOPATH/bin:/usr/local/go/bin'" >> "$BASH_ENV"
+            echo "export GOPROXY=<<parameters.GOPROXY>>" >> "$BASH_ENV"
+            echo "export GOPRIVATE=<<parameters.GOPRIVATE>>" >> "$BASH_ENV"
+            echo "$ go version"
+            go version
   checkout-charts:
     description: |
       Checkout G-Research charts repo so we can update them later
@@ -242,22 +275,43 @@ jobs:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
+    shell: /usr/bin/env bash -euo pipefail -c      
+    # environment:
+    #   GO111MODULE: "on"
+    #   GOPATH: "/home/circleci/go"
+    #   GOCACHE: "/home/circleci/go/cache"
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       # Set GOPATH explicitly.
       # https://github.com/hashicorp/vault/pull/15292/files
       - run: export GOPATH=/home/circleci/go
       - checkout
+      - run:
+          command: |
+            GO_VERSION=$(cat .go-version)
+            [ -n "$GO_VERSION" ] || { echo "You must set GO_VERSION"; exit 1; }
+            # Install Go
+            cd ~
+            curl -sSLO "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz"
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf "go${GO_VERSION}.linux-amd64.tar.gz"
+            rm -f "go${GO_VERSION}.linux-amd64.tar.gz"
+            GOPATH="/home/circleci/go"
+            mkdir $GOPATH 2>/dev/null || { sudo mkdir $GOPATH && sudo chmod 777 $GOPATH; }
+            mkdir $GOPATH/bin 2>/dev/null || { sudo mkdir $GOPATH/bin && sudo chmod 777 $GOPATH/bin; }
+            echo "export GOPATH='$GOPATH'" >> "$BASH_ENV"
+            echo "export PATH='$PATH:$GOPATH/bin:/usr/local/go/bin'" >> "$BASH_ENV"
+            echo "export GOPROXY=off" >> "$BASH_ENV"
+            echo "export GOPRIVATE=github.com/hashicorp/*" >> "$BASH_ENV"
+            echo "$ go version"
+            go version
+          name: Setup Go      
       - install-protobuf
-      - go/install:
-          version: 1.18.10
+      # - go/install:
+      #     version: 1.18.10
       - go/load-cache
       - run:
-          name: go mod download cached        
+          name: go mod download cached
           command: |
             echo gopath in go mod download 1: ${GOPATH}
             export GOPATH=$HOME/go
@@ -266,13 +320,10 @@ jobs:
             echo gopath in go mod download 3: ${GOPATH}
       - go/save-cache
       # - go/mod-download-cached
-      - run: export GOPATH=/home/circleci/go
       # - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
       - run:
           name: Check that generated files are consistent.
           command: |
-            ls
-            cd $HOME/.go_project/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
             ls
             echo gopath in shell: ${GOPATH}
             export GOPATH=/home/circleci/go
