@@ -325,6 +325,7 @@ jobs:
             ls
             echo gopath in shell: ${GOPATH}
             export GOPATH=/home/circleci/go
+            export PATH=$PATH:${GOPATH}/bin
             echo gopath in shell: ${GOPATH}
             go run github.com/magefile/mage@v1.14.0 -v proto
             git status -s -uno
