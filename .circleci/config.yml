@@ -311,13 +311,13 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - run:
-        name: "Exit if on a fork."
-        command: |
-          if [ -z "${DOCKERHUB_USER}" ]
-          then
-            echo "Images are not pushed on forks."
-            exit 0
-          fi
+          name: "Exit if on a fork."
+          command: |
+            if [ -z "${DOCKERHUB_USER}" ]
+            then
+              echo "Images are not pushed on forks."
+              exit 0
+            fi
       - checkout
       - go/mod-download-cached
       - kubernetes/install-kubectl
