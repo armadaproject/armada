@@ -60,7 +60,7 @@ func TestK8sLeaderController_Becoming(t *testing.T) {
 			leaseInterface := schedulermocks.NewMockLeaseInterface(ctrl)
 			client.EXPECT().Leases(lockNamespace).Return(leaseInterface).AnyTimes()
 
-			var lease = &v1.Lease{}
+			lease := &v1.Lease{}
 			idx := 0
 			// update holderIdentity every 100 milliseconds
 			// the sleep here should be fine because the client is polling every 10 millis
