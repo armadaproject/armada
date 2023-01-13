@@ -260,6 +260,8 @@ jobs:
           name: Check that generated files are consistent.
           command: |
             echo gopath in shell: ${GOPATH}
+            export GOPATH=/home/circleci/go
+            echo gopath in shell: ${GOPATH}
             go run github.com/magefile/mage@v1.14.0 -v proto
             git status -s -uno
             git --no-pager diff
