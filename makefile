@@ -485,7 +485,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
+		docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester event-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
