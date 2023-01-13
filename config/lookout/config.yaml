@@ -29,7 +29,7 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
-disableEventProcessing: true
+
 prunerConfig:
   daysToKeep: 42
   batchSize: 1000

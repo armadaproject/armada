@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +22,6 @@ import (
 	"github.com/G-Research/armada/internal/common/eventutil"
 	"github.com/G-Research/armada/internal/common/pgkeyvalue"
 	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/common/requestid"
 	"github.com/G-Research/armada/internal/common/util"
 	commonvalidation "github.com/G-Research/armada/internal/common/validation"
 	"github.com/G-Research/armada/internal/executor/configuration"
@@ -727,43 +725,6 @@ func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []
 	}
 
 	return srv.publishToPulsar(ctx, sequences)
-}
-
-// SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
-func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
-	sequence, err := eventutil.EventSequenceFromApiEvent(apiEvent)
-	if err != nil {
-		return err
-	}
-
-	// If no events were created, exit here.
-	if len(sequence.Events) == 0 {
-		return nil
-	}
-
-	payload, err := proto.Marshal(sequence)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-
-	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload: payload,
-		Properties: map[string]string{
-			requestid.MetadataKey:                     requestId,
-			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-		},
-		Key: sequence.JobSetName,
-	})
-	if err != nil {
-		err = errors.WithStack(err)
-		return err
-	}
-
-	return nil
 }
 
 // PublishToPulsar sends pulsar messages async

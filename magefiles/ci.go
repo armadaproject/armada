@@ -10,7 +10,7 @@ func ciRunTests() error {
 	if err := os.MkdirAll(".kube", os.ModeDir|0o755); err != nil {
 		return err
 	}
-	err := dockerComposeRun("up", "-d", "redis", "postgres", "pulsar", "stan")
+	err := dockerComposeRun("up", "-d", "redis", "postgres", "pulsar")
 	if err != nil {
 		return err
 	}
