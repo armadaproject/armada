@@ -148,6 +148,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada:latest"
     build_flag_templates:
@@ -184,6 +185,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-server:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-server:latest"
     build_flag_templates:
@@ -212,6 +214,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-executor:latest"
     build_flag_templates:
@@ -240,6 +243,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:latest"
     build_flag_templates:
@@ -268,6 +272,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest"
     build_flag_templates:
@@ -296,6 +301,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
     build_flag_templates:
@@ -330,6 +336,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:latest"
     build_flag_templates:
@@ -360,6 +367,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-eventingester:latest"
     build_flag_templates:
@@ -388,6 +396,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-binoculars:latest"
     build_flag_templates:
@@ -416,6 +425,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armada-jobservice:latest"
     build_flag_templates:
@@ -444,6 +454,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
+      - "{{ .Env.DOCKER_REPO }}armadactl:{{ .FullCommit }}"
       - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
       - "{{ .Env.DOCKER_REPO }}armadactl:latest"
     build_flag_templates:
