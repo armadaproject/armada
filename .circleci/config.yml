@@ -145,19 +145,9 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /home/circleci/bin/
-            make download # no-op if we restored from cache
-
+      - install-protobuf
+      - go/mod-download-cached
+      - kubernetes/install-kubectl
       - run:
           name: Build
           command: make build-ci
@@ -265,6 +255,7 @@ jobs:
       - run:
           name: Check that generated files are consistent.
           command: |
+            echo gopath in shell: ${GOPATH}
             go run github.com/magefile/mage@v1.14.0 -v proto
             git status -s -uno
             git --no-pager diff
@@ -339,19 +330,9 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache
-
+      - install-protobuf
+      - go/mod-download-cached
+      - kubernetes/install-kubectl
       - run:
           name: Build armadactl release artifacts
           command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
@@ -444,11 +425,8 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-
       - install-helm-client
-
       - checkout-charts
-
       - update-charts
 
   release-dotnet-client:
@@ -463,24 +441,13 @@ jobs:
     working_directory: ~/go/src/github.com/G-Research/armada
     steps:
       - checkout
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache
-
+      - install-protobuf
+      - go/mod-download-cached
+      - kubernetes/install-kubectl
       - run:
           name: Push dotnet clients to nuget
           command: |
             RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
-
       - store_artifacts:
           path: bin/client/DotNet
 
