@@ -101,7 +101,10 @@ func TestK8sLeaderController_Becoming(t *testing.T) {
 			testListener := NewTestLeaseListener(controller)
 			controller.listener = testListener
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			go controller.Run(ctx)
+			go func() {
+				err := controller.Run(ctx)
+				assert.NoError(t, err)
+			}()
 
 			shouldLoop := true
 			var msgs []LeaderToken
