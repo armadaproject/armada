@@ -1,5 +1,3 @@
-//go:generate mockgen -destination=./mocks/mock_repositories.go -package=schedulermocks "github.com/G-Research/armada/internal/scheduler/database" ExecutorRepository,QueueRepository
-
 package scheduler
 
 import (
