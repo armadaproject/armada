@@ -547,6 +547,7 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		IndexedResources:          []string{"cpu", "memory"},
 		GangIdAnnotation:          testGangIdAnnotation,
 		GangCardinalityAnnotation: testGangCardinalityAnnotation,
+		StaleExecutorTimeout:      15 * time.Minute,
 	}
 }
 

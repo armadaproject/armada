@@ -2,21 +2,22 @@ package database
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/util"
+	"testing"
+	"time"
+
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 const defaultBatchSize = 1
 
 func TestFetchJobUpdates(t *testing.T) {
-
 	dbJobs, expectedJobs := createTestJobs(10)
 	dbRuns, expectedRuns := createTestRuns(10)
 
@@ -91,7 +92,7 @@ func TestFetchJobUpdates(t *testing.T) {
 				require.NoError(t, err)
 
 				// Runs will have LastModified filled in- we don't want to compare this
-				for i, _ := range runs {
+				for i := range runs {
 					runs[i].LastModified = time.Time{}
 				}
 
@@ -103,7 +104,6 @@ func TestFetchJobUpdates(t *testing.T) {
 			})
 			require.NoError(t, err)
 		})
-
 	}
 }
 
@@ -147,7 +147,6 @@ func TestCountReceivedPartitions(t *testing.T) {
 			})
 			require.NoError(t, err)
 		})
-
 	}
 }
 

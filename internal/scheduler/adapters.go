@@ -3,9 +3,10 @@ package scheduler
 import (
 	"context"
 
+	"github.com/hashicorp/go-memdb"
+
 	"github.com/G-Research/armada/internal/armada/repository"
 	"github.com/G-Research/armada/pkg/api"
-	"github.com/hashicorp/go-memdb"
 )
 
 type JobRepositoryAdapter struct {

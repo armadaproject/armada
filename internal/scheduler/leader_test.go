@@ -39,7 +39,7 @@ const (
 func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	tests := map[string]struct {
 		states         []State // states to be returned from the server.
-		expectedStates []State //state transitions observed by the client
+		expectedStates []State // state transitions observed by the client
 	}{
 		"Always Leader": {
 			states:         []State{Leader, Leader, Leader},

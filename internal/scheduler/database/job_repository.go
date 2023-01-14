@@ -2,8 +2,10 @@ package database
 
 import (
 	"context"
-	"github.com/G-Research/armada/internal/common/compress"
+
 	"github.com/pkg/errors"
+
+	"github.com/G-Research/armada/internal/common/compress"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -85,7 +87,6 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 // FetchJobUpdates returns all jobs and job runs that have been updated after jobSerial and jobRunSerial respectively
 // These updates are guaranteed to be consistent with each other
 func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error) {
-
 	var updatedJobs []Job = nil
 	var updatedRuns []Run = nil
 

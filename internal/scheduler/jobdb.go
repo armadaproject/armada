@@ -75,7 +75,11 @@ func (job *SchedulerJob) GetQueue() string {
 
 // GetAnnotations returns the annotations on the job.
 func (job *SchedulerJob) GetAnnotations() map[string]string {
-	return job.GetAnnotations()
+	requirements := job.jobSchedulingInfo.GetObjectRequirements()
+	if len(requirements) == 0 {
+		return nil
+	}
+	return requirements[0].GetPodRequirements().GetAnnotations()
 }
 
 // GetId returns the id of the Job.
