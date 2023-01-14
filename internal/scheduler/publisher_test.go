@@ -1,4 +1,3 @@
-//go:generate mockgen -destination=./mocks/mock_pulsar.go -package=schedulermocks "github.com/apache/pulsar-client-go/pulsar" Client,Producer
 package scheduler
 
 import (
