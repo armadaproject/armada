@@ -1,4 +1,3 @@
-//go:generate mockgen -destination=./mocks/mock_leases_getter.go -package=schedulermocks "k8s.io/client-go/kubernetes/typed/coordination/v1" LeasesGetter,LeaseInterface
 package scheduler
 
 import (
