@@ -309,36 +309,35 @@ jobs:
           version: 1.18.10
       - go/load-cache
       - run:
-          name: go mod download cached
+          name: go mod download
           command: |
-            echo gopath in go mod download 1: ${GOPATH}
             export GOPATH=$HOME/go
-            echo gopath in go mod download 2: ${GOPATH}
             go mod download
-            echo gopath in go mod download 3: ${GOPATH}
       - go/save-cache
-      - go/mod-download-cached
-      - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+      # - go/mod-download-cached
+      - run:
+          name: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+          command: |
+            export GOPATH=/home/circleci/go
+            export PATH=$PATH:${GOPATH}/bin
+            go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
       - run:
           name: Check that generated files are consistent.
           command: |
-            ls
-            echo gopath in shell: ${GOPATH}
             export GOPATH=/home/circleci/go
             export PATH=$PATH:${GOPATH}/bin
-            echo gopath in shell: ${GOPATH}
             go run github.com/magefile/mage@v1.14.0 -v proto
             git status -s -uno
             git --no-pager diff
             exit $(git status -s -uno | wc -l)
-      - run:
-          name: ls GOBIN
-          command: |
-            export GOPATH=/home/circleci/go
-            # echo gobin ${GOBIN}
-            # ls ${GOBIN}
-            ls ${GOPATH}/bin
-          when: always
+      # - run:
+      #     name: ls GOBIN
+      #     command: |
+      #       export GOPATH=/home/circleci/go
+      #       # echo gobin ${GOBIN}
+      #       # ls ${GOBIN}
+      #       ls ${GOPATH}/bin
+      #     when: always
       - run: docker network create kind
       - run: docker-compose up -d redis postgres
       - run: mkdir -p test_reports
@@ -393,10 +392,19 @@ jobs:
       - go/mod-download-cached
       - kubernetes/install-kubectl
       - run: go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
-      - run: goreleaser release --skip-publish --rm-dist
-      - run: go run github.com/magefile/mage@v1.14.0 -v CiRunTests
-      - run: echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
-      # - run: docker push $(docker image ls --format "{{ .Image }}:{{ .Tag }}" --filter "label=org.opencontainers.image.revision=$(git rev-parse HEAD)")
+      - run:
+          name: Build docker images
+          command: |
+            export GOPATH=/home/circleci/go
+            export PATH=$PATH:${GOPATH}/bin
+            go run github.com/magefile/mage@v1.14.0 -v BuildDockers bundle
+      - run:
+        name: Publish docker images
+        command: |
+          echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+          # docker image ls --format "{{ .Repository }}:{{ .Tag }}"
+          # Need to filter by a label. So we need a label with the commit.
+          # - run: docker push $(docker image ls --format "{{ .Image }}:{{ .Tag }}" --filter "label=org.opencontainers.image.revision=$(git rev-parse HEAD)")
   release-armadactl:
     machine:
       docker_layer_caching: true
