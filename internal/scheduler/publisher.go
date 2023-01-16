@@ -13,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const explicitPartitionKey = "armada_pulsar_partition"
