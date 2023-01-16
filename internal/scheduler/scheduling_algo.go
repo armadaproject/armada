@@ -3,13 +3,14 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"time"
+
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
-	"math/rand"
-	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -245,7 +246,6 @@ func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*database.Exe
 
 // aggregateUsage Creates a map of usage by pool
 func aggregateUsage(executors []*database.Executor) map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType {
-
 	usageByPool := make(map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, 0)
 
 	for _, executor := range executors {
