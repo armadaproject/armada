@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Data to be used in tests

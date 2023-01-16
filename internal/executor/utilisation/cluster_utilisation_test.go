@@ -8,9 +8,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/common"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 func TestCreateReportsOfQueueUsages(t *testing.T) {

@@ -5,7 +5,7 @@ package events
 
 import (
 	"context"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/gogo/protobuf/types"
 	"sync"
 )

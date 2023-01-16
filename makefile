@@ -196,7 +196,7 @@ build-executor:
 build-fakeexecutor:
 	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
-ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
+ARMADACTL_BUILD_PACKAGE := github.com/armadaproject/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -215,7 +215,7 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
-PULSARTEST_BUILD_PACKAGE := github.com/G-Research/armada/internal/pulsartest/build
+PULSARTEST_BUILD_PACKAGE := github.com/armadaproject/armada/internal/pulsartest/build
 define PULSARTEST_LDFLAGS
 -X '$(PULSARTEST_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(PULSARTEST_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -225,7 +225,7 @@ endef
 build-pulsartest:
 	$(GO_CMD) $(gobuild) -ldflags="$(PULSARTEST_LDFLAGS)" -o ./bin/pulsartest cmd/pulsartest/main.go
 
-TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
+TESTSUITE_BUILD_PACKAGE := github.com/armadaproject/armada/internal/testsuite/build
 define TESTSUITE_LDFLAGS
 -X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(TESTSUITE_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -562,7 +562,7 @@ download:
 generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
+		go run golang.org/x/tools/cmd/goimports -w -local "github.com/armadaproject/armada" internal/lookout/repository/schema/statik
 
 	go generate ./...
 

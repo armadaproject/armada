@@ -9,8 +9,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 
 	log "github.com/sirupsen/logrus"
 )

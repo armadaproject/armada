@@ -5,7 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // Executor is a representation of an Armada Executor

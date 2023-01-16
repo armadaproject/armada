@@ -3,10 +3,10 @@ package util
 import (
 	"testing"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/pkg/api"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"

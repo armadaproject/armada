@@ -5,9 +5,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // Reprioritize sets the priority of the job identified by (jobId, queueName, jobSet) to priorityFactor

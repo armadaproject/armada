@@ -10,7 +10,7 @@ import (
 	"github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/lookout/repository/schema/statik"
+	"github.com/armadaproject/armada/internal/lookout/repository/schema/statik"
 )
 
 type migration struct {

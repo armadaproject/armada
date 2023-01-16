@@ -8,17 +8,17 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	armadaconfig "github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/app"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/G-Research/armada/internal/lookout/repository/schema"
-	"github.com/G-Research/armada/internal/lookoutingester/instructions"
-	"github.com/G-Research/armada/internal/lookoutingester/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
+	armadaconfig "github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/postgres"
+	"github.com/armadaproject/armada/internal/lookout/repository/schema"
+	"github.com/armadaproject/armada/internal/lookoutingester/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingester/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
 )
 
 const (

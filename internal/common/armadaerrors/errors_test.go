@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 func TestCodeFromError(t *testing.T) {

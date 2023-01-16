@@ -4,8 +4,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/testsuite"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/testsuite"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // RootCmd is the root Cobra command that gets called from the main func.

@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 // ErrUnauthorized represents an error that occurs when a client tries to perform some action

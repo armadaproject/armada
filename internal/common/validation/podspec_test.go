@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {

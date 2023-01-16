@@ -3,8 +3,8 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
 
 type LookoutUIConfig struct {

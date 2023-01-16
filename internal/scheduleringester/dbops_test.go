@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/maps"
 
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 func TestMerge(t *testing.T) {

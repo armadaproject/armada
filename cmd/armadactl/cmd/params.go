@@ -3,9 +3,9 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/armadactl"
-	"github.com/G-Research/armada/pkg/client"
-	cq "github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/client"
+	cq "github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // initParams initialises the command parameters, flags, and a configuration file.

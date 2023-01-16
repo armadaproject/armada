@@ -9,11 +9,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
-	"github.com/G-Research/armada/internal/executor/context/fake"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/podchecks"
-	"github.com/G-Research/armada/internal/executor/util"
+	podchecksConfig "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 func TestHandleDeletion_AddsPodIssue_OnUnexpectedDeletionOfArmadaJobs(t *testing.T) {
