@@ -115,7 +115,7 @@ jobs:
   build_and_integration_tests:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.07.2
       resource_class: xlarge
     environment:
       GO111MODULE: "on"
@@ -230,7 +230,7 @@ jobs:
   release-armadactl:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.07.2
       resource_class: xlarge
     environment:
       GO111MODULE: "on"
@@ -271,7 +271,7 @@ jobs:
   release-docker-images:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.07.2
       resource_class: medium
     environment:
       GO111MODULE: "on"
@@ -335,7 +335,7 @@ jobs:
   release-charts:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.07.2
       resource_class: medium
     environment:
       GO111MODULE: "on"
@@ -354,7 +354,7 @@ jobs:
   release-dotnet-client:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.07.2
       resource_class: xlarge
     environment:
       GO111MODULE: "on"
