@@ -116,12 +116,13 @@ jobs:
     machine:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: large
+      # resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -231,12 +232,13 @@ jobs:
     machine:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: large
+      # resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -277,7 +279,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
       - run:
@@ -341,7 +343,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -355,12 +357,13 @@ jobs:
     machine:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: large
+      # resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
