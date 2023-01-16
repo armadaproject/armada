@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"testing"
 	"time"
@@ -13,9 +13,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/scheduler/database"
-	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const (

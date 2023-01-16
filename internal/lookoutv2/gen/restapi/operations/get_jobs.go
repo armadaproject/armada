@@ -16,7 +16,7 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
 
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 )
 
 // GetJobsHandlerFunc turns a function with the right signature into a get jobs handler
@@ -37,10 +37,10 @@ func NewGetJobs(ctx *middleware.Context, handler GetJobsHandler) *GetJobs {
 	return &GetJobs{Context: ctx, Handler: handler}
 }
 
-/* GetJobs swagger:route POST /api/v1/jobs getJobs
+/*
+	GetJobs swagger:route POST /api/v1/jobs getJobs
 
 GetJobs get jobs API
-
 */
 type GetJobs struct {
 	Context *middleware.Context

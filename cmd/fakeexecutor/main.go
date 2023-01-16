@@ -8,10 +8,10 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/fake"
-	"github.com/G-Research/armada/internal/executor/fake/context"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/fake"
+	"github.com/armadaproject/armada/internal/executor/fake/context"
 )
 
 const CustomConfigLocation string = "config"

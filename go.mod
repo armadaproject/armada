@@ -1,4 +1,4 @@
-module github.com/G-Research/armada
+module github.com/armadaproject/armada
 
 go 1.18
 

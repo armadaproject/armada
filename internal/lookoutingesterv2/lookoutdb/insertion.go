@@ -6,17 +6,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/repository"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 )
 
 type LookoutDb struct {

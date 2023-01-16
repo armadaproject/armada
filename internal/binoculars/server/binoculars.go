@@ -4,10 +4,10 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/G-Research/armada/internal/binoculars/logs"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/pkg/api/binoculars"
+	"github.com/armadaproject/armada/internal/binoculars/logs"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 type BinocularsServer struct {

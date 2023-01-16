@@ -3,7 +3,7 @@ package authorization
 import (
 	"context"
 
-	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
 )
 
 type Owned interface {

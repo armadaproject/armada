@@ -5,8 +5,8 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type JobRepositoryAdapter struct {

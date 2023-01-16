@@ -1,8 +1,8 @@
 package util
 
 import (
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // GetClusterCapacity returns the total capacity on all nodes on a cluster,

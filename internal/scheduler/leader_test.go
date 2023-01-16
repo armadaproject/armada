@@ -12,7 +12,7 @@ import (
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
 
-	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
+	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 )
 
 const (

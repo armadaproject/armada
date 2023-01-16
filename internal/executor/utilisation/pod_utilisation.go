@@ -10,12 +10,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/common"
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	cluster_context "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/node"
-	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/common"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	cluster_context "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 const inactivePodGracePeriod = 3 * time.Minute

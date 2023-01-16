@@ -10,11 +10,11 @@ Looking forward to building Armada with you!
 
 The main project fork lives here in Github:
 
-* [https://github.com/G-Research/armada](https://github.com/G-Research/armada)
+* [https://github.com/armadaproject/armada](https://github.com/armadaproject/armada)
 
 To work with [Armada website](https://armadaproject.io/), please checkout this branch:
 
-* [https://github.com/G-Research/armada/tree/gh-pages](https://github.com/G-Research/armada/tree/gh-pages)
+* [https://github.com/armadaproject/armada/tree/gh-pages](https://github.com/armadaproject/armada/tree/gh-pages)
 
 If you want to brainstorm a potential new feature, hop on over to the Discussions page, listed [below](#discussions).
 
@@ -30,12 +30,12 @@ Setup everything you’ll need to get started running and developing Armada:
 
 If you spot a bug, then please raise an issue in our main GitHub project:
 
-* [https://github.com/G-Research/armada/issues](https://github.com/G-Research/armada/issues)
+* [https://github.com/armadaproject/armada/issues](https://github.com/armadaproject/armada/issues)
 
 ### Pull Requests
 
 Likewise, if you have developed a cool new feature or improvement, then send us a pull request.
-Please try and make sure that this is linked to an [issue](https://github.com/G-Research/armada/issues).
+Please try and make sure that this is linked to an [issue](https://github.com/armadaproject/armada/issues).
 
 **Please keep all pull requests on a separate branch with proper name!**
 
@@ -58,7 +58,7 @@ Note the names of the branch must follow proper docker names:
 Sometimes, it's good to hash things out in real time.
 
 Armada uses GH Discussions for long form communication and design discussions. To join the conversation there, go to Discussions:
-* [https://github.com/G-Research/armada/discussions](https://github.com/G-Research/armada/discussions)
+* [https://github.com/armadaproject/armada/discussions](https://github.com/armadaproject/armada/discussions)
 
 Real-time interactions between Armada developers and users occurs primarily in CNCF Slack. To join us there:
 * If you already have an account on CNCF Slack, join #armada on [https://cloud-native.slack.com](https://cloud-native.slack.com).
@@ -72,4 +72,4 @@ Armada developers appreciate and encourage coordinated disclosure of security vu
 
 Armada is licensed with the Apache 2.0 license.  You can find it published here:
 
-* [https://github.com/G-Research/armada/blob/master/LICENSE](https://github.com/G-Research/armada/blob/master/LICENSE)
+* [https://github.com/armadaproject/armada/blob/master/LICENSE](https://github.com/armadaproject/armada/blob/master/LICENSE)

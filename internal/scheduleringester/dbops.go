@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar

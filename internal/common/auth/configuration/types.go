@@ -3,7 +3,7 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
 )
 
 type AuthConfig struct {
