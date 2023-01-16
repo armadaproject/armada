@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/scheduler"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/scheduler"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 const (

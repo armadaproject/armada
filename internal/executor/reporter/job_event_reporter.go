@@ -8,11 +8,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/common"
-	clusterContext "github.com/G-Research/armada/internal/executor/context"
-	domain2 "github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	domain2 "github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const batchSize = 200

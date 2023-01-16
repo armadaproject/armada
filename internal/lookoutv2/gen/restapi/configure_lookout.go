@@ -11,8 +11,8 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/restapi/operations"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 )
 
 //go:generate swagger generate server --target ../../gen --name Lookout --spec ../../swagger.yaml --principal interface{} --exclude-main

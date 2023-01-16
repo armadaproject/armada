@@ -15,10 +15,10 @@ The Armada UI (lookout) can be found at this URL:
 - Go 1.18
 
 ## Obtain the armada source
-Clone [this](https://github.com/G-Research/armada) repository:
+Clone [this](https://github.com/armadaproject/armada) repository:
 
 ```bash
-git clone https://github.com/G-Research/armada.git
+git clone https://github.com/armadaproject/armada.git
 cd armada
 ```
 

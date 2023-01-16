@@ -10,12 +10,12 @@ A helm chart which bundles Armada components
 |------------|------|---------|
 | https://charts.bitnami.com/bitnami | postgresql | 11.1.27 |
 | https://dandydeveloper.github.io/charts | redis-ha | 4.15.0 |
-| https://g-research.github.io/charts/ | armada | v0.3.36 |
-| https://g-research.github.io/charts/ | armada-executor | v0.3.36 |
-| https://g-research.github.io/charts/ | armada-lookout | v0.3.36 |
-| https://g-research.github.io/charts/ | armada-lookout-ingester | v0.3.36 |
-| https://g-research.github.io/charts/ | armada-lookout-migration | v0.3.20 |
-| https://g-research.github.io/charts | executor-cluster-monitoring | v0.1.9 |
+| https://armadaproject.github.io/charts/ | armada | v0.3.36 |
+| https://armadaproject.github.io/charts/ | armada-executor | v0.3.36 |
+| https://armadaproject.github.io/charts/ | armada-lookout | v0.3.36 |
+| https://armadaproject.github.io/charts/ | armada-lookout-ingester | v0.3.36 |
+| https://armadaproject.github.io/charts/ | armada-lookout-migration | v0.3.20 |
+| https://armadaproject.github.io/charts | executor-cluster-monitoring | v0.1.9 |
 | https://nats-io.github.io/k8s/helm/charts | stan | 0.13.0 |
 | https://pulsar.apache.org/charts | pulsar | 2.9.3 |
 

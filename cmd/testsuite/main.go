@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/G-Research/armada/cmd/testsuite/cmd"
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/cmd/testsuite/cmd"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 // Config is handled by cmd/params.go

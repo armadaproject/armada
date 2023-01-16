@@ -508,7 +508,7 @@ Uses the UpdateQueues RPC to update a list of queues.
 Represents a gRPC proto event
 
 Definition can be found at:
-[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+[https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto#L284](https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto#L284)
 
 
 * **Parameters**

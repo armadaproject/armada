@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 type ResourceMetricsRecorder struct {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-redis/redis"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 type EventIngesterConfiguration struct {

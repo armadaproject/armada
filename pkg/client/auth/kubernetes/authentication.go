@@ -11,7 +11,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/G-Research/armada/pkg/client/auth/oidc"
+	"github.com/armadaproject/armada/pkg/client/auth/oidc"
 )
 
 type NativeAuthDetails struct {
