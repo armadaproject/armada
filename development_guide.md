@@ -2,7 +2,7 @@
 
 Here, we give an overview of a development setup for Armada that is closely aligned with how Armada is built and tested in CI.
 
-Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.18 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), and [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
+Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.18 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl), and, if you need to compile `.proto` files, [protoc](https://github.com/protocolbuffers/protobuf/releases).
 
 Then, use the following commands to setup a local Armada system.
 ```bash
@@ -24,7 +24,7 @@ mage Kind
 # Start necessary dependencies.
 # On Arm-based Macs, you may need to change the pulsar image
 # in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis stan postgres pulsar
+docker-compose up -d redis postgres pulsar eventingester
 
 # Verify that dependencies started successfully
 # (check that redis, stan, postgres, and pulsar are all up).
@@ -34,8 +34,7 @@ docker ps
 # and run them in separate containers.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for more information.
-mage DockerBundleGoreleaserConfig
-goreleaser release --snapshot --rm-dist -f .goreleaser-docker.yml
+mage buildDockers "bundle"
 docker-compose up -d server executor
 ```
 
@@ -79,7 +78,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
                 // Necessary config overrides.
                 "ARMADA_REDIS_ADDRS": "localhost:6379",
                 "ARMADA_EVENTSREDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4223",
+                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4222",
                 "ARMADA_EVENTAPI_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
