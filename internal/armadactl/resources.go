@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // Resources prints the resources used by the jobs in job set with ID jobSetId in the given queue.

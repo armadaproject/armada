@@ -24,7 +24,7 @@ func main() {
 	}
 
 	definitionsSpec := definitionDoc.Spec()
-	removeGoPackage("github.com/G-Research/armada", definitionsSpec.Definitions)
+	removeGoPackage("github.com/armadaproject/armada", definitionsSpec.Definitions)
 	prefixTypeWithGoPackageName(definitionsSpec.Definitions)
 
 	grpcSpec := grpcDoc.Spec()

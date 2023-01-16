@@ -16,7 +16,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
 // A token

@@ -16,7 +16,7 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
 
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 )
 
 // GroupJobsHandlerFunc turns a function with the right signature into a group jobs handler

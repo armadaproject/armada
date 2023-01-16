@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type EventsBenchmark struct {

@@ -3,7 +3,7 @@ package validation
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func ValidateJobSetFilter(filter *api.JobSetFilter) error {

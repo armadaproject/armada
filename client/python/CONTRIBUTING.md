@@ -20,7 +20,7 @@ workflow for contributing. First time contributors can follow the guide below to
 1) In Github interface click on the `Fork` button from the [Armada repository](https://github.com/g-research/armada).
 2) Once forked, clone your copy of armada repository: `git clone github.com:Your_GitHub_Username/armada.git`.
 3) Enter the directory your repository was cloned into: `cd armada`
-4) Add upstream remote to your repository: `git remote add upstream https://github.com/G-Research/armada.git`.
+4) Add upstream remote to your repository: `git remote add upstream https://github.com/armadaproject/armada.git`.
 
 ### Preparing repository for development
 Unlike most python projects, the Armada python client contains a large quantity of generated code. This code must be
@@ -91,7 +91,7 @@ Armada-client releases are automated via Github Actions, for contributors with s
 
 1) Commit and merge a change to `client/python/pyproject.toml` raising the version number the appropriate amount. We are 
    using [semver](https://semver.org/) for versioning.
-2) Navigate to the [python client release workflow](https://github.com/G-Research/armada/actions/workflows/python-client-release-to-pypi.yml)
+2) Navigate to the [python client release workflow](https://github.com/armadaproject/armada/actions/workflows/python-client-release-to-pypi.yml)
    in Github workflows, click the "Run Workflow" button on the right side, and choose "master" as the branch to use the
    workflow from.
 3) Once the workflow has completed running, verify the new version of Armada client has been uploaded to

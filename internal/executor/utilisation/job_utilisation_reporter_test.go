@@ -10,13 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
-	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
+	reporter_fake "github.com/armadaproject/armada/internal/executor/reporter/fake"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 var testPodResources = domain.UtilisationData{

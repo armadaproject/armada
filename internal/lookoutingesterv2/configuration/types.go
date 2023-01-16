@@ -3,7 +3,7 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 type LookoutIngesterV2Configuration struct {

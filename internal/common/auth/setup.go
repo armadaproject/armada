@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/auth/authorization/groups"
-	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth/authorization/groups"
+	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
 func ConfigureAuth(config configuration.AuthConfig) []authorization.AuthService {

@@ -9,8 +9,8 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 type jobSetCountsRow struct {

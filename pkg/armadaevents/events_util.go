@@ -5,7 +5,7 @@ import (
 	"errors"
 	time "time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type rawES_Event struct {

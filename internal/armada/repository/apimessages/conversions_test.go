@@ -8,14 +8,14 @@ import (
 
 	v11 "k8s.io/api/networking/v1"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
