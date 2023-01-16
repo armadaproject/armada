@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // hasSerial is an Interface for db objects that have serial numbers

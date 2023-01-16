@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 type QueueMetrics struct {

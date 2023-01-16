@@ -5,8 +5,8 @@ import (
 
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/database"
 )
 
 func Open(config configuration.PostgresConfig) (*sql.DB, error) {

@@ -10,13 +10,14 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 )
 
 // GetJobRunErrorOKCode is the HTTP code returned for type GetJobRunErrorOK
 const GetJobRunErrorOKCode int = 200
 
-/*GetJobRunErrorOK Returns error for specific job run (if present)
+/*
+GetJobRunErrorOK Returns error for specific job run (if present)
 
 swagger:response getJobRunErrorOK
 */
@@ -60,7 +61,8 @@ func (o *GetJobRunErrorOK) WriteResponse(rw http.ResponseWriter, producer runtim
 // GetJobRunErrorBadRequestCode is the HTTP code returned for type GetJobRunErrorBadRequest
 const GetJobRunErrorBadRequestCode int = 400
 
-/*GetJobRunErrorBadRequest Error response
+/*
+GetJobRunErrorBadRequest Error response
 
 swagger:response getJobRunErrorBadRequest
 */
@@ -101,7 +103,8 @@ func (o *GetJobRunErrorBadRequest) WriteResponse(rw http.ResponseWriter, produce
 	}
 }
 
-/*GetJobRunErrorDefault Error response
+/*
+GetJobRunErrorDefault Error response
 
 swagger:response getJobRunErrorDefault
 */

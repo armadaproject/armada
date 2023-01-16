@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	schedulermocks "github.com/G-Research/armada/internal/scheduler/mocks"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (

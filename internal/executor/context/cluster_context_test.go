@@ -25,11 +25,11 @@ import (
 	"k8s.io/client-go/rest"
 	clientTesting "k8s.io/client-go/testing"
 
-	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/healthmonitor"
-	"github.com/G-Research/armada/internal/executor/util"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/healthmonitor"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 func setupTest() (*KubernetesClusterContext, *fake.Clientset) {

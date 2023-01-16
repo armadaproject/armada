@@ -9,12 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	commonmetrics "github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // HasPulsarMessageIds should be implemented by structs that can store a batch of pulsar message ids

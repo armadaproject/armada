@@ -7,8 +7,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/executor/configuration"
-	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
 )
 
 var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}

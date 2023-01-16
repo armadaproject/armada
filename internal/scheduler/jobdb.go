@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 const (
