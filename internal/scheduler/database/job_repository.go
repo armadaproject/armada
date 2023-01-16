@@ -95,7 +95,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		var err error = nil
+		var err error
 		queries := New(tx)
 
 		// Fetch jobs

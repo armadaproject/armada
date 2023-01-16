@@ -250,9 +250,12 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 
 	// Read back the state from the db to compare.
 	queries := schedulerdb.New(schedulerDb.db)
+	selectNewJobs := func(ctx context.Context, serial int64) ([]schedulerdb.Job, error) {
+		return queries.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: serial, Limit: 1000})
+	}
 	switch expected := op.(type) {
 	case InsertJobs:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -271,7 +274,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			assert.Equal(t, v, actual[k])
 		}
 	case InsertRuns:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -315,7 +318,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, expected, actual)
 	case UpdateJobSetPriorities:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -328,7 +331,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Greater(t, numChanged, 0)
 	case MarkJobSetsCancelled:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -355,7 +358,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			assert.True(t, run.Cancelled)
 		}
 	case MarkJobsCancelled:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -382,7 +385,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			assert.True(t, run.Cancelled)
 		}
 	case MarkJobsSucceeded:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -395,7 +398,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), numChanged)
 	case MarkJobsFailed:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -408,7 +411,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), numChanged)
 	case UpdateJobPriorities:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -421,7 +424,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), numChanged)
 	case MarkRunsSucceeded:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -446,7 +449,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), len(runs))
 	case MarkRunsFailed:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -471,7 +474,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), len(runs))
 	case MarkRunsRunning:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
