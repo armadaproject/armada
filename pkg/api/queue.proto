@@ -66,6 +66,8 @@ message StreamingLeaseRequest {
     repeated NodeInfo nodes = 6 [(gogoproto.nullable) = false];
     // Ids of received jobs. Used to ack received jobs.
     repeated string ReceivedJobIds = 7;
+    // Run Ids of jobs currently being run by the executor
+    repeated string ActiveJobRuns = 8;
 }
 
 // Used by the scheduler when allocating jobs to executors.

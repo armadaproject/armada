@@ -482,4 +482,3 @@ message PartitionMarker {
     // The pulsar partition on which this message was sent
     uint32 partition = 2;
 }
-

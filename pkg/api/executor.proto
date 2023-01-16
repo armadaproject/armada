@@ -1,0 +1,14 @@
+import "events.proto";
+import "queue.proto";
+
+
+// report events
+// lease
+//   - all information in current call
+//   - list of run ids
+service ExecutorApi {
+  rpc StreamingLeaseJobs (stream StreamingLeaseRequest) returns (stream StreamingJobLease);
+  rpc ReportEvents
+}
+
+
