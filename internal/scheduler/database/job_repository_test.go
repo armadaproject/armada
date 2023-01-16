@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"testing"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 const defaultBatchSize = 1

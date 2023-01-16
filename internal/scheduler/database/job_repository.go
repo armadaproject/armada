@@ -5,13 +5,12 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/compress"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 
+	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
