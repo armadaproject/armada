@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/cmd/eventsprinter/logic"
+	"github.com/armadaproject/armada/cmd/eventsprinter/logic"
 )
 
 // RootCmd is the root Cobra command that gets called from the main func.

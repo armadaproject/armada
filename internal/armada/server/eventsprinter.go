@@ -9,11 +9,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // EventsPrinter is a service that prints all events passing through pulsar to a logger.

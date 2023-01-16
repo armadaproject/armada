@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -16,12 +16,12 @@ import (
 
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookout/testutil"
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/testutil"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
 
 const (

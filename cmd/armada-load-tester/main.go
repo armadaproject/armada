@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/G-Research/armada/cmd/armada-load-tester/cmd"
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/cmd/armada-load-tester/cmd"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 func main() {

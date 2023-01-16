@@ -1,7 +1,7 @@
 package permissions
 
 import (
-	"github.com/G-Research/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
 )
 
 // Each principal (e.g., a user) has permissions associated with it.

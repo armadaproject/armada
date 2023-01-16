@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 )
 
 // GroupJobsOKCode is the HTTP code returned for type GroupJobsOK

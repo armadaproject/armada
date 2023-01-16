@@ -15,12 +15,12 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	context2 "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	context2 "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type LeaseService interface {

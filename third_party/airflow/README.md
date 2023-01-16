@@ -63,7 +63,7 @@ Armada-airflow releases are automated via Github Actions, for contributors with 
 
 1) Commit and merge a change to `third_party/airflow/pyproject.toml` raising the version number the appropriate amount. We are 
    using [semver](https://semver.org/) for versioning.
-2) Navigate to the [airflow operator release workflow](https://github.com/G-Research/armada/actions/workflows/airflow-operator-release-to-pypi.yml)
+2) Navigate to the [airflow operator release workflow](https://github.com/armadaproject/armada/actions/workflows/airflow-operator-release-to-pypi.yml)
    in Github workflows, click the "Run Workflow" button on the right side, and choose "master" as the branch to use the
    workflow from.
 3) Once the workflow has completed running, verify the new version of Armada client has been uploaded to
