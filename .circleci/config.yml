@@ -48,8 +48,8 @@ commands:
 
   checkout-charts:
     description: |
-      Checkout G-Research charts repo so we can update them later
-      Checkout from: https://github.com/G-Research/charts
+      Checkout Armada Project charts repo so we can update them later
+      Checkout from: https://github.com/armadaproject/charts
     steps:
     - run:
         name: Set .ssh directory and GIT_SSH_COMMAND
@@ -65,15 +65,15 @@ commands:
           echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >> $SSH_CONFIG_DIR/known_hosts
 
     - run:
-        name: Clone the G-Research common charts repo
+        name: Clone the Armada Project common charts repo
         command: |
           eval "$(ssh-agent -s)"
           echo -e "$ARMADA_CHART_UPDATE_KEY" | ssh-add - > /dev/null
-          git clone -q git@github.com:G-Research/charts.git
+          git clone -q git@github.com:armadaproject/charts.git
 
   update-charts:
     description: |
-      Update Armada charts in the common G-Research charts repo
+      Update Armada charts in the common Armada Project charts repo
     steps:
     - run:
         name: Update version, appVersion and image tag to match current $RELEASE_TAG
@@ -121,7 +121,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -236,7 +236,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -277,7 +277,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
       - run:
@@ -341,7 +341,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -360,7 +360,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
