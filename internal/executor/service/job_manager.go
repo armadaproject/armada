@@ -8,12 +8,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	context2 "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/reporter"
-	"github.com/G-Research/armada/internal/executor/util"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	context2 "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 const maxPodRequestSize = 10000

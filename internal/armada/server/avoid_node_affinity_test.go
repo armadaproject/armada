@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_addAvoidNodeAffinity_WhenCanBeScheduled_AddsAffinities(t *testing.T) {

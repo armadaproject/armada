@@ -7,8 +7,8 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // PulsarToChannel is a service for receiving messages from Pulsar and forwarding those on C.

@@ -3,15 +3,9 @@ package configuration
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
-
-type NatsConfig struct {
-	Servers   []string
-	ClusterID string
-	Subject   string
-}
 
 type LookoutUIConfig struct {
 	ArmadaApiBaseUrl         string
@@ -40,11 +34,8 @@ type LookoutConfiguration struct {
 
 	UIConfig LookoutUIConfig
 
-	EventQueue             string
-	Nats                   NatsConfig
-	Postgres               configuration.PostgresConfig
-	PrunerConfig           PrunerConfig
-	DisableEventProcessing bool
+	Postgres     configuration.PostgresConfig
+	PrunerConfig PrunerConfig
 }
 
 type LookoutIngesterDebugConfig struct {

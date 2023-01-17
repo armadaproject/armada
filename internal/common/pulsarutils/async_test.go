@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"

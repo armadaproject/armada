@@ -38,23 +38,12 @@ services:
     networks:
       - kind
 
-  # TODO: Remove
-  stan:
-    container_name: stan
-    image: nats-streaming
-    command: "-p 4223 -m 8223"
-    ports:
-      - 4223:4223
-      - 8223:8223
-    networks:
-      - kind
-
   #
   # Armada services.
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -66,14 +55,12 @@ services:
       - redis
       - postgres
       - pulsar
-      - stan
-    working_dir: /app
-    entrypoint: ./server
-    command: --config /config/insecure-armada-auth-config.yaml
+      - eventingester
+    command: ./server --config /config/insecure-armada-auth-config.yaml
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -85,57 +72,49 @@ services:
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    working_dir: /app
-    entrypoint: ./executor
-    command: --config /config/insecure-executor-config.yaml
+    command: ./executor --config /config/insecure-executor-config.yaml
 
   binoculars:
     container_name: binoculars
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 8082:8082
-    depends_on:
-      - server
     volumes:
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    working_dir: /app
-    entrypoint: ./binoculars
+    command: ./binoculars
 
   jobservice:
     container_name: jobservice
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 60003:60003
     depends_on:
       - server
-    working_dir: "/app"
-    entrypoint: ./jobservice
+    command: ./jobservice
 
   lookoutingester:
     container_name: lookoutingester
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
       - postgres
+      - pulsar
     volumes:
       - ./localdev/config:/config
-    working_dir: /app
-    entrypoint: ./lookoutingester
-    command: --config /config/lookoutingester/config.yaml
+    command: ./lookoutingester --config /config/lookoutingester/config.yaml
 
   eventingester:
     container_name: eventingester
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
       - redis
-    working_dir: /app
-    entrypoint: eventingester
+    command: ./eventingester

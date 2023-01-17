@@ -7,13 +7,13 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/compress"
 
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type eventSequenceCommon struct {
@@ -140,7 +140,10 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 		return nil, err
 	}
 
-	jobId := armadaevents.UuidFromProtoUuid(job.JobId)
+	jobId, err := armadaevents.UlidStringFromProtoUuid(job.JobId)
+	if err != nil {
+		return nil, err
+	}
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:          jobId,
 		JobSet:         meta.jobset,
@@ -155,9 +158,13 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 
 func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, meta eventSequenceCommon) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunLeased.GetRunId())
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunLeased.GetJobId())
+	if err != nil {
+		return nil, err
+	}
 	return []DbOperation{InsertRuns{runId: &schedulerdb.Run{
 		RunID:    runId,
-		JobID:    armadaevents.UuidFromProtoUuid(jobRunLeased.GetJobId()),
+		JobID:    jobId,
 		JobSet:   meta.jobset,
 		Executor: jobRunLeased.GetExecutorId(),
 	}}}, nil
@@ -199,19 +206,25 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 }
 
 func (c *InstructionConverter) handleJobSucceeded(jobSucceeded *armadaevents.JobSucceeded) ([]DbOperation, error) {
-	jobId := armadaevents.UuidFromProtoUuid(jobSucceeded.GetJobId())
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobSucceeded.GetJobId())
+	if err != nil {
+		return nil, err
+	}
 	return []DbOperation{MarkJobsSucceeded{
 		jobId: true,
 	}}, nil
 }
 
 func (c *InstructionConverter) handleJobErrors(jobErrors *armadaevents.JobErrors) ([]DbOperation, error) {
-	jobId := jobErrors.GetJobId()
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.GetJobId())
+	if err != nil {
+		return nil, err
+	}
 	for _, jobError := range jobErrors.GetErrors() {
 		// For terminal errors, we also need to mark the job as failed.
 		if jobError.GetTerminal() {
 			markJobsFailed := make(MarkJobsFailed)
-			markJobsFailed[armadaevents.UuidFromProtoUuid(jobId)] = true
+			markJobsFailed[jobId] = true
 			return []DbOperation{markJobsFailed}, nil
 		}
 	}
@@ -219,7 +232,10 @@ func (c *InstructionConverter) handleJobErrors(jobErrors *armadaevents.JobErrors
 }
 
 func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaevents.ReprioritiseJob) ([]DbOperation, error) {
-	jobId := armadaevents.UuidFromProtoUuid(reprioritiseJob.GetJobId())
+	jobId, err := armadaevents.UlidStringFromProtoUuid(reprioritiseJob.GetJobId())
+	if err != nil {
+		return nil, err
+	}
 	return []DbOperation{UpdateJobPriorities{
 		jobId: int64(reprioritiseJob.Priority),
 	}}, nil
@@ -232,7 +248,10 @@ func (c *InstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *arma
 }
 
 func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob) ([]DbOperation, error) {
-	jobId := armadaevents.UuidFromProtoUuid(cancelJob.GetJobId())
+	jobId, err := armadaevents.UlidStringFromProtoUuid(cancelJob.GetJobId())
+	if err != nil {
+		return nil, err
+	}
 	return []DbOperation{MarkJobsCancelled{
 		jobId: true,
 	}}, nil

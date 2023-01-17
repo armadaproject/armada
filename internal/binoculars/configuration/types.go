@@ -1,8 +1,8 @@
 package configuration
 
 import (
-	"github.com/G-Research/armada/internal/common/auth/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
 
 type BinocularsConfig struct {

@@ -9,8 +9,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Submit a job, represented by a file, to the Pulsar server.

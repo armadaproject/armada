@@ -8,8 +8,8 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 func TestGetJobs_GetQueued(t *testing.T) {

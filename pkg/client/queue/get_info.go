@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type GetInfoAPI func(string) (*api.QueueInfo, error)

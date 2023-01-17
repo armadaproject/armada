@@ -8,8 +8,8 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 func TestGetJobSetInfos_GetNoJobSetsIfQueueDoesNotExist(t *testing.T) {

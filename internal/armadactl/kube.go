@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // Kube prints kubectl commands for querying the pods associated with a particular job identified by

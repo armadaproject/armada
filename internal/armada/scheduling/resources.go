@@ -3,9 +3,9 @@ package scheduling
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func ResourcesAsUsage(resourceScarcity map[string]float64, resources common.ComputeResources) float64 {

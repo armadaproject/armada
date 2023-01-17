@@ -34,23 +34,12 @@ redis:
   password: ""
   db: 0
   poolSize: 1000
-eventsRedis:
-  addrs:
-    - "redis:6379"
-  password: ""
-  db: 0
-  poolSize: 1000
 eventsApiRedis:
   addrs:
     - "redis:6379"
   password: ""
   db: 1
   poolSize: 1000
-eventapi:
-  postgres:
-    connection:
-      host: "postgres"
-defaultToLegacyEvents: true
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -73,12 +62,6 @@ postgres: # TODO: Why different from the other postgres config?
     password: psw
     dbname: postgres
     sslmode: disable
-eventsNats:
-  Servers:
-    - "nats://stan:4223"
-  ClusterID: "test-cluster"
-  Subject: "ArmadaTest"
-  QueueGroup: "ArmadaEventRedisProcessor"
 scheduling:
   queueLeaseBatchSize: 1000
   maximalResourceFractionToSchedulePerQueue:
