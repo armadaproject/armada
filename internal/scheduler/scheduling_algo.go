@@ -233,7 +233,7 @@ func (l *LegacySchedulingAlgo) filterEmptyQueues(allQueues []*database.Queue, tx
 
 func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*database.Executor) []*database.Executor {
 	activeExecutors := make([]*database.Executor, 0, len(allExecutors))
-	cutoff := l.clock.Now().Add(-l.config.StaleExecutorTimeout)
+	cutoff := l.clock.Now().Add(-l.config.ExecutorTimeout)
 	for _, executor := range allExecutors {
 		if executor.LastUpdateTime.After(cutoff) {
 			activeExecutors = append(activeExecutors, executor)
