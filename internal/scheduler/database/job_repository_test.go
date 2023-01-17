@@ -194,32 +194,30 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 
 	for i := 0; i < numRuns; i++ {
 		dbRuns[i] = Run{
-			RunID:          uuid.New(),
-			JobID:          util.NewULID(),
-			JobSet:         "test-jobset",
-			Executor:       "test-executor",
-			SentToExecutor: true,
-			Cancelled:      true,
-			Running:        true,
-			Succeeded:      true,
-			Failed:         true,
-			Returned:       true,
+			RunID:     uuid.New(),
+			JobID:     util.NewULID(),
+			JobSet:    "test-jobset",
+			Executor:  "test-executor",
+			Cancelled: true,
+			Running:   true,
+			Succeeded: true,
+			Failed:    true,
+			Returned:  true,
 		}
 	}
 
 	for i, run := range dbRuns {
 		expectedRuns[i] = Run{
-			RunID:          run.RunID,
-			JobID:          run.JobID,
-			JobSet:         run.JobSet,
-			Executor:       run.Executor,
-			SentToExecutor: run.SentToExecutor,
-			Cancelled:      run.Cancelled,
-			Running:        run.Running,
-			Succeeded:      run.Succeeded,
-			Failed:         run.Failed,
-			Returned:       run.Returned,
-			Serial:         int64(i + 1),
+			RunID:     run.RunID,
+			JobID:     run.JobID,
+			JobSet:    run.JobSet,
+			Executor:  run.Executor,
+			Cancelled: run.Cancelled,
+			Running:   run.Running,
+			Succeeded: run.Succeeded,
+			Failed:    run.Failed,
+			Returned:  run.Returned,
+			Serial:    int64(i + 1),
 		}
 	}
 	return dbRuns, expectedRuns

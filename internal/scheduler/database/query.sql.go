@@ -22,6 +22,31 @@ func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, err
 	return count, err
 }
 
+const findActiveRuns = `-- name: FindActiveRuns :many
+SELECT run_id FROM runs WHERE run_id = ANY($1::UUID[])
+                         AND (succeeded = false AND failed = false AND cancelled = false)
+`
+
+func (q *Queries) FindActiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, findActiveRuns, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var run_id uuid.UUID
+		if err := rows.Scan(&run_id); err != nil {
+			return nil, err
+		}
+		items = append(items, run_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markJobRunsCancelledByJobId = `-- name: MarkJobRunsCancelledByJobId :exec
 UPDATE runs SET cancelled = true WHERE job_id = ANY($1::text[])
 `
@@ -104,7 +129,7 @@ func (q *Queries) MarkJobsSucceededById(ctx context.Context, jobIds []string) er
 }
 
 const selectJobsForExecutor = `-- name: SelectJobsForExecutor :many
-SELECT j.job_id, jr.run_id, j.queue, j.groups, j.submit_message
+SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 FROM runs jr
          JOIN jobs j
               ON jr.job_id = j.job_id
@@ -119,9 +144,10 @@ type SelectJobsForExecutorParams struct {
 }
 
 type SelectJobsForExecutorRow struct {
-	JobID         string    `db:"job_id"`
 	RunID         uuid.UUID `db:"run_id"`
 	Queue         string    `db:"queue"`
+	JobSet        string    `db:"job_set"`
+	UserID        string    `db:"user_id"`
 	Groups        []byte    `db:"groups"`
 	SubmitMessage []byte    `db:"submit_message"`
 }
@@ -136,9 +162,10 @@ func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForEx
 	for rows.Next() {
 		var i SelectJobsForExecutorRow
 		if err := rows.Scan(
-			&i.JobID,
 			&i.RunID,
 			&i.Queue,
+			&i.JobSet,
+			&i.UserID,
 			&i.Groups,
 			&i.SubmitMessage,
 		); err != nil {

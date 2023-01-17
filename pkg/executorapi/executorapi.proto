@@ -35,23 +35,17 @@ message LeaseRequest{
 }
 
 message JobRunLease{
-  armadaevents.Uuid job_id = 1;
-  armadaevents.Uuid job_run_id = 2;
-  string queue = 3;
-  string jobset = 4;
-  // Shared ObjectMeta for all Kubernetes objects in this job.
-  // If provided, the namespace therein is used for all objects that do not explicitly specify another.
-  // And the labels and annotations therein are applied to all objects part of the job.
-  armadaevents.ObjectMeta object_meta = 5;
-  // Main object that determines when an application has finished.
-  armadaevents.KubernetesMainObject main_object = 6;
-  // Set of additional Kubernetes objects to create as part of the job.
-  repeated armadaevents.KubernetesObject objects = 7;
+  armadaevents.Uuid job_run_id = 1;
+  string queue = 2;
+  string jobset = 3;
+  string user = 4;
+  repeated string groups = 5;
+  armadaevents.SubmitJob job  = 6;
 }
 
 message LeaseResponse{
   repeated armadaevents.Uuid job_run_ids_to_cancel = 1;
-  repeated JobRunLease leases = 2;
+  JobRunLease lease = 2;
   bool final = 3;
 }
 
