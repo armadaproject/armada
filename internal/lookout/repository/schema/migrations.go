@@ -2,11 +2,13 @@ package schema
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 
@@ -19,12 +21,36 @@ type migration struct {
 	sql  string
 }
 
-func UpdateDatabase(db *sql.DB) error {
+func UpdateDatabase(db *sql.DB) (err error) {
 	log.Info("Updating database...")
-	version, err := readVersion(db)
+
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err == nil {
+			if commitErr := tx.Commit(); commitErr != nil {
+				err = commitErr
+			}
+		} else {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				err = errors.WithMessage(err, rollbackErr.Error())
+			}
+		}
+	}()
+
+	err = obtainLock(tx)
+	if err != nil {
+		return err
+	}
+
+	version, err := readVersion(tx)
+	if err != nil {
+		return err
+	}
+
 	log.Infof("Current version %v", version)
 	migrations, err := getMigrations()
 	if err != nil {
@@ -33,13 +59,13 @@ func UpdateDatabase(db *sql.DB) error {
 
 	for _, m := range migrations {
 		if m.id > version {
-			_, err := db.Exec(m.sql)
+			_, err := tx.Exec(m.sql)
 			if err != nil {
 				return err
 			}
 
 			version = m.id
-			err = setVersion(db, version)
+			err = setVersion(tx, version)
 			if err != nil {
 				return err
 			}
@@ -49,14 +75,14 @@ func UpdateDatabase(db *sql.DB) error {
 	return nil
 }
 
-func readVersion(db *sql.DB) (int, error) {
-	_, err := db.Exec(
+func readVersion(tx *sql.Tx) (int, error) {
+	_, err := tx.Exec(
 		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;`)
 	if err != nil {
 		return 0, err
 	}
 
-	result, err := db.Query(
+	result, err := tx.Query(
 		`SELECT last_value FROM database_version`)
 	if err != nil {
 		return 0, err
@@ -65,12 +91,28 @@ func readVersion(db *sql.DB) (int, error) {
 	var version int
 	result.Next()
 	err = result.Scan(&version)
+	result.Close()
 
 	return version, err
 }
 
-func setVersion(db *sql.DB, version int) error {
-	_, err := db.Exec(`SELECT setval('database_version', $1)`, version)
+func obtainLock(tx *sql.Tx) error {
+	_, err := tx.Exec(
+		`CREATE TABLE IF NOT EXISTS migration_lock (a int);`)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(
+		`LOCK TABLE migration_lock IN ACCESS EXCLUSIVE MODE;`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func setVersion(tx *sql.Tx, version int) error {
+	_, err := tx.Exec(`SELECT setval('database_version', $1)`, version)
 	return err
 }
 
