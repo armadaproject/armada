@@ -29,9 +29,9 @@ import (
 )
 
 type LegacySchedulerJob interface {
-	GetQueue() string
-	GetAnnotations() map[string]string
 	GetId() string
+	GetQueue() string
+	GetRequirements() *schedulerobjects.JobSchedulingInfo
 }
 
 // SchedulingConstraints collects scheduling constraints,
@@ -159,7 +159,7 @@ func (it *QueuedGangIterator[T]) Next() ([]T, error) {
 			return nil, nil
 		}
 
-		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(job.GetAnnotations(), it.gangIdAnnotation, it.gangCardinalityAnnotation)
+		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job, it.gangIdAnnotation, it.gangCardinalityAnnotation)
 		if err != nil {
 			log := ctxlogrus.Extract(it.ctx)
 			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", job.GetId())
@@ -317,20 +317,180 @@ func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.C
 	return reports, nil
 }
 
+// Priority queue used by CandidateGangIterator to determine in which order
+// to process the queues in the system
+type QueueCandidateGangIteratorPQ[T LegacySchedulerJob] []*QueueCandidateGangIteratorItem[T]
+
+type QueueCandidateGangIteratorItem[T LegacySchedulerJob] struct {
+	// The iterator that produced this value.
+	it *QueueCandidateGangIterator[T]
+	// The most recent value produced by the iterator.
+	nextGang []*JobSchedulingReport[T]
+	// The priority of the item in the queue.
+	// A non-negative value expressing what fraction of their fair share
+	// this user would have if the next schedulable job in this queue were to be scheduled.
+	// TODO: Consider renaming.
+	priority float64
+	// The index of the item in the heap.
+	// The index is needed by update and is maintained by the heap.Interface methods.
+	index int
+}
+
+func (pq QueueCandidateGangIteratorPQ[T]) Len() int { return len(pq) }
+
+func (pq QueueCandidateGangIteratorPQ[T]) Less(i, j int) bool {
+	// return pq[i].priority.Cmp(pq[j].priority) == -1
+	return pq[i].priority < pq[j].priority
+}
+
+func (pq QueueCandidateGangIteratorPQ[T]) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+	pq[i].index = i
+	pq[j].index = j
+}
+
+func (pq *QueueCandidateGangIteratorPQ[T]) Push(x any) {
+	n := len(*pq)
+	item := x.(*QueueCandidateGangIteratorItem[T])
+	item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *QueueCandidateGangIteratorPQ[T]) Pop() any {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil  // avoid memory leak
+	item.index = -1 // for safety
+	*pq = old[0 : n-1]
+	return item
+}
+
 // CandidateGangIterator multiplexes between queues.
 // Responsible for maintaining fair share and enforcing cross-queue scheduling constraints.
 type CandidateGangIterator[T LegacySchedulerJob] struct {
 	SchedulingConstraints
 	SchedulingRoundReport *SchedulingRoundReport[T]
 	ctx                   context.Context
-	iteratorsByQueue      map[string]*QueueCandidateGangIterator[T]
+	// iteratorsByQueue      map[string]*QueueCandidateGangIterator[T]
 	// These factors influence the fraction of resources assigned to each queue.
 	priorityFactorByQueue map[string]float64
+	// Inverse of the priority factor.
+	weightByQueue map[string]float64
+	// Sum of all weights.
+	weightSum float64
+	// Priority queue of per-queue iterators.
+	pq QueueCandidateGangIteratorPQ[T]
 	// Random number generator, used to select queues
 	rand *rand.Rand
 }
 
-func (it *CandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
+func NewCandidateGangIterator[T LegacySchedulerJob](
+	schedulingConstraints SchedulingConstraints,
+	schedulingRoundReport *SchedulingRoundReport[T],
+	ctx context.Context,
+	iteratorsByQueue map[string]*QueueCandidateGangIterator[T],
+	priorityFactorByQueue map[string]float64,
+) (*CandidateGangIterator[T], error) {
+	if len(iteratorsByQueue) != len(priorityFactorByQueue) {
+		return nil, errors.Errorf("iteratorsByQueue and priorityFactorByQueue are not of equal length")
+	}
+	weightByQueue := make(map[string]float64)
+	weightSum := 0.0
+	for queue, priorityFactor := range priorityFactorByQueue {
+		if _, ok := iteratorsByQueue[queue]; !ok {
+			return nil, errors.Errorf("no iterator found for queue %s", queue)
+		}
+		weight := 1 / max(priorityFactor, 1)
+		weightByQueue[queue] = weight
+		weightSum += weight
+	}
+	rv := &CandidateGangIterator[T]{
+		SchedulingConstraints: schedulingConstraints,
+		SchedulingRoundReport: schedulingRoundReport,
+		ctx:                   ctx,
+		priorityFactorByQueue: priorityFactorByQueue,
+		weightByQueue:         weightByQueue,
+		weightSum:             weightSum,
+		pq:                    make(QueueCandidateGangIteratorPQ[T], 0, len(iteratorsByQueue)),
+	}
+	for queue, queueIt := range iteratorsByQueue {
+		if err := rv.push(queue, queueIt); err != nil {
+			return nil, err
+		}
+	}
+	return rv, nil
+}
+
+func (it *CandidateGangIterator[T]) push(queue string, queueIt *QueueCandidateGangIterator[T]) error {
+	nextGangReports, err := queueIt.Next()
+	if err != nil {
+		return err
+	}
+	nextGang := make([]T, len(nextGangReports))
+	for i, report := range nextGangReports {
+		nextGang[i] = report.Job
+	}
+	initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].InitialResourcesByPriority
+	scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
+	totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
+	totalResourcesForQueue.Add(scheduledResourcesForQueue)
+	v := fractionOfFairShareWithGang[T](
+		nextGang,
+		it.weightByQueue[queue]/it.weightSum,
+		totalResourcesForQueue.AggregateByResource(),
+		it.ResourceScarcity,
+		it.TotalResources,
+	)
+	item := &QueueCandidateGangIteratorItem[T]{
+		it:       queueIt,
+		nextGang: nextGangReports,
+		priority: v,
+	}
+	it.pq.Push(item)
+	return nil
+}
+
+// Initialises the internal priority queue.
+func (it *CandidateGangIterator[T]) init() error {
+	// fairShareByQueue := getFairShareByQueue()
+	pq := make(QueueCandidateGangIteratorPQ[T], 0, len(it.iteratorsByQueue))
+	for queue, queueIt := range it.iteratorsByQueue {
+		nextGangReports, err := queueIt.Next()
+		if err != nil {
+			return err
+		}
+		nextGang := make([]T, len(nextGangReports))
+		for i, report := range nextGangReports {
+			nextGang[i] = report.Job
+		}
+
+		initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].InitialResourcesByPriority
+		scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
+		totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
+		totalResourcesForQueue.Add(scheduledResourcesForQueue)
+
+		v := fractionOfFairShareWithGang[T](
+			nextGang,
+			fairShareByQueue[queue],
+			totalResourcesForQueue.AggregateByResource(),
+			it.ResourceScarcity,
+			it.TotalResources,
+		)
+
+		// fractionOfFairShare
+		item := &QueueCandidateGangIteratorItem[T]{
+			it:       queueIt,
+			nextGang: nextGangReports,
+			priority: v,
+		}
+		pq.Push(item)
+	}
+	it.pq = pq
+	return nil
+}
+
+func (it *CandidateGangIterator[T]) NextOld() ([]*JobSchedulingReport[T], error) {
 	if it.MaximumJobsToSchedule != 0 && it.SchedulingRoundReport.NumScheduledJobs == int(it.MaximumJobsToSchedule) {
 		it.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
 		return nil, nil
@@ -667,21 +827,26 @@ func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
 	}
 	sched.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
 
-	// Try to create leases.
-	jobs := make([]T, 0, numJobsToLease)
-	for queue, jobsToLease := range jobsToLeaseByQueue {
-
-		// TryLeaseJobs returns a list of jobs that were successfully leased.
-		// For example, jobs concurrently leased to another executor are skipped.
-		//
-		// TODO: Reports generated above will be incorrect if creating the lease fails.
-		successfullyLeasedJobs, err := sched.JobRepository.TryLeaseJobs(sched.ExecutorId, queue, jobsToLease)
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to lease jobs")
-		}
-		jobs = append(jobs, successfullyLeasedJobs...)
-	}
 	return jobs, nil
+}
+
+func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, gangIdAnnotation, gangCardinalityAnnotation string) (string, int, bool, error) {
+	reqs := job.GetRequirements()
+	if reqs == nil {
+		return "", 0, false, nil
+	}
+	if len(reqs.ObjectRequirements) != 1 {
+		return "", 0, false, errors.Errorf("expected exactly one object requirement in %v", reqs)
+	}
+	podReqs := reqs.ObjectRequirements[0].GetPodRequirements()
+	if reqs == nil {
+		return "", 0, false, nil
+	}
+	return GangIdAndCardinalityFromAnnotations(
+		podReqs.Annotations,
+		gangIdAnnotation,
+		gangCardinalityAnnotation,
+	)
 }
 
 func GangIdAndCardinalityFromAnnotations(annotations map[string]string, gangIdAnnotation, gangCardinalityAnnotation string) (string, int, bool, error) {
@@ -757,6 +922,117 @@ func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateRe
 	}
 	return rv
 }
+
+// TODO: We assume her higher weights means more resource.
+// Let's here work with weights and then convert priority factors into weights.
+func getFairShareByQueue(weightByQueue map[string]float64) map[string]float64 {
+	rv := make(map[string]float64)
+	priorityFactorSum := 0.0
+	for _, priorityFactor := range weightByQueue {
+		priorityFactorSum += priorityFactor
+	}
+	priorityFactorSum = max(priorityFactorSum, 1)
+	for queue, priorityFactor := range weightByQueue {
+		rv[queue] = max(priorityFactor, 1e-6) / priorityFactorSum
+	}
+	return rv
+}
+
+func max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func fractionOfFairShareWithGang[T LegacySchedulerJob](
+	gang []T,
+	fairShare float64,
+	aggregateResourceUsage schedulerobjects.ResourceList,
+	resourceScarcity map[string]float64,
+	totalResources schedulerobjects.ResourceList,
+) float64 {
+	aggregateResourceUsage = aggregateResourceUsage.DeepCopy()
+	for _, job := range gang {
+		for _, reqs := range job.GetRequirements().GetObjectRequirements() {
+			aggregateResourceUsage.Add(
+				schedulerobjects.ResourceListFromV1ResourceList(
+					reqs.GetPodRequirements().ResourceRequirements.Requests,
+				),
+			)
+		}
+	}
+	return fractionOfFairShare(fairShare, aggregateResourceUsage, resourceScarcity, totalResources)
+}
+
+func fractionOfFairShare(
+	fairShare float64,
+	aggregateResourceUsage schedulerobjects.ResourceList,
+	resourceScarcity map[string]float64,
+	totalResources schedulerobjects.ResourceList,
+) float64 {
+	used := ResourceListAsWeightedApproximateFloat64(resourceScarcity, aggregateResourceUsage)
+	total := max(ResourceListAsWeightedApproximateFloat64(resourceScarcity, totalResources), 1)
+	return used / total
+}
+
+// func fractionOfFairShareWithGangOld(
+// 	gang []LegacySchedulerJob,
+// 	priorityFactorByQueue map[string]float64,
+// 	aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList,
+// 	resourceScarcity map[string]float64,
+// 	totalResources schedulerobjects.ResourceList,
+// ) map[string]float64 {
+// 	rv := make(map[string]float64)
+// 	total := ResourceListAsWeightedApproximateFloat64(resourceScarcity, totalResources)
+// 	if total == 0 {
+// 		// Avoid division by 0.
+// 		total = 1
+// 	}
+
+// 	// For each queue, compute its total usage
+// 	priorityFactorSum := 0.0
+// 	for queue, priorityFactor := range priorityFactorByQueue {
+// 		if priorityFactor < 1 {
+// 			// Avoid division by 0.
+// 			priorityFactor = 1
+// 		}
+// 		priorityFactorSum += priorityFactor
+
+// 		// Resource usage if this gang were to be scheduled.
+// 		rl := aggregateResourceUsageByQueue[queue]
+// 		for _, job := range gang {
+// 			for _, reqs := range job.GetRequirements().GetObjectRequirements() {
+// 				rl.Add(
+// 					schedulerobjects.ResourceListFromV1ResourceList(
+// 						reqs.GetPodRequirements().ResourceRequirements.Requests,
+// 					),
+// 				)
+// 			}
+// 		}
+
+// 		// Weighted sum of resource usage.
+// 		usage := ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
+// 		if usage == 0 {
+// 			// Avoid division by 0.
+// 			usage = 1
+// 		}
+// 		rv[queue] = usage
+// 	}
+
+// 	// Normalise usage by fair share.
+// 	for queue, usage := range rv {
+// 		priorityFactor := priorityFactorByQueue[queue]
+// 		if priorityFactor < 1 {
+// 			// Avoid division by 0.
+// 			priorityFactor = 1
+// 		}
+// 		fairShare := priorityFactor / priorityFactorSum
+// 		actualShare := usage / total
+// 		rv[queue] = actualShare / fairShare
+// 	}
+// 	return rv
+// }
 
 func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float64, rl schedulerobjects.ResourceList) float64 {
 	usage := 0.0
