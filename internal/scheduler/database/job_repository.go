@@ -19,6 +19,7 @@ type hasSerial interface {
 	GetSerial() int64
 }
 
+// JobRepository is an interface to be implemented by structs which provide job and run information
 type JobRepository interface {
 	// FetchJobUpdates returns all jobs and job runs that have been updated after jobSerial and jobRunSerial respectively
 	// These updates are guaranteed to be consistent with each other

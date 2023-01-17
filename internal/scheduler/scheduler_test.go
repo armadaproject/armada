@@ -473,7 +473,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ LeaderToken) error {
+func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ func() bool) error {
 	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")

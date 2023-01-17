@@ -207,7 +207,10 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, scheduledJobEvents...)
 
 	// Publish to pulsar
-	err = s.publisher.PublishMessages(ctx, events, leaderToken)
+	amLeader := func() bool {
+		return s.leaderController.ValidateToken(leaderToken)
+	}
+	err = s.publisher.PublishMessages(ctx, events, amLeader)
 	if err != nil {
 		return err
 	}
