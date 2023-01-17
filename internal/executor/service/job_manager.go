@@ -1,6 +1,7 @@
 package service
 
 import (
+	context "context"
 	"fmt"
 	"strings"
 	"time"
@@ -76,7 +77,9 @@ func (m *JobManager) ManageJobLeases() {
 		}
 	}
 
-	m.handlePodIssues(jobs)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	defer cancel()
+	m.handlePodIssues(ctx, jobs)
 }
 
 func (m *JobManager) reportDoneAndMarkReported(jobs []*job.RunningJob) error {
@@ -107,7 +110,7 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 	}
 }
 
-func (m *JobManager) handlePodIssues(allRunningJobs []*job.RunningJob) {
+func (m *JobManager) handlePodIssues(ctx context.Context, allRunningJobs []*job.RunningJob) {
 	m.handleIssuesThatHaveSelfResolved(allRunningJobs)
 	m.reportJobsWithIssues(allRunningJobs)
 	jobsToDelete := []*job.RunningJob{}
@@ -125,6 +128,81 @@ func (m *JobManager) handlePodIssues(allRunningJobs []*job.RunningJob) {
 	}
 
 	m.jobContext.DeleteJobs(jobsToDelete)
+}
+
+func (m *JobManager) handlePodIssues_improved(ctx context.Context, allRunningJobs []*job.RunningJob) {
+	for _, runningJob := range allRunningJobs {
+		// Skip jobs with no issues
+		if runningJob.Issue == nil {
+			continue
+		}
+
+		hasSelfResolved := hasIssueSelfResolved(runningJob)
+		if hasSelfResolved {
+			m.jobContext.MarkIssuesResolved(runningJob)
+			continue
+		}
+
+		if runningJob.Issue.Retryable {
+			m.handleRetryableJobIssue(ctx, runningJob)
+		} else {
+			m.handleNonRetryableJobIssue(ctx, runningJob)
+		}
+	}
+}
+
+func (m *JobManager) handleNonRetryableJobIssue(ctx context.Context, runningJob *job.RunningJob) {
+	if !runningJob.Issue.Reported {
+		for _, pod := range runningJob.Issue.Pods {
+			message := runningJob.Issue.Message
+			if pod.UID != runningJob.Issue.OriginatingPod.UID {
+				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(runningJob.Issue.OriginatingPod))
+			}
+			event := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause)
+
+			err := m.eventReporter.Report(event)
+			if err != nil {
+				log.Errorf("Failed to report failed event for job %s because %s", runningJob.JobId, err)
+				return
+			}
+		}
+
+		err := m.jobLeaseService.ReportDone([]string{runningJob.JobId})
+		if err != nil {
+			log.Errorf("Failed to report job %s done because %s", runningJob.JobId, err)
+			return
+		}
+		m.jobContext.MarkIssueReported(runningJob.Issue)
+	}
+
+	if len(runningJob.ActivePods) > 0 {
+		m.jobContext.DeleteJobs([]*job.RunningJob{runningJob})
+	} else {
+		m.jobContext.MarkIssuesResolved(runningJob)
+	}
+}
+
+func (m *JobManager) handleRetryableJobIssue(ctx context.Context, runningJob *job.RunningJob) {
+	if !runningJob.Issue.Reported {
+		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
+			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
+			err := m.eventReporter.Report(event)
+			if err != nil {
+				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
+				return
+			}
+		}
+		m.jobContext.MarkIssueReported(runningJob.Issue)
+	}
+	//TODO delete pod - if successful, proceed
+
+	jobRunAttempted := runningJob.Issue.Type != job.UnableToSchedule
+	err := m.jobLeaseService.ReturnLease(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, jobRunAttempted)
+	if err != nil {
+		log.Errorf("Failed to return lease for job %s because %s", runningJob.JobId, err)
+		return
+	}
+	m.jobContext.MarkIssuesResolved(runningJob)
 }
 
 func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {
@@ -149,6 +227,26 @@ func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.Runn
 			}
 		}
 	}
+}
+
+func hasIssueSelfResolved(runningJob *job.RunningJob) bool {
+	if runningJob.Issue == nil {
+		return true
+	}
+
+	isStuckStartingUpAndResolvable := runningJob.Issue.Type == job.StuckStartingUp &&
+		(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported))
+	if runningJob.Issue.Type == job.UnableToSchedule || isStuckStartingUpAndResolvable {
+		for _, pods := range runningJob.ActivePods {
+			// These are issues causing pods to get stuck in Pending
+			// As the pods are no longer Pending, the issue is no longer present
+			if pods.Status.Phase != v1.PodPending {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
