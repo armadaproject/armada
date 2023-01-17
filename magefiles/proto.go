@@ -10,8 +10,6 @@ import (
 
 	"github.com/magefile/mage/sh"
 
-	"github.com/magefile/mage/sh"
-
 	"github.com/pkg/errors"
 )
 
