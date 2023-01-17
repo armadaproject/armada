@@ -171,7 +171,7 @@ func NewQueueSchedulingRoundReport[T LegacySchedulerJob](priorityFactor float64,
 	}
 }
 
-// AddJobSchedulingReport Adds a job scheduling report to the report for this invocation of the scheduler.
+// AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
 func (report *QueueSchedulingRoundReport[T]) AddJobSchedulingReport(r *JobSchedulingReport[T]) {
 	report.mu.Lock()
