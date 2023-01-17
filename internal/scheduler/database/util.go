@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	"github.com/G-Research/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database"
 )
 
 //go:embed migrations/*.sql

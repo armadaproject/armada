@@ -10,7 +10,6 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -18,7 +17,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 func TestCodeFromError(t *testing.T) {
@@ -205,13 +204,6 @@ func TestIsNetworkErrorPulsar(t *testing.T) {
 		Topic:            "foo",
 		SubscriptionName: "foo",
 	})
-
-	assert.True(t, IsNetworkError(errors.Wrap(err, "foo")))
-	assert.True(t, IsNetworkError(fmt.Errorf("%w", err)))
-}
-
-func TestIsNetworkErrorNats(t *testing.T) {
-	_, err := nats.Connect("nats://localhost:43432")
 
 	assert.True(t, IsNetworkError(errors.Wrap(err, "foo")))
 	assert.True(t, IsNetworkError(fmt.Errorf("%w", err)))

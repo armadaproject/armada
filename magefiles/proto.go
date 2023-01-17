@@ -166,7 +166,7 @@ func protoGenerate() error {
 		return err
 	}
 
-	err = sh.Run("goimports", "-w", "-local", "github.com/G-Research/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
 	if err != nil {
 		return err
 	}

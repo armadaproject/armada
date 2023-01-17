@@ -32,6 +32,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/workflows/go-setup
 
       - name: Run Python Tests for Python Client
@@ -56,6 +61,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/workflows/go-setup
       - run: make airflow-operator
 

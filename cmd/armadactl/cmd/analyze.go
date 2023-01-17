@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/armadactl"
+	"github.com/armadaproject/armada/internal/armadactl"
 )
 
 func analyzeCmd() *cobra.Command {

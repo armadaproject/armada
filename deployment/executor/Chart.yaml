@@ -3,11 +3,3 @@ description: A helm chart for armada-executor component
 name: armada-executor
 version: LATEST
 appVersion: LATEST
-
-priorityClasses:
-  - name: armada-default
-    value: 1000
-    description: "Default priority class for pods created by Armada."
-  - name: armada-preemptible
-    value: 900
-    description: "Priority class to be used for preemptible jobs."

@@ -23,11 +23,11 @@ import (
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
-	"github.com/G-Research/armada/internal/testsuite/build"
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-	"github.com/G-Research/armada/internal/testsuite/eventlogger"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/testsuite/build"
+	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
+	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type App struct {
@@ -187,13 +187,11 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			testSpec:             testSpec,
 			eventLogger:          eventLogger,
 		}
-		go func(testSpec *api.TestSpec) {
-			if err := testRunner.Run(ctx); err != nil {
-				fmt.Fprintf(a.Out, "error in test case %s: %s", testSpec.Name, err)
-			}
+		go func() {
+			_ = testRunner.Run(ctx)
 			rv.TestCaseReports[i] = testRunner.TestCaseReport
 			wg.Done()
-		}(testSpec)
+		}()
 	}
 
 	time.Sleep(100 * time.Millisecond)

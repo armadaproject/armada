@@ -2,7 +2,7 @@ redis:
   addrs:
     - redis:6379
   password: ""
-  db: 0
+  db: 1
   poolSize: 1000
 pulsar:
   URL: pulsar://pulsar:6650
@@ -12,7 +12,7 @@ pulsar:
 subscriptionName: "events-ingester"
 minMessageCompressionSize: 1024
 batchSize: 1048576  #1MB
-batchDuration: 500ms
+batchDuration: 100ms
 batchMessages: 10000
 eventRetentionPolicy:
   expiryEnabled: true

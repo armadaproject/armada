@@ -1,6 +1,6 @@
 -- Jobs
 -- name: SelectJobsFromIds :many
-SELECT * FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+SELECT * FROM jobs WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: SelectQueueJobSetFromId :one
 SELECT job_id, queue, job_set FROM jobs where job_id = $1;
@@ -9,7 +9,10 @@ SELECT job_id, queue, job_set FROM jobs where job_id = $1;
 SELECT job_id, queue, job_set FROM jobs where job_id = ANY(sqlc.arg(job_ids)::UUID[]);
 
 -- name: SelectNewJobs :many
-SELECT * FROM jobs WHERE serial > $1 ORDER BY serial;
+SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
+
+-- name: SelectUpdatedJobs :many
+SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: SelectNewActiveJobs :many
 SELECT * FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AND cancelled = false ORDER BY serial;
@@ -19,10 +22,13 @@ SELECT * FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AN
 SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false);
 
 -- name: SelectRunsFromExecutorAndJobs :many
-SELECT * FROM runs WHERE (executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::UUID[]));
+SELECT * FROM runs WHERE (executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::string[]));
+
+-- name: SelectNewRuns :many
+SELECT * FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: SelectNewRunsForJobs :many
-SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::UUID[]) ORDER BY serial;
+SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
 -- name: SelectNewRunsForExecutorWithLimit :many
 SELECT * FROM runs WHERE (executor = $1 AND sent_to_executor = false) LIMIT $2;
@@ -32,10 +38,6 @@ UPDATE runs SET sent_to_executor = true WHERE run_id = ANY(sqlc.arg(run_ids)::UU
 
 -- name: MarkRunsAsSentByExecutorAndJobId :exec
 UPDATE runs SET sent_to_executor = true WHERE executor = $1 AND job_id = ANY(sqlc.arg(job_ids)::UUID[]);
-
--- NodeInfo
--- name: SelectNewNodeInfo :many
-SELECT * FROM nodeinfo WHERE serial > $1 ORDER BY serial;
 
 -- Job priority
 -- name: UpdateJobPriorityById :exec
@@ -49,7 +51,7 @@ UPDATE jobs SET priority = $1 WHERE job_set = $2;
 UPDATE jobs SET cancelled = true WHERE job_id = $1;
 
 -- name: MarkJobsCancelledById :exec
-UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsCancelledBySet :exec
 UPDATE jobs SET cancelled = true WHERE job_set = $1;
@@ -62,7 +64,7 @@ UPDATE jobs SET cancelled = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[])
 UPDATE jobs SET succeeded = true WHERE job_id = $1;
 
 -- name: MarkJobsSucceededById :exec
-UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsSucceededBySet :exec
 UPDATE jobs SET succeeded = true WHERE job_set = $1;
@@ -75,7 +77,7 @@ UPDATE jobs SET succeeded = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[])
 UPDATE jobs SET failed = true WHERE job_id = $1;
 
 -- name: MarkJobsFailedById :exec
-UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsFailedBySet :exec
 UPDATE jobs SET failed = true WHERE job_set = $1;
@@ -102,7 +104,7 @@ UPDATE runs SET failed = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 UPDATE runs SET cancelled = true WHERE job_id = $1;
 
 -- name: MarkJobRunsCancelledByJobId :exec
-UPDATE runs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::UUID[]);
+UPDATE runs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobRunsCancelledBySet :exec
 UPDATE runs SET cancelled = true WHERE job_set = $1;
@@ -120,3 +122,10 @@ UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 -- Job run assignments
 -- name: SelectNewRunAssignments :many
 SELECT * FROM job_run_assignments WHERE serial > $1 ORDER BY serial;
+
+-- Run errors
+-- name: SelectRunErrorsById :many
+SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: CountGroup :one
+SELECT COUNT(*) FROM markers WHERE group_id= $1;

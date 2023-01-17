@@ -12,11 +12,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const (
@@ -501,16 +501,16 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			queuedGangIterator := NewQueuedGangIterator(
+			queuedGangIterator := NewQueuedGangIterator[*api.Job](
 				ctx,
 				queuedJobsIterator,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
 			)
-			it := &QueueCandidateGangIterator{
+			it := &QueueCandidateGangIterator[*api.Job]{
 				ctx:                        ctx,
 				SchedulingConstraints:      tc.SchedulingConstraints,
-				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
+				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport[*api.Job](0, tc.InitialUsageByPriority),
 				queuedGangIterator:         queuedGangIterator,
 			}
 
@@ -525,7 +525,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
 					}
 					actual = append(actual, report.Job)
-					actualIndices = append(actualIndices, indexByJobId[report.Job.Id])
+					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
 				}
 			}
 			assert.Equal(t, tc.ExpectedIndices, actualIndices) // Redundant, but useful to debug tests.
@@ -547,6 +547,7 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		IndexedResources:          []string{"cpu", "memory"},
 		GangIdAnnotation:          testGangIdAnnotation,
 		GangCardinalityAnnotation: testGangCardinalityAnnotation,
+		ExecutorTimeout:           15 * time.Minute,
 	}
 }
 
@@ -1081,7 +1082,7 @@ func TestSchedule(t *testing.T) {
 				),
 			},
 		},
-		"node with no available capacity": {
+		"Node with no available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResources(
 				0,
@@ -1102,7 +1103,7 @@ func TestSchedule(t *testing.T) {
 				"A": nil,
 			},
 		},
-		"node with some available capacity": {
+		"Node with some available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResources(
 				0,
@@ -1218,7 +1219,7 @@ func TestSchedule(t *testing.T) {
 				"A": {1},
 			},
 		},
-		"node selector": {
+		"Node selector": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: append(
 				testNCpuNode(1, testPriorities),
@@ -1247,7 +1248,7 @@ func TestSchedule(t *testing.T) {
 				"A": {1},
 			},
 		},
-		"node selector (indexed)": {
+		"Node selector (indexed)": {
 			SchedulingConfig: withIndexedNodeLabels([]string{"foo"}, testSchedulingConfig()),
 			Nodes: append(
 				testNCpuNode(1, testPriorities),
@@ -1346,7 +1347,7 @@ func TestSchedule(t *testing.T) {
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
-			sched, err := NewLegacyScheduler(
+			sched, err := NewLegacyScheduler[*api.Job](
 				context.Background(),
 				*constraints,
 				tc.SchedulingConfig,
@@ -1430,7 +1431,7 @@ func TestSchedule(t *testing.T) {
 				)
 				leasedJobIds := make(map[uuid.UUID]interface{})
 				for _, job := range jobs {
-					jobId, err := uuidFromUlidString(job.Id)
+					jobId, err := uuidFromUlidString(job.GetId())
 					if !assert.NoError(t, err) {
 						return
 					}
@@ -1451,7 +1452,7 @@ func TestSchedule(t *testing.T) {
 							return
 						}
 
-						var jobReports map[uuid.UUID]*JobSchedulingReport
+						var jobReports map[uuid.UUID]*JobSchedulingReport[*api.Job]
 						if _, ok := leasedJobIds[jobId]; ok {
 							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
 						} else {
@@ -1629,6 +1630,10 @@ func (repo *mockJobRepository) EnqueueMany(jobs []*api.Job) {
 func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsByQueue[job.Queue] = append(repo.jobsByQueue[job.Queue], job)
 	repo.jobsById[job.Id] = job
+}
+
+func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator[*api.Job], error) {
+	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 
 func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {

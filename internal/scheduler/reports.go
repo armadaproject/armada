@@ -15,21 +15,20 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // SchedulingReportsRepository stores reports on the most recent scheduling attempts.
-type SchedulingReportsRepository struct {
+type SchedulingReportsRepository[T LegacySchedulerJob] struct {
 	// Scheduling reports for the jobs that were most recently attempted to be scheduled.
 	MostRecentJobSchedulingReports *lru.Cache
 	// Scheduling reports for the most recently seen queues.
 	MostRecentQueueSchedulingReports *lru.Cache
 }
 
-func NewSchedulingReportsRepository(maxQueueSchedulingReports, maxJobSchedulingReports int) *SchedulingReportsRepository {
+func NewSchedulingReportsRepository[T LegacySchedulerJob](maxQueueSchedulingReports, maxJobSchedulingReports int) *SchedulingReportsRepository[T] {
 	mostRecentJobSchedulingReports, err := lru.New(maxJobSchedulingReports)
 	if err != nil {
 		panic(errors.WithStack(err))
@@ -38,14 +37,14 @@ func NewSchedulingReportsRepository(maxQueueSchedulingReports, maxJobSchedulingR
 	if err != nil {
 		panic(errors.WithStack(err))
 	}
-	return &SchedulingReportsRepository{
+	return &SchedulingReportsRepository[T]{
 		MostRecentJobSchedulingReports:   mostRecentJobSchedulingReports,
 		MostRecentQueueSchedulingReports: mostRecentQueueSchedulingReports,
 	}
 }
 
 // SchedulingRoundReport captures the decisions made by the scheduler during one invocation.
-type SchedulingRoundReport struct {
+type SchedulingRoundReport[T LegacySchedulerJob] struct {
 	// Time at which the scheduling cycle started.
 	Started time.Time
 	// Time at which the scheduling cycle finished.
@@ -53,7 +52,7 @@ type SchedulingRoundReport struct {
 	// Executor for which the scheduler was invoked.
 	Executor string
 	// Per-queue scheduling reports.
-	QueueSchedulingRoundReports map[string]*QueueSchedulingRoundReport
+	QueueSchedulingRoundReports map[string]*QueueSchedulingRoundReport[T]
 	// Total resources across all clusters available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
 	// Resources assigned across all queues during this scheduling cycle.
@@ -66,15 +65,17 @@ type SchedulingRoundReport struct {
 	mu sync.Mutex
 }
 
-func NewSchedulingRoundReport(totalResources schedulerobjects.ResourceList, priorityFactorByQueue map[string]float64, initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType) *SchedulingRoundReport {
-	queueSchedulingRoundReports := make(map[string]*QueueSchedulingRoundReport)
+func NewSchedulingRoundReport[T LegacySchedulerJob](
+	totalResources schedulerobjects.ResourceList, priorityFactorByQueue map[string]float64, initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+) *SchedulingRoundReport[T] {
+	queueSchedulingRoundReports := make(map[string]*QueueSchedulingRoundReport[T])
 	for queue := range priorityFactorByQueue {
-		queueSchedulingRoundReports[queue] = NewQueueSchedulingRoundReport(
+		queueSchedulingRoundReports[queue] = NewQueueSchedulingRoundReport[T](
 			priorityFactorByQueue[queue],
 			initialResourcesByQueueAndPriority[queue],
 		)
 	}
-	return &SchedulingRoundReport{
+	return &SchedulingRoundReport[T]{
 		Started:                      time.Now(),
 		QueueSchedulingRoundReports:  queueSchedulingRoundReports,
 		TotalResources:               totalResources.DeepCopy(),
@@ -82,7 +83,7 @@ func NewSchedulingRoundReport(totalResources schedulerobjects.ResourceList, prio
 	}
 }
 
-func (report *SchedulingRoundReport) String() string {
+func (report *SchedulingRoundReport[T]) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Started:\t%s\n", report.Started)
@@ -100,7 +101,7 @@ func (report *SchedulingRoundReport) String() string {
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
-func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport) {
+func (report *SchedulingRoundReport[T]) AddJobSchedulingReport(r *JobSchedulingReport[T]) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
 	if r.UnschedulableReason == "" {
@@ -110,13 +111,13 @@ func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingRepo
 		)
 		report.NumScheduledJobs++
 	}
-	if queueReport := report.QueueSchedulingRoundReports[r.Job.Queue]; queueReport != nil {
+	if queueReport := report.QueueSchedulingRoundReports[r.Job.GetQueue()]; queueReport != nil {
 		queueReport.AddJobSchedulingReport(r)
 	}
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
-func (report *SchedulingRoundReport) ClearJobSpecs() {
+func (report *SchedulingRoundReport[T]) ClearJobSpecs() {
 	report.mu.Lock()
 	defer report.mu.Unlock()
 	for _, queueSchedulingRoundReport := range report.QueueSchedulingRoundReports {
@@ -124,9 +125,21 @@ func (report *SchedulingRoundReport) ClearJobSpecs() {
 	}
 }
 
+func (report *SchedulingRoundReport[T]) SuccessfulJobSchedulingReports() []*JobSchedulingReport[T] {
+	report.mu.Lock()
+	defer report.mu.Unlock()
+	reports := make([]*JobSchedulingReport[T], 0)
+	for _, queueSchedulingRoundReport := range report.QueueSchedulingRoundReports {
+		for _, jobReport := range queueSchedulingRoundReport.SuccessfulJobSchedulingReports {
+			reports = append(reports, jobReport)
+		}
+	}
+	return reports
+}
+
 // QueueSchedulingRoundReport captures the decisions made by the scheduler during one invocation
 // for a particular queue.
-type QueueSchedulingRoundReport struct {
+type QueueSchedulingRoundReport[T LegacySchedulerJob] struct {
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactor float64
 	// Resources assigned to the queue across all clusters at the start of the scheduling cycle.
@@ -134,33 +147,33 @@ type QueueSchedulingRoundReport struct {
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Reports for all successful job scheduling attempts.
-	SuccessfulJobSchedulingReports map[uuid.UUID]*JobSchedulingReport
+	SuccessfulJobSchedulingReports map[uuid.UUID]*JobSchedulingReport[T]
 	// Reports for all unsuccessful job scheduling attempts.
-	UnsuccessfulJobSchedulingReports map[uuid.UUID]*JobSchedulingReport
+	UnsuccessfulJobSchedulingReports map[uuid.UUID]*JobSchedulingReport[T]
 	// Total number of jobs successfully scheduled in this round for this queue.
 	NumScheduledJobs int
 	// Protects the above maps.
 	mu sync.Mutex
 }
 
-func NewQueueSchedulingRoundReport(priorityFactor float64, initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType) *QueueSchedulingRoundReport {
+func NewQueueSchedulingRoundReport[T LegacySchedulerJob](priorityFactor float64, initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType) *QueueSchedulingRoundReport[T] {
 	if initialResourcesByPriority == nil {
 		initialResourcesByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
 	} else {
 		initialResourcesByPriority = initialResourcesByPriority.DeepCopy()
 	}
-	return &QueueSchedulingRoundReport{
+	return &QueueSchedulingRoundReport[T]{
 		PriorityFactor:                   priorityFactor,
 		InitialResourcesByPriority:       initialResourcesByPriority,
 		ScheduledResourcesByPriority:     make(schedulerobjects.QuantityByPriorityAndResourceType),
-		SuccessfulJobSchedulingReports:   make(map[uuid.UUID]*JobSchedulingReport),
-		UnsuccessfulJobSchedulingReports: make(map[uuid.UUID]*JobSchedulingReport),
+		SuccessfulJobSchedulingReports:   make(map[uuid.UUID]*JobSchedulingReport[T]),
+		UnsuccessfulJobSchedulingReports: make(map[uuid.UUID]*JobSchedulingReport[T]),
 	}
 }
 
-// Add a job scheduling report to the report for this invocation of the scheduler.
+// AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
-func (report *QueueSchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport) {
+func (report *QueueSchedulingRoundReport[T]) AddJobSchedulingReport(r *JobSchedulingReport[T]) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
 	if r.UnschedulableReason == "" {
@@ -172,25 +185,26 @@ func (report *QueueSchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulin
 	}
 }
 
-func (report *QueueSchedulingRoundReport) addScheduledResources(req *schedulerobjects.PodRequirements) {
+func (report *QueueSchedulingRoundReport[T]) addScheduledResources(req *schedulerobjects.PodRequirements) {
 	rl := report.ScheduledResourcesByPriority[req.Priority]
 	rl.Add(schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests))
 	report.ScheduledResourcesByPriority[req.Priority] = rl
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
-func (report *QueueSchedulingRoundReport) ClearJobSpecs() {
+func (report *QueueSchedulingRoundReport[T]) ClearJobSpecs() {
 	report.mu.Lock()
 	defer report.mu.Unlock()
+	var zeroValue T
 	for _, jobSchedulingReport := range report.SuccessfulJobSchedulingReports {
-		jobSchedulingReport.Job = nil
+		jobSchedulingReport.Job = zeroValue
 	}
 	for _, jobSchedulingReport := range report.UnsuccessfulJobSchedulingReports {
-		jobSchedulingReport.Job = nil
+		jobSchedulingReport.Job = zeroValue
 	}
 }
 
-func (repo *SchedulingReportsRepository) GetQueueReport(ctx context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
+func (repo *SchedulingReportsRepository[T]) GetQueueReport(ctx context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
 	report, ok := repo.GetQueueSchedulingReport(queue.Name)
 	if !ok {
 		return nil, &armadaerrors.ErrNotFound{
@@ -204,7 +218,7 @@ func (repo *SchedulingReportsRepository) GetQueueReport(ctx context.Context, que
 	}, nil
 }
 
-func (repo *SchedulingReportsRepository) GetJobReport(ctx context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
+func (repo *SchedulingReportsRepository[T]) GetJobReport(ctx context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
 	jobUuid, err := uuidFromUlidString(jobId.Id)
 	if err != nil {
 		return nil, err
@@ -222,30 +236,30 @@ func (repo *SchedulingReportsRepository) GetJobReport(ctx context.Context, jobId
 	}, nil
 }
 
-func (repo *SchedulingReportsRepository) AddSchedulingRoundReport(report *SchedulingRoundReport) {
+func (repo *SchedulingReportsRepository[T]) AddSchedulingRoundReport(report *SchedulingRoundReport[T]) {
 	for queue, queueSchedulingRoundReport := range report.QueueSchedulingRoundReports {
 		repo.AddMany(queue, maps.Values(queueSchedulingRoundReport.SuccessfulJobSchedulingReports))
 		repo.AddMany(queue, maps.Values(queueSchedulingRoundReport.UnsuccessfulJobSchedulingReports))
 	}
 }
 
-func (repo *SchedulingReportsRepository) AddMany(queueName string, reports []*JobSchedulingReport) {
+func (repo *SchedulingReportsRepository[T]) AddMany(queueName string, reports []*JobSchedulingReport[T]) {
 	for _, report := range reports {
 		repo.Add(queueName, report)
 	}
 }
 
-func (repo *SchedulingReportsRepository) Add(queueName string, report *JobSchedulingReport) {
+func (repo *SchedulingReportsRepository[T]) Add(queueName string, report *JobSchedulingReport[T]) {
 	repo.MostRecentJobSchedulingReports.Add(report.JobId, report)
 	if value, ok := repo.MostRecentQueueSchedulingReports.Get(queueName); ok {
-		queueReport := value.(*QueueSchedulingReport)
+		queueReport := value.(*QueueSchedulingReport[T])
 		if report.UnschedulableReason == "" {
 			queueReport.MostRecentSuccessfulJobSchedulingReport = report
 		} else {
 			queueReport.MostRecentUnsuccessfulJobSchedulingReport = report
 		}
 	} else {
-		queueReport := &QueueSchedulingReport{
+		queueReport := &QueueSchedulingReport[T]{
 			Name: queueName,
 		}
 		if report.UnschedulableReason == "" {
@@ -257,18 +271,18 @@ func (repo *SchedulingReportsRepository) Add(queueName string, report *JobSchedu
 	}
 }
 
-func (repo *SchedulingReportsRepository) GetQueueSchedulingReport(queueName string) (*QueueSchedulingReport, bool) {
+func (repo *SchedulingReportsRepository[T]) GetQueueSchedulingReport(queueName string) (*QueueSchedulingReport[T], bool) {
 	if value, ok := repo.MostRecentQueueSchedulingReports.Get(queueName); ok {
-		report := value.(*QueueSchedulingReport)
+		report := value.(*QueueSchedulingReport[T])
 		return report, true
 	} else {
 		return nil, false
 	}
 }
 
-func (repo *SchedulingReportsRepository) GetJobSchedulingReport(jobId uuid.UUID) (*JobSchedulingReport, bool) {
+func (repo *SchedulingReportsRepository[T]) GetJobSchedulingReport(jobId uuid.UUID) (*JobSchedulingReport[T], bool) {
 	if value, ok := repo.MostRecentJobSchedulingReports.Get(jobId); ok {
-		report := value.(*JobSchedulingReport)
+		report := value.(*JobSchedulingReport[T])
 		return report, true
 	} else {
 		return nil, false
@@ -277,14 +291,14 @@ func (repo *SchedulingReportsRepository) GetJobSchedulingReport(jobId uuid.UUID)
 
 // QueueSchedulingReport contains job scheduling reports for the most
 // recent successful and failed scheduling attempts for this queue.
-type QueueSchedulingReport struct {
+type QueueSchedulingReport[T LegacySchedulerJob] struct {
 	// Queue name.
 	Name                                      string
-	MostRecentSuccessfulJobSchedulingReport   *JobSchedulingReport
-	MostRecentUnsuccessfulJobSchedulingReport *JobSchedulingReport
+	MostRecentSuccessfulJobSchedulingReport   *JobSchedulingReport[T]
+	MostRecentUnsuccessfulJobSchedulingReport *JobSchedulingReport[T]
 }
 
-func (report *QueueSchedulingReport) String() string {
+func (report *QueueSchedulingReport[T]) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Queue:\t%s\n", report.Name)
@@ -306,13 +320,13 @@ func (report *QueueSchedulingReport) String() string {
 
 // JobSchedulingReport is created by the scheduler and contains information
 // about the decision made by the scheduler for this job.
-type JobSchedulingReport struct {
+type JobSchedulingReport[T LegacySchedulerJob] struct {
 	// Time at which this report was created.
 	Timestamp time.Time
 	// Id of the job this pod corresponds to.
 	JobId uuid.UUID
 	// Job spec.
-	Job *api.Job
+	Job T
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	Req *schedulerobjects.PodRequirements
@@ -325,7 +339,7 @@ type JobSchedulingReport struct {
 	PodSchedulingReports []*PodSchedulingReport
 }
 
-func (report *JobSchedulingReport) String() string {
+func (report *JobSchedulingReport[T]) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
@@ -369,13 +383,13 @@ type PodSchedulingReport struct {
 	// the scheduling requirements for.
 	DominantResourceType string
 	// Node the pod was assigned to.
-	// If nil, the pod could not be assigned to any node.
+	// If nil, the pod could not be assigned to any Node.
 	Node *schedulerobjects.Node
-	// Score indicates how well the pod fits on the selected node.
+	// Score indicates how well the pod fits on the selected Node.
 	Score int
-	// Number of node types that
+	// Number of Node types that
 	NumMatchedNodeTypes int
-	// Number of node types excluded by reason.
+	// Number of Node types excluded by reason.
 	NumExcludedNodeTypesByReason map[string]int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
@@ -391,11 +405,11 @@ func (report *PodSchedulingReport) String() string {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}
 	fmt.Fprintf(w, "Score:\t%d\n", report.Score)
-	fmt.Fprintf(w, "Number of matched node types:\t%d\n", report.NumMatchedNodeTypes)
+	fmt.Fprintf(w, "Number of matched Node types:\t%d\n", report.NumMatchedNodeTypes)
 	if len(report.NumExcludedNodeTypesByReason) == 0 {
-		fmt.Fprint(w, "Excluded node types:\tnone\n")
+		fmt.Fprint(w, "Excluded Node types:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Excluded node types:\n")
+		fmt.Fprint(w, "Excluded Node types:\n")
 		for reason, count := range report.NumExcludedNodeTypesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}

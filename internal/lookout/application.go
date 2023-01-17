@@ -5,21 +5,18 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/nats-io/stan.go"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/eventstream"
-	"github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/common/health"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookout/events"
-	"github.com/G-Research/armada/internal/lookout/metrics"
-	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookout/server"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/metrics"
+	"github.com/armadaproject/armada/internal/lookout/postgres"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/server"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 type LogRusLogger struct{}
@@ -46,32 +43,9 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	goquDb := goqu.New("postgres", db)
 	goquDb.Logger(&LogRusLogger{})
 
-	jobStore := repository.NewSQLJobStore(goquDb, config.UIConfig.UserAnnotationPrefix)
 	jobRepository := repository.NewSQLJobRepository(goquDb, &util.DefaultClock{})
 
 	healthChecks.Add(repository.NewSqlHealth(db))
-
-	var eventStream eventstream.EventStream
-
-	if !config.DisableEventProcessing {
-		stanClient, err := eventstream.NewStanClientConnection(
-			config.Nats.ClusterID,
-			"armada-server-"+util.NewULID(),
-			config.Nats.Servers)
-		if err != nil {
-			panic(err)
-		}
-		eventStream = eventstream.NewStanEventStream(
-			config.Nats.Subject,
-			stanClient,
-			stan.SetManualAckMode(),
-			stan.StartWithLastReceived())
-
-		healthChecks.Add(stanClient)
-
-		eventProcessor := events.NewEventProcessor(config.EventQueue, eventStream, jobStore)
-		eventProcessor.Start()
-	}
 
 	dbMetricsProvider := metrics.NewLookoutSqlDbMetricsProvider(db, config.Postgres)
 	metrics.ExposeLookoutMetrics(dbMetricsProvider)
@@ -84,12 +58,6 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	grpc.Listen(config.GrpcPort, grpcServer, wg)
 
 	stop := func() {
-		if eventStream != nil {
-			err := eventStream.Close()
-			if err != nil {
-				log.Errorf("failed to close nats connection: %v", err)
-			}
-		}
 		err = db.Close()
 		if err != nil {
 			log.Errorf("failed to close db connection: %v", err)

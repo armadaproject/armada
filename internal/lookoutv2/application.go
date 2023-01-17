@@ -7,14 +7,14 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/slices"
-	"github.com/G-Research/armada/internal/lookoutv2/configuration"
-	"github.com/G-Research/armada/internal/lookoutv2/conversions"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/restapi"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/restapi/operations"
-	"github.com/G-Research/armada/internal/lookoutv2/repository"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutv2/conversions"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
+	"github.com/armadaproject/armada/internal/lookoutv2/repository"
 )
 
 func Serve(configuration configuration.LookoutV2Configuration) error {

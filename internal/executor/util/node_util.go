@@ -3,7 +3,7 @@ package util
 import (
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 func GetPodsOnNodes(pods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {

@@ -54,7 +54,7 @@ Cons
 ## API (impact/changes?)
 - What should be the API between Armada cache <-> Airflow?
   - The proto file above will generate a python client where they can call get_job_status with job_id, job_set_id and queue specified.  All of these are known by the Airflow Operator.
-  - [API Definition](https://github.com/G-Research/armada/blob/master/pkg/api/jobservice/jobservice.proto)
+  - [API Definition](https://github.com/armadaproject/armada/blob/master/pkg/api/jobservice/jobservice.proto)
 - JobSet subscription will happen automatically for all tasks in a dag.   
 
 ## Security Impact
@@ -77,7 +77,7 @@ The cache should use the same security as our armadactl.  Airflow does not curre
 
 ### Implementation Plan
 
-I have a PR that implements this [plan](https://github.com/G-Research/armada/pull/1122).
+I have a PR that implements this [plan](https://github.com/armadaproject/armada/pull/1122).
 - Created a jobservice proto definition
 - Generated GRPC service for the correspond proto definition
 - Created a jobservice cmd that takes an configuration object

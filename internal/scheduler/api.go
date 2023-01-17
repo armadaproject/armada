@@ -18,14 +18,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type ExecutorApi struct {
@@ -68,7 +68,7 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 
 	// Get data stored in sql for these jobs.
 	// In particular, the Pulsar submit job message for each job.
-	jobIds := make([]uuid.UUID, len(runs))
+	jobIds := make([]string, len(runs))
 	for i, run := range runs {
 		jobIds[i] = run.JobID
 	}
@@ -248,14 +248,7 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 		}, nil
 	}
 
-	jobIds := make([]uuid.UUID, len(req.Ids))
-	for i, s := range req.Ids {
-		protoUuid, err := armadaevents.ProtoUuidFromUlidString(s)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		jobIds[i] = armadaevents.UuidFromProtoUuid(protoUuid)
-	}
+	jobIds := req.Ids
 
 	queries := schedulerdb.New(srv.Db)
 	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
@@ -269,7 +262,10 @@ func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseReque
 	responseIds := make([]string, 0, len(runs))
 	for _, run := range runs {
 		if !run.Cancelled {
-			protoUuid := armadaevents.ProtoUuidFromUuid(run.JobID)
+			protoUuid, err := armadaevents.ProtoUuidFromUuidString(run.JobID)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
 			responseId, err := armadaevents.UlidStringFromProtoUuid(protoUuid)
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -295,7 +291,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	jobId := armadaevents.UuidFromProtoUuid(protoUuid)
+	jobId := armadaevents.UuidFromProtoUuid(protoUuid).String()
 
 	row, err := queries.SelectQueueJobSetFromId(ctx, jobId)
 	if err != nil {
@@ -304,7 +300,7 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 
 	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
 		Executor: req.GetClusterId(),
-		JobIds:   []uuid.UUID{jobId},
+		JobIds:   []string{jobId},
 	})
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -317,11 +313,15 @@ func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseReq
 		JobSetName: row.JobSet,
 	}
 	for _, run := range runs {
+		jobId, err := armadaevents.ProtoUuidFromUuidString(run.JobID)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: armadaevents.ProtoUuidFromUuid(run.RunID),
-					JobId: armadaevents.ProtoUuidFromUuid(jobId),
+					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
 							Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
@@ -382,11 +382,16 @@ func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.I
 			JobSetName: row.JobSet,
 		}
 
+		jobId, err := armadaevents.ProtoUuidFromUuidString(row.JobID)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: armadaevents.ProtoUuidFromUuid(row.JobID), // TODO: Need at least the executor name to get this.
-					JobId: armadaevents.ProtoUuidFromUuid(row.JobID),
+					RunId: jobId, // TODO: Need at least the executor name to get this.
+					JobId: jobId,
 				},
 			},
 		})
