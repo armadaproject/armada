@@ -23,7 +23,7 @@ const explicitPartitionKey = "armada_pulsar_partition"
 type Publisher interface {
 	// PublishMessages will publish the supplied messages. A LeaderToken is provided and the
 	// implementor may decide whether to publish based on the status of this token
-	PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, token LeaderToken) error
+	PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error
 
 	// PublishMarkers publishes a single marker message for each Pulsar partition.  Each marker
 	// massage contains the supplied group id, which allows nall marker messages for a given call
@@ -37,8 +37,6 @@ type PulsarPublisher struct {
 	producer pulsar.Producer
 	// Number of partitions on the pulsar topic
 	numPartitions int
-	// Used to determine if the calling scheduler is the leader.
-	leaderController LeaderController
 	// Timeout after which async messages sends will be considered failed
 	pulsarSendTimeout time.Duration
 	// Maximum size (in bytes) of produced pulsar messages.
@@ -49,7 +47,6 @@ type PulsarPublisher struct {
 func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
-	leaderController LeaderController,
 	pulsarSendTimeout time.Duration,
 	maxMessageBatchSize int,
 ) (*PulsarPublisher, error) {
@@ -64,7 +61,6 @@ func NewPulsarPublisher(
 	}
 	return &PulsarPublisher{
 		producer:            producer,
-		leaderController:    leaderController,
 		pulsarSendTimeout:   pulsarSendTimeout,
 		maxMessageBatchSize: maxMessageBatchSize,
 		numPartitions:       len(partitions),
@@ -73,12 +69,7 @@ func NewPulsarPublisher(
 
 // PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
 // single event sequences up to maxMessageBatchSize.
-// Note that we do validate that we are leader before starting to publish, but there are still a couple of edge cases:
-// * We experience an error during publishing which means that some messages are published while others are not
-// * We lose leadership while publishing
-// It should be possible to eliminate the first issue and greatly reduce the time period for the second once the Pulsar
-// Go client supports transactions.
-func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, token LeaderToken) error {
+func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
 	sequences := eventutil.CompactEventSequences(events)
 	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxMessageBatchSize, true)
 	if err != nil {
@@ -103,7 +94,7 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 	wg.Add(len(msgs))
 
 	// Send messages
-	if p.leaderController.ValidateToken(token) {
+	if shouldPublish() {
 		log.Debugf("Am leader so will publish")
 		sendCtx, cancel := context.WithTimeout(ctx, p.pulsarSendTimeout)
 		errored := false

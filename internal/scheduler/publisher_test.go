@@ -96,7 +96,6 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
-			leaderController := NewStandaloneLeaderController()
 			numPublished := 0
 			var capturedEvents []*armadaevents.EventSequence
 			expectedCounts := make(map[string]int)
@@ -122,14 +121,9 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 
 			options := pulsar.ProducerOptions{Topic: topic}
 			ctx := context.TODO()
-			publisher, err := NewPulsarPublisher(mockPulsarClient, options, leaderController, 5*time.Second, messageSize)
+			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second, messageSize)
 			require.NoError(t, err)
-			token := leaderController.GetToken()
-			if !tc.amLeader {
-				token = InvalidLeaderToken()
-			}
-
-			err = publisher.PublishMessages(ctx, tc.eventSequences, token)
+			err = publisher.PublishMessages(ctx, tc.eventSequences, func() bool { return tc.amLeader })
 
 			// Check that we get an error if one is expected
 			if tc.expectedError {
@@ -178,7 +172,6 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
-			leaderController := NewStandaloneLeaderController()
 			numPublished := 0
 			capturedPartitons := make(map[string]bool)
 
@@ -200,7 +193,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 
 			options := pulsar.ProducerOptions{Topic: topic}
 			ctx := context.TODO()
-			publisher, err := NewPulsarPublisher(mockPulsarClient, options, leaderController, 5*time.Second, messageSize)
+			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second, messageSize)
 			require.NoError(t, err)
 
 			published, err := publisher.PublishMarkers(ctx, uuid.New())
