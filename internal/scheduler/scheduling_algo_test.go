@@ -1,10 +1,11 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/util"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/util"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
@@ -68,7 +69,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			expectedJobs: map[string]string{
 				jobs[0].JobId: "executor1",
 				jobs[1].JobId: "executor1",
-			}},
+			},
+		},
 		"one executor full": {
 			executors: []*database.Executor{
 				TwoCoreExecutor("executor1", resource.MustParse("2"), baseTime),
