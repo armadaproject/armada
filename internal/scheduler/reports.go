@@ -15,9 +15,9 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // SchedulingReportsRepository stores reports on the most recent scheduling attempts.
@@ -125,6 +125,18 @@ func (report *SchedulingRoundReport[T]) ClearJobSpecs() {
 	}
 }
 
+func (report *SchedulingRoundReport[T]) SuccessfulJobSchedulingReports() []*JobSchedulingReport[T] {
+	report.mu.Lock()
+	defer report.mu.Unlock()
+	reports := make([]*JobSchedulingReport[T], 0)
+	for _, queueSchedulingRoundReport := range report.QueueSchedulingRoundReports {
+		for _, jobReport := range queueSchedulingRoundReport.SuccessfulJobSchedulingReports {
+			reports = append(reports, jobReport)
+		}
+	}
+	return reports
+}
+
 // QueueSchedulingRoundReport captures the decisions made by the scheduler during one invocation
 // for a particular queue.
 type QueueSchedulingRoundReport[T LegacySchedulerJob] struct {
@@ -159,7 +171,7 @@ func NewQueueSchedulingRoundReport[T LegacySchedulerJob](priorityFactor float64,
 	}
 }
 
-// Add a job scheduling report to the report for this invocation of the scheduler.
+// AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
 func (report *QueueSchedulingRoundReport[T]) AddJobSchedulingReport(r *JobSchedulingReport[T]) {
 	report.mu.Lock()

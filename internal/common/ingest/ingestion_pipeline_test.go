@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (

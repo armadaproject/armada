@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 func TestConstructInMemoryDoesNotExist(t *testing.T) {

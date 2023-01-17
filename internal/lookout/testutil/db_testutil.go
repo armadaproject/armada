@@ -9,8 +9,8 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/repository/schema"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/repository/schema"
 )
 
 func WithDatabase(action func(db *sql.DB) error) error {

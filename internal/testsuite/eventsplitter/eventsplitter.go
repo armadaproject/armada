@@ -3,7 +3,7 @@ package eventsplitter
 import (
 	"context"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // EventSplitter is a service for duplicating incoming events onto several outgoing channels.

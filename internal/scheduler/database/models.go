@@ -35,6 +35,18 @@ type JobRunAssignment struct {
 	LastModified time.Time `db:"last_modified"`
 }
 
+type JobRunError struct {
+	RunID        uuid.UUID `db:"run_id"`
+	Error        []byte    `db:"error"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
+}
+
+type Marker struct {
+	GroupID     uuid.UUID `db:"group_id"`
+	PartitionID int32     `db:"partition_id"`
+}
+
 type Nodeinfo struct {
 	ExecutorNodeName string    `db:"executor_node_name"`
 	NodeName         string    `db:"node_name"`

@@ -1,6 +1,6 @@
 syntax = 'proto3';
 package schedulerobjects;
-option go_package = "github.com/G-Research/armada/internal/scheduler/schedulerobjects";
+option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
 
 message Queue {
     string name = 1;

@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 type response struct {

@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Data to be used in tests
@@ -473,7 +473,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ LeaderToken) error {
+func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ func() bool) error {
 	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")

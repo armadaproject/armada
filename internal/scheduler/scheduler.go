@@ -12,9 +12,9 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func Run(_ *Configuration) error {
@@ -204,7 +204,10 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, scheduledJobEvents...)
 
 	// Publish to pulsar
-	err = s.publisher.PublishMessages(ctx, events, leaderToken)
+	amLeader := func() bool {
+		return s.leaderController.ValidateToken(leaderToken)
+	}
+	err = s.publisher.PublishMessages(ctx, events, amLeader)
 	if err != nil {
 		return err
 	}

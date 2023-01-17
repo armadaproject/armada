@@ -8,9 +8,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/executor/configuration"
-	clusterContext "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type ResourceCleanupService struct {

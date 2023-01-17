@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 func TestJobDbSchema(t *testing.T) {
@@ -71,7 +71,7 @@ func TestBatchDelete(t *testing.T) {
 			// Set up JobDb
 			jobDb := createPopulatedJobDb(t, tc.initialJobs)
 
-			// do the delete
+			// delete
 			txn := jobDb.WriteTxn()
 			err := jobDb.BatchDelete(txn, tc.idsToDelete)
 			require.NoError(t, err)

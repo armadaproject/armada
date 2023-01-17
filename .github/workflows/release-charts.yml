@@ -5,7 +5,7 @@ on:
 
 jobs:
   invoke-push:
-    uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
+    uses: armadaproject/charts/.github/workflows/invoke-push.yaml@master
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.GH_APP_PEM }}

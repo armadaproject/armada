@@ -1,4 +1,4 @@
-name: Go End to End (buildjet)
+name: Go End to End
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   go-integration-tests:
-    if: github.repository_owner == 'G-Research'
+    if: github.repository_owner == 'armadaproject'
     strategy:
       fail-fast: false
       matrix:
@@ -21,7 +21,7 @@ jobs:
         go: [ '1.18' ]
     # As of December 2022, using 8vcpu runners is slower overall,
     # due to longer queue times.
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    # runs-on: buildjet-4vcpu-ubuntu-2204
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
       ARMADA_EXECUTOR_INGRESS_PORT: 5001

@@ -9,9 +9,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/eventingester/configuration"
-	"github.com/G-Research/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/model"
 )
 
 const (

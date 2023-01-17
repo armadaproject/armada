@@ -11,13 +11,13 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
 
 type LookoutDb struct {

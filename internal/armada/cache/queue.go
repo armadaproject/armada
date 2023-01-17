@@ -6,13 +6,13 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/metrics"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/scheduling"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/metrics"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const objectsToLoadBatchSize = 10000
