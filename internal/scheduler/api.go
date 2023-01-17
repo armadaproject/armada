@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"github.com/armadaproject/armada/pkg/executorapi"
 	"io"
 	"sync/atomic"
@@ -20,7 +19,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -46,44 +44,10 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 
-	// Lease requests include the current resource utilisation for all nodes managed by this executor.
-	// We write this data into postgres to make it available to the scheduler.
-	err = srv.writeNodeInfoToPostgres(stream.Context(), req, req.Nodes)
-}
+	// TODO: store request
 
-func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	log := ctxlogrus.Extract(stream.Context())
-
-	// Receive once to get info necessary to get jobs to lease.
-	req, err := stream.Recv()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Lease requests include the current resource utilisation for all nodes managed by this executor.
-	// We write this data into postgres to make it available to the scheduler.
-	err = srv.writeNodeInfoToPostgres(stream.Context(), req.ClusterId, req.Nodes)
-	if err != nil {
-		return err
-	}
-
-	// Get leases assigned to this executor.
-	queries := schedulerdb.New(srv.Db)
-	runs, err := queries.SelectNewRunsForExecutorWithLimit(
-		stream.Context(),
-		schedulerdb.SelectNewRunsForExecutorWithLimitParams{
-			Executor: req.GetClusterId(),
-			Limit:    srv.MaxJobsPerCall,
-		},
-	)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	// extract currently known run ids from request
+	// select all active job run id for this executor which aren't in current job runs
 	log.Infof("leasing jobs to executor> %+v", runs)
 
 	// Get data stored in sql for these jobs.
@@ -239,197 +203,9 @@ func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingL
 	return nil
 }
 
-// writeNodeInfoToPostgres writes the NodeInfo messages received from an executor into postgres
-// with the name of the node set as the primary key, i.e., the node name must be unique across all clusters.
-func (srv *ExecutorApi) writeNodeInfoToPostgres(ctx context.Context, executorName string, nodeInfos []api.NodeInfo) error {
-	records := make([]interface{}, 0)
-	for _, nodeInfo := range nodeInfos {
-		message, err := proto.Marshal(&nodeInfo)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		records = append(records, schedulerdb.Nodeinfo{
-			ExecutorNodeName: fmt.Sprintf("%s-%s", executorName, nodeInfo.GetName()),
-			NodeName:         nodeInfo.GetName(),
-			Executor:         executorName,
-			Message:          message,
-		})
-	}
-	return database.Upsert(ctx, srv.Db, "nodeinfo", records)
-}
-
-func (srv *ExecutorApi) RenewLease(ctx context.Context, req *api.RenewLeaseRequest) (*api.IdList, error) {
-	log := ctxlogrus.Extract(ctx)
-	log.Infof("executor %s renewed jobs %v", req.ClusterId, req.Ids)
-
-	if len(req.Ids) == 0 {
-		return &api.IdList{
-			Ids: make([]string, 0),
-		}, nil
-	}
-
-	jobIds := req.Ids
-
-	queries := schedulerdb.New(srv.Db)
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
-		Executor: req.GetClusterId(),
-		JobIds:   jobIds,
-	})
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	responseIds := make([]string, 0, len(runs))
-	for _, run := range runs {
-		if !run.Cancelled {
-			protoUuid, err := armadaevents.ProtoUuidFromUuidString(run.JobID)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-			responseId, err := armadaevents.UlidStringFromProtoUuid(protoUuid)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-			responseIds = append(responseIds, responseId)
-		}
-	}
-
-	// TODO: Track when leases are renewed so the scheduler knows when they've been lost.
-
-	return &api.IdList{
-		Ids: responseIds,
-	}, nil
-}
-
-func (srv *ExecutorApi) ReturnLease(ctx context.Context, req *api.ReturnLeaseRequest) (*types.Empty, error) {
-	log := ctxlogrus.Extract(ctx)
-	log.Infof("executor %s returned %s", req.ClusterId, req.JobId)
-
-	queries := schedulerdb.New(srv.Db)
-
-	protoUuid, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	jobId := armadaevents.UuidFromProtoUuid(protoUuid).String()
-
-	row, err := queries.SelectQueueJobSetFromId(ctx, jobId)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	runs, err := queries.SelectRunsFromExecutorAndJobs(ctx, schedulerdb.SelectRunsFromExecutorAndJobsParams{
-		Executor: req.GetClusterId(),
-		JobIds:   []string{jobId},
-	})
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// Return all leases for this job associated with this executor.
-	// Needed to work around the fact that executors have no concept of job runs.
-	sequence := &armadaevents.EventSequence{
-		Queue:      row.Queue,
-		JobSetName: row.JobSet,
-	}
-	for _, run := range runs {
-		jobId, err := armadaevents.ProtoUuidFromUuidString(run.JobID)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Event: &armadaevents.EventSequence_Event_JobRunErrors{
-				JobRunErrors: &armadaevents.JobRunErrors{
-					RunId: armadaevents.ProtoUuidFromUuid(run.RunID),
-					JobId: jobId,
-					Errors: []*armadaevents.Error{
-						{
-							Terminal: true, // EventMessage_LeaseReturned indicates a pod could not be scheduled.
-							Reason: &armadaevents.Error_PodLeaseReturned{
-								PodLeaseReturned: &armadaevents.PodLeaseReturned{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   req.ClusterId,
-										KubernetesId: "", // TODO: The fields explicitly set empty here should be set, but are not available in req.
-									},
-									PodNumber: 0,
-									Message:   "",
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-	}
-
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.Empty{}, nil
-}
-
-func (srv *ExecutorApi) ReportDone(ctx context.Context, req *api.IdList) (*api.IdList, error) {
-	log := ctxlogrus.Extract(ctx)
-	log.Infof("jobs %v reported done", req.Ids)
-
-	queries := schedulerdb.New(srv.Db)
-
-	jobIds := make([]uuid.UUID, len(req.Ids))
-	for i, s := range req.Ids {
-		protoUuid, err := armadaevents.ProtoUuidFromUlidString(s)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		jobId := armadaevents.UuidFromProtoUuid(protoUuid)
-
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		jobIds[i] = jobId
-	}
-
-	rows, err := queries.SelectQueueJobSetFromIds(ctx, jobIds)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	sequences := make([]*armadaevents.EventSequence, 0)
-	for _, row := range rows {
-		sequence := &armadaevents.EventSequence{
-			Queue:      row.Queue,
-			JobSetName: row.JobSet,
-		}
-
-		jobId, err := armadaevents.ProtoUuidFromUuidString(row.JobID)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-
-		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
-			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
-				JobRunSucceeded: &armadaevents.JobRunSucceeded{
-					RunId: jobId, // TODO: Need at least the executor name to get this.
-					JobId: jobId,
-				},
-			},
-		})
-	}
-
-	err = srv.publishToPulsar(ctx, sequences)
-	if err != nil {
-		return nil, err
-	}
-
-	return &api.IdList{
-		Ids: req.Ids,
-	}, nil
-}
-
-// TODO: Does nothing for now.
-func (srv *ExecutorApi) ReportUsage(ctx context.Context, req *api.ClusterUsageReport) (*types.Empty, error) {
-	return &types.Empty{}, nil
+func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 // PublishToPulsar sends pulsar messages async

@@ -67,17 +67,6 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		if err != nil {
 			return err
 		}
-	case InsertRunAssignments:
-		records := make([]any, len(o))
-		i := 0
-		for _, v := range o {
-			records[i] = *v
-			i++
-		}
-		err := database.Upsert(ctx, s.db, "job_run_assignments", records)
-		if err != nil {
-			return err
-		}
 	case UpdateJobSetPriorities:
 		for jobSet, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(

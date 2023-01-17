@@ -68,8 +68,6 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			switch event.GetEvent().(type) {
 			case *armadaevents.EventSequence_Event_SubmitJob:
 				operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
-			case *armadaevents.EventSequence_Event_JobRunAssigned:
-				operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned())
 			case *armadaevents.EventSequence_Event_JobRunLeased:
 				operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
 			case *armadaevents.EventSequence_Event_JobRunRunning:
@@ -167,18 +165,6 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 		JobID:    jobId,
 		JobSet:   meta.jobset,
 		Executor: jobRunLeased.GetExecutorId(),
-	}}}, nil
-}
-
-func (c *InstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents.JobRunAssigned) ([]DbOperation, error) {
-	runId := armadaevents.UuidFromProtoUuid(jobRunAssigned.GetRunId())
-	bytes, err := proto.Marshal(jobRunAssigned)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal JobRunAssigned")
-	}
-	return []DbOperation{InsertRunAssignments{runId: &schedulerdb.JobRunAssignment{
-		RunID:      runId,
-		Assignment: bytes,
 	}}}, nil
 }
 

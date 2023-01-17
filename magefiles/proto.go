@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/magefile/mage/sh"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/magefile/mage/sh"
+
+	"github.com/magefile/mage/sh"
 
 	"github.com/pkg/errors"
 )
