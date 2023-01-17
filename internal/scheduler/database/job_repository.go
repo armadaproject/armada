@@ -148,7 +148,7 @@ func (r *PostgresJobRepository) CountReceivedPartitions(ctx context.Context, gro
 }
 
 // fetch gets all rows from the database with a serial greater than from.
-// Rows are fetches in batches using the supplied fetchBatch function
+// Rows are fetched in batches using the supplied fetchBatch function
 func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T, error)) ([]T, error) {
 	values := make([]T, 0)
 	for {
