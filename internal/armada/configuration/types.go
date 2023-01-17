@@ -172,6 +172,8 @@ type SchedulingConfig struct {
 	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as an integer, e.g., "3".
 	GangCardinalityAnnotation string
+	// If an executor hasn't heartbeated in this time period, it will be considered stale
+	ExecutorTimeout time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

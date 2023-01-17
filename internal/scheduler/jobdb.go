@@ -75,7 +75,11 @@ func (job *SchedulerJob) GetQueue() string {
 
 // GetAnnotations returns the annotations on the job.
 func (job *SchedulerJob) GetAnnotations() map[string]string {
-	return job.GetAnnotations()
+	requirements := job.jobSchedulingInfo.GetObjectRequirements()
+	if len(requirements) == 0 {
+		return nil
+	}
+	return requirements[0].GetPodRequirements().GetAnnotations()
 }
 
 // GetId returns the id of the Job.
@@ -226,6 +230,15 @@ func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
 	return job, err
 }
 
+// HasQueuedJobs returns true if the queue has any jobs in the running state or false otherwise
+func (jobDb *JobDb) HasQueuedJobs(txn *memdb.Txn, queue string) (bool, error) {
+	iter, err := NewJobQueueIterator(txn, queue)
+	if err != nil {
+		return false, err
+	}
+	return iter.Next() != nil, nil
+}
+
 // GetAll returns all jobs in the database.
 // The Jobs returned by this function *must not* be subsequently modified
 func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
@@ -248,7 +261,7 @@ func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
 		err := txn.Delete(jobsTable, &SchedulerJob{JobId: id})
 		if err != nil {
 			// this could be because the job doesn't exist
-			// unfortunately the error from memdb isn't nice for parsing so we do an explicit check
+			// unfortunately the error from memdb isn't nice for parsing, so we do an explicit check
 			job, err := jobDb.GetById(txn, id)
 			if err != nil {
 				return err

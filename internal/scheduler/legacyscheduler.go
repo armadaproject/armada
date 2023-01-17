@@ -817,6 +817,12 @@ func extractSchedulerRequirements(j LegacySchedulerJob, pcs map[string]configura
 			podSpec,
 			pcs,
 		), nil
+	case *SchedulerJob:
+		objectRequirements := job.jobSchedulingInfo.GetObjectRequirements()
+		if len(objectRequirements) == 0 {
+			return nil, errors.New(fmt.Sprintf("no objectRequirements attached to job %s", j.GetId()))
+		}
+		return objectRequirements[0].GetPodRequirements(), nil
 	default:
 		return nil, errors.New(fmt.Sprintf("could not extract pod spec from type %T", j))
 	}
@@ -832,14 +838,18 @@ func PodRequirementsFromJob(j LegacySchedulerJob, priorityClasses map[string]con
 			},
 			Spec: *podSpec,
 		}, priorityClasses), nil
+	case *SchedulerJob:
+		return extractSchedulerRequirements(j, priorityClasses)
 	default:
-		return nil, errors.New(fmt.Sprintf("could not extract pod spec from type %T", j))
+		return nil, errors.New(fmt.Sprintf("could not extract pod reguirements from type %T", j))
 	}
 }
 
 func isNil(j LegacySchedulerJob) (bool, error) {
 	switch job := j.(type) {
 	case *api.Job:
+		return job == nil, nil
+	case *SchedulerJob:
 		return job == nil, nil
 	default:
 		return false, errors.New(fmt.Sprintf("could not determine whether %T is nil", j))

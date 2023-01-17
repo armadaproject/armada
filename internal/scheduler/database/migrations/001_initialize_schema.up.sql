@@ -56,6 +56,12 @@ CREATE TABLE runs (
     last_modified timestamptz NOT NULL
 );
 
+CREATE TABLE markers (
+    group_id uuid NOT NULL,
+    partition_id integer NOT NULL,
+    PRIMARY KEY (group_id, partition_id)
+);
+
 -- Info of physical resources assigned to job runs.
 -- Populated based on JobRunAssigned Pulsar messages.
 -- Job runs with no entry in this table have not yet been assigned resources.
@@ -67,16 +73,18 @@ CREATE TABLE job_run_assignments (
     last_modified timestamptz NOT NULL
 );
 
--- CREATE TABLE executors (
---     id text PRIMARY KEY,
---     -- Map from resource type to total amount available of that resource.
---     -- The following pairs are required: "cpu", "memory", "storage".
---     -- In addition, any accelerators (e.g., A100_16GB) must be included.
---     total_resources json NOT NULL,
---     -- Map from resource type to max amount of that resource available on any node.
---     -- Must contain a pair for each resource type in totalResources.
---     max_resources json NOT NULL
--- );
+CREATE TABLE job_run_errors (
+    run_id uuid PRIMARY KEY,
+    -- Byte array containing a JobRunErrors proto message.
+    error bytea NOT NULL,
+    -- Indicates if this error is terminal.
+    -- The presence of a terminal error indicates this job run has failed.
+    serial bigserial NOT NULL,
+    last_modified timestamptz NOT NULL
+);
+
+ALTER TABLE job_run_errors ALTER COLUMN error SET STORAGE EXTERNAL;
+
 
 CREATE TABLE nodeinfo (
     -- The concatenation of executor and node name.
@@ -91,9 +99,6 @@ CREATE TABLE nodeinfo (
                           serial bigserial NOT NULL,
                           last_modified timestamptz NOT NULL DEFAULT NOW()
 );
-
--- The combination node name and executor must be unique.
-CREATE UNIQUE INDEX node_name_executor ON nodeinfo (node_name, executor);
 
 -- Automatically increment serial and set last_modified on insert.
 -- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.
@@ -127,7 +132,7 @@ CREATE TRIGGER next_serial_on_insert_job_run_assignments
     FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
-CREATE TRIGGER next_serial_on_insert_nodeinfo
-    BEFORE INSERT or UPDATE ON nodeinfo
+CREATE TRIGGER next_serial_on_insert_job_run_errors
+    BEFORE INSERT or UPDATE ON job_run_errors
     FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();

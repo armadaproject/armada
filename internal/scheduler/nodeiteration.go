@@ -108,7 +108,7 @@ func (it *NodeTypesResourceIterator) Next() interface{} {
 	return it.NextNodeItem()
 }
 
-// A priority queue used by NodeTypesResourceIterator to return results
+// NodeTypesResourceIteratorPQ is a priority queue used by NodeTypesResourceIterator to return results
 // from across several sub-iterators in order.
 type NodeTypesResourceIteratorPQ []*NodeTypesResourceIteratorItem
 
