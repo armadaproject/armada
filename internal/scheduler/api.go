@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/pkg/executorapi"
 	"io"
 	"sync/atomic"
 	"time"
@@ -34,6 +35,25 @@ type ExecutorApi struct {
 	Db               *pgxpool.Pool
 	MaxJobsPerCall   int32
 	decompressorPool *pool.ObjectPool
+}
+
+func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRunsServer) error {
+	log := ctxlogrus.Extract(stream.Context())
+
+	// Receive once to get info necessary to get jobs to lease.
+	req, err := stream.Recv()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Lease requests include the current resource utilisation for all nodes managed by this executor.
+	// We write this data into postgres to make it available to the scheduler.
+	err = srv.writeNodeInfoToPostgres(stream.Context(), req, req.Nodes)
+}
+
+func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (srv *ExecutorApi) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {

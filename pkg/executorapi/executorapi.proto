@@ -3,18 +3,17 @@ syntax = 'proto3';
 package executorapi;
 option go_package = "github.com/armadaproject/armada/pkg/executorapi";
 
-import "google/protobuf/timestamp.proto";
 import "pkg/armadaevents/events.proto";
+import "pkg/api/queue.proto";
 import "google/protobuf/empty.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-import "google/api/annotations.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
 
 message EventList {
-  repeated EventSequence events = 1;
+  repeated armadaevents.EventSequence events = 1;
 }
 
 message LeaseRequest{
@@ -30,26 +29,26 @@ message LeaseRequest{
   // - the total allocatable resources on that node,
   // - the job runs running on those nodes
   // - any taints and labels on the node.
-  repeated NodeInfo nodes = 5 [(gogoproto.nullable) = false];
+  repeated api.NodeInfo nodes = 5 [(gogoproto.nullable) = false];
   // Run Ids of jobs owned by the executor but not currently assigned to a node
-  repeated Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
+  repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
 }
 
 message JobRunLease{
-  Uuid job_id = 1;
-  Uuid job_run_id = 2;
+  armadaevents.Uuid job_id = 1;
+  armadaevents.Uuid job_run_id = 2;
   // Shared ObjectMeta for all Kubernetes objects in this job.
   // If provided, the namespace therein is used for all objects that do not explicitly specify another.
   // And the labels and annotations therein are applied to all objects part of the job.
-  ObjectMeta object_meta = 3;
+  armadaevents.ObjectMeta object_meta = 3;
   // Main object that determines when an application has finished.
-  KubernetesMainObject main_object = 4;
+  armadaevents.KubernetesMainObject main_object = 4;
   // Set of additional Kubernetes objects to create as part of the job.
-  repeated KubernetesObject objects = 5;
+  repeated armadaevents.KubernetesObject objects = 5;
 }
 
 message LeaseResponse{
-  repeated Uuid job_run_ids_to_cancel = 1;
+  repeated armadaevents.Uuid job_run_ids_to_cancel = 1;
   repeated JobRunLease leases = 2;
   bool final = 3;
 }

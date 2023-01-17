@@ -15,9 +15,12 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func Run(_ *Configuration) error {
+	var fish executorapi.ExecutorApiServer = ExecutorApi{}
+
 	// TODO: instantiate scheduler and start cycling
 	return nil
 }

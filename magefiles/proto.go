@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
+	"github.com/magefile/mage/sh"
 	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 )
 
@@ -94,6 +94,7 @@ func protoGenerate() error {
 		"pkg/api/lookout/*.proto",
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
+		"pkg/executorapi/*.proto",
 	}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)
@@ -166,7 +167,7 @@ func protoGenerate() error {
 		return err
 	}
 
-	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/")
+	err = sh.Run("goimports", "-w", "-local", "github.com/armadaproject/armada", "./pkg/api/", "./pkg/armadaevents/", "./internal/scheduler/schedulerobjects/", "./pkg/executorapi/")
 	if err != nil {
 		return err
 	}
