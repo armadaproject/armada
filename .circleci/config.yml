@@ -387,6 +387,7 @@ jobs:
       - store_artifacts:
           path: bin/client/DotNet
 
+
 workflows:
   version: 2
   build_and_deploy:
