@@ -87,6 +87,7 @@ require (
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3
 	github.com/go-openapi/validate v0.21.0
+	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.11.5
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/kyleconroy/sqlc v1.16.0
