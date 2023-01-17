@@ -173,7 +173,7 @@ type SchedulingConfig struct {
 	// The cardinality should be expressed as an integer, e.g., "3".
 	GangCardinalityAnnotation string
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
-	StaleExecutorTimeout time.Duration
+	ExecutorTimeout time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
