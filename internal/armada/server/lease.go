@@ -73,7 +73,7 @@ func NewAggregatedQueueServer(
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
-			return compress.NewZlibDecompressor()
+			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
 		permissions:              permissions,

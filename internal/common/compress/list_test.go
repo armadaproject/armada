@@ -9,8 +9,7 @@ import (
 func TestCompressAndDecompressGiveOriginalValue(t *testing.T) {
 	compressor, err := NewZlibCompressor(0)
 	assert.NoError(t, err)
-	decompressor, err := NewZlibDecompressor()
-	assert.NoError(t, err)
+	decompressor := NewZlibDecompressor()
 
 	input := []string{"test", "array", "values"}
 

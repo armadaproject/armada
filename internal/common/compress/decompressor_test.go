@@ -9,8 +9,7 @@ import (
 )
 
 func TestSimpleDecompressWithCompression(t *testing.T) {
-	decompressor, err := NewZlibDecompressor()
-	assert.NoError(t, err)
+	decompressor := NewZlibDecompressor()
 	testSimpleDecompress(t, decompressor)
 }
 

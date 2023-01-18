@@ -355,10 +355,7 @@ func unmarshalJob(origJobSpec []byte) (*api.Job, error) {
 		return nil, errors.New("empty job spec provided")
 	}
 
-	decompressor, err := compress.NewZlibDecompressor()
-	if err != nil {
-		return nil, err
-	}
+	decompressor := compress.NewZlibDecompressor()
 	jobProto, err := decompressor.Decompress(origJobSpec)
 	if err != nil {
 		// possibly not compressed, so
