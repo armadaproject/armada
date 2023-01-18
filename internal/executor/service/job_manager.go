@@ -254,7 +254,7 @@ func threadPoolWorker(ctx context.Context, wg *sync.WaitGroup, jobsToProcess cha
 	defer wg.Done()
 
 	for pod := range jobsToProcess {
-		//Skip processing once context is finished
+		// Skip processing once context is finished
 		if ctx.Err() != nil {
 			continue
 		}
