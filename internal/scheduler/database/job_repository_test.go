@@ -254,7 +254,7 @@ func TestFindInactiveRuns(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Second)
 
 				// Set up db
-				err := database.Upsert(ctx, repo.db, "dbRuns", tc.dbRuns)
+				err := database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
 
 				inactive, err := repo.FindInactiveRuns(ctx, tc.runsToCheck)
