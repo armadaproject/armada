@@ -1,6 +1,9 @@
 package scheduler
 
 import (
+	"testing"
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -15,8 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
-	"testing"
-	"time"
 )
 
 func TestExecutorApi_LeaseJobRuns(t *testing.T) {
@@ -199,7 +200,7 @@ func submitMsg(t *testing.T) (*armadaevents.SubmitJob, []byte) {
 		JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
 	}
 	bytes, err := proto.Marshal(submitMsg)
-
+	require.NoError(t, err)
 	compressor, err := compress.NewZlibCompressor(1024)
 	require.NoError(t, err)
 	compressed, err := compressor.Compress(bytes)

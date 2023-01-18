@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/pkg/errors"
 
@@ -160,7 +161,6 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		tmpTable, err := insertRunIdsToTmpTable(ctx, tx, runIds)
 		if err != nil {
 			return err
@@ -200,7 +200,6 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-
 		tmpTable, err := insertRunIdsToTmpTable(ctx, tx, excludedRunIds)
 		if err != nil {
 			return err

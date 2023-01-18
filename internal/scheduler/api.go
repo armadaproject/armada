@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+
 	"github.com/armadaproject/armada/internal/common/slices"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -29,7 +30,8 @@ func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	maxJobsPerCall int,
-	maxPulsarMessageSize int) *ExecutorApi {
+	maxPulsarMessageSize int,
+) *ExecutorApi {
 	return &ExecutorApi{
 		producer:             producer,
 		jobRepository:        jobRepository,
@@ -158,7 +160,6 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 	// add all unassigned runids
 	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
-
 	}
 	return runIds, nil
 }

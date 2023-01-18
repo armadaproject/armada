@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"golang.org/x/exp/slices"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -267,7 +267,6 @@ func TestFindInactiveRuns(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-
 		})
 	}
 }
@@ -320,7 +319,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 		},
 	}
 	expectedLeases := make([]*JobRunLease, 3)
-	for i, _ := range expectedLeases {
+	for i := range expectedLeases {
 		expectedLeases[i] = &JobRunLease{
 			RunID:         dbRuns[i].RunID,
 			Queue:         dbJobs[i].Queue,

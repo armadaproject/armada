@@ -68,13 +68,6 @@ func TestConvertSequence(t *testing.T) {
 				}),
 			}}},
 		},
-		"job run assigned": {
-			events: []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &schedulerdb.JobRunAssignment{
-				RunID:      f.RunIdUuid,
-				Assignment: mustMarshall(f.Assigned.GetJobRunAssigned()),
-			}}},
-		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{

@@ -1,8 +1,9 @@
 package database
 
 import (
-	"github.com/armadaproject/armada/pkg/executorapi"
 	"time"
+
+	"github.com/armadaproject/armada/pkg/executorapi"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 

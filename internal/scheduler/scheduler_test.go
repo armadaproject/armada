@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/pkg/executorapi"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // Data to be used in tests
@@ -397,12 +397,12 @@ type testJobRepository struct {
 }
 
 func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -433,7 +433,7 @@ type testExecutorRepository struct {
 }
 
 func (t testExecutorRepository) StoreRequest(req *executorapi.LeaseRequest) error {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 

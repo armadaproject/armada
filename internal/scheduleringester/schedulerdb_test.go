@@ -185,14 +185,6 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
-		"InsertRunAssignments": {Ops: []DbOperation{
-			InsertRunAssignments{
-				runIds[0]: &schedulerdb.JobRunAssignment{RunID: runIds[0]},
-			},
-			InsertRunAssignments{
-				runIds[1]: &schedulerdb.JobRunAssignment{RunID: runIds[1]},
-			},
-		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -221,10 +213,6 @@ func addDefaultValues(op DbOperation) DbOperation {
 			job.SchedulingInfo = make([]byte, 0)
 		}
 	case InsertRuns:
-	case InsertRunAssignments:
-		for _, v := range o {
-			v.Assignment = make([]byte, 0)
-		}
 	case UpdateJobSetPriorities:
 	case MarkJobSetsCancelled:
 	case MarkJobsCancelled:
@@ -298,22 +286,6 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			if v, ok := expected[run.RunID]; ok {
 				v.Serial = run.Serial
 				v.LastModified = run.LastModified
-			}
-		}
-		assert.Equal(t, expected, actual)
-	case InsertRunAssignments:
-		as, err := queries.SelectNewRunAssignments(ctx, serials["assignments"])
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		actual := make(InsertRunAssignments)
-		for _, a := range as {
-			a := a
-			actual[a.RunID] = &a
-			serials["assignments"] = max(serials["assignments"], a.Serial)
-			if e, ok := expected[a.RunID]; ok {
-				e.Serial = a.Serial
-				e.LastModified = a.LastModified
 			}
 		}
 		assert.Equal(t, expected, actual)
