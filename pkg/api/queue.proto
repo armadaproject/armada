@@ -10,7 +10,6 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
-import "pkg/armadaevents/events.proto";
 
 import "k8s.io/api/networking/v1/generated.proto";
 
@@ -90,7 +89,9 @@ message NodeInfo {
     // if the sent jobs are of higher priority.
     map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
     // ids of all job runs current allocated to this node
-    repeated armadaevents.Uuid  run_ids = 8 [(gogoproto.nullable) = false];
+    // this should be of type armadaevents.uuid, but this creates a circular loop
+    // once the old scheduler has gone, we can correct this
+    repeated string  run_ids = 8 [(gogoproto.nullable) = false];
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.

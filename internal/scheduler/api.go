@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -12,16 +13,29 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 )
 
 type ExecutorApi struct {
-	Producer           pulsar.Producer
-	db                 *pgxpool.Pool
-	executorRepository database.ExecutorRepository
-	MaxJobsPerCall     int32
+	producer             pulsar.Producer
+	jobRepository        database.JobRepository
+	executorRepository   database.ExecutorRepository
+	maxJobsPerCall       int
+	maxPulsarMessageSize int
+}
+
+func NewExecutorApi(producer pulsar.Producer,
+	jobRepository database.JobRepository,
+	executorRepository database.ExecutorRepository,
+	maxJobsPerCall int,
+	maxPulsarMessageSize int) *ExecutorApi {
+	return &ExecutorApi{
+		producer:             producer,
+		jobRepository:        jobRepository,
+		executorRepository:   executorRepository,
+		maxJobsPerCall:       maxJobsPerCall,
+		maxPulsarMessageSize: maxPulsarMessageSize,
+	}
 }
 
 func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRunsServer) error {
@@ -43,23 +57,15 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	requestRuns := extractRunIds(req)
 	log.Debugf("Executor is currently aware of %d job runs", len(requestRuns))
 
-	// Work out any runIds that the executor is telling us about but we no longer consider active
-	queries := database.New(srv.db)
-	activeRuns, err := queries.FindActiveRuns(stream.Context(), requestRuns)
-	runsToCancel := make([]uuid.UUID, 0)
-	for _, run := range requestRuns {
-		// TODO: this will be slow!
-		if !slices.Contains(activeRuns, run) {
-			runsToCancel = append(runsToCancel, run)
-		}
+	runsToCancel, err := srv.jobRepository.FindInactiveRuns(stream.Context(), requestRuns)
+	if err != nil {
+		return err
 	}
 	log.Debugf("Detected %d runs that need cancelling", len(runsToCancel))
 
 	// Fetch new Run Ids
-	runs, err := queries.SelectJobsForExecutor(stream.Context(), database.SelectJobsForExecutorParams{
-		Executor: req.ExecutorId,
-		RunIds:   requestRuns,
-	})
+	runs, err := srv.jobRepository.FetchNewRuns(stream.Context(), req.ExecutorId, srv.maxJobsPerCall, requestRuns)
+
 	if err != nil {
 		return err
 	}
@@ -109,7 +115,7 @@ func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.Even
 
 // PublishToPulsar sends pulsar messages async
 func (srv *ExecutorApi) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
-	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.Producer, 4194304) // 4 MB
+	return pulsarutils.CompactAndPublishSequences(ctx, sequences, srv.producer, srv.maxPulsarMessageSize)
 }
 
 func extractRunIds(req *executorapi.LeaseRequest) []uuid.UUID {
