@@ -85,7 +85,7 @@ func TestFetchJobUpdates(t *testing.T) {
 				// Set up db
 				err := database.Upsert(ctx, repo.db, "jobs", tc.dbJobs)
 				require.NoError(t, err)
-				err = database.Upsert(ctx, repo.db, "dbRuns", tc.dbRuns)
+				err = database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
 
 				// Fetch updates
