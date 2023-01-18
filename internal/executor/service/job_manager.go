@@ -135,9 +135,10 @@ func (m *JobManager) handlePodIssue(runningJob *job.RunningJob) {
 }
 
 // For non-retryable issues we must:
-//  - Report JobUnableToScheduleEvent if the issue is a startup issue
-//  - Report JobFailedEvent
-//  - Report the job done
+//   - Report JobUnableToScheduleEvent if the issue is a startup issue
+//   - Report JobFailedEvent
+//   - Report the job done
+//
 // Once that is done we are free to cleanup the pod
 func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
@@ -175,10 +176,13 @@ func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 }
 
 // For retryable issues we must:
-//  - Report JobUnableToScheduleEvent
-//  - Return job lease
+//   - Report JobUnableToScheduleEvent
+//   - Return job lease
+//
 // Special consideration must be taken that most of these pods are somewhat "stuck" in pending.
-//  So can transition to Running/Completed/Failed in the middle of this
+//
+//	So can transition to Running/Completed/Failed in the middle of this
+//
 // We must not return the lease if the pod state changes - as likely it has become "unstuck"
 func (m *JobManager) handleRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
