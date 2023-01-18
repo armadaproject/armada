@@ -144,14 +144,14 @@ func (m *JobManager) handlePodIssues_improved(ctx context.Context, allRunningJob
 		}
 
 		if runningJob.Issue.Retryable {
-			m.handleRetryableJobIssue(ctx, runningJob)
+			m.handleRetryableJobIssue(runningJob)
 		} else {
-			m.handleNonRetryableJobIssue(ctx, runningJob)
+			m.handleNonRetryableJobIssue(runningJob)
 		}
 	}
 }
 
-func (m *JobManager) handleNonRetryableJobIssue(ctx context.Context, runningJob *job.RunningJob) {
+func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
 		for _, pod := range runningJob.Issue.Pods {
 			message := runningJob.Issue.Message
@@ -182,7 +182,7 @@ func (m *JobManager) handleNonRetryableJobIssue(ctx context.Context, runningJob 
 	}
 }
 
-func (m *JobManager) handleRetryableJobIssue(ctx context.Context, runningJob *job.RunningJob) {
+func (m *JobManager) handleRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
 		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
 			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
@@ -194,15 +194,25 @@ func (m *JobManager) handleRetryableJobIssue(ctx context.Context, runningJob *jo
 		}
 		m.jobContext.MarkIssueReported(runningJob.Issue)
 	}
-	//TODO delete pod - if successful, proceed
 
-	jobRunAttempted := runningJob.Issue.Type != job.UnableToSchedule
-	err := m.jobLeaseService.ReturnLease(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, jobRunAttempted)
-	if err != nil {
-		log.Errorf("Failed to return lease for job %s because %s", runningJob.JobId, err)
-		return
+	if len(runningJob.ActivePods) > 0 {
+		// TODO consider moving this to a synchronous call - but long termination periods would need to be handled
+		err := m.jobContext.DeleteJobWithCondition(runningJob, func(pod *v1.Pod) bool {
+			return pod.Status.Phase == v1.PodPending
+		})
+		if err != nil {
+			log.Errorf("Failed to delete pod of running job %s because %s", runningJob.JobId, err)
+			return
+		}
+	} else {
+		jobRunAttempted := runningJob.Issue.Type != job.UnableToSchedule
+		err := m.jobLeaseService.ReturnLease(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, jobRunAttempted)
+		if err != nil {
+			log.Errorf("Failed to return lease for job %s because %s", runningJob.JobId, err)
+			return
+		}
+		m.jobContext.MarkIssuesResolved(runningJob)
 	}
-	m.jobContext.MarkIssuesResolved(runningJob)
 }
 
 func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {

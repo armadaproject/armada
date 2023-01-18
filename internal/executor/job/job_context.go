@@ -50,6 +50,7 @@ type JobContext interface {
 	GetJobs() ([]*RunningJob, error)
 	MarkIssueReported(issue *PodIssue)
 	MarkIssuesResolved(job *RunningJob)
+	DeleteJobWithCondition(job *RunningJob, condition func(pod *v1.Pod) bool) error
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string)
 }
@@ -115,6 +116,19 @@ func (c *ClusterJobContext) MarkIssuesResolved(job *RunningJob) {
 
 func (c *ClusterJobContext) MarkIssueReported(issue *PodIssue) {
 	issue.Reported = true
+}
+
+func (c *ClusterJobContext) DeleteJobWithCondition(job *RunningJob, condition func(pod *v1.Pod) bool) error {
+	c.activeJobIdsMutex.Lock()
+	defer c.activeJobIdsMutex.Unlock()
+
+	for _, pod := range job.ActivePods {
+		err := c.clusterContext.DeletePodWithCondition(pod, condition, true)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {

@@ -60,6 +60,7 @@ type ClusterContext interface {
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error)
+	DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error
 	DeletePods(pods []*v1.Pod)
 	DeleteService(service *v1.Service) error
 	DeleteIngress(ingress *networking.Ingress) error
@@ -317,6 +318,34 @@ func (c *KubernetesClusterContext) AddClusterEventAnnotation(event *v1.Event, an
 	return nil
 }
 
+func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	if !condition(pod) {
+		return fmt.Errorf("pod does not match provided condition")
+	}
+
+	updatedPod, err := c.markForDeletion(pod)
+	if err != nil {
+		return err
+	}
+
+	if !condition(updatedPod) {
+		return fmt.Errorf("pod does not match provided condition")
+	}
+
+	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
+	if pessimistic {
+		deleteOptions.Preconditions = &metav1.Preconditions{
+			ResourceVersion: &updatedPod.ResourceVersion,
+		}
+	}
+
+	err = c.deletePod(updatedPod, deleteOptions)
+	if err != nil && k8s_errors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	for _, podToDelete := range pods {
 		c.podsToDelete.AddIfNotExists(podToDelete)
@@ -383,7 +412,7 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 		if force {
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
 		}
-		err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, deleteOptions)
+		err = c.deletePod(pod, deleteOptions)
 	}
 
 	if err == nil || k8s_errors.IsNotFound(err) {
@@ -392,6 +421,10 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 		log.Errorf("Failed to delete pod %s/%s because %s", pod.Namespace, pod.Name, err)
 		c.podsToDelete.Delete(podId)
 	}
+}
+
+func (c *KubernetesClusterContext) deletePod(pod *v1.Pod, deleteOptions metav1.DeleteOptions) error {
+	return c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, deleteOptions)
 }
 
 func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {
