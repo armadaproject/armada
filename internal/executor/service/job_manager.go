@@ -3,7 +3,7 @@ package service
 import (
 	context "context"
 	"fmt"
-	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -111,46 +111,32 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 }
 
 func (m *JobManager) handlePodIssues(ctx context.Context, allRunningJobs []*job.RunningJob) {
-	m.handleIssuesThatHaveSelfResolved(allRunningJobs)
-	m.reportJobsWithIssues(allRunningJobs)
-	jobsToDelete := []*job.RunningJob{}
-	for _, runningJob := range allRunningJobs {
-		if runningJob.Issue != nil && runningJob.Issue.Reported {
-			if len(runningJob.ActivePods) == 0 {
-				resolved := m.onPodDeleted(runningJob)
-				if resolved {
-					m.jobContext.MarkIssuesResolved(runningJob)
-				}
-			} else {
-				jobsToDelete = append(jobsToDelete, runningJob)
-			}
-		}
-	}
-
-	m.jobContext.DeleteJobs(jobsToDelete)
+	ProcessRunningJobsWithThreadPool(ctx, allRunningJobs, 20, m.handlePodIssue)
 }
 
-func (m *JobManager) handlePodIssues_improved(ctx context.Context, allRunningJobs []*job.RunningJob) {
-	for _, runningJob := range allRunningJobs {
-		// Skip jobs with no issues
-		if runningJob.Issue == nil {
-			continue
-		}
+func (m *JobManager) handlePodIssue(runningJob *job.RunningJob) {
+	// Skip jobs with no issues
+	if runningJob.Issue == nil {
+		return
+	}
 
-		hasSelfResolved := hasIssueSelfResolved(runningJob)
-		if hasSelfResolved {
-			m.jobContext.MarkIssuesResolved(runningJob)
-			continue
-		}
+	hasSelfResolved := hasIssueSelfResolved(runningJob)
+	if hasSelfResolved {
+		m.jobContext.MarkIssuesResolved(runningJob)
+		return
+	}
 
-		if runningJob.Issue.Retryable {
-			m.handleRetryableJobIssue(runningJob)
-		} else {
-			m.handleNonRetryableJobIssue(runningJob)
-		}
+	if runningJob.Issue.Retryable {
+		m.handleRetryableJobIssue(runningJob)
+	} else {
+		m.handleNonRetryableJobIssue(runningJob)
 	}
 }
 
+// For non-retryable issues we must:
+//  - Report JobFailedEvent
+//  - Report the job done
+// Once that is done we are free to cleanup the pod
 func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
 		for _, pod := range runningJob.Issue.Pods {
@@ -182,6 +168,12 @@ func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 	}
 }
 
+// For retryable issues we must:
+//  - Report JobUnableToScheduleEvent
+//  - Return job lease
+// Special consideration must be taken that most of these pods are somewhat "stuck" in pending.
+//  So can transition to Running/Completed/Failed in the middle of this
+// We must not return the lease if the pod state changes - as likely it has become "unstuck"
 func (m *JobManager) handleRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
 		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
@@ -215,30 +207,6 @@ func (m *JobManager) handleRetryableJobIssue(runningJob *job.RunningJob) {
 	}
 }
 
-func (m *JobManager) handleIssuesThatHaveSelfResolved(allRunningJobs []*job.RunningJob) {
-	for _, runningJob := range allRunningJobs {
-		if runningJob.Issue == nil {
-			continue
-		}
-		isStuckStartingUpAndResolvable := runningJob.Issue.Type == job.StuckStartingUp &&
-			(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported))
-		if runningJob.Issue.Type == job.UnableToSchedule || isStuckStartingUpAndResolvable {
-			allPodsPending := true
-			for _, pods := range runningJob.ActivePods {
-				if pods.Status.Phase != v1.PodPending {
-					allPodsPending = false
-					break
-				}
-			}
-
-			// Pods are not longer all stuck
-			if !allPodsPending {
-				m.jobContext.MarkIssuesResolved(runningJob)
-			}
-		}
-	}
-}
-
 func hasIssueSelfResolved(runningJob *job.RunningJob) bool {
 	if runningJob.Issue == nil {
 		return true
@@ -259,69 +227,31 @@ func hasIssueSelfResolved(runningJob *job.RunningJob) bool {
 	return false
 }
 
-func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
-	jobsToReportDone := filterRunningJobs(allRunningJobs, func(runningJob *job.RunningJob) bool {
-		return runningJob.Issue != nil && !runningJob.Issue.Reported && !runningJob.Issue.Retryable
-	})
+func ProcessRunningJobsWithThreadPool(ctx context.Context, runningJobs []*job.RunningJob, maxThreadCount int, processPod func(*job.RunningJob)) {
+	wg := &sync.WaitGroup{}
+	processChannel := make(chan *job.RunningJob)
 
-	jobsFailedToBeReportedDone := map[string]bool{}
-	err := m.jobLeaseService.ReportDone(extractJobIds(jobsToReportDone))
-	if err != nil {
-		log.Errorf("Failed to report jobs %s done because %s", strings.Join(extractJobIds(jobsToReportDone), ","), err)
-		jobsFailedToBeReportedDone = commonUtil.StringListToSet(extractJobIds(jobsToReportDone))
+	for i := 0; i < commonUtil.Min(len(runningJobs), maxThreadCount); i++ {
+		wg.Add(1)
+		go threadPoolWorker(ctx, wg, processChannel, processPod)
 	}
 
-	for _, runningJob := range allRunningJobs {
-		// Skip already reported
-		if runningJob.Issue == nil || runningJob.Issue.Reported {
-			continue
-		}
-
-		// Skip those that failed to be reported done
-		if _, present := jobsFailedToBeReportedDone[runningJob.JobId]; present {
-			continue
-		}
-
-		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
-			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
-			err := m.eventReporter.Report(event)
-			if err != nil {
-				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
-			} else {
-				m.jobContext.MarkIssueReported(runningJob.Issue)
-			}
-
-		} else {
-			m.jobContext.MarkIssueReported(runningJob.Issue)
-		}
+	for _, runningJob := range runningJobs {
+		processChannel <- runningJob
 	}
+
+	close(processChannel)
+	wg.Wait()
 }
 
-// onPodDeleted handles cases when either a stuck pod was deleted or a pod was preempted
-func (m *JobManager) onPodDeleted(runningJob *job.RunningJob) (resolved bool) {
-	// this method is executed after stuck pod was deleted from the cluster
-	if runningJob.Issue.Retryable {
-		jobRunAttempted := runningJob.Issue.Type != job.UnableToSchedule
-		err := m.jobLeaseService.ReturnLease(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, jobRunAttempted)
-		if err != nil {
-			log.Errorf("Failed to return lease for job %s because %s", runningJob.JobId, err)
-			return false
-		}
-	} else {
-		// Reporting failed even can fail with unfortunate timing of executor restarts, in that case lease will expire and job can be retried
-		// This is preferred over returning Failed event early as user could retry based on failed even but the job could be running
-		for _, pod := range runningJob.Issue.Pods {
-			message := runningJob.Issue.Message
-			if pod.UID != runningJob.Issue.OriginatingPod.UID {
-				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(runningJob.Issue.OriginatingPod))
-			}
-			event := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause)
+func threadPoolWorker(ctx context.Context, wg *sync.WaitGroup, jobsToProcess chan *job.RunningJob, processFunc func(*job.RunningJob)) {
+	defer wg.Done()
 
-			err := m.eventReporter.Report(event)
-			if err != nil {
-				return false
-			}
+	for pod := range jobsToProcess {
+		//Skip processing once context is finished
+		if ctx.Err() != nil {
+			continue
 		}
+		processFunc(pod)
 	}
-	return true
 }
