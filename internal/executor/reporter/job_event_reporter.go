@@ -18,7 +18,7 @@ import (
 const batchSize = 200
 
 type EventReporter interface {
-	Report(event api.Event) error
+	Report(events []api.Event) error
 	QueueEvent(event api.Event, callback func(error))
 }
 
@@ -95,8 +95,8 @@ func (eventReporter *JobEventReporter) clusterEventEventHandler() cache.Resource
 	}
 }
 
-func (eventReporter *JobEventReporter) Report(event api.Event) error {
-	return eventReporter.sendEvent(event)
+func (eventReporter *JobEventReporter) Report(events []api.Event) error {
+	return eventReporter.sendEvents(events)
 }
 
 func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Event) {
@@ -211,7 +211,7 @@ func (eventReporter *JobEventReporter) fillBatch(batch ...*queuedEvent) []*queue
 }
 
 func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
-	err := eventReporter.sendEvents(batch)
+	err := eventReporter.sendQueuedEvents(batch)
 	go func() {
 		for _, e := range batch {
 			e.Callback(err)
@@ -230,10 +230,18 @@ func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
 	eventReporter.eventQueuedMutex.Unlock()
 }
 
-func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
+func (eventReporter *JobEventReporter) sendQueuedEvents(queuedEvents []*queuedEvent) error {
+	events := make([]api.Event, 0, len(queuedEvents))
+	for _, e := range queuedEvents {
+		events = append(events, e.Event)
+	}
+	return eventReporter.sendEvents(events)
+}
+
+func (eventReporter *JobEventReporter) sendEvents(events []api.Event) error {
 	var eventMessages []*api.EventMessage
 	for _, e := range events {
-		m, err := api.Wrap(e.Event)
+		m, err := api.Wrap(e)
 		eventMessages = append(eventMessages, m)
 		if err != nil {
 			return err
@@ -243,19 +251,6 @@ func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err := eventReporter.eventClient.ReportMultiple(ctx, &api.EventList{eventMessages})
-	return err
-}
-
-func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
-	eventMessage, err := api.Wrap(event)
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Reporting event %+v", eventMessage)
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	_, err = eventReporter.eventClient.Report(ctx, eventMessage)
 	return err
 }
 

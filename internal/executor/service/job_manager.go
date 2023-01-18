@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/api"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -134,6 +135,7 @@ func (m *JobManager) handlePodIssue(runningJob *job.RunningJob) {
 }
 
 // For non-retryable issues we must:
+//  - Report JobUnableToScheduleEvent if the issue is a startup issue
 //  - Report JobFailedEvent
 //  - Report the job done
 // Once that is done we are free to cleanup the pod
@@ -144,9 +146,13 @@ func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 			if pod.UID != runningJob.Issue.OriginatingPod.UID {
 				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(runningJob.Issue.OriginatingPod))
 			}
-			event := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause)
+			events := make([]api.Event, 0, 2)
+			if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
+				events = append(events, reporter.CreateJobUnableToScheduleEvent(pod, message, m.clusterIdentity.GetClusterId()))
+			}
+			events = append(events, reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause))
 
-			err := m.eventReporter.Report(event)
+			err := m.eventReporter.Report(events)
 			if err != nil {
 				log.Errorf("Failed to report failed event for job %s because %s", runningJob.JobId, err)
 				return
@@ -178,7 +184,7 @@ func (m *JobManager) handleRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
 		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
 			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
-			err := m.eventReporter.Report(event)
+			err := m.eventReporter.Report([]api.Event{event})
 			if err != nil {
 				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
 				return
