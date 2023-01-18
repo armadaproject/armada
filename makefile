@@ -363,11 +363,12 @@ tests:
 
 .ONESHELL:
 lint-fix:
-	$(GO_TEST_CMD) golangci-lint run --fix
+	$(GO_TEST_CMD) golangci-lint run --fix --timeout 10m
 
 .ONESHELL:
 lint:
-	$(GO_TEST_CMD) golangci-lint run
+	$(GO_TEST_CMD) golangci-lint run --timeout 10m
+
 
 .ONESHELL:
 code-checks: lint
