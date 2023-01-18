@@ -169,11 +169,11 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 		query := `
 		SELECT tmp.run_id
 		FROM %s as tmp
-		LEFT JOIN dbRuns ON (tmp.run_id = dbRuns.run_id)
-		WHERE dbRuns.run_id IS NULL
-		OR dbRuns.succeeded = true 
- 		OR dbRuns.failed = true 
-		OR dbRuns.cancelled = true;`
+		LEFT JOIN runs ON (tmp.run_id = runs.run_id)
+		WHERE runs.run_id IS NULL
+		OR runs.succeeded = true 
+ 		OR runs.failed = true 
+		OR runs.cancelled = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
 		if err != nil {
