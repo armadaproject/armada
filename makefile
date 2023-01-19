@@ -346,9 +346,9 @@ tests-teardown:
 
 .ONESHELL:
 tests-no-setup: gotestsum
-	$(GO_TEST_CMD) gotestsum -- -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) -- -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GOTESTSUM) -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
 tests: gotestsum
@@ -357,9 +357,9 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GO_TEST_CMD) gotestsum -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) gotestsum -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) gotestsum -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
 lint-fix:
@@ -471,11 +471,11 @@ tests-e2e-no-setup: gotestsum
 	}
 	trap printApplicationLogs exit
 	mkdir -p test_reports
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
+	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
+	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
+	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
@@ -494,11 +494,11 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup gotestsum
 	trap teardown exit
 	sleep 10
 	echo -e "\nrunning tests:"
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
-	$(GO_TEST_CMD) gotestsum -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
+	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
+	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
+	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
 
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 .ONESHELL:
