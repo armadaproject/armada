@@ -347,8 +347,8 @@ tests-teardown:
 .ONESHELL:
 tests-no-setup: gotestsum
 	$(GO_TEST_CMD) gotestsum -- -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) gotestsum -- test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) gotestsum -- test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GO_TEST_CMD) gotestsum -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GO_TEST_CMD) gotestsum -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
 tests: gotestsum
@@ -569,10 +569,8 @@ generate:
 helm-docs:
 	./scripts/helm-docs.sh
 
-GOTESTSUM ?= $(PWD)/gotestsum
+GOTESTSUM ?= $(PWD)/bin/gotestsum
 
-.PHONY: gotestsum
-gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
-$(GOTESTSUM): $(LOCALBIN)
-	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
+gotestsum:
+	test -s $(PWD)/bin/gotestsum || GOBIN=$(PWD)/bin go install gotest.tools/gotestsum@v1.8.2
 
