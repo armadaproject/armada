@@ -192,7 +192,7 @@ func createExecutorState(req *executorapi.LeaseRequest, allowedPriorities []int3
 		Id:             req.ExecutorId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
-		MinimumJobSize: &schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: time.Now(),
 	}
 }

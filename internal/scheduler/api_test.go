@@ -31,7 +31,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	defaultRequest := &executorapi.LeaseRequest{
 		ExecutorId: "test-executor",
 		Pool:       "test-pool",
-		Nodes: []api.NodeInfo{
+		Nodes: []*api.NodeInfo{
 			{
 				Name:   "test-node",
 				RunIds: []string{runId1.String(), runId2.String()},
@@ -104,7 +104,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			// set up mocks
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
-			mockExecutorRepository.EXPECT().StoreRequest(tc.request).Return(nil).Times(1)
+			mockExecutorRepository.EXPECT().StoreExecutor(ctx, tc.request).Return(nil).Times(1)
 			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), runIds).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
 
@@ -115,13 +115,13 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					capturedEvents = append(capturedEvents, msg)
 				}).AnyTimes()
 
-			api := NewExecutorApi(mockPulsarProducer,
+			server := NewExecutorApi(mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
 				maxJobsPerCall,
 				1024)
 
-			err = api.LeaseJobRuns(mockStream)
+			err = server.LeaseJobRuns(mockStream)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedMsgs, capturedEvents)
 			cancel()
@@ -181,13 +181,13 @@ func TestExecutorApi_Publish(t *testing.T) {
 					callback(pulsarutils.NewMessageId(1), msg, nil)
 				}).AnyTimes()
 
-			api := NewExecutorApi(mockPulsarProducer,
+			server := NewExecutorApi(mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
 				100,
 				1024)
 
-			empty, err := api.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
+			empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
 			require.NoError(t, err)
 			assert.NotNil(t, empty)
 			assert.Equal(t, tc.sequences, capturedEvents)

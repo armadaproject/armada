@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"sync"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // Data to be used in tests
@@ -432,20 +432,19 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
-func (t testExecutorRepository) StoreRequest(req *executorapi.LeaseRequest) error {
-	// TODO implement me
+func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
 	panic("implement me")
 }
 
-func (t testExecutorRepository) GetExecutors() ([]*database.Executor, error) {
-	panic("GetExecutors not implemented yet")
-}
-
-func (t testExecutorRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
 	return t.updateTimes, nil
+}
+
+func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+	panic("implement me")
 }
 
 type testSchedulingAlgo struct {
