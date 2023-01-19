@@ -68,3 +68,8 @@ SELECT * FROM executors;
 
 -- name: SelectExecutorUpdateTimes :many
 SELECT executor_id, last_updated FROM executors;
+
+-- name: UpsertExecutor :exec
+INSERT INTO executors (executor_id, last_request, last_updated)
+VALUES(sqlc.arg(executor_id)::text, sqlc.arg(last_request)::bytea, sqlc.arg(update_time)::timestamptz)
+ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated);

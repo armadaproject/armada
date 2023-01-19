@@ -472,3 +472,20 @@ func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPr
 	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet)
 	return err
 }
+
+const upsertExecutor = `-- name: UpsertExecutor :exec
+INSERT INTO executors (executor_id, last_request, last_updated)
+VALUES($1::text, $2::bytea, $3::timestamptz)
+ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated)
+`
+
+type UpsertExecutorParams struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastRequest []byte    `db:"last_request"`
+	UpdateTime  time.Time `db:"update_time"`
+}
+
+func (q *Queries) UpsertExecutor(ctx context.Context, arg UpsertExecutorParams) error {
+	_, err := q.db.Exec(ctx, upsertExecutor, arg.ExecutorID, arg.LastRequest, arg.UpdateTime)
+	return err
+}

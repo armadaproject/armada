@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"time"
 
 	"github.com/armadaproject/armada/internal/common/slices"
 
@@ -25,6 +27,7 @@ type ExecutorApi struct {
 	executorRepository   database.ExecutorRepository
 	maxJobsPerCall       int // maximum number of jobs that will be leased in a single call
 	maxPulsarMessageSize int // maximum sizer of pulsar messages produced
+	allowedPriorities    []int32
 }
 
 func NewExecutorApi(producer pulsar.Producer,
@@ -56,8 +59,9 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 	log.Infof("Handling lease request for executor %s", req.ExecutorId)
 
-	// store the request so that updated usage can be used for scheduling
-	err = srv.executorRepository.StoreRequest(stream.Context(), req)
+	// store the executor state for use by the scheduler
+	executorState := createExecutorState(req, srv.allowedPriorities)
+	err = srv.executorRepository.StoreExecutor(stream.Context(), executorState)
 	if err != nil {
 		return err
 	}
@@ -164,7 +168,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	// add all unassigned runids
+	// add all unassigned runidsreq *executorapi.LeaseRequest
 	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
 	}
@@ -177,4 +181,18 @@ func decompressAndMarshall(b []byte, decompressor compress.Decompressor, msg pro
 		return err
 	}
 	return proto.Unmarshal(decompressed, msg)
+}
+
+func createExecutorState(req *executorapi.LeaseRequest, allowedPriorities []int32) *schedulerobjects.Executor {
+	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
+	for i, nodeInfo := range req.Nodes {
+		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, allowedPriorities)
+	}
+	return &schedulerobjects.Executor{
+		Id:             req.ExecutorId,
+		Pool:           req.Pool,
+		Nodes:          nodes,
+		MinimumJobSize: &schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		LastUpdateTime: time.Now(),
+	}
 }
