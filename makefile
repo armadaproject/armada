@@ -569,8 +569,14 @@ generate:
 helm-docs:
 	./scripts/helm-docs.sh
 
-GOTESTSUM ?= $(PWD)/bin/gotestsum
+LOCALBIN ?= $(PWD)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
 
-gotestsum:
-	test -s $(PWD)/bin/gotestsum || GOBIN=$(PWD)/bin go install gotest.tools/gotestsum@v1.8.2
+GOTESTSUM ?= $(LOCALBIN)/gotestsum
+
+.PHONY: gotestsum
+gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
+$(GOTESTSUM): $(LOCALBIN)
+	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
 
