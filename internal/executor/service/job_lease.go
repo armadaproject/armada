@@ -15,16 +15,16 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	context2 "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	context2 "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type LeaseService interface {
-	ReturnLease(pod *v1.Pod, reason string) error
+	ReturnLease(pod *v1.Pod, reason string, jobRunAttempted bool) error
 	RequestJobLeases(
 		availableResource *common.ComputeResources,
 		nodes []api.NodeInfo,
@@ -114,8 +114,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// The first message sent over the stream includes all information necessary
 	// for the server to choose jobs to lease.
 	// Subsequent messages only include ids of received jobs.
-	err = stream.Send(leaseRequest)
-	if err != nil {
+	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -161,7 +160,11 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 	// Get received jobs on the channel and send back acks.
 	g.Go(func() error {
-		defer stream.CloseSend()
+		defer func() {
+			if err := stream.CloseSend(); err != nil {
+				log.WithError(err).Error("error receiving leases from server")
+			}
+		}()
 		for {
 			select {
 			case <-ctx.Done():
@@ -191,8 +194,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	})
 
 	// Wait for receiver to exit.
-	err = g.Wait()
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		log.WithError(err).Error("error receiving leases from server")
 	}
 
@@ -202,30 +204,29 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 	// Expire jobs the server never confirmed the ack of.
 	jobsToReturn := jobs[numServerAcks:]
-	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing")
+	jobLeaseService.returnLeases(jobsToReturn, "Communication error during leasing", false)
 	return receivedJobs, nil
 }
 
-func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string) {
+func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string, jobRunAttempted bool) {
 	for _, j := range jobs {
-		err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason)
-		if err != nil {
+		if err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason, jobRunAttempted); err != nil {
 			log.Errorf("Failed to return lease for job %s because %s", j.Id, err)
 		}
 	}
 }
 
-func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string) error {
+func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string, jobRunAttempted bool) error {
 	jobId := util.ExtractJobId(pod)
 	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
 		avoidNodeLabels = emptyOrderedStringMap()
 	}
-	return jobLeaseService.ReturnLeaseById(jobId, string(pod.UID), avoidNodeLabels, reason)
+	return jobLeaseService.ReturnLeaseById(jobId, string(pod.UID), avoidNodeLabels, reason, jobRunAttempted)
 }
 
-func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetesId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string) error {
+func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetesId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string, jobRunAttempted bool) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 
@@ -241,6 +242,7 @@ func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetes
 			AvoidNodeLabels: nodeLabelsToAvoid,
 			Reason:          reason,
 			KubernetesId:    kubernetesId,
+			JobRunAttempted: jobRunAttempted,
 		})
 	return err
 }

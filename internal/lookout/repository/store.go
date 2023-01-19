@@ -8,8 +8,8 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type JobRecorder interface {
@@ -390,7 +390,7 @@ func (r *SQLJobStore) getReprioritizedJobProto(event *api.JobReprioritizedEvent)
 
 	var jobFromProto api.Job
 	jobProto := jobsInQueueRows[0].OrigJobSpec
-	err = jobFromProto.Unmarshal([]byte(jobProto.String))
+	err = jobFromProto.Unmarshal(jobProto)
 	if err != nil {
 		return nil, err
 	}

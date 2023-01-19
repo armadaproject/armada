@@ -3,7 +3,7 @@ package podchecks
 import (
 	"fmt"
 
-	config "github.com/G-Research/armada/internal/executor/configuration/podchecks"
+	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 )
 
 type Action int

@@ -98,6 +98,7 @@ export type Run = {
   podCreationTime?: string
   podStartTime?: string
   finishTime?: string
+  preemptedTime?: string
   podNumber: number
 }
 
@@ -588,6 +589,7 @@ function runInfoToViewModel(run: LookoutRunInfo): Run {
     podCreationTime: run.created ? dateToString(run.created) : undefined,
     podStartTime: run.started ? dateToString(run.started) : undefined,
     finishTime: run.finished ? dateToString(run.finished) : undefined,
+    preemptedTime: run.preempted ? dateToString(run.preempted) : undefined,
     podNumber: run.podNumber ?? 0,
   }
 }

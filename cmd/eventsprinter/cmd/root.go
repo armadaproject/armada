@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/cmd/eventsprinter/logic"
+	"github.com/armadaproject/armada/cmd/eventsprinter/logic"
 )
 
 // RootCmd is the root Cobra command that gets called from the main func.
@@ -35,7 +35,7 @@ func RootCmd() *cobra.Command {
 	cmd.PersistentFlags().String("url", "pulsar://localhost:6650", "URL to connect to Pulsar on.")
 	cmd.PersistentFlags().Bool("verbose", false, "Print full event sequences.")
 	cmd.PersistentFlags().String("subscription", "eventsprinter", "Subscription to connect to Pulsar on.")
-	cmd.PersistentFlags().String("topic", "persistent://armada/armada/events", "Pulsar topic to subscribe to.")
+	cmd.PersistentFlags().String("topic", "events", "Pulsar topic to subscribe to.")
 
 	return cmd
 }

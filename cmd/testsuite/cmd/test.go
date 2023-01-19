@@ -7,16 +7,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-
 	"github.com/jstemmer/go-junit-report/v2/junit"
-	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/testsuite"
+	"github.com/armadaproject/armada/internal/testsuite"
 )
 
 // Submit batches of jobs and wait for those jobs to finish.
@@ -30,11 +28,9 @@ func testCmd(app *testsuite.App) *cobra.Command {
 		},
 		RunE: testCmdRunE(app),
 	}
-
 	cmd.Flags().String("tests", "", "Test file pattern, e.g., './testcases/*.yaml'.")
 	cmd.Flags().String("junit", "", "Write a JUnit test report to this path.")
 	cmd.Flags().String("benchmark", "", "Write a benchmark test report to this path.")
-
 	return cmd
 }
 
@@ -43,21 +39,14 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		if app.Params.ApiConnectionDetails.ArmadaRestUrl != "" {
 			healthy, err := app.Params.ApiConnectionDetails.ArmadaHealthCheck()
 			if err != nil {
-				return errors.WithMessage(err, "error performing Armada health check")
+				return errors.WithMessage(err, "failed to perform health check")
 			}
 			if !healthy {
-				return errors.New("Armada server is unhealthy")
+				return errors.New("health check failed")
 			}
-		} else {
-			fmt.Println("Armada REST URL not provided; omitting health check.")
 		}
 
 		testFilesPattern, err := cmd.Flags().GetString("tests")
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		testFiles, err := zglob.Glob(testFilesPattern)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -70,6 +59,9 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		benchmarkPath, err := cmd.Flags().GetString("benchmark")
 		if err != nil {
 			return errors.WithStack(err)
+		}
+		if benchmarkPath != "" {
+			return errors.New("benchmark report not currently supported")
 		}
 
 		// Create a context that is cancelled on SIGINT/SIGTERM.
@@ -87,61 +79,58 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			}
 		}()
 
-		testSuite := &junit.Testsuite{
+		start := time.Now()
+		testSuiteReport, err := app.TestPattern(ctx, testFilesPattern)
+		if err != nil {
+			return err
+		}
+		junitTestSuite := &junit.Testsuite{
 			Name: testFilesPattern,
 		}
+		for _, testCaseReport := range testSuiteReport.TestCaseReports {
+			junitTestSuite.AddTestcase(testCaseReport.JunitTestCase())
+		}
 
-		start := time.Now()
-
-		numSuccesses, numFailures := runTestFiles(ctx, app, testSuite, testFiles)
-
+		numSuccesses := testSuiteReport.NumSuccesses()
+		numFailures := testSuiteReport.NumFailures()
 		fmt.Printf("\n======= SUMMARY =======\n")
+		w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+		fmt.Fprint(w, "Test:\tResult:\tElapsed:\n")
+		for _, testCaseReport := range testSuiteReport.TestCaseReports {
+			var result string
+			if testCaseReport.FailureReason == "" {
+				result = "SUCCESS"
+			} else {
+				result = "FAILURE"
+			}
+			elapsed := testCaseReport.Finish.Sub(testCaseReport.Start)
+			fmt.Fprintf(w, "%s\t%s\t%s\n", testCaseReport.TestSpec.Name, result, elapsed)
+		}
+		_ = w.Flush()
+		fmt.Println()
 		fmt.Printf("Ran %d test(s) in %s\n", numSuccesses+numFailures, time.Since(start))
-		fmt.Printf("Successes: %d\n", numSuccesses)
-		fmt.Printf("Failures: %d\n", numFailures)
+		fmt.Printf("Success: %d\n", numSuccesses)
+		fmt.Printf("Failure: %d\n", numFailures)
+		fmt.Println()
 
 		// If junitPath is set, write a JUnit report.
-		testSuite.Time = fmt.Sprint(time.Since(start))
-		testSuites := &junit.Testsuites{
+		junitTestSuite.Time = fmt.Sprint(time.Since(start))
+		junitTestSuites := &junit.Testsuites{
 			Name: testFilesPattern,
-			Time: testSuite.Time,
+			Time: junitTestSuite.Time,
 		}
-		testSuites.AddSuite(*testSuite)
+		junitTestSuites.AddSuite(*junitTestSuite)
 		if junitPath != "" {
-			if err := writeJUnitReport(junitPath, testSuites); err != nil {
+			if err := writeJUnitReport(junitPath, junitTestSuites); err != nil {
 				return errors.WithMessage(err, "error writing junit report")
 			}
 		}
 
-		if benchmarkPath != "" {
-			if err := writeBenchmarkReport(benchmarkPath, app.GetBenchmarkReport()); err != nil {
-				return errors.WithMessage(err, "error writing benchmark report")
-			}
-		}
-
 		if numFailures != 0 {
-			return errors.Errorf("there was at least one test failure")
+			return errors.Errorf("test failure")
 		}
 		return nil
 	}
-}
-
-func runTestFiles(ctx context.Context, app *testsuite.App, testSuite *junit.Testsuite, testFiles []string) (numSuccesses, numFailures int) {
-	for _, testFile := range testFiles {
-		testStart := time.Now()
-		testCase, err := app.TestFileJunit(ctx, testFile)
-		fmt.Printf("\nRuntime: %s\n", time.Since(testStart))
-		if err != nil {
-			numFailures++
-			fmt.Printf("TEST FAILED: %s\n", err)
-		} else {
-			numSuccesses++
-			fmt.Printf("TEST SUCCEEDED\n")
-		}
-
-		testSuite.AddTestcase(testCase)
-	}
-	return numSuccesses, numFailures
 }
 
 func writeJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
@@ -158,26 +147,6 @@ func writeJUnitReport(junitPath string, testSuites *junit.Testsuites) error {
 		return errors.WithStack(err)
 	}
 	if err = encoder.Flush(); err != nil {
-		return errors.WithStack(err)
-	}
-
-	return nil
-}
-
-func writeBenchmarkReport(benchmarkPath string, report *eventbenchmark.GlobalBenchmarkReport) error {
-	benchmarkFile, err := os.Create(benchmarkPath)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer benchmarkFile.Close()
-
-	data, err := report.Generate(eventbenchmark.YamlFormatter)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	_, err = benchmarkFile.Write(data)
-	if err != nil {
 		return errors.WithStack(err)
 	}
 

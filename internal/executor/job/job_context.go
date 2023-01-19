@@ -5,21 +5,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/podchecks"
-	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type IssueType int
 
 const (
 	UnableToSchedule  IssueType = iota
+	StuckStartingUp   IssueType = iota
 	StuckTerminating  IssueType = iota
 	ExternallyDeleted IssueType = iota
 )
@@ -242,11 +243,15 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 				continue
 			}
 
-			action, podCheckMessage := c.pendingPodChecker.GetAction(pod, podEvents, time.Now().Sub(lastStateChange))
+			action, cause, podCheckMessage := c.pendingPodChecker.GetAction(pod, podEvents, time.Now().Sub(lastStateChange))
 
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
+				podIssueType := StuckStartingUp
+				if cause == podchecks.NoNodeAssigned {
+					podIssueType = UnableToSchedule
+				}
 
 				log.Warnf("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
@@ -255,7 +260,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 					Pods:           runningJob.ActivePods,
 					Message:        message,
 					Retryable:      retryable,
-					Type:           UnableToSchedule,
+					Type:           podIssueType,
 				}
 				runningJob.Issue = issue
 				c.registerIssue(runningJob.JobId, issue)

@@ -19,10 +19,10 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 // CreateGrpcServer creates a gRPC server (by calling grpc.NewServer) with settings specific to

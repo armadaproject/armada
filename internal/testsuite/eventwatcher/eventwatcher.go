@@ -14,10 +14,13 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // EventWatcher is a service for watching for events and forwarding those on C.
@@ -44,6 +47,8 @@ func New(queue string, jobSetName string, apiConnectionDetails *client.ApiConnec
 		JobSetName:           jobSetName,
 		ApiConnectionDetails: apiConnectionDetails,
 		C:                    make(chan *api.EventMessage),
+		BackoffExponential:   time.Second,
+		MaxRetries:           6,
 	}
 }
 
@@ -80,11 +85,16 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 				}
 			}
 		})
-		if err != nil {
-			attempt++
-			lastErr = err
-			fmt.Fprintf(srv.Out, "EventWatcher stream broken: %s\n", err)
+		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
 		}
+		if status.Code(err) == codes.Canceled {
+			return err
+		}
+
+		attempt++
+		lastErr = err
+		fmt.Fprintf(srv.Out, "EventWatcher stream broken: %s\n", err)
 	}
 	return lastErr
 }
@@ -127,19 +137,16 @@ func (err *ErrUnexpectedEvent) Error() string {
 }
 
 // AssertEvents compares the events received for each job with the expected events.
-func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) (map[string]bool, error) {
+func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
 	if len(expected) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
 	// Initialise it by copying the jobIds map.
-	terminatedByJobId := make(map[string]bool)
-	for jobId, hasTerminated := range jobIds {
-		terminatedByJobId[jobId] = hasTerminated
-	}
+	terminatedByJobId := maps.Clone(jobIds)
 
-	// Track which events have been seen for each job
+	// Track which events have been seen for each job.
 	indexByJobId := make(map[string]int)
 	numDone := 0
 
@@ -148,7 +155,12 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 	for {
 		select {
 		case <-ctx.Done():
-			return terminatedByJobId, errors.Errorf("did not receive all events for at least one job")
+			s := assertEventErrorString(expected, indexByJobId)
+			if s != "" {
+				return errors.Errorf("test exited before receiving all expected events; %s: %s", s, ctx.Err())
+			} else {
+				return errors.Errorf("test exited before receiving all expected events: %s", ctx.Err())
+			}
 		case actual := <-c:
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
@@ -163,8 +175,8 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 
 			i := indexByJobId[actualJobId]
 			if i < len(expected) && reflect.TypeOf(actual.Events) == reflect.TypeOf(expected[i].Events) {
-				if err := validateEvent(actual, expected[i]); err != nil {
-					return terminatedByJobId, err
+				if err := assertEvent(expected[i], actual); err != nil {
+					return err
 				}
 				i++
 				indexByJobId[actualJobId] = i
@@ -172,13 +184,13 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			if i == len(expected) {
 				numDone++
 				if numDone == len(jobIds) {
-					return terminatedByJobId, nil // We got all the expected events.
+					return nil // We got all the expected events.
 				}
 			}
 
 			// Return an error if the job has exited without us seeing all expected events.
 			if isTerminalEvent(actual) && i < len(expected) {
-				return terminatedByJobId, &ErrUnexpectedEvent{
+				return &ErrUnexpectedEvent{
 					jobId:    actualJobId,
 					expected: expected[i],
 					actual:   actual,
@@ -186,6 +198,27 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 			}
 		}
 	}
+}
+
+func assertEventErrorString(expected []*api.EventMessage, indexByJobId map[string]int) string {
+	countByIndex := make(map[int]int)
+	for _, i := range indexByJobId {
+		countByIndex[i] = +1
+	}
+	elems := make([]string, 0, len(countByIndex))
+	for i, c := range countByIndex {
+		received := expected[:i]
+		missing := expected[i:]
+		if len(missing) == 0 {
+			continue
+		}
+		elem := fmt.Sprintf(
+			"%s received but %s missing for %d job(s)",
+			api.ShortStringFromEventMessages(received), api.ShortStringFromEventMessages(missing), c,
+		)
+		elems = append(elems, elem)
+	}
+	return strings.Join(elems, ", ")
 }
 
 func isTerminalEvent(msg *api.EventMessage) bool {
@@ -202,8 +235,7 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 	return false
 }
 
-// WithCancelOnNoActiveJobs returns a context that is cancelled when there are no active jobs,
-// or if the parent is cancelled.
+// ErrorOnNoActiveJobs returns an error if there are no active jobs.
 func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
 	numRemaining := len(jobIds)
@@ -244,14 +276,13 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 				numActive--
 			}
 			if numRemaining <= 0 {
-				return errors.New("all jobs exited")
+				return errors.New("no jobs active")
 			}
 		}
 	}
 }
 
-// WithCancelOnFailed returns a context that is cancelled if a job fails,
-// or if the parent is cancelled.
+// ErrorOnFailed returns an error on job failure.
 func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 	for {
 		select {
@@ -273,13 +304,13 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 	for {
 		select {
 		case <-parent.Done():
-			return g.Wait()
+			return ctx.Err()
 		case <-ctx.Done(): // errgroup cancelled
 			return g.Wait()
 		case msg := <-C:
 			if ingressInfo := msg.GetIngressInfo(); ingressInfo != nil {
 				for _, host := range ingressInfo.IngressAddresses {
-					ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
+					ctxWithTimeout, _ := context.WithTimeout(ctx, time.Minute)
 					host := host
 					g.Go(func() error { return getFromIngress(ctxWithTimeout, host) })
 				}
@@ -339,13 +370,16 @@ func getFromIngress(ctx context.Context, host string) error {
 			time.Sleep(time.Second)
 			httpRes, err := httpClient.Do(httpReq)
 			if err != nil {
-				requestErr = err
+				requestErr = errors.Errorf("GET request failed: %s", err)
 				break
 			}
 			httpRes.Body.Close()
 
 			if httpRes.StatusCode != 200 {
-				requestErr = errors.Errorf("GET request failed for host %s: status code %d", host, httpRes.StatusCode)
+				requestErr = errors.Errorf(
+					"GET request failed for %s:%s: %d",
+					ingressUrl, ingressPort, httpRes.StatusCode,
+				)
 				break
 			}
 

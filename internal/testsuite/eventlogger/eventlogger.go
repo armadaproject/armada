@@ -7,55 +7,94 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
-	"github.com/G-Research/armada/internal/testsuite/common"
-
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
-type EventsLogger struct {
-	Out                        io.Writer
-	c                          chan *api.EventMessage
-	interval                   time.Duration
-	transitionsByJobId         map[string][]string
+type EventLogger struct {
+	// Destination to log output to.
+	Out io.Writer
+	// Channel on which to receive events to be logged.
+	In chan *api.EventMessage
+	// Interval at which to log output.
+	interval time.Duration
+	// For each job, the entire sequence of state transitions.
+	transitionsByJobId map[string][]string
+	// For each job, the state transitions that happened in the current interval.
 	intervalTransitionsByJobId map[string][]string
-	mu                         sync.Mutex
+	// Map from job id to the id of the job set the job is part of.
+	jobSetIdByJobId map[string]string
+	mu              sync.Mutex
 }
 
-func New(c chan *api.EventMessage, interval time.Duration) *EventsLogger {
-	return &EventsLogger{
+func New(c chan *api.EventMessage, interval time.Duration) *EventLogger {
+	return &EventLogger{
 		Out:      os.Stdout,
-		c:        c,
+		In:       c,
 		interval: interval,
 	}
 }
 
-func (srv *EventsLogger) flushAndLog() {
+func (srv *EventLogger) Log() {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	for transitions, counts := range countJobsByTransitions(srv.transitionsByJobId) {
+		fmt.Fprintf(srv.Out, "%d:\t%s\n", counts, transitions)
+	}
+}
+
+func (srv *EventLogger) Run(ctx context.Context) error {
+	ticker := time.NewTicker(srv.interval)
+	defer ticker.Stop()
+	defer srv.flushAndLog()
+	srv.transitionsByJobId = make(map[string][]string)
+	srv.intervalTransitionsByJobId = make(map[string][]string)
+	srv.jobSetIdByJobId = make(map[string]string)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C: // Print a summary of what happened in this interval.
+			srv.flushAndLog()
+		case e := <-srv.In: // Jobset event received.
+			if e == nil {
+				break
+			}
+			srv.mu.Lock()
+			jobId := api.JobIdFromApiEvent(e)
+			srv.jobSetIdByJobId[jobId] = api.JobSetIdFromApiEvent(e)
+			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], e.ShortString())
+			srv.mu.Unlock()
+		}
+	}
+}
+
+func (srv *EventLogger) flushAndLog() {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
 	if len(srv.intervalTransitionsByJobId) == 0 {
 		return
 	}
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
+	bridgedTransitionsByJobId := bridgeIntervalTransitions(
+		srv.intervalTransitionsByJobId,
+		srv.transitionsByJobId,
+	)
+	intervalTransitionsByJobSetIdAndJobId := groupTransitionsByJobSetId(
+		bridgedTransitionsByJobId,
+		srv.jobSetIdByJobId,
+	)
 
-	// For each job for which we already have some state transitions,
-	// add the most recent state to the state transitions seen in this interval.
-	// This makes it more clear what's going on.
-	continuedTransitionsByJobId := make(map[string][]string)
-	for jobId, transitions := range srv.intervalTransitionsByJobId {
-		if previousTransitions := srv.transitionsByJobId[jobId]; len(previousTransitions) > 0 {
-			previousState := previousTransitions[len(previousTransitions)-1]
-			continuedTransitionsByJobId[jobId] = append([]string{previousState}, transitions...)
-		} else {
-			continuedTransitionsByJobId[jobId] = transitions
+	// Create a tab writer, group, continue each group, print for each group
+	w := tabwriter.NewWriter(srv.Out, 1, 1, 1, ' ', 0)
+	for jobSetId, intervalTransitionsByJobId := range intervalTransitionsByJobSetIdAndJobId {
+		for transitions, count := range countJobsByTransitions(intervalTransitionsByJobId) {
+			fmt.Fprintf(w, "%d\t%s\t%s\n", count, jobSetId, transitions)
 		}
 	}
-
-	// Print the number of jobs for each unique sequence of state transitions.
-	for transitions, counts := range CountJobsByTransitions(continuedTransitionsByJobId) {
-		fmt.Fprintf(srv.Out, "%d:\t%s\n", counts, transitions)
-	}
-	fmt.Fprintf(srv.Out, "\n") // Indicates the end of the interval.
+	fmt.Fprint(w, "---\n")
+	w.Flush()
 
 	// Move transitions over to the global map and reset the interval map.
 	for jobId, transitions := range srv.intervalTransitionsByJobId {
@@ -64,17 +103,9 @@ func (srv *EventsLogger) flushAndLog() {
 	srv.intervalTransitionsByJobId = make(map[string][]string)
 }
 
-func (srv *EventsLogger) Log() {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	for transitions, counts := range CountJobsByTransitions(srv.transitionsByJobId) {
-		fmt.Fprintf(srv.Out, "%d:\t%s\n", counts, transitions)
-	}
-}
-
-// CountJobsByTransitions returns a map from sequences of transitions,
+// countJobsByTransitions returns a map from sequences of transitions,
 // e.g., "submitted -> queued" to the number of jobs going through exactly those transitions.
-func CountJobsByTransitions(transitionsByJobId map[string][]string) map[string]int {
+func countJobsByTransitions(transitionsByJobId map[string][]string) map[string]int {
 	numJobsFromEventSequence := make(map[string]int)
 	for _, events := range transitionsByJobId {
 		eventSequence := strings.Join(events, " -> ")
@@ -83,25 +114,34 @@ func CountJobsByTransitions(transitionsByJobId map[string][]string) map[string]i
 	return numJobsFromEventSequence
 }
 
-func (srv *EventsLogger) Run(ctx context.Context) error {
-	ticker := time.NewTicker(srv.interval)
-	defer ticker.Stop()
-	defer srv.flushAndLog()
-	srv.transitionsByJobId = make(map[string][]string)
-	srv.intervalTransitionsByJobId = make(map[string][]string)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C: // Print a summary of what happened in this interval.
-			srv.flushAndLog()
-		case e := <-srv.c: // Jobset event received.
-			if e == nil {
-				break
-			}
-			jobId := api.JobIdFromApiEvent(e)
-			s := common.ShortStringFromApiEvent(e)
-			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], s)
+func groupTransitionsByJobSetId(
+	transitionsByJobId map[string][]string,
+	jobSetIdByJobId map[string]string,
+) map[string]map[string][]string {
+	rv := make(map[string]map[string][]string)
+	for jobId, events := range transitionsByJobId {
+		jobSetId := jobSetIdByJobId[jobId]
+		if m := rv[jobSetId]; m != nil {
+			m[jobId] = events
+		} else {
+			rv[jobSetId] = map[string][]string{jobId: events}
 		}
 	}
+	return rv
+}
+
+func bridgeIntervalTransitions(
+	intervalTransitionsByJobId map[string][]string,
+	transitionsByJobId map[string][]string,
+) map[string][]string {
+	rv := make(map[string][]string)
+	for jobId, transitions := range intervalTransitionsByJobId {
+		if previousTransitions := transitionsByJobId[jobId]; len(previousTransitions) > 0 {
+			previousState := previousTransitions[len(previousTransitions)-1]
+			rv[jobId] = append([]string{previousState}, transitions...)
+		} else {
+			rv[jobId] = transitions
+		}
+	}
+	return rv
 }

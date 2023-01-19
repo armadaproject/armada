@@ -73,37 +73,65 @@ func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodReq
 	return podNodeSelectorRequirementsMet(nodeType.GetLabels(), nodeType.GetUnsetIndexedLabels(), req)
 }
 
-// PodRequirementsMet determines whether a pod can be scheduled on this node.
+// PodRequirementsMet determines whether a pod can be scheduled onto this node.
 // If the pod can be scheduled, the returned score indicates how well the node fits:
 // - 0: Pod can be scheduled by preempting running pods.
 // - 1: Pod can be scheduled without preempting any running pods.
-// If the requirements are not met, it returns the reason for why.
+// If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
-func (node *Node) PodRequirementsMet(req *PodRequirements, assignedResources AssignedByPriorityAndResourceType) (bool, int, PodRequirementsNotMetReason, error) {
-	matches, reason, err := podTolerationRequirementsMet(node.GetTaints(), req)
+func (node *Node) PodRequirementsMet(req *PodRequirements) (bool, int, PodRequirementsNotMetReason, error) {
+	matches, reason, err := node.StaticPodRequirementsMet(req)
 	if !matches || err != nil {
 		return matches, 0, reason, err
+	}
+
+	return node.DynamicPodRequirementsMet(req)
+}
+
+// StaticPodRequirementsMet checks if a pod can be scheduled onto this node,
+// accounting for taints, node selectors, node affinity, and total resources available on the node.
+func (node *Node) StaticPodRequirementsMet(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+	matches, reason, err := podTolerationRequirementsMet(node.GetTaints(), req)
+	if !matches || err != nil {
+		return matches, reason, err
 	}
 
 	matches, reason, err = podNodeSelectorRequirementsMet(node.GetLabels(), nil, req)
 	if !matches || err != nil {
-		return matches, 0, reason, err
+		return matches, reason, err
 	}
 
 	matches, reason, err = podNodeAffinityRequirementsMet(node.GetLabels(), req)
 	if !matches || err != nil {
-		return matches, 0, reason, err
+		return matches, reason, err
 	}
 
+	for resource, required := range req.ResourceRequirements.Requests {
+		available := node.TotalResources.Get(string(resource))
+		if required.Cmp(available) == 1 {
+			return false, &InsufficientResources{
+				Resource:  string(resource),
+				Required:  required,
+				Available: available,
+			}, nil
+		}
+	}
+
+	return true, nil, nil
+}
+
+// DynamicPodRequirementsMet checks if a pod can be scheduled onto this node,
+// accounting for resources allocated to pods already assigned to this node.
+func (node *Node) DynamicPodRequirementsMet(req *PodRequirements) (bool, int, PodRequirementsNotMetReason, error) {
 	// Check if the pod can be scheduled without preemption,
 	// by checking if resource requirements are met at priority 0.
-	matches, reason, err = podResourceRequirementsMet(0, node.AvailableByPriorityAndResource, assignedResources, req)
+	matches, reason, err := podResourceRequirementsMet(0, node.AllocatableByPriorityAndResource, req)
 	if matches || err != nil {
 		return matches, 1, reason, err
 	}
 
 	// Check if the pod can be scheduled with preemption.
-	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AvailableByPriorityAndResource, assignedResources, req)
+	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AllocatableByPriorityAndResource, req)
 	return matches, 0, reason, err
 }
 
@@ -171,12 +199,9 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 	return true, nil, nil
 }
 
-func podResourceRequirementsMet(priority int32, availableResources AvailableByPriorityAndResourceType, assignedResources AssignedByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-	available := resource.Quantity{}
+func podResourceRequirementsMet(priority int32, allocatableResources AllocatableByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	for resource, required := range req.ResourceRequirements.Requests {
-		q := availableResources.Get(req.Priority, string(resource))
-		q.DeepCopyInto(&available)
-		available.Sub(assignedResources.Get(req.Priority, string(resource)))
+		available := allocatableResources.Get(req.Priority, string(resource))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
 				Resource:  string(resource),

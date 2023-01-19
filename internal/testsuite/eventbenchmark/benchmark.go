@@ -7,8 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/testsuite/common"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type EventsBenchmark struct {
@@ -44,8 +43,7 @@ func (srv *EventsBenchmark) recordEventDuration(event *api.EventMessage) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	jobId := api.JobIdFromApiEvent(event)
-	shortName := common.ShortStringFromApiEvent(event)
-	lastEventDuration := &EventDuration{Event: shortName, Received: time.Now()}
+	lastEventDuration := &EventDuration{Event: event.ShortString(), Received: time.Now()}
 	if srv.eventDurationsByJobId[jobId] == nil {
 		entry := &EventDurationsByJobId{JobId: jobId, Events: []*EventDuration{lastEventDuration}}
 		srv.eventDurationsByJobId[jobId] = entry

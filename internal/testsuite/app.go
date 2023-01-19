@@ -10,29 +10,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
-	"github.com/G-Research/armada/internal/testsuite/joblogger"
-
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-	"github.com/G-Research/armada/internal/testsuite/eventlogger"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/hashicorp/go-multierror"
-	"github.com/jstemmer/go-junit-report/v2/junit"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"golang.org/x/sync/errgroup"
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
-	"github.com/G-Research/armada/internal/testsuite/build"
-	"github.com/G-Research/armada/internal/testsuite/eventsplitter"
-	"github.com/G-Research/armada/internal/testsuite/eventwatcher"
-	"github.com/G-Research/armada/internal/testsuite/submitter"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/testsuite/build"
+	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
+	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type App struct {
@@ -44,8 +39,6 @@ type App struct {
 	// Source of randomness. Tests can use a mocked random source in order to provide
 	// deterministic testing behaviour.
 	Random io.Reader
-	// Benchmark reports from test files
-	reports []*eventbenchmark.TestCaseBenchmarkReport
 }
 
 // Params struct holds all user-customizable parameters.
@@ -77,49 +70,32 @@ func (a *App) Version() error {
 	return nil
 }
 
-func (a *App) TestFileJunit(ctx context.Context, filePath string) (junit.Testcase, error) {
-	// Load test spec.
-	testSpec, err := TestSpecFromFilePath(filePath)
+func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport, error) {
+	testSpecs, err := TestSpecsFromPattern(pattern)
 	if err != nil {
-		return junit.Testcase{}, err
+		return nil, err
 	}
-
-	// Capture the test output for inclusion in the returned junit.Testcase.
-	// Before returning, restore the original a.Out.
-	origOut := a.Out
-	var out bytes.Buffer
-	a.Out = io.MultiWriter(&out, origOut)
-	defer func() { a.Out = origOut }()
-
-	// Run the tests and convert any errors into a Junit result.
-	start := time.Now()
-	testErr := a.Test(ctx, testSpec)
-	var failure *junit.Result
-	if testErr != nil {
-		failure = &junit.Result{
-			Message: fmt.Sprintf("%+v", testErr),
-		}
-	}
-	systemOut := &junit.Output{
-		Data: out.String(),
-	}
-
-	// Return Junit TestCase according to spec: https://llg.cubic.org/docs/junit/
-	return junit.Testcase{
-		Name:      testSpec.Name,
-		Classname: filePath,
-		Time:      fmt.Sprint(time.Since(start)),
-		Failure:   failure,
-		SystemOut: systemOut,
-	}, testErr
+	return a.RunTests(ctx, testSpecs)
 }
 
-func (a *App) TestFile(ctx context.Context, filePath string) error {
-	testSpec, err := TestSpecFromFilePath(filePath)
+func TestSpecsFromPattern(pattern string) ([]*api.TestSpec, error) {
+	filePaths, err := zglob.Glob(pattern)
 	if err != nil {
-		return err
+		return nil, errors.WithStack(err)
 	}
-	return a.Test(ctx, testSpec)
+	return TestSpecsFromFilePaths(filePaths)
+}
+
+func TestSpecsFromFilePaths(filePaths []string) ([]*api.TestSpec, error) {
+	rv := make([]*api.TestSpec, len(filePaths))
+	for i, filePath := range filePaths {
+		testSpec, err := TestSpecFromFilePath(filePath)
+		if err != nil {
+			return nil, err
+		}
+		rv[i] = testSpec
+	}
+	return rv, nil
 }
 
 func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
@@ -145,217 +121,90 @@ func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 	return testSpec, nil
 }
 
-// GetCancelAllJobs returns a processor that cancels all jobs in jobIds one at a time
-// and then consumes events until ctx is cancelled.
-func GetCancelAllJobs(
-	testSpec *api.TestSpec,
-	apiConnectionDetails *client.ApiConnectionDetails,
-) func(context.Context, chan *api.EventMessage, map[string]bool) error {
-	return func(ctx context.Context, ch chan *api.EventMessage, jobIds map[string]bool) error {
-		return client.WithSubmitClient(apiConnectionDetails, func(sc api.SubmitClient) error {
-			for jobId := range jobIds {
-				_, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-					JobId:    jobId,
-					Queue:    testSpec.GetQueue(),
-					JobSetId: testSpec.GetJobSetId(),
-				})
-				if err != nil {
-					return err
-				}
-			}
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-ch:
-				}
-			}
-		})
-	}
+type TestSuiteReport struct {
+	Start           time.Time
+	Finish          time.Time
+	TestCaseReports []*TestCaseReport
 }
 
-func (a *App) Test(ctx context.Context, testSpec *api.TestSpec, asserters ...func(context.Context, chan *api.EventMessage, map[string]bool) error) error {
-	logInterval := 5 * time.Second
-	a.printTestHeader(testSpec, logInterval)
-	_, _ = fmt.Fprintf(a.Out, "Job transitions over windows of length %s:\n", logInterval)
+type TestCaseReport struct {
+	Out             *bytes.Buffer
+	Start           time.Time
+	Finish          time.Time
+	FailureReason   string
+	BenchmarkReport *eventbenchmark.TestCaseBenchmarkReport
+	TestSpec        *api.TestSpec
+}
 
-	// Optional timeout
+func (report *TestSuiteReport) NumSuccesses() int {
+	if report == nil {
+		return 0
+	}
+	rv := 0
+	for _, r := range report.TestCaseReports {
+		if r != nil && r.FailureReason == "" {
+			rv++
+		}
+	}
+	return rv
+}
+
+func (report *TestSuiteReport) NumFailures() int {
+	if report == nil {
+		return 0
+	}
+	rv := 0
+	for _, r := range report.TestCaseReports {
+		if r != nil && r.FailureReason != "" {
+			rv++
+		}
+	}
+	return rv
+}
+
+func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSuiteReport, error) {
+	rv := &TestSuiteReport{
+		Start:           time.Now(),
+		TestCaseReports: make([]*TestCaseReport, len(testSpecs)),
+	}
+	defer func() {
+		rv.Finish = time.Now()
+	}()
+
 	ctx, cancel := context.WithCancel(ctx)
-	if testSpec.Timeout != 0 {
-		ctx, cancel = context.WithTimeout(ctx, testSpec.Timeout)
-	}
 	defer cancel()
-
-	// Submit jobs.
-	sbmtr := submitter.NewSubmitterFromTestSpec(a.Params.ApiConnectionDetails, testSpec)
-	err := sbmtr.Run(ctx)
-	if err != nil {
-		return err
-	}
-	jobIds := sbmtr.JobIds()
-	jobIdMap := make(map[string]bool)
-	for _, jobId := range jobIds {
-		jobIdMap[jobId] = false
-	}
-
-	// If configured, cancel the submitted jobs.
-	if err := tryCancelJobs(ctx, testSpec, a.Params.ApiConnectionDetails, jobIds); err != nil {
-		return err
-	}
-
-	// One channel for each system listening to events.
-	benchmarkCh := make(chan *api.EventMessage)
-	logCh := make(chan *api.EventMessage)
-	noActiveCh := make(chan *api.EventMessage)
-	assertCh := make(chan *api.EventMessage)
-	ingressCh := make(chan *api.EventMessage)
-
-	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, jobIdMap) })
-
-	// Logger service.
-	eventLogger := eventlogger.New(logCh, logInterval)
+	eventLogger := eventlogger.New(make(chan *api.EventMessage), time.Second)
 	eventLogger.Out = a.Out
+
+	wg := sync.WaitGroup{}
+	wg.Add(len(testSpecs))
+	for i, testSpec := range testSpecs {
+		i := i
+		testRunner := TestRunner{
+			Out:                  a.Out,
+			apiConnectionDetails: a.Params.ApiConnectionDetails,
+			testSpec:             testSpec,
+			eventLogger:          eventLogger,
+		}
+		go func() {
+			_ = testRunner.Run(ctx)
+			rv.TestCaseReports[i] = testRunner.TestCaseReport
+			wg.Done()
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	fmt.Fprintf(a.Out, "---\n")
 	g.Go(func() error { return eventLogger.Run(ctx) })
 
-	// Benchmark service
-	eventBenchmark := eventbenchmark.New(benchmarkCh)
-	eventBenchmark.Out = a.Out
-	g.Go(func() error { return eventBenchmark.Run(ctx) })
-
-	// Goroutine forwarding API events on a channel.
-	watcher := eventwatcher.New(testSpec.Queue, testSpec.JobSetId, a.Params.ApiConnectionDetails)
-	watcher.BackoffExponential = time.Second
-	watcher.MaxRetries = 6
-	watcher.Out = a.Out
-	g.Go(func() error { return watcher.Run(ctx) })
-
-	jobLogger, err := a.createJobLogger(testSpec)
-	if err != nil {
-		return errors.WithMessage(err, "error creating job logger")
-	}
-	executorClustersDefined := len(a.Params.ApiConnectionDetails.ExecutorClusters) > 0
-	if testSpec.GetLogs {
-		if executorClustersDefined {
-			g.Go(func() error { return jobLogger.Run(ctx) })
-		} else {
-			_, _ = fmt.Fprintf(
-				a.Out,
-				"cannot get logs for test %s, no executor clusters specified in executorClusters config\n",
-				testSpec.Name,
-			)
-		}
-	}
-
-	// Split the events into multiple channels, one for each downstream service.
-	splitter := eventsplitter.New(watcher.C, []chan *api.EventMessage{assertCh, ingressCh, logCh, noActiveCh, benchmarkCh}...)
-	g.Go(func() error { return splitter.Run(ctx) })
-
-	// Watch for ingress events and try to download from any ingresses found.
-	g.Go(func() error { return eventwatcher.GetFromIngresses(ctx, ingressCh) })
-
-	// Assert that we get the right events for each job.
-	terminatedByJobId, err := eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, testSpec.ExpectedEvents)
-
-	// Stop all services and wait for them to exit.
+	wg.Wait()
 	cancel()
-	groupErr := g.Wait()
-	if err != nil && groupErr != nil && !errors.Is(groupErr, context.Canceled) {
-		err = errors.WithMessage(groupErr, err.Error())
-	}
-
-	_, _ = fmt.Fprint(a.Out, "All job transitions:\n")
-	eventLogger.Log()
-
-	// benchmark
-	report := eventBenchmark.NewTestCaseBenchmarkReport(testSpec.GetName())
-	report.PrintStatistics(a.Out)
-	a.reports = append(a.reports, report)
-
-	// Armada JobSet logs
-	if testSpec.GetLogs && executorClustersDefined {
-		jobLogger.PrintLogs()
-	}
-
-	// Cancel any jobs we haven't seen a terminal event for.
-	_ = client.WithSubmitClient(a.Params.ApiConnectionDetails, submitWithCancel(testSpec, terminatedByJobId, a.Out))
-
-	return err
-}
-
-func (a *App) createJobLogger(testSpec *api.TestSpec) (*joblogger.JobLogger, error) {
-	namespace, err := getJobNamespace(testSpec)
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	jobLogger, err := joblogger.New(
-		a.Params.ApiConnectionDetails.ExecutorClusters,
-		namespace,
-		joblogger.WithOutput(a.Out),
-		joblogger.WithJobSetId(testSpec.GetJobSetId()),
-		joblogger.WithQueue(testSpec.GetQueue()),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return jobLogger, nil
-}
 
-// getJobNamespace extracts the namespace in which the job will be created
-// current assumption is that all jobs will execute in the same namespace
-func getJobNamespace(testSpec *api.TestSpec) (string, error) {
-	if len(testSpec.Jobs) == 0 {
-		return "", errors.New("no jobs in test spec")
-	}
-	namespace := testSpec.GetJobs()[0].Namespace
-	if namespace == "" {
-		return "default", nil
-	}
-	return testSpec.GetJobs()[0].Namespace, nil
-}
-
-func (a *App) printTestHeader(testSpec *api.TestSpec, logInterval time.Duration) {
-	_, _ = fmt.Fprintf(a.Out, "\n======= %s =======\n", testSpec.GetName())
-	_, _ = fmt.Fprintf(a.Out, "Queue: %s\n", testSpec.GetQueue())
-	_, _ = fmt.Fprintf(a.Out, "Job set: %s\n", testSpec.GetJobSetId())
-	_, _ = fmt.Fprintf(a.Out, "Timeout: %s\n", testSpec.GetTimeout())
-	_, _ = fmt.Fprintf(a.Out, "Log interval: %s\n", logInterval)
-	_, _ = fmt.Fprint(a.Out, "\n")
-	_, _ = fmt.Fprintf(a.Out, "Expected events:\n")
-	for _, e := range testSpec.GetExpectedEvents() {
-		s := fmt.Sprintf("%T", e.GetEvents())
-		s = strings.ReplaceAll(s, "*api.EventMessage_", "")
-		_, _ = fmt.Fprintf(a.Out, "- %s\n", s)
-	}
-	_, _ = fmt.Fprint(a.Out, "\n")
-}
-
-func submitWithCancel(testSpec *api.TestSpec, jobIdMap map[string]bool, out io.Writer) func(sc api.SubmitClient) error {
-	return func(sc api.SubmitClient) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		cancelGroup, ctx := errgroup.WithContext(ctx)
-		for jobId, hasTerminated := range jobIdMap {
-			if hasTerminated {
-				continue
-			}
-			cancelGroup.Go(func() error {
-				res, err := sc.CancelJobs(ctx, &api.JobCancelRequest{
-					Queue:    testSpec.GetQueue(),
-					JobSetId: testSpec.GetJobSetId(),
-					JobId:    jobId,
-				})
-				if err != nil {
-					_, _ = fmt.Fprintf(out, "\nError cancelling jobs: %s\n", err.Error())
-				} else if len(res.GetCancelledIds()) > 0 {
-					_, _ = fmt.Fprintf(out, "\nCancelled %v\n", res.GetCancelledIds())
-				}
-				return err
-			})
-		}
-		return cancelGroup.Wait()
-	}
+	return rv, nil
 }
 
 // UnmarshalTestCase unmarshalls bytes into a TestSpec.
@@ -394,41 +243,4 @@ func UnmarshalTestCase(yamlBytes []byte, testSpec *api.TestSpec) error {
 		return result.ErrorOrNil()
 	}
 	return nil
-}
-
-// tryCancelJobs cancels submitted jobs if cancellation is configured.
-func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) (err error) {
-	req := &api.JobCancelRequest{
-		Queue:    testSpec.GetQueue(),
-		JobSetId: testSpec.GetJobSetId(),
-	}
-	fCancelByID := func(sc api.SubmitClient) error {
-		for _, jobId := range jobIds {
-			req.JobId = jobId
-			_, err := sc.CancelJobs(ctx, req)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-		return nil
-	}
-	fCancelBySet := func(sc api.SubmitClient) error {
-		_, err := sc.CancelJobs(ctx, req)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		return nil
-	}
-	// If configured, cancel the submitted jobs.
-	switch {
-	case testSpec.Cancel == api.TestSpec_BY_ID:
-		err = client.WithSubmitClient(conn, fCancelByID)
-	case testSpec.Cancel == api.TestSpec_BY_SET:
-		err = client.WithSubmitClient(conn, fCancelBySet)
-	}
-	return err
-}
-
-func (a *App) GetBenchmarkReport() *eventbenchmark.GlobalBenchmarkReport {
-	return eventbenchmark.AggregateTestBenchmarkReports(a.reports)
 }

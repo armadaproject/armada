@@ -7,28 +7,28 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/permissions"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/validation"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/auth/permission"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/requestid"
-	commonvalidation "github.com/G-Research/armada/internal/common/validation"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/pgkeyvalue"
-	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/validation"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
+	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
@@ -46,10 +46,11 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
+	// Used to check at job submit time if the job could ever be scheduled.
+	// Currently only used for gang jobs.
+	SubmitChecker *scheduler.SubmitChecker
 }
 
-// TODO: Add input validation to make sure messages can be inserted to the database.
-// TODO: Check job size and reject jobs that could never be scheduled. Maybe by querying the scheduler for its limits.
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
@@ -69,6 +70,9 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
 	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
+		return nil, err
+	}
+	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
 		return nil, err
 	}
 
@@ -110,10 +114,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			}
 		}
 
-		if err := commonvalidation.ValidateApiJob(apiJob, srv.SubmitServer.schedulingConfig.Preemption); err != nil {
-			return nil, err
-		}
-
 		// Users submit API-specific service and ingress objects.
 		// However, the log only accepts proper k8s objects.
 		// Hence, the API-specific objects must be converted to proper k8s objects.
@@ -146,10 +146,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		})
 	}
 
-	// Check if the job can be scheduled on any executor,
-	// to avoid having users wait for a job that may never be scheduled.
-	//
-	// We only perform this check for jobs submitted to the legacy scheduler.
+	// Check if all jobs can be scheduled.
+	// This check uses the legacy resource reporting logic.
 	legacySchedulerJobs := selectApiJobsForLegacyScheduler(apiJobs)
 	if len(legacySchedulerJobs) > 0 {
 		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
@@ -164,6 +162,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 				return nil, errors.Errorf("can't schedule job for user %s", userId)
 			}
 		}
+	}
+
+	// Check if all jobs can be scheduled.
+	// This check uses the NodeDb of the new scheduler and
+	// can check if all jobs in a gang can go onto the same cluster.
+	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
+		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
 	}
 
 	// Create events marking the jobs as submitted
@@ -210,6 +215,12 @@ func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevent
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+	if len(req.JobIds) > 0 {
+		if req.Queue == "" || req.JobSetId == "" {
+			return srv.cancelJobsByIds(ctx, req.JobIds)
+		}
+		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
+	}
 	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
 	// If both queue and jobSetId are provided, we assume that those are correct
@@ -322,6 +333,100 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	return &api.CancellationResult{
 		CancelledIds: cancelledIds,
 	}, nil
+}
+
+func (srv *PulsarSubmitServer) cancelJobsByIds(ctx context.Context, jobIds []string) (*api.CancellationResult, error) {
+	batchSize := srv.SubmitServer.cancelJobsBatchSize
+	batches := util.Batch(jobIds, batchSize)
+	idQueueJobSetMap := make(map[string]map[string][]string)
+
+	for _, batch := range batches {
+		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds(batch)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed to get jobs from redis")
+		}
+		for _, job := range jobs {
+			q := job.Job.GetQueue()
+			jobSet := job.Job.GetJobSetId()
+			_, ok := idQueueJobSetMap[q]
+			if !ok {
+				idQueueJobSetMap[q] = make(map[string][]string)
+			}
+			_, ok = idQueueJobSetMap[q][jobSet]
+			if !ok {
+				idQueueJobSetMap[q][jobSet] = []string{}
+			}
+			idQueueJobSetMap[q][jobSet] = append(idQueueJobSetMap[q][jobSet], job.Job.Id)
+		}
+	}
+
+	var cancelledIds []string
+	var eventSequences []*armadaevents.EventSequence
+	for q, jobSets := range idQueueJobSetMap {
+		userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+		if err != nil {
+			return nil, err
+		}
+
+		for jobSet, jobIds := range jobSets {
+			sequence, validIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
+			eventSequences = append(eventSequences, sequence)
+			cancelledIds = append(cancelledIds, validIds...)
+		}
+	}
+
+	err := srv.publishToPulsar(ctx, eventSequences)
+	if err != nil {
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
+	}
+	return &api.CancellationResult{
+		CancelledIds: cancelledIds,
+	}, nil
+}
+
+// Assumes all Job IDs are in the queue and job set provided
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string) (*api.CancellationResult, error) {
+	userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	if err != nil {
+		return nil, err
+	}
+	var cancelledIds []string
+	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	if err != nil {
+		log.WithError(err).Error("failed send to Pulsar")
+		return nil, status.Error(codes.Internal, "Failed to send message")
+	}
+	return &api.CancellationResult{
+		CancelledIds: cancelledIds,
+	}, nil
+}
+
+// Returns event sequence along with all valid job ids in the sequence
+func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, []string) {
+	sequence := &armadaevents.EventSequence{
+		Queue:      q,
+		JobSetName: jobSet,
+		UserId:     userId,
+		Groups:     groups,
+		Events:     []*armadaevents.EventSequence_Event{},
+	}
+	var validIds []string
+	for _, jobIdStr := range jobIds {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(jobIdStr)
+		if err != nil {
+			log.WithError(err).Errorf("could not convert job id to uuid: %s", jobIdStr)
+			continue
+		}
+		validIds = append(validIds, jobIdStr)
+		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+			},
+		})
+	}
+	return sequence, validIds
 }
 
 func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
@@ -620,43 +725,6 @@ func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []
 	}
 
 	return srv.publishToPulsar(ctx, sequences)
-}
-
-// SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
-func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
-	sequence, err := eventutil.EventSequenceFromApiEvent(apiEvent)
-	if err != nil {
-		return err
-	}
-
-	// If no events were created, exit here.
-	if len(sequence.Events) == 0 {
-		return nil
-	}
-
-	payload, err := proto.Marshal(sequence)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-
-	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload: payload,
-		Properties: map[string]string{
-			requestid.MetadataKey:                     requestId,
-			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-		},
-		Key: sequence.JobSetName,
-	})
-	if err != nil {
-		err = errors.WithStack(err)
-		return err
-	}
-
-	return nil
 }
 
 // PublishToPulsar sends pulsar messages async

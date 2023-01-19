@@ -15,14 +15,14 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
 
-	"github.com/G-Research/armada/internal/armadactl"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // Used for in-line initialization of pointers to floats
@@ -43,13 +43,12 @@ func TestCreate(t *testing.T) {
 		Owners         []string
 		GroupOwners    []string
 		ResourceLimits map[string]float64
-		err            error // expected error, or nil if no error is expected
 	}{
-		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
+		"default flags":         {nil, nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}},
 	}
 
 	for name, test := range tests {
@@ -69,27 +68,18 @@ func TestCreate(t *testing.T) {
 					}
 
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
-					if q.Name != "arbitrary" {
-						t.Fatalf("expected Name to be 'arbitrary', but got %s", q.Name)
+					require.True(t, q.Name == "arbitrary")
+
+					if test.PriorityFactor != nil {
+						require.True(t, float64(q.PriorityFactor) == *test.PriorityFactor)
 					}
-					if test.PriorityFactor != nil && float64(q.PriorityFactor) != *test.PriorityFactor {
-						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, q.PriorityFactor)
-					}
-					if test.Owners != nil && !reflect.DeepEqual(q.Permissions, permissions) {
-						t.Fatalf("expected Permissions to be %#v, but got %#v", permissions, q.Permissions)
+					if test.Owners != nil {
+						require.True(t, reflect.DeepEqual(q.Permissions, permissions))
 					}
 
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
-							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
-								t.Fatalf(
-									"invalid resource limit: [%s]%f expected: [%s]%f",
-									resourceName,
-									test.ResourceLimits[string(resourceName)],
-									resourceName,
-									resourceLimit,
-								)
-							}
+							require.Equal(t, test.ResourceLimits[string(resourceName)], float64(resourceLimit), "resource limit mismatch")
 						}
 					}
 					return nil
@@ -102,13 +92,10 @@ func TestCreate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				cmd.Flags().Set(flag.name, flag.value)
+				require.NoError(t, cmd.Flags().Set(flag.name, flag.value))
 			}
 
-			// Execute the command and check any error
-			if err := cmd.Execute(); err != test.err {
-				t.Fatalf("command failed with an unexpected error: %s", err)
-			}
+			require.NoError(t, cmd.Execute())
 		})
 	}
 }
@@ -123,9 +110,7 @@ func TestDelete(t *testing.T) {
 			a.Out = io.Discard
 
 			// Check that the arguments passed into the API are equal to those provided via CLI flags
-			if name != "arbitrary" {
-				t.Fatalf("expected Name to be 'arbitrary', but got %s", name)
-			}
+			require.True(t, name == "arbitrary")
 			return nil
 		}
 		return nil
@@ -134,10 +119,7 @@ func TestDelete(t *testing.T) {
 	// Arbitrary queue name
 	cmd.SetArgs([]string{"arbitrary"})
 
-	// Execute the command and check any error
-	if err := cmd.Execute(); err != nil && !strings.Contains(err.Error(), "expected test error") {
-		t.Fatalf("command failed with an unexpected error: %s", err)
-	}
+	require.NoError(t, cmd.Execute())
 }
 
 func TestDescribe(t *testing.T) {
@@ -150,9 +132,7 @@ func TestDescribe(t *testing.T) {
 			a.Out = io.Discard
 
 			// Check that the arguments passed into the API are equal to those provided via CLI flags
-			if name != "arbitrary" {
-				t.Fatalf("expected Name to be 'arbitrary', but got %s", name)
-			}
+			require.Equal(t, name, "arbitrary")
 			return nil, fmt.Errorf("expected test error to force armadactl.DescribeQueue to return")
 		}
 		return nil
@@ -162,9 +142,7 @@ func TestDescribe(t *testing.T) {
 	cmd.SetArgs([]string{"arbitrary"})
 
 	// Execute the command and check any error
-	if err := cmd.Execute(); err != nil && !strings.Contains(err.Error(), "expected test error") {
-		t.Fatalf("command failed with an unexpected error: %s", err)
-	}
+	require.ErrorContains(t, cmd.Execute(), "expected test error")
 }
 
 func TestUpdate(t *testing.T) {
@@ -175,13 +153,12 @@ func TestUpdate(t *testing.T) {
 		Owners         []string
 		GroupOwners    []string
 		ResourceLimits map[string]float64
-		err            error // expected error, or nil if no error is expected
 	}{
-		"default flags":         {nil, nil, nil, nil, nil, nil},
-		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil, nil},
-		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil, nil},
-		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil, nil},
-		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}, nil},
+		"default flags":         {nil, nil, nil, nil, nil},
+		"valid priority":        {[]flag{{"priorityFactor", "1.0"}}, makeFloat64Pointer(1.0), nil, nil, nil},
+		"valid owners":          {[]flag{{"owners", "user1,user2"}}, nil, []string{"user1", "user2"}, nil, nil},
+		"valid group owners":    {[]flag{{"groupOwners", "group1,group2"}}, nil, nil, []string{"group1", "group2"}, nil},
+		"valid resource limits": {[]flag{{"resourceLimits", "cpu=0.3,memory=0.2"}}, nil, nil, nil, map[string]float64{"cpu": 0.3, "memory": 0.2}},
 	}
 
 	for name, test := range tests {
@@ -200,27 +177,17 @@ func TestUpdate(t *testing.T) {
 					}
 
 					// Check that the arguments passed into the API are equal to those provided via CLI flags
-					if q.Name != "arbitrary" {
-						t.Fatalf("expected Name to be 'arbitrary', but got %s", q.Name)
+					require.Equal(t, q.Name, "arbitrary")
+					if test.PriorityFactor != nil {
+						require.True(t, float64(q.PriorityFactor) == *test.PriorityFactor)
 					}
-					if test.PriorityFactor != nil && float64(q.PriorityFactor) != *test.PriorityFactor {
-						t.Fatalf("expected PriorityFactor to be %v, but got %v", *test.PriorityFactor, q.PriorityFactor)
-					}
-					if test.Owners != nil && !reflect.DeepEqual(q.Permissions, permissions) {
-						t.Fatalf("expected Permissions to be %#v, but got %#v", permissions, q.Permissions)
+					if test.Owners != nil {
+						require.True(t, reflect.DeepEqual(q.Permissions, permissions))
 					}
 
 					if test.ResourceLimits != nil {
 						for resourceName, resourceLimit := range q.ResourceLimits {
-							if test.ResourceLimits[string(resourceName)] != float64(resourceLimit) {
-								t.Fatalf(
-									"invalid resource limit: [%s]%f expected: [%s]%f",
-									resourceName,
-									test.ResourceLimits[string(resourceName)],
-									resourceName,
-									resourceLimit,
-								)
-							}
+							require.Equal(t, test.ResourceLimits[string(resourceName)], float64(resourceLimit), "resource limit mismatch")
 						}
 					}
 					return nil
@@ -233,13 +200,11 @@ func TestUpdate(t *testing.T) {
 
 			// Set CLI flags; falls back to default values if not set
 			for _, flag := range test.Flags {
-				cmd.Flags().Set(flag.name, flag.value)
+				require.NoError(t, cmd.Flags().Set(flag.name, flag.value))
 			}
 
 			// Execute the command and check any error
-			if err := cmd.Execute(); err != test.err {
-				t.Fatalf("command failed with an unexpected error: %s", err)
-			}
+			require.NoError(t, cmd.Execute())
 		})
 	}
 }

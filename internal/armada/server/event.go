@@ -4,48 +4,41 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/G-Research/armada/internal/armada/repository/sequence"
-
 	"github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/permissions"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type EventServer struct {
-	permissions           authorization.PermissionChecker
-	eventRepository       repository.EventRepository
-	legacyEventRepository repository.EventRepository
-	queueRepository       repository.QueueRepository
-	jobRepository         repository.JobRepository
-	eventStore            repository.EventStore
-	defaultToLegacyEvents bool
+	permissions     authorization.PermissionChecker
+	eventRepository repository.EventRepository
+	queueRepository repository.QueueRepository
+	jobRepository   repository.JobRepository
+	eventStore      repository.EventStore
 }
 
 func NewEventServer(
 	permissions authorization.PermissionChecker,
 	eventRepository repository.EventRepository,
-	legacyEventRepository repository.EventRepository,
 	eventStore repository.EventStore,
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
-	defaultToLegacyEvents bool,
 ) *EventServer {
 	return &EventServer{
-		permissions:           permissions,
-		eventRepository:       eventRepository,
-		legacyEventRepository: legacyEventRepository,
-		eventStore:            eventStore,
-		queueRepository:       queueRepository,
-		jobRepository:         jobRepository,
-		defaultToLegacyEvents: defaultToLegacyEvents,
+		permissions:     permissions,
+		eventRepository: eventRepository,
+		eventStore:      eventStore,
+		queueRepository: queueRepository,
+		jobRepository:   jobRepository,
 	}
 }
 
@@ -136,37 +129,21 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
 
-	eventRepository := s.determineEventRepository(request)
+	// convert the seqNo over if necessary
+	if !sequence.IsValid(request.FromMessageId) {
+		convertedSeqId, err := sequence.FromRedisId(request.FromMessageId, 0, true)
+		if err != nil {
+			return errors.Wrapf(err, "Could not convert legacy message id over to new message id for request for queue %s, jobset %s", request.Queue, request.Id)
+		}
+		log.Warnf("Converted legacy sequene id [%s] for queues %s, jobset %s to new sequenceId [%s]", request.Id, request.Queue, request.Id, convertedSeqId)
+		request.FromMessageId = convertedSeqId.String()
+	}
 
-	return s.serveEventsFromRepository(request, eventRepository, stream)
+	return s.serveEventsFromRepository(request, s.eventRepository, stream)
 }
 
 func (s *EventServer) Health(ctx context.Context, cont_ *types.Empty) (*api.HealthCheckResponse, error) {
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
-}
-
-func (s *EventServer) determineEventRepository(request *api.JobSetRequest) repository.EventRepository {
-	// User has explicitly said they want to use the new event store
-	if request.ForceNew {
-		return s.eventRepository
-	}
-
-	// User has explicitly said they want to use the legacy event store
-	if request.ForceLegacy {
-		return s.legacyEventRepository
-	}
-
-	// It's not a valid new-style sequence number so we have to default to the legacy store
-	if !sequence.IsValid(request.GetId()) {
-		return s.legacyEventRepository
-	}
-
-	// Configuration says we should default to legacy store
-	if s.defaultToLegacyEvents {
-		return s.legacyEventRepository
-	}
-
-	return s.eventRepository
 }
 
 func (s *EventServer) Watch(req *api.WatchRequest, stream api.Event_WatchServer) error {

@@ -9,8 +9,43 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+// NodesIterator is an iterator over all nodes in the db.
+type NodesIterator struct {
+	it memdb.ResultIterator
+}
+
+func NewNodesIterator(txn *memdb.Txn) (*NodesIterator, error) {
+	it, err := txn.LowerBound("nodes", "id", "")
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &NodesIterator{
+		it: it,
+	}, nil
+}
+
+func (it *NodesIterator) WatchCh() <-chan struct{} {
+	panic("not implemented")
+}
+
+func (it *NodesIterator) NextNode() *schedulerobjects.Node {
+	obj := it.it.Next()
+	if obj == nil {
+		return nil
+	}
+	node, ok := obj.(*schedulerobjects.Node)
+	if !ok {
+		panic(fmt.Sprintf("expected *Node, but got %T", obj))
+	}
+	return node
+}
+
+func (it *NodesIterator) Next() interface{} {
+	return it.NextNode()
+}
 
 // NodeTypesResourceIterator extends NodeTypeResourceIterator to iterate over nodes of several node types.
 // Nodes are returned in sorted order, going from least to most of the specified resource available.
@@ -73,7 +108,7 @@ func (it *NodeTypesResourceIterator) Next() interface{} {
 	return it.NextNodeItem()
 }
 
-// A priority queue used by NodeTypesResourceIterator to return results
+// NodeTypesResourceIteratorPQ is a priority queue used by NodeTypesResourceIterator to return results
 // from across several sub-iterators in order.
 type NodeTypesResourceIteratorPQ []*NodeTypesResourceIteratorItem
 
@@ -141,7 +176,7 @@ func (it *NodeTypeResourceIterator) NextNodeItem() *schedulerobjects.Node {
 	if !ok {
 		panic(fmt.Sprintf("expected *NodeItem, but got %T", obj))
 	}
-	if nodeItem.NodeType != nil && nodeItem.NodeType.Id != it.nodeType.Id {
+	if nodeItem.NodeTypeId != it.nodeType.Id {
 		// The index is sorted by NodeType first.
 		// So we've seen all nodes of this NodeType if this comparison fails.
 		return nil

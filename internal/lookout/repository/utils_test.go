@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 var (
@@ -277,4 +277,29 @@ func TestGlobSearchOrExact(t *testing.T) {
 				assert.Equal(t, tc.expectedExpression, result)
 			})
 	}
+}
+
+func SaveJobWithNullObj(db *goqu.Database, jobId, queue, jobSet string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+
+	return tx.Wrap(func() error {
+		ds := tx.Insert(jobTable).
+			Rows(goqu.Record{
+				"job_id": jobId,
+				"queue":  queue,
+				"jobset": jobSet,
+				"state":  JobStateToIntMap[JobQueued],
+			}).
+			OnConflict(goqu.DoNothing())
+
+		_, err := ds.Prepared(true).Executor().Exec()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

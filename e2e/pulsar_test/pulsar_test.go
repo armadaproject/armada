@@ -24,17 +24,17 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // Pulsar configuration. Must be manually reconciled with changes to the test setup or Armada.
 const (
 	pulsarUrl            = "pulsar://localhost:6650"
-	pulsarTopic          = "persistent://armada/armada/events"
+	pulsarTopic          = "events"
 	pulsarSubscription   = "e2e-test"
 	armadaUrl            = "localhost:50051"
 	armadaQueueName      = "e2e-test-queue"
@@ -135,6 +135,7 @@ func TestSubmitJobs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TODO: Make testsuite test. Or unit test.
 func TestDedup(t *testing.T) {
 	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 2

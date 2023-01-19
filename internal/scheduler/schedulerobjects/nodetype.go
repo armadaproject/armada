@@ -3,9 +3,11 @@ package schedulerobjects
 import (
 	"strings"
 
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type (
@@ -30,13 +32,19 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 	}
 
 	// Filter out any taints that should not be indexed.
-	// The default is to index all taints.
 	if indexedTaints != nil {
 		taints = getFilteredTaints(taints, func(t *v1.Taint) bool {
 			_, ok := indexedTaints[t.Key]
 			return ok
 		})
+	} else {
+		// The default is to index all taints.
+		taints = slices.Clone(taints)
 	}
+
+	// Sort taints to ensure node type id is consistent regardless of
+	// the order in which taints are set on the node.
+	slices.SortFunc(taints, func(a, b v1.Taint) bool { return a.Key < b.Key })
 
 	// Filter out any labels that should not be indexed.
 	if indexedLabels != nil {
@@ -82,14 +90,19 @@ func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels
 		sb.WriteString(taint.String())
 	}
 	sb.WriteString("&")
-	for label, value := range labels {
+	ls := maps.Keys(labels)
+	slices.Sort(ls)
+	for _, label := range ls {
+		value := labels[label]
 		sb.WriteString("$")
 		sb.WriteString(label)
 		sb.WriteString("=")
 		sb.WriteString(value)
 	}
 	sb.WriteString("&")
-	for label := range unsetIndexedLabels {
+	ls = maps.Keys(unsetIndexedLabels)
+	slices.Sort(ls)
+	for _, label := range ls {
 		sb.WriteString("$")
 		sb.WriteString(label)
 	}
@@ -124,4 +137,13 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 		filteredLabels[key] = value
 	}
 	return filteredLabels
+}
+
+func (nodeType *NodeType) DeepCopy() *NodeType {
+	return &NodeType{
+		Id:                 nodeType.Id,
+		Taints:             slices.Clone(nodeType.Taints),
+		Labels:             maps.Clone(nodeType.Labels),
+		UnsetIndexedLabels: maps.Clone(nodeType.UnsetIndexedLabels),
+	}
 }

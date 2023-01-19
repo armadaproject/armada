@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/testutil"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/testutil"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const userAnnotationPrefix = "test_prefix/"
@@ -822,7 +823,7 @@ func Test_JobReprioritizedEvent(t *testing.T) {
 				"SELECT priority FROM job"))
 
 			var job api.Job
-			jobProto := ParseNullString(selectNullString(t, db, "SELECT orig_job_spec FROM job"))
+			jobProto := database.ParseNullStringDefault(selectNullString(t, db, "SELECT orig_job_spec FROM job"))
 			err = job.Unmarshal([]byte(jobProto))
 			assert.NoError(t, err)
 			assert.Equal(t, float64(123), job.Priority)
@@ -979,7 +980,7 @@ func getPriority(t *testing.T, db *goqu.Database, jobId string) float64 {
 
 func getJob(t *testing.T, db *goqu.Database, jobId string) *api.Job {
 	var job api.Job
-	jobProto := ParseNullString(selectNullString(t, db, fmt.Sprintf("SELECT orig_job_spec FROM job WHERE job_id = '%s'", jobId)))
+	jobProto := database.ParseNullStringDefault(selectNullString(t, db, fmt.Sprintf("SELECT orig_job_spec FROM job WHERE job_id = '%s'", jobId)))
 	err := job.Unmarshal([]byte(jobProto))
 	assert.Nil(t, err)
 	return &job

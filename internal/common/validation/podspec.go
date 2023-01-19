@@ -3,12 +3,12 @@ package validation
 import (
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {
@@ -165,7 +165,7 @@ func validatePorts(podSpec *v1.PodSpec) error {
 	return nil
 }
 
-func ValidatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
+func validatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
 	priorityClassName := podSpec.PriorityClassName
 	if priorityClassName != "" {
 		if !preemptionEnabled {

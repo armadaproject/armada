@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
@@ -41,15 +42,6 @@ message Job {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 20;
-}
-
-message LeaseRequest {
-    string cluster_id = 1;
-    string pool = 8;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
-    ClusterLeasedReport cluster_leased_report  = 4 [(gogoproto.nullable) = false];
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
-    repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
 }
 
 // For the bidirectional streaming job lease request service.
@@ -167,10 +159,10 @@ message ReturnLeaseRequest {
     OrderedStringMap avoid_node_labels = 4;
     string reason = 5;
     string kubernetes_id = 6;
+    bool job_run_attempted = 7;
 }
 
 service AggregatedQueue {
-    rpc LeaseJobs (LeaseRequest) returns (JobLease);
     rpc StreamingLeaseJobs (stream StreamingLeaseRequest) returns (stream StreamingJobLease);
     rpc RenewLease (RenewLeaseRequest) returns (IdList);
     rpc ReturnLease (ReturnLeaseRequest) returns (google.protobuf.Empty);

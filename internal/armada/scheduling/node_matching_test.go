@@ -7,8 +7,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_MatchSchedulingRequirements_labels(t *testing.T) {
@@ -19,25 +19,34 @@ func Test_MatchSchedulingRequirements_labels(t *testing.T) {
 	assert.Error(t, err)
 	err.Error()
 
-	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
-		{Labels: map[string]string{"armada/region": "eu"}},
-		{Labels: map[string]string{"armada/zone": "2"}},
-	}})
+	ok, err = MatchSchedulingRequirements(
+		job,
+		&api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
+			{Labels: map[string]string{"armada/region": "eu"}},
+			{Labels: map[string]string{"armada/zone": "2"}},
+		}},
+	)
 	assert.False(t, ok)
 	assert.Error(t, err)
 	err.Error()
 
-	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
-		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
-	}})
+	ok, err = MatchSchedulingRequirements(
+		job,
+		&api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
+			{Labels: map[string]string{"armada/region": "eu", "armada/zone": "2"}},
+		}},
+	)
 	assert.False(t, ok)
 	assert.Error(t, err)
 	err.Error()
 
-	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
-		{Labels: map[string]string{"x": "y"}},
-		{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
-	}})
+	ok, err = MatchSchedulingRequirements(
+		job,
+		&api.ClusterSchedulingInfoReport{NodeTypes: []*api.NodeType{
+			{Labels: map[string]string{"x": "y"}},
+			{Labels: map[string]string{"armada/region": "eu", "armada/zone": "1", "x": "y"}},
+		}},
+	)
 	assert.True(t, ok)
 	assert.NoError(t, err)
 }
@@ -55,19 +64,27 @@ func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) 
 	assert.Error(t, err)
 	err.Error()
 
-	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{
-		NodeTypes: []*api.NodeType{{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}}},
-	})
+	ok, err = MatchSchedulingRequirements(
+		job,
+		&api.ClusterSchedulingInfoReport{
+			NodeTypes: []*api.NodeType{
+				{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+			},
+		},
+	)
 	assert.False(t, ok)
 	assert.Error(t, err)
 	err.Error()
 
-	ok, err = MatchSchedulingRequirements(job, &api.ClusterSchedulingInfoReport{
-		NodeTypes: []*api.NodeType{
-			{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-			{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
+	ok, err = MatchSchedulingRequirements(
+		job,
+		&api.ClusterSchedulingInfoReport{
+			NodeTypes: []*api.NodeType{
+				{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+				{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
+			},
 		},
-	})
+	)
 	assert.True(t, ok)
 	assert.NoError(t, err)
 }

@@ -14,13 +14,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/domain"
-	executorutil "github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	executorutil "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
@@ -543,6 +543,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.DuplicateFound.Created,
 			Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
 				JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
 					NewJobId: newJobId,
@@ -561,6 +562,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Leased.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunLeased{
 				JobRunLeased: &armadaevents.JobRunLeased{
 					RunId:      LegacyJobRunId(),
@@ -586,6 +588,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.LeaseReturned.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
@@ -619,6 +622,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.LeaseExpired.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: LegacyJobRunId(),
@@ -649,6 +653,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Pending.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 				JobRunAssigned: &armadaevents.JobRunAssigned{
 					RunId: runId,
@@ -686,6 +691,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Running.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunRunning{
 				JobRunRunning: &armadaevents.JobRunRunning{
 					RunId: runId,
@@ -727,6 +733,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.UnableToSchedule.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
@@ -808,6 +815,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		// Event indicating the job run failed.
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Failed.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
@@ -837,6 +845,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		// Event indicating that the job as a whole failed.
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Failed.Created,
 			Event: &armadaevents.EventSequence_Event_JobErrors{
 				JobErrors: &armadaevents.JobErrors{
 					JobId: jobId,
@@ -877,6 +886,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Succeeded.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 				JobRunSucceeded: &armadaevents.JobRunSucceeded{
 					RunId: runId,
@@ -903,6 +913,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			},
 		})
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Succeeded.Created,
 			Event: &armadaevents.EventSequence_Event_JobSucceeded{
 				JobSucceeded: &armadaevents.JobSucceeded{
 					JobId: jobId,
@@ -943,6 +954,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Reprioritized.Created,
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 				ReprioritisedJob: &armadaevents.ReprioritisedJob{
 					JobId:    jobId,
@@ -963,6 +975,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Cancelled.Created,
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
 					JobId: jobId,
@@ -984,6 +997,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.Terminated.Created,
 			Event: &armadaevents.EventSequence_Event_JobRunErrors{
 				JobRunErrors: &armadaevents.JobRunErrors{
 					RunId: runId,
@@ -1065,6 +1079,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		}
 
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: &m.IngressInfo.Created,
 			Event: &armadaevents.EventSequence_Event_StandaloneIngressInfo{
 				StandaloneIngressInfo: &armadaevents.StandaloneIngressInfo{
 					RunId: runId,

@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/duration.proto";
@@ -40,6 +41,7 @@ message TestSpec {
 		NO = 0; // Do not cancel jobs.
 		BY_ID = 1; // Cancel jobs individually.
 		BY_SET = 2; // Cancel all jobs in the job set in bulk.
+		BY_IDS = 3; // Cancel all jobs in the job set by multiple ids
 	}
 	Cancel cancel = 9;
 	// Test name. Defaults to the filename if not provided.

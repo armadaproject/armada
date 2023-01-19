@@ -3,7 +3,7 @@ package queue
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // Permissions specifies the list of subjects that are allowed to perform queue operations

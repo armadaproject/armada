@@ -8,11 +8,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/common"
-	clusterContext "github.com/G-Research/armada/internal/executor/context"
-	domain2 "github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	domain2 "github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const batchSize = 200
@@ -238,7 +238,7 @@ func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
 		if err != nil {
 			return err
 		}
-		log.Infof("Reporting event %+v", m)
+		log.Debugf("Reporting event %+v", m)
 	}
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
@@ -252,7 +252,7 @@ func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
 		return err
 	}
 
-	log.Infof("Reporting event %+v", eventMessage)
+	log.Debugf("Reporting event %+v", eventMessage)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 	_, err = eventReporter.eventClient.Report(ctx, eventMessage)

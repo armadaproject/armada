@@ -1,39 +1,44 @@
 package store
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/eventingester/configuration"
-	"github.com/G-Research/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/model"
 )
 
 func TestReportEvents(t *testing.T) {
 	withRedisEventStore(func(r *RedisEventStore) {
-		event1 := &model.Event{
-			Queue:  "testQueue",
-			Jobset: "testJobset",
-			Event:  []byte{1},
-		}
-		event2 := &model.Event{
-			Queue:  "testQueue",
-			Jobset: "testJobset2",
-			Event:  []byte{2},
+		update := &model.BatchUpdate{
+			Events: []*model.Event{
+				{
+					Queue:  "testQueue",
+					Jobset: "testJobset",
+					Event:  []byte{1},
+				},
+				{
+					Queue:  "testQueue",
+					Jobset: "testJobset2",
+					Event:  []byte{2},
+				},
+			},
 		}
 
-		err := r.ReportEvents([]*model.Event{event1, event2})
+		err := r.Store(context.Background(), update)
 		assert.NoError(t, err)
 
 		read1, err := ReadEvent(r.db, "testQueue", "testJobset")
 		assert.NoError(t, err)
-		assert.Equal(t, event1.Event, read1)
+		assert.Equal(t, update.Events[0].Event, read1)
 
 		read2, err := ReadEvent(r.db, "testQueue", "testJobset2")
 		assert.NoError(t, err)
-		assert.Equal(t, event2.Event, read2)
+		assert.Equal(t, update.Events[1].Event, read2)
 	})
 }
 
@@ -43,8 +48,12 @@ func withRedisEventStore(action func(es *RedisEventStore)) {
 	defer client.Close()
 
 	client.FlushDB()
-
-	repo := NewRedisEventStore(client, configuration.EventRetentionPolicy{ExpiryEnabled: true, RetentionDuration: time.Hour})
+	repo := &RedisEventStore{
+		db: client,
+		eventRetention: configuration.EventRetentionPolicy{
+			ExpiryEnabled: true, RetentionDuration: time.Hour,
+		},
+	}
 	action(repo)
 }
 

@@ -1,7 +1,8 @@
 syntax = 'proto3';
 
 package lookout;
-option csharp_namespace = "ArmadaProject.Io.Lookout";
+option go_package = "github.com/armadaproject/armada/pkg/api/lookout";
+option csharp_namespace = "ArmadaProject.Io.Api.Lookout";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
@@ -38,6 +39,7 @@ message RunInfo {
     int32 pod_number = 9;
     string run_state = 10;
     bool unable_to_schedule = 11;
+    google.protobuf.Timestamp preempted = 12 [(gogoproto.stdtime) = true, (gogoproto.nullable) = true];
 }
 
 message QueueInfo {

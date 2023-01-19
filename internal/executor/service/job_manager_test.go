@@ -10,17 +10,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	commonutil "github.com/G-Research/armada/internal/common/util"
-	podchecksConfig "github.com/G-Research/armada/internal/executor/configuration/podchecks"
-	"github.com/G-Research/armada/internal/executor/context"
-	fakecontext "github.com/G-Research/armada/internal/executor/context/fake"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/podchecks"
-	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
-	"github.com/G-Research/armada/internal/executor/service/fake"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	commonutil "github.com/armadaproject/armada/internal/common/util"
+	podchecksConfig "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/internal/executor/context"
+	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
+	reporter_fake "github.com/armadaproject/armada/internal/executor/reporter/fake"
+	"github.com/armadaproject/armada/internal/executor/service/fake"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestJobManager_DoesNothingIfNoPodsAreFound(t *testing.T) {
@@ -251,6 +251,9 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 			},
 			CreationTimestamp: metav1.Time{time.Now().Add(-10 * time.Minute)},
 			UID:               types.UID(commonutil.NewULID()),
+		},
+		Spec: v1.PodSpec{
+			NodeName: "node1",
 		},
 		Status: status,
 	}

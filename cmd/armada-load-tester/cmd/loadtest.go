@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/domain"
-	"github.com/G-Research/armada/pkg/client/util"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/domain"
+	"github.com/armadaproject/armada/pkg/client/util"
 )
 
 const defaultTimeout = time.Second * -1
@@ -22,9 +22,15 @@ func init() {
 	loadtestCmd.Flags().Bool("watch", false, "If enabled, the program will watch the events of all submitted jobs before exiting")
 	loadtestCmd.Flags().Duration("timeout", defaultTimeout, "The duration the test will last for, before cancelling all remaining jobs")
 	loadtestCmd.Flags().Bool("checkSuccess", false, "If enabled, the program will exit with -1 if any jobs submitted do not succeed")
-	viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch"))
-	viper.BindPFlag("timeout", loadtestCmd.Flags().Lookup("timeout"))
-	viper.BindPFlag("checkSuccess", loadtestCmd.Flags().Lookup("checkSuccess"))
+	if err := viper.BindPFlag("watch", loadtestCmd.Flags().Lookup("watch")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("timeout", loadtestCmd.Flags().Lookup("timeout")); err != nil {
+		panic(err)
+	}
+	if err := viper.BindPFlag("checkSuccess", loadtestCmd.Flags().Lookup("checkSuccess")); err != nil {
+		panic(err)
+	}
 }
 
 var loadtestCmd = &cobra.Command{

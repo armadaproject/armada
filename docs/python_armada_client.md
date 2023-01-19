@@ -27,7 +27,7 @@ Client for accessing Armada over gRPC.
     for more information.
 
 
-    * **max_workers** (*Optional**[**int**]*) – number of cores for thread pools, if unset, defaults
+    * **max_workers** (*int** | **None*) – number of cores for thread pools, if unset, defaults
     to number of CPUs
 
 
@@ -48,25 +48,25 @@ job_set_id is required.
 * **Parameters**
 
     
-    * **queue** (*Optional**[**str**]*) – The name of the queue
+    * **queue** (*str** | **None*) – The name of the queue
 
 
-    * **job_id** (*Optional**[**str**]*) – The name of the job id (this or job_set_id required)
+    * **job_id** (*str** | **None*) – The name of the job id (this or job_set_id required)
 
 
-    * **job_set_id** (*Optional**[**str**]*) – An array of JobSubmitRequestItems. (this or job_id required)
+    * **job_set_id** (*str** | **None*) – An array of JobSubmitRequestItems. (this or job_id required)
 
 
 
 * **Returns**
 
-    A JobSubmitResponse object.
+    A CancellationResult object.
 
 
 
 * **Return type**
 
-    armada.submit_pb2.JobCancelRequest
+    armada.submit_pb2.CancellationResult
 
 
 
@@ -118,25 +118,25 @@ Create a job request.
     * **pod_specs** (*Optional**[**List**[**armada_client.k8s.io.api.core.v1.generated_pb2.PodSpec**]**]*) – List of k8s pod specs of the job
 
 
-    * **namespace** (*Optional**[**str**]*) – The namespace of the job
+    * **namespace** (*str** | **None*) – The namespace of the job
 
 
-    * **client_id** (*Optional**[**str**]*) – The client id of the job
+    * **client_id** (*str** | **None*) – The client id of the job
 
 
-    * **labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The labels of the job
+    * **labels** (*Dict**[**str**, **str**] **| **None*) – The labels of the job
 
 
-    * **annotations** (*Optional**[**Dict**[**str**, **str**]**]*) – The annotations of the job
+    * **annotations** (*Dict**[**str**, **str**] **| **None*) – The annotations of the job
 
 
-    * **required_node_labels** (*Optional**[**Dict**[**str**, **str**]**]*) – The required node labels of the job
+    * **required_node_labels** (*Dict**[**str**, **str**] **| **None*) – The required node labels of the job
 
 
-    * **ingress** (*Optional**[**List**[**armada.submit_pb2.IngressConfig**]**]*) – The ingress of the job
+    * **ingress** (*List**[**armada.submit_pb2.IngressConfig**] **| **None*) – The ingress of the job
 
 
-    * **services** (*Optional**[**List**[**armada.submit_pb2.ServiceConfig**]**]*) – The services of the job
+    * **services** (*List**[**armada.submit_pb2.ServiceConfig**] **| **None*) – The services of the job
 
 
 
@@ -178,19 +178,19 @@ Create a queue request object.
     * **name** (*str*) – The name of the queue
 
 
-    * **priority_factor** (*Optional**[**float**]*) – The priority factor for the queue
+    * **priority_factor** (*float** | **None*) – The priority factor for the queue
 
 
-    * **user_owners** (*Optional**[**List**[**str**]**]*) – The user owners for the queue
+    * **user_owners** (*List**[**str**] **| **None*) – The user owners for the queue
 
 
-    * **group_owners** (*Optional**[**List**[**str**]**]*) – The group owners for the queue
+    * **group_owners** (*List**[**str**] **| **None*) – The group owners for the queue
 
 
-    * **resource_limits** (*Optional**[**Dict**[**str**, **float**]**]*) – The resource limits for the queue
+    * **resource_limits** (*Dict**[**str**, **float**] **| **None*) – The resource limits for the queue
 
 
-    * **permissions** (*Optional**[**List**[**armada_client.permissions.Permissions**]**]*) – The permissions for the queue
+    * **permissions** (*List**[**armada_client.permissions.Permissions**] **| **None*) – The permissions for the queue
 
 
 
@@ -282,7 +282,7 @@ for event in events:
     * **job_set_id** (*str*) – The name of the job set (a grouping of jobs)
 
 
-    * **from_message_id** (*Optional**[**str**]*) – The from message id.
+    * **from_message_id** (*str** | **None*) – The from message id.
 
 
 
@@ -294,7 +294,7 @@ for event in events:
 
 * **Return type**
 
-    *Generator*[armada.event_pb2.EventMessage, None, None]
+    *Iterator*[armada.event_pb2.EventStreamMessage]
 
 
 
@@ -359,19 +359,19 @@ or job set.
     * **new_priority** (*float*) – The new priority value for the jobs
 
 
-    * **job_ids** (*Optional**[**List**[**str**]**]*) – A list of job ids to change priority of
+    * **job_ids** (*List**[**str**] **| **None*) – A list of job ids to change priority of
 
 
-    * **job_set_id** (*Optional**[**str**]*) – A job set id including jobs to change priority of
+    * **job_set_id** (*str** | **None*) – A job set id including jobs to change priority of
 
 
-    * **queue** (*Optional**[**str**]*) – The queue the jobs are in
+    * **queue** (*str** | **None*) – The queue the jobs are in
 
 
 
 * **Returns**
 
-    ReprioritizeJobsResponse object. It is a map of strings.
+    JobReprioritizeResponse object. It is a map of strings.
 
 
 
@@ -508,7 +508,7 @@ Uses the UpdateQueues RPC to update a list of queues.
 Represents a gRPC proto event
 
 Definition can be found at:
-[https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284](https://github.com/G-Research/armada/blob/master/pkg/api/event.proto#L284)
+[https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto#L284](https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto#L284)
 
 
 * **Parameters**

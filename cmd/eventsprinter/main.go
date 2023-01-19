@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/cmd/eventsprinter/cmd"
+	"github.com/armadaproject/armada/cmd/eventsprinter/cmd"
 )
 
 func main() {

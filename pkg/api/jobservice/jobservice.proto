@@ -1,7 +1,8 @@
 syntax = 'proto3';
 
 package jobservice;
-option csharp_namespace = "ArmadaProject.Io.JobService";
+option go_package = "github.com/armadaproject/armada/pkg/api/jobservice";
+option csharp_namespace = "ArmadaProject.Io.Api.JobService";
 
 import "google/protobuf/empty.proto";
 
@@ -32,6 +33,7 @@ message JobServiceResponse {
         SUCCEEDED = 4;
         CANCELLED = 5;
         JOB_ID_NOT_FOUND = 6;
+	CONNECTION_ERR = 7;
     }
     State state = 1;
 // For failed jobs, this will contain a reason why the job failed

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/armadactl"
+	"github.com/armadaproject/armada/internal/armadactl"
 )
 
 func kubeCmd() *cobra.Command {
@@ -47,13 +47,19 @@ In bash, you can execute it directly like this:
 	}
 	cmd.Flags().String(
 		"jobId", "", "job to cancel")
-	cmd.MarkFlagRequired("jobId")
+	if err := cmd.MarkFlagRequired("jobId"); err != nil {
+		panic(err)
+	}
 	cmd.Flags().String(
 		"queue", "", "queue of the job")
-	cmd.MarkFlagRequired("queue")
+	if err := cmd.MarkFlagRequired("queue"); err != nil {
+		panic(err)
+	}
 	cmd.Flags().String(
 		"jobSet", "", "jobSet of the job")
-	cmd.MarkFlagRequired("jobSet")
+	if err := cmd.MarkFlagRequired("jobSet"); err != nil {
+		panic(err)
+	}
 	cmd.Flags().Int(
 		"podNumber", 0, "[optional] for jobs with multiple pods, index of the pod")
 	cmd.FParseErrWhitelist.UnknownFlags = true

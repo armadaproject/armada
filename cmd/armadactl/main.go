@@ -1,10 +1,10 @@
 package main
 
 import (
-	"log"
+	"os"
 
-	"github.com/G-Research/armada/cmd/armadactl/cmd"
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/cmd/armadactl/cmd"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 // Config is handled by cmd/params.go
@@ -12,6 +12,7 @@ func main() {
 	common.ConfigureCommandLineLogging()
 	root := cmd.RootCmd()
 	if err := root.Execute(); err != nil {
-		log.Fatal(err)
+		// We don't need to log the error here because cobra has already done this for us
+		os.Exit(1)
 	}
 }

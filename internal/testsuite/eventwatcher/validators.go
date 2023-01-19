@@ -3,36 +3,31 @@ package eventwatcher
 import (
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
-func validateEvent(actual *api.EventMessage, expected *api.EventMessage) error {
-	switch actual.Events.(type) {
+func assertEvent(expected *api.EventMessage, actual *api.EventMessage) error {
+	switch e := expected.Events.(type) {
 	case *api.EventMessage_Failed:
-		return validateFailedEvent(actual, expected)
+		v := actual.Events.(*api.EventMessage_Failed)
+		return assertEventFailed(e, v)
 	default:
 		return nil
 	}
 }
 
-func validateFailedEvent(actual *api.EventMessage, expected *api.EventMessage) error {
-	receivedFailedEvent, ok := actual.Events.(*api.EventMessage_Failed)
-	if !ok {
-		return errors.New("error casting actual event as Failed event")
+func assertEventFailed(expected *api.EventMessage_Failed, actual *api.EventMessage_Failed) error {
+	if expected.Failed.GetReason() == "" {
+		return nil
 	}
-	expectedFailedEvent, ok := expected.Events.(*api.EventMessage_Failed)
-	if !ok {
-		return errors.New("error casting expected event as Failed event")
+	if actual == nil {
+		return errors.Errorf("unexpected nil event 'actual'")
 	}
-	// only check messages if there is an expected message to check
-	if len(expectedFailedEvent.Failed.GetReason()) > 0 {
-		if expectedFailedEvent.Failed.GetReason() != receivedFailedEvent.Failed.GetReason() {
-			return errors.Errorf(
-				"error asserting failure reason: expected %s, got %s",
-				expectedFailedEvent.Failed.GetReason(), receivedFailedEvent.Failed.GetReason(),
-			)
-		}
+	if expected.Failed.GetReason() != actual.Failed.GetReason() {
+		return errors.Errorf(
+			"error asserting failure reason: expected %s, got %s",
+			expected.Failed.GetReason(), actual.Failed.GetReason(),
+		)
 	}
-
 	return nil
 }

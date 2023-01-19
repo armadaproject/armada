@@ -22,9 +22,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	cluster_context "github.com/G-Research/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 )
 
 type NodeSpec struct {

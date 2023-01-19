@@ -8,7 +8,7 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 func ToUTC(t time.Time) time.Time {
@@ -75,13 +75,6 @@ func NewNullString(s string) sql.NullString {
 	}
 }
 
-func ParseNullString(nullString sql.NullString) string {
-	if !nullString.Valid {
-		return ""
-	}
-	return nullString.String
-}
-
 func ParseNullBool(nullBool sql.NullBool) bool {
 	if !nullBool.Valid {
 		return false
@@ -101,13 +94,6 @@ func ParseNullFloat(nullFloat sql.NullFloat64) float64 {
 		return 0
 	}
 	return nullFloat.Float64
-}
-
-func ParseNullTime(nullTime sql.NullTime) *time.Time {
-	if !nullTime.Valid {
-		return nil
-	}
-	return &nullTime.Time
 }
 
 func ParseNullTimeDefault(nullTime sql.NullTime) time.Time {

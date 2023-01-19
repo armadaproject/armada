@@ -3,19 +3,21 @@ package service
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+
+	"github.com/armadaproject/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
-	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/healthmonitor"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/reporter"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/internal/executor/utilisation"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/healthmonitor"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/executor/utilisation"
 )
 
 type ClusterAllocationService struct {
@@ -25,6 +27,7 @@ type ClusterAllocationService struct {
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
 	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
+	reserved           common.ComputeResources
 }
 
 func NewClusterAllocationService(
@@ -34,6 +37,7 @@ func NewClusterAllocationService(
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	reserved common.ComputeResources,
 ) *ClusterAllocationService {
 	return &ClusterAllocationService{
 		leaseService:       leaseService,
@@ -42,6 +46,7 @@ func NewClusterAllocationService(
 		clusterContext:     clusterContext,
 		submitter:          submitter,
 		etcdHealthMonitor:  etcdHealthMonitor,
+		reserved:           reserved,
 	}
 }
 
@@ -135,7 +140,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 }
 
 func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
-	err := allocationService.leaseService.ReturnLease(pod, reason)
+	err := allocationService.leaseService.ReturnLease(pod, reason, true)
 	if err != nil {
 		log.Errorf("Failed to return lease for job %s because %s", util.ExtractJobId(pod), err)
 	}

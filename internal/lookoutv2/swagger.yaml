@@ -1,0 +1,458 @@
+---
+swagger: '2.0'
+info:
+  version: 2.0.0
+  title: Lookout v2 API
+schemes:
+  - http
+
+definitions:
+  job:
+    type: object
+    required:
+      - jobId
+      - queue
+      - owner
+      - jobSet
+      - cpu
+      - memory
+      - ephemeralStorage
+      - gpu
+      - priority
+      - submitted
+      - state
+      - lastTransitionTime
+      - duplicate
+      - annotations
+      - runs
+    properties:
+      jobId:
+        type: string
+        minLength: 1
+        x-nullable: false
+      queue:
+        type: string
+        minLength: 1
+        x-nullable: false
+      owner:
+        type: string
+        minLength: 1
+        x-nullable: false
+      jobSet:
+        type: string
+        minLength: 1
+        x-nullable: false
+      cpu:
+        type: integer
+        format: int64
+        x-nullable: false
+      memory:
+        type: integer
+        format: int64
+        x-nullable: false
+      ephemeralStorage:
+        type: integer
+        format: int64
+        x-nullable: false
+      gpu:
+        type: integer
+        format: int64
+        x-nullable: false
+      priority:
+        type: integer
+        format: int64
+        x-nullable: false
+      priorityClass:
+        type: string
+        x-nullable: true
+      submitted:
+        type: string
+        format: date-time
+        minLength: 1
+        x-nullable: false
+      cancelled:
+        type: string
+        format: date-time
+        x-nullable: true
+      state:
+        type: string
+        enum:
+          - QUEUED
+          - PENDING
+          - RUNNING
+          - SUCCEEDED
+          - FAILED
+          - CANCELLED
+        x-nullable: false
+      lastTransitionTime:
+        type: string
+        format: date-time
+        minLength: 1
+        x-nullable: false
+      lastActiveRunId:
+        type: string
+        x-nullable: true
+      duplicate:
+        type: boolean
+        x-nullable: false
+      annotations:
+        type: object
+        additionalProperties:
+          type: string
+        x-nullable: false
+      runs:
+        type: array
+        items:
+          $ref: "#/definitions/run"
+        x-nullable: false
+  run:
+    type: object
+    required:
+      - runId
+      - cluster
+      - pending
+      - jobRunState
+    properties:
+      runId:
+        type: string
+        minLength: 1
+        x-nullable: false
+      cluster:
+        type: string
+        minLength: 1
+        x-nullable: false
+      node:
+        type: string
+        x-nullable: true
+      pending:
+        type: string
+        format: date-time
+        minLength: 1
+        x-nullable: false
+      started:
+        type: string
+        format: date-time
+        x-nullable: true
+      finished:
+        type: string
+        format: date-time
+        x-nullable: true
+      jobRunState:
+        type: string
+        enum:
+          - RUN_PENDING
+          - RUN_RUNNING
+          - RUN_SUCCEEDED
+          - RUN_FAILED
+          - RUN_TERMINATED
+          - RUN_PREEMPTED
+          - RUN_UNABLE_TO_SCHEDULE
+          - RUN_LEASE_RETURNED
+          - RUN_LEASE_EXPIRED
+          - RUN_MAX_RUNS_EXCEEDED
+        x-nullable: false
+      exitCode:
+        type: integer
+        format: int32
+        x-nullable: true
+  group:
+    type: object
+    required:
+      - name
+      - count
+      - aggregates
+    properties:
+      name:
+        type: string
+        minLength: 1
+        x-nullable: false
+      count:
+        type: integer
+        x-nullable: false
+      aggregates:
+        type: object
+        additionalProperties:
+          type: string
+        x-nullable: false
+  filter:
+    type: object
+    required:
+      - field
+      - value
+      - match
+    properties:
+      field:
+        type: string
+        minLength: 1
+        x-nullable: false
+      value:
+        type: object
+      match:
+        type: string
+        enum:
+          - exact
+          - anyOf
+          - startsWith
+          - contains
+          - greaterThan
+          - lessThan
+          - greaterThanOrEqualTo
+          - lessThanOrEqualTo
+        x-nullable: false
+      isAnnotation:
+        type: boolean
+        x-nullable: false
+  order:
+    type: object
+    required:
+      - field
+      - direction
+    properties:
+      field:
+        type: string
+        minLength: 1
+        x-nullable: false
+      direction:
+        type: string
+        enum:
+          - ASC
+          - DESC
+        x-nullable: false
+  error:
+    type: object
+    required:
+      - error
+    properties:
+      error:
+        type: string
+        minLength: 1
+        x-nullable: false
+
+paths:
+  /health:
+    get:
+      produces:
+        - text/plain
+      responses:
+        200:
+          description: OK
+          schema:
+            type: string
+        400:
+          description: Error response
+          schema:
+            type: string
+
+  /api/v1/jobs:
+    post:
+      operationId: getJobs
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobsRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - filters
+              - order
+              - skip
+              - take
+            properties:
+              filters:
+                type: array
+                description: "Filters to apply to jobs."
+                items:
+                  $ref: "#/definitions/filter"
+                x-nullable: true
+              order:
+                description: "Ordering to apply to jobs."
+                $ref: "#/definitions/order"
+                x-nullable: true
+              skip:
+                type: integer
+                description: "First elements to ignore from the full set of results. Used for pagination."
+              take:
+                type: integer
+                description: "Number of jobs to fetch."
+                x-nullable: false
+
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns jobs from API
+          schema:
+            type: object
+            properties:
+              count:
+                type: integer
+                description: Total number of jobs
+                x-nullable: false
+              jobs:
+                type: array
+                description: "List of jobs found"
+                items:
+                  $ref: "#/definitions/job"
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
+  /api/v1/jobSpec:
+    post:
+      operationId: getJobSpec
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobSpecRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - jobId
+            properties:
+              jobId:
+                type: string
+                x-nullable: false
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns raw Job spec
+          schema:
+            type: object
+            properties:
+              job:
+                type: object
+                description: Job Spec object
+                x-nullable: false
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
+  /api/v1/jobRunError:
+    post:
+      operationId: getJobRunError
+      consumes:
+        - application/json
+      parameters:
+        - name: getJobRunErrorRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - runId
+            properties:
+              runId:
+                type: string
+                x-nullable: false
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns error for specific job run (if present)
+          schema:
+            type: object
+            properties:
+              errorString:
+                type: string
+                description: Error for individual job run
+                x-nullable: false
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+
+  /api/v1/jobGroups:
+    post:
+      operationId: groupJobs
+      consumes:
+        - application/json
+      parameters:
+        - name: groupJobsRequest
+          required: true
+          in: body
+          schema:
+            type: object
+            required:
+              - filters
+              - order
+              - groupedField
+              - aggregates
+              - skip
+              - take
+            properties:
+              filters:
+                type: array
+                description: "Filters to apply to jobs before grouping."
+                items:
+                  $ref: "#/definitions/filter"
+                x-nullable: true
+              order:
+                description: "Ordering to apply to job groups."
+                $ref: "#/definitions/order"
+                x-nullable: true
+              groupedField:
+                type: string
+                description: "Field to group jobs by"
+                minLength: 1
+                x-nullable: false
+              aggregates:
+                type: array
+                description: "Additional fields to compute aggregates on"
+                items:
+                  type: string
+                  x-nullable: false
+                x-nullable: true
+              skip:
+                type: integer
+                description: "First elements to ignore from the full set of results. Used for pagination."
+              take:
+                type: integer
+                description: "Number of job groups to fetch."
+                x-nullable: false
+
+      produces:
+        - application/json
+      responses:
+        200:
+          description: Returns job groups from API
+          schema:
+            type: object
+            required:
+              - groups
+            properties:
+              count:
+                type: integer
+                description: Total number of groups
+                x-nullable: false
+              groups:
+                type: array
+                description: List of Job groups
+                items:
+                  $ref: "#/definitions/group"
+        400:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"
+        default:
+          description: Error response
+          schema:
+            $ref: "#/definitions/error"

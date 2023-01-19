@@ -5,9 +5,9 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ApplicationConfiguration struct {
@@ -52,7 +52,10 @@ type KubernetesConfiguration struct {
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
-	PodKillTimeout            time.Duration
+	// NodeReservedResources config is used to factor in reserved resources on each node
+	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
+	NodeReservedResources common.ComputeResources
+	PodKillTimeout        time.Duration
 }
 
 type EtcdConfiguration struct {

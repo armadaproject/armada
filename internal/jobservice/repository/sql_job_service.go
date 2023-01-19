@@ -9,16 +9,19 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 
 	log "github.com/sirupsen/logrus"
 )
 
 type JobTableUpdater interface {
-	SubscribeJobSet(string, string)
-	IsJobSetSubscribed(string, string) bool
+	SubscribeJobSet(queue string, jobSet string)
+	IsJobSetSubscribed(queue string, jobSet string) bool
 	UpdateJobServiceDb(*JobStatus) error
+	SetSubscriptionError(queue string, jobSet string, err string)
+	GetSubscriptionError(queue string, jobSet string) string
+	ClearSubscriptionError(queue string, jobSet string)
 }
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
@@ -97,16 +100,24 @@ ON jobservice (Queue, JobSetId)`)
 
 // Get the JobStatus given the jodId
 func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
-	row := s.db.QueryRow("SELECT JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
-	var jobState string
-	var jobError string
+	row := s.db.QueryRow("SELECT Queue, JobSetId, JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
+	var queue, jobSetId, jobState, jobError string
 
-	err := row.Scan(&jobState, &jobError)
+	err := row.Scan(&queue, &jobSetId, &jobState, &jobError)
 
 	if err == sql.ErrNoRows {
 		return &js.JobServiceResponse{State: js.JobServiceResponse_JOB_ID_NOT_FOUND}, nil
 	} else if err != nil {
 		return nil, err
+	}
+
+	// indicate connnection error for jobset/queue subscription where present
+	connErr := s.GetSubscriptionError(queue, jobSetId)
+	if connErr != "" {
+		return &js.JobServiceResponse{
+			Error: connErr,
+			State: js.JobServiceResponse_CONNECTION_ERR,
+		}, nil
 	}
 
 	jobJSRState, err := jobStateStrToJSRState(jobState)
@@ -180,6 +191,34 @@ func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) bool {
 	primaryKey := queue + jobSet
 	_, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
 	return ok
+}
+
+// Clear subscription error if present
+func (s *SQLJobService) ClearSubscriptionError(queue string, jobSet string) {
+	s.SetSubscriptionError(queue, jobSet, "")
+}
+
+// Set subscription error if present
+func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, err string) {
+	s.jobSetSubscribe.subscribeLock.Lock()
+	defer s.jobSetSubscribe.subscribeLock.Unlock()
+	primaryKey := queue + jobSet
+	subscription, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
+	if ok {
+		subscription.err = err
+	}
+}
+
+// Get subscription error if present
+func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) string {
+	s.jobSetSubscribe.subscribeLock.Lock()
+	defer s.jobSetSubscribe.subscribeLock.Unlock()
+	primaryKey := queue + jobSet
+	subscription, ok := s.jobSetSubscribe.subscribeMap[primaryKey]
+	if ok {
+		return subscription.err
+	}
+	return ""
 }
 
 // Mark our JobSet as being subscribed

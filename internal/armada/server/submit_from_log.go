@@ -13,20 +13,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // SubmitFromLog is a service that reads messages from Pulsar and updates the state of the Armada server accordingly
-// (in particular, it writes to Redis and Nats).
+// (in particular, it writes to Redis).
 // Calls into an embedded Armada submit server object.
 type SubmitFromLog struct {
 	SubmitServer *SubmitServer
@@ -47,7 +47,11 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		if err := recover(); err != nil {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
-			go srv.Run(ctx)
+			go func() {
+				if err := srv.Run(ctx); err != nil {
+					logging.WithStacktrace(log, err).Error("service failure")
+				}
+			}()
 		} else {
 			// An expected shutdown.
 			log.Info("service stopped")
@@ -232,6 +236,12 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 		if ok {
 			j = i + len(es)
 		}
+	case *armadaevents.EventSequence_Event_JobRunRunning:
+		es := collectJobRunRunningEvents(ctx, i, sequence)
+		ok, err = srv.UpdateJobStartTimes(ctx, es)
+		if ok {
+			j = i + len(es)
+		}
 	default:
 		// Assign to j the index of the next event in the sequence with type different from sequence.Events[i],
 		// or len(sequence.Events) if no such element exists, so that processing won't be attempted for this type again.
@@ -305,6 +315,18 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 		}
 	}
 	return result
+}
+
+func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, 0)
+	for j := i; j < len(sequence.Events); j++ {
+		if _, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
+			events = append(events, sequence.Events[j])
+		} else {
+			break
+		}
+	}
+	return events
 }
 
 func (srv *SubmitFromLog) getLogger() *logrus.Entry {
@@ -560,6 +582,48 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	}
 
 	return true, nil
+}
+
+// UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
+func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
+	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
+	for _, event := range es {
+		jobRun := event.GetJobRunRunning()
+		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.GetJobId())
+		if err != nil {
+			logrus.WithError(err).Warnf("Invalid job id received when processing jobRunRunning Message")
+			continue
+		}
+
+		if event.Created == nil {
+			logrus.WithError(err).Warnf("Job run event for job %s has a missing timestamp.  Ignoring.", jobId)
+			continue
+		}
+		clusterId := ""
+		if len(jobRun.ResourceInfos) > 0 {
+			clusterId = jobRun.ResourceInfos[0].GetObjectMeta().GetExecutorId()
+		}
+		jobStartsInfos = append(jobStartsInfos, &repository.JobStartInfo{
+			JobId:     jobId,
+			ClusterId: clusterId,
+			StartTime: *event.Created,
+		})
+	}
+	jobErrors, err := srv.SubmitServer.jobRepository.UpdateStartTime(jobStartsInfos)
+	if err != nil {
+		return false, err
+	}
+
+	var jobNotFoundError *repository.ErrJobNotFound
+	allOk := true
+	for _, jobErr := range jobErrors {
+		if jobErr != nil && !errors.As(jobErr, &jobNotFoundError) {
+			allOk = false
+			err = jobErr
+			break
+		}
+	}
+	return allOk, err
 }
 
 // ReprioritizeJobSets updates the priority of several job sets.

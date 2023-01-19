@@ -14,7 +14,7 @@ import (
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 type DeviceDetails struct {
@@ -25,6 +25,7 @@ type DeviceDetails struct {
 
 func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 	ctx := context.Background()
+
 	provider, err := openId.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
 		return nil, err
@@ -48,7 +49,11 @@ func AuthenticateDevice(config DeviceDetails) (*TokenCredentials, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer cmd.Process.Kill()
+		defer func() {
+			if err := cmd.Process.Kill(); err != nil {
+				fmt.Printf("Error killing your process: %s", err)
+			}
+		}()
 	}
 
 	for {
@@ -106,8 +111,7 @@ func requestDeviceAuthorization(c *http.Client, config DeviceDetails) (*deviceFl
 	}
 
 	var deviceFlowResponse deviceFlowResponse
-	err = json.NewDecoder(resp.Body).Decode(&deviceFlowResponse)
-	if err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&deviceFlowResponse); err != nil {
 		return nil, err
 	}
 	return &deviceFlowResponse, nil
@@ -135,8 +139,7 @@ func requestToken(c *http.Client, config DeviceDetails, deviceCode string) (*oau
 		return &token, nil
 	} else if resp.StatusCode == 400 {
 		var errResp oauthErrorResponse
-		err = json.NewDecoder(resp.Body).Decode(&errResp)
-		if err != nil {
+		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, err
 		}
 		return nil, errors.New(errResp.Error)

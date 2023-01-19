@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
@@ -290,11 +290,11 @@ func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 	allowedPriorityClasses := map[string]configuration.PriorityClass{"some-priority-class": {Priority: 10}}
 	assert.NoError(
 		t,
-		ValidatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),
+		validatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),
 		"validation should pass when specified priority class is configured to be allowed and preemption is enabled",
 	)
 
-	err := ValidatePodSpecPriorityClass(validPriorityClass, false, allowedPriorityClasses)
+	err := validatePodSpecPriorityClass(validPriorityClass, false, allowedPriorityClasses)
 	assert.Error(
 		t,
 		err,
@@ -303,7 +303,7 @@ func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 	validateInvalidArgumentErrorMessage(t, err, "Preemption is disabled in Server config")
 
 	invalidPriorityClass := &v1.PodSpec{PriorityClassName: "some-other-priority-class"}
-	err = ValidatePodSpecPriorityClass(invalidPriorityClass, true, allowedPriorityClasses)
+	err = validatePodSpecPriorityClass(invalidPriorityClass, true, allowedPriorityClasses)
 	assert.Error(
 		t,
 		err,

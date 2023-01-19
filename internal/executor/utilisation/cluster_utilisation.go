@@ -4,18 +4,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/node"
-	"github.com/G-Research/armada/internal/executor/util"
-	. "github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/executor/util"
+	. "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type UtilisationService interface {
@@ -29,6 +31,7 @@ type ClusterUtilisationService struct {
 	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	nodeReservedResources   common.ComputeResources
 }
 
 func NewClusterUtilisationService(
@@ -37,6 +40,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	nodeReservedResources common.ComputeResources,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -44,6 +48,7 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
+		nodeReservedResources:   nodeReservedResources,
 	}
 }
 
@@ -114,12 +119,12 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return nil, fmt.Errorf("Failed getting available cluster capacity due to: %s", err)
+		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
@@ -138,6 +143,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		allocatable := common.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
+		// sub node reserved resources if defined,
+		// if nil, behaviour is same as subtracting 0
+		available.Sub(clusterUtilisationService.nodeReservedResources)
 
 		nodePods := podsByNodes[n.Name]
 		allocated := getAllocatedResourcesByPriority(nodePods)
