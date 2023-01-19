@@ -29,7 +29,7 @@ message LeaseRequest{
   // - the total allocatable resources on that node,
   // - the job runs running on those nodes
   // - any taints and labels on the node.
-  repeated api.NodeInfo nodes = 5 [(gogoproto.nullable) = false];
+  repeated api.NodeInfo nodes = 5;
   // Run Ids of jobs owned by the executor but not currently assigned to a node
   repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
 }
