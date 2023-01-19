@@ -59,6 +59,14 @@ CREATE TABLE markers (
     PRIMARY KEY (group_id, partition_id)
 );
 
+CREATE TABLE executors (
+    -- unique identified for an executor
+    executor_id text PRIMARY KEY,
+    -- the last lease request made by the executor.  Compressed.
+    last_request bytea,
+    -- the timestamp of last lease request made by the executor
+    last_updated timestamptz NOT NULL
+);
 
 CREATE TABLE job_run_errors (
     run_id uuid PRIMARY KEY,

@@ -62,3 +62,9 @@ SELECT COUNT(*) FROM markers WHERE group_id= $1;
 -- Run errors
 -- name: SelectRunErrorsById :many
 SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: SelectAllExecutors :many
+SELECT * FROM executors;
+
+-- name: SelectExecutorUpdateTimes :many
+SELECT executor_id, last_updated FROM executors;
