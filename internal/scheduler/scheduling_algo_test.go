@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/util"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/armadaproject/armada/internal/common/util"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"

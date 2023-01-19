@@ -158,7 +158,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada
       - --label=org.opencontainers.image.description="Armada Bundle"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -194,7 +194,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-server
       - --label=org.opencontainers.image.description="Armada Server"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-server
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -222,7 +222,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-executor
       - --label=org.opencontainers.image.description="Armada Executor"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-executor
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -250,7 +250,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-lookoutingester
       - --label=org.opencontainers.image.description="Armada Lookout Ingester"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookoutingester
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -278,7 +278,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-lookoutingesterv2
       - --label=org.opencontainers.image.description="Armada Lookout Ingester v2"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookoutingesterv2
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -306,7 +306,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-lookout
       - --label=org.opencontainers.image.description="Armada Lookout
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookout
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -340,7 +340,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-lookoutv2
       - --label=org.opencontainers.image.description="Armada Lookout v2"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookoutv2
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -370,7 +370,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-eventingester
       - --label=org.opencontainers.image.description="Armada Event Ingester"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-eventingester
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -398,7 +398,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-binoculars
       - --label=org.opencontainers.image.description="Armada Binoculars"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-binoculars
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -426,7 +426,7 @@ dockers:
       - --label=org.opencontainers.image.title=armada-jobservice
       - --label=org.opencontainers.image.description="Armada Job Service"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-jobservice
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -454,7 +454,7 @@ dockers:
       - --label=org.opencontainers.image.title=armadactl
       - --label=org.opencontainers.image.description="Armada CLI"
       - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armadactl
-      - --label=org.opencontainers.image.source=https://github.com/G-Research/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
@@ -476,7 +476,7 @@ release:
   draft: false
   header: |
     ## Armada {{ .Version }} - ({{ .Date }})
-    See https://github.com/G-Research/armada for more info and documentation.
+    See https://github.com/armadaproject/armada for more info and documentation.
     ## Docker images
     ### Armada Bundle
     - `docker pull {{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
