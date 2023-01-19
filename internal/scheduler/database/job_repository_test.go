@@ -48,25 +48,25 @@ func TestFetchJobUpdates(t *testing.T) {
 			expectedRuns: []Run{},
 			jobsSerial:   10,
 		},
-		"all dbRuns": {
+		"all runs": {
 			dbRuns:       dbRuns,
 			expectedRuns: expectedRuns,
 			expectedJobs: []Job{},
 			jobsSerial:   0,
 		},
-		"some dbRuns": {
+		"some runs": {
 			dbRuns:       dbRuns,
 			expectedRuns: expectedRuns[5:],
 			expectedJobs: []Job{},
 			runsSerial:   5,
 		},
-		"no dbRuns": {
+		"no runs": {
 			dbRuns:       dbRuns,
 			expectedJobs: []Job{},
 			expectedRuns: []Run{},
 			runsSerial:   10,
 		},
-		"both jobs and dbRuns": {
+		"both jobs and runs": {
 			dbJobs:       dbJobs,
 			dbRuns:       dbRuns,
 			expectedJobs: expectedJobs,
