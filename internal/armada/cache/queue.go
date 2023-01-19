@@ -9,7 +9,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/metrics"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -104,7 +103,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(
 		}
 
 		for _, job := range queuedJobs {
-			jobResources := common.TotalJobResourceRequest(job)
+			jobResources := armadaresource.TotalJobResourceRequest(job)
 			nonMatchingClusters := stringSet{}
 			queuedTime := currentTime.Sub(job.Created)
 
@@ -168,7 +167,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 			if !present {
 				continue
 			}
-			jobResources := common.TotalJobResourceRequest(job)
+			jobResources := armadaresource.TotalJobResourceRequest(job)
 			runTime := now.Sub(runInfo.StartTime)
 			priorityClass := getPriorityClass(job)
 			metricsRecorder.RecordJobRuntime(pool, priorityClass, runTime)

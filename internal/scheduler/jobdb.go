@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -66,6 +67,10 @@ type SchedulerJob struct {
 	// Job Runs in the order they were received.
 	// For now there can be only one active job run which will be the last element of the slice
 	Runs []*JobRun
+}
+
+func (job *SchedulerJob) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+	return job.jobSchedulingInfo
 }
 
 // GetQueue returns the queue this job belongs to.

@@ -16,22 +16,19 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/util"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
-	GetRequirements() *schedulerobjects.JobSchedulingInfo
+	GetAnnotations() map[string]string
+	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 }
 
 // SchedulingConstraints collects scheduling constraints,
@@ -126,6 +123,7 @@ type QueuedGangIterator[T LegacySchedulerJob] struct {
 	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
 	jobsByGangId map[string][]T
+	next         []T
 }
 
 func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIterator[T], gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator[T] {
@@ -139,8 +137,24 @@ func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIter
 }
 
 func (it *QueuedGangIterator[T]) Next() ([]T, error) {
-	if it.jobsByGangId == nil {
-		it.jobsByGangId = make(map[string][]T)
+	if v, err := it.Peek(); err != nil {
+		return nil, err
+	} else {
+		if err := it.Clear(); err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+}
+
+func (it *QueuedGangIterator[T]) Clear() error {
+	it.next = nil
+	return nil
+}
+
+func (it *QueuedGangIterator[T]) Peek() ([]T, error) {
+	if it.next != nil {
+		return it.next, nil
 	}
 
 	// Get one job at a time from the underlying iterator until we either
@@ -151,15 +165,16 @@ func (it *QueuedGangIterator[T]) Next() ([]T, error) {
 		if err != nil {
 			return nil, err
 		}
-		isNil, err := isNil(job)
-		if err != nil {
-			return nil, err
-		}
-		if isNil {
-			return nil, nil
-		}
 
-		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job, it.gangIdAnnotation, it.gangCardinalityAnnotation)
+		// TODO: Add when we've removed T.
+		// if job == nil {
+		// 	return nil, nil
+		// }
+		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(
+			job.GetAnnotations(),
+			it.gangIdAnnotation,
+			it.gangCardinalityAnnotation,
+		)
 		if err != nil {
 			log := ctxlogrus.Extract(it.ctx)
 			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", job.GetId())
@@ -170,10 +185,12 @@ func (it *QueuedGangIterator[T]) Next() ([]T, error) {
 			gang := it.jobsByGangId[gangId]
 			if len(gang) == gangCardinality {
 				delete(it.jobsByGangId, gangId)
-				return gang, nil
+				it.next = gang
+				return it.next, nil
 			}
 		} else {
-			return []T{job}, nil
+			it.next = []T{job}
+			return it.next, nil
 		}
 	}
 }
@@ -188,36 +205,66 @@ type QueueCandidateGangIterator[T LegacySchedulerJob] struct {
 }
 
 func (it *QueueCandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
+	if v, err := it.Peek(); err != nil {
+		return nil, err
+	} else {
+		if err := it.Clear(); err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+}
+
+func (it *QueueCandidateGangIterator[T]) Clear() error {
+	if err := it.queuedGangIterator.Clear(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (it *QueueCandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], error) {
 	var consecutiveUnschedulableJobs uint
-	for gang, err := it.queuedGangIterator.Next(); gang != nil; gang, err = it.queuedGangIterator.Next() {
+	for gang, err := it.queuedGangIterator.Peek(); gang != nil; gang, err = it.queuedGangIterator.Peek() {
 		if err != nil {
 			return nil, err
 		}
 		if it.MaxConsecutiveUnschedulableJobs != 0 && consecutiveUnschedulableJobs == it.MaxConsecutiveUnschedulableJobs {
 			break
 		}
-		reports, err := it.schedulingReportsFromJobs(it.ctx, gang)
-		if err != nil {
+		if v, ok, err := it.f(gang); err != nil {
+			return nil, err
+		} else if ok {
+			return v, nil
+		}
+		if err := it.queuedGangIterator.Clear(); err != nil {
 			return nil, err
 		}
-
-		unschedulableReason := ""
-		for _, report := range reports {
-			if report.UnschedulableReason != "" {
-				unschedulableReason = report.UnschedulableReason
-				break
-			}
-		}
-		if unschedulableReason != "" {
-			for _, report := range reports {
-				it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
-			}
-			consecutiveUnschedulableJobs++
-		} else {
-			return reports, nil
-		}
+		consecutiveUnschedulableJobs++
 	}
 	return nil, nil
+}
+
+func (it *QueueCandidateGangIterator[T]) f(gang []T) ([]*JobSchedulingReport[T], bool, error) {
+	if gang == nil {
+		return nil, false, nil
+	}
+	reports, err := it.schedulingReportsFromJobs(it.ctx, gang)
+	if err != nil {
+		return nil, false, err
+	}
+	unschedulableReason := ""
+	for _, report := range reports {
+		if report.UnschedulableReason != "" {
+			unschedulableReason = report.UnschedulableReason
+			break
+		}
+	}
+	if unschedulableReason != "" {
+		for _, report := range reports {
+			it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
+		}
+	}
+	return reports, unschedulableReason == "", nil
 }
 
 func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.Context, jobs []T) ([]*JobSchedulingReport[T], error) {
@@ -232,14 +279,22 @@ func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.C
 	// We consider the total resource requests of a gang
 	// to be the sum of the requests over all jobs in the gang.
 	reports := make([]*JobSchedulingReport[T], len(jobs))
+
 	gangTotalResourceRequests := schedulerobjects.ResourceList{}
+	for _, job := range jobs {
+		if req := job.GetRequirements(it.PriorityClasses); req != nil {
+			gangTotalResourceRequests.Add(req.GetTotalResourceRequest())
+		}
+	}
+
+	totalResourceRequestsFromJobs[T](jobs, it.PriorityClasses)
 	timestamp := time.Now()
 	for i, job := range jobs {
 		jobId, err := uuidFromUlidString(job.GetId())
 		if err != nil {
 			return nil, err
 		}
-		req, err := extractSchedulerRequirements(job, it.PriorityClasses)
+		req := PodRequirementFromJobSchedulingInfo(job.GetRequirements(it.PriorityClasses))
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +307,7 @@ func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.C
 		}
 
 		gangTotalResourceRequests.Add(schedulerobjects.ResourceList{
-			Resources: common.FromResourceList(req.ResourceRequirements.Requests),
+			Resources: armadaresource.FromResourceList(req.ResourceRequirements.Requests),
 		})
 	}
 
@@ -317,18 +372,34 @@ func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.C
 	return reports, nil
 }
 
-// Priority queue used by CandidateGangIterator to determine in which order
-// to process the queues in the system
+func totalResourceRequestsFromJobs[T LegacySchedulerJob](jobs []T, priorityClasses map[string]configuration.PriorityClass) schedulerobjects.ResourceList {
+	rv := schedulerobjects.ResourceList{}
+	for _, job := range jobs {
+		for _, reqs := range job.GetRequirements(priorityClasses).GetObjectRequirements() {
+			rv.Add(
+				schedulerobjects.ResourceListFromV1ResourceList(
+					reqs.GetPodRequirements().ResourceRequirements.Requests,
+				),
+			)
+		}
+	}
+	return rv
+}
+
+// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
 type QueueCandidateGangIteratorPQ[T LegacySchedulerJob] []*QueueCandidateGangIteratorItem[T]
 
 type QueueCandidateGangIteratorItem[T LegacySchedulerJob] struct {
-	// The iterator that produced this value.
+	// Each item corresponds to a queue.
+	queue string
+	// Iterator for this queue.
 	it *QueueCandidateGangIterator[T]
 	// The most recent value produced by the iterator.
-	nextGang []*JobSchedulingReport[T]
+	// nextGang []*JobSchedulingReport[T]
 	// The priority of the item in the queue.
 	// A non-negative value expressing what fraction of their fair share
 	// this user would have if the next schedulable job in this queue were to be scheduled.
+	//
 	// TODO: Consider renaming.
 	priority float64
 	// The index of the item in the heap.
@@ -372,17 +443,14 @@ type CandidateGangIterator[T LegacySchedulerJob] struct {
 	SchedulingConstraints
 	SchedulingRoundReport *SchedulingRoundReport[T]
 	ctx                   context.Context
-	// iteratorsByQueue      map[string]*QueueCandidateGangIterator[T]
 	// These factors influence the fraction of resources assigned to each queue.
 	priorityFactorByQueue map[string]float64
-	// Inverse of the priority factor.
+	// Inverse of the priority factor for
 	weightByQueue map[string]float64
 	// Sum of all weights.
 	weightSum float64
 	// Priority queue of per-queue iterators.
 	pq QueueCandidateGangIteratorPQ[T]
-	// Random number generator, used to select queues
-	rand *rand.Rand
 }
 
 func NewCandidateGangIterator[T LegacySchedulerJob](
@@ -395,8 +463,8 @@ func NewCandidateGangIterator[T LegacySchedulerJob](
 	if len(iteratorsByQueue) != len(priorityFactorByQueue) {
 		return nil, errors.Errorf("iteratorsByQueue and priorityFactorByQueue are not of equal length")
 	}
-	weightByQueue := make(map[string]float64)
 	weightSum := 0.0
+	weightByQueue := make(map[string]float64)
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if _, ok := iteratorsByQueue[queue]; !ok {
 			return nil, errors.Errorf("no iterator found for queue %s", queue)
@@ -415,162 +483,222 @@ func NewCandidateGangIterator[T LegacySchedulerJob](
 		pq:                    make(QueueCandidateGangIteratorPQ[T], 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
-		if err := rv.push(queue, queueIt); err != nil {
+		if err := rv.pushToPQ(queue, queueIt); err != nil {
 			return nil, err
 		}
 	}
 	return rv, nil
 }
 
-func (it *CandidateGangIterator[T]) push(queue string, queueIt *QueueCandidateGangIterator[T]) error {
-	nextGangReports, err := queueIt.Next()
+func (it *CandidateGangIterator[T]) pushToPQ(queue string, queueIt *QueueCandidateGangIterator[T]) error {
+	reports, err := queueIt.Peek()
 	if err != nil {
 		return err
 	}
-	nextGang := make([]T, len(nextGangReports))
-	for i, report := range nextGangReports {
-		nextGang[i] = report.Job
+	if reports == nil {
+		return nil
+	}
+	gang := make([]T, len(reports))
+	for i, report := range reports {
+		gang[i] = report.Job
 	}
 	initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].InitialResourcesByPriority
 	scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
 	totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
 	totalResourcesForQueue.Add(scheduledResourcesForQueue)
-	v := fractionOfFairShareWithGang[T](
-		nextGang,
-		it.weightByQueue[queue]/it.weightSum,
-		totalResourcesForQueue.AggregateByResource(),
+	totalResourcesForQueueWithGang := totalResourcesForQueue.AggregateByResource()
+	totalResourcesForQueueWithGang.Add(totalResourceRequestsFromJobs[T](gang, it.PriorityClasses))
+	fairShare := it.weightByQueue[queue] / it.weightSum
+	v := fractionOfFairShare(
+		fairShare,
+		totalResourcesForQueueWithGang,
 		it.ResourceScarcity,
 		it.TotalResources,
 	)
 	item := &QueueCandidateGangIteratorItem[T]{
+		queue:    queue,
 		it:       queueIt,
-		nextGang: nextGangReports,
 		priority: v,
 	}
 	it.pq.Push(item)
 	return nil
 }
 
-// Initialises the internal priority queue.
-func (it *CandidateGangIterator[T]) init() error {
-	// fairShareByQueue := getFairShareByQueue()
-	pq := make(QueueCandidateGangIteratorPQ[T], 0, len(it.iteratorsByQueue))
-	for queue, queueIt := range it.iteratorsByQueue {
-		nextGangReports, err := queueIt.Next()
-		if err != nil {
-			return err
+func (it *CandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
+	if v, err := it.Peek(); err != nil {
+		return nil, err
+	} else {
+		if err := it.Clear(); err != nil {
+			return nil, err
 		}
-		nextGang := make([]T, len(nextGangReports))
-		for i, report := range nextGangReports {
-			nextGang[i] = report.Job
-		}
-
-		initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].InitialResourcesByPriority
-		scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
-		totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
-		totalResourcesForQueue.Add(scheduledResourcesForQueue)
-
-		v := fractionOfFairShareWithGang[T](
-			nextGang,
-			fairShareByQueue[queue],
-			totalResourcesForQueue.AggregateByResource(),
-			it.ResourceScarcity,
-			it.TotalResources,
-		)
-
-		// fractionOfFairShare
-		item := &QueueCandidateGangIteratorItem[T]{
-			it:       queueIt,
-			nextGang: nextGangReports,
-			priority: v,
-		}
-		pq.Push(item)
+		return v, nil
 	}
-	it.pq = pq
+}
+
+func (it *CandidateGangIterator[T]) Clear() error {
+	if len(it.pq) == 0 {
+		return nil
+	}
+	item := (it.pq.Pop()).(QueueCandidateGangIteratorItem[T])
+	if err := item.it.Clear(); err != nil {
+		return err
+	}
+	if err := it.pushToPQ(item.queue, item.it); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (it *CandidateGangIterator[T]) NextOld() ([]*JobSchedulingReport[T], error) {
+// TODO: We call peek() on the underlying iterators more often than needed.
+func (it *CandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], error) {
 	if it.MaximumJobsToSchedule != 0 && it.SchedulingRoundReport.NumScheduledJobs == int(it.MaximumJobsToSchedule) {
 		it.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
 		return nil, nil
 	}
 
-	// Aggregate resource usage by queue.
-	// Used to fairly share resources between queues.
-	aggregatedResourceUsageByQueue := make(map[string]schedulerobjects.ResourceList)
-	for queue := range it.priorityFactorByQueue {
-		if report := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue]; report != nil {
-			rl := report.InitialResourcesByPriority.AggregateByResource()
-			rl.Add(report.ScheduledResourcesByPriority.AggregateByResource())
-			aggregatedResourceUsageByQueue[queue] = rl
-		}
-	}
-
 	// Yield a gang.
+	currentQueue := ""
 	for {
-		// First, select which queue to schedule from.
-		// Queues below their fair share are selected with higher probability.
-		var queue string
-		var queueIt *QueueCandidateGangIterator[T]
-		for {
-			if len(it.priorityFactorByQueue) == 0 {
-				// No queued jobs left.
-				return nil, nil
-			}
-			weights := queueSelectionWeights(
-				it.priorityFactorByQueue,
-				aggregatedResourceUsageByQueue,
-				it.ResourceScarcity,
-			)
-			queue, _ = pickQueueRandomly(weights, it.rand)
-
-			if iter := it.iteratorsByQueue[queue]; iter != nil {
-				queueIt = iter
-				break
-			} else {
-				log.Errorf("iterator missing for queue %s", queue)
-				delete(it.priorityFactorByQueue, queue)
-			}
+		if len(it.pq) == 0 {
+			// No queued jobs left.
+			return nil, nil
 		}
-
-		// Then, find a gang from that queue that could potentially be scheduled.
-		for reports, err := queueIt.Next(); reports != nil; reports, err = queueIt.Next() {
-			if err != nil {
+		item := (it.pq.Pop()).(QueueCandidateGangIteratorItem[T])
+		if item.queue != currentQueue {
+			currentQueue = item.queue
+			if err := it.pushToPQ(item.queue, item.it); err != nil {
 				return nil, err
 			}
-
-			// Check overall per-round resource limits.
-			totalScheduledResources := it.SchedulingRoundReport.ScheduledResourcesByPriority.AggregateByResource()
-			gangResourceRequests := schedulerobjects.ResourceList{}
-			for _, report := range reports {
-				gangResourceRequests.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
-			}
-			totalScheduledResources.Add(gangResourceRequests)
-			if exceeded, reason := exceedsResourceLimits(
-				it.ctx,
-				totalScheduledResources,
-				it.SchedulingConstraints.TotalResources,
-				it.MaximalResourceFractionToSchedule,
-			); exceeded {
-				unschedulableReason := reason + " (overall per scheduling round limit)"
-				for _, report := range reports {
-					report.UnschedulableReason = unschedulableReason
-					it.SchedulingRoundReport.AddJobSchedulingReport(report)
-				}
-			} else {
-				return reports, nil
-			}
+			continue
+		}
+		reports, err := item.it.Peek()
+		if err != nil {
+			return nil, err
 		}
 
-		// No more jobs to process for this queue.
-		delete(it.priorityFactorByQueue, queue)
+		if v, ok, err := it.f(reports); err != nil {
+			return nil, err
+		} else if ok {
+			if err := it.pushToPQ(item.queue, item.it); err != nil {
+				return nil, err
+			}
+			return v, nil
+		}
+
+		if err := item.it.Clear(); err != nil {
+			return nil, err
+		}
+		if err := it.pushToPQ(item.queue, item.it); err != nil {
+			return nil, err
+		}
 	}
 }
 
-func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) (priority int32, ok bool) {
-	return schedulerobjects.PriorityFromPodSpec(util.PodSpecFromJob(job), priorityByPriorityClassName)
+// func (it *CandidateGangIterator[T]) NextOld() ([]*JobSchedulingReport[T], error) {
+// 	if it.MaximumJobsToSchedule != 0 && it.SchedulingRoundReport.NumScheduledJobs == int(it.MaximumJobsToSchedule) {
+// 		it.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
+// 		return nil, nil
+// 	}
+
+// 	// Aggregate resource usage by queue.
+// 	// Used to fairly share resources between queues.
+// 	aggregatedResourceUsageByQueue := make(map[string]schedulerobjects.ResourceList)
+// 	for queue := range it.priorityFactorByQueue {
+// 		if report := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue]; report != nil {
+// 			rl := report.InitialResourcesByPriority.AggregateByResource()
+// 			rl.Add(report.ScheduledResourcesByPriority.AggregateByResource())
+// 			aggregatedResourceUsageByQueue[queue] = rl
+// 		}
+// 	}
+
+// 	// Yield a gang.
+// 	for {
+// 		// First, select which queue to schedule from.
+// 		// Queues below their fair share are selected with higher probability.
+// 		var queue string
+// 		var queueIt *QueueCandidateGangIterator[T]
+// 		for {
+// 			if len(it.priorityFactorByQueue) == 0 {
+// 				// No queued jobs left.
+// 				return nil, nil
+// 			}
+// 			weights := queueSelectionWeights(
+// 				it.priorityFactorByQueue,
+// 				aggregatedResourceUsageByQueue,
+// 				it.ResourceScarcity,
+// 			)
+// 			queue, _ = pickQueueRandomly(weights, it.rand)
+
+// 			if iter := it.iteratorsByQueue[queue]; iter != nil {
+// 				queueIt = iter
+// 				break
+// 			} else {
+// 				log.Errorf("iterator missing for queue %s", queue)
+// 				delete(it.priorityFactorByQueue, queue)
+// 			}
+// 		}
+
+// 		// Then, find a gang from that queue that could potentially be scheduled.
+// 		for reports, err := queueIt.Next(); reports != nil; reports, err = queueIt.Next() {
+// 			if err != nil {
+// 				return nil, err
+// 			}
+
+// 			// Check overall per-round resource limits.
+// 			totalScheduledResources := it.SchedulingRoundReport.ScheduledResourcesByPriority.AggregateByResource()
+// 			gangResourceRequests := schedulerobjects.ResourceList{}
+// 			for _, report := range reports {
+// 				gangResourceRequests.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
+// 			}
+// 			totalScheduledResources.Add(gangResourceRequests)
+// 			if exceeded, reason := exceedsResourceLimits(
+// 				it.ctx,
+// 				totalScheduledResources,
+// 				it.SchedulingConstraints.TotalResources,
+// 				it.MaximalResourceFractionToSchedule,
+// 			); exceeded {
+// 				unschedulableReason := reason + " (overall per scheduling round limit)"
+// 				for _, report := range reports {
+// 					report.UnschedulableReason = unschedulableReason
+// 					it.SchedulingRoundReport.AddJobSchedulingReport(report)
+// 				}
+// 			} else {
+// 				return reports, nil
+// 			}
+// 		}
+
+// 		// No more jobs to process for this queue.
+// 		delete(it.priorityFactorByQueue, queue)
+// 	}
+// }
+
+func (it *CandidateGangIterator[T]) f(reports []*JobSchedulingReport[T]) ([]*JobSchedulingReport[T], bool, error) {
+	totalScheduledResources := it.SchedulingRoundReport.ScheduledResourcesByPriority.AggregateByResource()
+	gangResourceRequests := schedulerobjects.ResourceList{}
+	for _, report := range reports {
+		gangResourceRequests.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
+	}
+	totalScheduledResources.Add(gangResourceRequests)
+	if exceeded, reason := exceedsResourceLimits(
+		it.ctx,
+		totalScheduledResources,
+		it.SchedulingConstraints.TotalResources,
+		it.MaximalResourceFractionToSchedule,
+	); exceeded {
+		unschedulableReason := reason + " (overall per scheduling round limit)"
+		for _, report := range reports {
+			report.UnschedulableReason = unschedulableReason
+			it.SchedulingRoundReport.AddJobSchedulingReport(report)
+		}
+		return reports, false, nil
+	} else {
+		return reports, true, nil
+	}
 }
+
+// func PriorityFromJob(job *api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) (priority int32, ok bool) {
+// 	return adapters.PriorityFromPodSpec(util.PodSpecFromJob(job), priorityByPriorityClassName)
+// }
 
 func uuidFromUlidString(ulid string) (uuid.UUID, error) {
 	protoUuid, err := armadaevents.ProtoUuidFromUlidString(ulid)
@@ -586,7 +714,7 @@ func exceedsResourceLimits(_ context.Context, used, total schedulerobjects.Resou
 	for resourceType, limit := range limits {
 		totalAmount := total.Get(resourceType)
 		usedAmount := used.Get(resourceType)
-		if common.QuantityAsFloat64(usedAmount)/common.QuantityAsFloat64(totalAmount) > limit {
+		if armadaresource.QuantityAsFloat64(usedAmount)/armadaresource.QuantityAsFloat64(totalAmount) > limit {
 			return true, fmt.Sprintf("scheduling would exceed %s quota", resourceType)
 		}
 	}
@@ -642,17 +770,17 @@ func jobIsLargeEnough(jobTotalResourceRequests, minimumJobSize schedulerobjects.
 	return true, ""
 }
 
-func PodRequirementsFromJobs[T LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []T) ([]*schedulerobjects.PodRequirements, error) {
-	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
-	for _, job := range jobs {
-		req, err := PodRequirementsFromJob(job, priorityClasses)
-		if err != nil {
-			return nil, err
-		}
-		rv = append(rv, req)
-	}
-	return rv, nil
-}
+// func PodRequirementsFromJobs[T LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []T) ([]*schedulerobjects.PodRequirements, error) {
+// 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
+// 	for _, job := range jobs {
+// 		req, err := PodRequirementsFromJob(job, priorityClasses)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		rv = append(rv, req)
+// 	}
+// 	return rv, nil
+// }
 
 type LegacyScheduler[T LegacySchedulerJob] struct {
 	ctx context.Context
@@ -745,12 +873,15 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 	}
 
 	// Multiplex between queues and enforce cross-queue constraints.
-	candidateGangIterator := &CandidateGangIterator[T]{
-		SchedulingConstraints: constraints,
-		SchedulingRoundReport: schedulingRoundReport,
-		ctx:                   ctx,
-		iteratorsByQueue:      iteratorsByQueue,
-		priorityFactorByQueue: maps.Clone(priorityFactorByQueue),
+	candidateGangIterator, err := NewCandidateGangIterator[T](
+		constraints,
+		schedulingRoundReport,
+		ctx,
+		iteratorsByQueue,
+		maps.Clone(priorityFactorByQueue),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return &LegacyScheduler[T]{
@@ -764,7 +895,6 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 }
 
 func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
-	log := ctxlogrus.Extract(sched.ctx)
 	defer func() {
 		sched.SchedulingRoundReport.Finished = time.Now()
 	}()
@@ -791,11 +921,7 @@ func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
 			jobs[i] = r.Job
 		}
 
-		reqs, err := PodRequirementsFromJobs(sched.PriorityClasses, jobs)
-		if err != nil {
-			return nil, err
-		}
-
+		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, sched.PriorityClasses)
 		podSchedulingReports, ok, err := sched.NodeDb.ScheduleMany(reqs)
 		if err != nil {
 			return nil, err
@@ -826,12 +952,15 @@ func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
 		}
 	}
 	sched.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
-
-	return jobs, nil
+	rv := make([]T, 0)
+	for _, jobs := range jobsToLeaseByQueue {
+		rv = append(rv, jobs...)
+	}
+	return rv, nil
 }
 
-func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, gangIdAnnotation, gangCardinalityAnnotation string) (string, int, bool, error) {
-	reqs := job.GetRequirements()
+func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, gangIdAnnotation, gangCardinalityAnnotation string, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {
+	reqs := job.GetRequirements(priorityClasses)
 	if reqs == nil {
 		return "", 0, false, nil
 	}
@@ -923,8 +1052,6 @@ func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateRe
 	return rv
 }
 
-// TODO: We assume her higher weights means more resource.
-// Let's here work with weights and then convert priority factors into weights.
 func getFairShareByQueue(weightByQueue map[string]float64) map[string]float64 {
 	rv := make(map[string]float64)
 	priorityFactorSum := 0.0
@@ -945,25 +1072,25 @@ func max(a, b float64) float64 {
 	return b
 }
 
-func fractionOfFairShareWithGang[T LegacySchedulerJob](
-	gang []T,
-	fairShare float64,
-	aggregateResourceUsage schedulerobjects.ResourceList,
-	resourceScarcity map[string]float64,
-	totalResources schedulerobjects.ResourceList,
-) float64 {
-	aggregateResourceUsage = aggregateResourceUsage.DeepCopy()
-	for _, job := range gang {
-		for _, reqs := range job.GetRequirements().GetObjectRequirements() {
-			aggregateResourceUsage.Add(
-				schedulerobjects.ResourceListFromV1ResourceList(
-					reqs.GetPodRequirements().ResourceRequirements.Requests,
-				),
-			)
-		}
-	}
-	return fractionOfFairShare(fairShare, aggregateResourceUsage, resourceScarcity, totalResources)
-}
+// func fractionOfFairShareWithGang[T LegacySchedulerJob](
+// 	gang []T,
+// 	fairShare float64,
+// 	aggregateResourceUsage schedulerobjects.ResourceList,
+// 	resourceScarcity map[string]float64,
+// 	totalResources schedulerobjects.ResourceList,
+// ) float64 {
+// 	aggregateResourceUsage = aggregateResourceUsage.DeepCopy()
+// 	for _, job := range gang {
+// 		for _, reqs := range job.GetRequirements().GetObjectRequirements() {
+// 			aggregateResourceUsage.Add(
+// 				schedulerobjects.ResourceListFromV1ResourceList(
+// 					reqs.GetPodRequirements().ResourceRequirements.Requests,
+// 				),
+// 			)
+// 		}
+// 	}
+// 	return fractionOfFairShare(fairShare, aggregateResourceUsage, resourceScarcity, totalResources)
+// }
 
 func fractionOfFairShare(
 	fairShare float64,
@@ -973,7 +1100,7 @@ func fractionOfFairShare(
 ) float64 {
 	used := ResourceListAsWeightedApproximateFloat64(resourceScarcity, aggregateResourceUsage)
 	total := max(ResourceListAsWeightedApproximateFloat64(resourceScarcity, totalResources), 1)
-	return used / total
+	return (used / total) / fairShare
 }
 
 // func fractionOfFairShareWithGangOld(
@@ -1038,7 +1165,7 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 	usage := 0.0
 	for resourceName, quantity := range rl.Resources {
 		scarcity := resourceScarcity[resourceName]
-		usage += common.QuantityAsFloat64(quantity) * scarcity
+		usage += armadaresource.QuantityAsFloat64(quantity) * scarcity
 	}
 	return usage
 }
@@ -1082,52 +1209,82 @@ func pickQueueRandomly(weights map[string]float64, random *rand.Rand) (string, f
 	return queue, weights[queue] / sum
 }
 
-func extractSchedulerRequirements(j LegacySchedulerJob, pcs map[string]configuration.PriorityClass) (*schedulerobjects.PodRequirements, error) {
-	switch job := j.(type) {
-	case *api.Job:
-		podSpec := util.PodSpecFromJob(job)
-		if podSpec == nil {
-			return nil, errors.New("failed to get pod spec")
-		}
-		return schedulerobjects.PodRequirementsFromPodSpec(
-			podSpec,
-			pcs,
-		), nil
-	case *SchedulerJob:
-		objectRequirements := job.jobSchedulingInfo.GetObjectRequirements()
-		if len(objectRequirements) == 0 {
-			return nil, errors.New(fmt.Sprintf("no objectRequirements attached to job %s", j.GetId()))
-		}
-		return objectRequirements[0].GetPodRequirements(), nil
-	default:
-		return nil, errors.New(fmt.Sprintf("could not extract pod spec from type %T", j))
+// func extractSchedulerRequirements(j LegacySchedulerJob, pcs map[string]configuration.PriorityClass) (*schedulerobjects.PodRequirements, error) {
+// 	switch job := j.(type) {
+// 	case *api.Job:
+// 		podSpec := util.PodSpecFromJob(job)
+// 		if podSpec == nil {
+// 			return nil, errors.New("failed to get pod spec")
+// 		}
+// 		return schedulerobjects.PodRequirementsFromPodSpec(
+// 			podSpec,
+// 			pcs,
+// 		), nil
+// 	case *SchedulerJob:
+// 		objectRequirements := job.jobSchedulingInfo.GetObjectRequirements()
+// 		if len(objectRequirements) == 0 {
+// 			return nil, errors.New(fmt.Sprintf("no objectRequirements attached to job %s", j.GetId()))
+// 		}
+// 		return objectRequirements[0].GetPodRequirements(), nil
+// 	default:
+// 		return nil, errors.New(fmt.Sprintf("could not extract pod spec from type %T", j))
+// 	}
+// }
+
+// func PodRequirementsFromJob(j LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (*schedulerobjects.PodRequirements, error) {
+// 	switch job := j.(type) {
+// 	case *api.Job:
+// 		podSpec := util.PodSpecFromJob(job)
+// 		return schedulerobjects.PodRequirementsFromPod(&v1.Pod{
+// 			ObjectMeta: metav1.ObjectMeta{
+// 				Annotations: job.Annotations,
+// 			},
+// 			Spec: *podSpec,
+// 		}, priorityClasses), nil
+// 	case *SchedulerJob:
+// 		return extractSchedulerRequirements(j, priorityClasses)
+// 	default:
+// 		return nil, errors.New(fmt.Sprintf("could not extract pod reguirements from type %T", j))
+// 	}
+// }
+
+// func isNil(j LegacySchedulerJob) (bool, error) {
+// 	// if j == nil {
+// 	// 	return true, nil
+// 	// }
+// 	switch job := j.(type) {
+// 	case *api.Job:
+// 		return job == nil, nil
+// 	case *SchedulerJob:
+// 		return job == nil, nil
+// 	default:
+// 		return false, errors.New(fmt.Sprintf("could not determine whether %T is nil", j))
+// 	}
+// }
+
+func PodRequirementsFromLegacySchedulerJobs[T LegacySchedulerJob](jobs []T, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
+	for _, job := range jobs {
+		info := job.GetRequirements(priorityClasses)
+		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
 	}
+	return rv
 }
 
-func PodRequirementsFromJob(j LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (*schedulerobjects.PodRequirements, error) {
-	switch job := j.(type) {
-	case *api.Job:
-		podSpec := util.PodSpecFromJob(job)
-		return schedulerobjects.PodRequirementsFromPod(&v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Annotations: job.Annotations,
-			},
-			Spec: *podSpec,
-		}, priorityClasses), nil
-	case *SchedulerJob:
-		return extractSchedulerRequirements(j, priorityClasses)
-	default:
-		return nil, errors.New(fmt.Sprintf("could not extract pod reguirements from type %T", j))
+func PodRequirementsFromJobSchedulingInfos(infos []*schedulerobjects.JobSchedulingInfo) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, 0, len(infos))
+	for _, info := range infos {
+		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
 	}
+	return rv
 }
 
-func isNil(j LegacySchedulerJob) (bool, error) {
-	switch job := j.(type) {
-	case *api.Job:
-		return job == nil, nil
-	case *SchedulerJob:
-		return job == nil, nil
-	default:
-		return false, errors.New(fmt.Sprintf("could not determine whether %T is nil", j))
+func PodRequirementFromJobSchedulingInfo(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.PodRequirements {
+	for _, oreq := range info.ObjectRequirements {
+		if preq := oreq.GetPodRequirements(); preq != nil {
+			return preq
+		}
 	}
+	// TODO: Don't panic.
+	panic("expected at least one pod requirements")
 }

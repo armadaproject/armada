@@ -202,7 +202,7 @@ func TestGetUsageByQueue_AggregatesPodResourcesInAQueue(t *testing.T) {
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]common.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
+	expectedResult := map[string]armadaresource.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
 
 	result := GetAllocationByQueue(pods)
 	assert.Equal(t, result, expectedResult)
@@ -252,7 +252,7 @@ func TestGetAllocationByQueueAndPriority_AggregatesPodResourcesInAQueue(t *testi
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]common.ComputeResources{
+	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
 		"queue1": {
 			priority: common.FromResourceList(expectedResource),
 		},
@@ -289,7 +289,7 @@ func TestGetAllocationByQueueAndPriority_AggregatesResources(t *testing.T) {
 	}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]common.ComputeResources{
+	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
 		"queue1": {
 			priority1: common.FromResourceList(expectedResource),
 			priority2: common.FromResourceList(expectedResource),
@@ -325,7 +325,7 @@ func TestGetAllocatedResourceByNodeName(t *testing.T) {
 	pods := []*v1.Pod{&pod1, &pod2, &pod3}
 
 	allocatedResource := getAllocatedResourceByNodeName(pods)
-	assert.Equal(t, map[string]common.ComputeResources{
+	assert.Equal(t, map[string]armadaresource.ComputeResources{
 		"node1": common.FromResourceList(makeResourceList(2, 50)),
 		"node2": common.FromResourceList(makeResourceList(4, 100)),
 	}, allocatedResource)
@@ -337,7 +337,7 @@ func hasKey[K comparable, V any](m map[K]V, key K) bool {
 }
 
 // TODO: Remove
-// func hasKey(value map[string]common.ComputeResources, key string) bool {
+// func hasKey(value map[string]armadaresource.ComputeResources, key string) bool {
 // 	_, ok := value[key]
 // 	return ok
 // }
@@ -404,7 +404,7 @@ func TestGetCordonedResource(t *testing.T) {
 
 	resources := getCordonedResource(nodes, pods)
 
-	expected := common.ComputeResources{
+	expected := armadaresource.ComputeResources{
 		"cpu":    resource.MustParse("3"),
 		"memory": resource.MustParse("12Gi"),
 	}

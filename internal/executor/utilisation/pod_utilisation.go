@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/armadaproject/armada/internal/common"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -167,8 +166,8 @@ func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.No
 }
 
 func (q *KubeletPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStats) {
-	currentUsage := common.ComputeResources{}
-	cumulativeUsage := common.ComputeResources{}
+	currentUsage := armadaresource.ComputeResources{}
+	cumulativeUsage := armadaresource.ComputeResources{}
 
 	if podStats.CPU != nil && podStats.CPU.UsageNanoCores != nil {
 		currentUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)

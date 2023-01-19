@@ -12,7 +12,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -71,11 +70,11 @@ func oneQueueReport(t time.Time, cpu resource.Quantity, memory resource.Quantity
 	return &api.ClusterUsageReport{
 		ClusterId:       "clusterA",
 		ReportTime:      t,
-		ClusterCapacity: common.ComputeResources{"cpu": cpu, "memory": memory},
+		ClusterCapacity: armadaresource.ComputeResources{"cpu": cpu, "memory": memory},
 		Queues: []*api.QueueReport{
 			{
 				Name:      "q1",
-				Resources: common.ComputeResources{"cpu": cpu, "memory": memory},
+				Resources: armadaresource.ComputeResources{"cpu": cpu, "memory": memory},
 			},
 		},
 	}

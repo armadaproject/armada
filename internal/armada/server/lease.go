@@ -24,7 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -143,7 +142,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Return no jobs if we don't have enough work.
-	var res common.ComputeResources = req.Resources
+	var res armadaresource.ComputeResources = req.Resources
 	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
 		return nil
 	}
@@ -250,7 +249,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
-	totalCapacity := make(common.ComputeResources)
+	totalCapacity := make(armadaresource.ComputeResources)
 	for _, clusterReport := range activeClusterReports {
 		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
 	}

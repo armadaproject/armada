@@ -6,21 +6,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 func TestUtilisationData_Max(t *testing.T) {
 	data := &UtilisationData{
-		CurrentUsage:    common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("10")},
-		CumulativeUsage: common.ComputeResources{"cpu": resource.MustParse("5")},
+		CurrentUsage:    armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("10")},
+		CumulativeUsage: armadaresource.ComputeResources{"cpu": resource.MustParse("5")},
 	}
 	data2 := &UtilisationData{
-		CurrentUsage:    common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1")},
-		CumulativeUsage: common.ComputeResources{"cpu": resource.MustParse("10")},
+		CurrentUsage:    armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1")},
+		CumulativeUsage: armadaresource.ComputeResources{"cpu": resource.MustParse("10")},
 	}
 	expected := &UtilisationData{
-		CurrentUsage:    common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("10")},
-		CumulativeUsage: common.ComputeResources{"cpu": resource.MustParse("10")},
+		CurrentUsage:    armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("10")},
+		CumulativeUsage: armadaresource.ComputeResources{"cpu": resource.MustParse("10")},
 	}
 
 	max := data
@@ -30,8 +30,8 @@ func TestUtilisationData_Max(t *testing.T) {
 }
 
 func TestUtilisationData_Max_WithEmpty(t *testing.T) {
-	currentUsage := common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
-	cumulativeUsage := common.ComputeResources{"cpu": resource.MustParse("10")}
+	currentUsage := armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	cumulativeUsage := armadaresource.ComputeResources{"cpu": resource.MustParse("10")}
 	data := &UtilisationData{
 		CurrentUsage:    currentUsage.DeepCopy(),
 		CumulativeUsage: cumulativeUsage.DeepCopy(),
@@ -47,15 +47,15 @@ func TestUtilisationData_IsEmpty(t *testing.T) {
 	assert.True(t, data.IsEmpty())
 
 	cumulativeUsageNotEmpty := EmptyUtilisationData()
-	cumulativeUsageNotEmpty.CumulativeUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	cumulativeUsageNotEmpty.CumulativeUsage = armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
 	assert.False(t, cumulativeUsageNotEmpty.IsEmpty())
 
 	currentUsageNotEmpty := EmptyUtilisationData()
-	currentUsageNotEmpty.CurrentUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	currentUsageNotEmpty.CurrentUsage = armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
 	assert.False(t, currentUsageNotEmpty.IsEmpty())
 
 	allNotEmpty := EmptyUtilisationData()
-	allNotEmpty.CumulativeUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
-	allNotEmpty.CurrentUsage = common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	allNotEmpty.CumulativeUsage = armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
+	allNotEmpty.CurrentUsage = armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1")}
 	assert.False(t, allNotEmpty.IsEmpty())
 }

@@ -6,8 +6,6 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
-
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 type (
@@ -17,10 +15,6 @@ type (
 
 func NewNodeTypeFromNode(node *v1.Node, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *NodeType {
 	return NewNodeType(node.Spec.Taints, node.GetLabels(), indexedTaints, indexedLabels)
-}
-
-func NewNodeTypeFromNodeInfo(nodeInfo *api.NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *NodeType {
-	return NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
 }
 
 func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *NodeType {

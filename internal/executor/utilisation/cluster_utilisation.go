@@ -31,7 +31,7 @@ type ClusterUtilisationService struct {
 	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
-	nodeReservedResources   common.ComputeResources
+	nodeReservedResources   armadaresource.ComputeResources
 }
 
 func NewClusterUtilisationService(
@@ -40,7 +40,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
-	nodeReservedResources common.ComputeResources,
+	nodeReservedResources armadaresource.ComputeResources,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
 		clusterContext:          clusterContext,
@@ -55,9 +55,9 @@ func NewClusterUtilisationService(
 type NodeGroupAllocationInfo struct {
 	NodeType                     *api.NodeTypeIdentifier
 	Nodes                        []*v1.Node
-	NodeGroupCapacity            common.ComputeResources
-	NodeGroupAllocatableCapacity common.ComputeResources
-	NodeGroupCordonedCapacity    common.ComputeResources
+	NodeGroupCapacity            armadaresource.ComputeResources
+	NodeGroupAllocatableCapacity armadaresource.ComputeResources
+	NodeGroupCordonedCapacity    armadaresource.ComputeResources
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisation() {
@@ -108,7 +108,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 }
 
 type ClusterAvailableCapacityReport struct {
-	AvailableCapacity *common.ComputeResources
+	AvailableCapacity *armadaresource.ComputeResources
 	Nodes             []api.NodeInfo
 }
 
@@ -167,15 +167,15 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}, nil
 }
 
-func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]common.ComputeResources {
-	allocations := map[string]common.ComputeResources{}
+func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
+	allocations := map[string]armadaresource.ComputeResources{}
 	for _, pod := range pods {
 		nodeName := pod.Spec.NodeName
 		resourceRequest := common.TotalPodResourceRequest(&pod.Spec)
 
 		_, ok := allocations[nodeName]
 		if !ok {
-			allocations[nodeName] = common.ComputeResources{}
+			allocations[nodeName] = armadaresource.ComputeResources{}
 		}
 		allocations[nodeName].Add(resourceRequest)
 	}
@@ -262,10 +262,10 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 // getCordonedResource takes a list of nodes and a list of pods and returns the resources allocated
 // to pods running on cordoned nodes. We need this information in calculating queue fair shares when
 // significant resource is running on cordoned nodes.
-func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) common.ComputeResources {
+func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.ComputeResources {
 	cordonedNodes := util.FilterNodes(nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
 	podsOnNodes := GetPodsOnNodes(pods, cordonedNodes)
-	usage := common.ComputeResources{}
+	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
 		for _, container := range pod.Spec.Containers {
 			containerResource := common.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
@@ -277,15 +277,15 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) common.ComputeResourc
 
 // getAllocatableResourceByNodeType returns all allocatable resource currently available on schedulable nodes.
 // Resource locked away on cordoned nodes is dealt with in getCordonedResource.
-func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]common.ComputeResources, error) {
+func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]armadaresource.ComputeResources, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
-		return map[string]common.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
+		return map[string]armadaresource.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return map[string]common.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
+		return map[string]armadaresource.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
 	}
 	unmanagedPods := FilterPods(allPods, func(pod *v1.Pod) bool {
 		return !IsManagedPod(pod)
@@ -293,7 +293,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResour
 	activeUnmanagedPods := FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
-	result := map[string]common.ComputeResources{}
+	result := map[string]armadaresource.ComputeResources{}
 
 	for _, nodeGroup := range nodeGroups {
 		activeUnmanagedPodsOnNodes := GetPodsOnNodes(activeUnmanagedPods, nodeGroup.Nodes)
@@ -354,8 +354,8 @@ func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueue
 	return queueReports
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) getTotalPodUtilisation(pods []*v1.Pod) common.ComputeResources {
-	totalUtilisation := common.ComputeResources{}
+func (clusterUtilisationService *ClusterUtilisationService) getTotalPodUtilisation(pods []*v1.Pod) armadaresource.ComputeResources {
+	totalUtilisation := armadaresource.ComputeResources{}
 
 	for _, pod := range pods {
 		podUsage := clusterUtilisationService.queueUtilisationService.GetPodUtilisation(pod)
@@ -376,8 +376,8 @@ func (clusterUtilisationService *ClusterUtilisationService) filterTrackedLabels(
 	return result
 }
 
-func GetAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
-	utilisationByQueue := make(map[string]common.ComputeResources)
+func GetAllocationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
+	utilisationByQueue := make(map[string]armadaresource.ComputeResources)
 
 	for _, pod := range pods {
 		queue, present := pod.Labels[domain.Queue]
@@ -398,8 +398,8 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]common.ComputeResources {
 	return utilisationByQueue
 }
 
-func GetAllocationByQueueAndPriority(pods []*v1.Pod) map[string]map[int32]common.ComputeResources {
-	rv := make(map[string]map[int32]common.ComputeResources)
+func GetAllocationByQueueAndPriority(pods []*v1.Pod) map[string]map[int32]armadaresource.ComputeResources {
+	rv := make(map[string]map[int32]armadaresource.ComputeResources)
 	for _, pod := range pods {
 
 		// Get the name of the queue this pod originated from,
@@ -420,7 +420,7 @@ func GetAllocationByQueueAndPriority(pods []*v1.Pod) map[string]map[int32]common
 		podAllocatedResourece := common.CalculateTotalResourceRequest([]*v1.Pod{pod})
 		allocatedByPriority, ok := rv[queue]
 		if !ok {
-			allocatedByPriority = make(map[int32]common.ComputeResources)
+			allocatedByPriority = make(map[int32]armadaresource.ComputeResources)
 			rv[queue] = allocatedByPriority
 		}
 		if allocated, ok := allocatedByPriority[priority]; ok {

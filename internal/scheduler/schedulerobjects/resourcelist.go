@@ -4,8 +4,19 @@ import (
 	"fmt"
 	"strings"
 
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
+	rv := ResourceList{
+		Resources: make(map[string]resource.Quantity),
+	}
+	for t, q := range rl {
+		rv.Resources[string(t)] = q
+	}
+	return rv
+}
 
 type QuantityByPriorityAndResourceType map[int32]ResourceList
 

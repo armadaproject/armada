@@ -56,7 +56,7 @@ type FakeClusterContext struct {
 	pods                  map[string]*v1.Pod
 	events                map[string]*v1.Event
 	nodes                 []*v1.Node
-	nodeAvailableResource map[string]common.ComputeResources
+	nodeAvailableResource map[string]armadaresource.ComputeResources
 }
 
 func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
@@ -64,7 +64,7 @@ func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nod
 		clusterId:             appConfig.ClusterId,
 		pool:                  appConfig.Pool,
 		pods:                  map[string]*v1.Pod{},
-		nodeAvailableResource: map[string]common.ComputeResources{},
+		nodeAvailableResource: map[string]armadaresource.ComputeResources{},
 	}
 	if nodeSpecs == nil {
 		nodeSpecs = DefaultNodeSpec

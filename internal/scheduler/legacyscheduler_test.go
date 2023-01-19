@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -377,7 +377,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				MaximalResourceFractionToSchedulePerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionToSchedulePerQueue: armadaresource.ComputeResourcesFloat{
 					"cpu": 2.0 / 32.0,
 				},
 			},
@@ -392,7 +392,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"cpu": 2.0 / 32.0,
 				},
 			},
@@ -407,7 +407,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"cpu": 2.0 / 32.0,
 				},
 			},
@@ -430,7 +430,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"gpu": resource.MustParse("1"),
 					},
 				},
-				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"gpu": 0,
 				},
 				MaxConsecutiveUnschedulableJobs: 3,
@@ -1359,7 +1359,6 @@ func TestSchedule(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			sched.CandidateGangIterator.rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
 			jobs, err := sched.Schedule()
 			if !assert.NoError(t, err) {
@@ -1381,7 +1380,7 @@ func TestSchedule(t *testing.T) {
 
 			// Check that each queue was allocated the right amount of resources.
 			if tc.ExpectedResourcesByQueue != nil {
-				actualUsageByQueue := usageByQueue(jobs)
+				actualUsageByQueue := usageByQueue(jobs, tc.SchedulingConfig.Preemption.PriorityClasses)
 				for queue, usage := range actualUsageByQueue {
 					assertResourceLimitsSatisfied(t, tc.ExpectedResourcesByQueue[queue], usage)
 				}
@@ -1539,22 +1538,10 @@ func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
 	return rv
 }
 
-func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
-	// TODO: Could be built on top of usageByQueueAndPriority.
+func usageByQueue(jobs []*api.Job, priorityClasses map[string]configuration.PriorityClass) map[string]schedulerobjects.ResourceList {
 	rv := make(map[string]schedulerobjects.ResourceList)
-	for _, job := range jobs {
-		rl, ok := rv[job.Queue]
-		if !ok {
-			rl = schedulerobjects.ResourceList{
-				Resources: make(map[string]resource.Quantity),
-			}
-			rv[job.Queue] = rl
-		}
-		for t, q := range common.TotalJobResourceRequest(job) {
-			quantity := rl.Resources[t]
-			quantity.Add(q)
-			rl.Resources[t] = quantity
-		}
+	for queue, quantityByPriorityAndResourceType := range usageByQueueAndPriority(jobs, priorityClasses) {
+		rv[queue] = quantityByPriorityAndResourceType.AggregateByResource()
 	}
 	return rv
 }
@@ -1567,16 +1554,12 @@ func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[st
 			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
 			rv[job.Queue] = m
 		}
-		priority, _ := PriorityFromJob(job, priorityByPriorityClassName)
+		priority := PodRequirementFromJobSchedulingInfo(job.GetRequirements(priorityByPriorityClassName)).Priority
 		rl, ok := m[priority]
 		if !ok {
 			rl.Resources = make(map[string]resource.Quantity)
 		}
-		for t, q := range common.TotalJobResourceRequest(job) {
-			quantity := rl.Resources[t]
-			quantity.Add(q)
-			rl.Resources[t] = quantity
-		}
+		rl.Add(job.GetRequirements(priorityByPriorityClassName).GetTotalResourceRequest())
 		m[priority] = rl
 	}
 	return rv

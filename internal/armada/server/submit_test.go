@@ -20,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -396,7 +395,7 @@ func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 			NodeTypes: []*api.NodeType{{
 				Taints:               nil,
 				Labels:               nil,
-				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
+				AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
 			}},
 		})
 		assert.Empty(t, err)
@@ -1624,7 +1623,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 				Effect:   v1.TaintEffectNoSchedule,
 			},
 		},
-		DefaultJobLimits: common.ComputeResources{
+		DefaultJobLimits: armadaresource.ComputeResources{
 			"cpu":    resource.MustParse("1"),
 			"memory": resource.MustParse("1Gi"),
 		},
@@ -1659,7 +1658,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		ClusterId:  "test-cluster",
 		ReportTime: time.Now(),
 		NodeTypes: []*api.NodeType{{
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
 		}},
 	})
 	if err != nil {
