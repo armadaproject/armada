@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

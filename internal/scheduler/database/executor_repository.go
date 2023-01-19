@@ -2,10 +2,11 @@ package database
 
 import (
 	"context"
+	"time"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
-	"time"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"

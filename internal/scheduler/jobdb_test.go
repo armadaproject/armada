@@ -172,7 +172,6 @@ func TestGetById(t *testing.T) {
 }
 
 func TestLookupByRun(t *testing.T) {
-
 	job := &SchedulerJob{
 		JobId:     uuid.NewString(),
 		Queue:     "A",
@@ -215,7 +214,6 @@ func TestLookupByRun(t *testing.T) {
 	retrievedJob, err = jobDb.GetByRunId(txn, run.RunID)
 	require.NoError(t, err)
 	assert.Nil(t, retrievedJob)
-
 }
 
 func TestGetAll(t *testing.T) {

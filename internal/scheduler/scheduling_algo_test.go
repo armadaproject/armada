@@ -2,9 +2,12 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/slices"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/slices"
+
+	"github.com/armadaproject/armada/internal/common/slices"
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"k8s.io/apimachinery/pkg/util/clock"
