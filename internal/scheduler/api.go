@@ -57,7 +57,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	log.Infof("Handling lease request for executor %s", req.ExecutorId)
 
 	// store the request so that updated usage can be used for scheduling
-	err = srv.executorRepository.StoreRequest(req)
+	err = srv.executorRepository.StoreRequest(stream.Context(), req)
 	if err != nil {
 		return err
 	}

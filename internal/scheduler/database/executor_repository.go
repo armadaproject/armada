@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -11,8 +12,6 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // Executor is a representation of an Armada Executor
@@ -22,7 +21,7 @@ type Executor struct {
 	// Pool that the executor belongs to
 	Pool string
 	// The nodes available for scheduling via this executor
-	Nodes []*schedulerobjects.Node
+	Nodes []*api.NodeInfo
 	// Minimum resources which a job must request in order to be considered for scheduling on this executor
 	MinimumJobSize map[string]resource.Quantity
 	// Last time the executor provided a heartbeat to say it was still accepting jobs
@@ -66,15 +65,15 @@ func (r *PostgresExecutorRepository) GetExecutors(ctx context.Context) ([]*Execu
 	for i, request := range requests {
 		req := &executorapi.LeaseRequest{}
 		err := decompressAndMarshall(request.LastRequest, r.decompressor, req)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 		executors[i] = &Executor{
 			Name:           request.ExecutorID,
 			Pool:           req.Pool,
-			Nodes:          nil,
+			Nodes:          req.Nodes,
 			MinimumJobSize: nil,
-			LastUpdateTime: request.,
+			LastUpdateTime: request,
 		}
 	}
 	return executors, nil
@@ -95,5 +94,3 @@ func decompressAndMarshall(b []byte, decompressor compress.Decompressor, msg pro
 	}
 	return proto.Unmarshal(decompressed, msg)
 }
-
-func createNodes() []*schedulerobjects.Node
