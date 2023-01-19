@@ -368,7 +368,7 @@ lint-fix:
 .ONESHELL:
 lint:
 	$(GO_TEST_CMD) golangci-lint run --timeout 10m
-###
+
 .ONESHELL:
 code-checks: lint
 
