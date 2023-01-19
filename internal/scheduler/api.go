@@ -18,12 +18,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ExecutorApi is a gRPC service that exposes functionality required by the armada executors
 type ExecutorApi struct {
 	producer             pulsar.Producer
 	jobRepository        database.JobRepository
 	executorRepository   database.ExecutorRepository
-	maxJobsPerCall       int
-	maxPulsarMessageSize int
+	maxJobsPerCall       int // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize int // maximum sizer of pulsar messages produced
 }
 
 func NewExecutorApi(producer pulsar.Producer,
@@ -41,6 +42,10 @@ func NewExecutorApi(producer pulsar.Producer,
 	}
 }
 
+// LeaseJobRuns performs the following actions:
+//   - Stores the request in postgres so that the scheduler can use the job + capacity information in the next scheduling round
+//   - Determines if any of the job runs in the request are no longer active and should be cancelled
+//   - Determines if any new job runs should be leased to the executor
 func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRunsServer) error {
 	log := ctxlogrus.Extract(stream.Context())
 	// Receive once to get info necessary to get jobs to lease.
@@ -140,11 +145,13 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	return nil
 }
 
+// ReportEvents publishes all events to pulsar. The events are compacted for more efficient publishing
 func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSize)
 	return &types.Empty{}, err
 }
 
+// extractRunIds extracts all the job runs contained in the executor request
 func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 	runIds := make([]uuid.UUID, 0)
 	// add all runids from nodes

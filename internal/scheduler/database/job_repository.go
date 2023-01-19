@@ -49,7 +49,7 @@ type JobRepository interface {
 	// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
 	FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error)
 
-	// FetchNewRuns fetches new job dbRuns for a given executor.  A maximum of maxResults rows will be returned and dbRuns
+	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 	// in excludedRunIds will be excluded
 	FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*JobRunLease, error)
 }
@@ -154,6 +154,8 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 	return updatedJobs, updatedRuns, err
 }
 
+// FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
+// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
 func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	var inactiveRuns []uuid.UUID
 	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
@@ -193,6 +195,8 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 	return inactiveRuns, err
 }
 
+// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
+// in excludedRunIds will be excluded
 func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
 	var newRuns []*JobRunLease
 	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
