@@ -66,3 +66,4 @@ jobs:
           python-version: ${{ matrix.python }}
           tox-env: ${{ matrix.tox-env }}
           path: third_party/airflow
+          github-token: ${{secrets.GITHUB_TOKEN}}

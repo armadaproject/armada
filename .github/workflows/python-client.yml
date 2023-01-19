@@ -48,6 +48,8 @@ jobs:
           python-version: ${{ matrix.python }}
           tox-env: ${{ matrix.tox-env }}
           path: 'client/python'
+          github-token: ${{secrets.GITHUB_TOKEN}}
+
   python-client-integration-tests:
     runs-on: ubuntu-22.04
     strategy:
