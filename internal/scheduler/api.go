@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"strings"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -162,6 +160,7 @@ func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.Even
 	return &types.Empty{}, err
 }
 
+// createExecutorState extracts a schedulerobjects.Executor from the requesrt
 func (srv *ExecutorApi) createExecutorState(req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
 	for i, nodeInfo := range req.Nodes {

@@ -39,6 +39,7 @@ func NewPostgresExecutorRepository(db *pgxpool.Pool, compressor compress.Compres
 	}
 }
 
+// GetExecutors returns all known executors, regardless of their last heartbeat time
 func (r *PostgresExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
 	queries := New(r.db)
 	requests, err := queries.SelectAllExecutors(ctx)
@@ -57,6 +58,7 @@ func (r *PostgresExecutorRepository) GetExecutors(ctx context.Context) ([]*sched
 	return executors, nil
 }
 
+// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
 func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
 	queries := New(r.db)
 	rows, err := queries.SelectExecutorUpdateTimes(ctx)
@@ -71,6 +73,7 @@ func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx context.Context) (ma
 	return lastUpdateTimes, nil
 }
 
+// StoreExecutor persists the latest executor state
 func (r *PostgresExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
 	queries := New(r.db)
 	bytes, err := proto.Marshal(executor)
