@@ -8,7 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -190,7 +189,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			podMetrics[queue][nodeType] = nodeTypeMetric
 		}
 
-		request := common.TotalPodResourceRequest(&pod.Spec)
+		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
 		usage := m.queueUtilisationService.GetPodUtilisation(pod)
 
 		nodeTypeMetric[phase].count++

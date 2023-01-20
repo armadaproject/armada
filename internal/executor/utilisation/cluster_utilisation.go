@@ -131,8 +131,8 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
 	allNonCompletePodsRequiringResource := FilterNonCompletedPods(allPodsRequiringResource)
 
-	totalNodeResource := common.CalculateTotalResource(processingNodes)
-	totalPodResource := common.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
+	totalNodeResource := armadaresource.CalculateTotalResource(processingNodes)
+	totalPodResource := armadaresource.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
 
 	availableResource := totalNodeResource.DeepCopy()
 	availableResource.Sub(totalPodResource)
@@ -172,7 +172,7 @@ func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.Co
 	allocations := map[string]armadaresource.ComputeResources{}
 	for _, pod := range pods {
 		nodeName := pod.Spec.NodeName
-		resourceRequest := common.TotalPodResourceRequest(&pod.Spec)
+		resourceRequest := armadaresource.TotalPodResourceRequest(&pod.Spec)
 
 		_, ok := allocations[nodeName]
 		if !ok {
@@ -199,7 +199,7 @@ func getAllocatedResourcesByPriority(pods []*v1.Pod) map[int32]api.ComputeResour
 	podsByPriority := groupPodsByPriority(pods)
 
 	for priority, podsForPriority := range podsByPriority {
-		resources := api.ComputeResource{Resources: common.CalculateTotalResourceRequest(podsForPriority)}
+		resources := api.ComputeResource{Resources: armadaresource.CalculateTotalResourceRequest(podsForPriority)}
 		resourceUsageByPriority[priority] = resources
 	}
 
@@ -244,7 +244,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 	result := make([]*NodeGroupAllocationInfo, 0, len(nodeGroups))
 
 	for _, nodeGroup := range nodeGroups {
-		totalNodeResource := common.CalculateTotalResource(nodeGroup.Nodes)
+		totalNodeResource := armadaresource.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeResource := allocatableResourceByNodeType[nodeGroup.NodeType.Id]
 		cordonedNodeResource := getCordonedResource(nodeGroup.Nodes, batchPods)
 
@@ -298,8 +298,8 @@ func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResour
 
 	for _, nodeGroup := range nodeGroups {
 		activeUnmanagedPodsOnNodes := GetPodsOnNodes(activeUnmanagedPods, nodeGroup.Nodes)
-		unmanagedPodResource := common.CalculateTotalResourceRequest(activeUnmanagedPodsOnNodes)
-		totalNodeGroupResource := common.CalculateTotalResource(nodeGroup.Nodes)
+		unmanagedPodResource := armadaresource.CalculateTotalResourceRequest(activeUnmanagedPodsOnNodes)
+		totalNodeGroupResource := armadaresource.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeGroupResource := totalNodeGroupResource.DeepCopy()
 		allocatableNodeGroupResource.Sub(unmanagedPodResource)
 		result[nodeGroup.NodeType.Id] = allocatableNodeGroupResource
@@ -340,7 +340,7 @@ func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueue
 	queueReports := make([]*api.QueueReport, 0, len(podsByQueue))
 	for queueName, queuePods := range podsByQueue {
 		runningPods := FilterPodsWithPhase(queuePods, v1.PodRunning)
-		resourceAllocated := common.CalculateTotalResourceRequest(runningPods)
+		resourceAllocated := armadaresource.CalculateTotalResourceRequest(runningPods)
 		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
 		phaseSummary := CountPodsByPhase(queuePods)
 
@@ -387,8 +387,7 @@ func GetAllocationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResou
 			continue
 		}
 
-		podAllocatedResourece := common.CalculateTotalResourceRequest([]*v1.Pod{pod})
-
+		podAllocatedResourece := armadaresource.CalculateTotalResourceRequest([]*v1.Pod{pod})
 		if _, ok := utilisationByQueue[queue]; ok {
 			utilisationByQueue[queue].Add(podAllocatedResourece)
 		} else {
@@ -418,7 +417,7 @@ func GetAllocationByQueueAndPriority(pods []*v1.Pod) map[string]map[int32]armada
 		}
 
 		// Get total pod resource usage and add it to the aggregate.
-		podAllocatedResourece := common.CalculateTotalResourceRequest([]*v1.Pod{pod})
+		podAllocatedResourece := armadaresource.CalculateTotalResourceRequest([]*v1.Pod{pod})
 		allocatedByPriority, ok := rv[queue]
 		if !ok {
 			allocatedByPriority = make(map[int32]armadaresource.ComputeResources)

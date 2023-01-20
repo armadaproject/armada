@@ -22,7 +22,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
@@ -338,7 +337,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 
 	for _, n := range c.nodes {
 		if c.isSchedulableOn(pod, n) {
-			resources := common.TotalPodResourceRequest(&pod.Spec)
+			resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
 			c.nodeAvailableResource[n.Name].Sub(resources)
 			pod.Spec.NodeName = n.Name
 			return true, false
@@ -351,12 +350,12 @@ func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
 
-	resources := common.TotalPodResourceRequest(&pod.Spec)
+	resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
 	c.nodeAvailableResource[pod.Spec.NodeName].Add(resources)
 }
 
 func (c *FakeClusterContext) isSchedulableOn(pod *v1.Pod, n *v1.Node) bool {
-	requiredResource := common.TotalPodResourceRequest(&pod.Spec)
+	requiredResource := armadaresource.TotalPodResourceRequest(&pod.Spec)
 	availableResource := c.nodeAvailableResource[n.Name].DeepCopy()
 	availableResource.Sub(requiredResource)
 
