@@ -13,6 +13,8 @@ type Configuration struct {
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
 	Lease LeaderConfig
+	// Scheduler configuration (this is shared with the old scheduler)
+	Scheduling configuration.SchedulingConfig
 	// How often the scheduling cycle should run
 	cyclePeriod time.Duration
 	// How long after a heartbeat an executor will be considered lost
@@ -21,6 +23,8 @@ type Configuration struct {
 	MaxFailedLeaseReturns int
 	// Maximum number of rows to fetch in a given query
 	DatabaseFetchSize int
+	// Timeout to use when sending messages to pulsar
+	PulsarSendTimeout time.Duration
 }
 
 type LeaderConfig struct {

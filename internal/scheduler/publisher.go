@@ -48,7 +48,6 @@ func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
 	pulsarSendTimeout time.Duration,
-	maxMessageBatchSize int,
 ) (*PulsarPublisher, error) {
 	partitions, err := pulsarClient.TopicPartitions(producerOptions.Topic)
 	if err != nil {
@@ -62,7 +61,7 @@ func NewPulsarPublisher(
 	return &PulsarPublisher{
 		producer:            producer,
 		pulsarSendTimeout:   pulsarSendTimeout,
-		maxMessageBatchSize: maxMessageBatchSize,
+		maxMessageBatchSize: 2 * 1024 * 1024, // max pulsar message size is 4MB so we use 2MB her to be safe
 		numPartitions:       len(partitions),
 	}, nil
 }
