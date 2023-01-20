@@ -137,6 +137,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	time.Sleep(10 * time.Millisecond)
 	defer cancel()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
@@ -310,26 +311,6 @@ func TestQueueSelectionWeights(t *testing.T) {
 				assert.InDelta(t, expected, actual, 1e-2)
 			}
 		})
-	}
-}
-
-func TestPickQueueRandomly(t *testing.T) {
-	weights := map[string]float64{
-		"A": 2,
-		"B": 1,
-	}
-	weightsSum := 3.0
-
-	n := 10000
-	results := make(map[string]float64)
-	for i := 0; i < n; i++ {
-		v, _ := pickQueueRandomly(weights, util.NewThreadsafeRand(int64(i)))
-		results[v]++
-	}
-	for queue, weight := range weights {
-		expected := weight / weightsSum
-		actual := results[queue] / float64(n)
-		assert.InDelta(t, expected, actual, 0.01)
 	}
 }
 
@@ -964,12 +945,12 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("14")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("18")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("14")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("18")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
 				),
 			},
 		},
@@ -988,25 +969,25 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("10")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("11")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("10")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("11")},
 				),
 				"C": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("10")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("11")},
 				),
 			},
 		},
 		"weighted fairness two queues": {
 			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(30, testPriorities),
+			Nodes:            testNCpuNode(3, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 960),
-				"B": testNSmallCpuJob(0, 960),
+				"A": testNSmallCpuJob(0, 96),
+				"B": testNSmallCpuJob(0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1014,22 +995,22 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("660")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("64")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("64")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("300")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("340")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 				),
 			},
 		},
 		"weighted fairness three queues": {
 			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(30, testPriorities),
+			Nodes:            testNCpuNode(3, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 960),
-				"B": testNSmallCpuJob(0, 960),
-				"C": testNSmallCpuJob(0, 960),
+				"A": testNSmallCpuJob(0, 96),
+				"B": testNSmallCpuJob(0, 96),
+				"C": testNSmallCpuJob(0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1038,16 +1019,16 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("580")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("60")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("60")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("280")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("320")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
 				),
 				"C": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("40")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("80")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("6")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("6")},
 				),
 			},
 		},
@@ -1074,10 +1055,10 @@ func TestSchedule(t *testing.T) {
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
 					map[string]resource.Quantity{"cpu": resource.MustParse("0")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("4")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("0")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("28")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 				),
 			},
@@ -1451,8 +1432,9 @@ func TestSchedule(t *testing.T) {
 							return
 						}
 
+						_, isLeased := leasedJobIds[jobId]
 						var jobReports map[uuid.UUID]*JobSchedulingReport[*api.Job]
-						if _, ok := leasedJobIds[jobId]; ok {
+						if isLeased {
 							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
 						} else {
 							jobReports = queueSchedulingRoundReport.UnsuccessfulJobSchedulingReports
@@ -1462,10 +1444,10 @@ func TestSchedule(t *testing.T) {
 						}
 
 						jobReport, ok := jobReports[jobId]
-						if !assert.NotNil(t, jobReport) {
+						if !assert.True(t, ok, "missing report for job; leased: %v", isLeased) {
 							continue
 						}
-						if !assert.True(t, ok) {
+						if !assert.NotNil(t, jobReport) {
 							continue
 						}
 					}
