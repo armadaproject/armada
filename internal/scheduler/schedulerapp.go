@@ -36,7 +36,12 @@ func Run(config *Configuration) error {
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
 	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{})
-	defer redisClient.Close()
+	defer func() {
+		err := redisClient.Close()
+		if err != nil {
+			log.WithError(errors.WithStack(err)).Warnf("Redis client didn't close down cleanly")
+		}
+	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)
 
 	log.Infof("Setting up Pulsar connectivity")

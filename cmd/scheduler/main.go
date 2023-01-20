@@ -44,7 +44,7 @@ func main() {
 		migrateDatabase(&config)
 	} else {
 		if err := scheduler.Run(&config); err != nil {
-			log.Errorf("failed to run scheduler: %s", err)
+			log.WithError(err).Errorf("Scheduler failed")
 			os.Exit(1)
 		}
 	}
