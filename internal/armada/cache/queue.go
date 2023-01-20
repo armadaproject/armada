@@ -103,7 +103,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(
 		}
 
 		for _, job := range queuedJobs {
-			jobResources := armadaresource.TotalJobResourceRequest(job)
+			jobResources := job.TotalResourceRequest()
 			nonMatchingClusters := stringSet{}
 			queuedTime := currentTime.Sub(job.Created)
 
@@ -167,7 +167,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 			if !present {
 				continue
 			}
-			jobResources := armadaresource.TotalJobResourceRequest(job)
+			jobResources := job.TotalResourceRequest()
 			runTime := now.Sub(runInfo.StartTime)
 			priorityClass := getPriorityClass(job)
 			metricsRecorder.RecordJobRuntime(pool, priorityClass, runTime)

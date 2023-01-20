@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
@@ -140,7 +141,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
 	for _, n := range processingNodes {
-		allocatable := common.FromResourceList(n.Status.Allocatable)
+		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
 		// sub node reserved resources if defined,
@@ -268,7 +269,7 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
 		for _, container := range pod.Spec.Containers {
-			containerResource := common.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
+			containerResource := armadaresource.FromResourceList(container.Resources.Limits) // Not 100% on whether this should be Requests or Limits
 			usage.Add(containerResource)
 		}
 	}

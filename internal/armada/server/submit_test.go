@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -612,9 +613,14 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			jobs, err := s.jobRepository.GetExistingJobsByIds([]string{jobId})
 			assert.NoError(t, err)
-			leased, err := jobRepo.TryLeaseJobs("some-cluster", "test", jobs)
+			jobIdsByQueue := make(map[string][]string)
+			for _, job := range jobs {
+				jobIdsByQueue["test"] = append(jobIdsByQueue["test"], job.Id)
+			}
+			leased, err := jobRepo.TryLeaseJobs("some-cluster", jobIdsByQueue)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(leased))
+			assert.Equal(t, 1, len(leased["test"]))
 
 			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      []string{jobId},
@@ -691,7 +697,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			selectedJob := jobs[1]
 			clusterId := "some-cluster"
 
-			leased, err := jobRepo.TryLeaseJobs(clusterId, "test", []*api.Job{selectedJob})
+			leased, err := jobRepo.TryLeaseJobs(clusterId, map[string][]string{"test": {selectedJob.Id}})
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(leased))
 

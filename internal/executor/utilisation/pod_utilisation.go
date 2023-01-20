@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"

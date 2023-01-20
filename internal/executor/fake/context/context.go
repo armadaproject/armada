@@ -23,6 +23,7 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 )
@@ -311,7 +312,7 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 				},
 			}
 			c.nodes = append(c.nodes, node)
-			c.nodeAvailableResource[node.Name] = common.FromResourceList(s.Allocatable)
+			c.nodeAvailableResource[node.Name] = armadaresource.FromResourceList(s.Allocatable)
 		}
 	}
 }
