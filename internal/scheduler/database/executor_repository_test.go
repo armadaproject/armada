@@ -2,15 +2,16 @@ package database
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestExecutorRepository_LoadAndSave(t *testing.T) {
