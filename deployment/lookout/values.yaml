@@ -9,6 +9,8 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
+additionalVolumeMounts: []
+additionalVolumes: []
 terminationGracePeriodSeconds: 5
 replicas: 1
 strategy:
