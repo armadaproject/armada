@@ -3,6 +3,8 @@ package database
 import (
 	"time"
 
+	"github.com/armadaproject/armada/pkg/executorapi"
+
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -30,4 +32,6 @@ type ExecutorRepository interface {
 	GetExecutors() ([]*Executor, error)
 	// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
 	GetLastUpdateTimes() (map[string]time.Time, error)
+	// StoreRequest persists the last lease request made by an executor
+	StoreRequest(req *executorapi.LeaseRequest) error
 }

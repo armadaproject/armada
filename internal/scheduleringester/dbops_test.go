@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/util"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
@@ -232,23 +230,20 @@ func TestInsertJobCancel(t *testing.T) {
 }
 
 type mockDb struct {
-	Jobs           map[string]*schedulerdb.Job
-	Runs           map[uuid.UUID]*schedulerdb.Run
-	RunAssignments map[uuid.UUID]*schedulerdb.JobRunAssignment
+	Jobs map[string]*schedulerdb.Job
+	Runs map[uuid.UUID]*schedulerdb.Run
 }
 
 func newMockDb() *mockDb {
 	return &mockDb{
-		Jobs:           make(map[string]*schedulerdb.Job),
-		Runs:           make(map[uuid.UUID]*schedulerdb.Run),
-		RunAssignments: make(map[uuid.UUID]*schedulerdb.JobRunAssignment),
+		Jobs: make(map[string]*schedulerdb.Job),
+		Runs: make(map[uuid.UUID]*schedulerdb.Run),
 	}
 }
 
 func assertDbEquals(t *testing.T, expected, actual *mockDb) {
 	assert.Equal(t, expected.Jobs, actual.Jobs)
 	assert.Equal(t, expected.Runs, actual.Runs)
-	assert.Equal(t, expected.RunAssignments, actual.RunAssignments)
 }
 
 func (db *mockDb) applySeveral(ops []DbOperation) error {
@@ -280,12 +275,6 @@ func (db *mockDb) apply(op DbOperation) error {
 		}
 		if len(db.Runs) != n+len(o) {
 			return errors.New("duplicate run id")
-		}
-	case InsertRunAssignments:
-		n := len(db.RunAssignments)
-		maps.Copy(db.RunAssignments, o)
-		if len(db.RunAssignments) != n+len(o) {
-			return errors.New("duplicate run id (assignment)")
 		}
 	case UpdateJobSetPriorities:
 		for jobSet, priority := range o {
