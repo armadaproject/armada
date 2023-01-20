@@ -37,7 +37,6 @@ func NewExecutorApi(producer pulsar.Producer,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall int,
-	maxPulsarMessageSize int,
 ) *ExecutorApi {
 	return &ExecutorApi{
 		producer:             producer,
@@ -45,7 +44,7 @@ func NewExecutorApi(producer pulsar.Producer,
 		executorRepository:   executorRepository,
 		allowedPriorities:    allowedPriorities,
 		maxJobsPerCall:       maxJobsPerCall,
-		maxPulsarMessageSize: maxPulsarMessageSize,
+		maxPulsarMessageSize: 1024 * 1024 * 2,
 		clock:                clock.RealClock{},
 	}
 }

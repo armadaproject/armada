@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -15,6 +17,8 @@ type Configuration struct {
 	Lease LeaderConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
+	Auth       authconfig.AuthConfig
+	Grpc       grpcconfig.GrpcConfig
 	// How often the scheduling cycle should run
 	cyclePeriod time.Duration
 	// How long after a heartbeat an executor will be considered lost
@@ -24,7 +28,8 @@ type Configuration struct {
 	// Maximum number of rows to fetch in a given query
 	DatabaseFetchSize int
 	// Timeout to use when sending messages to pulsar
-	PulsarSendTimeout time.Duration
+	PulsarSendTimeout      time.Duration
+	MaxedLeasedJobsPerCall int
 }
 
 type LeaderConfig struct {
