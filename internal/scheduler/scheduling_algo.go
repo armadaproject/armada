@@ -145,6 +145,14 @@ func (l *LegacySchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedu
 	return jobsToSchedule, nil
 }
 
+type JobQueueIteratorAdapter struct {
+	it *JobQueueIterator
+}
+
+func (it *JobQueueIteratorAdapter) Next() (LegacySchedulerJob, error) {
+	return it.it.NextJobItem(), nil
+}
+
 // scheduleOnExecutor schedules jobs on a single executor
 func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	executor *database.Executor,
@@ -156,12 +164,20 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	ctx, cancel := context.WithTimeout(context.Background(), 3000*time.Second)
 	defer cancel()
 
-	jobRepo := NewJobDbAdapter(txn)
+	jobIteratorsByQueue := make(map[string]JobIterator)
+	for queue := range priorityFactorByQueue {
+		if it, err := NewJobQueueIterator(txn, queue); err != nil {
+			return nil, err
+		} else {
+			jobIteratorsByQueue[queue] = &JobQueueIteratorAdapter{
+				it: it,
+			}
+		}
+	}
 	nodeDb, err := l.constructNodeDb(executor.Nodes, l.priorityClassPriorities)
 	if err != nil {
 		return nil, err
 	}
-
 	constraints := SchedulingConstraintsFromSchedulingConfig(
 		executor.Name,
 		executor.Pool,
@@ -169,13 +185,12 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		l.config,
 		totalCapacity,
 	)
-
 	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
 		l.config,
 		nodeDb,
-		jobRepo,
+		jobIteratorsByQueue,
 		priorityFactorByQueue,
 		totalResourceUsageByQueue)
 	if err != nil {

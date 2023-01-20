@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -44,7 +45,7 @@ type AggregatedQueueServer struct {
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
-	SchedulingReportsRepository *scheduler.SchedulingReportsRepository[*api.Job]
+	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
 	SubmitChecker *scheduler.SubmitChecker
@@ -279,7 +280,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Nodes to be considered by the scheduler.
 	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
 	for i, nodeInfo := range req.Nodes {
-		nodes[i] = schedulerobjects.NewNodeFromNodeInfo(
+		nodes[i] = api.NewNodeFromNodeInfo(
 			&nodeInfo,
 			req.ClusterId,
 			priorities,
@@ -338,13 +339,20 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig,
 		totalCapacityRl,
 	)
-	legacySchedulerRepo := scheduler.NewJobRepositoryAdapter(q.jobRepository)
-	sched, err := scheduler.NewLegacyScheduler[*api.Job](
+	jobIteratorsByQueue := make(map[string]scheduler.JobIterator)
+	for _, queue := range activeQueues {
+		if it, err := scheduler.NewQueuedJobsIterator(ctx, queue.Name, q.jobRepository); err != nil {
+			return nil, err
+		} else {
+			jobIteratorsByQueue[queue.Name] = it
+		}
+	}
+	sched, err := scheduler.NewLegacyScheduler(
 		ctx,
 		*constraints,
 		q.schedulingConfig,
 		nodeDb,
-		legacySchedulerRepo,
+		jobIteratorsByQueue,
 		priorityFactorByActiveQueue,
 		aggregatedUsageByQueue,
 	)
@@ -357,6 +365,31 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Run the scheduler.
 	jobs, err := sched.Schedule()
+	if err != nil {
+		return nil, err
+	}
+	jobIdsByQueue := make(map[string][]string)
+	for _, job := range jobs {
+		jobIdsByQueue[job.GetQueue()] = append(jobIdsByQueue[job.GetQueue()], job.GetId())
+	}
+	apiJobsById := make(map[string]*api.Job)
+	for _, job := range jobs {
+		if apiJob, ok := job.(*api.Job); ok {
+			apiJobsById[job.GetId()] = apiJob
+		}
+	}
+	leasedJobIdsByQueue, err := q.jobRepository.TryLeaseJobs(req.ClusterId, jobIdsByQueue)
+	if err != nil {
+		return nil, err
+	}
+	apiJobs := make([]*api.Job, 0, len(jobs))
+	for _, jobIds := range leasedJobIdsByQueue {
+		for _, jobId := range jobIds {
+			if apiJob, ok := apiJobsById[jobId]; ok {
+				apiJobs = append(apiJobs, apiJob)
+			}
+		}
+	}
 
 	// Log and store scheduling reports.
 	if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
@@ -403,7 +436,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if err != nil {
 			logging.WithStacktrace(log, err).Error("failed to schedule jobs")
 		}
-		return jobs, nil
+		return apiJobs, nil
 	} else if err != nil {
 		return nil, err
 	}
@@ -417,7 +450,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		logging.WithStacktrace(log, err).Error("failed to clear allocated resources in NodeDb")
 	}
 
-	return jobs, nil
+	return apiJobs, nil
 }
 
 // aggregateUsage Creates a map of usage first by cluster and then by queue

@@ -330,7 +330,7 @@ func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 		panic(fmt.Sprintf("expected *SchedulerNode, but got %T", obj))
 	}
 	if jobItem.Queue != it.queue {
-		// The index is sorted by Queue first.
+		// The index is sorted by queue first.
 		// So we've seen all jobs in this queue when this comparison fails.
 		return nil
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -1328,12 +1329,19 @@ func TestSchedule(t *testing.T) {
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
+			jobIteratorsByQueue := make(map[string]JobIterator)
+			for queue := range tc.ReqsByQueue {
+				it, err := jobRepository.GetJobIterator(context.Background(), queue)
+				require.NoError(t, err)
+				jobIteratorsByQueue[queue] = it
+			}
+
 			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
 				tc.SchedulingConfig,
 				nodeDb,
-				jobRepository,
+				jobIteratorsByQueue,
 				tc.PriorityFactorByQueue,
 				tc.InitialUsageByQueue,
 			)

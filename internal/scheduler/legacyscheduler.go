@@ -680,8 +680,6 @@ type LegacyScheduler struct {
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
-	// Used to request jobs from Redis and to mark jobs as leased.
-	JobRepository SchedulerJobRepository
 	// Jobs are grouped into gangs by this annotation.
 	GangIdAnnotation string
 	// Jobs in a gang specify the number of jobs in the gang via this annotation.
@@ -716,10 +714,18 @@ func NewLegacyScheduler(
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
 	nodeDb *NodeDb,
-	jobRepository SchedulerJobRepository,
+	jobIteratorsByQueue map[string]JobIterator,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) (*LegacyScheduler, error) {
+	if len(jobIteratorsByQueue) != len(priorityFactorByQueue) {
+		return nil, errors.New("jobIteratorsByQueue and priorityFactorByQueue are not of equal length")
+	}
+	for queue := range jobIteratorsByQueue {
+		if _, ok := priorityFactorByQueue[queue]; !ok {
+			return nil, errors.Errorf("priorityFactor missing for queue %s", queue)
+		}
+	}
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, constraints.TotalResources) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
@@ -737,24 +743,19 @@ func NewLegacyScheduler(
 	)
 
 	// Per-queue iterator pipelines.
-	iteratorsByQueue := make(map[string]*QueueCandidateGangIterator)
-	for queue := range priorityFactorByQueue {
-		// Load jobs from Redis.
-		queuedJobsIterator, err := jobRepository.GetJobIterator(ctx, queue)
-		if err != nil {
-			return nil, err
-		}
+	gangIteratorsByQueue := make(map[string]*QueueCandidateGangIterator)
+	for queue, jobIterator := range jobIteratorsByQueue {
 
 		// Group jobs into gangs, to be scheduled together.
 		queuedGangIterator := NewQueuedGangIterator(
 			ctx,
-			queuedJobsIterator,
+			jobIterator,
 			config.GangIdAnnotation,
 			config.GangCardinalityAnnotation,
 		)
 
 		// Enforce per-queue constraints.
-		iteratorsByQueue[queue] = &QueueCandidateGangIterator{
+		gangIteratorsByQueue[queue] = &QueueCandidateGangIterator{
 			SchedulingConstraints:      constraints,
 			QueueSchedulingRoundReport: schedulingRoundReport.QueueSchedulingRoundReports[queue],
 			ctx:                        ctx,
@@ -767,7 +768,7 @@ func NewLegacyScheduler(
 		constraints,
 		schedulingRoundReport,
 		ctx,
-		iteratorsByQueue,
+		gangIteratorsByQueue,
 		maps.Clone(priorityFactorByQueue),
 	)
 	if err != nil {
@@ -780,7 +781,6 @@ func NewLegacyScheduler(
 		SchedulingRoundReport: schedulingRoundReport,
 		CandidateGangIterator: candidateGangIterator,
 		NodeDb:                nodeDb,
-		JobRepository:         jobRepository,
 	}, nil
 }
 
