@@ -3,8 +3,8 @@ package main
 import (
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/cmd/jobservice/cmd"
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/cmd/jobservice/cmd"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 func main() {

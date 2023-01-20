@@ -11,81 +11,48 @@ import (
 	"github.com/google/uuid"
 )
 
-const markJobCancelledById = `-- name: MarkJobCancelledById :exec
-UPDATE jobs SET cancelled = true WHERE job_id = $1
+const countGroup = `-- name: CountGroup :one
+SELECT COUNT(*) FROM markers WHERE group_id= $1
 `
 
-// Job cancellation
-func (q *Queries) MarkJobCancelledById(ctx context.Context, jobID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobCancelledById, jobID)
-	return err
+func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countGroup, groupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
-const markJobFailedById = `-- name: MarkJobFailedById :exec
-UPDATE jobs SET failed = true WHERE job_id = $1
+const findActiveRuns = `-- name: FindActiveRuns :many
+SELECT run_id FROM runs WHERE run_id = ANY($1::UUID[])
+                         AND (succeeded = false AND failed = false AND cancelled = false)
 `
 
-// Job failed
-func (q *Queries) MarkJobFailedById(ctx context.Context, jobID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobFailedById, jobID)
-	return err
-}
-
-const markJobRunCancelledByJobId = `-- name: MarkJobRunCancelledByJobId :exec
-UPDATE runs SET cancelled = true WHERE job_id = $1
-`
-
-// Job run cancelled
-func (q *Queries) MarkJobRunCancelledByJobId(ctx context.Context, jobID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobRunCancelledByJobId, jobID)
-	return err
-}
-
-const markJobRunFailedById = `-- name: MarkJobRunFailedById :exec
-UPDATE runs SET failed = true WHERE run_id = $1
-`
-
-// Job run failed
-func (q *Queries) MarkJobRunFailedById(ctx context.Context, runID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobRunFailedById, runID)
-	return err
-}
-
-const markJobRunRunningById = `-- name: MarkJobRunRunningById :exec
-UPDATE runs SET running = true WHERE run_id = $1
-`
-
-// Job run running
-func (q *Queries) MarkJobRunRunningById(ctx context.Context, runID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobRunRunningById, runID)
-	return err
-}
-
-const markJobRunSucceededById = `-- name: MarkJobRunSucceededById :exec
-UPDATE runs SET succeeded = true WHERE run_id = $1
-`
-
-// Job run succeeded
-func (q *Queries) MarkJobRunSucceededById(ctx context.Context, runID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobRunSucceededById, runID)
-	return err
+func (q *Queries) FindActiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, findActiveRuns, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var run_id uuid.UUID
+		if err := rows.Scan(&run_id); err != nil {
+			return nil, err
+		}
+		items = append(items, run_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markJobRunsCancelledByJobId = `-- name: MarkJobRunsCancelledByJobId :exec
-UPDATE runs SET cancelled = true WHERE job_id = ANY($1::UUID[])
+UPDATE runs SET cancelled = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobRunsCancelledByJobId(ctx context.Context, jobIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsCancelledByJobId(ctx context.Context, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobRunsCancelledByJobId, jobIds)
-	return err
-}
-
-const markJobRunsCancelledBySet = `-- name: MarkJobRunsCancelledBySet :exec
-UPDATE runs SET cancelled = true WHERE job_set = $1
-`
-
-func (q *Queries) MarkJobRunsCancelledBySet(ctx context.Context, jobSet string) error {
-	_, err := q.db.Exec(ctx, markJobRunsCancelledBySet, jobSet)
 	return err
 }
 
@@ -125,31 +92,12 @@ func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []uuid.UU
 	return err
 }
 
-const markJobSucceededById = `-- name: MarkJobSucceededById :exec
-UPDATE jobs SET succeeded = true WHERE job_id = $1
-`
-
-// Job succeeded
-func (q *Queries) MarkJobSucceededById(ctx context.Context, jobID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markJobSucceededById, jobID)
-	return err
-}
-
 const markJobsCancelledById = `-- name: MarkJobsCancelledById :exec
-UPDATE jobs SET cancelled = true WHERE job_id = ANY($1::UUID[])
+UPDATE jobs SET cancelled = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsCancelledById(ctx context.Context, jobIds []uuid.UUID) error {
+func (q *Queries) MarkJobsCancelledById(ctx context.Context, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsCancelledById, jobIds)
-	return err
-}
-
-const markJobsCancelledBySet = `-- name: MarkJobsCancelledBySet :exec
-UPDATE jobs SET cancelled = true WHERE job_set = $1
-`
-
-func (q *Queries) MarkJobsCancelledBySet(ctx context.Context, jobSet string) error {
-	_, err := q.db.Exec(ctx, markJobsCancelledBySet, jobSet)
 	return err
 }
 
@@ -163,148 +111,63 @@ func (q *Queries) MarkJobsCancelledBySets(ctx context.Context, jobSets []string)
 }
 
 const markJobsFailedById = `-- name: MarkJobsFailedById :exec
-UPDATE jobs SET failed = true WHERE job_id = ANY($1::UUID[])
+UPDATE jobs SET failed = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsFailedById(ctx context.Context, jobIds []uuid.UUID) error {
+func (q *Queries) MarkJobsFailedById(ctx context.Context, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsFailedById, jobIds)
 	return err
 }
 
-const markJobsFailedBySet = `-- name: MarkJobsFailedBySet :exec
-UPDATE jobs SET failed = true WHERE job_set = $1
-`
-
-func (q *Queries) MarkJobsFailedBySet(ctx context.Context, jobSet string) error {
-	_, err := q.db.Exec(ctx, markJobsFailedBySet, jobSet)
-	return err
-}
-
-const markJobsFailedBySets = `-- name: MarkJobsFailedBySets :exec
-UPDATE jobs SET failed = true WHERE job_set = ANY($1::text[])
-`
-
-func (q *Queries) MarkJobsFailedBySets(ctx context.Context, jobSets []string) error {
-	_, err := q.db.Exec(ctx, markJobsFailedBySets, jobSets)
-	return err
-}
-
 const markJobsSucceededById = `-- name: MarkJobsSucceededById :exec
-UPDATE jobs SET succeeded = true WHERE job_id = ANY($1::UUID[])
+UPDATE jobs SET succeeded = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsSucceededById(ctx context.Context, jobIds []uuid.UUID) error {
+func (q *Queries) MarkJobsSucceededById(ctx context.Context, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsSucceededById, jobIds)
 	return err
 }
 
-const markJobsSucceededBySet = `-- name: MarkJobsSucceededBySet :exec
-UPDATE jobs SET succeeded = true WHERE job_set = $1
+const selectJobsForExecutor = `-- name: SelectJobsForExecutor :many
+SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
+FROM runs jr
+         JOIN jobs j
+              ON jr.job_id = j.job_id
+WHERE jr.executor = $1
+  AND jr.run_id NOT IN ($2::UUID[])
+  AND jr.succeeded = false AND jr.failed = false AND jr.cancelled = false
 `
 
-func (q *Queries) MarkJobsSucceededBySet(ctx context.Context, jobSet string) error {
-	_, err := q.db.Exec(ctx, markJobsSucceededBySet, jobSet)
-	return err
-}
-
-const markJobsSucceededBySets = `-- name: MarkJobsSucceededBySets :exec
-UPDATE jobs SET succeeded = true WHERE job_set = ANY($1::text[])
-`
-
-func (q *Queries) MarkJobsSucceededBySets(ctx context.Context, jobSets []string) error {
-	_, err := q.db.Exec(ctx, markJobsSucceededBySets, jobSets)
-	return err
-}
-
-const markRunsAsSent = `-- name: MarkRunsAsSent :exec
-UPDATE runs SET sent_to_executor = true WHERE run_id = ANY($1::UUID[])
-`
-
-func (q *Queries) MarkRunsAsSent(ctx context.Context, runIds []uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markRunsAsSent, runIds)
-	return err
-}
-
-const markRunsAsSentByExecutorAndJobId = `-- name: MarkRunsAsSentByExecutorAndJobId :exec
-UPDATE runs SET sent_to_executor = true WHERE executor = $1 AND job_id = ANY($2::UUID[])
-`
-
-type MarkRunsAsSentByExecutorAndJobIdParams struct {
+type SelectJobsForExecutorParams struct {
 	Executor string      `db:"executor"`
-	JobIds   []uuid.UUID `db:"job_ids"`
+	RunIds   []uuid.UUID `db:"run_ids"`
 }
 
-func (q *Queries) MarkRunsAsSentByExecutorAndJobId(ctx context.Context, arg MarkRunsAsSentByExecutorAndJobIdParams) error {
-	_, err := q.db.Exec(ctx, markRunsAsSentByExecutorAndJobId, arg.Executor, arg.JobIds)
-	return err
+type SelectJobsForExecutorRow struct {
+	RunID         uuid.UUID `db:"run_id"`
+	Queue         string    `db:"queue"`
+	JobSet        string    `db:"job_set"`
+	UserID        string    `db:"user_id"`
+	Groups        []byte    `db:"groups"`
+	SubmitMessage []byte    `db:"submit_message"`
 }
 
-const selectJobsFromIds = `-- name: SelectJobsFromIds :many
-SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE job_id = ANY($1::UUID[])
-`
-
-// Jobs
-func (q *Queries) SelectJobsFromIds(ctx context.Context, jobIds []uuid.UUID) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectJobsFromIds, jobIds)
+func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForExecutorParams) ([]SelectJobsForExecutorRow, error) {
+	rows, err := q.db.Query(ctx, selectJobsForExecutor, arg.Executor, arg.RunIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Job
+	var items []SelectJobsForExecutorRow
 	for rows.Next() {
-		var i Job
+		var i SelectJobsForExecutorRow
 		if err := rows.Scan(
-			&i.JobID,
-			&i.JobSet,
+			&i.RunID,
 			&i.Queue,
+			&i.JobSet,
 			&i.UserID,
 			&i.Groups,
-			&i.Priority,
-			&i.Cancelled,
-			&i.Succeeded,
-			&i.Failed,
 			&i.SubmitMessage,
-			&i.SchedulingInfo,
-			&i.Serial,
-			&i.LastModified,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const selectNewActiveJobs = `-- name: SelectNewActiveJobs :many
-SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE serial > $1 AND succeeded = false AND failed = false AND cancelled = false ORDER BY serial
-`
-
-func (q *Queries) SelectNewActiveJobs(ctx context.Context, serial int64) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectNewActiveJobs, serial)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Job
-	for rows.Next() {
-		var i Job
-		if err := rows.Scan(
-			&i.JobID,
-			&i.JobSet,
-			&i.Queue,
-			&i.UserID,
-			&i.Groups,
-			&i.Priority,
-			&i.Cancelled,
-			&i.Succeeded,
-			&i.Failed,
-			&i.SubmitMessage,
-			&i.SchedulingInfo,
-			&i.Serial,
-			&i.LastModified,
 		); err != nil {
 			return nil, err
 		}
@@ -317,11 +180,16 @@ func (q *Queries) SelectNewActiveJobs(ctx context.Context, serial int64) ([]Job,
 }
 
 const selectNewJobs = `-- name: SelectNewJobs :many
-SELECT job_id, job_set, queue, user_id, groups, priority, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial
+SELECT job_id, job_set, queue, user_id, submitted, groups, priority, cancel_requested, cancelled, succeeded, failed, submit_message, scheduling_info, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
-func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error) {
-	rows, err := q.db.Query(ctx, selectNewJobs, serial)
+type SelectNewJobsParams struct {
+	Serial int64 `db:"serial"`
+	Limit  int32 `db:"limit"`
+}
+
+func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, selectNewJobs, arg.Serial, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -334,8 +202,10 @@ func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error
 			&i.JobSet,
 			&i.Queue,
 			&i.UserID,
+			&i.Submitted,
 			&i.Groups,
 			&i.Priority,
+			&i.CancelRequested,
 			&i.Cancelled,
 			&i.Succeeded,
 			&i.Failed,
@@ -354,79 +224,17 @@ func (q *Queries) SelectNewJobs(ctx context.Context, serial int64) ([]Job, error
 	return items, nil
 }
 
-const selectNewNodeInfo = `-- name: SelectNewNodeInfo :many
-SELECT executor_node_name, node_name, executor, message, serial, last_modified FROM nodeinfo WHERE serial > $1 ORDER BY serial
+const selectNewRuns = `-- name: SelectNewRuns :many
+SELECT run_id, job_id, job_set, executor, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
-// NodeInfo
-func (q *Queries) SelectNewNodeInfo(ctx context.Context, serial int64) ([]Nodeinfo, error) {
-	rows, err := q.db.Query(ctx, selectNewNodeInfo, serial)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Nodeinfo
-	for rows.Next() {
-		var i Nodeinfo
-		if err := rows.Scan(
-			&i.ExecutorNodeName,
-			&i.NodeName,
-			&i.Executor,
-			&i.Message,
-			&i.Serial,
-			&i.LastModified,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type SelectNewRunsParams struct {
+	Serial int64 `db:"serial"`
+	Limit  int32 `db:"limit"`
 }
 
-const selectNewRunAssignments = `-- name: SelectNewRunAssignments :many
-SELECT run_id, assignment, serial, last_modified FROM job_run_assignments WHERE serial > $1 ORDER BY serial
-`
-
-// Job run assignments
-func (q *Queries) SelectNewRunAssignments(ctx context.Context, serial int64) ([]JobRunAssignment, error) {
-	rows, err := q.db.Query(ctx, selectNewRunAssignments, serial)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []JobRunAssignment
-	for rows.Next() {
-		var i JobRunAssignment
-		if err := rows.Scan(
-			&i.RunID,
-			&i.Assignment,
-			&i.Serial,
-			&i.LastModified,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const selectNewRunsForExecutorWithLimit = `-- name: SelectNewRunsForExecutorWithLimit :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false) LIMIT $2
-`
-
-type SelectNewRunsForExecutorWithLimitParams struct {
-	Executor string `db:"executor"`
-	Limit    int32  `db:"limit"`
-}
-
-func (q *Queries) SelectNewRunsForExecutorWithLimit(ctx context.Context, arg SelectNewRunsForExecutorWithLimitParams) ([]Run, error) {
-	rows, err := q.db.Query(ctx, selectNewRunsForExecutorWithLimit, arg.Executor, arg.Limit)
+func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([]Run, error) {
+	rows, err := q.db.Query(ctx, selectNewRuns, arg.Serial, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -439,11 +247,11 @@ func (q *Queries) SelectNewRunsForExecutorWithLimit(ctx context.Context, arg Sel
 			&i.JobID,
 			&i.JobSet,
 			&i.Executor,
-			&i.SentToExecutor,
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
 			&i.Failed,
+			&i.Returned,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -458,12 +266,12 @@ func (q *Queries) SelectNewRunsForExecutorWithLimit(ctx context.Context, arg Sel
 }
 
 const selectNewRunsForJobs = `-- name: SelectNewRunsForJobs :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::UUID[]) ORDER BY serial
+SELECT run_id, job_id, job_set, executor, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
 `
 
 type SelectNewRunsForJobsParams struct {
-	Serial int64       `db:"serial"`
-	JobIds []uuid.UUID `db:"job_ids"`
+	Serial int64    `db:"serial"`
+	JobIds []string `db:"job_ids"`
 }
 
 func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsForJobsParams) ([]Run, error) {
@@ -480,11 +288,11 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 			&i.JobID,
 			&i.JobSet,
 			&i.Executor,
-			&i.SentToExecutor,
 			&i.Cancelled,
 			&i.Running,
 			&i.Succeeded,
 			&i.Failed,
+			&i.Returned,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -498,81 +306,23 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 	return items, nil
 }
 
-const selectQueueJobSetFromId = `-- name: SelectQueueJobSetFromId :one
-SELECT job_id, queue, job_set FROM jobs where job_id = $1
+const selectRunErrorsById = `-- name: SelectRunErrorsById :many
+SELECT run_id, error, serial, last_modified FROM job_run_errors WHERE run_id = ANY($1::UUID[])
 `
 
-type SelectQueueJobSetFromIdRow struct {
-	JobID  uuid.UUID `db:"job_id"`
-	Queue  string    `db:"queue"`
-	JobSet string    `db:"job_set"`
-}
-
-func (q *Queries) SelectQueueJobSetFromId(ctx context.Context, jobID uuid.UUID) (SelectQueueJobSetFromIdRow, error) {
-	row := q.db.QueryRow(ctx, selectQueueJobSetFromId, jobID)
-	var i SelectQueueJobSetFromIdRow
-	err := row.Scan(&i.JobID, &i.Queue, &i.JobSet)
-	return i, err
-}
-
-const selectQueueJobSetFromIds = `-- name: SelectQueueJobSetFromIds :many
-SELECT job_id, queue, job_set FROM jobs where job_id = ANY($1::UUID[])
-`
-
-type SelectQueueJobSetFromIdsRow struct {
-	JobID  uuid.UUID `db:"job_id"`
-	Queue  string    `db:"queue"`
-	JobSet string    `db:"job_set"`
-}
-
-func (q *Queries) SelectQueueJobSetFromIds(ctx context.Context, jobIds []uuid.UUID) ([]SelectQueueJobSetFromIdsRow, error) {
-	rows, err := q.db.Query(ctx, selectQueueJobSetFromIds, jobIds)
+// Run errors
+func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []uuid.UUID) ([]JobRunError, error) {
+	rows, err := q.db.Query(ctx, selectRunErrorsById, runIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SelectQueueJobSetFromIdsRow
+	var items []JobRunError
 	for rows.Next() {
-		var i SelectQueueJobSetFromIdsRow
-		if err := rows.Scan(&i.JobID, &i.Queue, &i.JobSet); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const selectRunsFromExecutorAndJobs = `-- name: SelectRunsFromExecutorAndJobs :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE (executor = $1 AND job_id = ANY($2::UUID[]))
-`
-
-type SelectRunsFromExecutorAndJobsParams struct {
-	Executor string      `db:"executor"`
-	JobIds   []uuid.UUID `db:"job_ids"`
-}
-
-func (q *Queries) SelectRunsFromExecutorAndJobs(ctx context.Context, arg SelectRunsFromExecutorAndJobsParams) ([]Run, error) {
-	rows, err := q.db.Query(ctx, selectRunsFromExecutorAndJobs, arg.Executor, arg.JobIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Run
-	for rows.Next() {
-		var i Run
+		var i JobRunError
 		if err := rows.Scan(
 			&i.RunID,
-			&i.JobID,
-			&i.JobSet,
-			&i.Executor,
-			&i.SentToExecutor,
-			&i.Cancelled,
-			&i.Running,
-			&i.Succeeded,
-			&i.Failed,
+			&i.Error,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -586,32 +336,50 @@ func (q *Queries) SelectRunsFromExecutorAndJobs(ctx context.Context, arg SelectR
 	return items, nil
 }
 
-const selectUnsentRunsForExecutor = `-- name: SelectUnsentRunsForExecutor :many
-SELECT run_id, job_id, job_set, executor, sent_to_executor, cancelled, running, succeeded, failed, serial, last_modified FROM runs WHERE (executor = $1 AND sent_to_executor = false)
+const selectUpdatedJobs = `-- name: SelectUpdatedJobs :many
+SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
-// Runs
-func (q *Queries) SelectUnsentRunsForExecutor(ctx context.Context, executor string) ([]Run, error) {
-	rows, err := q.db.Query(ctx, selectUnsentRunsForExecutor, executor)
+type SelectUpdatedJobsParams struct {
+	Serial int64 `db:"serial"`
+	Limit  int32 `db:"limit"`
+}
+
+type SelectUpdatedJobsRow struct {
+	JobID           string `db:"job_id"`
+	JobSet          string `db:"job_set"`
+	Queue           string `db:"queue"`
+	Priority        int64  `db:"priority"`
+	Submitted       int64  `db:"submitted"`
+	CancelRequested bool   `db:"cancel_requested"`
+	Cancelled       bool   `db:"cancelled"`
+	Succeeded       bool   `db:"succeeded"`
+	Failed          bool   `db:"failed"`
+	SchedulingInfo  []byte `db:"scheduling_info"`
+	Serial          int64  `db:"serial"`
+}
+
+func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsParams) ([]SelectUpdatedJobsRow, error) {
+	rows, err := q.db.Query(ctx, selectUpdatedJobs, arg.Serial, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Run
+	var items []SelectUpdatedJobsRow
 	for rows.Next() {
-		var i Run
+		var i SelectUpdatedJobsRow
 		if err := rows.Scan(
-			&i.RunID,
 			&i.JobID,
 			&i.JobSet,
-			&i.Executor,
-			&i.SentToExecutor,
+			&i.Queue,
+			&i.Priority,
+			&i.Submitted,
+			&i.CancelRequested,
 			&i.Cancelled,
-			&i.Running,
 			&i.Succeeded,
 			&i.Failed,
+			&i.SchedulingInfo,
 			&i.Serial,
-			&i.LastModified,
 		); err != nil {
 			return nil, err
 		}
@@ -628,11 +396,10 @@ UPDATE jobs SET priority = $1 WHERE job_id = $2
 `
 
 type UpdateJobPriorityByIdParams struct {
-	Priority int64     `db:"priority"`
-	JobID    uuid.UUID `db:"job_id"`
+	Priority int64  `db:"priority"`
+	JobID    string `db:"job_id"`
 }
 
-// Job priority
 func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriorityByIdParams) error {
 	_, err := q.db.Exec(ctx, updateJobPriorityById, arg.Priority, arg.JobID)
 	return err

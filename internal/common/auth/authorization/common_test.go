@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 func TestCreateMiddlewareAuthFunction(t *testing.T) {

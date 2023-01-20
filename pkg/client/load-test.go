@@ -6,13 +6,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/domain"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/domain"
 )
 
 type LoadTester interface {
@@ -127,61 +129,66 @@ func (apiLoadTester ArmadaLoadTester) runSubmission(
 	submissionComplete = &sync.WaitGroup{}
 	submissionComplete.Add(1)
 
-	go WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
-		defer submissionComplete.Done()
+	go func() {
+		err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
+			defer submissionComplete.Done()
 
-		e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
-		if status.Code(e) == codes.AlreadyExists {
-			log.Infof("Queue %s already exists so no need to create it.\n", queue)
-		} else if e != nil {
-			log.Errorf("ERROR: Failed to create queue: %s because: %s\n", queue, e)
-			return nil
-		} else {
-			log.Infof("Queue %s created.\n", queue)
-		}
-
-		for len(jobs) > 0 {
-			select {
-			case <-ctx.Done():
-				break
-			default:
+			e := CreateQueue(client, &api.Queue{Name: queue, PriorityFactor: priorityFactor})
+			if status.Code(e) == codes.AlreadyExists {
+				log.Infof("queue %s already exists so no need to create it.\n", queue)
+			} else if e != nil {
+				log.Errorf("failed to create queue: %s because: %s\n", queue, e)
+				return nil
+			} else {
+				log.Infof("queue %s created.\n", queue)
 			}
-			readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
-			jobs = remainingJobs
 
-			readyRequests := createJobSubmitRequestItems(readyJobs)
-			requests := CreateChunkedSubmitRequests(queue, jobSetId, readyRequests)
-
-			for _, request := range requests {
-				response, e := SubmitJobs(client, request)
-
-				if e != nil {
-					log.Errorf("ERROR: Failed to submit jobs for job set: %s because %s\n", jobSetId, e)
-					continue
+			for len(jobs) > 0 {
+				select {
+				case <-ctx.Done():
+					break
+				default:
 				}
-				failedJobs := 0
+				readyJobs, remainingJobs := filterReadyJobs(startTime, jobs)
+				jobs = remainingJobs
 
-				for _, jobSubmitResponse := range response.JobResponseItems {
-					if jobSubmitResponse.Error != "" {
-						failedJobs++
-					} else {
-						jobIds <- jobSubmitResponse.JobId
+				readyRequests := createJobSubmitRequestItems(readyJobs)
+				requests := CreateChunkedSubmitRequests(queue, jobSetId, readyRequests)
+
+				for _, request := range requests {
+					response, e := SubmitJobs(client, request)
+
+					if e != nil {
+						log.Errorf("failed to submit jobs for job set: %s because %s\n", jobSetId, e)
+						continue
+					}
+					failedJobs := 0
+
+					for _, jobSubmitResponse := range response.JobResponseItems {
+						if jobSubmitResponse.Error != "" {
+							failedJobs++
+						} else {
+							jobIds <- jobSubmitResponse.JobId
+						}
+					}
+
+					log.Infof("submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
+					if failedJobs > 0 {
+						log.Errorf("%d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
 					}
 				}
 
-				log.Infof("Submitted %d jobs to queue %s job set %s", len(request.JobRequestItems), queue, jobSetId)
-				if failedJobs > 0 {
-					log.Errorf("ERROR: %d jobs failed to be created when submitting to queue %s job set %s", failedJobs, queue, jobSetId)
+				if len(jobs) > 0 {
+					time.Sleep(time.Second)
 				}
 			}
-
-			if len(jobs) > 0 {
-				time.Sleep(time.Second)
-			}
+			close(jobIds)
+			return nil
+		})
+		if err != nil {
+			log.Errorf("detected when submitting jobs: %s", err)
 		}
-		close(jobIds)
-		return nil
-	})
+	}()
 	return jobIds, jobSetId, submissionComplete
 }
 
@@ -212,7 +219,7 @@ func createQueueName(submission *domain.SubmissionDescription, i int) string {
 	}
 
 	if queue == "" {
-		log.Error("ERROR: Queue name is blank, please set queue or queuePrefix ")
+		log.Error("queue name is blank, please set queue or queuePrefix ")
 		panic("Queue name is blank")
 	}
 	return queue
@@ -224,6 +231,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 	jobIds chan string,
 	eventChannel chan api.Event,
 ) []string {
+	log := logrus.StandardLogger().WithField("Armada", "LoadTester")
 	var submittedIds []string = nil
 	go func() {
 		ids := []string{}
@@ -232,7 +240,7 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		}
 		submittedIds = ids
 	}()
-	WithEventClient(apiLoadTester.apiConnectionDetails, func(client api.EventClient) error {
+	err := WithEventClient(apiLoadTester.apiConnectionDetails, func(client api.EventClient) error {
 		WatchJobSet(client, queue, jobSetId, true, false, false, false, ctx, func(state *domain.WatchContext, e api.Event) bool {
 			eventChannel <- e
 
@@ -249,6 +257,9 @@ func (apiLoadTester ArmadaLoadTester) monitorJobsUntilCompletion(
 		})
 		return nil
 	})
+	if err != nil {
+		logging.WithStacktrace(log, err).Error("unable to monitor jobs")
+	}
 	return submittedIds
 }
 
@@ -270,7 +281,9 @@ func createJobSubmitRequestItems(jobDescs []*domain.JobSubmissionDescription) []
 }
 
 func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId string) {
-	WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
+	log := logrus.StandardLogger().WithField("Armada", "LoadTester")
+
+	err := WithSubmitClient(apiLoadTester.apiConnectionDetails, func(client api.SubmitClient) error {
 		timeout, _ := common.ContextWithDefaultTimeout()
 		cancelRequest := &api.JobCancelRequest{
 			JobSetId: jobSetId,
@@ -279,6 +292,9 @@ func (apiLoadTester ArmadaLoadTester) cancelRemainingJobs(queue string, jobSetId
 		_, err := client.CancelJobs(timeout, cancelRequest)
 		return err
 	})
+	if err != nil {
+		logging.WithStacktrace(log, err).Error("unable to cancel jobs")
+	}
 }
 
 type threadSafeStringSlice struct {

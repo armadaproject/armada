@@ -7,8 +7,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func reportQueued(repository repository.EventStore, jobs []*api.Job) error {

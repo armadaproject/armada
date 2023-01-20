@@ -38,7 +38,11 @@ describe("JobsTableFormatters", () => {
 
   describe("formatBytes", () => {
     it("formats bytes to human readable", () => {
-      expect(formatBytes(2500)).toBe("2.5 kB")
+      expect(formatBytes(2500)).toBe("2.44 kiB")
+    })
+
+    it("formats byte counts using binary numbers", () => {
+      expect(formatBytes(5 * 1024 * 1024)).toBe("5 MiB")
     })
 
     it("formats undefined to empty string", () => {

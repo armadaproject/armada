@@ -1,6 +1,8 @@
+import { createBrowserHistory } from "history"
 import ReactDOM from "react-dom"
 import { GetJobsService } from "services/lookoutV2/GetJobsService"
 import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
@@ -41,6 +43,7 @@ import "./index.css"
   const fakeDataEnabled = uiConfig.fakeDataEnabled
   const lookoutV2BaseUrl = uiConfig.lookoutV2ApiBaseUrl
 
+  const v2JobsTablePrefsService = new JobsTablePreferencesService(createBrowserHistory())
   const v2TestJobs = fakeDataEnabled ? makeTestJobs(10000, 42) : []
   const v2GetJobsService = fakeDataEnabled ? new FakeGetJobsService(v2TestJobs) : new GetJobsService(lookoutV2BaseUrl)
   const v2GroupJobsService = fakeDataEnabled
@@ -51,6 +54,7 @@ import "./index.css"
   ReactDOM.render(
     <App
       jobService={jobService}
+      v2JobsTablePrefsService={v2JobsTablePrefsService}
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
       v2UpdateJobsService={v2UpdateJobsService}

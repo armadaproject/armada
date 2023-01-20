@@ -1,12 +1,12 @@
 import _ from "lodash"
-import { JobFilter, Job } from "models/lookoutV2Models"
+import { Job, JobFilter } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 
 export const getAllJobsMatchingFilters = async (
   filters: JobFilter[],
   getJobsService: IGetJobsService,
 ): Promise<Job[]> => {
-  const MAX_JOBS_PER_REQUEST = 1000
+  const MAX_JOBS_PER_REQUEST = 10000
 
   const receivedJobs: Job[] = []
   let continuePaginating = true
@@ -36,6 +36,5 @@ export const getUniqueJobsMatchingFilters = async (
   const jobsBySelectedItem = await Promise.all(
     filtersGroups.map(async (filters) => await getAllJobsMatchingFilters(filters, getJobsService)),
   )
-  const uniqueJobsToReprioritise = _.uniqBy(jobsBySelectedItem.flat(), (job) => job.jobId)
-  return uniqueJobsToReprioritise
+  return _.uniqBy(jobsBySelectedItem.flat(), (job) => job.jobId)
 }

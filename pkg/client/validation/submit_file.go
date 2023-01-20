@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/pkg/client/util"
+	"github.com/armadaproject/armada/pkg/client/util"
 )
 
 type rawJobSubmitFile struct {

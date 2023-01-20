@@ -8,9 +8,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/jobservice/events"
-	"github.com/G-Research/armada/internal/jobservice/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/jobservice/events"
+	"github.com/armadaproject/armada/internal/jobservice/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // Service that subscribes to events and stores JobStatus in the repository.

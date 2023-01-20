@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 )
 
 func TestGetInstanceCurrentFractionOfResourceInUse(t *testing.T) {

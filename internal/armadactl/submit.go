@@ -5,11 +5,11 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/domain"
-	"github.com/G-Research/armada/pkg/client/util"
-	"github.com/G-Research/armada/pkg/client/validation"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/domain"
+	"github.com/armadaproject/armada/pkg/client/util"
+	"github.com/armadaproject/armada/pkg/client/validation"
 )
 
 // Submit a job, represented by a file, to the Armada server.

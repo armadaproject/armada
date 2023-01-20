@@ -3,9 +3,9 @@ package armadactl
 import (
 	"fmt"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 func (a *App) GetQueueSchedulingReport(queue string) error {

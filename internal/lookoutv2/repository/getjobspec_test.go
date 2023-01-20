@@ -7,12 +7,12 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestGetJobSpec(t *testing.T) {
@@ -20,7 +20,7 @@ func TestGetJobSpec(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,

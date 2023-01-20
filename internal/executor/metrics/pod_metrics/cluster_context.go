@@ -8,12 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/metrics"
-	"github.com/G-Research/armada/internal/executor/node"
-	"github.com/G-Research/armada/internal/executor/utilisation"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/executor/utilisation"
 )
 
 const (

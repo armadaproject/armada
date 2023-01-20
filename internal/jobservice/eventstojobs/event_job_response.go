@@ -1,8 +1,8 @@
 package eventstojobs
 
 import (
-	"github.com/G-Research/armada/pkg/api"
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/pkg/api"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // Translates api.EventMessage to a JobServiceReponse.

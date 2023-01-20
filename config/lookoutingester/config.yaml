@@ -3,23 +3,20 @@ postgres:
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: localhost
+    host: postgres
     port: 5432
     user: postgres
     password: psw
     dbname: postgres
     sslmode: disable
-
 metrics:
-  port: 9003
-
+  port: 9000
 pulsar:
   enabled: true
-  URL: "pulsar://localhost:6650"
+  URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
   backoffTime: 1s
-
 paralellism: 1
 subscriptionName: "lookout-ingester"
 batchSize: 10000

@@ -10,10 +10,10 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/scheduler"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/scheduler"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 const (
@@ -43,7 +43,10 @@ func main() {
 	if viper.GetBool(MigrateDatabase) {
 		migrateDatabase(&config)
 	} else {
-		scheduler.Run(&config)
+		if err := scheduler.Run(&config); err != nil {
+			log.Errorf("failed to run scheduler: %s", err)
+			os.Exit(1)
+		}
 	}
 }
 

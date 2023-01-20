@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 const (
@@ -55,7 +55,7 @@ func TestGetJobsSingle(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,
@@ -92,7 +92,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Pending(uuid.NewString(), cluster, baseTime).
 			Pending(uuid.NewString(), cluster, baseTime.Add(time.Second)).
@@ -165,21 +165,21 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 		secondId := "01f3j0g1md4qx7z5qb148qnjjj"
 		thirdId := "01f3j0g1md4qx7z5qb148qnmmm"
 
-		third := NewJobSimulator(userAnnotationPrefix, converter, store).
+		third := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				JobId: thirdId,
 			}).
 			Build().
 			Job()
 
-		second := NewJobSimulator(userAnnotationPrefix, converter, store).
+		second := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				JobId: secondId,
 			}).
 			Build().
 			Job()
 
-		first := NewJobSimulator(userAnnotationPrefix, converter, store).
+		first := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				JobId: firstId,
 			}).
@@ -194,7 +194,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 				[]*model.Filter{},
 				&model.Order{
 					Field:     "jobId",
-					Direction: "ASC",
+					Direction: model.DirectionAsc,
 				},
 				0,
 				10,
@@ -213,6 +213,140 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 				[]*model.Filter{},
 				&model.Order{
 					Field:     "jobId",
+					Direction: model.DirectionDesc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, third, result.Jobs[0])
+			assert.Equal(t, second, result.Jobs[1])
+			assert.Equal(t, first, result.Jobs[2])
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetJobsOrderBySubmissionTime(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		third := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime.Add(3*time.Second), basicJobOpts).
+			Build().
+			Job()
+
+		second := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime.Add(2*time.Second), basicJobOpts).
+			Build().
+			Job()
+
+		first := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		repo := NewSqlGetJobsRepository(db)
+
+		t.Run("ascending order", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, first, result.Jobs[0])
+			assert.Equal(t, second, result.Jobs[1])
+			assert.Equal(t, third, result.Jobs[2])
+		})
+
+		t.Run("descending order", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "submitted",
+					Direction: model.DirectionDesc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, third, result.Jobs[0])
+			assert.Equal(t, second, result.Jobs[1])
+			assert.Equal(t, first, result.Jobs[2])
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		runId1 := uuid.NewString()
+		third := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Pending(runId1, cluster, baseTime).
+			Running(runId1, cluster, baseTime.Add(3*time.Minute)).
+			Build().
+			Job()
+
+		second := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Pending(uuid.NewString(), cluster, baseTime.Add(2*time.Minute)).
+			Build().
+			Job()
+
+		first := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		repo := NewSqlGetJobsRepository(db)
+
+		t.Run("ascending order", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "lastTransitionTime",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, first, result.Jobs[0])
+			assert.Equal(t, second, result.Jobs[1])
+			assert.Equal(t, third, result.Jobs[2])
+		})
+
+		t.Run("descending order", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "lastTransitionTime",
 					Direction: model.DirectionDesc,
 				},
 				0,
@@ -280,17 +414,17 @@ func TestGetJobsById(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: jobId}).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnaaa"}).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnbbb"}).
 			Build().
 			Job()
@@ -325,23 +459,28 @@ func TestGetJobsByQueue(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job2 := NewJobSimulator(converter, store).
 			Submit("queue-2", jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job3 := NewJobSimulator(converter, store).
 			Submit("queue-3", jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		job4 := NewJobSimulator(converter, store).
 			Submit("other-queue", jobSet, owner, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		_ = NewJobSimulator(converter, store).
+			Submit("something-else", jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -388,6 +527,30 @@ func TestGetJobsByQueue(t *testing.T) {
 			assert.Equal(t, job3, result.Jobs[2])
 		})
 
+		t.Run("contains", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "queue",
+					Match: model.MatchContains,
+					Value: "queue",
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 4)
+			assert.Equal(t, 4, result.Count)
+			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+			assert.Equal(t, job4, result.Jobs[3])
+		})
+
 		return nil
 	})
 	assert.NoError(t, err)
@@ -398,23 +561,28 @@ func TestGetJobsByJobSet(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job2 := NewJobSimulator(converter, store).
 			Submit(queue, "job-set-2", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job3 := NewJobSimulator(converter, store).
 			Submit(queue, "job-set-3", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		job4 := NewJobSimulator(converter, store).
 			Submit(queue, "other-job-set", owner, baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		_ = NewJobSimulator(converter, store).
+			Submit(queue, "something-else", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -461,6 +629,30 @@ func TestGetJobsByJobSet(t *testing.T) {
 			assert.Equal(t, job3, result.Jobs[2])
 		})
 
+		t.Run("contains", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "jobSet",
+					Match: model.MatchContains,
+					Value: "job-set",
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 4)
+			assert.Equal(t, 4, result.Count)
+			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+			assert.Equal(t, job4, result.Jobs[3])
+		})
+
 		return nil
 	})
 	assert.NoError(t, err)
@@ -471,23 +663,28 @@ func TestGetJobsByOwner(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job2 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, "user-2", baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		job3 := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job3 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, "user-3", baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		job4 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, "other-user", baseTime, basicJobOpts).
+			Build().
+			Job()
+
+		_ = NewJobSimulator(converter, store).
+			Submit(queue, jobSet, "something-else", baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -534,6 +731,30 @@ func TestGetJobsByOwner(t *testing.T) {
 			assert.Equal(t, job3, result.Jobs[2])
 		})
 
+		t.Run("contains", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "owner",
+					Match: model.MatchContains,
+					Value: "user",
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 4)
+			assert.Equal(t, result.Count, 4)
+			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+			assert.Equal(t, job4, result.Jobs[3])
+		})
+
 		return nil
 	})
 	assert.NoError(t, err)
@@ -544,19 +765,19 @@ func TestGetJobsByState(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		queued := NewJobSimulator(userAnnotationPrefix, converter, store).
+		queued := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
-		pending := NewJobSimulator(userAnnotationPrefix, converter, store).
+		pending := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Pending(uuid.NewString(), cluster, baseTime).
 			Build().
 			Job()
 
 		runId2 := uuid.NewString()
-		running := NewJobSimulator(userAnnotationPrefix, converter, store).
+		running := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Pending(runId2, cluster, baseTime).
 			Running(runId2, node, baseTime).
@@ -564,7 +785,7 @@ func TestGetJobsByState(t *testing.T) {
 			Job()
 
 		runId3 := uuid.NewString()
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 			Pending(runId3, cluster, baseTime).
 			Running(runId3, node, baseTime).
@@ -629,7 +850,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(userAnnotationPrefix, converter, store).
+		job := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-1",
@@ -639,7 +860,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-2",
@@ -648,7 +869,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-3",
@@ -657,7 +878,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+		_ = NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-2": "annotation-value-1",
@@ -719,6 +940,598 @@ func TestGetJobsByAnnotation(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestGetJobsByCpu(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		job1 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Cpu: resource.MustParse("1"),
+			}).
+			Build().
+			Job()
+
+		job2 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Cpu: resource.MustParse("3"),
+			}).
+			Build().
+			Job()
+
+		job3 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Cpu: resource.MustParse("5"),
+			}).
+			Build().
+			Job()
+
+		job4 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Cpu: resource.MustParse("10"),
+			}).
+			Build().
+			Job()
+
+		repo := NewSqlGetJobsRepository(db)
+
+		t.Run("exact", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "cpu",
+					Match: model.MatchExact,
+					Value: 3000,
+				}},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 1)
+			assert.Equal(t, 1, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+		})
+
+		t.Run("greaterThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "cpu",
+					Match: model.MatchGreaterThan,
+					Value: 3000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job3, result.Jobs[0])
+			assert.Equal(t, job4, result.Jobs[1])
+		})
+
+		t.Run("lessThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "cpu",
+					Match: model.MatchLessThan,
+					Value: 5000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+		})
+
+		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "cpu",
+					Match: model.MatchGreaterThanOrEqualTo,
+					Value: 3000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+			assert.Equal(t, job3, result.Jobs[1])
+			assert.Equal(t, job4, result.Jobs[2])
+		})
+
+		t.Run("lessThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "cpu",
+					Match: model.MatchLessThanOrEqualTo,
+					Value: 5000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetJobsByMemory(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		job1 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Memory: resource.MustParse("1000"),
+			}).
+			Build().
+			Job()
+
+		job2 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Memory: resource.MustParse("3000"),
+			}).
+			Build().
+			Job()
+
+		job3 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Memory: resource.MustParse("5000"),
+			}).
+			Build().
+			Job()
+
+		job4 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Memory: resource.MustParse("10000"),
+			}).
+			Build().
+			Job()
+
+		repo := NewSqlGetJobsRepository(db)
+
+		t.Run("exact", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "memory",
+					Match: model.MatchExact,
+					Value: 3000,
+				}},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 1)
+			assert.Equal(t, 1, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+		})
+
+		t.Run("greaterThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "memory",
+					Match: model.MatchGreaterThan,
+					Value: 3000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job3, result.Jobs[0])
+			assert.Equal(t, job4, result.Jobs[1])
+		})
+
+		t.Run("lessThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "memory",
+					Match: model.MatchLessThan,
+					Value: 5000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+		})
+
+		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "memory",
+					Match: model.MatchGreaterThanOrEqualTo,
+					Value: 3000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+			assert.Equal(t, job3, result.Jobs[1])
+			assert.Equal(t, job4, result.Jobs[2])
+		})
+
+		t.Run("lessThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "memory",
+					Match: model.MatchLessThanOrEqualTo,
+					Value: 5000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetJobsByEphemeralStorage(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		job1 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				EphemeralStorage: resource.MustParse("1000"),
+			}).
+			Build().
+			Job()
+
+		job2 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				EphemeralStorage: resource.MustParse("3000"),
+			}).
+			Build().
+			Job()
+
+		job3 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				EphemeralStorage: resource.MustParse("5000"),
+			}).
+			Build().
+			Job()
+
+		job4 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				EphemeralStorage: resource.MustParse("10000"),
+			}).
+			Build().
+			Job()
+
+		repo := NewSqlGetJobsRepository(db)
+
+		t.Run("exact", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "ephemeralStorage",
+					Match: model.MatchExact,
+					Value: 3000,
+				}},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 1)
+			assert.Equal(t, 1, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+		})
+
+		t.Run("greaterThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "ephemeralStorage",
+					Match: model.MatchGreaterThan,
+					Value: 3000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job3, result.Jobs[0])
+			assert.Equal(t, job4, result.Jobs[1])
+		})
+
+		t.Run("lessThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "ephemeralStorage",
+					Match: model.MatchLessThan,
+					Value: 5000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+		})
+
+		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "ephemeralStorage",
+					Match: model.MatchGreaterThanOrEqualTo,
+					Value: 3000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+			assert.Equal(t, job3, result.Jobs[1])
+			assert.Equal(t, job4, result.Jobs[2])
+		})
+
+		t.Run("lessThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "ephemeralStorage",
+					Match: model.MatchLessThanOrEqualTo,
+					Value: 5000,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetJobsByGpu(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		job1 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Gpu: resource.MustParse("1"),
+			}).
+			Build().
+			Job()
+
+		job2 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Gpu: resource.MustParse("3"),
+			}).
+			Build().
+			Job()
+
+		job3 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Gpu: resource.MustParse("5"),
+			}).
+			Build().
+			Job()
+
+		job4 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Gpu: resource.MustParse("8"),
+			}).
+			Build().
+			Job()
+
+		repo := NewSqlGetJobsRepository(db)
+
+		t.Run("exact", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "gpu",
+					Match: model.MatchExact,
+					Value: 3,
+				}},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 1)
+			assert.Equal(t, 1, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+		})
+
+		t.Run("greaterThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "gpu",
+					Match: model.MatchGreaterThan,
+					Value: 3,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job3, result.Jobs[0])
+			assert.Equal(t, job4, result.Jobs[1])
+		})
+
+		t.Run("lessThan", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "gpu",
+					Match: model.MatchLessThan,
+					Value: 5,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+		})
+
+		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "gpu",
+					Match: model.MatchGreaterThanOrEqualTo,
+					Value: 3,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job2, result.Jobs[0])
+			assert.Equal(t, job3, result.Jobs[1])
+			assert.Equal(t, job4, result.Jobs[2])
+		})
+
+		t.Run("lessThanOrEqualTo", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{{
+					Field: "gpu",
+					Match: model.MatchLessThanOrEqualTo,
+					Value: 5,
+				}},
+				&model.Order{
+					Field:     "jobId",
+					Direction: model.DirectionAsc,
+				},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 3)
+			assert.Equal(t, 3, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestGetJobsSkip(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
@@ -728,7 +1541,7 @@ func TestGetJobsSkip(t *testing.T) {
 		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
-			jobs[i] = NewJobSimulator(userAnnotationPrefix, converter, store).
+			jobs[i] = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: jobId}).
 				Build().
 				Job()
@@ -807,7 +1620,7 @@ func TestGetJobsComplex(t *testing.T) {
 		jobs := make([]*model.Job, nJobs)
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
-			jobs[i] = NewJobSimulator(userAnnotationPrefix, converter, store).
+			jobs[i] = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, baseTime, &JobOptions{
 					JobId: jobId,
 					Annotations: map[string]string{
@@ -820,7 +1633,7 @@ func TestGetJobsComplex(t *testing.T) {
 		}
 
 		for i := 0; i < nJobs; i++ {
-			NewJobSimulator(userAnnotationPrefix, converter, store).
+			NewJobSimulator(converter, store).
 				Submit("other-queue", jobSet, owner, baseTime, &JobOptions{
 					JobId: util.NewULID(),
 					Annotations: map[string]string{

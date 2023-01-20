@@ -111,7 +111,7 @@ const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) =
   return (
     <DebouncedTextField
       debounceWaitMs={300}
-      debouncedOnChange={onFilterChange}
+      debouncedOnChange={(newFilter) => onFilterChange(newFilter.trim())}
       textFieldProps={{
         type: "text",
         size: "small",

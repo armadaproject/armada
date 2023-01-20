@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 var (

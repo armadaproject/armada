@@ -1,6 +1,6 @@
 package fake
 
-import "github.com/G-Research/armada/pkg/api"
+import "github.com/armadaproject/armada/pkg/api"
 
 type FakeEventReporter struct {
 	ReceivedEvents []api.Event

@@ -26,7 +26,7 @@ type ColumnSelectProps = {
   onAddAnnotation: (annotationKey: string) => void
   onToggleColumn: (columnId: ColumnId) => void
   onRemoveAnnotation: (columnId: ColumnId) => void
-  onEditAnnotation: (columnId: ColumnId, annotationKey: string) => void
+  onEditAnnotation: (columnId: ColumnId, newDisplayName: string) => void
 }
 
 export default function ColumnSelect({
@@ -49,7 +49,7 @@ export default function ColumnSelect({
   }
 
   function saveNewAnnotation() {
-    onAddAnnotation(newAnnotationKey)
+    onAddAnnotation(newAnnotationKey.trim())
     clearAddAnnotation()
   }
 
@@ -69,7 +69,7 @@ export default function ColumnSelect({
 
   return (
     <>
-      <FormControl sx={{ m: 0, width: 200 }} focused={false}>
+      <FormControl sx={{ m: 0, mt: "4px", width: 200 }} focused={false}>
         <InputLabel id="checkbox-select-label">Columns</InputLabel>
         <Select
           labelId="checkbox-select-label"
@@ -89,7 +89,7 @@ export default function ColumnSelect({
                 const colIsGrouped = groupedColumns.includes(colId)
                 const colIsVisible = visibleColumns.includes(colId)
                 const colMetadata = getColumnMetadata(column)
-                const colIsAnnotation = colMetadata.isAnnotation ?? false
+                const colIsAnnotation = colMetadata.annotation ?? false
                 return (
                   <MenuItem key={colId} value={colMetadata.displayName} disabled={colIsGrouped}>
                     <Checkbox checked={colIsVisible} onClick={() => onToggleColumn(colId)} />
@@ -101,6 +101,7 @@ export default function ColumnSelect({
                               label="Annotation Key"
                               size="small"
                               variant="standard"
+                              autoFocus
                               value={currentlyEditing.get(colId)}
                               onChange={(e) => edit(colId, e.target.value)}
                               style={{
@@ -128,7 +129,7 @@ export default function ColumnSelect({
                                 overflowX: "auto",
                               }}
                             />
-                            <IconButton onClick={() => edit(colId, colId)}>
+                            <IconButton onClick={() => edit(colId, colMetadata.displayName)}>
                               <Edit />
                             </IconButton>
                           </>
@@ -171,6 +172,7 @@ export default function ColumnSelect({
                       label="Annotation Key"
                       size="small"
                       sx={{ width: "100%" }}
+                      autoFocus
                       value={newAnnotationKey}
                       onChange={(e) => {
                         setNewAnnotationKey(e.target.value)

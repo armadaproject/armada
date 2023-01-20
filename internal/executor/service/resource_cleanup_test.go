@@ -9,12 +9,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	clusterContext "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/context/fake"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/util"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 func TestCleanUpResources_RemovesExpiredResources(t *testing.T) {

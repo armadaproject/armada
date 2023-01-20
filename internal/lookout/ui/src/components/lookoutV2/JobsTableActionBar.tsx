@@ -45,23 +45,22 @@ export const JobsTableActionBar = memo(
 
     const selectableColumns = useMemo(() => allColumns.filter((col) => col.enableHiding !== false), [allColumns])
 
-    function toggleColumn(key: ColumnId) {
-      toggleColumnVisibility(key)
-    }
-
-    function addAnnotationColumn(name: string) {
-      const newColumns = allColumns.concat([createAnnotationColumn(name)])
+    function addAnnotationColumn(name: string, existingColumns = allColumns) {
+      const annotationCol = createAnnotationColumn(name)
+      const newColumns = existingColumns.concat([annotationCol])
       onColumnsChanged(newColumns)
+      toggleColumnVisibility(annotationCol.id as ColumnId)
     }
 
     function removeAnnotationColumn(key: ColumnId) {
       const filtered = allColumns.filter((col) => col.id !== key)
       onColumnsChanged(filtered)
+      return filtered
     }
 
-    function editAnnotationColumn(key: ColumnId, newName: string) {
-      removeAnnotationColumn(key)
-      addAnnotationColumn(newName)
+    function renameAnnotationColumn(key: ColumnId, newName: string) {
+      const remainingCols = removeAnnotationColumn(key)
+      addAnnotationColumn(newName, remainingCols)
     }
 
     const numSelectedItems = selectedItemFilters.length
@@ -97,8 +96,8 @@ export const JobsTableActionBar = memo(
             groupedColumns={groupedColumns}
             visibleColumns={visibleColumns}
             onAddAnnotation={addAnnotationColumn}
-            onToggleColumn={toggleColumn}
-            onEditAnnotation={editAnnotationColumn}
+            onToggleColumn={toggleColumnVisibility}
+            onEditAnnotation={renameAnnotationColumn}
             onRemoveAnnotation={removeAnnotationColumn}
           />
           <Divider orientation="vertical" />

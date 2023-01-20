@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/domain"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/domain"
 )
 
 func (a *App) Analyze(queue string, jobSetId string) error {

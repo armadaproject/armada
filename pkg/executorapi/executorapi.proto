@@ -1,0 +1,71 @@
+syntax = 'proto3';
+
+package executorapi;
+option go_package = "github.com/armadaproject/armada/pkg/executorapi";
+
+import "pkg/armadaevents/events.proto";
+import "pkg/api/queue.proto";
+import "google/protobuf/empty.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+
+option (gogoproto.goproto_stringer_all) = false;
+option (gogoproto.stringer_all) = true;
+
+message EventList {
+  repeated armadaevents.EventSequence events = 1;
+}
+
+message LeaseRequest{
+  // Each executor has a unique name associated with it.
+  string executor_id = 1;
+  // Nodes are split into pools. This field indicates for which pool jobs are leased.
+  string pool = 2;
+  // Total resources available for scheduling across all nodes.
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
+  // Jobs submitted to this executor must require at least this amount of resources.
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 4 [(gogoproto.nullable) = false];
+  // For each node in the cluster:
+  // - the total allocatable resources on that node,
+  // - the job runs running on those nodes
+  // - any taints and labels on the node.
+  repeated api.NodeInfo nodes = 5;
+  // Run Ids of jobs owned by the executor but not currently assigned to a node
+  repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
+}
+
+// indicates that a job run is now leased
+message JobRunLease{
+  armadaevents.Uuid job_run_id = 1;
+  string queue = 2;
+  string jobset = 3;
+  string user = 4;
+  repeated string groups = 5;
+  armadaevents.SubmitJob job  = 6;
+}
+
+// indicates that the given job run ids should be cancelled
+message CancelRuns{
+  repeated armadaevents.Uuid job_run_ids_to_cancel = 1;
+}
+
+// indicates the end of the lease stream
+message EndMarker{}
+
+message LeaseStreamMessage{
+  oneof event {
+    JobRunLease lease = 1;
+    CancelRuns cancel_runs = 2;
+    EndMarker end = 3;
+  }
+}
+
+service ExecutorApi {
+  // Reports usage information to the scheduler.  In return, the scheduler provides:
+  //   - a list of job runs that the executor is currently running that should be cancelled (may be empty)
+  //   - a list of job runs that the executor is not currently running that should now be scheduler (may be empty)
+  // This call also acts as a signal to the scheduler that the executor is alive and accepting jobs
+  rpc LeaseJobRuns (stream LeaseRequest) returns (stream LeaseStreamMessage);
+  // Reports job run events to the scheduler
+  rpc ReportEvents (EventList) returns (google.protobuf.Empty);
+}

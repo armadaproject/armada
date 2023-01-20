@@ -11,13 +11,13 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-	"github.com/G-Research/armada/internal/testsuite/eventlogger"
-	"github.com/G-Research/armada/internal/testsuite/eventsplitter"
-	"github.com/G-Research/armada/internal/testsuite/eventwatcher"
-	"github.com/G-Research/armada/internal/testsuite/submitter"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
+	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
+	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
+	"github.com/armadaproject/armada/internal/testsuite/eventwatcher"
+	"github.com/armadaproject/armada/internal/testsuite/submitter"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type TestRunner struct {

@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from "react"
+import { useCallback } from "react"
 
 import { Checkbox } from "@mui/material"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
-import JobStateCell from "components/jobs/JobStateCell"
+import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
@@ -24,7 +24,9 @@ export interface JobTableColumnMetadata {
   enumFitlerValues?: EnumFilterOption[]
   defaultMatchType?: Match
 
-  isAnnotation?: boolean
+  annotation?: {
+    annotationKey: string
+  }
 }
 
 export enum StandardColumnId {
@@ -97,6 +99,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         indeterminate={table.getIsSomeRowsSelected()}
         onChange={table.getToggleAllRowsSelectedHandler()}
         size="small"
+        sx={{ p: 0 }}
       />
     ),
     cell: ({ row }) => (
@@ -104,13 +107,12 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
         indeterminate={row.getIsSomeSelected()}
         onChange={useCallback(row.getToggleSelectedHandler(), [row])}
+        onClick={(e) => e.stopPropagation()}
         size="small"
-        sx={useMemo(
-          () => ({
-            marginLeft: `${row.depth * 6}px`,
-          }),
-          [],
-        )}
+        sx={{
+          p: 0,
+          ml: `${row.depth * 6}px`,
+        }}
       />
     ),
     meta: {
@@ -161,13 +163,15 @@ export const JOB_COLUMNS: JobTableColumn[] = [
   }),
   accessorColumn({
     id: StandardColumnId.State,
-    accessor: (jobTableRow) => formatJobState(jobTableRow.state),
+    accessor: "state",
     displayName: "State",
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
       size: 70,
-      cell: (cell) => <JobStateCell cellData={cell.getValue()} />,
+      cell: (cell) => (
+        <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
+      ),
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
@@ -250,15 +254,23 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   {},
 )
 
-export const DEFAULT_GROUPING: ColumnId[] = []
+export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 
+export const ANNOTATION_COLUMN_PREFIX = "annotation_"
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({
-    id: `annotation_${annotationKey}`,
+    id: `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`,
     accessor: (jobTableRow) => jobTableRow.annotations?.[annotationKey],
     displayName: annotationKey,
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
     additionalMetadata: {
-      isAnnotation: true,
+      annotation: {
+        annotationKey,
+      },
+      filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
     },
   })
 }

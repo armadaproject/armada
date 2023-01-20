@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-redis/redis"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 type EventIngesterConfiguration struct {
@@ -25,12 +25,6 @@ type EventIngesterConfiguration struct {
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
-	// Time for which the pulsar consumer will wait for a new message before retrying
-	PulsarReceiveTimeout time.Duration
-	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
-	PulsarBackoffTime time.Duration
-	// Pulsar Topic on which sequence updates will be sent
-	UpdateTopic string
 	// Time after which events will be deleted from the db
 	EventRetentionPolicy EventRetentionPolicy
 	// List of Regexes which will identify fatal errors when inserting into redis

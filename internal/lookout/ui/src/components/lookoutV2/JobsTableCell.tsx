@@ -1,5 +1,5 @@
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
-import { TableCell, IconButton, TableSortLabel } from "@mui/material"
+import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
 import { Cell, flexRender, Header } from "@tanstack/react-table"
 import { JobRow } from "models/jobsTableModels"
 import { Match } from "models/lookoutV2Models"
@@ -93,7 +93,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, su
     >
       {rowIsGroup && cell.column.getIsGrouped() && cellHasValue ? (
         // If it's a grouped cell, add an expander and row count
-        <>
+        <Box sx={{ display: "flex", gap: "0.25em" }}>
           <IconButton size="small" sx={{ padding: 0 }} edge="start" onClick={() => onExpandedChange()}>
             {rowIsExpanded ? (
               <KeyboardArrowDown fontSize="small" aria-label="Collapse row" aria-hidden="false" />
@@ -102,7 +102,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, su
             )}
           </IconButton>
           {flexRender(cell.column.columnDef.cell, cell.getContext())} ({subCount})
-        </>
+        </Box>
       ) : cell.getIsAggregated() ? (
         // If the cell is aggregated, use the Aggregated
         // renderer for cell

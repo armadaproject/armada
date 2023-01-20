@@ -10,9 +10,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func CreateClusterSchedulingInfoReport(leaseRequest *api.StreamingLeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {

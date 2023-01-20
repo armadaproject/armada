@@ -1,6 +1,6 @@
 package lookout
 
-import "github.com/G-Research/armada/internal/common/util"
+import "github.com/armadaproject/armada/internal/common/util"
 
 type JobState string
 

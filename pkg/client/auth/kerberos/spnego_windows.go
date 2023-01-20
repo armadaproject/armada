@@ -4,7 +4,11 @@ import (
 	"context"
 
 	"github.com/alexbrainman/sspi/negotiate"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/credentials"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 type spnego struct {
@@ -21,18 +25,29 @@ func NewSPNEGOCredentials(serverUrl string, config ClientConfig) (credentials.Pe
 
 func (s *spnego) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
 	// TODO: keep clientContext for multiple requests
+	log := ctxlogrus.Extract(ctx)
 
 	cred, err := negotiate.AcquireCurrentUserCredentials()
 	if err != nil {
 		return nil, err
 	}
-	defer cred.Release()
+	defer func() {
+		if err := cred.Release(); err != nil {
+			err = errors.WithStack(err)
+			logging.WithStacktrace(log, err).Error("failed to release cred")
+		}
+	}()
 
 	securityCtx, token, err := negotiate.NewClientContext(cred, s.spn)
 	if err != nil {
 		return nil, err
 	}
-	defer securityCtx.Release()
+	defer func() {
+		if err := securityCtx.Release(); err != nil {
+			err = errors.WithStack(err)
+			logging.WithStacktrace(log, err).Error("failed to release security context")
+		}
+	}()
 
 	return negotiateHeader(token), nil
 }
