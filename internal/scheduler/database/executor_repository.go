@@ -65,7 +65,8 @@ func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx context.Context) (ma
 	}
 	lastUpdateTimes := make(map[string]time.Time, len(rows))
 	for _, row := range rows {
-		lastUpdateTimes[row.ExecutorID] = row.LastUpdated
+		// pgx defaults to local time so we convert to utc here
+		lastUpdateTimes[row.ExecutorID] = row.LastUpdated.UTC()
 	}
 	return lastUpdateTimes, nil
 }
