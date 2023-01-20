@@ -14,6 +14,10 @@ inputs:
     description: "Tox environment to use for running the tests"
     required: true
     type: string
+  github-token:
+    description: "Token for authenticated github requests"
+    required: true
+    type: string
 
 runs:
   using: "composite"
@@ -21,13 +25,14 @@ runs:
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ inputs.python-version }}
+    # Tox to run tests; build to build the wheel after tests pass
+    - run: pip install tox==3.27.1 build twine
+      shell: bash
     - name: Install Protoc
       uses: arduino/setup-protoc@v1
       with:
         version: '3.17.3'
-    # Tox to run tests; build to build the wheel after tests pass
-    - run: pip install tox==3.27.1 build twine
-      shell: bash
+        repo-token: ${{ inputs.github-token }}
     # Generate the proto files for python, required for later steps
     - run: make python
       shell: bash

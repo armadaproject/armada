@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // Data to be used in tests
@@ -395,6 +396,16 @@ type testJobRepository struct {
 	numReceivedPartitions uint32
 }
 
+func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
 		return nil, nil, errors.New("error fetchiung job updates")
@@ -419,6 +430,11 @@ func (t *testJobRepository) CountReceivedPartitions(ctx context.Context, groupId
 type testExecutorRepository struct {
 	updateTimes map[string]time.Time
 	shouldError bool
+}
+
+func (t testExecutorRepository) StoreRequest(req *executorapi.LeaseRequest) error {
+	// TODO implement me
+	panic("implement me")
 }
 
 func (t testExecutorRepository) GetExecutors() ([]*database.Executor, error) {
