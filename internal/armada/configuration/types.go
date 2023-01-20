@@ -6,9 +6,9 @@ import (
 	"github.com/go-redis/redis"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
 
 type ArmadaConfig struct {
@@ -22,25 +22,18 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime      time.Duration
-	CancelJobsBatchSize   int
-	Redis                 redis.UniversalOptions
-	Events                EventsConfig
-	EventsNats            NatsConfig
-	EventsRedis           redis.UniversalOptions
-	EventsApiRedis        redis.UniversalOptions
-	DefaultToLegacyEvents bool
-	ForceNewEvents        bool
-
-	Scheduling        SchedulingConfig
-	NewScheduler      NewSchedulerConfig
-	QueueManagement   QueueManagementConfig
-	DatabaseRetention DatabaseRetentionPolicy
-	EventRetention    EventRetentionPolicy
-	Pulsar            PulsarConfig
-	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi          EventApiConfig
-	Metrics           MetricsConfig
+	PriorityHalfTime    time.Duration
+	CancelJobsBatchSize int
+	Redis               redis.UniversalOptions
+	EventsApiRedis      redis.UniversalOptions
+	Scheduling          SchedulingConfig
+	NewScheduler        NewSchedulerConfig
+	QueueManagement     QueueManagementConfig
+	DatabaseRetention   DatabaseRetentionPolicy
+	Pulsar              PulsarConfig
+	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
+	EventApi            EventApiConfig
+	Metrics             MetricsConfig
 }
 
 type PulsarConfig struct {
@@ -179,6 +172,8 @@ type SchedulingConfig struct {
 	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as an integer, e.g., "3".
 	GangCardinalityAnnotation string
+	// If an executor hasn't heartbeated in this time period, it will be considered stale
+	ExecutorTimeout time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -224,23 +219,9 @@ type DatabaseRetentionPolicy struct {
 	JobRetentionDuration time.Duration
 }
 
-type EventRetentionPolicy struct {
-	ExpiryEnabled     bool
-	RetentionDuration time.Duration
-}
-
 type LeaseSettings struct {
 	ExpireAfter        time.Duration
 	ExpiryLoopInterval time.Duration
-}
-
-type EventsConfig struct {
-	StoreQueue     string // Queue group for event storage processors
-	JobStatusQueue string // Queue group for running job status processor
-
-	ProcessorBatchSize             int           // Maximum event batch size
-	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
-	ProcessorTimeout               time.Duration // Timeout for reporting event or stopping batcher before erroring out
 }
 
 type PostgresConfig struct {
@@ -248,13 +229,6 @@ type PostgresConfig struct {
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	Connection      map[string]string
-}
-
-type NatsConfig struct {
-	Servers   []string
-	ClusterID string
-	Subject   string
-	Timeout   time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
 }
 
 type QueueManagementConfig struct {

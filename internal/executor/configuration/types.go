@@ -5,9 +5,9 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ApplicationConfiguration struct {

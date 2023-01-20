@@ -14,13 +14,13 @@ import (
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/armada"
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common"
-	gateway "github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/common/health"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	gateway "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const CustomConfigLocation string = "config"

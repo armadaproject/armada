@@ -7,10 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/jobservice/events"
-	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
-	"github.com/G-Research/armada/internal/jobservice/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/jobservice/events"
+	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
+	"github.com/armadaproject/armada/internal/jobservice/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_SubscribeToJobSetId(t *testing.T) {

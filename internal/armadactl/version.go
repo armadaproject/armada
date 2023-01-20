@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"text/tabwriter"
 
-	"github.com/G-Research/armada/internal/armadactl/build"
+	"github.com/armadaproject/armada/internal/armadactl/build"
 )
 
 // Version prints build information (e.g., current git commit) to the app output.

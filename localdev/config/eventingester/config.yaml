@@ -8,14 +8,14 @@ redis:
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
+  receiveTimeout: 5s
+  backoffTime: 1s
 
 paralellism: 1
 subscriptionName: "events-ingester"
 batchSize: 1048576  #1MB
 batchMessages: 10000
 batchDuration: 500ms
-pulsarReceiveTimeout: 5s
-pulsarBackoffTime: 1s
 minMessageCompressionSize: 1024
 eventRetention:
   expiryEnabled: true

@@ -10,11 +10,11 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/lookoutv2"
-	"github.com/G-Research/armada/internal/lookoutv2/configuration"
-	"github.com/G-Research/armada/internal/lookoutv2/schema"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/lookoutv2"
+	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutv2/schema"
 )
 
 const (

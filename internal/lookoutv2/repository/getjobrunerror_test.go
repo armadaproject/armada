@@ -7,11 +7,11 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
 )
 
 func TestGetJobRunError(t *testing.T) {
@@ -24,7 +24,7 @@ func TestGetJobRunError(t *testing.T) {
 			"",
 		}
 		for _, expected := range errorStrings {
-			_ = NewJobSimulator(userAnnotationPrefix, converter, store).
+			_ = NewJobSimulator(converter, store).
 				Submit(queue, jobSet, owner, baseTime, basicJobOpts).
 				Pending(runId, cluster, baseTime).
 				Running(runId, node, baseTime).

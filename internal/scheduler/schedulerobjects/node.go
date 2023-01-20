@@ -8,7 +8,7 @@ import (
 	"golang.org/x/exp/slices"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func NewNodeFromNodeInfo(nodeInfo *api.NodeInfo, executor string, allowedPriorities []int32) *Node {

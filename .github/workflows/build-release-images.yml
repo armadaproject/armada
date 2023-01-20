@@ -7,8 +7,9 @@ on:
 
 jobs:
   test-and-build-images:
-    if: github.repository_owner == 'G-Research'
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    if: github.repository_owner == 'armadaproject'
+    runs-on: ubuntu-22.04
+    # runs-on: buildjet-4vcpu-ubuntu-2204
     strategy:
       fail-fast: true
       matrix:
@@ -50,8 +51,8 @@ jobs:
           name: docker-images
           path: docker-images.tar.gz
           if-no-files-found: error
-#  invoke-image-push:
-#    name: Push Docker Image artifacts to Docker Hub
-#    needs: test-and-build-images
-#    uses: ./.github/workflows/upload-docker-images.yml
-#    secrets: inherit
+  invoke-image-push:
+    name: Push Docker Image artifacts to Docker Hub
+    needs: test-and-build-images
+    uses: ./.github/workflows/upload-docker-images.yml
+    secrets: inherit

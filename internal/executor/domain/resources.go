@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/G-Research/armada/internal/common"
+import "github.com/armadaproject/armada/internal/common"
 
 const (
 	AcceleratorDutyCycle = "armadaproject.io/accelerator-duty-cycle"

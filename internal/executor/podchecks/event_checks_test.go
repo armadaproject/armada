@@ -8,7 +8,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	config "github.com/G-Research/armada/internal/executor/configuration/podchecks"
+	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 )
 
 func Test_getAction_WhenNoEvents_AndNoChecks_ReturnsWait(t *testing.T) {

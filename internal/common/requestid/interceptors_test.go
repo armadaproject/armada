@@ -6,6 +6,7 @@ import (
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/renstrom/shortuuid"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -17,32 +18,20 @@ func TestAddGet(t *testing.T) {
 	// Test adding and getting an id
 	id := shortuuid.New()
 	ctx, ok := AddToIncomingContext(ctx, id)
-	if !ok {
-		t.Fatal("error adding id to context")
-	}
+	require.True(t, ok, "adding id to context")
 
 	readId, ok := FromContext(ctx)
-	if !ok {
-		t.Fatal("error getting id from context")
-	}
-	if readId != id {
-		t.Fatalf("expected %q, but got %q", id, readId)
-	}
+	require.True(t, ok, "getting id from context")
+	require.True(t, readId == id, "expected %q but got %q", id, readId)
 
 	// Test overwriting the id
 	id = shortuuid.New()
 	ctx, ok = AddToIncomingContext(ctx, id)
-	if !ok {
-		t.Fatal("error overwriting id")
-	}
-
+	require.True(t, ok, "overwriting id")
 	readId, ok = FromContext(ctx)
-	if !ok {
-		t.Fatal("error getting overwritten id from context")
-	}
-	if readId != id {
-		t.Fatalf("expected new id to be %q, but got %q", id, readId)
-	}
+
+	require.True(t, ok, "getting overwritten id from context")
+	require.True(t, readId == id, "expected new id to be %q but got %q", id, readId)
 }
 
 func TestUnaryServerInterceptor(t *testing.T) {
@@ -61,11 +50,13 @@ func TestUnaryServerInterceptor(t *testing.T) {
 
 	replace := false
 	f := UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err := f(ctx, nil, nil, handler)
+	require.NoError(t, err)
 
 	replace = true
 	f = UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err = f(ctx, nil, nil, handler)
+	require.NoError(t, err)
 }
 
 func TestUnaryServerInterceptorWithExisting(t *testing.T) {
@@ -97,11 +88,13 @@ func TestUnaryServerInterceptorWithExisting(t *testing.T) {
 
 	replace = false
 	f := UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err := f(ctx, nil, nil, handler)
+	require.NoError(t, err)
 
 	replace = true
 	f = UnaryServerInterceptor(replace)
-	f(ctx, nil, nil, handler)
+	_, err = f(ctx, nil, nil, handler)
+	require.NoError(t, err)
 }
 
 func TestStreamServerInterceptor(t *testing.T) {
@@ -123,11 +116,13 @@ func TestStreamServerInterceptor(t *testing.T) {
 
 	replace := false
 	f := StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err := f(nil, stream, nil, handler)
+	require.NoError(t, err)
 
 	replace = true
 	f = StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err = f(nil, stream, nil, handler)
+	require.NoError(t, err)
 }
 
 func TestStreamServerInterceptorWithExisting(t *testing.T) {
@@ -161,9 +156,11 @@ func TestStreamServerInterceptorWithExisting(t *testing.T) {
 
 	replace = false
 	f := StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err := f(nil, stream, nil, handler)
+	require.NoError(t, err)
 
 	replace = true
 	f = StreamServerInterceptor(replace)
-	f(nil, stream, nil, handler)
+	err = f(nil, stream, nil, handler)
+	require.NoError(t, err)
 }

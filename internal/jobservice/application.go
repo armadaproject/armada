@@ -12,14 +12,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/internal/jobservice/repository"
-
-	"github.com/G-Research/armada/internal/jobservice/server"
-
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/jobservice/repository"
+	"github.com/armadaproject/armada/internal/jobservice/server"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 type App struct {
@@ -35,6 +34,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
+	log := log.WithField("JobService", "Startup")
+
 	grpcServer := grpcCommon.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
@@ -46,17 +47,20 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 
 	dbDir := filepath.Dir(config.DatabasePath)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		err = os.Mkdir(dbDir, 0o755)
-		if err != nil {
-			log.Fatalf("Error: could not make directory at %s for Sqlite DB: %v", dbDir, err)
+		if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
+			log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
 		}
 	}
 
 	db, err := sql.Open("sqlite", config.DatabasePath)
 	if err != nil {
-		log.Fatalf("Error Opening Sqlite DB from %s %v", config.DatabasePath, err)
+		log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Warnf("error closing database: %v", err)
+		}
+	}()
 	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
 	sqlJobRepo.Setup()
 	jobService := server.NewJobService(config, sqlJobRepo)
@@ -71,25 +75,31 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
-				log.Infof("Subscribed job sets : %s", value)
+				log.Infof("subscribed job sets : %s", value)
 				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
-					sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+					if err != nil {
+						logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
+					}
 				}
 			}
 		}
 		return nil
 	})
 	g.Go(func() error {
-		defer log.Infof("Stopping server.")
+		defer log.Infof("stopping server.")
 
-		log.Info("JobService service listening on ", config.GrpcPort)
+		log.Info("jobservice service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
 		return nil
 	})
 
-	g.Wait()
+	if err := g.Wait(); err != nil {
+		log.Fatalf("error detected on wait %v", err)
+		return err
+	}
 
 	return nil
 }

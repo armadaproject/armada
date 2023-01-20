@@ -5,17 +5,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	fakeContext "github.com/G-Research/armada/internal/executor/fake/context"
-	reporter_fake "github.com/G-Research/armada/internal/executor/reporter/fake"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
+	reporter_fake "github.com/armadaproject/armada/internal/executor/reporter/fake"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 var testPodResources = domain.UtilisationData{
@@ -35,7 +36,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	submitPod(clusterContext)
+	_, err := submitPod(clusterContext)
+	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Second)
 	for {
@@ -67,7 +69,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
 	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
-	submitPod(clusterContext)
+	_, err := submitPod(clusterContext)
+	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Millisecond * 500)
 	count := 0
@@ -84,7 +87,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(
 	assert.True(t, count > 0)
 }
 
-func submitPod(clusterContext context.ClusterContext) *v1.Pod {
+func submitPod(clusterContext context.ClusterContext) (*v1.Pod, error) {
 	podResources := map[v1.ResourceName]resource.Quantity{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("640Ki"),
@@ -107,8 +110,7 @@ func submitPod(clusterContext context.ClusterContext) *v1.Pod {
 		}},
 	}
 
-	clusterContext.SubmitPod(pod, "owner", nil)
-	return pod
+	return clusterContext.SubmitPod(pod, "owner", nil)
 }
 
 type fakePodUtilisationService struct {

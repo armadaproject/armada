@@ -14,8 +14,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 type KeyValue struct {
@@ -71,7 +71,9 @@ func (c *PGKeyValueStore) Add(ctx context.Context, key string, value []byte) (bo
 	// If the table doesn't exist, create it and try again.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
-		c.createTable(ctx)
+		if err := c.createTable(ctx); err != nil {
+			return false, errors.WithStack(err)
+		}
 		ok, err = c.add(ctx, key, value)
 	}
 
@@ -87,7 +89,9 @@ func (c *PGKeyValueStore) LoadOrStoreBatch(ctx context.Context, batch []*KeyValu
 	// If the table doesn't exist, create it and try again.
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UndefinedTable { // Relation doesn't exist; create it.
-		c.createTable(ctx)
+		if err := c.createTable(ctx); err != nil {
+			return nil, errors.WithStack(err)
+		}
 		ret, err = c.addBatch(ctx, batch)
 	}
 	return ret, err
@@ -169,8 +173,7 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		// Check if the key already exists in postgres.
 		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
-		err := tx.QueryRow(ctx, sql, key).Scan(&exists)
-		if err != nil {
+		if err := tx.QueryRow(ctx, sql, key).Scan(&exists); err != nil {
 			return err
 		}
 

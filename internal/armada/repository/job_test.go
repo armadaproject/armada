@@ -8,12 +8,14 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestJobDoubleSubmit(t *testing.T) {
@@ -37,7 +39,7 @@ func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		leasedAgain, e := r.TryLeaseJobs("cluster2", "queue1", []*api.Job{job})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 0, len(leasedAgain))
 	})
 }
@@ -47,7 +49,7 @@ func TestJobLeaseCanBeRenewed(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		renewed, e := r.RenewLease("cluster1", []string{job.Id})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 1, len(renewed))
 		assert.Equal(t, job.Id, renewed[0])
 	})
@@ -60,10 +62,10 @@ func TestJobLeaseExpiry(t *testing.T) {
 		addLeasedJob(t, r, "queue1", "cluster1")
 
 		_, e := r.ExpireLeases("queue1", deadline)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 
 		queued, e := r.PeekQueue("queue1", 10)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 1, len(queued), "Queue should have one job which expired")
 		assert.Equal(t, job.Id, queued[0].Id)
 	})
@@ -75,10 +77,10 @@ func TestEvenExpiredLeaseCanBeRenewed(t *testing.T) {
 		deadline := time.Now()
 
 		_, e := r.ExpireLeases("queue1", deadline)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 
 		renewed, e := r.RenewLease("cluster1", []string{job.Id})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 1, len(renewed))
 		assert.Equal(t, job.Id, renewed[0])
 	})
@@ -89,7 +91,7 @@ func TestRenewingLeaseFailsForJobAssignedToDifferentCluster(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		renewed, e := r.RenewLease("cluster2", []string{job.Id})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 0, len(renewed))
 	})
 }
@@ -97,7 +99,7 @@ func TestRenewingLeaseFailsForJobAssignedToDifferentCluster(t *testing.T) {
 func TestRenewingNonExistentLease(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		renewed, e := r.RenewLease("cluster2", []string{"missingJobId"})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 0, len(renewed))
 	})
 }
@@ -108,21 +110,19 @@ func TestDeletingExpiredJobShouldDeleteJobFromQueue(t *testing.T) {
 		deadline := time.Now()
 
 		_, e := r.ExpireLeases("queue1", deadline)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 
 		deletionResult, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "deleting jobs failed with error")
 
 		err, deleted := deletionResult[job]
 
 		assert.Equal(t, 1, len(deletionResult))
 		assert.True(t, deleted)
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		queue, e := r.PeekQueue("queue1", 100)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 0, len(queue))
 	})
 }
@@ -132,11 +132,11 @@ func TestReturnLeaseShouldReturnJobToQueue(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		returned, e := r.ReturnLease("cluster1", job.Id)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.NotNil(t, returned)
 
 		queue, e := r.PeekQueue("queue1", 100)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 1, len(queue))
 		assert.Equal(t, job.Id, returned.Id)
 	})
@@ -147,11 +147,11 @@ func TestReturnLeaseFromDifferentClusterIsNoop(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		returned, e := r.ReturnLease("cluster2", job.Id)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Nil(t, returned)
 
 		queue, e := r.PeekQueue("queue1", 100)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 0, len(queue))
 	})
 }
@@ -161,7 +161,7 @@ func TestReturnLeaseForJobInQueueIsNoop(t *testing.T) {
 		job := addTestJob(t, r, "queue1")
 
 		returned, e := r.ReturnLease("cluster2", job.Id)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Nil(t, returned)
 	})
 }
@@ -170,13 +170,11 @@ func TestDeleteRunningJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
-		result, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		result, deleteErr := r.DeleteJobs([]*api.Job{job})
+		require.NoError(t, deleteErr, "delete jobs failed")
 		err, deletionOccurred := result[job]
-		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
+		require.NoError(t, err)
 	})
 }
 
@@ -185,9 +183,7 @@ func TestDeleteQueuedJob(t *testing.T) {
 		job := addTestJob(t, r, "queue1")
 
 		result, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "deleting jobs failed with error")
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
@@ -198,24 +194,18 @@ func TestDeleteJobShouldSetJobObjectToExpire(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 		expiryStatuses, err := r.getExpiryStatus([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("getting expiry status failed with error %s", err)
-		}
+		require.NoError(t, err, "getting expiry status failed")
 
 		assert.False(t, expiryStatuses[job])
 
 		result, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "deleting jobs failed")
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
 
 		expiryStatuses, err = r.getExpiryStatus([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("getting expiry status failed with error %s", err)
-		}
+		require.NoError(t, err)
 		assert.True(t, expiryStatuses[job])
 	})
 }
@@ -225,15 +215,13 @@ func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		result, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "delete failed")
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
 
 		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.True(t, len(existingJobs) == 1)
 	})
 
@@ -241,9 +229,8 @@ func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
 
 		result, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "deleting jobs failed")
+
 		err, deletionOccurred := result[job]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
@@ -251,7 +238,7 @@ func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
 		time.Sleep(time.Millisecond * 300)
 
 		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.True(t, len(existingJobs) == 0)
 	})
 }
@@ -261,9 +248,7 @@ func TestDeleteWithSomeMissingJobs(t *testing.T) {
 		missingJob := &api.Job{Id: "jobId"}
 		runningJob := addLeasedJob(t, r, "queue1", "cluster1")
 		result, err := r.DeleteJobs([]*api.Job{missingJob, runningJob})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "delete failed")
 
 		err, deletionOccurred := result[missingJob]
 		assert.Nil(t, err)
@@ -280,9 +265,7 @@ func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
 		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
 
 		result, err := r.DeleteJobs([]*api.Job{job})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "delete failed")
 		assert.Nil(t, result[job])
 
 		returned, err := r.ReturnLease("cluster", job.Id)
@@ -302,7 +285,7 @@ func TestGetActiveJobIds(t *testing.T) {
 		addTestJob(t, r, "queue2")
 
 		ids, e := r.GetActiveJobIds("queue1", "set1")
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 2, len(ids))
 	})
 }
@@ -314,7 +297,7 @@ func TestGetJobSetJobIds(t *testing.T) {
 
 		// Gives all on when no filter provided
 		ids, e := r.GetJobSetJobIds("queue1", "set1", nil)
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 2, len(ids))
 
 		// Gives all on when filter includes all options
@@ -322,7 +305,7 @@ func TestGetJobSetJobIds(t *testing.T) {
 			IncludeQueued: true,
 			IncludeLeased: true,
 		})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 2, len(ids))
 
 		// Gives only queued when queued filter provided
@@ -330,7 +313,7 @@ func TestGetJobSetJobIds(t *testing.T) {
 			IncludeQueued: true,
 			IncludeLeased: false,
 		})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 1, len(ids))
 		assert.Equal(t, ids[0], queuedJob.Id)
 
@@ -339,7 +322,7 @@ func TestGetJobSetJobIds(t *testing.T) {
 			IncludeQueued: false,
 			IncludeLeased: true,
 		})
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 1, len(ids))
 		assert.Equal(t, ids[0], leasedJob.Id)
 	})
@@ -354,7 +337,7 @@ func TestGetLeasedJobIds(t *testing.T) {
 		addLeasedJob(t, r, "queue2", "cluster1")
 
 		ids, e := r.GetLeasedJobIds("queue1")
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, 2, len(ids))
 		idsSet := util.StringListToSet(ids)
 		assert.True(t, idsSet[leasedJob1.Id])
@@ -398,7 +381,7 @@ func TestUpdateStartTime_UsesEarlierTime(t *testing.T) {
 		AssertUpdateStartTimeNoErrors(t, jobErrors, err)
 
 		runInfos, err := r.GetJobRunInfos([]string{leasedJob.Id})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, len(runInfos))
 		assert.Equal(t, startTime.UTC(), runInfos[leasedJob.Id].StartTime.UTC())
 		assert.NotEqual(t, startTimePlusOneHour.UTC(), runInfos[leasedJob.Id].StartTime.UTC())
@@ -413,7 +396,7 @@ func TestUpdateStartTime_NonExistentJob(t *testing.T) {
 			ClusterId: "cluster1",
 			StartTime: startTime,
 		}})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, jobErrors, 1)
 		assert.Error(t, jobErrors[0])
 		var e *ErrJobNotFound
@@ -426,11 +409,9 @@ func TestUpdateStartTime_FinishedJob(t *testing.T) {
 		startTime := time.Now()
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 		errs, err := r.DeleteJobs([]*api.Job{leasedJob})
-		if err != nil {
-			t.Fatalf("deleting jobs failed with error %s", err)
-		}
+		require.NoError(t, err, "delete failed")
 		for _, err := range errs {
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		jobErrors, err := r.UpdateStartTime([]*JobStartInfo{{
@@ -438,7 +419,7 @@ func TestUpdateStartTime_FinishedJob(t *testing.T) {
 			ClusterId: "cluster1",
 			StartTime: startTime,
 		}})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, jobErrors, 1)
 		assert.Error(t, jobErrors[0])
 		var e *ErrJobNotFound
@@ -451,7 +432,7 @@ func TestUpdateStartTime_FinishedJob(t *testing.T) {
 func TestSaveAndRetrieveStartTime_HandlesDifferentTimeZones(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		loc, err := time.LoadLocation("Asia/Shanghai")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		now := time.Now().UTC()
 		leasedJob := addLeasedJob(t, r, "queue1", "cluster1")
 
@@ -553,7 +534,7 @@ func TestGetQueueActiveJobSets(t *testing.T) {
 		addTestJob(t, r, "queue2")
 
 		infos, e := r.GetQueueActiveJobSets("queue1")
-		assert.Nil(t, e)
+		require.NoError(t, e)
 		assert.Equal(t, []*api.JobSetInfo{{
 			Name:       "set1",
 			QueuedJobs: 1,
@@ -566,7 +547,7 @@ func TestNumberOfRetryAttemptsIsZeroForNonExistentJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		retries, err := r.GetNumberOfRetryAttempts("nonexistent-job-id")
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Zero(t, retries)
 	})
 }
@@ -586,11 +567,11 @@ func TestAddRetryAttemptCreatesKeyIfJobDoesNotExist(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		err := r.AddRetryAttempt("nonexistent-job-id")
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 
 		retries, err := r.GetNumberOfRetryAttempts("nonexistent-job-id")
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, retries)
 	})
 }
@@ -608,7 +589,7 @@ func TestJobRetriesAreIncrementedCorrectly(t *testing.T) {
 
 		retries, err := r.GetNumberOfRetryAttempts(testJob.Id)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedRetries, retries)
 	})
 }
@@ -619,14 +600,15 @@ func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 
 		for i := 0; i < 11; i++ {
 			err := r.AddRetryAttempt(testJob.Id)
-			assert.Nil(t, err)
+			require.NoError(t, err)
 		}
 
-		r.DeleteJobs([]*api.Job{testJob})
+		_, deleteErr := r.DeleteJobs([]*api.Job{testJob})
+		require.NoError(t, deleteErr)
 
 		retries, err := r.GetNumberOfRetryAttempts(testJob.Id)
 
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Zero(t, retries)
 	})
 }
@@ -641,16 +623,14 @@ func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 			assert.Equal(t, 1, len(jobs))
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
-		if err != nil {
-			t.Fatalf("expected no error but got: %s", err)
-		}
+		require.NoError(t, err)
 
 		assert.Equal(t, 1, len(results))
 		assert.Nil(t, results[0].Error)
 		assert.Equal(t, job1.Id, results[0].JobId)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 1, len(reloadedJobs))
 		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
 		assert.Equal(t, results[0].Job, reloadedJobs[0])
@@ -665,35 +645,24 @@ func TestUpdateJobs_WhenTransactionAlwaysFails_ReturnsError_JobNotChanged(t *tes
 
 		results, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
 			results2, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
-			if err != nil {
-				t.Fatalf("expected no error but got: %s", err)
-			}
+			require.NoError(t, err)
 			if ok := assert.Equal(t, 1, len(results2)); !ok {
 				t.FailNow()
 			}
-			assert.NoError(t, results2[0].Error)
-
-			if ok := assert.Equal(t, 1, len(jobs)); !ok {
-				t.FailNow()
-			}
+			require.NoError(t, results2[0].Error)
+			require.Equal(t, 1, len(jobs))
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
-		if err != nil {
-			t.Fatalf("expected no error but got: %s", err)
-		}
+		require.NoError(t, err)
 
-		if ok := assert.Equal(t, 1, len(results)); !ok {
-			t.FailNow()
-		}
+		require.Equal(t, 1, len(results))
 		assert.Equal(t, job1.Id, results[0].JobId)
 		assert.Nil(t, results[0].Job)
 		assert.Equal(t, redis.TxFailedErr, results[0].Error)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
-		assert.NoError(t, err)
-		if ok := assert.Equal(t, 1, len(reloadedJobs)); !ok {
-			t.FailNow()
-		}
+		require.NoError(t, err)
+		require.Equal(t, 1, len(reloadedJobs))
 		assert.Equal(t, "", reloadedJobs[0].PodSpec.SchedulerName)
 	})
 }
@@ -708,9 +677,7 @@ func TestUpdateJobs_WhenTransactionFailsOnce_Retries_JobChanged(t *testing.T) {
 		results := r.updateJobs([]string{job1.Id}, func(jobs []*api.Job) {
 			if first {
 				results2, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
-				if err != nil {
-					t.Fatalf("expected no error but got: %s", err)
-				}
+				require.NoError(t, err)
 				assert.Equal(t, 1, len(results2))
 				assert.Nil(t, results2[0].Error)
 				first = false
@@ -744,9 +711,7 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 			job := jobs[0]
 			if job.Id == job2.Id {
 				results2, err := r.UpdateJobs([]string{job2.Id}, func(jobs []*api.Job) {}) // 2nd update in middle of transaction
-				if err != nil {
-					t.Fatalf("expected no error but got: %s", err)
-				}
+				require.NoError(t, err)
 				assert.Equal(t, 1, len(results2))
 				assert.Nil(t, results2[0].Error)
 			}
@@ -771,7 +736,7 @@ func TestUpdateJobs_WhenTransactionAlwaysFailsForOneBatch_ReturnsErrorForThatBat
 		assert.Nil(t, results[2].Error)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id, job2.Id, job3.Id})
-		assert.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 3, len(reloadedJobs))
 		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
 		assert.Equal(t, "", reloadedJobs[1].PodSpec.SchedulerName)
@@ -789,7 +754,7 @@ func TestUpdateJobs_AlreadyProcessed(t *testing.T) {
 		assert.Equal(t, jobId, submit1.JobId)
 
 		submit2 := addTestJobInner(t, r, jobId, queue, "", 1, v1.ResourceRequirements{}, nil)
-		assert.NoError(t, submit2.Error)
+		require.NoError(t, submit2.Error)
 		assert.True(t, submit2.AlreadyProcessed)
 	})
 }
@@ -922,8 +887,8 @@ func withRepositoryUsingJobDefaults(
 
 func AssertUpdateStartTimeNoErrors(t *testing.T, jobErrors []error, err error) {
 	t.Helper()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	for _, err := range jobErrors {
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }

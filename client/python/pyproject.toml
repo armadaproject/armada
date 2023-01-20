@@ -1,10 +1,10 @@
 [project]
 name = "armada_client"
-version = "0.2.4"
+version = "0.2.7"
 description = "Armada gRPC API python client"
 readme = "README.md"
 requires-python = ">=3.7"
-dependencies = ["grpcio>=1.46.3", "grpcio-tools>=1.46.3", "mypy-protobuf>=3.2.0"]
+dependencies = ["grpcio>=1.46.3", "grpcio-tools>=1.46.3", "mypy-protobuf>=3.2.0", "protobuf>=3.20.3"]
 license = { text = "Apache Software License" }
 authors = [{ name = "G-Research Open Source Software", email = "armada@armadaproject.io" }]
 
@@ -17,8 +17,25 @@ test = ["pytest>=7.1.2", "coverage>=6.5.0"]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.mypy]
+exclude = [
+    '^typings\.py$',
+    '_pb2_\.pyi$',
+    '_pb2\.pyi$',
+    '_pb2_grpc\.pyi$',
+
+    '_pb2_\.py$',
+    '_pb2\.py$',
+    '_pb2_grpc\.py$',
+]
+
 [tool.coverage.run]
 omit = [
     "*_pb2.py",
     "*_pb2_grpc.py",
 ]
+
+# py.typed is required for mypy to find type hints in the package
+# from: https://mypy.readthedocs.io/en/stable/installed_packages.html#making-pep-561-compatible-packages
+[tool.setuptools.package-data]
+"*" = ["*.pyi", "py.typed"]

@@ -11,21 +11,31 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
 )
 
 type LookoutDb struct {
 	db      *pgxpool.Pool
 	metrics *metrics.Metrics
+	config  *configuration.LookoutIngesterConfiguration
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model.InstructionSet] {
-	return &LookoutDb{db: db, metrics: metrics}
+func NewLookoutDb(
+	db *pgxpool.Pool,
+	metrics *metrics.Metrics,
+	config *configuration.LookoutIngesterConfiguration,
+) ingest.Sink[*model.InstructionSet] {
+	if config.Debug.DisableConflateDBUpdates {
+		log.Warn("config.debug.disableConflateDBUpdates == true. Performance may be negatively impacted.")
+	}
+
+	return &LookoutDb{db: db, metrics: metrics, config: config}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
@@ -36,10 +46,15 @@ func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics) ingest.Sink[*model
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
 func (l *LookoutDb) Store(ctx context.Context, instructions *model.InstructionSet) error {
+	jobsToUpdate := instructions.JobsToUpdate
+	jobRunsToUpdate := instructions.JobRunsToUpdate
+
 	// We might have multiple updates for the same job or job run
 	// These can be conflated to help performance
-	jobsToUpdate := conflateJobUpdates(instructions.JobsToUpdate)
-	jobRunsToUpdate := conflateJobRunUpdates(instructions.JobRunsToUpdate)
+	if !l.config.Debug.DisableConflateDBUpdates {
+		jobsToUpdate = conflateJobUpdates(jobsToUpdate)
+		jobRunsToUpdate = conflateJobRunUpdates(jobRunsToUpdate)
+	}
 
 	// Jobs need to be ingested first as other updates may reference these
 	l.CreateJobs(ctx, instructions.JobsToCreate)
@@ -81,6 +96,12 @@ func (l *LookoutDb) CreateJobs(ctx context.Context, instructions []*model.Create
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.DisableConflateDBUpdates {
+		l.CreateJobsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -92,7 +113,13 @@ func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.Update
 	if len(instructions) == 0 {
 		return
 	}
-	instructions = filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
+	instructions = filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
+
+	if l.config.Debug.DisableConflateDBUpdates {
+		l.UpdateJobsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Updating jobs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -104,6 +131,12 @@ func (l *LookoutDb) CreateJobRuns(ctx context.Context, instructions []*model.Cre
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.DisableConflateDBUpdates {
+		l.CreateJobRunsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -115,6 +148,12 @@ func (l *LookoutDb) UpdateJobRuns(ctx context.Context, instructions []*model.Upd
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.DisableConflateDBUpdates {
+		l.UpdateJobRunsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.UpdateJobRunsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Updating job runs via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -126,6 +165,12 @@ func (l *LookoutDb) CreateUserAnnotations(ctx context.Context, instructions []*m
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.DisableConflateDBUpdates {
+		l.CreateUserAnnotationsScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateUserAnnotationsBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating user annotations via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -137,6 +182,12 @@ func (l *LookoutDb) CreateJobRunContainers(ctx context.Context, instructions []*
 	if len(instructions) == 0 {
 		return
 	}
+
+	if l.config.Debug.DisableConflateDBUpdates {
+		l.CreateJobRunContainersScalar(ctx, instructions)
+		return
+	}
+
 	err := l.CreateJobRunContainersBatch(ctx, instructions)
 	if err != nil {
 		log.Warnf("Creating job run containers via batch failed, will attempt to insert serially (this might be slow).  Error was %+v", err)
@@ -636,11 +687,11 @@ func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) e
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {
-	deref := func(p *int32) int32 {
+	isTerminal := func(p *int32) bool {
 		if p == nil {
-			return -1
+			return false
 		} else {
-			return *p
+			return *p == repository.JobFailedOrdinal || *p == repository.JobSucceededOrdinal || *p == repository.JobCancelledOrdinal
 		}
 	}
 
@@ -648,11 +699,11 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 	for _, update := range updates {
 		existing, ok := updatesById[update.JobId]
 
-		// Unfortunately once a job has been cancelled we still get state updates for it e.g. we can get an event to
-		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
+		// Unfortunately once a job has reached a terminal state we still get state updates for it e.g. we can get an event to
+		// say it's now "running".  We have to throw these away else we'll end up with a zombie job.
 		if !ok {
 			updatesById[update.JobId] = update
-		} else if deref(existing.State) != int32(repository.JobCancelledOrdinal) {
+		} else if !isTerminal(existing.State) {
 			if update.State != nil {
 				existing.State = update.State
 			}
@@ -717,14 +768,14 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 	return conflated
 }
 
-// filterEventsForCancelledJobs queries the database for any jobs that are in the cancelled state and removes them from the list of
-// instructions.  This is necessary because Armada will generate event stauses even for jobs that have been cancelled
-// The proper solution here is to make it so once a job is cancelled, no more events are generated for it, but until
+// filterEventsForTerminalJobs queries the database for any jobs that are in a terminal state and removes them from the list of
+// instructions.  This is necessary because Armada will generate event statuses even for jobs that have reached a terminal state
+// The proper solution here is to make it so once a job is terminal, no more events are generated for it, but until
 // that day we have to manually filter them out here.
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
-// in the cancelling state.  If, however, the database returns a non-retryable error it will give up and simply not
+// in the terminal state.  If, however, the database returns a non-retryable error it will give up and simply not
 // filter out any events as the job state is undetermined.
-func filterEventsForCancelledJobs(
+func filterEventsForTerminalJobs(
 	ctx context.Context,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
@@ -736,11 +787,12 @@ func filterEventsForCancelledJobs(
 	}
 
 	rowsRaw, err := withDatabaseRetryQuery(func() (interface{}, error) {
-		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", repository.JobCancelledOrdinal, jobIds)
+		terminalStates := []int{repository.JobSucceededOrdinal, repository.JobFailedOrdinal, repository.JobCancelledOrdinal}
+		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = any($1) AND job_id = any($2)", terminalStates, jobIds)
 	})
 	if err != nil {
 		m.RecordDBError(metrics.DBOperationRead)
-		log.WithError(err).Warnf("Cannot retrieve job state from the database- Cancelled jobs may not be filtered out")
+		log.WithError(err).Warnf("Cannot retrieve job state from the database- Terminal jobs may not be filtered out")
 		return instructions
 	}
 	rows := rowsRaw.(pgx.Rows)
@@ -750,7 +802,7 @@ func filterEventsForCancelledJobs(
 		jobId := ""
 		err := rows.Scan(&jobId)
 		if err != nil {
-			log.WithError(err).Warnf("Cannot retrieve jobId from row. Cancelled job will not be filtered out")
+			log.WithError(err).Warnf("Cannot retrieve jobId from row. Terminal job will not be filtered out")
 		} else {
 			cancelledJobs[jobId] = true
 		}

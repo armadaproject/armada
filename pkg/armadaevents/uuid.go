@@ -8,7 +8,7 @@ import (
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 // UuidFromProtoUuid creates and returns a uuid.UUID from an armadaevents.Uuid

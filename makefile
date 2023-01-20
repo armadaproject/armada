@@ -196,7 +196,7 @@ build-executor:
 build-fakeexecutor:
 	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
-ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
+ARMADACTL_BUILD_PACKAGE := github.com/armadaproject/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -215,7 +215,7 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
-PULSARTEST_BUILD_PACKAGE := github.com/G-Research/armada/internal/pulsartest/build
+PULSARTEST_BUILD_PACKAGE := github.com/armadaproject/armada/internal/pulsartest/build
 define PULSARTEST_LDFLAGS
 -X '$(PULSARTEST_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(PULSARTEST_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -225,7 +225,7 @@ endef
 build-pulsartest:
 	$(GO_CMD) $(gobuild) -ldflags="$(PULSARTEST_LDFLAGS)" -o ./bin/pulsartest cmd/pulsartest/main.go
 
-TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
+TESTSUITE_BUILD_PACKAGE := github.com/armadaproject/armada/internal/testsuite/build
 define TESTSUITE_LDFLAGS
 -X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(TESTSUITE_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -345,29 +345,29 @@ tests-teardown:
 	docker rm -f redis postgres || true
 
 .ONESHELL:
-tests-no-setup:
-	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+tests-no-setup: gotestsum
+	$(GOTESTSUM) -- -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GOTESTSUM) -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-tests:
+tests: gotestsum
 	mkdir -p test_reports
 	docker run -d --name=redis $(DOCKER_NET) -p=6379:6379 redis:6.2.6
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GO_TEST_CMD) go test -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) go test -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
 lint-fix:
-	$(GO_TEST_CMD) golangci-lint run --fix
+	$(GO_TEST_CMD) golangci-lint run --fix --timeout 10m
 
 .ONESHELL:
 lint:
-	$(GO_TEST_CMD) golangci-lint run
+	$(GO_TEST_CMD) golangci-lint run --timeout 10m
 
 .ONESHELL:
 code-checks: lint
@@ -377,7 +377,7 @@ code-checks: lint
 rebuild-server: build-docker-server
 	docker rm -f server || true
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml --config /e2e/setup/server/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml --config /e2e/setup/server/armada-config.yaml
 
 # Rebuild and restart the executor.
 .ONESHELL:
@@ -393,7 +393,7 @@ rebuild-executor: build-docker-executor
 
 .ONESHELL:
 tests-e2e-teardown:
-	docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice || true
+	docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice event-ingester || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
 	rmdir .kube || true
@@ -431,17 +431,16 @@ setup-cluster:
 	kind get kubeconfig --internal --name armada-test > .kube/config
 
 tests-e2e-setup: setup-cluster
-	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.23 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
+	docker run --rm -v ${PWD}:/go/src/armada -w /go/src/armada -e KUBECONFIG=/go/src/armada/.kube/config --network kind bitnami/kubectl:1.24.8 apply -f ./e2e/setup/namespace-with-anonymous-user.yaml
 
 	# Armada dependencies.
 	docker run -d --name pulsar -p 0.0.0.0:6650:6650 --network=kind apachepulsar/pulsar:2.9.2 bin/pulsar standalone
-	docker run -d --name nats --network=kind nats-streaming:0.24.5
 	docker run -d --name redis -p=6379:6379 --network=kind redis:6.2.6
 	docker run -d --name postgres --network=kind -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 
-	sleep 30 # give dependencies time to start up
+	sleep 60 # give dependencies time to start up
 	docker run -d --name server --network=kind -p=50051:50051 -p 8080:8080 -v ${PWD}/e2e:/e2e \
-		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/nats/armada-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
+		armada ./server --config /e2e/setup/insecure-armada-auth-config.yaml --config /e2e/setup/redis/armada-config.yaml --config /e2e/setup/pulsar/armada-config.yaml  --config /e2e/setup/server/armada-config.yaml
 	docker run -d --name executor --network=kind -v ${PWD}/.kube:/.kube -v ${PWD}/e2e:/e2e  \
 		-e KUBECONFIG=/.kube/config \
 		-e ARMADA_KUBERNETES_IMPERSONATEUSERS=true \
@@ -451,8 +450,9 @@ tests-e2e-setup: setup-cluster
 		armada-executor --config /e2e/setup/insecure-executor-config.yaml
 	docker run -d --name lookout-ingester-migrate  --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml --migrateDatabase
-	docker run -d --name lookout-ingester  --network=kind -v ${PWD}/e2e:/e2e \
+	docker run -d --name lookout-ingester --network=kind -v ${PWD}/e2e:/e2e \
 		armada-lookout-ingester --config /e2e/setup/lookout-ingester-config.yaml
+	docker run -d --name event-ingester --network=kind -v ${PWD}/e2e:/e2e armada-event-ingester
 	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e \
 	    armada-jobservice run --config /e2e/setup/jobservice.yaml
 
@@ -462,7 +462,7 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
 .ONESHELL:
-tests-e2e-no-setup:
+tests-e2e-no-setup: gotestsum
 	function printApplicationLogs {
 		echo -e "\nexecutor logs:"
 		docker logs executor
@@ -471,21 +471,21 @@ tests-e2e-no-setup:
 	}
 	trap printApplicationLogs exit
 	mkdir -p test_reports
-	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
-	$(GO_TEST_CMD) go test -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
+	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
+	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
+	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
-tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
+tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup gotestsum
 	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
 		echo -e "\nserver logs:"
 		docker logs server
-		docker rm -f nats redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice
+		docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester event-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
 		rmdir .kube
@@ -494,11 +494,11 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 	trap teardown exit
 	sleep 10
 	echo -e "\nrunning tests:"
-	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
-	$(GO_TEST_CMD) go test -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
+	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
+	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
+	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
 
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 .ONESHELL:
@@ -506,7 +506,7 @@ tests-e2e-python: python
 	docker run -v${PWD}/client/python:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 --entrypoint python3 --network=kind armada-python-client-builder:latest -m pytest -v -s /code/tests/integration/test_no_auth.py
 
 # To run integration tests with jobservice and such, we can run this command
-# For now, let's just have it in rare cases that people need to test. 
+# For now, let's just have it in rare cases that people need to test.
 .ONESHELL:
 tests-e2e-airflow: airflow-operator tests-e2e-setup build-ci
 	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
@@ -520,42 +520,7 @@ junit-report:
 	rm -f test_reports/junit.xml
 	$(GO_TEST_CMD) bash -c "cat test_reports/*.txt | go-junit-report > test_reports/junit.xml"
 
-setup-proto:
-	# Work around a "permission denied" error on macOS, when the following 'rm -rf' attempts to
-	# first delete files in this directory - by default it has write perms disabled.
-	if [ -d proto/google/protobuf/compiler ]; then  chmod 0755 proto/google/protobuf/compiler ; fi
-	rm -rf proto
-	mkdir -p proto/google/api
-	mkdir -p proto/google/protobuf
-	mkdir -p proto/k8s.io/apimachinery/pkg/api/resource
-	mkdir -p proto/k8s.io/apimachinery/pkg/apis/meta/v1
-
-	mkdir -p proto/k8s.io/apimachinery/pkg/runtime
-	mkdir -p proto/k8s.io/apimachinery/pkg/runtime/schema
-	mkdir -p proto/k8s.io/apimachinery/pkg/util/intstr/
-	mkdir -p proto/k8s.io/api/networking/v1
-	mkdir -p proto/k8s.io/api/core/v1
-	mkdir -p proto/github.com/gogo/protobuf/gogoproto/
-
-	# Copy third party annotations from grpc-ecosystem
-	$(GO_CMD) bash -c " \
-	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/annotations.proto proto/google/api ; \
-	 cp /go/pkg/mod/github.com/grpc-ecosystem/grpc-gateway$(GRPC_GATEWAY_VERSION)/third_party/googleapis/google/api/http.proto proto/google/api ; \
-	 cp -r /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/protobuf/google/protobuf proto/google ; \
-	 cp /go/pkg/mod/github.com/gogo/protobuf$(GOGO_PROTOBUF_VERSION)/gogoproto/gogo.proto proto/github.com/gogo/protobuf/gogoproto/ ; \
-	 \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/api/resource/generated.proto proto/k8s.io/apimachinery/pkg/api/resource/ ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/apis/meta/v1/generated.proto proto/k8s.io/apimachinery/pkg/apis/meta/v1 ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/generated.proto proto/k8s.io/apimachinery/pkg/runtime ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/runtime/schema/generated.proto proto/k8s.io/apimachinery/pkg/runtime/schema/ ; \
-	 cp /go/pkg/mod/k8s.io/apimachinery$(K8_APIM_VERSION)/pkg/util/intstr/generated.proto proto/k8s.io/apimachinery/pkg/util/intstr/ ; \
-	 \
-	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/networking/v1/generated.proto proto/k8s.io/api/networking/v1 ; \
-	 cp /go/pkg/mod/k8s.io/api$(K8_API_VERSION)/core/v1/generated.proto proto/k8s.io/api/core/v1 "
-
-	chmod -R ug+w proto
-
-python: setup-proto
+python: proto-setup
 	docker build $(dockerFlags) -t armada-python-client-builder -f ./build/python-client/Dockerfile .
 	docker run --rm -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-python-client-builder ./scripts/build-python-client.sh
 
@@ -566,46 +531,23 @@ airflow-operator:
 	docker build $(dockerFlags) -t armada-airflow-operator-builder -f ./build/airflow-operator/Dockerfile .
 	docker run --rm -v ${PWD}/proto-airflow:/proto-airflow -v ${PWD}:/go/src/armada -w /go/src/armada armada-airflow-operator-builder ./scripts/build-airflow-operator.sh
 
-proto: setup-proto
-	docker build $(dockerFlags) --build-arg GOPROXY --build-arg GOPRIVATE --build-arg MAVEN_URL -t armada-proto -f $(PROTO_DOCKERFILE) .
-	docker run --rm -e GOPROXY -e GOPRIVATE $(DOCKER_RUN_AS_USER) -v ${PWD}/proto:/proto -v ${PWD}:/go/src/armada -w /go/src/armada armada-proto ./scripts/proto.sh
+proto-setup:
+	go run github.com/magefile/mage@v1.14.0 BootstrapProto
 
-	# generate proper swagger types (we are using standard json serializer, GRPC gateway generates protobuf json, which is not compatible)
-	$(GO_TEST_CMD) swagger generate spec -m -o pkg/api/api.swagger.definitions.json -x internal/lookoutv2
-
-	# combine swagger definitions
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go api.swagger.json > pkg/api/api.swagger.merged.json
-	mv -f pkg/api/api.swagger.merged.json pkg/api/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go lookout/api.swagger.json > pkg/api/lookout/api.swagger.merged.json
-	mv -f pkg/api/lookout/api.swagger.merged.json pkg/api/lookout/api.swagger.json
-
-	$(GO_TEST_CMD) go run ./scripts/merge_swagger.go binoculars/api.swagger.json > pkg/api/binoculars/api.swagger.merged.json
-	mv -f pkg/api/binoculars/api.swagger.merged.json pkg/api/binoculars/api.swagger.json
-
-	rm -f pkg/api/api.swagger.definitions.json
-
-	# embed swagger json into go binary
-	$(GO_TEST_CMD) templify -e -p=api -f=SwaggerJson  pkg/api/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=lookout -f=SwaggerJson  pkg/api/lookout/api.swagger.json
-	$(GO_TEST_CMD) templify -e -p=binoculars -f=SwaggerJson  pkg/api/binoculars/api.swagger.json
-
-	# fix all imports ordering
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/api/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./pkg/armadaevents/
-	$(GO_TEST_CMD) goimports -w -local "github.com/G-Research/armada" ./internal/scheduler/schedulerobjects/
+proto:
+	go run github.com/magefile/mage@v1.14.0 proto
 
 sql:
 	$(GO_TEST_CMD) sqlc generate -f internal/scheduler/sql/sql.yaml
 	$(GO_TEST_CMD) templify -e -p=sql internal/scheduler/sql/schema.sql
 
 # Target for compiling the dotnet Armada REST client
-dotnet: dotnet-setup setup-proto
+dotnet: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/Armada.Client /t:NSwag
 	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
 # Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
-push-nuget: dotnet-setup setup-proto
+push-nuget: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
@@ -620,9 +562,21 @@ download:
 generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
+		go run golang.org/x/tools/cmd/goimports -w -local "github.com/armadaproject/armada" internal/lookout/repository/schema/statik
 
 	go generate ./...
 
 helm-docs:
 	./scripts/helm-docs.sh
+
+LOCALBIN ?= $(PWD)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+GOTESTSUM ?= $(LOCALBIN)/gotestsum
+
+.PHONY: gotestsum
+gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
+$(GOTESTSUM): $(LOCALBIN)
+	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
+

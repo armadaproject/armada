@@ -6,17 +6,17 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/app"
 
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/eventingester/configuration"
-	"github.com/G-Research/armada/internal/eventingester/convert"
-	"github.com/G-Research/armada/internal/eventingester/metrics"
-	"github.com/G-Research/armada/internal/eventingester/store"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/convert"
+	"github.com/armadaproject/armada/internal/eventingester/metrics"
+	"github.com/armadaproject/armada/internal/eventingester/store"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the

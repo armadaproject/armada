@@ -10,9 +10,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func CreateEventForCurrentState(pod *v1.Pod, clusterId string) (api.Event, error) {
@@ -139,8 +139,12 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 }
 
 func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
+	eventTime := clusterEvent.LastTimestamp.Time
+	if eventTime.IsZero() {
+		eventTime = time.Now()
+	}
 	event = &api.JobPreemptedEvent{
-		Created:   clusterEvent.LastTimestamp.Time,
+		Created:   eventTime,
 		ClusterId: clusterId,
 	}
 

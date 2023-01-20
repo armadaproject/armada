@@ -12,9 +12,9 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type GetJobsRepository interface {
@@ -90,6 +90,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		if err != nil {
 			return err
 		}
+		logQuery(countQuery)
 		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
 		if err != nil {
 			return err
@@ -100,6 +101,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		}
 
 		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
+		logQuery(createTempTableQuery)
 		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
 		if err != nil {
 			return err
@@ -109,6 +111,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		if err != nil {
 			return err
 		}
+		logQuery(createTempTableQuery)
 		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
 		if err != nil {
 			return err
@@ -136,7 +139,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		return nil, err
 	}
 
-	jobs, err := rowsToJobs(jobRows, runRows, annotationRows, order)
+	jobs, err := rowsToJobs(jobRows, runRows, annotationRows)
 	if err != nil {
 		return nil, err
 	}
@@ -146,10 +149,11 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 	}, nil
 }
 
-func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow, order *model.Order) ([]*model.Job, error) {
+func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotationRow) ([]*model.Job, error) {
 	jobMap := make(map[string]*model.Job) // Map from Job ID to Job
+	orderedJobIds := make([]string, len(jobRows))
 
-	for _, row := range jobRows {
+	for i, row := range jobRows {
 		job := &model.Job{
 			Annotations:        make(map[string]string),
 			Cancelled:          database.ParseNullTime(row.cancelled),
@@ -171,6 +175,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			Submitted:          row.submitted,
 		}
 		jobMap[row.jobId] = job
+		orderedJobIds[i] = row.jobId
 	}
 
 	for _, row := range runRows {
@@ -199,20 +204,11 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 		job.Annotations[row.annotationKey] = row.annotationValue
 	}
 
-	jobs := make([]*model.Job, len(jobMap))
-	i := 0
-	for _, job := range jobMap {
+	jobs := make([]*model.Job, len(orderedJobIds))
+	for i, jobId := range orderedJobIds {
+		job := jobMap[jobId]
 		sortRuns(job.Runs)
 		jobs[i] = job
-		i++
-	}
-
-	if !orderIsNull(order) {
-		fn, err := sortFn(jobs, order)
-		if err != nil {
-			return nil, err
-		}
-		sort.Slice(jobs, fn)
 	}
 
 	return jobs, nil
@@ -353,27 +349,4 @@ func makeAnnotationRows(ctx context.Context, tx pgx.Tx, tempTableName string) ([
 		rows = append(rows, &row)
 	}
 	return rows, nil
-}
-
-func sortFn(jobs []*model.Job, order *model.Order) (func(i int, j int) bool, error) {
-	return func(i int, j int) bool {
-		f := jobAccessorFromField(order.Field)
-		if order.Direction == "ASC" {
-			return f(jobs[i]) < f(jobs[j])
-		}
-		return f(jobs[i]) > f(jobs[j])
-	}, nil
-}
-
-func jobAccessorFromField(field string) func(job *model.Job) string {
-	switch field {
-	case "jobId":
-		return func(job *model.Job) string {
-			return job.JobId
-		}
-	default:
-		return func(job *model.Job) string {
-			return ""
-		}
-	}
 }

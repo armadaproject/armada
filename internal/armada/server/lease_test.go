@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
@@ -85,8 +85,9 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *tes
 
 	for i := 0; i < maxRetries; i++ {
 		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
-			ClusterId: clusterId,
-			JobId:     jobId,
+			ClusterId:       clusterId,
+			JobId:           jobId,
+			JobRunAttempted: true,
 		})
 		assert.Nil(t, err)
 
@@ -125,8 +126,9 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 
 	for i := 0; i < maxRetries; i++ {
 		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
-			ClusterId: clusterId,
-			JobId:     jobId,
+			ClusterId:       clusterId,
+			JobId:           jobId,
+			JobRunAttempted: true,
 		})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(fakeEventStore.events))
@@ -148,6 +150,45 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 	assert.Equal(t, queueName, failedEvent.Queue)
 	assert.Equal(t, clusterId, failedEvent.ClusterId)
 	assert.Equal(t, fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries), failedEvent.Reason)
+}
+
+func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
+	mockJobRepository, _, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(5))
+
+	clusterId := "cluster-1"
+	jobId := "job-id-1"
+	jobSetId := "job-set-id-1"
+	queueName := "queue-1"
+	job := &api.Job{
+		Id:       jobId,
+		JobSetId: jobSetId,
+		Queue:    queueName,
+	}
+
+	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
+	assert.Nil(t, addJobsErr)
+
+	// Does not count towards retries if JobRunAttempted is false
+	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		ClusterId:       clusterId,
+		JobId:           jobId,
+		JobRunAttempted: false,
+	})
+	assert.Nil(t, err)
+	numberOfRetries, err := mockJobRepository.GetNumberOfRetryAttempts(jobId)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, numberOfRetries)
+
+	// Does count towards reties if JobRunAttempted is true
+	_, err = aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		ClusterId:       clusterId,
+		JobId:           jobId,
+		JobRunAttempted: true,
+	})
+	assert.NoError(t, err)
+	numberOfRetries, err = mockJobRepository.GetNumberOfRetryAttempts(jobId)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, numberOfRetries)
 }
 
 func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *fakeEventStore, *AggregatedQueueServer) {

@@ -6,11 +6,11 @@ Armada exposes an API via gRPC or REST.
 The API is defined in `/pkg/api` folder with `*.proto` files as source for all generated code. 
 
 Folder `/pkg/api` also contains generated clients and together with helper methods from `/pkg/client` provides a convenient way to call Armada API from go code. See armadactl code for
-[examples](https://github.com/g-research/armada/blob/master/cmd/armadactl/cmd/submit.go).
+[examples](https://github.com/armadaproject/armada/blob/master/cmd/armadactl/cmd/submit.go).
 
 Following subset of API defined in `/pkg/api` is intended for public use.
 
-### api.Submit ([definition](https://github.com/g-research/armada/blob/master/pkg/api/submit.proto))
+### api.Submit ([definition](https://github.com/armadaproject/armada/blob/master/pkg/api/submit.proto))
  
 __/api.Submit/SubmitJobs__ - submitting jobs to be run
 
@@ -26,7 +26,7 @@ __/api.Submit/GetQueue__ - get information about queue (name, permissions)
 
 __/api.Submit/GetQueueInfo__ - get information about queued (active jobs, including those currently running)
 
-### api.Event  ([definition](https://github.com/g-research/armada/blob/master/pkg/api/submit.proto))
+### api.Event  ([definition](https://github.com/armadaproject/armada/blob/master/pkg/api/submit.proto))
 
 __/api.Event/GetJobSetEvents__ - read events of jobs running under particular JobSet
 
@@ -34,14 +34,14 @@ __/api.Event/GetJobSetEvents__ - read events of jobs running under particular Jo
 ### Internal
 There are additional API methods defined in proto specifications, which are used by Armada executor and not intended to be used by external users. This API can change in any version.
 
-- [event.proto](https://github.com/g-research/armada/blob/master/pkg/api/event.proto) - methods for event reporting
-- [queue.proto](https://github.com/g-research/armada/blob/master/pkg/api/queue.proto) - methods related to job leasing by executor
-- [usage.proto](https://github.com/g-research/armada/blob/master/pkg/api/usage.proto) - methods for reporting of resources usage
+- [event.proto](https://github.com/armadaproject/armada/blob/master/pkg/api/event.proto) - methods for event reporting
+- [queue.proto](https://github.com/armadaproject/armada/blob/master/pkg/api/queue.proto) - methods related to job leasing by executor
+- [usage.proto](https://github.com/armadaproject/armada/blob/master/pkg/api/usage.proto) - methods for reporting of resources usage
 
 ## REST
 The REST API only exposes the public part of the gRPC API and it is implemented using [grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway).
 
-Swagger json specification can be found [here](https://github.com/g-research/armada/blob/master/pkg/api/api.swagger.json) and is also served by Armada under `my.armada.deployment/api/swagger.json`
+Swagger json specification can be found [here](https://github.com/armadaproject/armada/blob/master/pkg/api/api.swagger.json) and is also served by Armada under `my.armada.deployment/api/swagger.json`
 
 ## Authentication
 
@@ -67,7 +67,7 @@ For Kerberos authentication API accepts the same authorization metadata for gRPC
 Armada will determine which actions you are able to perform based on your user's permissions.
 These are defined as global or on a per queue basis.
 
-Below is the list of global Armada permissions (defined [here](https://github.com/g-research/armada/blob/master/internal/armada/permissions/permissions.go)):
+Below is the list of global Armada permissions (defined [here](https://github.com/armadaproject/armada/blob/master/internal/armada/permissions/permissions.go)):
 * `submit_jobs`
 * `submit_any_jobs`
 * `create_queue`
@@ -79,7 +79,7 @@ Below is the list of global Armada permissions (defined [here](https://github.co
 * `watch_events`
 * `watch_all_events`
 
-In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined [here](https://github.com/g-research/armada/blob/master/pkg/client/queue/permission_verb.go)):
+In addition, the following queue-specific permission verbs control what actions can be taken per individual queues (defined [here](https://github.com/armadaproject/armada/blob/master/pkg/client/queue/permission_verb.go)):
 * `submit`
 * `cancel`
 * `reprioritize`

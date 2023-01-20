@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/jobservice"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/jobservice"
 )
 
 // RootCmd is the root Cobra command that gets called from the main func.

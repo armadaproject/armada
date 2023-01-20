@@ -9,7 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	config "github.com/G-Research/armada/internal/executor/configuration/podchecks"
+	config "github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 )
 
 func Test_getAction_WhenNoContainers_AndNoChecks_ReturnsWait(t *testing.T) {

@@ -12,7 +12,7 @@ There is also a section on [Using Basic Auth](#using-basic-auth)
 
 ## Preqrequisites
 
-Please see the [python client docs](https://github.com/G-Research/armada/blob/master/client/python/README.md) for getting the client setup.
+Please see the [python client docs](https://github.com/armadaproject/armada/blob/master/client/python/README.md) for getting the client setup.
 
 ### Running the examples
 

@@ -6,9 +6,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/queue"
-	"github.com/G-Research/armada/pkg/client/util"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/pkg/client/util"
 )
 
 // CreateQueue calls app.QueueAPI.Create with the provided parameters.

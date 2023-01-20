@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 func GetKubectlCommand(cluster string, namespace string, jobId string, podNumber int, cmd string) string {

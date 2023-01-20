@@ -3,8 +3,8 @@ package repository
 import (
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 const (
@@ -16,11 +16,17 @@ const (
 	jobRunTableAbbrev               = "jr"
 	userAnnotationLookupTableAbbrev = "ual"
 
-	jobIdCol  = "job_id"
-	queueCol  = "queue"
-	jobSetCol = "jobset"
-	stateCol  = "state"
-	ownerCol  = "owner"
+	jobIdCol              = "job_id"
+	queueCol              = "queue"
+	jobSetCol             = "jobset"
+	stateCol              = "state"
+	ownerCol              = "owner"
+	cpuCol                = "cpu"
+	memoryCol             = "memory"
+	ephemeralStorageCol   = "ephemeral_storage"
+	gpuCol                = "gpu"
+	submittedCol          = "submitted"
+	lastTransitionTimeCol = "last_transition_time_seconds"
 
 	annotationKeyCol   = "key"
 	annotationValueCol = "value"
@@ -47,28 +53,47 @@ type LookoutTables struct {
 func NewTables() *LookoutTables {
 	return &LookoutTables{
 		fieldColumnMap: map[string]string{
-			"jobId":  jobIdCol,
-			"queue":  queueCol,
-			"jobSet": jobSetCol,
-			"owner":  ownerCol,
-			"state":  stateCol,
+			"jobId":              jobIdCol,
+			"queue":              queueCol,
+			"jobSet":             jobSetCol,
+			"owner":              ownerCol,
+			"state":              stateCol,
+			"cpu":                cpuCol,
+			"memory":             memoryCol,
+			"ephemeralStorage":   ephemeralStorageCol,
+			"gpu":                gpuCol,
+			"submitted":          submittedCol,
+			"timeInState":        lastTransitionTimeCol,
+			"lastTransitionTime": lastTransitionTimeCol,
 		},
 		columnsTableMap: map[string]map[string]bool{
-			jobIdCol:  util.StringListToSet([]string{jobTable, jobRunTable, userAnnotationLookupTable}),
-			queueCol:  util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
-			jobSetCol: util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
-			ownerCol:  util.StringListToSet([]string{jobTable}),
-			stateCol:  util.StringListToSet([]string{jobTable}),
+			jobIdCol:              util.StringListToSet([]string{jobTable, jobRunTable, userAnnotationLookupTable}),
+			queueCol:              util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
+			jobSetCol:             util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
+			ownerCol:              util.StringListToSet([]string{jobTable}),
+			stateCol:              util.StringListToSet([]string{jobTable}),
+			cpuCol:                util.StringListToSet([]string{jobTable}),
+			memoryCol:             util.StringListToSet([]string{jobTable}),
+			ephemeralStorageCol:   util.StringListToSet([]string{jobTable}),
+			gpuCol:                util.StringListToSet([]string{jobTable}),
+			submittedCol:          util.StringListToSet([]string{jobTable}),
+			lastTransitionTimeCol: util.StringListToSet([]string{jobTable}),
 		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
+			submittedCol,
+			lastTransitionTimeCol,
 		}),
 		filterableColumns: map[string]map[string]bool{
-			jobIdCol:  util.StringListToSet([]string{model.MatchExact}),
-			queueCol:  util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith}),
-			jobSetCol: util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith}),
-			ownerCol:  util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith}),
-			stateCol:  util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
+			jobIdCol:            util.StringListToSet([]string{model.MatchExact}),
+			queueCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
+			jobSetCol:           util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
+			ownerCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
+			stateCol:            util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
+			cpuCol:              util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
+			memoryCol:           util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
+			ephemeralStorageCol: util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
+			gpuCol:              util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 		},
 		tableAbbrevs: map[string]string{
 			jobTable:                  jobTableAbbrev,

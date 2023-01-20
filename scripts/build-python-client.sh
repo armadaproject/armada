@@ -36,4 +36,6 @@ find client/python/armada_client/ -name '*.py' | xargs sed -i 's/from k8s.io/fro
 export PYTHONPATH=${PWD}/client/python
 python3 ${PWD}/client/python/armada_client/gen/event_typings.py
 
+find client/python/armada_client/k8s -name '*.pyi' | xargs sed -i 's/ k8s/ armada_client.k8s/g'
+find client/python/armada_client/k8s -name '*.pyi' | xargs sed -i 's/\[k8s/\[armada_client.k8s/g'
 find client/python/armada_client/k8s/io -name '*.pyi' | xargs sed -i 's/import k8s.io/import armada_client.k8s.io/g'

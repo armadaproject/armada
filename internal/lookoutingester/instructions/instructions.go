@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -14,14 +14,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type HasNodeName interface {
