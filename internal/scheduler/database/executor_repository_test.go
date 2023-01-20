@@ -15,6 +15,7 @@ import (
 )
 
 func TestExecutorRepository_LoadAndSave(t *testing.T) {
+	t1 := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
 	tests := map[string]struct {
 		executors []*schedulerobjects.Executor
 	}{
@@ -26,10 +27,10 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 					Nodes: []*schedulerobjects.Node{
 						{
 							Id:       "test-node-1",
-							LastSeen: time.Now().UTC(),
+							LastSeen: t1,
 						},
 					},
-					LastUpdateTime:    time.Now().UTC(),
+					LastUpdateTime:    t1,
 					UnassignedJobRuns: []string{"run1", "run2"},
 				},
 				{
@@ -38,10 +39,10 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 					Nodes: []*schedulerobjects.Node{
 						{
 							Id:       "test-node-2",
-							LastSeen: time.Now().UTC(),
+							LastSeen: t1,
 						},
 					},
-					LastUpdateTime:    time.Now().UTC(),
+					LastUpdateTime:    t1,
 					UnassignedJobRuns: []string{"run3", "run4"},
 				},
 			},
@@ -79,7 +80,7 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 }
 
 func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
-	t1 := time.Now().UTC()
+	t1 := time.Now().UTC().Round(1 * time.Microsecond) // postgres only stores times with micro precision
 	t2 := t1.Add(-1 * time.Second)
 	tests := map[string]struct {
 		executors           []*schedulerobjects.Executor
