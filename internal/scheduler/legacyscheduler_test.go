@@ -44,7 +44,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		actual = append(actual, job.Id)
+		actual = append(actual, job.GetId())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -69,7 +69,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		actual = append(actual, job.Id)
+		actual = append(actual, job.GetId())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -94,7 +94,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		actual = append(actual, job.Id)
+		actual = append(actual, job.GetId())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -123,7 +123,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		actual = append(actual, job.Id)
+		actual = append(actual, job.GetId())
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -482,16 +482,16 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			queuedGangIterator := NewQueuedGangIterator[*api.Job](
+			queuedGangIterator := NewQueuedGangIterator(
 				ctx,
 				queuedJobsIterator,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
 			)
-			it := &QueueCandidateGangIterator[*api.Job]{
+			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
 				SchedulingConstraints:      tc.SchedulingConstraints,
-				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport[*api.Job](0, tc.InitialUsageByPriority),
+				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
 				queuedGangIterator:         queuedGangIterator,
 			}
 
@@ -505,7 +505,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 					if tc.LeaseJobs {
 						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
 					}
-					actual = append(actual, report.Job)
+					actual = append(actual, report.Job.(*api.Job))
 					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
 				}
 			}
@@ -1328,7 +1328,7 @@ func TestSchedule(t *testing.T) {
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
-			sched, err := NewLegacyScheduler[*api.Job](
+			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
 				tc.SchedulingConfig,
@@ -1433,7 +1433,7 @@ func TestSchedule(t *testing.T) {
 						}
 
 						_, isLeased := leasedJobIds[jobId]
-						var jobReports map[uuid.UUID]*JobSchedulingReport[*api.Job]
+						var jobReports map[uuid.UUID]*JobSchedulingReport
 						if isLeased {
 							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
 						} else {
@@ -1512,15 +1512,15 @@ func assertResourceLimitsSatisfied(t *testing.T, limits resourceLimits, resource
 	return true
 }
 
-func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
+func jobIdsByQueueFromJobs(jobs []LegacySchedulerJob) map[string][]string {
 	rv := make(map[string][]string)
 	for _, job := range jobs {
-		rv[job.Queue] = append(rv[job.Queue], job.Id)
+		rv[job.GetQueue()] = append(rv[job.GetQueue()], job.GetId())
 	}
 	return rv
 }
 
-func usageByQueue(jobs []*api.Job, priorityClasses map[string]configuration.PriorityClass) map[string]schedulerobjects.ResourceList {
+func usageByQueue(jobs []LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) map[string]schedulerobjects.ResourceList {
 	rv := make(map[string]schedulerobjects.ResourceList)
 	for queue, quantityByPriorityAndResourceType := range usageByQueueAndPriority(jobs, priorityClasses) {
 		rv[queue] = quantityByPriorityAndResourceType.AggregateByResource()
@@ -1528,13 +1528,13 @@ func usageByQueue(jobs []*api.Job, priorityClasses map[string]configuration.Prio
 	return rv
 }
 
-func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func usageByQueueAndPriority(jobs []LegacySchedulerJob, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, job := range jobs {
-		m, ok := rv[job.Queue]
+		m, ok := rv[job.GetQueue()]
 		if !ok {
 			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
-			rv[job.Queue] = m
+			rv[job.GetQueue()] = m
 		}
 		priority := PodRequirementFromJobSchedulingInfo(job.GetRequirements(priorityByPriorityClassName)).Priority
 		rl, ok := m[priority]
@@ -1597,7 +1597,7 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator[*api.Job], error) {
+func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
 	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 

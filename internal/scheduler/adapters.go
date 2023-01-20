@@ -13,7 +13,7 @@ type JobRepositoryAdapter struct {
 	jobRepository repository.JobRepository
 }
 
-func (j *JobRepositoryAdapter) GetJobIterator(ctx context.Context, queue string) (JobIterator[*api.Job], error) {
+func (j *JobRepositoryAdapter) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
 	return NewQueuedJobsIterator(ctx, queue, j.jobRepository)
 }
 
@@ -33,7 +33,7 @@ func NewJobDbAdapter(txn *memdb.Txn) *JobDbAdapter {
 	return &JobDbAdapter{txn}
 }
 
-func (j *JobDbAdapter) GetJobIterator(_ context.Context, queue string) (JobIterator[*SchedulerJob], error) {
+func (j *JobDbAdapter) GetJobIterator(_ context.Context, queue string) (JobIterator, error) {
 	underlyingIter, err := NewJobQueueIterator(j.txn, queue)
 	if err != nil {
 		return nil, err
@@ -49,6 +49,6 @@ type jobQueueIteratorAdapter struct {
 	iter *JobQueueIterator
 }
 
-func (i *jobQueueIteratorAdapter) Next() (*SchedulerJob, error) {
+func (i *jobQueueIteratorAdapter) Next() (LegacySchedulerJob, error) {
 	return i.iter.NextJobItem(), nil
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -98,45 +97,42 @@ func SchedulingConstraintsFromSchedulingConfig(
 }
 
 // SchedulerJobRepository represents the underlying jobs database.
-type SchedulerJobRepository[T LegacySchedulerJob] interface {
+type SchedulerJobRepository interface {
 	// GetJobIterator returns a iterator over queued jobs for a given queue.
-	GetJobIterator(ctx context.Context, queue string) (JobIterator[T], error)
-	// TryLeaseJobs tries to create jobs leases and returns the jobs that were successfully leased.
-	// Leasing may fail, e.g., if the job was concurrently leased to another executor.
-	TryLeaseJobs(clusterId string, queue string, jobs []T) ([]T, error)
+	GetJobIterator(ctx context.Context, queue string) (JobIterator, error)
 }
 
-type JobIterator[T LegacySchedulerJob] interface {
-	Next() (T, error)
+type JobIterator interface {
+	Next() (LegacySchedulerJob, error)
 }
 
 // QueuedGangIterator is an iterator over all gangs in a queue,
 // where a gang is a set of jobs for which the gangIdAnnotation has equal value.
 // A gang is yielded once the final member of the gang has been received.
 // Jobs without gangIdAnnotation are considered to be gangs of cardinality 1.
-type QueuedGangIterator[T LegacySchedulerJob] struct {
+type QueuedGangIterator struct {
 	ctx                context.Context
-	queuedJobsIterator JobIterator[T]
+	queuedJobsIterator JobIterator
 	// Jobs are grouped into gangs by this annotation.
 	gangIdAnnotation string
 	// Jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
-	jobsByGangId map[string][]T
-	next         []T
+	jobsByGangId map[string][]LegacySchedulerJob
+	next         []LegacySchedulerJob
 }
 
-func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIterator[T], gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator[T] {
-	return &QueuedGangIterator[T]{
+func NewQueuedGangIterator(ctx context.Context, it JobIterator, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
+	return &QueuedGangIterator{
 		ctx:                       ctx,
 		queuedJobsIterator:        it,
 		gangIdAnnotation:          gangIdAnnotation,
 		gangCardinalityAnnotation: gangCardinalityAnnotation,
-		jobsByGangId:              make(map[string][]T),
+		jobsByGangId:              make(map[string][]LegacySchedulerJob),
 	}
 }
 
-func (it *QueuedGangIterator[T]) Next() ([]T, error) {
+func (it *QueuedGangIterator) Next() ([]LegacySchedulerJob, error) {
 	if v, err := it.Peek(); err != nil {
 		return nil, err
 	} else {
@@ -147,12 +143,12 @@ func (it *QueuedGangIterator[T]) Next() ([]T, error) {
 	}
 }
 
-func (it *QueuedGangIterator[T]) Clear() error {
+func (it *QueuedGangIterator) Clear() error {
 	it.next = nil
 	return nil
 }
 
-func (it *QueuedGangIterator[T]) Peek() ([]T, error) {
+func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 	if it.next != nil {
 		return it.next, nil
 	}
@@ -165,14 +161,9 @@ func (it *QueuedGangIterator[T]) Peek() ([]T, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		// TODO: Fix when we've removed T.
-		if isNil(job) {
+		if job == nil {
 			return nil, nil
 		}
-		// if job == nil {
-		// 	return nil, nil
-		// }
 		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(
 			job.GetAnnotations(),
 			it.gangIdAnnotation,
@@ -192,7 +183,7 @@ func (it *QueuedGangIterator[T]) Peek() ([]T, error) {
 				return it.next, nil
 			}
 		} else {
-			it.next = []T{job}
+			it.next = []LegacySchedulerJob{job}
 			return it.next, nil
 		}
 	}
@@ -200,14 +191,14 @@ func (it *QueuedGangIterator[T]) Peek() ([]T, error) {
 
 // QueueCandidateGangIterator is an iterator over gangs in a queue that could be scheduled
 // without exceeding per-queue limits.
-type QueueCandidateGangIterator[T LegacySchedulerJob] struct {
+type QueueCandidateGangIterator struct {
 	ctx context.Context
 	SchedulingConstraints
-	QueueSchedulingRoundReport *QueueSchedulingRoundReport[T]
-	queuedGangIterator         *QueuedGangIterator[T]
+	QueueSchedulingRoundReport *QueueSchedulingRoundReport
+	queuedGangIterator         *QueuedGangIterator
 }
 
-func (it *QueueCandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
+func (it *QueueCandidateGangIterator) Next() ([]*JobSchedulingReport, error) {
 	if v, err := it.Peek(); err != nil {
 		return nil, err
 	} else {
@@ -218,14 +209,14 @@ func (it *QueueCandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], erro
 	}
 }
 
-func (it *QueueCandidateGangIterator[T]) Clear() error {
+func (it *QueueCandidateGangIterator) Clear() error {
 	if err := it.queuedGangIterator.Clear(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (it *QueueCandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], error) {
+func (it *QueueCandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
 	var consecutiveUnschedulableJobs uint
 	for gang, err := it.queuedGangIterator.Peek(); gang != nil; gang, err = it.queuedGangIterator.Peek() {
 		if err != nil {
@@ -247,7 +238,7 @@ func (it *QueueCandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], erro
 	return nil, nil
 }
 
-func (it *QueueCandidateGangIterator[T]) f(gang []T) ([]*JobSchedulingReport[T], bool, error) {
+func (it *QueueCandidateGangIterator) f(gang []LegacySchedulerJob) ([]*JobSchedulingReport, bool, error) {
 	if gang == nil {
 		return nil, false, nil
 	}
@@ -270,18 +261,18 @@ func (it *QueueCandidateGangIterator[T]) f(gang []T) ([]*JobSchedulingReport[T],
 	return reports, unschedulableReason == "", nil
 }
 
-func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.Context, jobs []T) ([]*JobSchedulingReport[T], error) {
+func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Context, jobs []LegacySchedulerJob) ([]*JobSchedulingReport, error) {
 	if jobs == nil {
 		return nil, nil
 	}
 	if len(jobs) == 0 {
-		return make([]*JobSchedulingReport[T], 0), nil
+		return make([]*JobSchedulingReport, 0), nil
 	}
 
 	// Create the scheduling reports and calculate the total requests of the gang
 	// We consider the total resource requests of a gang
 	// to be the sum of the requests over all jobs in the gang.
-	reports := make([]*JobSchedulingReport[T], len(jobs))
+	reports := make([]*JobSchedulingReport, len(jobs))
 	gangTotalResourceRequests := totalResourceRequestsFromJobs(jobs, it.PriorityClasses)
 	timestamp := time.Now()
 	for i, job := range jobs {
@@ -293,7 +284,7 @@ func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.C
 		if err != nil {
 			return nil, err
 		}
-		reports[i] = &JobSchedulingReport[T]{
+		reports[i] = &JobSchedulingReport{
 			Timestamp:  timestamp,
 			JobId:      jobId,
 			Job:        job,
@@ -363,7 +354,7 @@ func (it *QueueCandidateGangIterator[T]) schedulingReportsFromJobs(ctx context.C
 	return reports, nil
 }
 
-func totalResourceRequestsFromJobs[T LegacySchedulerJob](jobs []T, priorityClasses map[string]configuration.PriorityClass) schedulerobjects.ResourceList {
+func totalResourceRequestsFromJobs(jobs []LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) schedulerobjects.ResourceList {
 	rv := schedulerobjects.ResourceList{}
 	for _, job := range jobs {
 		for _, reqs := range job.GetRequirements(priorityClasses).GetObjectRequirements() {
@@ -378,16 +369,16 @@ func totalResourceRequestsFromJobs[T LegacySchedulerJob](jobs []T, priorityClass
 }
 
 // Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
-type QueueCandidateGangIteratorPQ[T LegacySchedulerJob] []*QueueCandidateGangIteratorItem[T]
+type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
 
-type QueueCandidateGangIteratorItem[T LegacySchedulerJob] struct {
+type QueueCandidateGangIteratorItem struct {
 	// Each item corresponds to a queue.
 	queue string
 	// Iterator for this queue.
-	it *QueueCandidateGangIterator[T]
+	it *QueueCandidateGangIterator
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
-	v []*JobSchedulingReport[T]
+	v []*JobSchedulingReport
 	// Fraction of its fair share this queue would have
 	// if its next schedulable job were to be scheduled.
 	fractionOfFairShare float64
@@ -396,9 +387,9 @@ type QueueCandidateGangIteratorItem[T LegacySchedulerJob] struct {
 	index int
 }
 
-func (pq QueueCandidateGangIteratorPQ[T]) Len() int { return len(pq) }
+func (pq QueueCandidateGangIteratorPQ) Len() int { return len(pq) }
 
-func (pq QueueCandidateGangIteratorPQ[T]) Less(i, j int) bool {
+func (pq QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	// Tie-break by queue name.
 	if pq[i].fractionOfFairShare == pq[j].fractionOfFairShare {
 		return pq[i].queue < pq[j].queue
@@ -406,20 +397,20 @@ func (pq QueueCandidateGangIteratorPQ[T]) Less(i, j int) bool {
 	return pq[i].fractionOfFairShare < pq[j].fractionOfFairShare
 }
 
-func (pq QueueCandidateGangIteratorPQ[T]) Swap(i, j int) {
+func (pq QueueCandidateGangIteratorPQ) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
 	pq[i].index = i
 	pq[j].index = j
 }
 
-func (pq *QueueCandidateGangIteratorPQ[T]) Push(x any) {
+func (pq *QueueCandidateGangIteratorPQ) Push(x any) {
 	n := len(*pq)
-	item := x.(*QueueCandidateGangIteratorItem[T])
+	item := x.(*QueueCandidateGangIteratorItem)
 	item.index = n
 	*pq = append(*pq, item)
 }
 
-func (pq *QueueCandidateGangIteratorPQ[T]) Pop() any {
+func (pq *QueueCandidateGangIteratorPQ) Pop() any {
 	old := *pq
 	n := len(old)
 	item := old[n-1]
@@ -431,9 +422,9 @@ func (pq *QueueCandidateGangIteratorPQ[T]) Pop() any {
 
 // CandidateGangIterator multiplexes between queues.
 // Responsible for maintaining fair share and enforcing cross-queue scheduling constraints.
-type CandidateGangIterator[T LegacySchedulerJob] struct {
+type CandidateGangIterator struct {
 	SchedulingConstraints
-	SchedulingRoundReport *SchedulingRoundReport[T]
+	SchedulingRoundReport *SchedulingRoundReport
 	ctx                   context.Context
 	// These factors influence the fraction of resources assigned to each queue.
 	priorityFactorByQueue map[string]float64
@@ -443,16 +434,16 @@ type CandidateGangIterator[T LegacySchedulerJob] struct {
 	weightSum float64
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
-	pq QueueCandidateGangIteratorPQ[T]
+	pq QueueCandidateGangIteratorPQ
 }
 
-func NewCandidateGangIterator[T LegacySchedulerJob](
+func NewCandidateGangIterator(
 	schedulingConstraints SchedulingConstraints,
-	schedulingRoundReport *SchedulingRoundReport[T],
+	schedulingRoundReport *SchedulingRoundReport,
 	ctx context.Context,
-	iteratorsByQueue map[string]*QueueCandidateGangIterator[T],
+	iteratorsByQueue map[string]*QueueCandidateGangIterator,
 	priorityFactorByQueue map[string]float64,
-) (*CandidateGangIterator[T], error) {
+) (*CandidateGangIterator, error) {
 	if len(iteratorsByQueue) != len(priorityFactorByQueue) {
 		return nil, errors.Errorf("iteratorsByQueue and priorityFactorByQueue are not of equal length")
 	}
@@ -466,14 +457,14 @@ func NewCandidateGangIterator[T LegacySchedulerJob](
 		weightByQueue[queue] = weight
 		weightSum += weight
 	}
-	rv := &CandidateGangIterator[T]{
+	rv := &CandidateGangIterator{
 		SchedulingConstraints: schedulingConstraints,
 		SchedulingRoundReport: schedulingRoundReport,
 		ctx:                   ctx,
 		priorityFactorByQueue: priorityFactorByQueue,
 		weightByQueue:         weightByQueue,
 		weightSum:             weightSum,
-		pq:                    make(QueueCandidateGangIteratorPQ[T], 0, len(iteratorsByQueue)),
+		pq:                    make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if err := rv.pushToPQ(queue, queueIt); err != nil {
@@ -483,7 +474,7 @@ func NewCandidateGangIterator[T LegacySchedulerJob](
 	return rv, nil
 }
 
-func (it *CandidateGangIterator[T]) pushToPQ(queue string, queueIt *QueueCandidateGangIterator[T]) error {
+func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueueCandidateGangIterator) error {
 	reports, err := queueIt.Peek()
 	if err != nil {
 		return err
@@ -491,7 +482,7 @@ func (it *CandidateGangIterator[T]) pushToPQ(queue string, queueIt *QueueCandida
 	if reports == nil {
 		return nil
 	}
-	gang := make([]T, len(reports))
+	gang := make([]LegacySchedulerJob, len(reports))
 	for i, report := range reports {
 		gang[i] = report.Job
 	}
@@ -505,7 +496,7 @@ func (it *CandidateGangIterator[T]) pushToPQ(queue string, queueIt *QueueCandida
 	used := ResourceListAsWeightedApproximateFloat64(it.ResourceScarcity, totalResourcesForQueueWithGang)
 	total := max(ResourceListAsWeightedApproximateFloat64(it.ResourceScarcity, it.TotalResources), 1)
 	fractionOfFairShare := (used / total) / fairShare
-	item := &QueueCandidateGangIteratorItem[T]{
+	item := &QueueCandidateGangIteratorItem{
 		queue:               queue,
 		it:                  queueIt,
 		v:                   reports,
@@ -515,7 +506,7 @@ func (it *CandidateGangIterator[T]) pushToPQ(queue string, queueIt *QueueCandida
 	return nil
 }
 
-func (it *CandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
+func (it *CandidateGangIterator) Next() ([]*JobSchedulingReport, error) {
 	if v, err := it.Peek(); err != nil {
 		return nil, err
 	} else {
@@ -526,11 +517,11 @@ func (it *CandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
 	}
 }
 
-func (it *CandidateGangIterator[T]) Clear() error {
+func (it *CandidateGangIterator) Clear() error {
 	if len(it.pq) == 0 {
 		return nil
 	}
-	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem[T])
+	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
 	if err := item.it.Clear(); err != nil {
 		return err
 	}
@@ -541,7 +532,7 @@ func (it *CandidateGangIterator[T]) Clear() error {
 }
 
 // TODO: We call peek() on the underlying iterators more often than needed.
-func (it *CandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], error) {
+func (it *CandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
 	if it.MaximumJobsToSchedule != 0 && it.SchedulingRoundReport.NumScheduledJobs == int(it.MaximumJobsToSchedule) {
 		it.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
 		return nil, nil
@@ -557,7 +548,7 @@ func (it *CandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], error) {
 			// No queued jobs left.
 			return nil, nil
 		}
-		item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem[T])
+		item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
 		if item.queue != activeQueue {
 			activeQueue = item.queue
 			if err := it.pushToPQ(item.queue, item.it); err != nil {
@@ -583,7 +574,7 @@ func (it *CandidateGangIterator[T]) Peek() ([]*JobSchedulingReport[T], error) {
 	}
 }
 
-func (it *CandidateGangIterator[T]) f(reports []*JobSchedulingReport[T]) ([]*JobSchedulingReport[T], bool, error) {
+func (it *CandidateGangIterator) f(reports []*JobSchedulingReport) ([]*JobSchedulingReport, bool, error) {
 	totalScheduledResources := it.SchedulingRoundReport.ScheduledResourcesByPriority.AggregateByResource()
 	gangResourceRequests := schedulerobjects.ResourceList{}
 	for _, report := range reports {
@@ -615,7 +606,7 @@ func uuidFromUlidString(ulid string) (uuid.UUID, error) {
 	return armadaevents.UuidFromProtoUuid(protoUuid), nil
 }
 
-// exceedsResourceLimits returns true if used[t]/total[t] > limits[t] for some resource t,
+// exceedsResourceLimits returns true if used/total > limits for some resource t,
 // and, if that is the case, a string indicating which resource limit was exceeded.
 func exceedsResourceLimits(_ context.Context, used, total schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
 	for resourceType, limit := range limits {
@@ -677,23 +668,23 @@ func jobIsLargeEnough(jobTotalResourceRequests, minimumJobSize schedulerobjects.
 	return true, ""
 }
 
-type LegacyScheduler[T LegacySchedulerJob] struct {
+type LegacyScheduler struct {
 	ctx context.Context
 	SchedulingConstraints
-	SchedulingRoundReport *SchedulingRoundReport[T]
-	CandidateGangIterator *CandidateGangIterator[T]
+	SchedulingRoundReport *SchedulingRoundReport
+	CandidateGangIterator *CandidateGangIterator
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
 	// Used to request jobs from Redis and to mark jobs as leased.
-	JobRepository SchedulerJobRepository[T]
+	JobRepository SchedulerJobRepository
 	// Jobs are grouped into gangs by this annotation.
 	GangIdAnnotation string
 	// Jobs in a gang specify the number of jobs in the gang via this annotation.
 	GangCardinalityAnnotation string
 }
 
-func (sched *LegacyScheduler[T]) String() string {
+func (sched *LegacyScheduler) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
@@ -716,15 +707,15 @@ func (sched *LegacyScheduler[T]) String() string {
 	return sb.String()
 }
 
-func NewLegacyScheduler[T LegacySchedulerJob](
+func NewLegacyScheduler(
 	ctx context.Context,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
 	nodeDb *NodeDb,
-	jobRepository SchedulerJobRepository[T],
+	jobRepository SchedulerJobRepository,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-) (*LegacyScheduler[T], error) {
+) (*LegacyScheduler, error) {
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, constraints.TotalResources) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
@@ -735,14 +726,14 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 		return nil, errors.New("no resources with non-zero weight available for scheduling in NodeDb")
 	}
 
-	schedulingRoundReport := NewSchedulingRoundReport[T](
+	schedulingRoundReport := NewSchedulingRoundReport(
 		constraints.TotalResources,
 		priorityFactorByQueue,
 		initialResourcesByQueueAndPriority,
 	)
 
 	// Per-queue iterator pipelines.
-	iteratorsByQueue := make(map[string]*QueueCandidateGangIterator[T])
+	iteratorsByQueue := make(map[string]*QueueCandidateGangIterator)
 	for queue := range priorityFactorByQueue {
 		// Load jobs from Redis.
 		queuedJobsIterator, err := jobRepository.GetJobIterator(ctx, queue)
@@ -751,7 +742,7 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 		}
 
 		// Group jobs into gangs, to be scheduled together.
-		queuedGangIterator := NewQueuedGangIterator[T](
+		queuedGangIterator := NewQueuedGangIterator(
 			ctx,
 			queuedJobsIterator,
 			config.GangIdAnnotation,
@@ -759,7 +750,7 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 		)
 
 		// Enforce per-queue constraints.
-		iteratorsByQueue[queue] = &QueueCandidateGangIterator[T]{
+		iteratorsByQueue[queue] = &QueueCandidateGangIterator{
 			SchedulingConstraints:      constraints,
 			QueueSchedulingRoundReport: schedulingRoundReport.QueueSchedulingRoundReports[queue],
 			ctx:                        ctx,
@@ -768,7 +759,7 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 	}
 
 	// Multiplex between queues and enforce cross-queue constraints.
-	candidateGangIterator, err := NewCandidateGangIterator[T](
+	candidateGangIterator, err := NewCandidateGangIterator(
 		constraints,
 		schedulingRoundReport,
 		ctx,
@@ -779,7 +770,7 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 		return nil, err
 	}
 
-	return &LegacyScheduler[T]{
+	return &LegacyScheduler{
 		ctx:                   ctx,
 		SchedulingConstraints: constraints,
 		SchedulingRoundReport: schedulingRoundReport,
@@ -789,12 +780,12 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 	}, nil
 }
 
-func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
+func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 	defer func() {
 		sched.SchedulingRoundReport.Finished = time.Now()
 	}()
 
-	jobsToLeaseByQueue := make(map[string][]T, 0)
+	jobsToLeaseByQueue := make(map[string][]LegacySchedulerJob, 0)
 	numJobsToLease := 0
 	for reports, err := sched.CandidateGangIterator.Next(); reports != nil; reports, err = sched.CandidateGangIterator.Next() {
 		if err != nil {
@@ -811,7 +802,7 @@ func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
 		default:
 		}
 
-		jobs := make([]T, len(reports))
+		jobs := make([]LegacySchedulerJob, len(reports))
 		for i, r := range reports {
 			jobs[i] = r.Job
 		}
@@ -847,7 +838,7 @@ func (sched *LegacyScheduler[T]) Schedule() ([]T, error) {
 		}
 	}
 	sched.SchedulingRoundReport.TerminationReason = "no remaining schedulable jobs"
-	rv := make([]T, 0)
+	rv := make([]LegacySchedulerJob, 0)
 	for _, jobs := range jobsToLeaseByQueue {
 		rv = append(rv, jobs...)
 	}
@@ -963,18 +954,7 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 	return usage
 }
 
-func isNil(j LegacySchedulerJob) bool {
-	switch job := j.(type) {
-	case *api.Job:
-		return job == nil
-	case *SchedulerJob:
-		return job == nil
-	default:
-		panic(fmt.Sprintf("could not determine whether %T is nil", j))
-	}
-}
-
-func PodRequirementsFromLegacySchedulerJobs[T LegacySchedulerJob](jobs []T, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
+func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
 		info := job.GetRequirements(priorityClasses)

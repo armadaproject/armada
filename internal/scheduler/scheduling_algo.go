@@ -170,7 +170,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		totalCapacity,
 	)
 
-	legacyScheduler, err := NewLegacyScheduler[*SchedulerJob](
+	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
 		l.config,
@@ -187,7 +187,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	}
 	updatedJobs := make([]*SchedulerJob, len(jobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
-		jobCopy := report.Job.DeepCopy()
+		jobCopy := report.Job.(*SchedulerJob).DeepCopy()
 		jobCopy.Queued = false
 		jobCopy.Executor = executor.Name
 		if len(report.PodSchedulingReports) > 0 {
