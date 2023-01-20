@@ -145,7 +145,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockExecutorRepository,
 				[]int32{},
 				maxJobsPerCall,
-				1024,
 			)
 			server.clock = testClock
 
@@ -213,8 +212,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
-				100,
-				1024)
+				100)
 
 			empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
 			require.NoError(t, err)

@@ -1,8 +1,9 @@
 package database
 
 import (
-	legacyrepository "github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/go-redis/redis"
+
+	legacyrepository "github.com/armadaproject/armada/internal/armada/repository"
 )
 
 // QueueRepository is an interface to be implemented by structs which provide queue information

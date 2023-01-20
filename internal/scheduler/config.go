@@ -1,9 +1,10 @@
 package scheduler
 
 import (
+	"time"
+
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
-	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 )

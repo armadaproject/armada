@@ -2,8 +2,9 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"net"
+
+	"github.com/google/uuid"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
@@ -24,7 +25,6 @@ import (
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config *Configuration) error {
-
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 
 	log.Infof("Setting up database connections")
@@ -74,7 +74,13 @@ func Run(config *Configuration) error {
 
 	log.Infof("Setting up leader election")
 	clusterConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return errors.Wrapf(err, "Error creating kubernetes client")
+	}
 	clientSet, err := kubernetes.NewForConfig(clusterConfig)
+	if err != nil {
+		return errors.Wrapf(err, "Error creating kubernetes client")
+	}
 	leaderController := NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1())
 	g.Go(func() error { return leaderController.Run(ctx) })
 
@@ -86,6 +92,9 @@ func Run(config *Configuration) error {
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	})
+	if err != nil {
+		return errors.Wrapf(err, "Error creating pulsar producer for executor api")
+	}
 	authServices := auth.ConfigureAuth(config.Auth)
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 	defer grpcServer.GracefulStop()
@@ -107,7 +116,6 @@ func Run(config *Configuration) error {
 		config.cyclePeriod,
 		config.executorTimeout,
 		uint(config.MaxFailedLeaseReturns))
-
 	if err != nil {
 		return errors.WithMessage(err, "Error creating scheduler")
 	}
