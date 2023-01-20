@@ -29,13 +29,13 @@ type ZlibDecompressor struct {
 	reader       io.ReadCloser
 }
 
-func NewZlibDecompressor() (*ZlibDecompressor, error) {
+func NewZlibDecompressor() *ZlibDecompressor {
 	var ib bytes.Buffer
 	var ob bytes.Buffer
 	return &ZlibDecompressor{
 		inputBuffer:  &ib,
 		outputBuffer: &ob,
-	}, nil
+	}
 }
 
 func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
@@ -72,10 +72,7 @@ func NewThreadSafeZlibDecompressor() *ThreadSafeZlibDecompressor {
 }
 
 func (d *ThreadSafeZlibDecompressor) Decompress(b []byte) ([]byte, error) {
-	decompressor, err := NewZlibDecompressor()
-	if err != nil {
-		return nil, err
-	}
+	decompressor := NewZlibDecompressor()
 	decompressed, err := decompressor.Decompress(b)
 	if err != nil {
 		return nil, err

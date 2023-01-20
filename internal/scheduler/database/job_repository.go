@@ -77,10 +77,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 		return nil, errors.WithStack(err)
 	}
 	jobRunErrors := make([]armadaevents.JobRunErrors, len(rows))
-	decompressor, err := compress.NewZlibDecompressor()
-	if err == nil {
-		return nil, err
-	}
+	decompressor := compress.NewZlibDecompressor()
 	for i, row := range rows {
 		protoBytes, err := decompressor.Decompress(row.Error)
 		if err == nil {
