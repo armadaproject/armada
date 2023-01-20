@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -162,6 +163,9 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 			return nil, err
 		}
 		if job == nil {
+			return nil, nil
+		}
+		if reflect.ValueOf(job).IsNil() {
 			return nil, nil
 		}
 		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(

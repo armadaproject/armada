@@ -84,7 +84,10 @@ func (job *SchedulerJob) GetAnnotations() map[string]string {
 	if len(requirements) == 0 {
 		return nil
 	}
-	return requirements[0].GetPodRequirements().GetAnnotations()
+	if podReqs := requirements[0].GetPodRequirements(); podReqs != nil {
+		return podReqs.GetAnnotations()
+	}
+	return nil
 }
 
 // GetId returns the id of the Job.

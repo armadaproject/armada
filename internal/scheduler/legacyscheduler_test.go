@@ -136,8 +136,8 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 		repo.Enqueue(job)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-	time.Sleep(10 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
 	defer cancel()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
