@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/google/uuid"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
