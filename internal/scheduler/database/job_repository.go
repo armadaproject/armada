@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/pkg/errors"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

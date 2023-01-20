@@ -6,19 +6,19 @@ import (
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 
-	"github.com/armadaproject/armada/internal/common/slices"
-
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/executorapi"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // ExecutorApi is a gRPC service that exposes functionality required by the armada executors
