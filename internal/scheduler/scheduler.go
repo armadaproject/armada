@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/app"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -12,14 +13,43 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func Run(_ *Configuration) error {
-	// TODO: instantiate scheduler and start cycling
-	return nil
+func Run(config *Configuration) error {
+
+	var jobRepository database.JobRepository
+	var executorRepository database.ExecutorRepository
+	var schedulingAlgo SchedulingAlgo
+	var leaderController LeaderController
+	var publisher Publisher
+
+	log.Infof("Opening connection pool to postgres")
+	db, err := dbcommon.OpenPgxPool(config.Postgres)
+	if err != nil {
+		return errors.WithMessage(err, "Error opening connection to postgres")
+	}
+
+	jobRepository = database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
+	executorRepository = databas
+
+	scheduler, err := NewScheduler(jobRepository,
+		executorRepository,
+		schedulingAlgo,
+		leaderController,
+		publisher,
+		config.cyclePeriod,
+		config.executorTimeout,
+		uint(config.MaxFailedLeaseReturns))
+
+	if err != nil {
+		return err
+	}
+
+	return scheduler.Run(app.CreateContextWithShutdown())
 }
 
 // Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
