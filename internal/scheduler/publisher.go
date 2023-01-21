@@ -41,7 +41,7 @@ type PulsarPublisher struct {
 	pulsarSendTimeout time.Duration
 	// Maximum size (in bytes) of produced pulsar messages.
 	// This must be below 4MB which is the pulsar message size limit
-	maxMessageBatchSize int
+	maxMessageBatchSize uint
 }
 
 func NewPulsarPublisher(
@@ -61,7 +61,7 @@ func NewPulsarPublisher(
 	return &PulsarPublisher{
 		producer:            producer,
 		pulsarSendTimeout:   pulsarSendTimeout,
-		maxMessageBatchSize: 2 * 1024 * 1024, // max pulsar message size is 4MB so we use 2MB her to be safe
+		maxMessageBatchSize: 2 * 1024 * 1024, // max pulsar message size is 4MB, so we use 2MB here to be safe
 		numPartitions:       len(partitions),
 	}, nil
 }

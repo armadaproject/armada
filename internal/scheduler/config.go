@@ -15,25 +15,24 @@ type Configuration struct {
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
-	Lease LeaderConfig
+	Leader LeaderConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	// How often the scheduling cycle should run
-	cyclePeriod time.Duration
+	CyclePeriod time.Duration
 	// How long after a heartbeat an executor will be considered lost
-	executorTimeout time.Duration
-	// Maximum number of times a lease can be returned before the job is failed
-	MaxFailedLeaseReturns int
+	ExecutorTimeout time.Duration
 	// Maximum number of rows to fetch in a given query
 	DatabaseFetchSize int
 	// Timeout to use when sending messages to pulsar
-	PulsarSendTimeout      time.Duration
-	MaxedLeasedJobsPerCall int
+	PulsarSendTimeout time.Duration
 }
 
 type LeaderConfig struct {
+	// Valid modes are "standalone" or "cluster"
+	Mode string
 	// Name of the K8s Lock Object
 	LeaseLockName string
 	// Namespace of the K8s Lock Object

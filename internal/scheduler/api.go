@@ -27,8 +27,8 @@ type ExecutorApi struct {
 	jobRepository        database.JobRepository
 	executorRepository   database.ExecutorRepository
 	allowedPriorities    []int32 // allowed priority classes
-	maxJobsPerCall       int     // maximum number of jobs that will be leased in a single call
-	maxPulsarMessageSize int     // maximum sizer of pulsar messages produced
+	maxJobsPerCall       uint    // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize uint    // maximum sizer of pulsar messages produced
 	clock                clock.Clock
 }
 
@@ -36,7 +36,7 @@ func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
-	maxJobsPerCall int,
+	maxJobsPerCall uint,
 ) *ExecutorApi {
 	return &ExecutorApi{
 		producer:             producer,

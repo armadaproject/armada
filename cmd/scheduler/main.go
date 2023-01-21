@@ -43,7 +43,7 @@ func main() {
 	if viper.GetBool(MigrateDatabase) {
 		migrateDatabase(&config)
 	} else {
-		if err := scheduler.Run(&config); err != nil {
+		if err := scheduler.Run(config); err != nil {
 			log.WithError(err).Errorf("Scheduler failed")
 			os.Exit(1)
 		}

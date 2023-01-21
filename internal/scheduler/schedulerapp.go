@@ -2,17 +2,12 @@ package scheduler
 
 import (
 	"fmt"
-	"net"
-
-	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-redis/redis"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"net"
+	"strings"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
@@ -20,10 +15,15 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/executorapi"
+	"github.com/go-redis/redis"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
-func Run(config *Configuration) error {
+func Run(config Configuration) error {
 
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 
@@ -70,16 +70,7 @@ func Run(config *Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up leader election")
-	clusterConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return errors.Wrapf(err, "Error creating kubernetes client")
-	}
-	clientSet, err := kubernetes.NewForConfig(clusterConfig)
-	if err != nil {
-		return errors.Wrapf(err, "Error creating kubernetes client")
-	}
-	leaderController := NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1())
+	leaderController, err := createLeaderController(config.Leader)
 	g.Go(func() error { return leaderController.Run(ctx) })
 
 	//////////////////////////////////////////////////////////////////////////
@@ -103,7 +94,7 @@ func Run(config *Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "Error setting up grpc server")
 	}
-	executorServer := NewExecutorApi(apiProducer, jobRepository, executorRepository, []int32{}, config.MaxedLeasedJobsPerCall)
+	executorServer := NewExecutorApi(apiProducer, jobRepository, executorRepository, []int32{}, config.Scheduling.MaximumJobsToSchedule)
 	executorapi.RegisterExecutorApiServer(grpcServer, executorServer)
 	g.Go(func() error { return grpcServer.Serve(lis) })
 	log.Infof("Executor api listening on %s", lis.Addr())
@@ -118,13 +109,34 @@ func Run(config *Configuration) error {
 		schedulingAlgo,
 		leaderController,
 		pulsarPublisher,
-		config.cyclePeriod,
-		config.executorTimeout,
-		uint(config.MaxFailedLeaseReturns))
+		config.CyclePeriod,
+		config.ExecutorTimeout,
+		config.Scheduling.MaxRetries)
 	if err != nil {
 		return errors.WithMessage(err, "Error creating scheduler")
 	}
 	g.Go(func() error { return scheduler.Run(ctx) })
 
 	return g.Wait()
+}
+
+func createLeaderController(config LeaderConfig) (LeaderController, error) {
+	switch mode := strings.ToLower(config.Mode); mode {
+	case "standalone":
+		log.Infof("Scheduler will run in standalone mode")
+		return NewStandaloneLeaderController(), nil
+	case "cluster":
+		log.Infof("Scheduler will run cluster mode")
+		clusterConfig, err := rest.InClusterConfig()
+		if err != nil {
+			return nil, errors.Wrapf(err, "Error creating kubernetes client")
+		}
+		clientSet, err := kubernetes.NewForConfig(clusterConfig)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Error creating kubernetes client")
+		}
+		return NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1()), nil
+	default:
+		return nil, errors.New(fmt.Sprintf("%s is not a value leader mode", config.Mode))
+	}
 }

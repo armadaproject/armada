@@ -3,17 +3,19 @@ package config
 import (
 	"fmt"
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/mitchellh/mapstructure"
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
+	"strings"
 )
 
 var CustomHooks = []viper.DecoderConfigOption{
-	viper.DecodeHook(PulsarCompressionTypeHookFunc()),
-	viper.DecodeHook(PulsarCompressionLevelHookFunc()),
-	viper.DecodeHook(QuantityDecodeHook()),
+	addDecodeHook(PulsarCompressionTypeHookFunc()),
+	addDecodeHook(PulsarCompressionLevelHookFunc()),
+	addDecodeHook(QuantityDecodeHook()),
 }
 
 func PulsarCompressionTypeHookFunc() mapstructure.DecodeHookFuncType {
@@ -26,7 +28,22 @@ func PulsarCompressionTypeHookFunc() mapstructure.DecodeHookFuncType {
 		if f.Kind() != reflect.String || t != reflect.TypeOf(pulsar.NoCompression) {
 			return data, nil
 		}
-		return pulsarutils.ParsePulsarCompressionType(data.(string))
+		switch strings.ToLower(data.(string)) {
+		case "", "none":
+			return pulsar.NoCompression, nil
+		case "lz4":
+			return pulsar.LZ4, nil
+		case "zlib":
+			return pulsar.ZLib, nil
+		case "zstd":
+			return pulsar.ZSTD, nil
+		default:
+			return pulsar.NoCompression, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "pulsar.CompressionType",
+				Value:   data,
+				Message: fmt.Sprintf("Unknown Pulsar compression type %s", data),
+			})
+		}
 	}
 }
 
@@ -40,7 +57,20 @@ func PulsarCompressionLevelHookFunc() mapstructure.DecodeHookFuncType {
 		if f.Kind() != reflect.String || t != reflect.TypeOf(pulsar.Default) {
 			return data, nil
 		}
-		return pulsarutils.ParsePulsarCompressionType(data.(string))
+		switch strings.ToLower(data.(string)) {
+		case "", "default":
+			return pulsar.Default, nil
+		case "faster":
+			return pulsar.Faster, nil
+		case "better":
+			return pulsar.Better, nil
+		default:
+			return pulsar.Default, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+				Name:    "pulsar.CompressionLevel",
+				Value:   data,
+				Message: fmt.Sprintf("Unknown Pulsar compression level %s", data),
+			})
+		}
 	}
 }
 
@@ -54,5 +84,13 @@ func QuantityDecodeHook() mapstructure.DecodeHookFuncType {
 			return data, nil
 		}
 		return resource.ParseQuantity(fmt.Sprintf("%v", data))
+	}
+}
+
+func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
+	return func(c *mapstructure.DecoderConfig) {
+		c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
+			c.DecodeHook,
+			hook)
 	}
 }
