@@ -24,8 +24,12 @@ import (
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config *Configuration) error {
+
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 
+	//////////////////////////////////////////////////////////////////////////
+	// Database setup (postgres and redis)
+	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
 	if err != nil {
@@ -43,24 +47,19 @@ func Run(config *Configuration) error {
 	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)
 
+	//////////////////////////////////////////////////////////////////////////
+	// Pulsar
+	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up Pulsar connectivity")
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 	defer pulsarClient.Close()
 	if err != nil {
 		return errors.WithMessage(err, "Error creating pulsar client")
 	}
-	pulsarCompressionType, err := pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
-	if err != nil {
-		return err
-	}
-	pulsarCompressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
-	if err != nil {
-		return err
-	}
 	pulsarPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
-		Name:             "",
-		CompressionType:  pulsarCompressionType,
-		CompressionLevel: pulsarCompressionLevel,
+		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.New()),
+		CompressionType:  config.Pulsar.CompressionType,
+		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	}, config.PulsarSendTimeout)
@@ -68,9 +67,9 @@ func Run(config *Configuration) error {
 		return errors.WithMessage(err, "Error creating pulsar publisher")
 	}
 
-	log.Infof("Setting up scheduling algorithm")
-	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
-
+	//////////////////////////////////////////////////////////////////////////
+	// Leader Election
+	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up leader election")
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
@@ -83,11 +82,14 @@ func Run(config *Configuration) error {
 	leaderController := NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1())
 	g.Go(func() error { return leaderController.Run(ctx) })
 
+	//////////////////////////////////////////////////////////////////////////
+	// Executor Api
+	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up executor api")
 	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.New()),
-		CompressionType:  pulsarCompressionType,
-		CompressionLevel: pulsarCompressionLevel,
+		CompressionType:  config.Pulsar.CompressionType,
+		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	})
@@ -106,7 +108,11 @@ func Run(config *Configuration) error {
 	g.Go(func() error { return grpcServer.Serve(lis) })
 	log.Infof("Executor api listening on %s", lis.Addr())
 
+	//////////////////////////////////////////////////////////////////////////
+	// Scheduling
+	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Starting up scheduling loop")
+	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(jobRepository,
 		executorRepository,
 		schedulingAlgo,

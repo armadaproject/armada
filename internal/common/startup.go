@@ -5,20 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"
@@ -56,7 +53,7 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string
 	v.SetEnvPrefix("ARMADA")
 	v.AutomaticEnv()
 
-	err := v.Unmarshal(config, addDecodeHook(quantityDecodeHook))
+	err := v.Unmarshal(config, commonconfig.CustomHooks...)
 	if err != nil {
 		log.Error(err)
 		os.Exit(-1)
@@ -66,26 +63,7 @@ func LoadConfig(config interface{}, defaultPath string, overrideConfigs []string
 }
 
 func UnmarshalKey(v *viper.Viper, key string, item interface{}) error {
-	return v.UnmarshalKey(key, item, addDecodeHook(quantityDecodeHook))
-}
-
-func addDecodeHook(hook mapstructure.DecodeHookFuncType) viper.DecoderConfigOption {
-	return func(c *mapstructure.DecoderConfig) {
-		c.DecodeHook = mapstructure.ComposeDecodeHookFunc(
-			c.DecodeHook,
-			hook)
-	}
-}
-
-func quantityDecodeHook(
-	from reflect.Type,
-	to reflect.Type,
-	data interface{},
-) (interface{}, error) {
-	if to != reflect.TypeOf(resource.Quantity{}) {
-		return data, nil
-	}
-	return resource.ParseQuantity(fmt.Sprintf("%v", data))
+	return v.UnmarshalKey(key, item, commonconfig.CustomHooks...)
 }
 
 // TODO Move logging-related code out of common into a new package internal/logging
