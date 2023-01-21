@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -39,6 +40,13 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 
 	common.LoadConfig(&config, "./config/scheduler", userSpecifiedConfigs)
+
+	// TODO: once we're happy wirth this we can move it to common app startup
+	err := commonconfig.Validate(config)
+	if err != nil {
+		commonconfig.LogValidationErrors(err)
+		os.Exit(1)
+	}
 
 	if viper.GetBool(MigrateDatabase) {
 		migrateDatabase(&config)

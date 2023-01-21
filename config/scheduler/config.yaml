@@ -19,7 +19,7 @@ postgres:
 leader:
   mode: standalone
 grpc:
-  port: 50052
+  #port: 50052
   keepaliveParams:
     maxConnectionIdle: 5m
     time: 120s

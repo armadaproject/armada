@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/common/config"
 	"time"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
@@ -12,6 +13,8 @@ import (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
+	// Redis Comnfig
+	Redis config.RedisConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
@@ -21,18 +24,18 @@ type Configuration struct {
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	// How often the scheduling cycle should run
-	CyclePeriod time.Duration
+	CyclePeriod time.Duration `validate:"required"`
 	// How long after a heartbeat an executor will be considered lost
-	ExecutorTimeout time.Duration
+	ExecutorTimeout time.Duration `validate:"required"`
 	// Maximum number of rows to fetch in a given query
-	DatabaseFetchSize int
+	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
-	PulsarSendTimeout time.Duration
+	PulsarSendTimeout time.Duration `validate:"required"`
 }
 
 type LeaderConfig struct {
 	// Valid modes are "standalone" or "cluster"
-	Mode string
+	Mode string `validate:"required"`
 	// Name of the K8s Lock Object
 	LeaseLockName string
 	// Namespace of the K8s Lock Object

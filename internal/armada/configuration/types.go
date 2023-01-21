@@ -39,7 +39,7 @@ type ArmadaConfig struct {
 
 type PulsarConfig struct {
 	// Pulsar URL
-	URL string
+	URL string `validate:"required"`
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
 	// Whether Pulsar client accept untrusted TLS certificate from broker

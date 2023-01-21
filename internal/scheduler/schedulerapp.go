@@ -38,7 +38,7 @@ func Run(config Configuration) error {
 	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
-	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{})
+	redisClient := redis.NewUniversalClient(config.Redis.AsUniversalOptions())
 	defer func() {
 		err := redisClient.Close()
 		if err != nil {
