@@ -40,7 +40,7 @@ func PulsarCompressionTypeHookFunc() mapstructure.DecodeHookFuncType {
 		case "zstd":
 			return pulsar.ZSTD, nil
 		default:
-			return pulsar.NoCompression, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 				Name:    "pulsar.CompressionType",
 				Value:   data,
 				Message: fmt.Sprintf("Unknown Pulsar compression type %s", data),
