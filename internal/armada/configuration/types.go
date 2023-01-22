@@ -1,9 +1,9 @@
 package configuration
 
 import (
-	"github.com/apache/pulsar-client-go/pulsar"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	v1 "k8s.io/api/core/v1"
 

@@ -2,14 +2,16 @@ package config
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
+
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"reflect"
-	"strings"
+
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 var CustomHooks = []viper.DecoderConfigOption{

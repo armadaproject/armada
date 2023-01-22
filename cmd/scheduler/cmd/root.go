@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/armadaproject/armada/internal/common"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/scheduler"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 const (

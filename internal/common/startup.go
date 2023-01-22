@@ -8,14 +8,15 @@ import (
 	"strings"
 	"time"
 
-	commonconfig "github.com/armadaproject/armada/internal/common/config"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
+
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"
