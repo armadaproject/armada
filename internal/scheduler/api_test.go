@@ -24,7 +24,7 @@ import (
 )
 
 func TestExecutorApi_LeaseJobRuns(t *testing.T) {
-	const maxJobsPerCall = 100
+	const maxJobsPerCall = uint(100)
 	testClock := clock.NewFakeClock(time.Now())
 	runId1 := uuid.New()
 	runId2 := uuid.New()
