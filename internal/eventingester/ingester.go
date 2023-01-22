@@ -50,7 +50,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := convert.NewEventConverter(compressor, config.BatchSize, metrics)
+	converter := convert.NewEventConverter(compressor, uint(config.BatchSize), metrics)
 
 	ingester := ingest.
 		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)

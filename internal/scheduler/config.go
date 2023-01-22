@@ -1,13 +1,12 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/config"
 	"time"
 
-	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
-	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
-
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/config"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
 
 type Configuration struct {

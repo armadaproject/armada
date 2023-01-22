@@ -2,12 +2,19 @@ package scheduler
 
 import (
 	"fmt"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"net"
 	"strings"
 
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/go-redis/redis"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
@@ -15,16 +22,10 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/executorapi"
-	"github.com/go-redis/redis"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config Configuration) error {
-
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 
 	//////////////////////////////////////////////////////////////////////////
@@ -71,6 +72,9 @@ func Run(config Configuration) error {
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
 	leaderController, err := createLeaderController(config.Leader)
+	if err != nil {
+		return errors.WithMessage(err, "Error creating leader controller")
+	}
 	g.Go(func() error { return leaderController.Run(ctx) })
 
 	//////////////////////////////////////////////////////////////////////////

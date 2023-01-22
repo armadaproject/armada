@@ -1,13 +1,13 @@
 package config
 
 import (
-	"github.com/mitchellh/mapstructure"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"reflect"
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 type HookTest struct {

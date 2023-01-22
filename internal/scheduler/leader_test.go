@@ -104,7 +104,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 				}).AnyTimes()
 
 			// Run the test
-			controller := NewKubernetesLeaderController(config(), client)
+			controller := NewKubernetesLeaderController(testLeaderConfig(), client)
 			testListener := NewTestLeaseListener(controller)
 			controller.listener = testListener
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -151,7 +151,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	}
 }
 
-func config() LeaderConfig {
+func testLeaderConfig() LeaderConfig {
 	return LeaderConfig{
 		LeaseLockName:      lockName,
 		LeaseLockNamespace: lockNamespace,

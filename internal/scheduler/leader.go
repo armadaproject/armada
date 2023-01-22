@@ -19,7 +19,7 @@ type LeaderController interface {
 	// ValidateToken allows a caller to determine whether a previously obtained token is still valid.
 	// Returns true if the token is a leader and false otherwise
 	ValidateToken(tok LeaderToken) bool
-	//Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
+	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
 	Run(ctx context.Context) error
 }
 
