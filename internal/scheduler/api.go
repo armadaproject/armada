@@ -88,10 +88,6 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-	decompressor, err := compress.NewZlibDecompressor()
-	if err != nil {
-		return err
-	}
 
 	// if necessary send a list of runs to cancel
 	if len(runsToCancel) > 0 {
@@ -111,6 +107,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	}
 
 	// Now send any leases
+	decompressor := compress.NewZlibDecompressor()
 	for _, lease := range leases {
 		submitMsg := &armadaevents.SubmitJob{}
 		err = decompressAndMarshall(lease.SubmitMessage, decompressor, submitMsg)
