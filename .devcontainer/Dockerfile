@@ -22,9 +22,9 @@ RUN wget https://dl.google.com/go/go1.19.4.linux-amd64.tar.gz && \
     mv go /usr/local && \
     rm go1.19.4.linux-amd64.tar.gz && \
 # Install go 1.18.9
-    go install golang.org/dl/go1.19.4@latest && \
-    go1.19.4 download && \
-    rm -rf /root/sdk/go1.19.4/go1.19.4.linux-amd64.tar.gz
+    go install golang.org/dl/go1.18.9@latest && \
+    go1.18.9 download && \
+    rm -rf /root/sdk/go1.18.9/go1.18.9.linux-amd64.tar.gz
 
 # Python 3.9 install
 RUN python3.9 -m pip install pipenv pylint flake8 black mypy && \
