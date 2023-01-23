@@ -33,7 +33,8 @@ func NewJobLeaseRequester() *JobLeaseRequester {
 func (requester *JobLeaseRequester) LeaseJobRuns(
 	availableResource *common.ComputeResources,
 	nodes []*api.NodeInfo,
-	unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error) {
+	unassignedJobRunIds []armadaevents.Uuid,
+) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
@@ -87,5 +88,4 @@ func (requester *JobLeaseRequester) LeaseJobRuns(
 	}
 
 	return jobRuns, jobsToCancel, nil
-
 }

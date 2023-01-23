@@ -67,7 +67,7 @@ func (submitService *SubmitService) SubmitExecutorApiJobs(jobsToSubmit []*execut
 		if err != nil {
 			failedSubmissions = append(failedSubmissions, &FailedSubmissionDetails{
 				JobId: jobToSubmit.Job.JobId.String(),
-				//TODO work out how to handle that we have no pod - especially in downstream funcs
+				// TODO work out how to handle that we have no pod - especially in downstream funcs
 				Pod:         nil,
 				Recoverable: false,
 				Error:       err,

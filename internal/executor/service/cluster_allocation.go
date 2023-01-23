@@ -38,7 +38,8 @@ func NewClusterAllocationService(
 	leaseRequester LeaseRequester,
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor) *ClusterAllocationService {
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+) *ClusterAllocationService {
 	return &ClusterAllocationService{
 		leaseRequester:     leaseRequester,
 		eventReporter:      eventReporter,
@@ -48,6 +49,7 @@ func NewClusterAllocationService(
 		etcdHealthMonitor:  etcdHealthMonitor,
 	}
 }
+
 func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity() {
 	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
 	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
@@ -77,7 +79,6 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		nodes,
 		unassignedRunIds,
 	)
-
 	if err != nil {
 		log.Errorf("failed to lease new jobs: %v", err)
 		return

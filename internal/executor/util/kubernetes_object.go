@@ -222,7 +222,7 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 				Spec: *typed.Service,
 			}
 
-			//TODO Once migrated  fully executor api - consider adding jobRunId here
+			// TODO Once migrated  fully executor api - consider adding jobRunId here
 			service.Spec.Selector = map[string]string{
 				domain.JobId:     pod.Labels[domain.JobId],
 				domain.Queue:     pod.Labels[domain.Queue],

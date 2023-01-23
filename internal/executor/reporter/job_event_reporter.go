@@ -107,7 +107,7 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 		log.Errorf("Failed to create JobPreemptedEvent: %v", err)
 		return
 	}
-	//TODO work out if its possible to get JobRunId from preemption event
+	// TODO work out if its possible to get JobRunId from preemption event
 	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: ""}, func(err error) {
 		if err != nil {
 			log.Errorf(
