@@ -142,6 +142,14 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, job
 	return jobsToSchedule, nil
 }
 
+type JobQueueIteratorAdapter struct {
+	it *JobQueueIterator
+}
+
+func (it *JobQueueIteratorAdapter) Next() (LegacySchedulerJob, error) {
+	return it.it.NextJobItem(), nil
+}
+
 // scheduleOnExecutor schedules jobs on a single executor
 func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	ctx context.Context,
@@ -153,13 +161,10 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 ) ([]*SchedulerJob, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-
-	jobRepo := NewJobDbAdapter(txn)
 	nodeDb, err := l.constructNodeDb(executor.Nodes, l.priorityClassPriorities)
 	if err != nil {
 		return nil, err
 	}
-
 	constraints := SchedulingConstraintsFromSchedulingConfig(
 		executor.Id,
 		executor.Pool,
@@ -167,14 +172,24 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		l.config,
 		totalCapacity,
 	)
-
-	legacyScheduler, err := NewLegacyScheduler[*SchedulerJob](
+	queues := make([]*Queue, 0, len(priorityFactorByQueue))
+	for name, priorityFactor := range priorityFactorByQueue {
+		it, err := NewJobQueueIterator(txn, name)
+		if err != nil {
+			return nil, err
+		}
+		if queue, err := NewQueue(name, priorityFactor, &JobQueueIteratorAdapter{it: it}); err != nil {
+			return nil, err
+		} else {
+			queues = append(queues, queue)
+		}
+	}
+	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
 		l.config,
 		nodeDb,
-		jobRepo,
-		priorityFactorByQueue,
+		queues,
 		totalResourceUsageByQueue)
 	if err != nil {
 		return nil, err
@@ -185,7 +200,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	}
 	updatedJobs := make([]*SchedulerJob, len(jobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
-		jobCopy := report.Job.DeepCopy()
+		jobCopy := report.Job.(*SchedulerJob).DeepCopy()
 		jobCopy.Queued = false
 		jobCopy.Executor = executor.Id
 		if len(report.PodSchedulingReports) > 0 {

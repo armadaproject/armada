@@ -1,6 +1,6 @@
 package domain
 
-import "github.com/armadaproject/armada/internal/common"
+import armadaresource "github.com/armadaproject/armada/internal/common/resource"
 
 const (
 	AcceleratorDutyCycle = "armadaproject.io/accelerator-duty-cycle"
@@ -8,14 +8,14 @@ const (
 )
 
 type UtilisationData struct {
-	CurrentUsage    common.ComputeResources
-	CumulativeUsage common.ComputeResources
+	CurrentUsage    armadaresource.ComputeResources
+	CumulativeUsage armadaresource.ComputeResources
 }
 
 func EmptyUtilisationData() *UtilisationData {
 	return &UtilisationData{
-		CurrentUsage:    common.ComputeResources{},
-		CumulativeUsage: common.ComputeResources{},
+		CurrentUsage:    armadaresource.ComputeResources{},
+		CumulativeUsage: armadaresource.ComputeResources{},
 	}
 }
 

@@ -298,10 +298,10 @@ func addQueue(t *testing.T, r repository.QueueRepository, queueName string) *que
 
 func addRunningJob(t *testing.T, r repository.JobRepository, job *api.Job, cluster string, startTime time.Time) *api.Job {
 	job = addJob(t, r, job)
-	leased, e := r.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
+	leased, e := r.TryLeaseJobs(cluster, map[string][]string{job.Queue: {job.Id}})
 	assert.NoError(t, e)
 	assert.Equal(t, 1, len(leased))
-	assert.Equal(t, job.Id, leased[0].Id)
+	assert.Equal(t, job.Id, leased[job.Queue][0])
 	jobErrors, e := r.UpdateStartTime([]*repository.JobStartInfo{{
 		JobId:     job.Id,
 		ClusterId: cluster,
