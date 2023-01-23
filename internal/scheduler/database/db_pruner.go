@@ -2,6 +2,7 @@ package database
 
 import (
 	ctx "context"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"time"
 
 	"github.com/jackc/pgtype/pgxtype"
@@ -9,14 +10,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DeleteOldJobs removes completed jobs (and related runs and errors) from the database if their `lastUpdateTime`
+// PruneDb removes completed jobs (and related runs and errors) from the database if their `lastUpdateTime`
 // is more than `keepAfterCompletion` in the past.
 // Jobs are deleted in batches across transactions. This means that if this job fails midway through, it still
 // may have deleted som jobs.
 // The function will run until the supplied context is cancelled.
-func DeleteOldJobs(ctx ctx.Context, db pgxtype.Querier, keepAfterCompletion time.Duration) error {
+func PruneDb(ctx ctx.Context, db pgxtype.Querier, keepAfterCompletion time.Duration, clock clock.Clock) error {
 	start := time.Now()
-	cutOffTime := time.Now().Add(-keepAfterCompletion)
+	cutOffTime := clock.Now().Add(-keepAfterCompletion)
 
 	// Insert the ids of all jobs we want to delete into a tmp table
 	_, err := db.Exec(ctx,

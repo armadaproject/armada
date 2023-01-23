@@ -1,6 +1,9 @@
 -- name: SelectNewJobs :many
 SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
+-- name: SelectAllJobIds :many
+SELECT job_id FROM jobs;
+
 -- name: SelectUpdatedJobs :many
 SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
@@ -24,6 +27,9 @@ UPDATE jobs SET priority = $1 WHERE job_id = $2;
 
 -- name: SelectNewRuns :many
 SELECT * FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2;
+
+-- name: SelectAllRunIds :many
+SELECT run_id FROM runs;
 
 -- name: SelectNewRunsForJobs :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
