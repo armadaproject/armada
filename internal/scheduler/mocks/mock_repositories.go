@@ -10,8 +10,8 @@ import (
 	time "time"
 
 	database "github.com/armadaproject/armada/internal/scheduler/database"
+	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	armadaevents "github.com/armadaproject/armada/pkg/armadaevents"
-	executorapi "github.com/armadaproject/armada/pkg/executorapi"
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
 )
@@ -40,47 +40,47 @@ func (m *MockExecutorRepository) EXPECT() *MockExecutorRepositoryMockRecorder {
 }
 
 // GetExecutors mocks base method.
-func (m *MockExecutorRepository) GetExecutors() ([]*database.Executor, error) {
+func (m *MockExecutorRepository) GetExecutors(arg0 context.Context) ([]*schedulerobjects.Executor, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetExecutors")
-	ret0, _ := ret[0].([]*database.Executor)
+	ret := m.ctrl.Call(m, "GetExecutors", arg0)
+	ret0, _ := ret[0].([]*schedulerobjects.Executor)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetExecutors indicates an expected call of GetExecutors.
-func (mr *MockExecutorRepositoryMockRecorder) GetExecutors() *gomock.Call {
+func (mr *MockExecutorRepositoryMockRecorder) GetExecutors(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutors", reflect.TypeOf((*MockExecutorRepository)(nil).GetExecutors))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExecutors", reflect.TypeOf((*MockExecutorRepository)(nil).GetExecutors), arg0)
 }
 
 // GetLastUpdateTimes mocks base method.
-func (m *MockExecutorRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
+func (m *MockExecutorRepository) GetLastUpdateTimes(arg0 context.Context) (map[string]time.Time, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLastUpdateTimes")
+	ret := m.ctrl.Call(m, "GetLastUpdateTimes", arg0)
 	ret0, _ := ret[0].(map[string]time.Time)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetLastUpdateTimes indicates an expected call of GetLastUpdateTimes.
-func (mr *MockExecutorRepositoryMockRecorder) GetLastUpdateTimes() *gomock.Call {
+func (mr *MockExecutorRepositoryMockRecorder) GetLastUpdateTimes(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateTimes", reflect.TypeOf((*MockExecutorRepository)(nil).GetLastUpdateTimes))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateTimes", reflect.TypeOf((*MockExecutorRepository)(nil).GetLastUpdateTimes), arg0)
 }
 
-// StoreRequest mocks base method.
-func (m *MockExecutorRepository) StoreRequest(arg0 *executorapi.LeaseRequest) error {
+// StoreExecutor mocks base method.
+func (m *MockExecutorRepository) StoreExecutor(arg0 context.Context, arg1 *schedulerobjects.Executor) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StoreRequest", arg0)
+	ret := m.ctrl.Call(m, "StoreExecutor", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// StoreRequest indicates an expected call of StoreRequest.
-func (mr *MockExecutorRepositoryMockRecorder) StoreRequest(arg0 interface{}) *gomock.Call {
+// StoreExecutor indicates an expected call of StoreExecutor.
+func (mr *MockExecutorRepositoryMockRecorder) StoreExecutor(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreRequest", reflect.TypeOf((*MockExecutorRepository)(nil).StoreRequest), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreExecutor", reflect.TypeOf((*MockExecutorRepository)(nil).StoreExecutor), arg0, arg1)
 }
 
 // MockQueueRepository is a mock of QueueRepository interface.
