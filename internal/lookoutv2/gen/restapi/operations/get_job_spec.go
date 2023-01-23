@@ -34,10 +34,10 @@ func NewGetJobSpec(ctx *middleware.Context, handler GetJobSpecHandler) *GetJobSp
 	return &GetJobSpec{Context: ctx, Handler: handler}
 }
 
-/*
-	GetJobSpec swagger:route POST /api/v1/jobSpec getJobSpec
+/* GetJobSpec swagger:route POST /api/v1/jobSpec getJobSpec
 
 GetJobSpec get job spec API
+
 */
 type GetJobSpec struct {
 	Context *middleware.Context
