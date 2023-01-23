@@ -2,13 +2,11 @@ package validation
 
 import (
 	"github.com/pkg/errors"
-
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {

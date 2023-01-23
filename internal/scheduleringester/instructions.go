@@ -8,9 +8,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/compress"
-
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -266,7 +266,7 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 		podSpec := object.PodSpec.PodSpec
 		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
 			// TODO: We should not pass in nil here. Priority will not be set correctly.
-			PodRequirements: schedulerobjects.PodRequirementsFromPodSpec(podSpec, nil),
+			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, nil),
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,

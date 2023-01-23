@@ -3,7 +3,81 @@ package api
 import (
 	"fmt"
 	"strings"
+	time "time"
+
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) *schedulerobjects.Node {
+	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
+	for p, rs := range nodeInfo.AllocatedResources {
+		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
+	}
+	return &schedulerobjects.Node{
+		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		LastSeen:                         lastSeen,
+		Taints:                           nodeInfo.GetTaints(),
+		Labels:                           nodeInfo.GetLabels(),
+		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
+		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
+		JobRuns:                          nodeInfo.RunIds,
+	}
+}
+
+// TODO: Make method.
+func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {
+	return schedulerobjects.NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
+}
+
+func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+	podSpecs := job.GetAllPodSpecs()
+	if len(podSpecs) == 0 {
+		return nil
+	}
+	objectRequirements := make([]*schedulerobjects.ObjectRequirements, len(podSpecs))
+	for i, podSpec := range podSpecs {
+		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
+			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+				PodRequirements: adapters.PodRequirementsFromPod(&v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: job.Annotations,
+					},
+					Spec: *podSpec,
+				}, priorityClasses),
+			},
+		}
+	}
+	return &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: objectRequirements,
+	}
+}
+
+func (job *Job) GetMainPodSpec() *v1.PodSpec {
+	if job.PodSpec != nil {
+		return job.PodSpec
+	}
+	for _, podSpec := range job.PodSpecs {
+		if podSpec != nil {
+			return podSpec
+		}
+	}
+	return nil
+}
+
+func (job *Job) TotalResourceRequest() armadaresource.ComputeResources {
+	totalResources := make(armadaresource.ComputeResources)
+	for _, podSpec := range job.GetAllPodSpecs() {
+		podResource := armadaresource.TotalPodResourceRequest(podSpec)
+		totalResources.Add(podResource)
+	}
+	return totalResources
+}
 
 func ShortStringFromEventMessages(msgs []*EventMessage) string {
 	var sb strings.Builder
