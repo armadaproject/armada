@@ -5,12 +5,10 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/armadaproject/armada/pkg/api"
 )
 
