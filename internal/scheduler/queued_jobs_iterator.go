@@ -39,7 +39,7 @@ func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository
 	return it, nil
 }
 
-func (it *QueuedJobsIterator) Next() (*api.Job, error) {
+func (it *QueuedJobsIterator) Next() (LegacySchedulerJob, error) {
 	// Once this function has returned error,
 	// it will return this error on every invocation.
 	if it.err != nil {

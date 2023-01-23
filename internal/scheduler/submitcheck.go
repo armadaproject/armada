@@ -56,10 +56,7 @@ func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
 		if gangId == "" {
 			continue
 		}
-		reqs, err := PodRequirementsFromJobs(srv.priorityClasses, jobs)
-		if err != nil {
-			return false, fmt.Sprintf("error encountered extracting scheduling requirements")
-		}
+		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, srv.priorityClasses)
 		canSchedule, reason := srv.Check(reqs)
 		if !canSchedule {
 			return canSchedule, fmt.Sprintf("gang %s is unschedulable:\n%s", gangId, reason)
