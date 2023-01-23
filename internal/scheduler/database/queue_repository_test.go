@@ -1,16 +1,17 @@
 package database
 
 import (
-	clientQueue "github.com/armadaproject/armada/pkg/client/queue"
+	"testing"
+
+	"testing"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"testing"
 )
 
 func TestLegacyQueueRepository_GetAllQueues(t *testing.T) {
-
 	tests := map[string]struct {
 		queues         []clientQueue.Queue
 		expectedQueues []*Queue

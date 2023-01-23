@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
