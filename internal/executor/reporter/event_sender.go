@@ -74,7 +74,8 @@ func populateRunId(eventSequence *armadaevents.EventSequence, jobRunId *armadaev
 		case *armadaevents.EventSequence_Event_JobRunErrors:
 			runEvent.JobRunErrors.RunId = jobRunId
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			// TODO We have no way to get the runid yet - work out how to find it
+			//TODO set preemptive run id correctly
+			runEvent.JobRunPreempted.PreemptedRunId = jobRunId
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 			runEvent.ResourceUtilisation.JobId = jobRunId
 		default:
