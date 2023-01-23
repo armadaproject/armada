@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -18,13 +18,13 @@ import (
 )
 
 type LeaseRequester interface {
-	LeaseJobRuns(availableResource *common.ComputeResources, nodes []*api.NodeInfo, unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error)
+	LeaseJobRuns(availableResource *armadaresource.ComputeResources, nodes []*api.NodeInfo, unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error)
 }
 
 type JobLeaseRequester struct {
 	executorApiClient executorapi.ExecutorApiClient
 	clusterIdentity   clusterContext.ClusterIdentity
-	minimumJobSize    common.ComputeResources
+	minimumJobSize    armadaresource.ComputeResources
 }
 
 func NewJobLeaseRequester() *JobLeaseRequester {
@@ -32,7 +32,7 @@ func NewJobLeaseRequester() *JobLeaseRequester {
 }
 
 func (requester *JobLeaseRequester) LeaseJobRuns(
-	availableResource *common.ComputeResources,
+	availableResource *armadaresource.ComputeResources,
 	nodes []*api.NodeInfo,
 	unassignedJobRunIds []armadaevents.Uuid,
 ) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error) {

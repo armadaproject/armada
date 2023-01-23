@@ -7,6 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/healthmonitor"
@@ -161,7 +162,7 @@ type LegacyClusterAllocationService struct {
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
 	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
-	reserved           armadaevents.ResourceUtilisation
+	reserved           armadaresource.ComputeResources
 }
 
 func NewLegacyClusterAllocationService(
@@ -171,7 +172,7 @@ func NewLegacyClusterAllocationService(
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
-	reserved armadaevents.ResourceUtilisation,
+	reserved armadaresource.ComputeResources,
 ) *LegacyClusterAllocationService {
 	return &LegacyClusterAllocationService{
 		leaseService:       leaseService,
