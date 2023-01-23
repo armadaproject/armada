@@ -9,6 +9,9 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
+additionalClusterRoleBindings: []
+additionalVolumeMounts: []
+additionalVolumes: []
 terminationGracePeriodSeconds: 5
 replicas: 1
 strategy:

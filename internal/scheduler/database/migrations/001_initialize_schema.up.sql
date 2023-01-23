@@ -38,9 +38,6 @@ CREATE TABLE runs (
     job_set text NOT NULL,
     -- Executor this job run is assigned to.
     executor text NOT NULL,
-    -- True if this run has been sent to the executor already.
-    -- Used to control which runs are sent to the executor when it requests jobs.
-    sent_to_executor boolean NOT NULL DEFAULT false,
     -- Indicates if this lease has been cancelled.
     cancelled boolean NOT NULL DEFAULT false,
     -- Set to true once a JobRunRunning messages is received for this run.
@@ -62,15 +59,13 @@ CREATE TABLE markers (
     PRIMARY KEY (group_id, partition_id)
 );
 
--- Info of physical resources assigned to job runs.
--- Populated based on JobRunAssigned Pulsar messages.
--- Job runs with no entry in this table have not yet been assigned resources.
-CREATE TABLE job_run_assignments (
-    run_id uuid PRIMARY KEY,
-    -- Encoded proto message storing the assignment.
-    assignment bytea NOT NULL,
-    serial bigserial NOT NULL,
-    last_modified timestamptz NOT NULL
+CREATE TABLE executors (
+    -- unique identified for an executor
+    executor_id text PRIMARY KEY,
+    -- the last lease request made by the executor.  Compressed.
+    last_request bytea,
+    -- the timestamp of last lease request made by the executor
+    last_updated timestamptz NOT NULL
 );
 
 CREATE TABLE job_run_errors (
@@ -85,20 +80,6 @@ CREATE TABLE job_run_errors (
 
 ALTER TABLE job_run_errors ALTER COLUMN error SET STORAGE EXTERNAL;
 
-
-CREATE TABLE nodeinfo (
-    -- The concatenation of executor and node name.
-    -- TODO: We need a unique primary key for the upsert logic. But we should do something smarter.
-                          executor_node_name text PRIMARY KEY,
-    -- Name of the node. Must be unique across all clusters.
-                          node_name text NOT NULL,
-    -- Name of the executor responsible for this node.
-                          executor text NOT NULL,
-    -- Most recently received NodeInfo message for this node.
-                          message bytea NOT NULL,
-                          serial bigserial NOT NULL,
-                          last_modified timestamptz NOT NULL DEFAULT NOW()
-);
 
 -- Automatically increment serial and set last_modified on insert.
 -- Because we upsert by inserting from a temporary table, this trigger handles both insert and update.
@@ -124,11 +105,6 @@ EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
 CREATE TRIGGER next_serial_on_insert_runs
     BEFORE INSERT or UPDATE ON runs
-    FOR EACH ROW
-EXECUTE FUNCTION trg_increment_serial_set_last_modified();
-
-CREATE TRIGGER next_serial_on_insert_job_run_assignments
-    BEFORE INSERT or UPDATE ON job_run_assignments
     FOR EACH ROW
 EXECUTE FUNCTION trg_increment_serial_set_last_modified();
 
