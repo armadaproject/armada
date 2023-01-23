@@ -61,7 +61,7 @@ func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(
 
 	jobManager.ManageJobLeases()
 
-	_, ok := mockEventsReporter.ReceivedEvents[0].(*api.JobTerminatedEvent)
+	_, ok := mockEventsReporter.ReceivedEvents[0].Event.(*api.JobTerminatedEvent)
 	assert.True(t, ok)
 
 	pods, err = fakeClusterContext.GetBatchPods()
@@ -105,12 +105,12 @@ func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) 
 
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{unretryableStuckPod.Labels[domain.JobId]})
 
-	_, ok := eventsReporter.ReceivedEvents[0].(*api.JobUnableToScheduleEvent)
+	_, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobUnableToScheduleEvent)
 	assert.True(t, ok)
 
 	jobManager.ManageJobLeases()
 
-	failedEvent, ok := eventsReporter.ReceivedEvents[1].(*api.JobFailedEvent)
+	failedEvent, ok := eventsReporter.ReceivedEvents[1].Event.(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Contains(t, failedEvent.Reason, "unrecoverable problem")
 }
@@ -132,7 +132,7 @@ func TestJobManager_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
 
 	jobManager.ManageJobLeases()
 
-	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Contains(t, failedEvent.Reason, "terminating")
 }
@@ -178,7 +178,7 @@ func TestJobManager_ReportsDoneAndFailed_IfDeletedExternally(t *testing.T) {
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
 	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{util.ExtractJobId(runningPod)})
 
-	failedEvent, ok := eventsReporter.ReceivedEvents[0].(*api.JobFailedEvent)
+	failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
 	assert.True(t, ok)
 	assert.Equal(t, failedEvent.JobId, util.ExtractJobId(runningPod))
 }
