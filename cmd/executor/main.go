@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/metrics"
@@ -34,6 +36,14 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
+	mux := http.NewServeMux()
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
+
+	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
+	defer shutdownHttpServer()
+
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
 
@@ -46,5 +56,6 @@ func main() {
 		<-shutdownChannel
 		shutdown()
 	}()
+	startupCompleteCheck.MarkComplete()
 	wg.Wait()
 }
