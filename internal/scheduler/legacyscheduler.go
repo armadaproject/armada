@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -457,7 +459,7 @@ func NewCandidateGangIterator(
 		if _, ok := iteratorsByQueue[queue]; !ok {
 			return nil, errors.Errorf("no iterator found for queue %s", queue)
 		}
-		weight := 1 / max(priorityFactor, 1)
+		weight := 1 / math.Max(priorityFactor, 1)
 		weightByQueue[queue] = weight
 		weightSum += weight
 	}
@@ -498,7 +500,7 @@ func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueueCandidateG
 	totalResourcesForQueueWithGang.Add(totalResourceRequestsFromJobs(gang, it.PriorityClasses))
 	fairShare := it.weightByQueue[queue] / it.weightSum
 	used := ResourceListAsWeightedApproximateFloat64(it.ResourceScarcity, totalResourcesForQueueWithGang)
-	total := max(ResourceListAsWeightedApproximateFloat64(it.ResourceScarcity, it.TotalResources), 1)
+	total := math.Max(ResourceListAsWeightedApproximateFloat64(it.ResourceScarcity, it.TotalResources), 1)
 	fractionOfFairShare := (used / total) / fairShare
 	item := &QueueCandidateGangIteratorItem{
 		queue:               queue,
@@ -535,7 +537,6 @@ func (it *CandidateGangIterator) Clear() error {
 	return nil
 }
 
-// TODO: We call peek() on the underlying iterators more often than needed.
 func (it *CandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
 	if it.MaximumJobsToSchedule != 0 && it.SchedulingRoundReport.NumScheduledJobs == int(it.MaximumJobsToSchedule) {
 		it.SchedulingRoundReport.TerminationReason = "maximum number of jobs scheduled"
@@ -709,23 +710,35 @@ func (sched *LegacyScheduler) String() string {
 	return sb.String()
 }
 
+type Queue struct {
+	name           string
+	priorityFactor float64
+	jobIterator    JobIterator
+}
+
+func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Queue, error) {
+	if priorityFactor <= 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "priorityFactor",
+			Value:   priorityFactor,
+			Message: "priorityFactor must be positive",
+		})
+	}
+	return &Queue{
+		name:           name,
+		priorityFactor: priorityFactor,
+		jobIterator:    jobIterator,
+	}, nil
+}
+
 func NewLegacyScheduler(
 	ctx context.Context,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
 	nodeDb *NodeDb,
-	jobIteratorsByQueue map[string]JobIterator,
-	priorityFactorByQueue map[string]float64,
+	queues []*Queue,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) (*LegacyScheduler, error) {
-	if len(jobIteratorsByQueue) != len(priorityFactorByQueue) {
-		return nil, errors.New("jobIteratorsByQueue and priorityFactorByQueue are not of equal length")
-	}
-	for queue := range jobIteratorsByQueue {
-		if _, ok := priorityFactorByQueue[queue]; !ok {
-			return nil, errors.Errorf("priorityFactor missing for queue %s", queue)
-		}
-	}
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, constraints.TotalResources) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
@@ -736,6 +749,10 @@ func NewLegacyScheduler(
 		return nil, errors.New("no resources with non-zero weight available for scheduling in NodeDb")
 	}
 
+	priorityFactorByQueue := make(map[string]float64)
+	for _, queue := range queues {
+		priorityFactorByQueue[queue.name] = queue.priorityFactor
+	}
 	schedulingRoundReport := NewSchedulingRoundReport(
 		constraints.TotalResources,
 		priorityFactorByQueue,
@@ -744,20 +761,19 @@ func NewLegacyScheduler(
 
 	// Per-queue iterator pipelines.
 	gangIteratorsByQueue := make(map[string]*QueueCandidateGangIterator)
-	for queue, jobIterator := range jobIteratorsByQueue {
-
+	for _, queue := range queues {
 		// Group jobs into gangs, to be scheduled together.
 		queuedGangIterator := NewQueuedGangIterator(
 			ctx,
-			jobIterator,
+			queue.jobIterator,
 			config.GangIdAnnotation,
 			config.GangCardinalityAnnotation,
 		)
 
 		// Enforce per-queue constraints.
-		gangIteratorsByQueue[queue] = &QueueCandidateGangIterator{
+		gangIteratorsByQueue[queue.name] = &QueueCandidateGangIterator{
 			SchedulingConstraints:      constraints,
-			QueueSchedulingRoundReport: schedulingRoundReport.QueueSchedulingRoundReports[queue],
+			QueueSchedulingRoundReport: schedulingRoundReport.QueueSchedulingRoundReports[queue.name],
 			ctx:                        ctx,
 			queuedGangIterator:         queuedGangIterator,
 		}
@@ -940,13 +956,6 @@ func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateRe
 		rv[queue] = weight / weightsSum
 	}
 	return rv
-}
-
-func max(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float64, rl schedulerobjects.ResourceList) float64 {

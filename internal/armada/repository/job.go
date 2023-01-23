@@ -56,6 +56,9 @@ type JobResult struct {
 
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
+	// TryLeaseJobs attempts to lease a set of jobs to the executor with the given clusterId.
+	// Takes as argument a map from queue name to slice of job ids to lease from that queue.
+	// Returns a map from queue name to ids of successfully leased jobs for that queue.
 	TryLeaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetJobsByIds(ids []string) ([]*JobResult, error)
@@ -144,7 +147,7 @@ func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (r
 	if err != nil {
 		return nil, err
 	}
-	jobsById := make(map[string]*api.Job)
+	jobsById := make(map[string]*api.Job, len(jobIds))
 	for _, job := range jobs {
 		jobsById[job.Id] = job
 	}
@@ -1033,7 +1036,7 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobIdsByQueue map[st
 		return nil, errors.WithStack(err)
 	}
 
-	leasedJobIdsByQueue := make(map[string][]string)
+	leasedJobIdsByQueue := make(map[string][]string, len(jobIdsByQueue))
 	for queue, jobIds := range jobIdsByQueue {
 		for _, jobId := range jobIds {
 			cmd, ok := cmds[jobId]

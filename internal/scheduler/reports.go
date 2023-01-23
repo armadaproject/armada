@@ -66,7 +66,9 @@ type SchedulingRoundReport struct {
 }
 
 func NewSchedulingRoundReport(
-	totalResources schedulerobjects.ResourceList, priorityFactorByQueue map[string]float64, initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	totalResources schedulerobjects.ResourceList,
+	priorityFactorByQueue map[string]float64,
+	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) *SchedulingRoundReport {
 	queueSchedulingRoundReports := make(map[string]*QueueSchedulingRoundReport)
 	for queue := range priorityFactorByQueue {

@@ -339,21 +339,28 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig,
 		totalCapacityRl,
 	)
-	jobIteratorsByQueue := make(map[string]scheduler.JobIterator)
-	for _, queue := range activeQueues {
-		if it, err := scheduler.NewQueuedJobsIterator(ctx, queue.Name, q.jobRepository); err != nil {
+	schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
+	for i, apiQueue := range activeQueues {
+		jobIterator, err := scheduler.NewQueuedJobsIterator(ctx, apiQueue.Name, q.jobRepository)
+		if err != nil {
 			return nil, err
-		} else {
-			jobIteratorsByQueue[queue.Name] = it
 		}
+		queue, err := scheduler.NewQueue(
+			apiQueue.Name,
+			priorityFactorByActiveQueue[apiQueue.Name],
+			jobIterator,
+		)
+		if err != nil {
+			return nil, err
+		}
+		schedulerQueues[i] = queue
 	}
 	sched, err := scheduler.NewLegacyScheduler(
 		ctx,
 		*constraints,
 		q.schedulingConfig,
 		nodeDb,
-		jobIteratorsByQueue,
-		priorityFactorByActiveQueue,
+		schedulerQueues,
 		aggregatedUsageByQueue,
 	)
 	if err != nil {

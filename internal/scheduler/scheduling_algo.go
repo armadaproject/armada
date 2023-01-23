@@ -163,17 +163,6 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 ) ([]*SchedulerJob, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3000*time.Second)
 	defer cancel()
-
-	jobIteratorsByQueue := make(map[string]JobIterator)
-	for queue := range priorityFactorByQueue {
-		if it, err := NewJobQueueIterator(txn, queue); err != nil {
-			return nil, err
-		} else {
-			jobIteratorsByQueue[queue] = &JobQueueIteratorAdapter{
-				it: it,
-			}
-		}
-	}
 	nodeDb, err := l.constructNodeDb(executor.Nodes, l.priorityClassPriorities)
 	if err != nil {
 		return nil, err
@@ -185,13 +174,24 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		l.config,
 		totalCapacity,
 	)
+	queues := make([]*Queue, 0, len(priorityFactorByQueue))
+	for name, priorityFactor := range priorityFactorByQueue {
+		it, err := NewJobQueueIterator(txn, name)
+		if err != nil {
+			return nil, err
+		}
+		if queue, err := NewQueue(name, priorityFactor, &JobQueueIteratorAdapter{it: it}); err != nil {
+			return nil, err
+		} else {
+			queues = append(queues, queue)
+		}
+	}
 	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
 		l.config,
 		nodeDb,
-		jobIteratorsByQueue,
-		priorityFactorByQueue,
+		queues,
 		totalResourceUsageByQueue)
 	if err != nil {
 		return nil, err

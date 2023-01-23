@@ -1329,20 +1329,20 @@ func TestSchedule(t *testing.T) {
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
-			jobIteratorsByQueue := make(map[string]JobIterator)
-			for queue := range tc.ReqsByQueue {
-				it, err := jobRepository.GetJobIterator(context.Background(), queue)
+			queues := make([]*Queue, 0, len(tc.PriorityFactorByQueue))
+			for name, priorityFactor := range tc.PriorityFactorByQueue {
+				jobIterator, err := jobRepository.GetJobIterator(context.Background(), name)
 				require.NoError(t, err)
-				jobIteratorsByQueue[queue] = it
+				queue, err := NewQueue(name, priorityFactor, jobIterator)
+				require.NoError(t, err)
+				queues = append(queues, queue)
 			}
-
 			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
 				tc.SchedulingConfig,
 				nodeDb,
-				jobIteratorsByQueue,
-				tc.PriorityFactorByQueue,
+				queues,
 				tc.InitialUsageByQueue,
 			)
 			if !assert.NoError(t, err) {
