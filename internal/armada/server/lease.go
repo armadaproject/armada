@@ -284,6 +284,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			&nodeInfo,
 			req.ClusterId,
 			priorities,
+			time.Now(),
 		)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources

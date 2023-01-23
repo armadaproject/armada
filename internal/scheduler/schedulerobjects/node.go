@@ -22,6 +22,7 @@ func (node *Node) DeepCopy() *Node {
 		Taints:         slices.Clone(node.Taints),
 		Labels:         maps.Clone(node.Labels),
 		TotalResources: node.TotalResources.DeepCopy(),
+		JobRuns:        slices.Clone(node.JobRuns),
 		AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
