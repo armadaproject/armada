@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -12,6 +11,7 @@ import (
 	v11 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/G-Research/armada/pkg/api"
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
 
