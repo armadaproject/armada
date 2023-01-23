@@ -54,10 +54,10 @@ func fetchCustomStats(nodes []*v1.Node, podNameToUtilisationData map[string]*dom
 		return
 	}
 
-	log.Info("Found %d endpoint slices", len(endpointSlices))
+	log.Infof("Found %d endpoint slices", len(endpointSlices))
 
 	urls := getUrlsToScrape(endpointSlices, util.ExtractNodeNames(nodes))
-	log.Info("Got these urls to scrape: %v", urls)
+	log.Infof("Got these urls to scrape: %v", urls)
 
 	client := http.Client{
 		Timeout: 15 * time.Second,
@@ -65,11 +65,11 @@ func fetchCustomStats(nodes []*v1.Node, podNameToUtilisationData map[string]*dom
 
 	samples := scrapeUrls(urls, extractMetricNames(config.Metrics), client)
 
-	log.Info("Got %d samples in total", len(samples))
+	log.Infof("Got %d samples in total", len(samples))
 	samplesByMetricName := groupSamplesBy(samples, model.MetricNameLabel)
 	for _, metric := range config.Metrics {
 		metricSamples, exists := samplesByMetricName[model.LabelValue(metric.Name)]
-		log.Info("Got %d samples for metric %s", len(metricSamples), metric.PrometheusMetricName)
+		log.Infof("Got %d samples for metric %s", len(metricSamples), metric.PrometheusMetricName)
 		if !exists {
 			continue
 		}

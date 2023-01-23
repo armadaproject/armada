@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -79,6 +80,10 @@ func (c *SyncFakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*ne
 
 func (c *SyncFakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
 	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
+}
+
+func (c *SyncFakeClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
+	return nil, fmt.Errorf("EndpointSlices not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {

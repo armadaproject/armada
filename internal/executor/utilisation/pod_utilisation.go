@@ -104,8 +104,8 @@ func (q *PodUtilisationServiceImpl) RefreshUtilisationData() {
 	podNameToUtilisationData := map[string]*domain.UtilisationData{}
 	for _, podName := range podNames {
 		podNameToUtilisationData[podName] = &domain.UtilisationData{
-			CurrentUsage:    common.ComputeResources{},
-			CumulativeUsage: common.ComputeResources{},
+			CurrentUsage:    armadaresource.ComputeResources{},
+			CumulativeUsage: armadaresource.ComputeResources{},
 		}
 	}
 
@@ -152,4 +152,3 @@ func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.No
 	}
 	return nodesWithActiveManagedPods
 }
-
