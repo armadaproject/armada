@@ -99,7 +99,7 @@ func (m *JobManager) markAsDone(jobs []*job.RunningJob) {
 func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 	for _, pod := range pods {
 		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", m.clusterIdentity.GetClusterId())
-		m.eventReporter.QueueEvent(event, func(err error) {
+		m.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
 			if err != nil {
 				log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
 			}
@@ -153,7 +153,7 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 
 		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
 			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
-			err := m.eventReporter.Report(event)
+			err := m.eventReporter.Report(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(runningJob.Issue.OriginatingPod)})
 			if err != nil {
 				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
 			} else {
@@ -186,7 +186,7 @@ func (m *JobManager) onPodDeleted(runningJob *job.RunningJob) (resolved bool) {
 			}
 			event := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause)
 
-			err := m.eventReporter.Report(event)
+			err := m.eventReporter.Report(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)})
 			if err != nil {
 				return false
 			}

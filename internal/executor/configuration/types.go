@@ -16,6 +16,7 @@ type ApplicationConfiguration struct {
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
+	UseExecutorApi         bool
 }
 
 type PodDefaults struct {

@@ -109,6 +109,10 @@ func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
 }
 
+func ExtractJobRunId(pod *v1.Pod) string {
+	return pod.Labels[domain.JobRunId]
+}
+
 func ExtractPodNumber(pod *v1.Pod) int {
 	i, _ := strconv.Atoi(pod.Labels[domain.PodNumber])
 	return i

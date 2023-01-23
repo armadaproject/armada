@@ -8,27 +8,25 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/armadaproject/armada/internal/common"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 const batchSize = 200
 
 type EventReporter interface {
-	Report(event api.Event) error
-	QueueEvent(event api.Event, callback func(error))
+	Report(event EventMessage) error
+	QueueEvent(event EventMessage, callback func(error))
 }
 
 type queuedEvent struct {
-	Event    api.Event
+	Event    EventMessage
 	Callback func(error)
 }
 
 type JobEventReporter struct {
-	eventClient      api.EventClient
+	eventSender      EventSender
 	eventBuffer      chan *queuedEvent
 	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
@@ -36,10 +34,10 @@ type JobEventReporter struct {
 	clusterContext clusterContext.ClusterContext
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventClient api.EventClient) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventSender EventSender) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
-		eventClient:      eventClient,
+		eventSender:      eventSender,
 		clusterContext:   clusterContext,
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
@@ -95,8 +93,8 @@ func (eventReporter *JobEventReporter) clusterEventEventHandler() cache.Resource
 	}
 }
 
-func (eventReporter *JobEventReporter) Report(event api.Event) error {
-	return eventReporter.sendEvent(event)
+func (eventReporter *JobEventReporter) Report(event EventMessage) error {
+	return eventReporter.eventSender.SendEvents([]EventMessage{event})
 }
 
 func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Event) {
@@ -109,7 +107,8 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 		log.Errorf("Failed to create JobPreemptedEvent: %v", err)
 		return
 	}
-	eventReporter.QueueEvent(event, func(err error) {
+	//TODO work out if its possible to get JobRunId from preemption event
+	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: ""}, func(err error) {
 		if err != nil {
 			log.Errorf(
 				"Failed to report event JobPreemptedEvent for cluster event %s/%s: %v",
@@ -159,7 +158,7 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 		return
 	}
 
-	eventReporter.QueueEvent(event, func(err error) {
+	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
 		if err != nil {
 			log.Errorf("Failed to report event: %s", err)
 			return
@@ -179,10 +178,10 @@ func (eventReporter *JobEventReporter) reportCurrentStatus(pod *v1.Pod) {
 	}
 }
 
-func (eventReporter *JobEventReporter) QueueEvent(event api.Event, callback func(error)) {
+func (eventReporter *JobEventReporter) QueueEvent(event EventMessage, callback func(error)) {
 	eventReporter.eventQueuedMutex.Lock()
 	defer eventReporter.eventQueuedMutex.Unlock()
-	jobId := event.GetJobId()
+	jobId := event.Event.GetJobId()
 	eventReporter.eventQueued[jobId] = eventReporter.eventQueued[jobId] + 1
 	eventReporter.eventBuffer <- &queuedEvent{event, callback}
 }
@@ -211,7 +210,7 @@ func (eventReporter *JobEventReporter) fillBatch(batch ...*queuedEvent) []*queue
 }
 
 func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
-	err := eventReporter.sendEvents(batch)
+	err := eventReporter.eventSender.SendEvents(queuedEventsToEventMessages(batch))
 	go func() {
 		for _, e := range batch {
 			e.Callback(err)
@@ -219,7 +218,7 @@ func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
 	}()
 	eventReporter.eventQueuedMutex.Lock()
 	for _, e := range batch {
-		id := e.Event.GetJobId()
+		id := e.Event.Event.GetJobId()
 		count := eventReporter.eventQueued[id]
 		if count <= 1 {
 			delete(eventReporter.eventQueued, id)
@@ -230,33 +229,12 @@ func (eventReporter *JobEventReporter) sendBatch(batch []*queuedEvent) {
 	eventReporter.eventQueuedMutex.Unlock()
 }
 
-func (eventReporter *JobEventReporter) sendEvents(events []*queuedEvent) error {
-	var eventMessages []*api.EventMessage
-	for _, e := range events {
-		m, err := api.Wrap(e.Event)
-		eventMessages = append(eventMessages, m)
-		if err != nil {
-			return err
-		}
-		log.Debugf("Reporting event %+v", m)
+func queuedEventsToEventMessages(queuedEvents []*queuedEvent) []EventMessage {
+	result := make([]EventMessage, 0, len(queuedEvents))
+	for _, queuedEvent := range queuedEvents {
+		result = append(result, queuedEvent.Event)
 	}
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	_, err := eventReporter.eventClient.ReportMultiple(ctx, &api.EventList{eventMessages})
-	return err
-}
-
-func (eventReporter *JobEventReporter) sendEvent(event api.Event) error {
-	eventMessage, err := api.Wrap(event)
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("Reporting event %+v", eventMessage)
-	ctx, cancel := common.ContextWithDefaultTimeout()
-	defer cancel()
-	_, err = eventReporter.eventClient.Report(ctx, eventMessage)
-	return err
+	return result
 }
 
 func (eventReporter *JobEventReporter) addAnnotationToMarkStateReported(pod *v1.Pod) error {
@@ -336,7 +314,7 @@ func (eventReporter *JobEventReporter) attemptToReportIngressInfoEvent(pod *v1.P
 		log.Errorf("Failed to report event JobIngressInfoEvent for pod %s: %v", pod.Name, err)
 		return
 	}
-	eventReporter.QueueEvent(ingressInfoEvent, func(err error) {
+	eventReporter.QueueEvent(EventMessage{Event: ingressInfoEvent, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
 		if err != nil {
 			log.Errorf("Failed to report event JobIngressInfoEvent for pod %s: %v", pod.Name, err)
 			return

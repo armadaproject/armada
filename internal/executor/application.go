@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/executorapi"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -88,20 +89,24 @@ func StartUpWithContext(
 		os.Exit(-1)
 	}
 
-	queueClient := api.NewAggregatedQueueClient(conn)
-	usageClient := api.NewUsageClient(conn)
-	eventClient := api.NewEventClient(conn)
+	var executorApiClient executorapi.ExecutorApiClient
+	var usageClient api.UsageClient
+	var eventSender reporter.EventSender
+	var queueClient api.AggregatedQueueClient
+
+	if config.Application.UseExecutorApi {
+		executorApiClient = executorapi.NewExecutorApiClient(conn)
+		eventSender = reporter.NewExecutorApiEventSender(executorApiClient)
+	} else {
+		usageClient = api.NewUsageClient(conn)
+		queueClient = api.NewAggregatedQueueClient(conn)
+		eventClient := api.NewEventClient(conn)
+		eventSender = reporter.NewLegacyApiEventSender(eventClient)
+	}
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
 		clusterContext,
-		eventClient)
-
-	jobLeaseService := service.NewJobLeaseService(
-		clusterContext,
-		queueClient,
-		config.Kubernetes.MinimumJobSize,
-		config.Kubernetes.AvoidNodeLabelsOnRetry,
-	)
+		eventSender)
 
 	if config.Kubernetes.PendingPodChecks == nil {
 		log.Error("Config error: Missing pending pod checks")
@@ -137,30 +142,47 @@ func StartUpWithContext(
 		config.Kubernetes.NodeReservedResources,
 	)
 
-	clusterAllocationService := service.NewClusterAllocationService(
-		clusterContext,
-		eventReporter,
-		jobLeaseService,
-		clusterUtilisationService,
-		submitter,
-		etcdHealthMonitor,
-		config.Kubernetes.NodeReservedResources,
-	)
+	var clusterAllocationService service.ClusterAllocator
 
-	jobManager := service.NewJobManager(
-		clusterContext,
-		jobContext,
-		eventReporter,
-		jobLeaseService)
+	if config.Application.UseExecutorApi {
+		leaseRequester := service.NewJobLeaseRequester()
+		clusterAllocationService = service.NewClusterAllocationService(
+			clusterContext,
+			eventReporter,
+			leaseRequester,
+			clusterUtilisationService,
+			submitter,
+			etcdHealthMonitor)
+	} else {
+		jobLeaseService := service.NewJobLeaseService(
+			clusterContext,
+			queueClient,
+			config.Kubernetes.MinimumJobSize,
+			config.Kubernetes.AvoidNodeLabelsOnRetry,
+		)
+		clusterAllocationService = service.NewLegacyClusterAllocationService(
+			clusterContext,
+			eventReporter,
+			jobLeaseService,
+			clusterUtilisationService,
+			submitter,
+			etcdHealthMonitor,
+			config.Kubernetes.NodeReservedResources,
+		)
+		jobManager := service.NewJobManager(
+			clusterContext,
+			jobContext,
+			eventReporter,
+			jobLeaseService)
+		taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
+		taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
+	}
 
 	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
-
-	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
-	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
