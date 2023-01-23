@@ -343,8 +343,8 @@ func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	return []*api.Job{}, nil
+func (repo *mockJobRepository) TryLeaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
+	return make(map[string][]string), nil
 }
 
 func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {

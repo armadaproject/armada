@@ -8,14 +8,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestWatchContext_ProcessEvent(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	expected := &JobInfo{Status: Pending, PodStatus: []PodStatus{Pending}, MaxUsedResources: common.ComputeResources{}, PodLastUpdated: []time.Time{{}}}
+	expected := &JobInfo{Status: Pending, PodStatus: []PodStatus{Pending}, MaxUsedResources: armadaresource.ComputeResources{}, PodLastUpdated: []time.Time{{}}}
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	result := watchContext.GetJobInfo("1")
@@ -26,7 +26,7 @@ func TestWatchContext_ProcessEvent(t *testing.T) {
 func TestWatchContext_ProcessEvent_UpdatesExisting(t *testing.T) {
 	watchContext := NewWatchContext()
 
-	expected := &JobInfo{Status: Running, PodStatus: []PodStatus{Running}, MaxUsedResources: common.ComputeResources{}, PodLastUpdated: []time.Time{{}}}
+	expected := &JobInfo{Status: Running, PodStatus: []PodStatus{Running}, MaxUsedResources: armadaresource.ComputeResources{}, PodLastUpdated: []time.Time{{}}}
 
 	watchContext.ProcessEvent(&api.JobPendingEvent{JobId: "1"})
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "1"})
@@ -54,7 +54,7 @@ func TestWatchContext_ProcessEvent_SubmittedEventAddsJobToJobInfo(t *testing.T) 
 	expected := &JobInfo{
 		Status:           Submitted,
 		Job:              &job,
-		MaxUsedResources: common.ComputeResources{},
+		MaxUsedResources: armadaresource.ComputeResources{},
 	}
 
 	watchContext.ProcessEvent(&api.JobSubmittedEvent{JobId: "1", Job: job})
@@ -71,9 +71,9 @@ func TestWatchContext_GetCurrentState(t *testing.T) {
 	watchContext.ProcessEvent(&api.JobRunningEvent{JobId: "3"})
 
 	expected := map[string]*JobInfo{
-		"1": {Status: Queued, MaxUsedResources: common.ComputeResources{}},
-		"2": {Status: Pending, PodStatus: []PodStatus{Pending}, MaxUsedResources: common.ComputeResources{}, PodLastUpdated: []time.Time{{}}},
-		"3": {Status: Running, PodStatus: []PodStatus{Running}, MaxUsedResources: common.ComputeResources{}, PodLastUpdated: []time.Time{{}}},
+		"1": {Status: Queued, MaxUsedResources: armadaresource.ComputeResources{}},
+		"2": {Status: Pending, PodStatus: []PodStatus{Pending}, MaxUsedResources: armadaresource.ComputeResources{}, PodLastUpdated: []time.Time{{}}},
+		"3": {Status: Running, PodStatus: []PodStatus{Running}, MaxUsedResources: armadaresource.ComputeResources{}, PodLastUpdated: []time.Time{{}}},
 	}
 
 	result := watchContext.GetCurrentState()
@@ -183,7 +183,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 	}
 
 	watchContext.ProcessEvent(&api.JobUtilisationEvent{JobId: "1", Created: now.Add(10 * time.Second)})
-	assert.Equal(t, &JobInfo{MaxUsedResources: common.ComputeResources{}}, watchContext.GetJobInfo("1"))
+	assert.Equal(t, &JobInfo{MaxUsedResources: armadaresource.ComputeResources{}}, watchContext.GetJobInfo("1"))
 	assert.Equal(t, map[JobStatus]int{}, watchContext.stateSummary)
 
 	watchContext.ProcessEvent(&api.JobSucceededEvent{JobId: "1", Created: now})
@@ -194,7 +194,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 			PodStatus:        []PodStatus{Succeeded},
 			LastUpdate:       now,
 			PodLastUpdated:   []time.Time{now},
-			MaxUsedResources: common.ComputeResources{},
+			MaxUsedResources: armadaresource.ComputeResources{},
 		},
 		watchContext.GetJobInfo("1"),
 	)
@@ -208,7 +208,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 			PodStatus:        []PodStatus{Succeeded},
 			LastUpdate:       now,
 			PodLastUpdated:   []time.Time{now},
-			MaxUsedResources: common.ComputeResources{},
+			MaxUsedResources: armadaresource.ComputeResources{},
 		},
 		watchContext.GetJobInfo("1"),
 	)
@@ -223,7 +223,7 @@ func TestWatchContext_EventsOutOfOrder(t *testing.T) {
 			LastUpdate:       now,
 			PodLastUpdated:   []time.Time{now},
 			Job:              &job,
-			MaxUsedResources: common.ComputeResources{},
+			MaxUsedResources: armadaresource.ComputeResources{},
 		},
 		watchContext.GetJobInfo("1"),
 	)
@@ -239,7 +239,7 @@ func TestWatchContext_UtilisationEvent(t *testing.T) {
 		Created:      time.Now(),
 		ClusterId:    "",
 		KubernetesId: "",
-		MaxResourcesForPeriod: common.ComputeResources{
+		MaxResourcesForPeriod: armadaresource.ComputeResources{
 			"cpu": resource.MustParse("1"),
 		},
 	})

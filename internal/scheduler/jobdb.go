@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -76,6 +77,10 @@ type SchedulerJob struct {
 	Runs []*JobRun
 }
 
+func (job *SchedulerJob) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+	return job.jobSchedulingInfo
+}
+
 // GetQueue returns the queue this job belongs to.
 func (job *SchedulerJob) GetQueue() string {
 	return job.Queue
@@ -87,7 +92,10 @@ func (job *SchedulerJob) GetAnnotations() map[string]string {
 	if len(requirements) == 0 {
 		return nil
 	}
-	return requirements[0].GetPodRequirements().GetAnnotations()
+	if podReqs := requirements[0].GetPodRequirements(); podReqs != nil {
+		return podReqs.GetAnnotations()
+	}
+	return nil
 }
 
 // GetId returns the id of the Job.
@@ -364,7 +372,7 @@ func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 		panic(fmt.Sprintf("expected *SchedulerNode, but got %T", obj))
 	}
 	if jobItem.Queue != it.queue {
-		// The index is sorted by Queue first.
+		// The index is sorted by queue first.
 		// So we've seen all jobs in this queue when this comparison fails.
 		return nil
 	}
