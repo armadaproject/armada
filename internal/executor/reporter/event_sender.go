@@ -8,6 +8,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -18,12 +19,17 @@ type EventSender interface {
 }
 
 type ExecutorApiEventSender struct {
-	eventClient executorapi.ExecutorApiClient
+	eventClient  executorapi.ExecutorApiClient
+	clientConfig configuration.ClientConfiguration
 }
 
-func NewExecutorApiEventSender(executorApiClient executorapi.ExecutorApiClient) *ExecutorApiEventSender {
+func NewExecutorApiEventSender(
+	executorApiClient executorapi.ExecutorApiClient,
+	clientConfig configuration.ClientConfiguration,
+) *ExecutorApiEventSender {
 	return &ExecutorApiEventSender{
-		eventClient: executorApiClient,
+		eventClient:  executorApiClient,
+		clientConfig: clientConfig,
 	}
 }
 
@@ -47,8 +53,12 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 		sequences = append(sequences, sequence)
 	}
 	sequences = eventutil.CompactEventSequences(sequences)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, eventSender.clientConfig.MaxMessageSizeBytes, true)
+	if err != nil {
+		return err
+	}
 
-	_, err := eventSender.eventClient.ReportEvents(context.Background(), &executorapi.EventList{Events: sequences})
+	_, err = eventSender.eventClient.ReportEvents(context.Background(), &executorapi.EventList{Events: sequences})
 	return err
 }
 
