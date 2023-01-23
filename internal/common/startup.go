@@ -18,7 +18,7 @@ import (
 	"github.com/weaveworks/promrus"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 const baseConfigFileName = "config"

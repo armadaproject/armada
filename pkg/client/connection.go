@@ -14,11 +14,11 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/client/auth/exec"
-	"github.com/G-Research/armada/pkg/client/auth/kerberos"
-	"github.com/G-Research/armada/pkg/client/auth/kubernetes"
-	"github.com/G-Research/armada/pkg/client/auth/oidc"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/pkg/client/auth/exec"
+	"github.com/armadaproject/armada/pkg/client/auth/kerberos"
+	"github.com/armadaproject/armada/pkg/client/auth/kubernetes"
+	"github.com/armadaproject/armada/pkg/client/auth/oidc"
 )
 
 type ApiConnectionDetails struct {

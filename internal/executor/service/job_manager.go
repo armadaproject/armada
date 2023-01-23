@@ -8,12 +8,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	context2 "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/reporter"
-	"github.com/G-Research/armada/internal/executor/util"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	context2 "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 const maxPodRequestSize = 10000
@@ -151,7 +151,7 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 			continue
 		}
 
-		if runningJob.Issue.Type == job.UnableToSchedule {
+		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
 			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
 			err := m.eventReporter.Report(event)
 			if err != nil {
@@ -167,23 +167,24 @@ func (m *JobManager) reportJobsWithIssues(allRunningJobs []*job.RunningJob) {
 }
 
 // onPodDeleted handles cases when either a stuck pod was deleted or a pod was preempted
-func (m *JobManager) onPodDeleted(job *job.RunningJob) (resolved bool) {
+func (m *JobManager) onPodDeleted(runningJob *job.RunningJob) (resolved bool) {
 	// this method is executed after stuck pod was deleted from the cluster
-	if job.Issue.Retryable {
-		err := m.jobLeaseService.ReturnLease(job.Issue.OriginatingPod, job.Issue.Message)
+	if runningJob.Issue.Retryable {
+		jobRunAttempted := runningJob.Issue.Type != job.UnableToSchedule
+		err := m.jobLeaseService.ReturnLease(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, jobRunAttempted)
 		if err != nil {
-			log.Errorf("Failed to return lease for job %s because %s", job.JobId, err)
+			log.Errorf("Failed to return lease for job %s because %s", runningJob.JobId, err)
 			return false
 		}
 	} else {
 		// Reporting failed even can fail with unfortunate timing of executor restarts, in that case lease will expire and job can be retried
 		// This is preferred over returning Failed event early as user could retry based on failed even but the job could be running
-		for _, pod := range job.Issue.Pods {
-			message := job.Issue.Message
-			if pod.UID != job.Issue.OriginatingPod.UID {
-				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(job.Issue.OriginatingPod))
+		for _, pod := range runningJob.Issue.Pods {
+			message := runningJob.Issue.Message
+			if pod.UID != runningJob.Issue.OriginatingPod.UID {
+				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(runningJob.Issue.OriginatingPod))
 			}
-			event := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), job.Issue.Cause)
+			event := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause)
 
 			err := m.eventReporter.Report(event)
 			if err != nil {

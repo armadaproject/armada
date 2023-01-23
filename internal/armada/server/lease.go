@@ -20,18 +20,18 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/clock"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/permissions"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/scheduling"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type AggregatedQueueServer struct {
@@ -45,7 +45,7 @@ type AggregatedQueueServer struct {
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
-	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
+	SchedulingReportsRepository *scheduler.SchedulingReportsRepository[*api.Job]
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
 	SubmitChecker *scheduler.SubmitChecker
@@ -73,7 +73,7 @@ func NewAggregatedQueueServer(
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
-			return compress.NewZlibDecompressor()
+			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
 		permissions:              permissions,
@@ -284,6 +284,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			&nodeInfo,
 			req.ClusterId,
 			priorities,
+			time.Now(),
 		)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
@@ -339,12 +340,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig,
 		totalCapacityRl,
 	)
-	sched, err := scheduler.NewLegacyScheduler(
+	legacySchedulerRepo := scheduler.NewJobRepositoryAdapter(q.jobRepository)
+	sched, err := scheduler.NewLegacyScheduler[*api.Job](
 		ctx,
 		*constraints,
 		q.schedulingConfig,
 		nodeDb,
-		q.jobRepository,
+		legacySchedulerRepo,
 		priorityFactorByActiveQueue,
 		aggregatedUsageByQueue,
 	)
@@ -538,9 +540,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return nil, err
 	}
 
-	err = q.jobRepository.AddRetryAttempt(request.JobId)
-	if err != nil {
-		return nil, err
+	if request.JobRunAttempted {
+		err = q.jobRepository.AddRetryAttempt(request.JobId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &types.Empty{}, nil

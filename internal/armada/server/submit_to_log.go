@@ -7,30 +7,28 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/armada/permissions"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/validation"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/auth/permission"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/pgkeyvalue"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/common/util"
-	commonvalidation "github.com/G-Research/armada/internal/common/validation"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/scheduler"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/validation"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
+	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
@@ -727,43 +725,6 @@ func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []
 	}
 
 	return srv.publishToPulsar(ctx, sequences)
-}
-
-// SubmitApiEvent converts an api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
-func (srv *PulsarSubmitServer) SubmitApiEvent(ctx context.Context, apiEvent *api.EventMessage) error {
-	sequence, err := eventutil.EventSequenceFromApiEvent(apiEvent)
-	if err != nil {
-		return err
-	}
-
-	// If no events were created, exit here.
-	if len(sequence.Events) == 0 {
-		return nil
-	}
-
-	payload, err := proto.Marshal(sequence)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Incoming gRPC requests are annotated with a unique id.
-	// Pass this id through the log by adding it to the Pulsar message properties.
-	requestId := requestid.FromContextOrMissing(ctx)
-
-	_, err = srv.Producer.Send(ctx, &pulsar.ProducerMessage{
-		Payload: payload,
-		Properties: map[string]string{
-			requestid.MetadataKey:                     requestId,
-			armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-		},
-		Key: sequence.JobSetName,
-	})
-	if err != nil {
-		err = errors.WithStack(err)
-		return err
-	}
-
-	return nil
 }
 
 // PublishToPulsar sends pulsar messages async

@@ -13,15 +13,15 @@ services:
     container_name: redis
     image: redis
     ports:
-      - "6379:6379"
+      - 6379:6379
     networks:
       - kind
 
   postgres:
     container_name: postgres
-    image: postgres
+    image: postgres:12.13-alpine
     environment:
-      - "POSTGRES_PASSWORD=psw"
+      - POSTGRES_PASSWORD=psw
     ports:
       - "5432:5432"
     networks:
@@ -34,18 +34,7 @@ services:
       - ./localdev/pulsar.conf:/conf/pulsar.conf
     entrypoint: bin/pulsar standalone
     ports:
-      - "0.0.0.0:6650:6650"
-    networks:
-      - kind
-
-  # TODO: Remove
-  stan:
-    container_name: stan
-    image: nats-streaming
-    command: "-p 4223 -m 8223"
-    ports:
-      - "4223:4223"
-      - "8223:8223"
+      - 0.0.0.0:6650:6650
     networks:
       - kind
 
@@ -54,26 +43,24 @@ services:
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 50051:50051
       - 8080:8080
     volumes:
-      - ./localdev/config:/config
+      - ./e2e/setup/insecure-armada-auth-config.yaml:/config/insecure-armada-auth-config.yaml
     depends_on:
       - redis
       - postgres
       - pulsar
-      - stan
-    working_dir: /app
-    entrypoint: ./server
-    command: --config /config/armada/config.yaml
+      - eventingester
+    command: ./server --config /config/insecure-armada-auth-config.yaml
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -81,69 +68,53 @@ services:
     depends_on:
       - server
     volumes:
-      - ./localdev/config:/config
+      - ./e2e/setup/insecure-executor-config.yaml:/config/insecure-executor-config.yaml
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    working_dir: /app
-    entrypoint: ./executor
-    command: --config /config/executor/config.yaml
+    command: ./executor --config /config/insecure-executor-config.yaml
 
   binoculars:
     container_name: binoculars
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 8082:8082
-    depends_on:
-      - server
     volumes:
-      - ./localdev/config:/config
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    working_dir: /app
-    entrypoint: ./binoculars
-    command: --config /config/binoculars/config.yaml
+    command: ./binoculars
 
   jobservice:
     container_name: jobservice
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 60003:60003
     depends_on:
       - server
-    volumes:
-      - ./localdev/config:/config
-    working_dir: "/app"
-    entrypoint: ./jobservice
-    command: --config /config/jobservice/config.yaml
+    command: ./jobservice
 
   lookoutingester:
     container_name: lookoutingester
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
       - postgres
+      - pulsar
     volumes:
       - ./localdev/config:/config
-    working_dir: /app
-    entrypoint: ./lookoutingester
-    command: --config /config/lookoutingester/config.yaml
+    command: ./lookoutingester --config /config/lookoutingester/config.yaml
 
   eventingester:
     container_name: eventingester
-    image: ${ARMADA_IMAGE:-armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
       - redis
-    volumes:
-      - ./localdev/config:/config
-    working_dir: /app
-    entrypoint: eventingester
-    command: --config /config/eventingester/config.yaml
+    command: ./eventingester

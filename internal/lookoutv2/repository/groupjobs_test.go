@@ -9,12 +9,12 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 func TestGroupByQueue(t *testing.T) {
@@ -388,7 +388,7 @@ func getCreateJobsFn(state lookout.JobState) createJobsFn {
 }
 
 func makeQueued(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
-	NewJobSimulator(userAnnotationPrefix, converter, store).
+	NewJobSimulator(converter, store).
 		Submit(queue, jobSet, owner, baseTime, &JobOptions{
 			Annotations: annotations,
 		}).
@@ -396,7 +396,7 @@ func makeQueued(queue, jobSet string, annotations map[string]string, converter *
 }
 
 func makePending(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
-	NewJobSimulator(userAnnotationPrefix, converter, store).
+	NewJobSimulator(converter, store).
 		Submit(queue, jobSet, owner, baseTime, &JobOptions{
 			Annotations: annotations,
 		}).
@@ -406,7 +406,7 @@ func makePending(queue, jobSet string, annotations map[string]string, converter 
 
 func makeRunning(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	runId := uuid.NewString()
-	NewJobSimulator(userAnnotationPrefix, converter, store).
+	NewJobSimulator(converter, store).
 		Submit(queue, jobSet, owner, baseTime, &JobOptions{
 			Annotations: annotations,
 		}).
@@ -417,7 +417,7 @@ func makeRunning(queue, jobSet string, annotations map[string]string, converter 
 
 func makeFailed(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	runId := uuid.NewString()
-	NewJobSimulator(userAnnotationPrefix, converter, store).
+	NewJobSimulator(converter, store).
 		Submit(queue, jobSet, owner, baseTime, &JobOptions{
 			Annotations: annotations,
 		}).

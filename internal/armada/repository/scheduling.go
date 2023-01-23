@@ -6,7 +6,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const clusterSchedulingInfoReportKey = "Cluster:SchedulingInfo"

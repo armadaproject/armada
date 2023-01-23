@@ -6,7 +6,7 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 // PulsarMessageId implements the pulsar.MessageID interface (which uniquely identifies a Pulsar message).

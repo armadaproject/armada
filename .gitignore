@@ -16,12 +16,18 @@ jobservice.db-wal
 
 # Build artifacts
 dist
-.goreleaser-docker.yml
+.goreleaser-minimal.yml
 
 # Proto compiler and dependencies
 proto
 protoc
 protoc.zip
+
+# Helm
+charts/armada-server-bundle/charts/postgresql-*.tgz
+charts/armada-server-bundle/charts/pulsar-*.tgz
+charts/armada-server-bundle/charts/redis-ha-*.tgz
+charts/armada-server-bundle/charts/stan-*.tgz
 
 # Binaries for programs and plugins
 *.exe
@@ -81,3 +87,5 @@ third_party/airflow/docs/build/
 third_party/airflow/build/
 build/ssl/certs/ca-certificates.crt
 localdev/volumes/go/pkg/
+.coverage
+coverage.xml

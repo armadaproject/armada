@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/binoculars"
-	"github.com/G-Research/armada/internal/binoculars/configuration"
-	"github.com/G-Research/armada/internal/common"
-	gateway "github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/common/health"
-	api "github.com/G-Research/armada/pkg/api/binoculars"
+	"github.com/armadaproject/armada/internal/binoculars"
+	"github.com/armadaproject/armada/internal/binoculars/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	gateway "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
+	api "github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 const CustomConfigLocation string = "config"

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 func TestUtilisationData_Max(t *testing.T) {

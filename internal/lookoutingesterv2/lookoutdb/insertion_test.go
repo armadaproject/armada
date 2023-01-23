@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 )
 
 const (
@@ -309,36 +309,100 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdateJobsWithCancelled(t *testing.T) {
+func TestUpdateJobsWithTerminal(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		initial := []*model.CreateJobInstruction{{
-			JobId:                     jobIdString,
-			Queue:                     queue,
-			Owner:                     userId,
-			JobSet:                    jobSetName,
-			Cpu:                       cpu,
-			Memory:                    memory,
-			EphemeralStorage:          ephemeralStorage,
-			Gpu:                       gpu,
-			Priority:                  priority,
-			Submitted:                 baseTime,
-			State:                     lookout.JobQueuedOrdinal,
-			LastTransitionTime:        baseTime,
-			LastTransitionTimeSeconds: baseTime.Unix(),
-			JobProto:                  []byte(jobProto),
-			PriorityClass:             pointer.String(priorityClass),
-		}}
+		initial := []*model.CreateJobInstruction{
+			{
+				JobId:                     jobIdString,
+				Queue:                     queue,
+				Owner:                     userId,
+				JobSet:                    jobSetName,
+				Cpu:                       cpu,
+				Memory:                    memory,
+				EphemeralStorage:          ephemeralStorage,
+				Gpu:                       gpu,
+				Priority:                  priority,
+				Submitted:                 baseTime,
+				State:                     lookout.JobQueuedOrdinal,
+				LastTransitionTime:        baseTime,
+				LastTransitionTimeSeconds: baseTime.Unix(),
+				JobProto:                  []byte(jobProto),
+				PriorityClass:             pointer.String(priorityClass),
+			},
+			{
+				JobId:                     "job2",
+				Queue:                     queue,
+				Owner:                     userId,
+				JobSet:                    jobSetName,
+				Cpu:                       cpu,
+				Memory:                    memory,
+				EphemeralStorage:          ephemeralStorage,
+				Gpu:                       gpu,
+				Priority:                  priority,
+				Submitted:                 baseTime,
+				State:                     lookout.JobQueuedOrdinal,
+				LastTransitionTime:        baseTime,
+				LastTransitionTimeSeconds: baseTime.Unix(),
+				JobProto:                  []byte(jobProto),
+				PriorityClass:             pointer.String(priorityClass),
+			},
+			{
+				JobId:                     "job3",
+				Queue:                     queue,
+				Owner:                     userId,
+				JobSet:                    jobSetName,
+				Cpu:                       cpu,
+				Memory:                    memory,
+				EphemeralStorage:          ephemeralStorage,
+				Gpu:                       gpu,
+				Priority:                  priority,
+				Submitted:                 baseTime,
+				State:                     lookout.JobQueuedOrdinal,
+				LastTransitionTime:        baseTime,
+				LastTransitionTimeSeconds: baseTime.Unix(),
+				JobProto:                  []byte(jobProto),
+				PriorityClass:             pointer.String(priorityClass),
+			},
+		}
 
-		update1 := []*model.UpdateJobInstruction{{
-			JobId:                     jobIdString,
-			State:                     pointer.Int32(lookout.JobCancelledOrdinal),
-			Cancelled:                 &baseTime,
-			LastTransitionTime:        &baseTime,
-			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-		}}
+		update1 := []*model.UpdateJobInstruction{
+			{
+				JobId:                     jobIdString,
+				State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+				Cancelled:                 &baseTime,
+				LastTransitionTime:        &baseTime,
+				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			},
+			{
+				JobId:                     "job2",
+				State:                     pointer.Int32(lookout.JobSucceededOrdinal),
+				Cancelled:                 &baseTime,
+				LastTransitionTime:        &baseTime,
+				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			},
+			{
+				JobId:                     "job3",
+				State:                     pointer.Int32(lookout.JobFailedOrdinal),
+				Cancelled:                 &baseTime,
+				LastTransitionTime:        &baseTime,
+				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			},
+		}
 
 		update2 := []*model.UpdateJobInstruction{{
 			JobId:                     jobIdString,
+			State:                     pointer.Int32(lookout.JobRunningOrdinal),
+			LastTransitionTime:        &baseTime,
+			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			LatestRunId:               pointer.String(runIdString),
+		}, {
+			JobId:                     "job2",
+			State:                     pointer.Int32(lookout.JobRunningOrdinal),
+			LastTransitionTime:        &baseTime,
+			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			LatestRunId:               pointer.String(runIdString),
+		}, {
+			JobId:                     "job3",
 			State:                     pointer.Int32(lookout.JobRunningOrdinal),
 			LastTransitionTime:        &baseTime,
 			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
@@ -350,15 +414,21 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 		// Insert
 		ldb.CreateJobs(ctx.Background(), initial)
 
-		// Cancel the job
+		// Mark the jobs terminal
 		ldb.UpdateJobs(ctx.Background(), update1)
 
-		// Update the job - this should be discarded
+		// Update the jobs - these should be discarded
 		ldb.UpdateJobs(ctx.Background(), update2)
 
-		// Assert the state is still cancelled
+		// Assert the states are still terminal
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
+
+		job2 := getJob(t, db, "job2")
+		assert.Equal(t, lookout.JobSucceededOrdinal, int(job2.State))
+
+		job3 := getJob(t, db, "job3")
+		assert.Equal(t, lookout.JobFailedOrdinal, int(job3.State))
 
 		return nil
 	})
@@ -655,16 +725,30 @@ func TestConflateJobUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
-func TestConflateJobUpdatesWithCancelled(t *testing.T) {
+func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobSucceededOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobSucceededOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobFailedOrdinal)},
 	}
+
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].JobId < updates[j].JobId
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].JobId < expected[j].JobId
+	})
 	assert.Equal(t, expected, updates)
 }
 

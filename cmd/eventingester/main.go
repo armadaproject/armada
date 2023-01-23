@@ -1,13 +1,13 @@
 package main
 
 import (
-	"github.com/G-Research/armada/internal/eventingester"
+	"github.com/armadaproject/armada/internal/eventingester"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
 )
 
 const (

@@ -1,36 +1,55 @@
 syntax = 'proto3';
 package schedulerobjects;
+option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
 
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
+// Executor represents an executor running on a worker cluster
+message Executor {
+    // Name of the executor
+    string id = 1;
+    // Pool that the executor belongs to
+    string pool = 2;
+    // The nodes available for scheduling via this executor
+    repeated Node nodes = 3;
+    // Minimum resources which a job must request in order to be considered for scheduling on this executor
+    ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
+    // Last time the executor provided a heartbeat to say it was still accepting job
+    google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    // jobs that are owned by the cluster but are not assigned to any node
+    repeated string unassigned_job_runs = 9;
+}
+
 // Node represents a node in a worker cluster.
 message Node {
-	// Unique name associated with the node.
-	// Only used internally by the scheduler.
-	string Id = 1;
-	// Time at which this node was last updated.
-	// Used to garbage collect nodes that have been removed.
+    // Unique name associated with the node.
+	  // Only used internally by the scheduler.
+	  string Id = 1;
+	  // Time at which this node was last updated.
+	  // Used to garbage collect nodes that have been removed.
     google.protobuf.Timestamp LastSeen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-	// The node type captures scheduling requirements of the node;
-	// it's computed from the taints and labels associated with the node.
+	  // The node type captures scheduling requirements of the node;
+    // it's computed from the taints and labels associated with the node.
     // This field is set automatically by the NodeDb on inserting the node.
-	NodeType nodeType = 3;
-	// We store the NodeType.id here to simplify indexing.
+	  NodeType nodeType = 3;
+	  // We store the NodeType.id here to simplify indexing.
     // This field is set automatically by the NodeDb on inserting the node.
-	string NodeTypeId = 4;
+	  string NodeTypeId = 4;
     // Kubernetes taints.
     repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
     // Kubernetes labels.
     map<string, string> labels = 6;
     // Total resources on this node.
     ResourceList TotalResources = 7 [(gogoproto.nullable) = false];
-	// Resources available for jobs of a given priority.
-	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
-	// where available resources = unused resources + resources assigned to lower-priority jobs.
+	  // Resources available for jobs of a given priority.
+	  // E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
+	  // where available resources = unused resources + resources assigned to lower-priority jobs.
     map<int32, ResourceList> AllocatableByPriorityAndResource = 8 [(gogoproto.nullable) = false];
+    // run ids of jobs running on this node
+    repeated string job_runs = 9;
 }
 
 // NodeType represents a particular combination of taints and labels.

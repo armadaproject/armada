@@ -8,15 +8,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 var managedPodSelector labels.Selector

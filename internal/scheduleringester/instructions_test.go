@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/compress"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var (
@@ -31,8 +31,8 @@ func TestConvertSequence(t *testing.T) {
 	}{
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
-			expected: []DbOperation{InsertJobs{f.JobIdUuid: &schedulerdb.Job{
-				JobID:         f.JobIdUuid,
+			expected: []DbOperation{InsertJobs{f.JobIdString: &schedulerdb.Job{
+				JobID:         f.JobIdString,
 				JobSet:        f.JobSetName,
 				UserID:        f.UserId,
 				Groups:        compressedGroups,
@@ -68,18 +68,11 @@ func TestConvertSequence(t *testing.T) {
 				}),
 			}}},
 		},
-		"job run assigned": {
-			events: []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &schedulerdb.JobRunAssignment{
-				RunID:      f.RunIdUuid,
-				Assignment: mustMarshall(f.Assigned.GetJobRunAssigned()),
-			}}},
-		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
 				RunID:    f.RunIdUuid,
-				JobID:    f.JobIdUuid,
+				JobID:    f.JobIdString,
 				JobSet:   f.JobSetName,
 				Executor: f.ExecutorId,
 			}}},
@@ -101,19 +94,19 @@ func TestConvertSequence(t *testing.T) {
 		"job errors terminal": {
 			events: []*armadaevents.EventSequence_Event{f.JobFailed},
 			expected: []DbOperation{
-				MarkJobsFailed{f.JobIdUuid: true},
+				MarkJobsFailed{f.JobIdString: true},
 			},
 		},
 		"job succeeded": {
 			events: []*armadaevents.EventSequence_Event{f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobsSucceeded{f.JobIdUuid: true},
+				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
 		"reprioritise job": {
 			events: []*armadaevents.EventSequence_Event{f.JobReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobPriorities{f.JobIdUuid: f.NewPriority},
+				UpdateJobPriorities{f.JobIdString: f.NewPriority},
 			},
 		},
 		"reprioritise jobset": {
@@ -125,7 +118,7 @@ func TestConvertSequence(t *testing.T) {
 		"cancel job": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelled{f.JobIdUuid: true},
+				MarkJobsCancelled{f.JobIdString: true},
 			},
 		},
 		"cancel jobSet": {
@@ -139,7 +132,7 @@ func TestConvertSequence(t *testing.T) {
 			expected: []DbOperation{
 				MarkJobSetsCancelled{f.JobSetName: true},
 				MarkRunsRunning{f.RunIdUuid: true},
-				MarkJobsSucceeded{f.JobIdUuid: true},
+				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
 		"filtered events": {
@@ -153,7 +146,7 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.Running, f.JobCancelled, f.JobSucceeded},
 			expected: []DbOperation{
 				MarkRunsRunning{f.RunIdUuid: true},
-				MarkJobsSucceeded{f.JobIdUuid: true},
+				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
 	}

@@ -12,17 +12,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type JobSimulator struct {
@@ -60,7 +59,7 @@ type runPatch struct {
 	started     *time.Time
 }
 
-func NewJobSimulator(annotationPrefix string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
+func NewJobSimulator(converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) *JobSimulator {
 	return &JobSimulator{
 		converter: converter,
 		store:     store,
@@ -143,11 +142,11 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 	}
 	js.events = append(js.events, submitEvent)
 
-	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(testfixtures.UserId, []string{}, testfixtures.Queue, testfixtures.JobSetName, testfixtures.BaseTime, submitEvent.GetSubmitJob())
+	apiJob, _ := eventutil.ApiJobFromLogSubmitJob(owner, []string{}, queue, jobSet, ts, submitEvent.GetSubmitJob())
 	js.apiJob = apiJob
 
 	js.job = &model.Job{
-		Annotations:        make(map[string]string),
+		Annotations:        opts.Annotations,
 		Cpu:                opts.Cpu.MilliValue(),
 		EphemeralStorage:   opts.EphemeralStorage.Value(),
 		Gpu:                opts.Gpu.Value(),
@@ -615,4 +614,9 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 		prefixed[fmt.Sprintf("%s%s", prefix, key)] = value
 	}
 	return prefixed
+}
+
+func logQuery(query *Query) {
+	log.Debug(query.Sql)
+	log.Debugf("%v", query.Args)
 }

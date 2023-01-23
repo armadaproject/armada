@@ -8,8 +8,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/domain"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 func TestGetNodesHostingActiveManagedPods(t *testing.T) {

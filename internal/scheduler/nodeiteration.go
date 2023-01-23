@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // NodesIterator is an iterator over all nodes in the db.
@@ -108,7 +108,7 @@ func (it *NodeTypesResourceIterator) Next() interface{} {
 	return it.NextNodeItem()
 }
 
-// A priority queue used by NodeTypesResourceIterator to return results
+// NodeTypesResourceIteratorPQ is a priority queue used by NodeTypesResourceIterator to return results
 // from across several sub-iterators in order.
 type NodeTypesResourceIteratorPQ []*NodeTypesResourceIteratorItem
 

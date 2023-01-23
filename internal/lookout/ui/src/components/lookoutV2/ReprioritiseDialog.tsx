@@ -29,6 +29,7 @@ interface ReprioritiseDialogProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
+
 export const ReprioritiseDialog = ({
   onClose,
   selectedItemFilters,
@@ -66,8 +67,7 @@ export const ReprioritiseDialog = ({
 
     setIsReprioritising(true)
 
-    const jobIdsToReprioritise = reprioritisableJobs.map((job) => job.jobId)
-    const response = await updateJobsService.reprioritiseJobs(jobIdsToReprioritise, newPriority)
+    const response = await updateJobsService.reprioritiseJobs(reprioritisableJobs, newPriority)
 
     if (response.failedJobIds.length === 0) {
       enqueueSnackbar(

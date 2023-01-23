@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	cfg "github.com/G-Research/armada/internal/armada/configuration"
-	pt "github.com/G-Research/armada/internal/pulsartest"
+	cfg "github.com/armadaproject/armada/internal/armada/configuration"
+	pt "github.com/armadaproject/armada/internal/pulsartest"
 )
 
 func TestNew(t *testing.T) {

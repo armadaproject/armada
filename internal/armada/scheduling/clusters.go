@@ -3,7 +3,7 @@ package scheduling
 import (
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // Each executor periodically reports cluster resource usage to the server.

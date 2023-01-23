@@ -9,7 +9,7 @@ import (
 	"github.com/go-ldap/ldap/v3"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
 type GroupLookup interface {

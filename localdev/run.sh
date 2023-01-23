@@ -1,6 +1,6 @@
 #!/bin/bash
 
-INFRA_SVCS="redis postgres pulsar stan"
+INFRA_SVCS="redis postgres pulsar"
 ARMADA_SVCS="server lookout lookout-ingester executor binoculars jobservice event-ingester"
 COMPOSE_FILE=""
 

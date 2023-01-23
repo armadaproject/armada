@@ -48,6 +48,8 @@ jobs:
           python-version: ${{ matrix.python }}
           tox-env: ${{ matrix.tox-env }}
           path: 'client/python'
+          github-token: ${{secrets.GITHUB_TOKEN}}
+
   python-client-integration-tests:
     runs-on: ubuntu-22.04
     strategy:
@@ -58,6 +60,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python }}

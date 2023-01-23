@@ -4,11 +4,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {

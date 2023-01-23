@@ -4,46 +4,201 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+)
+
+const (
+	jobsTable      = "jobs"
+	runsByJobTable = "runsByJob" // table that maps runs to jobs
+	idIndex        = "id"        // index for looking up jobs by id
+	orderIndex     = "order"     // index for looking up jobs on a given queue by the order in which they should be scheduled
+	jobIdIndex     = "jobId"     // index for looking up jobs by id
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
-// It allows for efficiently iterationg over jobs in a specified queue sorted
-// first by priority class value (greater to smaller),
-// second by in-queue priority value (smaller to greater, since smaller values indicate higher priority),
-// and third by submission time.
+// It allows for efficiently iterating over jobs in a specified queue sorted first by in-queue priority value (smaller
+// to greater, since smaller values indicate higher priority), and second by submission time.
+// JobDb is implemented on top of https://github.com/hashicorp/go-memdb which is a simple in-memory database built on
+// immutable radix trees.
 type JobDb struct {
 	// In-memory database. Stores *SchedulerJob.
 	// Used to efficiently iterate over jobs in sorted order.
 	Db *memdb.MemDB
 }
 
+// Internal row which allows us to map jobs to job runs (and vice versa)
+type jobRunPair struct {
+	runId string
+	jobId string
+}
+
 // SchedulerJob is the scheduler-internal representation of a job.
 type SchedulerJob struct {
-	// String representation of the job id UUID.
-	// We use a string rather than a uuid.UUID because go-memdb only
-	// supports the string representation natively.
+	// String representation of the job id
 	JobId string
-	// Name of the queue this job is part of.
+	// Name of the queue this job belongs to.
 	Queue string
-	// Each job has a priority class with an associated value.
-	// We store the negative (i.e., multiplied by -1) of this value such
-	// that the index is sorted from highest to lowest priority.
-	NegatedPriorityClassValue int
+	// Jobset the job belongs to
+	// We store this as it's needed for sending job event messages
+	Jobset string
 	// Per-queue priority of this job.
 	Priority uint32
 	// Logical timestamp indicating the order in which jobs are submitted.
-	// Jobs with identical queue, NegatedPriorityClassValue, and Priority
+	// Jobs with identical Queue and Priority
 	// are sorted by timestamp.
 	Timestamp int64
-	// Node to which this job has been assigned.
-	// Nil if this job has not yet been assigned.
-	node *schedulerobjects.Node
+	// Name of the executor to which this job has been assigned.
+	// Empty if this job has not yet been assigned.
+	Executor string
+	// Name of the node to which this job has been assigned.
+	// Empty if this job has not yet been assigned.
+	Node string
+	// True if the job is currently queued.
+	// If this is set then the job will not be considered for scheduling
+	Queued bool
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	// True if the user has requested this job be cancelled
+	CancelRequested bool
+	// True if the scheduler has cancelled the job
+	Cancelled bool
+	// True if the scheduler has failed the job
+	Failed bool
+	// True if the scheduler has marked the job as succeeded
+	Succeeded bool
+	// Job Runs in the order they were received.
+	// For now there can be only one active job run which will be the last element of the slice
+	Runs []*JobRun
+}
+
+// GetQueue returns the queue this job belongs to.
+func (job *SchedulerJob) GetQueue() string {
+	return job.Queue
+}
+
+// GetAnnotations returns the annotations on the job.
+func (job *SchedulerJob) GetAnnotations() map[string]string {
+	requirements := job.jobSchedulingInfo.GetObjectRequirements()
+	if len(requirements) == 0 {
+		return nil
+	}
+	return requirements[0].GetPodRequirements().GetAnnotations()
+}
+
+// GetId returns the id of the Job.
+func (job *SchedulerJob) GetId() string {
+	return job.JobId
+}
+
+// InTerminalState returns true if the job  is in a terminal state
+func (job *SchedulerJob) InTerminalState() bool {
+	return job.Succeeded || job.Cancelled || job.Failed
+}
+
+// NumReturned returns the number of times this job has been returned by executors
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small
+func (job *SchedulerJob) NumReturned() uint {
+	returned := uint(0)
+	for _, run := range job.Runs {
+		if run.Returned {
+			returned++
+		}
+	}
+	return returned
+}
+
+// CurrentRun returns the currently active job run or nil if there are no runs yet
+func (job *SchedulerJob) CurrentRun() *JobRun {
+	if len(job.Runs) == 0 {
+		return nil
+	}
+	return job.Runs[len(job.Runs)-1]
+}
+
+// RunById returns the Run corresponding to the provided run id or nil if no such Run exists
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small
+func (job *SchedulerJob) RunById(id uuid.UUID) *JobRun {
+	for _, run := range job.Runs {
+		if run.RunID == id {
+			return run
+		}
+	}
+	return nil
+}
+
+// DeepCopy deep copies the entire job including the runs.
+// This is needed because when jobs are stored in the JobDb they cannot be modified in-place
+func (job *SchedulerJob) DeepCopy() *SchedulerJob {
+	if job == nil {
+		return nil
+	}
+	runs := make([]*JobRun, len(job.Runs))
+	for k, v := range job.Runs {
+		runs[k] = v.DeepCopy()
+	}
+	return &SchedulerJob{
+		JobId:             job.JobId,
+		Queue:             job.Queue,
+		Jobset:            job.Jobset,
+		Priority:          job.Priority,
+		Timestamp:         job.Timestamp,
+		Node:              job.Node,
+		Queued:            job.Queued,
+		jobSchedulingInfo: proto.Clone(job.jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo),
+		CancelRequested:   job.CancelRequested,
+		Cancelled:         job.Cancelled,
+		Failed:            job.Failed,
+		Succeeded:         job.Succeeded,
+		Runs:              runs,
+	}
+}
+
+// JobRun is the scheduler-internal representation of a job run.
+type JobRun struct {
+	// Unique identifier for the run
+	RunID uuid.UUID
+	// The name of the executor this run has been leased to
+	Executor string
+	// True if the job has been reported as pending by the executor
+	Pending bool
+	// True if the job has been reported as running by the executor
+	Running bool
+	// True if the job has been reported as succeeded by the executor
+	Succeeded bool
+	// True if the job has been reported as failed by the executor
+	Failed bool
+	// True if the job has been reported as cancelled by the executor
+	Cancelled bool
+	// True if the job has been returned by the executor
+	Returned bool
+	// True if the job has been expired by the scheduler
+	Expired bool
+}
+
+// InTerminalState returns true if the JobRun is in a terminal state
+func (run *JobRun) InTerminalState() bool {
+	return run.Succeeded || run.Failed || run.Cancelled || run.Expired || run.Returned
+}
+
+// DeepCopy deep copies the entire JobRun
+// This is needed because when runs are stored in the JobDb they cannot be modified in-place
+func (run *JobRun) DeepCopy() *JobRun {
+	return &JobRun{
+		RunID:     run.RunID,
+		Executor:  run.Executor,
+		Pending:   run.Pending,
+		Running:   run.Running,
+		Succeeded: run.Succeeded,
+		Failed:    run.Failed,
+		Cancelled: run.Cancelled,
+		Returned:  run.Returned,
+		Expired:   run.Expired,
+	}
 }
 
 func NewJobDb() (*JobDb, error) {
@@ -56,31 +211,134 @@ func NewJobDb() (*JobDb, error) {
 	}, nil
 }
 
-func (jobDb *JobDb) Upsert(jobs []*SchedulerJob) error {
-	txn := jobDb.Db.Txn(true)
-	defer txn.Abort()
+// Upsert will insert the given jobs if they don't already exist or update the if they do
+// Any jobs passed to this function *must not* be subsequently modified
+func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*SchedulerJob) error {
 	for _, job := range jobs {
-		err := txn.Insert("jobs", job)
+		err := txn.Insert(jobsTable, job)
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		for _, run := range job.Runs {
+			err := txn.Insert(runsByJobTable, &jobRunPair{
+				runId: run.RunID.String(),
+				jobId: job.JobId,
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
 	}
-	txn.Commit()
 	return nil
 }
 
+// GetById returns the job with the given Id or nil if no such job exists
+// The Job returned by this function *must not* be subsequently modified
+func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
+	var job *SchedulerJob = nil
+	iter, err := txn.Get(jobsTable, idIndex, id)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	result := iter.Next()
+	if result != nil {
+		job = result.(*SchedulerJob)
+	}
+	return job, err
+}
+
+// GetByRunId returns the job with the given run id or nil if no such job exists
+// The Job returned by this function *must not* be subsequently modified
+func (jobDb *JobDb) GetByRunId(txn *memdb.Txn, runId uuid.UUID) (*SchedulerJob, error) {
+	iter, err := txn.Get(runsByJobTable, idIndex, runId.String())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	result := iter.Next()
+	if result == nil {
+		return nil, nil
+	}
+	job := result.(*jobRunPair)
+	return jobDb.GetById(txn, job.jobId)
+}
+
+// HasQueuedJobs returns true if the queue has any jobs in the running state or false otherwise
+func (jobDb *JobDb) HasQueuedJobs(txn *memdb.Txn, queue string) (bool, error) {
+	iter, err := NewJobQueueIterator(txn, queue)
+	if err != nil {
+		return false, err
+	}
+	return iter.Next() != nil, nil
+}
+
+// GetAll returns all jobs in the database.
+// The Jobs returned by this function *must not* be subsequently modified
+func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
+	iter, err := txn.Get(jobsTable, idIndex)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	result := make([]*SchedulerJob, 0)
+	for obj := iter.Next(); obj != nil; obj = iter.Next() {
+		p := obj.(*SchedulerJob)
+		result = append(result, p)
+	}
+	return result, nil
+}
+
+// BatchDelete removes the jobs with the given ids from the database.  Any ids that are not in the database will be
+// ignored
+func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
+	for _, id := range ids {
+		err := txn.Delete(jobsTable, &SchedulerJob{JobId: id})
+		if err != nil {
+			// this could be because the job doesn't exist
+			// unfortunately the error from memdb isn't nice for parsing, so we do an explicit check
+			job, err := jobDb.GetById(txn, id)
+			if err != nil {
+				return err
+			}
+			if job != nil {
+				return errors.WithStack(err)
+			}
+		}
+		runsIter, err := txn.Get(runsByJobTable, jobIdIndex, id)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		for obj := runsIter.Next(); obj != nil; obj = runsIter.Next() {
+			err = txn.Delete(runsByJobTable, obj)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+	}
+	return nil
+}
+
+// ReadTxn returns a read-only transaction.
+// Multiple read-only transactions can access the db concurrently
+func (jobDb *JobDb) ReadTxn() *memdb.Txn {
+	return jobDb.Db.Txn(false)
+}
+
+// WriteTxn returns a writeable transaction.
+// Only a single write transaction may access the db at any given time
+func (jobDb *JobDb) WriteTxn() *memdb.Txn {
+	return jobDb.Db.Txn(true)
+}
+
 // JobQueueIterator is an iterator over all jobs in a given queue.
-// Jobs are sorted first by PriorityClassValue, second by per-queue priority, and third by submission time.
+// Jobs are sorted first by per-queue priority, and secondly by submission time.
 type JobQueueIterator struct {
 	queue string
 	it    memdb.ResultIterator
 }
 
 func NewJobQueueIterator(txn *memdb.Txn, queue string) (*JobQueueIterator, error) {
-	minPriorityClassValue := -math.MaxInt
 	var minPriority uint32 = 0
 	minTimestamp := -math.MaxInt64
-	it, err := txn.LowerBound("jobs", "order", queue, minPriorityClassValue, minPriority, minTimestamp)
+	it, err := txn.LowerBound(jobsTable, orderIndex, queue, true, minPriority, minTimestamp)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -90,10 +348,12 @@ func NewJobQueueIterator(txn *memdb.Txn, queue string) (*JobQueueIterator, error
 	}, nil
 }
 
+// WatchCh is needed to implement the memdb.ResultIterator interface but is not needed for our use case
 func (it *JobQueueIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
+// NextJobItem returns the next SchedulerJob or nil if the end of the iterator has been reached
 func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 	obj := it.it.Next()
 	if obj == nil {
@@ -111,34 +371,57 @@ func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 	return jobItem
 }
 
+// Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which
+// provides a typesafe mechanism for getting the next SchedulerJob
 func (it *JobQueueIterator) Next() interface{} {
 	return it.NextJobItem()
 }
 
+// jobDbSchema() creates the database schema.
+// This is a simple schema consisting of a single "jobs" table with indexes for fast lookups
 func jobDbSchema() *memdb.DBSchema {
-	indexes := make(map[string]*memdb.IndexSchema)
-	indexes["id"] = &memdb.IndexSchema{
-		Name:    "id",
-		Unique:  true,
-		Indexer: &memdb.UUIDFieldIndex{Field: "JobId"},
-	}
-	indexes["order"] = &memdb.IndexSchema{
-		Name:   "order",
-		Unique: false,
-		Indexer: &memdb.CompoundIndex{
-			Indexes: []memdb.Indexer{
-				&memdb.StringFieldIndex{Field: "Queue"},
-				&memdb.IntFieldIndex{Field: "NegatedPriorityClassValue"},
-				&memdb.UintFieldIndex{Field: "Priority"},
-				&memdb.IntFieldIndex{Field: "Timestamp"},
+	jobIndexes := map[string]*memdb.IndexSchema{
+		idIndex: {
+			Name:    idIndex, // lookup by primary key
+			Unique:  true,
+			Indexer: &memdb.StringFieldIndex{Field: "JobId"},
+		},
+		orderIndex: {
+			Name:   orderIndex, // lookup leased jobs for a given queue
+			Unique: false,
+			Indexer: &memdb.CompoundIndex{
+				Indexes: []memdb.Indexer{
+					&memdb.StringFieldIndex{Field: "Queue"},
+					&memdb.BoolFieldIndex{Field: "Queued"},
+					&memdb.UintFieldIndex{Field: "Priority"},
+					&memdb.IntFieldIndex{Field: "Timestamp"},
+				},
 			},
 		},
 	}
+
+	runsByJobIndexes := map[string]*memdb.IndexSchema{
+		idIndex: {
+			Name:    idIndex, // lookup by primary key
+			Unique:  true,
+			Indexer: &memdb.StringFieldIndex{Field: "runId"},
+		},
+		jobIdIndex: {
+			Name:    jobIdIndex, // lookup by job id
+			Unique:  true,
+			Indexer: &memdb.StringFieldIndex{Field: "jobId"},
+		},
+	}
+
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
-			"jobs": {
-				Name:    "jobs",
-				Indexes: indexes,
+			jobsTable: {
+				Name:    jobsTable,
+				Indexes: jobIndexes,
+			},
+			runsByJobTable: {
+				Name:    runsByJobTable,
+				Indexes: runsByJobIndexes,
 			},
 		},
 	}

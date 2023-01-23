@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var events = []*armadaevents.EventSequence_Event{

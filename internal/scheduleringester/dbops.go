@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -82,17 +82,16 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-type InsertJobs map[uuid.UUID]*schedulerdb.Job
+type InsertJobs map[string]*schedulerdb.Job
 
 type (
 	InsertRuns             map[uuid.UUID]*schedulerdb.Run
-	InsertRunAssignments   map[uuid.UUID]*schedulerdb.JobRunAssignment
 	UpdateJobSetPriorities map[string]int64
 	MarkJobSetsCancelled   map[string]bool
-	MarkJobsCancelled      map[uuid.UUID]bool
-	MarkJobsSucceeded      map[uuid.UUID]bool
-	MarkJobsFailed         map[uuid.UUID]bool
-	UpdateJobPriorities    map[uuid.UUID]int64
+	MarkJobsCancelled      map[string]bool
+	MarkJobsSucceeded      map[string]bool
+	MarkJobsFailed         map[string]bool
+	UpdateJobPriorities    map[string]int64
 	MarkRunsSucceeded      map[uuid.UUID]bool
 	MarkRunsFailed         map[uuid.UUID]bool
 	MarkRunsRunning        map[uuid.UUID]bool
@@ -117,10 +116,6 @@ func (a InsertJobs) Merge(b DbOperation) bool {
 }
 
 func (a InsertRuns) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
-}
-
-func (a InsertRunAssignments) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -208,12 +203,6 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	return true
 }
 
-func (a InsertRunAssignments) CanBeAppliedBefore(b DbOperation) bool {
-	// Inserting assignments before a run is defined is ok.
-	// We only require that assignments are written to the schedulerdb before the run is marked as running.
-	return true
-}
-
 func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobPriorities := b.(UpdateJobPriorities)
 	return !isUpdateJobPriorities && !definesJobInSet(a, b)
@@ -280,7 +269,7 @@ func definesRunInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
 
 // definesJob returns true if b is an InsertJobs operation
 // that inserts at least one job with id equal to any of the keys of a.
-func definesJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
+func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
 			if _, ok := a[job.JobID]; ok {
@@ -306,7 +295,7 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 
 // definesRunForJob returns true if b is an InsertRuns operation
 // that inserts at least one run with job id equal to any of the keys of a.
-func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
+func definesRunForJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
 			if _, ok := a[run.JobID]; ok {

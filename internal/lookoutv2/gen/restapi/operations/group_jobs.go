@@ -16,7 +16,7 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/go-openapi/validate"
 
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
 )
 
 // GroupJobsHandlerFunc turns a function with the right signature into a group jobs handler
@@ -37,10 +37,10 @@ func NewGroupJobs(ctx *middleware.Context, handler GroupJobsHandler) *GroupJobs 
 	return &GroupJobs{Context: ctx, Handler: handler}
 }
 
-/* GroupJobs swagger:route POST /api/v1/jobGroups groupJobs
+/*
+	GroupJobs swagger:route POST /api/v1/jobGroups groupJobs
 
 GroupJobs group jobs API
-
 */
 type GroupJobs struct {
 	Context *middleware.Context

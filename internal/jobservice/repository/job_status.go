@@ -3,7 +3,7 @@ package repository
 import (
 	"time"
 
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // JobStatus represents a job status

@@ -10,10 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/utils/strings/slices"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 const (
@@ -112,11 +112,16 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 		return nil, err
 	}
 
+	countExpr := fmt.Sprintf("COUNT(DISTINCT %s.job_id)", abbrev)
+	// If we are only fetching from jobs, no need to count distinct, as it is a big performance hit
+	if _, ok := queryTables[jobTable]; ok && len(queryTables) == 1 && len(annotationFilters) == 0 {
+		countExpr = "COUNT(*)"
+	}
 	template := fmt.Sprintf(`
-		SELECT COUNT(DISTINCT %s.job_id)
+		SELECT %s
 		%s
 		%s`,
-		abbrev, fromSql, whereSql)
+		countExpr, fromSql, whereSql)
 	templated, args := templateSql(template, qb.queryValues)
 	return &Query{
 		Sql:  templated,
@@ -289,13 +294,13 @@ func (qb *QueryBuilder) GroupBy(
 		orderSql = fmt.Sprintf("ORDER BY %s %s", order.Field, order.Direction)
 	}
 	template := fmt.Sprintf(`
-		SELECT %[1]s.%[2]s, COUNT(DISTINCT %[1]s.%[3]s) AS %[4]s
+		SELECT %[1]s.%[2]s, COUNT(*) AS %[3]s
+		%[4]s
 		%[5]s
 		%[6]s
 		%[7]s
-		%[8]s
-		%[9]s`,
-		groupCol.abbrev, groupCol.name, jobIdCol, countCol, fromSql, whereSql, groupBySql, orderSql, limitOffsetSql(skip, take))
+		%[8]s`,
+		groupCol.abbrev, groupCol.name, countCol, fromSql, whereSql, groupBySql, orderSql, limitOffsetSql(skip, take))
 	templated, args := templateSql(template, qb.queryValues)
 	return &Query{
 		Sql:  templated,
@@ -630,8 +635,18 @@ func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 		return "=", nil
 	case model.MatchStartsWith:
 		return "LIKE", nil
+	case model.MatchContains:
+		return "LIKE", nil
 	case model.MatchAnyOf:
 		return "IN", nil
+	case model.MatchGreaterThan:
+		return ">", nil
+	case model.MatchLessThan:
+		return "<", nil
+	case model.MatchGreaterThanOrEqualTo:
+		return ">=", nil
+	case model.MatchLessThanOrEqualTo:
+		return "<=", nil
 	default:
 		err := errors.Errorf("unsupported match type: %s", match)
 		logrus.Error(err)
@@ -644,6 +659,9 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 	switch match {
 	case model.MatchStartsWith:
 		v := fmt.Sprintf("%v%%", value)
+		return qb.recordValue(v), nil
+	case model.MatchContains:
+		v := fmt.Sprintf("%%%v%%", value)
 		return qb.recordValue(v), nil
 	case model.MatchAnyOf:
 		switch v := value.(type) {

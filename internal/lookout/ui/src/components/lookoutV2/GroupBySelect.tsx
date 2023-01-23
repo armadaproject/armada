@@ -2,16 +2,12 @@ import { Fragment } from "react"
 
 import { Clear } from "@mui/icons-material"
 import { Divider, FormControl, IconButton, InputLabel, MenuItem, OutlinedInput, Select } from "@mui/material"
-import { ColumnId, ColumnSpec } from "utils/jobsTableColumns"
+import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "utils/jobsTableColumns"
 
 import styles from "./GroupBySelect.module.css"
 
-function isGroupable(column: ColumnSpec): boolean {
-  return column.groupable
-}
-
 interface GroupColumnProps {
-  columns: ColumnSpec[]
+  columns: JobTableColumn[]
   groups: ColumnId[]
   currentlySelected: ColumnId | ""
   onSelect: (columnKey: ColumnId) => void
@@ -22,7 +18,7 @@ function GroupColumn({ columns, currentlySelected, onSelect, onDelete }: GroupCo
   const actionText = isGrouped ? "Grouped by" : "Group by"
   const labelId = `select-column-group-${currentlySelected}`
   return (
-    <FormControl size="small" focused={false}>
+    <FormControl size="small" focused={false} sx={{ mt: "4px" }}>
       <InputLabel id={labelId} size="small">
         {actionText}
       </InputLabel>
@@ -48,12 +44,12 @@ function GroupColumn({ columns, currentlySelected, onSelect, onDelete }: GroupCo
       >
         {columns.map((col) => (
           <MenuItem
-            key={col.key}
-            value={col.key}
-            disabled={currentlySelected === col.key}
-            onClick={() => onSelect(col.key)}
+            key={col.id}
+            value={col.id}
+            disabled={currentlySelected === col.id}
+            onClick={() => onSelect(toColId(col.id))}
           >
-            {col.name}
+            {getColumnMetadata(col).displayName}
           </MenuItem>
         ))}
       </Select>
@@ -63,18 +59,18 @@ function GroupColumn({ columns, currentlySelected, onSelect, onDelete }: GroupCo
 
 export interface GroupBySelectProps {
   groups: ColumnId[]
-  columns: ColumnSpec[]
+  columns: JobTableColumn[]
   onGroupsChanged: (newGroups: ColumnId[]) => void
 }
 export default function GroupBySelect({ groups, columns, onGroupsChanged }: GroupBySelectProps) {
-  const groupableColumns = columns.filter(isGroupable)
-  const ungroupedColumns = groupableColumns.filter((c) => !groups.includes(c.key))
+  const groupableColumns = columns.filter((col) => col.enableGrouping)
+  const ungroupedColumns = groupableColumns.filter((c) => !groups.includes(toColId(c.id)))
   return (
     <div className={styles.container}>
       {/* Controls to modify/remove selected groups */}
       {groups.map((key, i) => {
         const alreadyListed = groups.slice(0, i)
-        const remainingOptions = groupableColumns.filter((c) => !alreadyListed.includes(c.key))
+        const remainingOptions = groupableColumns.filter((c) => !alreadyListed.includes(toColId(c.id)))
         return (
           <Fragment key={key}>
             <GroupColumn

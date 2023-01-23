@@ -4,12 +4,13 @@ import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
-import { formatJobState, isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
+import { formatJobState } from "utils/jobsTableFormatters"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
@@ -20,6 +21,7 @@ interface CancelDialogProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
+
 export const CancelDialog = ({
   onClose,
   selectedItemFilters,
@@ -50,8 +52,7 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const jobIdsToCancel = cancellableJobs.map((job) => job.jobId)
-    const response = await updateJobsService.cancelJobs(jobIdsToCancel)
+    const response = await updateJobsService.cancelJobs(cancellableJobs)
 
     if (response.failedJobIds.length === 0) {
       enqueueSnackbar(

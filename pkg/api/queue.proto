@@ -1,6 +1,7 @@
 syntax = 'proto3';
 
 package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
@@ -85,6 +86,10 @@ message NodeInfo {
     // In particular, jobs may be sent to an executor even if all resources are allocated
     // if the sent jobs are of higher priority.
     map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
+    // ids of all job runs current allocated to this node
+    // this should be of type armadaevents.uuid, but this creates a circular loop
+    // once the old scheduler has gone, we can correct this
+    repeated string  run_ids = 8 [(gogoproto.nullable) = false];
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.
@@ -158,6 +163,7 @@ message ReturnLeaseRequest {
     OrderedStringMap avoid_node_labels = 4;
     string reason = 5;
     string kubernetes_id = 6;
+    bool job_run_attempted = 7;
 }
 
 service AggregatedQueue {
