@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
+	discovery_informer "k8s.io/client-go/informers/discovery/v1"
 	network_informer "k8s.io/client-go/informers/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -56,6 +58,7 @@ type ClusterContext interface {
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
+	GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error)
 
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
@@ -80,6 +83,7 @@ type KubernetesClusterContext struct {
 	nodeInformer             informer.NodeInformer
 	serviceInformer          informer.ServiceInformer
 	ingressInformer          network_informer.IngressInformer
+	endpointSliceInformer    discovery_informer.EndpointSliceInformer
 	stopper                  chan struct{}
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
@@ -121,6 +125,7 @@ func NewClusterContext(
 		eventInformer:            factory.Core().V1().Events(),
 		serviceInformer:          factory.Core().V1().Services(),
 		ingressInformer:          factory.Networking().V1().Ingresses(),
+		endpointSliceInformer:    factory.Discovery().V1().EndpointSlices(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
 		etcdHealthMonitor:        etcdHealthMonitor,
@@ -143,6 +148,7 @@ func NewClusterContext(
 	context.nodeInformer.Lister()
 	context.serviceInformer.Lister()
 	context.ingressInformer.Lister()
+	context.endpointSliceInformer.Lister()
 
 	err := context.eventInformer.Informer().AddIndexers(cache.Indexers{podByUIDIndex: indexPodByUID})
 	if err != nil {
@@ -432,6 +438,21 @@ func (c *KubernetesClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingr
 		ingresses = []*networking.Ingress{}
 	}
 	return ingresses, err
+}
+
+func (c *KubernetesClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
+	req, err := labels.NewRequirement(labelName, selection.Equals, []string{labelValue})
+	if err != nil {
+		return nil, err
+	}
+	selector := labels.NewSelector().Add(*req)
+
+	endpointSlices, err := c.endpointSliceInformer.Lister().EndpointSlices(namespace).List(selector)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get endpointslices with label #{labelName}=#{labelValue} in namespace #{namespace}: #{err}")
+	}
+
+	return endpointSlices, nil
 }
 
 func createPodAssociationSelector(pod *v1.Pod) (*labels.Selector, error) {
