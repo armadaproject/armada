@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -152,3 +152,4 @@ func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.No
 	}
 	return nodesWithActiveManagedPods
 }
+

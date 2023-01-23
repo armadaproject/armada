@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -13,7 +13,7 @@ const minPriority = 0.5
 
 type QueuePriorityInfo struct {
 	Priority     float64
-	CurrentUsage common.ComputeResources
+	CurrentUsage armadaresource.ComputeResources
 }
 
 func CalculateQueuesPriorityInfo(
@@ -86,13 +86,13 @@ func aggregatePriority(clusterPriorities map[string]map[string]float64) map[stri
 	return result
 }
 
-func aggregateQueueUsage(reports map[string]*api.ClusterUsageReport) map[string]common.ComputeResources {
-	result := map[string]common.ComputeResources{}
+func aggregateQueueUsage(reports map[string]*api.ClusterUsageReport) map[string]armadaresource.ComputeResources {
+	result := map[string]armadaresource.ComputeResources{}
 	for _, report := range reports {
 		for _, queueReport := range util.GetQueueReports(report) {
 			current, ok := result[queueReport.Name]
 			if !ok {
-				result[queueReport.Name] = common.ComputeResources(queueReport.Resources).DeepCopy()
+				result[queueReport.Name] = armadaresource.ComputeResources(queueReport.Resources).DeepCopy()
 			} else {
 				current.Add(queueReport.Resources)
 			}

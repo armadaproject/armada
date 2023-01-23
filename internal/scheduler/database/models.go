@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type Executor struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastRequest []byte    `db:"last_request"`
+	LastUpdated time.Time `db:"last_updated"`
+}
+
 type Job struct {
 	JobID           string    `db:"job_id"`
 	JobSet          string    `db:"job_set"`
