@@ -62,3 +62,14 @@ SELECT COUNT(*) FROM markers WHERE group_id= $1;
 -- Run errors
 -- name: SelectRunErrorsById :many
 SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: SelectAllExecutors :many
+SELECT * FROM executors;
+
+-- name: SelectExecutorUpdateTimes :many
+SELECT executor_id, last_updated FROM executors;
+
+-- name: UpsertExecutor :exec
+INSERT INTO executors (executor_id, last_request, last_updated)
+VALUES(sqlc.arg(executor_id)::text, sqlc.arg(last_request)::bytea, sqlc.arg(update_time)::timestamptz)
+ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated);

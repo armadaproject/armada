@@ -11,11 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -23,6 +25,7 @@ import (
 
 func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	const maxJobsPerCall = 100
+	testClock := clock.NewFakeClock(time.Now())
 	runId1 := uuid.New()
 	runId2 := uuid.New()
 	runId3 := uuid.New()
@@ -39,6 +42,22 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
 	}
+	defaultExpectedExecutor := &schedulerobjects.Executor{
+		Id:   "test-executor",
+		Pool: "test-pool",
+		Nodes: []*schedulerobjects.Node{
+			{
+				Id:                               "test-executor-test-node",
+				TotalResources:                   schedulerobjects.ResourceList{},
+				JobRuns:                          []string{runId1.String(), runId2.String()},
+				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{},
+				LastSeen:                         testClock.Now().UTC(),
+			},
+		},
+		MinimumJobSize:    schedulerobjects.ResourceList{},
+		LastUpdateTime:    testClock.Now().UTC(),
+		UnassignedJobRuns: []string{runId3.String()},
+	}
 
 	defaultLease := &database.JobRunLease{
 		RunID:         uuid.New(),
@@ -50,15 +69,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		request      *executorapi.LeaseRequest
-		runsToCancel []uuid.UUID
-		leases       []*database.JobRunLease
-		expectedMsgs []*executorapi.LeaseStreamMessage
+		request          *executorapi.LeaseRequest
+		runsToCancel     []uuid.UUID
+		leases           []*database.JobRunLease
+		expectedExecutor *schedulerobjects.Executor
+		expectedMsgs     []*executorapi.LeaseStreamMessage
 	}{
 		"lease and cancel": {
-			request:      defaultRequest,
-			runsToCancel: []uuid.UUID{runId2},
-			leases:       []*database.JobRunLease{defaultLease},
+			request:          defaultRequest,
+			runsToCancel:     []uuid.UUID{runId2},
+			leases:           []*database.JobRunLease{defaultLease},
+			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_CancelRuns{CancelRuns: &executorapi.CancelRuns{
@@ -81,7 +102,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			},
 		},
 		"do nothing": {
-			request: defaultRequest,
+			request:          defaultRequest,
+			expectedExecutor: defaultExpectedExecutor,
 			expectedMsgs: []*executorapi.LeaseStreamMessage{
 				{
 					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
@@ -104,7 +126,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			// set up mocks
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
-			mockExecutorRepository.EXPECT().StoreRequest(tc.request).Return(nil).Times(1)
+			mockExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+				assert.Equal(t, tc.expectedExecutor, executor)
+				return nil
+			}).Times(1)
 			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), runIds).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
 
@@ -115,13 +140,16 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					capturedEvents = append(capturedEvents, msg)
 				}).AnyTimes()
 
-			api := NewExecutorApi(mockPulsarProducer,
+			server := NewExecutorApi(mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
+				[]int32{},
 				maxJobsPerCall,
-				1024)
+				1024,
+			)
+			server.clock = testClock
 
-			err = api.LeaseJobRuns(mockStream)
+			err = server.LeaseJobRuns(mockStream)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedMsgs, capturedEvents)
 			cancel()
@@ -181,13 +209,14 @@ func TestExecutorApi_Publish(t *testing.T) {
 					callback(pulsarutils.NewMessageId(1), msg, nil)
 				}).AnyTimes()
 
-			api := NewExecutorApi(mockPulsarProducer,
+			server := NewExecutorApi(mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
+				[]int32{},
 				100,
 				1024)
 
-			empty, err := api.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
+			empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
 			require.NoError(t, err)
 			assert.NotNil(t, empty)
 			assert.Equal(t, tc.sequences, capturedEvents)
