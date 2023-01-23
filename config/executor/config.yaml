@@ -1,3 +1,4 @@
+httpPort: 8080
 application:
   clusterId : "Cluster1"
   pool: "default"
