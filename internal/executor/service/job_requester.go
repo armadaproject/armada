@@ -17,7 +17,7 @@ import (
 )
 
 type LeaseRequester interface {
-	LeaseJobRuns(availableResource *common.ComputeResources, nodes []api.NodeInfo, unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error)
+	LeaseJobRuns(availableResource *common.ComputeResources, nodes []*api.NodeInfo, unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error)
 }
 
 type JobLeaseRequester struct {
@@ -32,7 +32,7 @@ func NewJobLeaseRequester() *JobLeaseRequester {
 
 func (requester *JobLeaseRequester) LeaseJobRuns(
 	availableResource *common.ComputeResources,
-	nodes []api.NodeInfo,
+	nodes []*api.NodeInfo,
 	unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

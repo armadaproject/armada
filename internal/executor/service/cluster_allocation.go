@@ -67,9 +67,14 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
+	nodes := make([]*api.NodeInfo, 0, len(capacityReport.Nodes))
+	for _, node := range capacityReport.Nodes {
+		nodes = append(nodes, &node)
+	}
+
 	newJobRuns, runsToCancel, err := allocationService.leaseRequester.LeaseJobRuns(
 		capacityReport.AvailableCapacity,
-		capacityReport.Nodes,
+		nodes,
 		unassignedRunIds,
 	)
 
