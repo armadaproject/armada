@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/executorapi"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -28,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {

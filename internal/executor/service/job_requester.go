@@ -5,15 +5,16 @@ import (
 	"io"
 	"time"
 
+	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding/gzip"
+
 	"github.com/armadaproject/armada/internal/common"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
-	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/pkg/errors"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/encoding/gzip"
 )
 
 type LeaseRequester interface {
