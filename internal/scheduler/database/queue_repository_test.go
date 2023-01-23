@@ -46,6 +46,7 @@ func TestLegacyQueueRepository_GetAllQueues(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			rc := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
+			rc.FlushDB()
 			defer rc.FlushDB()
 			defer func() {
 				_ = rc.Close()
