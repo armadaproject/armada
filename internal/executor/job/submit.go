@@ -139,7 +139,7 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	pod := job.Pod
 	// Ensure the K8SService and K8SIngress fields are populated
-	submitService.applyExecutorSpecificIngressDetails(job, pod)
+	submitService.applyExecutorSpecificIngressDetails(job)
 
 	if len(job.Ingresses) > 0 || len(job.Services) > 0 {
 		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
@@ -173,18 +173,10 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	return pod, err
 }
 
-// applyExecutorSpecificIngressDetails populates the K8SService and K8SIngress fields of the job.
-// It does so by converting the Services and Ingress fields, which are Armada-specific, into proper k8s objects.
-// If either of K8SService or K8SIngress is already populated (i.e., is non-nil), this function is a no-op,
-// except for replacing nil-valued K8SService and K8SIngress with empty slices.
-//
-// TODO: I think this is wrong for jobs with multiple PodSPecs.
-// Because we should create a set of services/ingresses for each pod,
-// but this code is a no-op if K8SService or K8SIngress is already populated.
-func (submitService *SubmitService) applyExecutorSpecificIngressDetails(job *SubmitJob, pod *v1.Pod) {
-	// If K8SIngress and/or K8SService was already populated, it was populated by the Pulsar submit API.
-	// Because the submit API can't know which executor the services/ingresses will be created in,
-	// the executor has to provide all executor-specific information.
+// applyExecutorSpecificIngressDetails populates the executor specific details on ingresses
+// These objects are mostly created server side however there will be details that are not known until submit time
+// So the executor must fill them in before it creates the objects in kubernetes
+func (submitService *SubmitService) applyExecutorSpecificIngressDetails(job *SubmitJob) {
 	for _, ingress := range job.Ingresses {
 		ingress.Annotations = util.MergeMaps(
 			ingress.Annotations,
@@ -204,14 +196,6 @@ func (submitService *SubmitService) applyExecutorSpecificIngressDetails(job *Sub
 			}
 		}
 	}
-}
-
-func exposesPorts(job *api.Job, podSpec *v1.PodSpec) bool {
-	// This is to workaround needing to get serviceports for service configs
-	// while maintaining immutability of the configs as they're passed around.
-	servicesIngressConfig := util2.CombineIngressService(job.Ingress, job.Services)
-
-	return len(util2.GetServicePorts(servicesIngressConfig, podSpec)) > 0
 }
 
 func (submitService *SubmitService) isRecoverable(err error) bool {
