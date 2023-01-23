@@ -1,9 +1,12 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/armadaproject/armada/internal/common/health"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/pflag"
@@ -34,6 +37,14 @@ func main() {
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
 
+	mux := http.NewServeMux()
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
+
+	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
+	defer shutdownHttpServer()
+
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
 
@@ -46,5 +57,6 @@ func main() {
 		<-shutdownChannel
 		shutdown()
 	}()
+	startupCompleteCheck.MarkComplete()
 	wg.Wait()
 }

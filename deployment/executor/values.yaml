@@ -9,7 +9,9 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
-additionalClusterRoleBindings: []
+additionalClusterRoleBindings:
+  - nameSuffix: pod-security-policy
+    clusterRoleName: podsecuritypolicy-permissive
 additionalVolumeMounts: []
 additionalVolumes: []
 terminationGracePeriodSeconds: 5
@@ -17,6 +19,9 @@ nodeSelector: {}
 tolerations: []
 customServiceAccount: null
 serviceAccount: null
+
+healthcheck:
+  enabled: false
 
 priorityClasses:
   - name: armada-default
@@ -34,5 +39,6 @@ prometheus:
   scrapeInterval: 10s
 
 applicationConfig:
+  httpPort: 8080
   apiConnection:
     armadaUrl: ""
