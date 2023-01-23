@@ -1,6 +1,7 @@
 package apimessages
 
 import (
+	"github.com/gogo/protobuf/proto"
 	"testing"
 	"time"
 
@@ -19,13 +20,17 @@ import (
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+	jobIdString           = "01f3j0g1md4qx7z5qb148qnh4r"
+	preemptiveJobIdString = "02f3j0g1md4qx7z5qb148qnh4r"
+	runIdString           = "123e4567-e89b-12d3-a456-426614174000"
+	preemptiveRunIdString = "123e4567-e89b-12d3-a456-426614174001"
 )
 
 var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+	jobIdProto, _             = armadaevents.ProtoUuidFromUlidString(jobIdString)
+	runIdProto                = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+	preemptiveJobIdProto, _   = armadaevents.ProtoUuidFromUlidString(preemptiveJobIdString)
+	preemptiveRunIdRunIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(preemptiveRunIdString))
 )
 
 const (
@@ -872,6 +877,61 @@ func TestConvertIngressInfo(t *testing.T) {
 	apiEvents, err := FromEventSequence(toEventSeq(utilisation))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
+}
+
+func TestConvertJobRunPreempted(t *testing.T) {
+	preempted := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId:  jobIdProto,
+				PreemptedRunId:  runIdProto,
+				PreemptiveJobId: preemptiveJobIdProto,
+				PreemptiveRunId: preemptiveRunIdRunIdProto,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: &api.JobPreemptedEvent{
+					JobId:           jobIdString,
+					JobSetId:        jobSetName,
+					Queue:           queue,
+					Created:         baseTime,
+					RunId:           runIdString,
+					PreemptiveJobId: preemptiveJobIdString,
+					PreemptiveRunId: preemptiveRunIdString,
+				},
+			},
+		},
+	}
+
+	// both PreemptiveJobId and PreemptiveRunId not nil
+	apiEvents, err := FromEventSequence(toEventSeq(preempted))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+
+	// PreemptiveJobId is nil
+	preemptiveJobIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
+	preemptiveJobIdNil.GetJobRunPreempted().PreemptiveJobId = nil
+
+	expectedPreemptiveJobIdNil := proto.Clone(expected[0]).(*api.EventMessage)
+	expectedPreemptiveJobIdNil.GetPreempted().PreemptiveJobId = ""
+	apiEvents, err = FromEventSequence(toEventSeq(preemptiveJobIdNil))
+	assert.NoError(t, err)
+	assert.Equal(t, []*api.EventMessage{expectedPreemptiveJobIdNil}, apiEvents)
+
+	// PreemptiveRunId is nil
+	preemptiveRunIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
+	preemptiveRunIdNil.GetJobRunPreempted().PreemptiveRunId = nil
+
+	expectedPreemptiveRunIdNil := proto.Clone(expected[0]).(*api.EventMessage)
+	expectedPreemptiveRunIdNil.GetPreempted().PreemptiveRunId = ""
+	apiEvents, err = FromEventSequence(toEventSeq(preemptiveRunIdNil))
+	assert.NoError(t, err)
+	assert.Equal(t, []*api.EventMessage{expectedPreemptiveRunIdNil}, apiEvents)
 }
 
 func toEventSeq(event ...*armadaevents.EventSequence_Event) *armadaevents.EventSequence {
