@@ -3,12 +3,12 @@ package database
 import (
 	"testing"
 
-	"testing"
-
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+
+	clientQueue "github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestLegacyQueueRepository_GetAllQueues(t *testing.T) {
