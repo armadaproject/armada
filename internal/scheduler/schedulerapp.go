@@ -58,14 +58,14 @@ func Run(config Configuration) error {
 		return errors.WithMessage(err, "Error creating pulsar client")
 	}
 	pulsarPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
-		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.New()),
+		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	}, config.PulsarSendTimeout)
 	if err != nil {
-		return errors.WithMessage(err, "Error creating pulsar publisher")
+		return errors.WithMessage(err, "error creating pulsar publisher")
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -73,7 +73,7 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	leaderController, err := createLeaderController(config.Leader)
 	if err != nil {
-		return errors.WithMessage(err, "Error creating leader controller")
+		return errors.WithMessage(err, "error creating leader controller")
 	}
 	g.Go(func() error { return leaderController.Run(ctx) })
 
@@ -82,21 +82,21 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up executor api")
 	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
-		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.New()),
+		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
 		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	})
 	if err != nil {
-		return errors.Wrapf(err, "Error creating pulsar producer for executor api")
+		return errors.Wrapf(err, "error creating pulsar producer for executor api")
 	}
 	authServices := auth.ConfigureAuth(config.Auth)
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
-		return errors.WithMessage(err, "Error setting up grpc server")
+		return errors.WithMessage(err, "error setting up grpc server")
 	}
 	executorServer := NewExecutorApi(apiProducer, jobRepository, executorRepository, []int32{}, config.Scheduling.MaximumJobsToSchedule)
 	executorapi.RegisterExecutorApiServer(grpcServer, executorServer)
@@ -117,7 +117,7 @@ func Run(config Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries)
 	if err != nil {
-		return errors.WithMessage(err, "Error creating scheduler")
+		return errors.WithMessage(err, "error creating scheduler")
 	}
 	g.Go(func() error { return scheduler.Run(ctx) })
 
@@ -141,6 +141,6 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 		}
 		return NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1()), nil
 	default:
-		return nil, errors.New(fmt.Sprintf("%s is not a value leader mode", config.Mode))
+		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}
 }

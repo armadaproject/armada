@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/spf13/viper"
 	"time"
 
 	"github.com/pkg/errors"
@@ -19,10 +20,18 @@ func migrateDbCmd() *cobra.Command {
 		Short: "migrates the scheduler database to the latest version",
 		RunE:  migrateDatabase,
 	}
+	cmd.PersistentFlags().Duration(
+		"timeout",
+		5*time.Minute,
+		"Duration after which the migration will fail if it has not been created")
+
 	return cmd
 }
 
 func migrateDatabase(_ *cobra.Command, _ []string) error {
+	timeout := viper.GetDuration("timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	config, err := loadConfig()
 	if err != nil {
 		return err
@@ -31,13 +40,13 @@ func migrateDatabase(_ *cobra.Command, _ []string) error {
 	log.Info("Beginning scheduler database migration")
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to connect to database")
+		return errors.WithMessagef(err, "Failed to connect to database")
 	}
-	err = schedulerdb.Migrate(context.Background(), db)
+	err = schedulerdb.Migrate(ctx, db)
 	if err != nil {
-		return errors.Wrapf(err, "Failed to migrate scheduler database")
+		return errors.WithMessagef(err, "Failed to migrate scheduler database")
 	}
-	taken := time.Now().Sub(start)
+	taken := time.Since(start)
 	log.Infof("Scheduler database migrated in %s", taken)
 	return nil
 }
