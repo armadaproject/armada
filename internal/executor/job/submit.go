@@ -144,8 +144,8 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	if len(job.Ingresses) > 0 || len(job.Services) > 0 {
 		pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 			domain.HasIngress:               "true",
-			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.Ingresses)),
-			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.Services)),
+			domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.Services)),
+			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.Ingresses)),
 		})
 	}
 
