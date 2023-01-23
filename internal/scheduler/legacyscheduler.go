@@ -829,7 +829,6 @@ func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 		for i, r := range reports {
 			jobs[i] = r.Job
 		}
-
 		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, sched.PriorityClasses)
 		podSchedulingReports, ok, err := sched.NodeDb.ScheduleMany(reqs)
 		if err != nil {

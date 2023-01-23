@@ -48,6 +48,9 @@ type NodeDb struct {
 	//
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]interface{}
+	// Label used to uniquely identify each node managed by Armada.
+	// This label must be set on all nodes and its value must be unique across all nodes.
+	nodeIdLabel string
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources schedulerobjects.ResourceList
@@ -58,7 +61,7 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
+func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string, nodeIdLabel string) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(priorities, indexedResources))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -86,11 +89,19 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 		}
 		return rv
 	}
+	if nodeIdLabel == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "nodeIdLabel",
+			Value:   nodeIdLabel,
+			Message: "nodeIdLabel must be non-empty",
+		})
+	}
 	return &NodeDb{
 		priorities:        priorities,
 		indexedResources:  mapFromSlice(indexedResources),
 		indexedTaints:     mapFromSlice(indexedTaints),
 		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
+		nodeIdLabel:       nodeIdLabel,
 		nodeTypes:         make(map[string]*schedulerobjects.NodeType),
 		totalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
 		db:                db,
@@ -118,6 +129,26 @@ func (nodeDb *NodeDb) String() string {
 
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
 	return nodeDb.db.Txn(write)
+}
+
+// GetNode returns a node in the db with given id.
+func (nodeDb *NodeDb) GetNode(id string) (*schedulerobjects.Node, error) {
+	return nodeDb.GetNodeWithTxn(nodeDb.Txn(false), id)
+}
+
+// GetNodeWithTxn returns a node in the db with given id,
+// within the provided transactions.
+func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*schedulerobjects.Node, error) {
+	it, err := txn.Get("nodes", "id", id)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	obj := it.Next()
+	if node, ok := obj.(*schedulerobjects.Node); !ok {
+		panic(fmt.Sprintf("expected *Node, but got %T", obj))
+	} else {
+		return node, nil
+	}
 }
 
 // ScheduleMany assigns a set of pods to nodes.

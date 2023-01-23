@@ -174,6 +174,9 @@ type SchedulingConfig struct {
 	GangCardinalityAnnotation string
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
 	ExecutorTimeout time.Duration
+	// Label used to uniquely identify each node managed by Armada.
+	// This label must be set on all nodes and its value must be unique across all nodes.
+	NodeIdLabel string
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

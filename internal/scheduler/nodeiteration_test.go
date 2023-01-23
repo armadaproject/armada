@@ -23,6 +23,7 @@ var (
 	testResources         = []string{"cpu", "memory", "gpu"}
 	testIndexedTaints     = []string{"largeJobsOnly", "gpu"}
 	testIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
+	testNodeIdLabel       = "kubernetes.io/hostname"
 )
 
 func TestNodesIterator(t *testing.T) {

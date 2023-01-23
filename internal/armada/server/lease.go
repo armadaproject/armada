@@ -296,6 +296,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
+		q.schedulingConfig.NodeIdLabel,
 	)
 	if err != nil {
 		return nil, err

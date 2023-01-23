@@ -640,7 +640,7 @@ func TestScheduleMany(t *testing.T) {
 }
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
 	if !assert.NoError(b, err) {
 		return
 	}
@@ -658,7 +658,7 @@ func BenchmarkUpsert1000(b *testing.B)   { benchmarkUpsert(testNCpuNode(1000, te
 func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(testNCpuNode(100000, testPriorities), b) }
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
 	if !assert.NoError(b, err) {
 		return
 	}
@@ -828,7 +828,7 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 }
 
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels)
+	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
 	if err != nil {
 		return nil, err
 	}
