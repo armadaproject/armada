@@ -1,20 +1,16 @@
 package apimessages
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	v11 "k8s.io/api/networking/v1"
-
 	"github.com/G-Research/armada/pkg/api"
-
-	"github.com/stretchr/testify/assert"
-
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+	v11 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/G-Research/armada/pkg/armadaevents"
 )
