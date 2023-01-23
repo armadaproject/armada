@@ -6,15 +6,15 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/metrics"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 const CustomConfigLocation string = "config"
