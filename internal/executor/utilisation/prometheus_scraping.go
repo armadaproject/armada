@@ -15,6 +15,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type httpGetter interface {
+	Get(url string) (resp *http.Response, err error)
+}
+
 func getUrlsToScrape(endpointSlices []*discovery.EndpointSlice, nodeNames []string) []string {
 	nodeNamesSet := commonUtil.StringListToSet(nodeNames)
 
@@ -47,7 +51,7 @@ func getUrlsToScrape(endpointSlices []*discovery.EndpointSlice, nodeNames []stri
 	return urlsToScrape
 }
 
-func scrapeUrls(urls []string, metricNames []string, client http.Client) model.Vector {
+func scrapeUrls(urls []string, metricNames []string, client httpGetter) model.Vector {
 	vectors := make(chan model.Vector, len(urls))
 
 	wg := sync.WaitGroup{}
@@ -77,7 +81,7 @@ func scrapeUrls(urls []string, metricNames []string, client http.Client) model.V
 	return allVectors
 }
 
-func scrapeUrl(url string, metricNamesWanted []string, httpClient http.Client) (model.Vector, error) {
+func scrapeUrl(url string, metricNamesWanted []string, httpClient httpGetter) (model.Vector, error) {
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, err
