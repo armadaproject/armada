@@ -250,18 +250,32 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Iterate over candidate nodes.
-	it, err := NewNodeTypesResourceIterator(
-		txn,
-		dominantResourceType,
-		req.Priority,
-		nodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
-	)
-	if err != nil {
-		return nil, err
+	// If using a node selector with nodeIdLabel, consider only the node with that id.
+	// Otherwise, iterate over all nodes with enough of the dominant resource available.
+	var nodeIt memdb.ResultIterator
+	if req.NodeSelector != nil {
+		if nodeId, ok := req.NodeSelector[nodeDb.nodeIdLabel]; ok {
+			it, err := txn.Get("nodes", "id", nodeId)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			nodeIt = it
+		}
 	}
-
-	for obj := it.Next(); obj != nil; obj = it.Next() {
+	if nodeIt == nil {
+		it, err := NewNodeTypesResourceIterator(
+			txn,
+			dominantResourceType,
+			req.Priority,
+			nodeTypes,
+			req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
+		)
+		if err != nil {
+			return nil, err
+		}
+		nodeIt = it
+	}
+	for obj := nodeIt.Next(); obj != nil; obj = nodeIt.Next() {
 		node := obj.(*schedulerobjects.Node)
 		if node == nil {
 			break

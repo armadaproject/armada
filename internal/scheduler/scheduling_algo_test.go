@@ -191,13 +191,17 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 	}
 	allocatableCpu := resource.MustParse("2")
 	(&allocatableCpu).Sub(usedCpu)
+	id := uuid.NewString()
 	return &schedulerobjects.Node{
-		Id: uuid.NewString(),
+		Id: id,
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("2"),
 				"memory": resource.MustParse("256Gi"),
 			},
+		},
+		Labels: map[string]string{
+			testNodeIdLabel: id,
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},

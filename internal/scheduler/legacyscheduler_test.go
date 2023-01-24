@@ -378,6 +378,7 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		GangIdAnnotation:          testGangIdAnnotation,
 		GangCardinalityAnnotation: testGangCardinalityAnnotation,
 		ExecutorTimeout:           15 * time.Minute,
+		NodeIdLabel:               testNodeIdLabel,
 	}
 }
 

@@ -362,6 +362,9 @@ func testNodeItems1() []*schedulerobjects.Node {
 					"memory": resource.MustParse("3Gi"),
 				},
 			},
+			Labels: map[string]string{
+				testNodeIdLabel: "node1",
+			},
 		},
 		{
 			Id:         "node2",
@@ -378,6 +381,9 @@ func testNodeItems1() []*schedulerobjects.Node {
 					"memory": resource.MustParse("6Gi"),
 				},
 			},
+			Labels: map[string]string{
+				testNodeIdLabel: "node2",
+			},
 		},
 		{
 			Id:         "node3",
@@ -393,6 +399,9 @@ func testNodeItems1() []*schedulerobjects.Node {
 					"cpu":    resource.MustParse("9"),
 					"memory": resource.MustParse("9Gi"),
 				},
+			},
+			Labels: map[string]string{
+				testNodeIdLabel: "node3",
 			},
 		},
 	}
@@ -423,8 +432,9 @@ func testNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 }
 
 func testCpuNode(priorities []int32) *schedulerobjects.Node {
+	id := uuid.NewString()
 	return &schedulerobjects.Node{
-		Id: uuid.NewString(),
+		Id: id,
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -438,10 +448,14 @@ func testCpuNode(priorities []int32) *schedulerobjects.Node {
 				"memory": resource.MustParse("256Gi"),
 			},
 		),
+		Labels: map[string]string{
+			testNodeIdLabel: id,
+		},
 	}
 }
 
 func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
+	id := uuid.NewString()
 	taints := []v1.Taint{
 		{
 			Key:    "largeJobsOnly",
@@ -450,10 +464,11 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 		},
 	}
 	labels := map[string]string{
+		testNodeIdLabel: id,
 		"largeJobsOnly": "true",
 	}
 	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
+		Id:     id,
 		Taints: taints,
 		Labels: labels,
 		TotalResources: schedulerobjects.ResourceList{
@@ -473,11 +488,13 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 }
 
 func testGpuNode(priorities []int32) *schedulerobjects.Node {
+	id := uuid.NewString()
 	labels := map[string]string{
-		"gpu": "true",
+		testNodeIdLabel: id,
+		"gpu":           "true",
 	}
 	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
+		Id:     id,
 		Labels: labels,
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{

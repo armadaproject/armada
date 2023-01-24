@@ -9,28 +9,44 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/pkg/errors"
 )
 
-func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) *schedulerobjects.Node {
+func NewNodeFromNodeInfo(nodeInfo *NodeInfo, nodeIdLabel string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
 	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
+	nodeId, ok := nodeInfo.Labels[nodeIdLabel]
+	if !ok {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "nodeInfo.Labels",
+			Value:   nodeInfo.Labels,
+			Message: "nodeIdLabel missing",
+		})
+	}
+	if nodeId == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "nodeId",
+			Value:   nodeId,
+			Message: "nodeId must be non-empty",
+		})
+	}
 	return &schedulerobjects.Node{
-		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		Id:                               nodeId,
 		LastSeen:                         lastSeen,
 		Taints:                           nodeInfo.GetTaints(),
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		JobRuns:                          nodeInfo.RunIds,
-	}
+	}, nil
 }
 
-// TODO: Make method.
 func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {
 	return schedulerobjects.NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
 }

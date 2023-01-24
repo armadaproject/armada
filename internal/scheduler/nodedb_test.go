@@ -79,6 +79,42 @@ func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
 	}
 }
 
+func TestSelectNodeForPod_NodeIdSelector(t *testing.T) {
+	db, err := createNodeDb(testNodeItems1())
+	assert.NoError(t, err)
+	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("1Gi"),
+			},
+		},
+		NodeSelector: map[string]string{testNodeIdLabel: "node1"},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, report.Node)
+	assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+}
+
+func TestSelectNodeForPod_InvalidNodeIdSelector(t *testing.T) {
+	db, err := createNodeDb(testNodeItems1())
+	assert.NoError(t, err)
+	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
+		Priority: 0,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("1Gi"),
+			},
+		},
+		NodeSelector: map[string]string{testNodeIdLabel: "this node doesn't exist"},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, report.Node)
+	assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+}
+
 // testNodeItems1() has max of 1Gb and 7cpu available, so check that such jobs requesting more than this
 // cant be scheduled
 func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
