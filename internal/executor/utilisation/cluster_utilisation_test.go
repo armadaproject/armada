@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -202,7 +202,7 @@ func TestGetUsageByQueue_AggregatesPodResourcesInAQueue(t *testing.T) {
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]common.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
+	expectedResult := map[string]armadaresource.ComputeResources{"queue1": armadaresource.FromResourceList(expectedResource)}
 
 	result := GetAllocationByQueue(pods)
 	assert.Equal(t, result, expectedResult)
@@ -252,9 +252,9 @@ func TestGetAllocationByQueueAndPriority_AggregatesPodResourcesInAQueue(t *testi
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]common.ComputeResources{
+	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
 		"queue1": {
-			priority: common.FromResourceList(expectedResource),
+			priority: armadaresource.FromResourceList(expectedResource),
 		},
 	}
 
@@ -289,14 +289,14 @@ func TestGetAllocationByQueueAndPriority_AggregatesResources(t *testing.T) {
 	}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]common.ComputeResources{
+	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
 		"queue1": {
-			priority1: common.FromResourceList(expectedResource),
-			priority2: common.FromResourceList(expectedResource),
+			priority1: armadaresource.FromResourceList(expectedResource),
+			priority2: armadaresource.FromResourceList(expectedResource),
 		},
 		"queue2": {
-			priority1: common.FromResourceList(expectedResource),
-			priority2: common.FromResourceList(expectedResource),
+			priority1: armadaresource.FromResourceList(expectedResource),
+			priority2: armadaresource.FromResourceList(expectedResource),
 		},
 	}
 
@@ -325,9 +325,9 @@ func TestGetAllocatedResourceByNodeName(t *testing.T) {
 	pods := []*v1.Pod{&pod1, &pod2, &pod3}
 
 	allocatedResource := getAllocatedResourceByNodeName(pods)
-	assert.Equal(t, map[string]common.ComputeResources{
-		"node1": common.FromResourceList(makeResourceList(2, 50)),
-		"node2": common.FromResourceList(makeResourceList(4, 100)),
+	assert.Equal(t, map[string]armadaresource.ComputeResources{
+		"node1": armadaresource.FromResourceList(makeResourceList(2, 50)),
+		"node2": armadaresource.FromResourceList(makeResourceList(4, 100)),
 	}, allocatedResource)
 }
 
@@ -335,12 +335,6 @@ func hasKey[K comparable, V any](m map[K]V, key K) bool {
 	_, ok := m[key]
 	return ok
 }
-
-// TODO: Remove
-// func hasKey(value map[string]common.ComputeResources, key string) bool {
-// 	_, ok := value[key]
-// 	return ok
-// }
 
 func makeResourceList(cores int64, gigabytesRam int64) v1.ResourceList {
 	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
@@ -404,7 +398,7 @@ func TestGetCordonedResource(t *testing.T) {
 
 	resources := getCordonedResource(nodes, pods)
 
-	expected := common.ComputeResources{
+	expected := armadaresource.ComputeResources{
 		"cpu":    resource.MustParse("3"),
 		"memory": resource.MustParse("12Gi"),
 	}

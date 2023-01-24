@@ -8,12 +8,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -23,157 +24,6 @@ const (
 	testGangIdAnnotation          = "armada.io/gangId"
 	testGangCardinalityAnnotation = "armada.io/gangCardinality"
 )
-
-func TestQueuedJobsIterator_OneQueue(t *testing.T) {
-	repo := newMockJobRepository()
-	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-		expected = append(expected, job.Id)
-	}
-
-	ctx := context.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	actual := make([]string, 0)
-	for job, err := it.Next(); job != nil; job, err = it.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-		actual = append(actual, job.Id)
-	}
-	assert.Equal(t, expected, actual)
-}
-
-func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
-	repo := newMockJobRepository()
-	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 17) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-		expected = append(expected, job.Id)
-	}
-
-	ctx := context.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	actual := make([]string, 0)
-	for job, err := it.Next(); job != nil; job, err = it.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-		actual = append(actual, job.Id)
-	}
-	assert.Equal(t, expected, actual)
-}
-
-func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
-	repo := newMockJobRepository()
-	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 113) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-		expected = append(expected, job.Id)
-	}
-
-	ctx := context.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	actual := make([]string, 0)
-	for job, err := it.Next(); job != nil; job, err = it.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-		actual = append(actual, job.Id)
-	}
-	assert.Equal(t, expected, actual)
-}
-
-func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
-	repo := newMockJobRepository()
-	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		repo.Enqueue(job)
-		expected = append(expected, job.Id)
-	}
-
-	for _, req := range testNSmallCpuJob(0, 10) {
-		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
-		repo.Enqueue(job)
-	}
-
-	ctx := context.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	actual := make([]string, 0)
-	for job, err := it.Next(); job != nil; job, err = it.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-		actual = append(actual, job.Id)
-	}
-	assert.Equal(t, expected, actual)
-}
-
-func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
-	repo := newMockJobRepository()
-	for _, req := range testNSmallCpuJob(0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-	defer cancel()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	job, err := it.Next()
-	assert.Nil(t, job)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
-
-	// Calling again should produce the same error.
-	job, err = it.Next()
-	assert.Nil(t, job)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
-}
-
-func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
-	repo := newMockJobRepository()
-	for _, req := range testNSmallCpuJob(0, 10) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-	}
-
-	ctx := context.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	for job, err := it.Next(); job != nil; job, err = it.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-	}
-	job, err := it.Next()
-	assert.Nil(t, job)
-	assert.NoError(t, err)
-}
 
 func TestQueueSelectionWeights(t *testing.T) {
 	tests := map[string]struct {
@@ -313,26 +163,6 @@ func TestQueueSelectionWeights(t *testing.T) {
 	}
 }
 
-func TestPickQueueRandomly(t *testing.T) {
-	weights := map[string]float64{
-		"A": 2,
-		"B": 1,
-	}
-	weightsSum := 3.0
-
-	n := 10000
-	results := make(map[string]float64)
-	for i := 0; i < n; i++ {
-		v, _ := pickQueueRandomly(weights, util.NewThreadsafeRand(int64(i)))
-		results[v]++
-	}
-	for queue, weight := range weights {
-		expected := weight / weightsSum
-		actual := results[queue] / float64(n)
-		assert.InDelta(t, expected, actual, 0.01)
-	}
-}
-
 func TestQueueCandidateGangIterator(t *testing.T) {
 	tests := map[string]struct {
 		Reqs                   []*schedulerobjects.PodRequirements
@@ -377,7 +207,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				MaximalResourceFractionToSchedulePerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionToSchedulePerQueue: armadaresource.ComputeResourcesFloat{
 					"cpu": 2.0 / 32.0,
 				},
 			},
@@ -392,7 +222,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"cpu": 2.0 / 32.0,
 				},
 			},
@@ -407,7 +237,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"cpu": 2.0 / 32.0,
 				},
 			},
@@ -430,7 +260,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 						"gpu": resource.MustParse("1"),
 					},
 				},
-				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
+				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"gpu": 0,
 				},
 				MaxConsecutiveUnschedulableJobs: 3,
@@ -501,16 +331,16 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			queuedGangIterator := NewQueuedGangIterator[*api.Job](
+			queuedGangIterator := NewQueuedGangIterator(
 				ctx,
 				queuedJobsIterator,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
 			)
-			it := &QueueCandidateGangIterator[*api.Job]{
+			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
 				SchedulingConstraints:      tc.SchedulingConstraints,
-				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport[*api.Job](0, tc.InitialUsageByPriority),
+				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
 				queuedGangIterator:         queuedGangIterator,
 			}
 
@@ -524,7 +354,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 					if tc.LeaseJobs {
 						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
 					}
-					actual = append(actual, report.Job)
+					actual = append(actual, report.Job.(*api.Job))
 					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
 				}
 			}
@@ -964,12 +794,12 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("14")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("18")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("14")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("18")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("16")},
 				),
 			},
 		},
@@ -988,25 +818,25 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("10")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("11")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("10")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("11")},
 				),
 				"C": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("8")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("12")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("10")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("11")},
 				),
 			},
 		},
 		"weighted fairness two queues": {
 			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(30, testPriorities),
+			Nodes:            testNCpuNode(3, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 960),
-				"B": testNSmallCpuJob(0, 960),
+				"A": testNSmallCpuJob(0, 96),
+				"B": testNSmallCpuJob(0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1014,22 +844,22 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("660")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("64")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("64")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("300")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("340")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 				),
 			},
 		},
 		"weighted fairness three queues": {
 			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(30, testPriorities),
+			Nodes:            testNCpuNode(3, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 960),
-				"B": testNSmallCpuJob(0, 960),
-				"C": testNSmallCpuJob(0, 960),
+				"A": testNSmallCpuJob(0, 96),
+				"B": testNSmallCpuJob(0, 96),
+				"C": testNSmallCpuJob(0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1038,16 +868,16 @@ func TestSchedule(t *testing.T) {
 			},
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("580")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("620")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("60")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("60")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("280")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("320")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("30")},
 				),
 				"C": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("40")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("80")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("6")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("6")},
 				),
 			},
 		},
@@ -1074,10 +904,10 @@ func TestSchedule(t *testing.T) {
 			ExpectedResourcesByQueue: map[string]resourceLimits{
 				"A": newResourceLimits(
 					map[string]resource.Quantity{"cpu": resource.MustParse("0")},
-					map[string]resource.Quantity{"cpu": resource.MustParse("4")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("0")},
 				),
 				"B": newResourceLimits(
-					map[string]resource.Quantity{"cpu": resource.MustParse("28")},
+					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 					map[string]resource.Quantity{"cpu": resource.MustParse("32")},
 				),
 			},
@@ -1347,19 +1177,25 @@ func TestSchedule(t *testing.T) {
 				tc.SchedulingConfig,
 				tc.TotalResources,
 			)
-			sched, err := NewLegacyScheduler[*api.Job](
+			queues := make([]*Queue, 0, len(tc.PriorityFactorByQueue))
+			for name, priorityFactor := range tc.PriorityFactorByQueue {
+				jobIterator, err := jobRepository.GetJobIterator(context.Background(), name)
+				require.NoError(t, err)
+				queue, err := NewQueue(name, priorityFactor, jobIterator)
+				require.NoError(t, err)
+				queues = append(queues, queue)
+			}
+			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
 				tc.SchedulingConfig,
 				nodeDb,
-				jobRepository,
-				tc.PriorityFactorByQueue,
+				queues,
 				tc.InitialUsageByQueue,
 			)
 			if !assert.NoError(t, err) {
 				return
 			}
-			sched.CandidateGangIterator.rand = util.NewThreadsafeRand(42) // Reproducible tests.
 
 			jobs, err := sched.Schedule()
 			if !assert.NoError(t, err) {
@@ -1381,7 +1217,7 @@ func TestSchedule(t *testing.T) {
 
 			// Check that each queue was allocated the right amount of resources.
 			if tc.ExpectedResourcesByQueue != nil {
-				actualUsageByQueue := usageByQueue(jobs)
+				actualUsageByQueue := usageByQueue(jobs, tc.SchedulingConfig.Preemption.PriorityClasses)
 				for queue, usage := range actualUsageByQueue {
 					assertResourceLimitsSatisfied(t, tc.ExpectedResourcesByQueue[queue], usage)
 				}
@@ -1452,8 +1288,9 @@ func TestSchedule(t *testing.T) {
 							return
 						}
 
-						var jobReports map[uuid.UUID]*JobSchedulingReport[*api.Job]
-						if _, ok := leasedJobIds[jobId]; ok {
+						_, isLeased := leasedJobIds[jobId]
+						var jobReports map[uuid.UUID]*JobSchedulingReport
+						if isLeased {
 							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
 						} else {
 							jobReports = queueSchedulingRoundReport.UnsuccessfulJobSchedulingReports
@@ -1463,10 +1300,10 @@ func TestSchedule(t *testing.T) {
 						}
 
 						jobReport, ok := jobReports[jobId]
-						if !assert.NotNil(t, jobReport) {
+						if !assert.True(t, ok, "missing report for job; leased: %v", isLeased) {
 							continue
 						}
-						if !assert.True(t, ok) {
+						if !assert.NotNil(t, jobReport) {
 							continue
 						}
 					}
@@ -1531,52 +1368,36 @@ func assertResourceLimitsSatisfied(t *testing.T, limits resourceLimits, resource
 	return true
 }
 
-func jobIdsByQueueFromJobs(jobs []*api.Job) map[string][]string {
+func jobIdsByQueueFromJobs(jobs []LegacySchedulerJob) map[string][]string {
 	rv := make(map[string][]string)
 	for _, job := range jobs {
-		rv[job.Queue] = append(rv[job.Queue], job.Id)
+		rv[job.GetQueue()] = append(rv[job.GetQueue()], job.GetId())
 	}
 	return rv
 }
 
-func usageByQueue(jobs []*api.Job) map[string]schedulerobjects.ResourceList {
-	// TODO: Could be built on top of usageByQueueAndPriority.
+func usageByQueue(jobs []LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) map[string]schedulerobjects.ResourceList {
 	rv := make(map[string]schedulerobjects.ResourceList)
-	for _, job := range jobs {
-		rl, ok := rv[job.Queue]
-		if !ok {
-			rl = schedulerobjects.ResourceList{
-				Resources: make(map[string]resource.Quantity),
-			}
-			rv[job.Queue] = rl
-		}
-		for t, q := range common.TotalJobResourceRequest(job) {
-			quantity := rl.Resources[t]
-			quantity.Add(q)
-			rl.Resources[t] = quantity
-		}
+	for queue, quantityByPriorityAndResourceType := range usageByQueueAndPriority(jobs, priorityClasses) {
+		rv[queue] = quantityByPriorityAndResourceType.AggregateByResource()
 	}
 	return rv
 }
 
-func usageByQueueAndPriority(jobs []*api.Job, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func usageByQueueAndPriority(jobs []LegacySchedulerJob, priorityByPriorityClassName map[string]configuration.PriorityClass) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	rv := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, job := range jobs {
-		m, ok := rv[job.Queue]
+		m, ok := rv[job.GetQueue()]
 		if !ok {
 			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
-			rv[job.Queue] = m
+			rv[job.GetQueue()] = m
 		}
-		priority, _ := PriorityFromJob(job, priorityByPriorityClassName)
+		priority := PodRequirementFromJobSchedulingInfo(job.GetRequirements(priorityByPriorityClassName)).Priority
 		rl, ok := m[priority]
 		if !ok {
 			rl.Resources = make(map[string]resource.Quantity)
 		}
-		for t, q := range common.TotalJobResourceRequest(job) {
-			quantity := rl.Resources[t]
-			quantity.Add(q)
-			rl.Resources[t] = quantity
-		}
+		rl.Add(job.GetRequirements(priorityByPriorityClassName).GetTotalResourceRequest())
 		m[priority] = rl
 	}
 	return rv
@@ -1632,7 +1453,7 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator[*api.Job], error) {
+func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
 	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 

@@ -20,9 +20,9 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -396,7 +396,7 @@ func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 			NodeTypes: []*api.NodeType{{
 				Taints:               nil,
 				Labels:               nil,
-				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
+				AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")},
 			}},
 		})
 		assert.Empty(t, err)
@@ -613,9 +613,14 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 
 			jobs, err := s.jobRepository.GetExistingJobsByIds([]string{jobId})
 			assert.NoError(t, err)
-			leased, err := jobRepo.TryLeaseJobs("some-cluster", "test", jobs)
+			jobIdsByQueue := make(map[string][]string)
+			for _, job := range jobs {
+				jobIdsByQueue["test"] = append(jobIdsByQueue["test"], job.Id)
+			}
+			leased, err := jobRepo.TryLeaseJobs("some-cluster", jobIdsByQueue)
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(leased))
+			assert.Equal(t, 1, len(leased["test"]))
 
 			reprioritizeResponse, err := s.ReprioritizeJobs(context.Background(), &api.JobReprioritizeRequest{
 				JobIds:      []string{jobId},
@@ -692,7 +697,7 @@ func TestSubmitServer_ReprioritizeJobs(t *testing.T) {
 			selectedJob := jobs[1]
 			clusterId := "some-cluster"
 
-			leased, err := jobRepo.TryLeaseJobs(clusterId, "test", []*api.Job{selectedJob})
+			leased, err := jobRepo.TryLeaseJobs(clusterId, map[string][]string{"test": {selectedJob.Id}})
 			assert.NoError(t, err)
 			assert.Equal(t, 1, len(leased))
 
@@ -1624,7 +1629,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 				Effect:   v1.TaintEffectNoSchedule,
 			},
 		},
-		DefaultJobLimits: common.ComputeResources{
+		DefaultJobLimits: armadaresource.ComputeResources{
 			"cpu":    resource.MustParse("1"),
 			"memory": resource.MustParse("1Gi"),
 		},
@@ -1659,7 +1664,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		ClusterId:  "test-cluster",
 		ReportTime: time.Now(),
 		NodeTypes: []*api.NodeType{{
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("100"), "memory": resource.MustParse("100Gi")},
 		}},
 	})
 	if err != nil {

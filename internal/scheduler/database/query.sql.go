@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -128,23 +129,23 @@ func (q *Queries) MarkJobsSucceededById(ctx context.Context, jobIds []string) er
 	return err
 }
 
-const selectAllJobIds = `-- name: SelectAllJobIds :many
-SELECT job_id FROM jobs
+const selectAllExecutors = `-- name: SelectAllExecutors :many
+SELECT executor_id, last_request, last_updated FROM executors
 `
 
-func (q *Queries) SelectAllJobIds(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, selectAllJobIds)
+func (q *Queries) SelectAllExecutors(ctx context.Context) ([]Executor, error) {
+	rows, err := q.db.Query(ctx, selectAllExecutors)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []Executor
 	for rows.Next() {
-		var job_id string
-		if err := rows.Scan(&job_id); err != nil {
+		var i Executor
+		if err := rows.Scan(&i.ExecutorID, &i.LastRequest, &i.LastUpdated); err != nil {
 			return nil, err
 		}
-		items = append(items, job_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -152,23 +153,28 @@ func (q *Queries) SelectAllJobIds(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
-const selectAllRunIds = `-- name: SelectAllRunIds :many
-SELECT run_id FROM runs
+const selectExecutorUpdateTimes = `-- name: SelectExecutorUpdateTimes :many
+SELECT executor_id, last_updated FROM executors
 `
 
-func (q *Queries) SelectAllRunIds(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, selectAllRunIds)
+type SelectExecutorUpdateTimesRow struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastUpdated time.Time `db:"last_updated"`
+}
+
+func (q *Queries) SelectExecutorUpdateTimes(ctx context.Context) ([]SelectExecutorUpdateTimesRow, error) {
+	rows, err := q.db.Query(ctx, selectExecutorUpdateTimes)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []SelectExecutorUpdateTimesRow
 	for rows.Next() {
-		var run_id uuid.UUID
-		if err := rows.Scan(&run_id); err != nil {
+		var i SelectExecutorUpdateTimesRow
+		if err := rows.Scan(&i.ExecutorID, &i.LastUpdated); err != nil {
 			return nil, err
 		}
-		items = append(items, run_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -464,5 +470,22 @@ type UpdateJobPriorityByJobSetParams struct {
 
 func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPriorityByJobSetParams) error {
 	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet)
+	return err
+}
+
+const upsertExecutor = `-- name: UpsertExecutor :exec
+INSERT INTO executors (executor_id, last_request, last_updated)
+VALUES($1::text, $2::bytea, $3::timestamptz)
+ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated)
+`
+
+type UpsertExecutorParams struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastRequest []byte    `db:"last_request"`
+	UpdateTime  time.Time `db:"update_time"`
+}
+
+func (q *Queries) UpsertExecutor(ctx context.Context, arg UpsertExecutorParams) error {
+	_, err := q.db.Exec(ctx, upsertExecutor, arg.ExecutorID, arg.LastRequest, arg.UpdateTime)
 	return err
 }
