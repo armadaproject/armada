@@ -1,11 +1,10 @@
 package scheduler
 
 import (
-	"fmt"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -56,29 +55,6 @@ func TestTotalResources(t *testing.T) {
 	assert.True(t, expected.Equal(nodeDb.totalResources))
 }
 
-// testNodeItems1() has max of 1Gb and 7cpu available, so check that such jobs requesting less than this
-// can be scheduled
-func TestSelectNodeForPod_SimpleSuccess(t *testing.T) {
-	for i := 1; i < 7; i++ {
-		testName := fmt.Sprintf("cpu %d", i)
-		t.Run(testName, func(t *testing.T) {
-			db, err := createNodeDb(testNodeItems1())
-			assert.NoError(t, err)
-			report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-				Priority: 0,
-				ResourceRequirements: v1.ResourceRequirements{
-					Requests: v1.ResourceList{
-						"cpu":    resource.MustParse(strconv.Itoa(i)),
-						"memory": resource.MustParse("1Gi"),
-					},
-				},
-			})
-			assert.NoError(t, err)
-			assert.NotNil(t, report.Node)
-		})
-	}
-}
-
 func TestSelectNodeForPod_NodeIdSelector(t *testing.T) {
 	db, err := createNodeDb(testNodeItems1())
 	assert.NoError(t, err)
@@ -115,499 +91,136 @@ func TestSelectNodeForPod_InvalidNodeIdSelector(t *testing.T) {
 	assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
 }
 
-// testNodeItems1() has max of 1Gb and 7cpu available, so check that such jobs requesting more than this
-// cant be scheduled
-func TestSelectNodeForPod_SimpleCantSchedule(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-
-	invalidResources := []v1.ResourceList{
-		{"cpu": resource.MustParse("8"), "memory": resource.MustParse("1Gi")},
-		{"cpu": resource.MustParse("1"), "memory": resource.MustParse("10Gi")},
-		{"cpu": resource.MustParse("8000Mi")},
+func TestSelectAndBindNodeToPod(t *testing.T) {
+	tests := map[string]struct {
+		Nodes         []*schedulerobjects.Node
+		Reqs          []*schedulerobjects.PodRequirements
+		ExpectSuccess []bool
+	}{
+		"all jobs fit": {
+			Nodes:         testNCpuNode(1, testPriorities),
+			Reqs:          testNSmallCpuJob(0, 32),
+			ExpectSuccess: repeat(true, 32),
+		},
+		"not all jobs fit": {
+			Nodes:         testNCpuNode(1, testPriorities),
+			Reqs:          testNSmallCpuJob(0, 33),
+			ExpectSuccess: append(repeat(true, 32), repeat(false, 1)...),
+		},
+		"unavailable resource": {
+			Nodes:         testNCpuNode(1, testPriorities),
+			Reqs:          testNGpuJob(0, 1),
+			ExpectSuccess: repeat(false, 1),
+		},
+		"unsupported resource": {
+			Nodes: testNCpuNode(1, testPriorities),
+			Reqs: withRequestsPodReqs(
+				schedulerobjects.ResourceList{
+					Resources: map[string]resource.Quantity{
+						"gibberish": resource.MustParse("1"),
+					},
+				},
+				testNSmallCpuJob(0, 1),
+			),
+			ExpectSuccess: repeat(false, 1),
+		},
+		"preemption": {
+			Nodes:         testNCpuNode(1, testPriorities),
+			Reqs:          append(append(testNSmallCpuJob(0, 32), testNSmallCpuJob(1, 32)...), testNSmallCpuJob(0, 32)...),
+			ExpectSuccess: append(repeat(true, 64), repeat(false, 32)...),
+		},
+		"taints/tolerations": {
+			Nodes:         testNTaintedCpuNode(1, testPriorities),
+			Reqs:          append(append(testNSmallCpuJob(0, 1), testNGpuJob(0, 1)...), testNLargeCpuJob(0, 1)...),
+			ExpectSuccess: []bool{false, false, true},
+		},
+		"node selector": {
+			Nodes: append(
+				testNCpuNode(1, testPriorities),
+				withLabelsNodes(
+					map[string]string{
+						"key": "value",
+					},
+					testNCpuNode(1, testPriorities),
+				)...,
+			),
+			Reqs: withNodeSelectorPodReqs(
+				map[string]string{
+					"key": "value",
+				},
+				testNSmallCpuJob(0, 33),
+			),
+			ExpectSuccess: append(repeat(true, 32), repeat(false, 1)...),
+		},
+		"node selector with mismatched value": {
+			Nodes: withLabelsNodes(
+				map[string]string{
+					"key": "value",
+				},
+				testNCpuNode(1, testPriorities),
+			),
+			Reqs: withNodeSelectorPodReqs(
+				map[string]string{
+					"key": "this is the wrong value",
+				},
+				testNSmallCpuJob(0, 1),
+			),
+			ExpectSuccess: repeat(false, 1),
+		},
+		"node selector with missing label": {
+			Nodes: testNCpuNode(1, testPriorities),
+			Reqs: withNodeSelectorPodReqs(
+				map[string]string{
+					"this label does not exist": "value",
+				},
+				testNSmallCpuJob(0, 1),
+			),
+			ExpectSuccess: repeat(false, 1),
+		},
+		"node affinity": {
+			Nodes: append(
+				testNCpuNode(1, testPriorities),
+				withLabelsNodes(
+					map[string]string{
+						"key": "value",
+					},
+					testNCpuNode(1, testPriorities),
+				)...,
+			),
+			Reqs: withNodeAffinityPodReqs(
+				[]v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{
+								Key:      "key",
+								Operator: v1.NodeSelectorOpIn,
+								Values:   []string{"value"},
+							},
+						},
+					},
+				},
+				testNSmallCpuJob(0, 33),
+			),
+			ExpectSuccess: append(repeat(true, 32), repeat(false, 1)...),
+		},
 	}
-
-	for _, r := range invalidResources {
-		report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-			Priority:             0,
-			ResourceRequirements: v1.ResourceRequirements{Requests: r},
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := createNodeDb(tc.Nodes)
+			require.NoError(t, err)
+			for i, req := range tc.Reqs {
+				report, err := nodeDb.SelectAndBindNodeToPod(req)
+				if !assert.NoError(t, err) {
+					continue
+				}
+				if tc.ExpectSuccess[i] {
+					assert.NotNil(t, report.Node)
+				} else {
+					assert.Nil(t, report.Node)
+				}
+			}
 		})
-		assert.NoError(t, err)
-		assert.Nil(t, report.Node)
 	}
-}
-
-// Test that some resource we don't know about causes an error.
-func TestSelectNodeForPod_InvalidResource(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-
-	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "someResourceWeDontHave": resource.MustParse("1")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-}
-
-// Fill up all the priority zero space on testNodeItems1()
-func TestSelectNodeForPod_FillPriorityZero(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-
-	requirements := []*schedulerobjects.PodRequirements{
-		{
-			Priority: 0,
-			ResourceRequirements: v1.ResourceRequirements{
-				Requests: v1.ResourceList{"cpu": resource.MustParse("7")},
-			},
-		},
-		{
-			Priority: 0,
-			ResourceRequirements: v1.ResourceRequirements{
-				Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
-			},
-		},
-		{
-			Priority: 0,
-			ResourceRequirements: v1.ResourceRequirements{
-				Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
-			},
-		},
-	}
-
-	// Fill up everything
-	for _, r := range requirements {
-		report, err := db.SelectAndBindNodeToPod(r)
-		assert.NoError(t, err)
-		assert.NotNil(t, report.Node)
-	}
-}
-
-// Check that each job that is scheduled reduces the available resource for the next
-func TestSelectNodeForPod_RunningTotal(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-
-	// First job can be scheduled
-	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("7")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// Second job can't be scheduled (too much cpu)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// third job can be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// fourth job can't be scheduled (we only have one cpu left)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("2")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// fifth job can be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// sixth job can't be scheduled (we have no cpu left)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-}
-
-// Check that each job that is scheduled reduces the available resource for the next: including memory
-func TestSelectNodeForPod_RunningTotalWithMemory(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-
-	// First job can be scheduled
-	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// Second job can't be scheduled (too much cpu)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// Third job can be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// Fourth job cant be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// Fifth job can be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// Sixth job cant be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-}
-
-// Check that all jobs scheduled at priority 2 can get the correct cpus
-func TestSelectNodeForPod_HigherPriorityMoreResource(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-
-	// First job can be scheduled
-	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 2,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("9")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// Second job can't be scheduled (too much cpu)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 2,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("7"), "memory": resource.MustParse("5Gi")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// third job can be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 2,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("6")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// fourth job can't be scheduled (we only have three cpu left)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 2,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("4")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// fifth job can be scheduled
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 2,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("3")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// sixth job can't be scheduled (we have no cpu left)
-	report, err = db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 2,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1")},
-		},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-}
-
-func TestSelectNodeForPod_RespectTaints(t *testing.T) {
-	nodes := []*schedulerobjects.Node{
-		{
-			Id: "tainted-1",
-			Taints: []v1.Taint{
-				{Key: "fish", Value: "chips", Effect: v1.TaintEffectNoSchedule},
-			},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {
-					Resources: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("1"),
-						"memory": resource.MustParse("1Gi"),
-					},
-				},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("1Gi"),
-				},
-			},
-		},
-	}
-
-	jobWithoutToleration := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	jobWithDifferentToleration := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-		Tolerations: []v1.Toleration{{Key: "salt", Value: "pepper"}},
-	}
-
-	jobWithToleration := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-		Tolerations: []v1.Toleration{{Key: "fish", Value: "chips", Operator: v1.TolerationOpEqual, Effect: v1.TaintEffectNoSchedule}},
-	}
-
-	db, err := createNodeDb(nodes)
-	assert.NoError(t, err)
-
-	// No toleration means can't be scheduled
-	report, err := db.SelectAndBindNodeToPod(jobWithoutToleration)
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// Some random toleration means can't be scheduled
-	report, err = db.SelectAndBindNodeToPod(jobWithDifferentToleration)
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// Correct toleration means can be scheduled
-	report, err = db.SelectAndBindNodeToPod(jobWithToleration)
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-}
-
-func TestSelectNodeForPod_RespectNodeSelector(t *testing.T) {
-	nodes := []*schedulerobjects.Node{
-		{
-			Id:     "labelled-1",
-			Labels: map[string]string{"foo": "bar"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {
-					Resources: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("2"),
-						"memory": resource.MustParse("2Gi"),
-					},
-				},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("2"),
-					"memory": resource.MustParse("2Gi"),
-				},
-			},
-		},
-	}
-
-	jobWithoutSelector := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	jobWithDifferentSelector := &schedulerobjects.PodRequirements{
-		Priority:     0,
-		NodeSelector: map[string]string{"fish": "chips"},
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	jobWithSelector := &schedulerobjects.PodRequirements{
-		Priority:     0,
-		NodeSelector: map[string]string{"foo": "bar"},
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	db, err := createNodeDb(nodes)
-	assert.NoError(t, err)
-
-	// No Node selector means we can schedule the job
-	report, err := db.SelectAndBindNodeToPod(jobWithoutSelector)
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// A node selector that doesn't match means we can't schedule the job
-	report, err = db.SelectAndBindNodeToPod(jobWithDifferentSelector)
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// A node selector that does match means we can schedule the job
-	report, err = db.SelectAndBindNodeToPod(jobWithSelector)
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-}
-
-func TestSelectNodeForPod_RespectNodeAffinity(t *testing.T) {
-	nodes := []*schedulerobjects.Node{
-		{
-			Id:     "labelled-1",
-			Labels: map[string]string{"foo": "bar"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {
-					Resources: map[string]resource.Quantity{
-						"cpu":    resource.MustParse("2"),
-						"memory": resource.MustParse("2Gi"),
-					},
-				},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("2"),
-					"memory": resource.MustParse("2Gi"),
-				},
-			},
-		},
-	}
-
-	jobWithoutAffinity := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	jobWithDifferentAffinity := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		Affinity: &v1.Affinity{
-			NodeAffinity: &v1.NodeAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
-						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
-								{
-									Key:      "fish",
-									Operator: v1.NodeSelectorOpIn,
-									Values:   []string{"chips"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	jobWithAffinity := &schedulerobjects.PodRequirements{
-		Priority: 0,
-		Affinity: &v1.Affinity{
-			NodeAffinity: &v1.NodeAffinity{
-				RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-					NodeSelectorTerms: []v1.NodeSelectorTerm{
-						{
-							MatchExpressions: []v1.NodeSelectorRequirement{
-								{
-									Key:      "foo",
-									Operator: v1.NodeSelectorOpIn,
-									Values:   []string{"bar"},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")},
-		},
-	}
-
-	db, err := createNodeDb(nodes)
-	assert.NoError(t, err)
-
-	// No Affinity means we can schedule the job
-	report, err := db.SelectAndBindNodeToPod(jobWithoutAffinity)
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-
-	// Affinity that doesn't match means we can't schedule the job
-	report, err = db.SelectAndBindNodeToPod(jobWithDifferentAffinity)
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-
-	// Affinity that does match means we can schedule the job
-	report, err = db.SelectAndBindNodeToPod(jobWithAffinity)
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
 }
 
 func TestScheduleMany(t *testing.T) {
@@ -743,7 +356,7 @@ func BenchmarkSelectAndBindNodeToPod10000CpuNodes(b *testing.B) {
 
 func BenchmarkSelectAndBindNodeToPod100CpuNodes1CpuUnused(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		withUsedResources(
+		withUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testNCpuNode(100, testPriorities),
@@ -755,7 +368,7 @@ func BenchmarkSelectAndBindNodeToPod100CpuNodes1CpuUnused(b *testing.B) {
 
 func BenchmarkSelectAndBindNodeToPod1000CpuNodes1CpuUnused(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		withUsedResources(
+		withUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testNCpuNode(1000, testPriorities),
@@ -767,7 +380,7 @@ func BenchmarkSelectAndBindNodeToPod1000CpuNodes1CpuUnused(b *testing.B) {
 
 func BenchmarkSelectAndBindNodeToPod10000CpuNodes1CpuUnused(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		withUsedResources(
+		withUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testNCpuNode(10000, testPriorities),
@@ -785,92 +398,7 @@ func BenchmarkSelectAndBindNodeToPodResourceConstrained(b *testing.B) {
 	)
 	benchmarkSelectAndBindNodeToPod(
 		nodes,
-		testNGPUJob(0, 1),
+		testNGpuJob(0, 1),
 		b,
 	)
-}
-
-func testNSmallCpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testSmallCpuJob(priority)
-	}
-	return rv
-}
-
-func testNLargeCpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testLargeCpuJob(priority)
-	}
-	return rv
-}
-
-func testNGPUJob(priority int32, n int) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testGpuJob(priority)
-	}
-	return rv
-}
-
-func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("4Gi"),
-			},
-		},
-	}
-}
-
-func testLargeCpuJob(priority int32) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "largeJobsOnly",
-				Value: "true",
-			},
-		},
-	}
-}
-
-func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("4"),
-				"memory": resource.MustParse("16Gi"),
-				"gpu":    resource.MustParse("1"),
-			},
-		},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "gpu",
-				Value: "true",
-			},
-		},
-	}
-}
-
-func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
-	if err != nil {
-		return nil, err
-	}
-	err = db.Upsert(nodes)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
 }

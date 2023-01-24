@@ -238,6 +238,9 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// the largest fraction of available resources.
 	// For efficiency, the scheduler only considers nodes with enough of the dominant resource.
 	dominantResourceType := nodeDb.dominantResource(req)
+	if dominantResourceType == "" {
+		return nil, errors.Errorf("requests include no indexed resource: %v", req.ResourceRequirements.Requests)
+	}
 
 	// Create a report to be returned to the caller.
 	report := &PodSchedulingReport{
@@ -253,8 +256,10 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// If using a node selector with nodeIdLabel, consider only the node with that id.
 	// Otherwise, iterate over all nodes with enough of the dominant resource available.
 	var nodeIt memdb.ResultIterator
-	if req.NodeSelector != nil {
-		if nodeId, ok := req.NodeSelector[nodeDb.nodeIdLabel]; ok {
+	if req.Annotations != nil {
+		// TODO: Make config.
+		nodeIdAnnotation := "armadaproject.io/nodeId"
+		if nodeId, ok := req.Annotations[nodeIdAnnotation]; ok {
 			it, err := txn.Get("nodes", "id", nodeId)
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -262,6 +267,15 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 			nodeIt = it
 		}
 	}
+	// if req.NodeSelector != nil {
+	// 	if nodeId, ok := req.NodeSelector[nodeDb.nodeIdLabel]; ok {
+	// 		it, err := txn.Get("nodes", "id", nodeId)
+	// 		if err != nil {
+	// 			return nil, errors.WithStack(err)
+	// 		}
+	// 		nodeIt = it
+	// 	}
+	// }
 	if nodeIt == nil {
 		it, err := NewNodeTypesResourceIterator(
 			txn,
@@ -298,18 +312,51 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 }
 
 func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+	jobId, err := nodeDb.JobIdFromPodRequirements(req)
+	if err != nil {
+		return err
+	}
+	if _, ok := node.AllocatedByJobId[jobId]; ok {
+		return errors.Errorf("job %s already has resources allocated on this node", jobId)
+	}
 	node = node.DeepCopy()
+	if node.AllocatedByJobId == nil {
+		node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
+	}
+	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+
+	allocatedToJob := node.AllocatedByJobId[jobId]
+	allocatedToJob.Add(requests)
+	node.AllocatedByJobId[jobId] = allocatedToJob
+
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
-	).MarkAllocated(
-		req.Priority,
-		schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests),
-	)
-	err := txn.Insert("nodes", node)
-	if err != nil {
+	).MarkAllocated(req.Priority, requests)
+
+	if err := txn.Insert("nodes", node); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (nodeDb *NodeDb) JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
+	// TODO: Make config.
+	jobId, ok := req.Annotations["armadaproject.io/jobId"]
+	if !ok {
+		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "req.Annotations",
+			Value:   req.Annotations,
+			Message: "armadaproject.io/jobId missing",
+		})
+	}
+	if jobId == "" {
+		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "jobId",
+			Value:   jobId,
+			Message: "jobId is empty",
+		})
+	}
+	return jobId, nil
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types

@@ -49,9 +49,9 @@ message Node {
     map<int32, ResourceList> AllocatableByPriorityAndResource = 8 [(gogoproto.nullable) = false];
     // Ids of the jobs runs currently assigned to this this.
     repeated string job_runs = 9;
-    // Ids of jobs that should have a run on this node.
-    // TODO: Reconcile with the above?
-    repeated string job_ids = 10;
+    // Resource allocated to jobs on this node.
+    // TODO: Reconcile with job_runs.
+    map<string, ResourceList> AllocatedByJobId = 10 [(gogoproto.nullable) = false];
 }
 
 // NodeType represents a particular combination of taints and labels.
@@ -94,12 +94,6 @@ message ClusterResourceUsageReport {
 message ResourceList {
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
 }
-
-// message JobRun {
-//     job_id string = 1;
-//     run_id string = 2;
-//     job_scheduling_info JobSchedulingInfo = 3;
-// }
 
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {

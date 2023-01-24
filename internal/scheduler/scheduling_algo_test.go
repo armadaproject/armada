@@ -133,7 +133,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			defer cancel()
 			config := testSchedulingConfig()
 			if tc.perQueueLimit != nil {
-				config = withPerQueueLimits(tc.perQueueLimit, config)
+				config = withPerQueueLimitsConfig(tc.perQueueLimit, config)
 			}
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
