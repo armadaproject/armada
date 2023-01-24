@@ -15,7 +15,7 @@ task:
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
 apiConnection:
-  armadaUrl : "server:50051"
+  armadaUrl: "server:50051"
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
@@ -23,6 +23,8 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
+  trackedNodeLabels:
+    - kubernetes.io/hostname
   etcd:
     fractionOfStorageInUseSoftLimit: 0.8
     fractionOfStorageInUseHardLimit: 0.9
