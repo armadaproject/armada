@@ -153,6 +153,54 @@ func (q *Queries) SelectAllExecutors(ctx context.Context) ([]Executor, error) {
 	return items, nil
 }
 
+const selectAllJobIds = `-- name: SelectAllJobIds :many
+SELECT job_id FROM jobs
+`
+
+func (q *Queries) SelectAllJobIds(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, selectAllJobIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var job_id string
+		if err := rows.Scan(&job_id); err != nil {
+			return nil, err
+		}
+		items = append(items, job_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectAllRunIds = `-- name: SelectAllRunIds :many
+SELECT run_id FROM runs
+`
+
+func (q *Queries) SelectAllRunIds(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, selectAllRunIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var run_id uuid.UUID
+		if err := rows.Scan(&run_id); err != nil {
+			return nil, err
+		}
+		items = append(items, run_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectExecutorUpdateTimes = `-- name: SelectExecutorUpdateTimes :many
 SELECT executor_id, last_updated FROM executors
 `

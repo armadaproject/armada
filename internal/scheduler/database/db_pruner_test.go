@@ -3,18 +3,18 @@ package database
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/slices"
-	commonutil "github.com/armadaproject/armada/internal/common/util"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/slices"
+	commonutil "github.com/armadaproject/armada/internal/common/util"
 )
 
 func TestPruneDb(t *testing.T) {
@@ -92,7 +92,7 @@ func TestPruneDb(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
+			err := WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				testClock := clock.NewFakeClock(baseTime)
@@ -122,6 +122,7 @@ func TestPruneDb(t *testing.T) {
 
 				return nil
 			})
+			assert.NoError(t, err)
 		})
 	}
 }
