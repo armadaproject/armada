@@ -50,9 +50,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool: "test-pool",
 		Nodes: []*schedulerobjects.Node{
 			{
-				Id: "test-executor-test-node",
+				Id: "test-node",
 				Labels: map[string]string{
-					testNodeIdLabel: "test-executor-test-node",
+					testNodeIdLabel: "test-node",
 				},
 				TotalResources:                   schedulerobjects.ResourceList{},
 				JobRuns:                          []string{runId1.String(), runId2.String()},
@@ -150,6 +150,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
+				testNodeIdLabel,
 				maxJobsPerCall,
 				1024,
 			)
@@ -215,12 +216,15 @@ func TestExecutorApi_Publish(t *testing.T) {
 					callback(pulsarutils.NewMessageId(1), msg, nil)
 				}).AnyTimes()
 
-			server := NewExecutorApi(mockPulsarProducer,
+			server := NewExecutorApi(
+				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
+				testNodeIdLabel,
 				100,
-				1024)
+				1024,
+			)
 
 			empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
 			require.NoError(t, err)
