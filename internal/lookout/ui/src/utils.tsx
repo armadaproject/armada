@@ -118,8 +118,17 @@ export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>,
 }
 
 export async function getErrorMessage(error: any): Promise<string> {
-  let basicMessage = (error?.status ?? "") + " " + (error?.statusText ?? "")
-  basicMessage = basicMessage != " " ? basicMessage : "Unknown error"
+  if (error === undefined) {
+    return "Unknown error"
+  }
+  let basicMessage = (error.status ?? "") + " " + (error.statusText ?? "")
+  if (basicMessage === " ") {
+    if (error.toString() !== undefined && typeof error.toString === "function") {
+      basicMessage = error.toString()
+    } else {
+      basicMessage = "Unknown error"
+    }
+  }
   try {
     const json = await error.json()
     const errorMessage = json.message

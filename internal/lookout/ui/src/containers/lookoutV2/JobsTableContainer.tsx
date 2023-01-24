@@ -39,8 +39,8 @@ import { useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
+import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
@@ -55,6 +55,7 @@ import {
 } from "utils/jobsTableUtils"
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -64,6 +65,7 @@ interface JobsTableContainerProps {
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
+  runErrorService: IGetRunErrorService
   debug: boolean
 }
 export const JobsTableContainer = ({
@@ -71,9 +73,10 @@ export const JobsTableContainer = ({
   getJobsService,
   groupJobsService,
   updateJobsService,
+  runErrorService,
   debug,
 }: JobsTableContainerProps) => {
-  const { enqueueSnackbar } = useSnackbar()
+  const openSnackbar = useCustomSnackbar()
 
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getInitialUserPrefs(), [])
 
@@ -123,7 +126,7 @@ export const JobsTableContainer = ({
     updateSelectedRows: setSelectedRows,
     getJobsService,
     groupJobsService,
-    enqueueSnackbar,
+    openSnackbar,
   })
 
   // Retrieve data for any expanded rows from intial query param state
@@ -389,7 +392,9 @@ export const JobsTableContainer = ({
         {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
       </Box>
 
-      {sidebarJobDetails !== undefined && <Sidebar job={sidebarJobDetails} onClose={onSideBarClose} />}
+      {sidebarJobDetails !== undefined && (
+        <Sidebar job={sidebarJobDetails} runErrorService={runErrorService} onClose={onSideBarClose} />
+      )}
     </Box>
   )
 }

@@ -33,7 +33,7 @@ export function seededUuid(rand: () => number): () => string {
 
 export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
   await new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(resolve, randomInt(200, 1000, Math.random))
+    const timeoutId = setTimeout(resolve, randomInt(200, 2000, Math.random))
     abortSignal?.addEventListener("abort", () => {
       clearTimeout(timeoutId)
       reject()
@@ -85,7 +85,6 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
   for (let i = 0; i < n; i++) {
     runs.push({
       cluster: uuid(),
-      error: "something bad might have happened?",
       exitCode: randomInt(0, 64, rand),
       finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
