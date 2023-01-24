@@ -278,8 +278,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	// Nodes to be considered by the scheduler.
-	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
-	for i, nodeInfo := range req.Nodes {
+	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
 			q.schedulingConfig.NodeIdLabel,
@@ -290,9 +290,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			logging.WithStacktrace(log, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetClusterId(),
 			)
-			continue
+		} else {
+			nodes = append(nodes, node)
 		}
-		nodes[i] = node
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
 	if len(indexedResources) == 0 {
