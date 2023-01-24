@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"time"
 
-	clusterContext "github.com/armadaproject/armada/internal/executor/context"
-	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/prometheus/common/model"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type CustomPrometheusScrapeConfig struct {
