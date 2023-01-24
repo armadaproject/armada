@@ -2,10 +2,10 @@ package database
 
 import (
 	ctx "context"
+	"github.com/jackc/pgx/v4"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"time"
 
-	"github.com/jackc/pgtype/pgxtype"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
@@ -15,7 +15,7 @@ import (
 // Jobs are deleted in batches across transactions. This means that if this job fails midway through, it still
 // may have deleted som jobs.
 // The function will run until the supplied context is cancelled.
-func PruneDb(ctx ctx.Context, db pgxtype.Querier, keepAfterCompletion time.Duration, clock clock.Clock) error {
+func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion time.Duration, clock clock.Clock) error {
 	start := time.Now()
 	cutOffTime := clock.Now().Add(-keepAfterCompletion)
 
@@ -50,27 +50,44 @@ func PruneDb(ctx ctx.Context, db pgxtype.Querier, keepAfterCompletion time.Durat
 	for {
 		batchStart := time.Now()
 		var batchSize = 0
-		_, err = db.Exec(ctx, "INSERT INTO batch(job_id) SELECT job_id FROM rows_to_delete LIMIT $1;")
-		if err != nil {
-			return errors.WithStack(err)
-		}
+		err = db.BeginTxFunc(ctx, pgx.TxOptions{
+			IsoLevel:       pgx.ReadCommitted,
+			AccessMode:     pgx.ReadWrite,
+			DeferrableMode: pgx.Deferrable,
+		}, func(tx pgx.Tx) error {
 
-		err := db.QueryRow(ctx, "SELECT COUNT(*) FROM batch").Scan(&batchSize)
-		if err != nil {
-			return errors.WithStack(err)
-		}
+			// insert into the batch table
+			_, err = tx.Exec(ctx, "INSERT INTO batch(job_id) SELECT job_id FROM rows_to_delete LIMIT $1;", batchLimit)
+			if err != nil {
+				return err
+			}
+			err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM batch").Scan(&batchSize)
+			if err != nil {
+				return err
+			}
 
-		if batchSize < 0 {
-			break
-		}
-		_, err = db.Exec(ctx, "DELETE FROM runs WHERE job_id in (SELECT job_id from batch)")
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		_, err = db.Exec(ctx, "DELETE FROM jobs WHERE job_id in (SELECT job_id from batch)")
-		if err != nil {
-			return errors.WithStack(err)
-		}
+			// Delete everything that's present in the batch table
+			_, err = tx.Exec(ctx, "DELETE FROM runs WHERE job_id in (SELECT job_id from batch);")
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(ctx, "DELETE FROM jobs WHERE job_id in (SELECT job_id from batch);")
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(ctx, "DELETE FROM rows_to_delete WHERE job_id in (SELECT job_id from batch);")
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(ctx, "TRUNCATE TABLE batch;")
+			if err != nil {
+				return err
+			}
+			if err != nil {
+				return err
+			}
+			return nil
+		})
 		taken := time.Now().Sub(batchStart)
 		jobsDeleted += batchSize
 		log.Infof("Deleted %d jobs in %s.  Deleted %d jobs out of %d", batchSize, taken, jobsDeleted, totalJobsToDelete)

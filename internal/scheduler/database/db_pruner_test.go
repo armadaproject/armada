@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/slices"
+	commonutil "github.com/armadaproject/armada/internal/common/util"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -19,7 +20,8 @@ import (
 func TestPruneDb(t *testing.T) {
 	baseTime := time.Now().UTC()
 	defaultKeepAfterDuration := 1 * time.Hour
-	expiredJobTime := baseTime.Add(-defaultKeepAfterDuration)
+	expiredJobTime := baseTime.Add(-defaultKeepAfterDuration).Add(-time.Second)
+	defaultBatchSize := 2
 	tests := map[string]struct {
 		jobs                     []Job
 		runs                     []Run
@@ -32,7 +34,60 @@ func TestPruneDb(t *testing.T) {
 				Succeeded:    true,
 				LastModified: expiredJobTime,
 			}},
-			expectedJobsPostPrune: []string{},
+			expectedJobsPostPrune: nil,
+		},
+		"remove failed job": {
+			jobs: []Job{{
+				JobID:        "test-job",
+				Failed:       true,
+				LastModified: expiredJobTime,
+			}},
+			expectedJobsPostPrune: nil,
+		},
+		"remove cancelled job": {
+			jobs: []Job{{
+				JobID:        "test-job",
+				Cancelled:    true,
+				LastModified: expiredJobTime,
+			}},
+			expectedJobsPostPrune: nil,
+		},
+		"don't remove non-terminal job": {
+			jobs: []Job{{
+				JobID:        "test-job",
+				LastModified: expiredJobTime,
+			}},
+			expectedJobsPostPrune: []string{"test-job"},
+		},
+		"don't remove recently finished job": {
+			jobs: []Job{{
+				JobID:        "test-job",
+				Cancelled:    true,
+				LastModified: baseTime.Add(-defaultKeepAfterDuration).Add(1 * time.Second),
+			}},
+			expectedJobsPostPrune: []string{"test-job"},
+		},
+		"remove job runs": {
+			jobs: []Job{{
+				JobID:        "test-job",
+				Cancelled:    true,
+				LastModified: expiredJobTime,
+			}},
+			runs: []Run{{
+				RunID:        uuid.New(),
+				JobID:        "test-job",
+				JobSet:       "test-jobset",
+				Running:      true,
+				Serial:       0,
+				LastModified: baseTime,
+			}},
+			expectedJobsPostPrune:    nil,
+			expectedJobRunsPostPrune: nil,
+		},
+		"remove lots of jobs in batches": {
+			jobs:                     make100CompletedJobs(expiredJobTime),
+			expectedJobsPostPrune:    nil,
+			expectedJobRunsPostPrune: nil,
 		},
 	}
 	for name, tc := range tests {
@@ -51,8 +106,9 @@ func TestPruneDb(t *testing.T) {
 				err = database.Upsert(ctx, db, "runs", tc.runs)
 				require.NoError(t, err)
 				queries := New(db)
-
-				err = PruneDb(ctx, db, defaultKeepAfterDuration, testClock)
+				dbConn, err := db.Acquire(ctx)
+				require.NoError(t, err)
+				err = PruneDb(ctx, dbConn.Conn(), defaultBatchSize, defaultKeepAfterDuration, testClock)
 				require.NoError(t, err)
 
 				remainingJobs, err := queries.SelectAllJobIds(ctx)
@@ -96,4 +152,16 @@ func populateRequiredJobFields(job Job) Job {
 	job.SubmitMessage = []byte{}
 	job.SchedulingInfo = []byte{}
 	return job
+}
+
+func make100CompletedJobs(lastModified time.Time) []Job {
+	jobs := make([]Job, 100)
+	for i := 0; i < len(jobs); i++ {
+		jobs[i] = Job{
+			JobID:        commonutil.NewULID(),
+			Cancelled:    true,
+			LastModified: lastModified,
+		}
+	}
+	return jobs
 }
