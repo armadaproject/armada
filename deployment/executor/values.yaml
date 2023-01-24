@@ -18,6 +18,9 @@ tolerations: []
 customServiceAccount: null
 serviceAccount: null
 
+healthcheck:
+  enabled: false
+
 priorityClasses:
   - name: armada-default
     description: "Default priority class for pods created by Armada."
@@ -34,5 +37,6 @@ prometheus:
   scrapeInterval: 10s
 
 applicationConfig:
+  httpPort: 8080
   apiConnection:
     armadaUrl: ""

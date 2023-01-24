@@ -165,16 +165,16 @@ func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.Even
 // createExecutorState extracts a schedulerobjects.Executor from the requesrt
 func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	log := ctxlogrus.Extract(ctx)
-	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
-	for i, nodeInfo := range req.Nodes {
+	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(nodeInfo, srv.nodeIdLabel, srv.allowedPriorities, srv.clock.Now().UTC())
 		if err != nil {
 			logging.WithStacktrace(log, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
-			continue
+		} else {
+			nodes = append(nodes, node)
 		}
-		nodes[i] = node
 	}
 	return &schedulerobjects.Executor{
 		Id:             req.ExecutorId,
