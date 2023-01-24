@@ -5,6 +5,7 @@ import (
 	"strings"
 	time "time"
 
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -13,7 +14,6 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/pkg/errors"
 )
 
 func NewNodeFromNodeInfo(nodeInfo *NodeInfo, nodeIdLabel string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
