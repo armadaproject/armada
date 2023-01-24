@@ -54,9 +54,7 @@ func TestGetUrlsToScrape_WhenNoAddresses_ReturnsNothing(t *testing.T) {
 }
 
 func TestParseResponse(t *testing.T) {
-
-	content :=
-		`# HELP DCGM_FI_DEV_MEM_COPY_UTIL Memory utilization (in %).
+	content := `# HELP DCGM_FI_DEV_MEM_COPY_UTIL Memory utilization (in %).
 # TYPE DCGM_FI_DEV_MEM_COPY_UTIL gauge
 DCGM_FI_DEV_MEM_COPY_UTIL{gpu="0",UUID="GPU-0fad1988-2940-49d6-e05a-713ae4a9ea37",device="nvidia0",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test1"} 21
 DCGM_FI_DEV_MEM_COPY_UTIL{gpu="1",UUID="GPU-4020fc4b-b520-24af-5a2d-b77b33a194a5",device="nvidia1",modelName="Tesla V100-SXM2-32GB",Hostname="nvidia-dcgm-exporter-sv6g2",container="gputest",namespace="gpu-operator",pod="test2"} 2
@@ -83,14 +81,13 @@ DCGM_FI_DEV_ENC_UTIL{gpu="1",UUID="GPU-4020fc4b-b520-24af-5a2d-b77b33a194a5",dev
 
 	assert.Equal(t, model.LabelValue("test2"), result[1].Metric["pod"])
 	assert.Equal(t, 2.0, float64(result[1].Value))
-
 }
 
 func makeGoodEndpointSlice(ipAddress string, nodeName string) *discovery.EndpointSlice {
 	var portNum int32 = 9400
-	var ready = true
-	var serving = true
-	var terminating = false
+	ready := true
+	serving := true
+	terminating := false
 	return &discovery.EndpointSlice{
 		Endpoints: []discovery.Endpoint{
 			{

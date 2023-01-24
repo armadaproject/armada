@@ -15,7 +15,6 @@ import (
 )
 
 func getUrlsToScrape(endpointSlices []*discovery.EndpointSlice, nodeNames []string) []string {
-
 	nodeNamesSet := commonUtil.StringListToSet(nodeNames)
 
 	var urlsToScrape []string
@@ -48,7 +47,6 @@ func getUrlsToScrape(endpointSlices []*discovery.EndpointSlice, nodeNames []stri
 }
 
 func scrapeUrls(urls []string, metricNames []string, client http.Client) model.Vector {
-
 	vectors := make(chan model.Vector, len(urls))
 
 	wg := sync.WaitGroup{}
@@ -89,7 +87,6 @@ func scrapeUrl(url string, metricNamesWanted []string, httpClient http.Client) (
 }
 
 func parseResponse(resp *http.Response, metricNamesWanted []string) (model.Vector, error) {
-
 	metricNamesWantedSet := commonUtil.StringListToSet(metricNamesWanted)
 
 	decoder := &expfmt.SampleDecoder{

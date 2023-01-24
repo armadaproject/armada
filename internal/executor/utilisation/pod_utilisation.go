@@ -28,10 +28,6 @@ type PodUtilisationServiceImpl struct {
 	dataAccessMutex    sync.Mutex
 }
 
-type podUtilisationFetcher interface {
-	fetchCustomStats(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext cluster_context.ClusterContext)
-}
-
 func NewMetricsServerQueueUtilisationService(
 	clusterContext cluster_context.ClusterContext,
 	nodeInfoService node.NodeInfoService,

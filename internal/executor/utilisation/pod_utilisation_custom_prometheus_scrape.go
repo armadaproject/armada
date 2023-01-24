@@ -53,7 +53,6 @@ func fetchCustomStats(nodes []*v1.Node, podNameToUtilisationData map[string]*dom
 		log.Warnf("could not get prometheus metrics endpoint slices, abandoning custom prometheus scrape: %v", err)
 		return
 	}
-
 	log.Infof("Found %d endpoint slices", len(endpointSlices))
 
 	urls := getUrlsToScrape(endpointSlices, util.ExtractNodeNames(nodes))
@@ -66,6 +65,10 @@ func fetchCustomStats(nodes []*v1.Node, podNameToUtilisationData map[string]*dom
 	samples := scrapeUrls(urls, extractMetricNames(config.Metrics), client)
 
 	log.Infof("Got %d samples in total", len(samples))
+	updateMetrics(samples, config, podNameToUtilisationData)
+}
+
+func updateMetrics(samples model.Vector, config CustomPrometheusScrapeConfig, podNameToUtilisationData map[string]*domain.UtilisationData) {
 	samplesByMetricName := groupSamplesBy(samples, model.MetricNameLabel)
 	for _, metric := range config.Metrics {
 		metricSamples, exists := samplesByMetricName[model.LabelValue(metric.Name)]
@@ -73,11 +76,15 @@ func fetchCustomStats(nodes []*v1.Node, podNameToUtilisationData map[string]*dom
 		if !exists {
 			continue
 		}
-		metricSamplesByPod := groupSamplesBy(metricSamples, model.LabelName(metric.PrometheusPodNameLabel))
-		for podName, podData := range podNameToUtilisationData {
-			if metricPodSamples, exists := metricSamplesByPod[model.LabelValue(podName)]; exists {
-				podData.CurrentUsage[metric.Name] = *resource.NewQuantity(int64(aggregateSamples(metricPodSamples, metric.Type)), resource.DecimalExponent)
-			}
+		updateMetric(metricSamples, metric, podNameToUtilisationData)
+	}
+}
+
+func updateMetric(metricSamples model.Vector, metric MetricSpec, podNameToUtilisationData map[string]*domain.UtilisationData) {
+	metricSamplesByPod := groupSamplesBy(metricSamples, model.LabelName(metric.PrometheusPodNameLabel))
+	for podName, podData := range podNameToUtilisationData {
+		if metricPodSamples, exists := metricSamplesByPod[model.LabelValue(podName)]; exists {
+			podData.CurrentUsage[metric.Name] = *resource.NewQuantity(int64(aggregateSamples(metricPodSamples, metric.Type)), resource.DecimalExponent)
 		}
 	}
 }
