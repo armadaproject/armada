@@ -23,7 +23,7 @@ type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided
 	// It should return a slice containing all scheduled jobs.
-	Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error)
+	Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error)
 }
 
 // LegacySchedulingAlgo is a SchedulingAlgo that schedules jobs in the same way as the old lease call

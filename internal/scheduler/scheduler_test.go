@@ -401,7 +401,7 @@ func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.
 	panic("implement me")
 }
 
-func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -452,7 +452,7 @@ type testSchedulingAlgo struct {
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
