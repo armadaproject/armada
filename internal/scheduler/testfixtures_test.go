@@ -18,7 +18,6 @@ const (
 	testGangIdAnnotation          = "armada.io/gangId"
 	testGangCardinalityAnnotation = "armada.io/gangCardinality"
 	testHostnameLabel             = "kubernetes.io/hostname"
-	testJobIdLabel                = "armadaproject.io/jobId"
 )
 
 var (
@@ -193,7 +192,7 @@ func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 		Annotations: map[string]string{
-			testJobIdLabel: uuid.NewString(),
+			JobIdAnnotation: uuid.NewString(),
 		},
 	}
 }
@@ -214,7 +213,7 @@ func testLargeCpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 		Annotations: map[string]string{
-			testJobIdLabel: uuid.NewString(),
+			JobIdAnnotation: uuid.NewString(),
 		},
 	}
 }
@@ -236,7 +235,7 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 		Annotations: map[string]string{
-			testJobIdLabel: uuid.NewString(),
+			JobIdAnnotation: uuid.NewString(),
 		},
 	}
 }

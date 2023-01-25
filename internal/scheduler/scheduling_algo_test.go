@@ -248,7 +248,7 @@ func OneCpuJob() *SchedulerJob {
 								},
 							},
 							Annotations: map[string]string{
-								testJobIdLabel: uuid.NewString(),
+								JobIdAnnotation: uuid.NewString(),
 							},
 						},
 					},

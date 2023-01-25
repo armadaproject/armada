@@ -318,13 +318,12 @@ func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodReq
 }
 
 func (nodeDb *NodeDb) JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	// TODO: Make config.
-	jobId, ok := req.Annotations["armadaproject.io/jobId"]
+	jobId, ok := req.Annotations[JobIdAnnotation]
 	if !ok {
 		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "req.Annotations",
 			Value:   req.Annotations,
-			Message: "armadaproject.io/jobId missing",
+			Message: fmt.Sprintf("%s annotation missing", JobIdAnnotation),
 		})
 	}
 	if jobId == "" {

@@ -10,6 +10,8 @@ const (
 	// If set on a pod, the value of this annotation is interpreted as the id of a node
 	// and only the node with that id will be considered for scheduling the pod.
 	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
+	// If set on a pod, indicates which job this pod is part of.
+	JobIdAnnotation = "armadaproject.io/jobId"
 )
 
 type Configuration struct {
