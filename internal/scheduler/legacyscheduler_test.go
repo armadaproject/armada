@@ -264,7 +264,6 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 		"MaximalCumulativeResourceFractionPerQueueAndPriority": {
 			Reqs: append(append(testNSmallCpuJob(9, 11), testNSmallCpuJob(7, 11)...), testNSmallCpuJob(3, 11)...),
 			SchedulingConstraints: SchedulingConstraints{
-				Priorities: []int32{3, 7, 9},
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("32"),
@@ -282,7 +281,6 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 		"MaximalCumulativeResourceFractionPerQueueAndPriority with initial usage": {
 			Reqs: append(append(testNSmallCpuJob(9, 11), testNSmallCpuJob(7, 11)...), testNSmallCpuJob(3, 11)...),
 			SchedulingConstraints: SchedulingConstraints{
-				Priorities: []int32{3, 7, 9},
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("32"),

@@ -36,7 +36,6 @@ type LegacySchedulerJob interface {
 // SchedulingConstraints collects scheduling constraints,
 // e.g., per-queue resource limits.
 type SchedulingConstraints struct {
-	Priorities      []int32
 	PriorityClasses map[string]configuration.PriorityClass
 	// Executor for which we're currently scheduling jobs.
 	ExecutorId string
@@ -75,14 +74,12 @@ func SchedulingConstraintsFromSchedulingConfig(
 	priorities := make([]int32, 0)
 	maximalCumulativeResourceFractionPerQueueAndPriority := make(map[int32]map[string]float64, 0)
 	for _, priority := range config.Preemption.PriorityClasses {
-		// priorities = append(priorities, priority.Priority)
 		maximalCumulativeResourceFractionPerQueueAndPriority[priority.Priority] = priority.MaximalResourceFractionPerQueue
 	}
 	if len(priorities) == 0 {
 		priorities = []int32{0}
 	}
 	return &SchedulingConstraints{
-		Priorities:       priorities,
 		PriorityClasses:  config.Preemption.PriorityClasses,
 		ExecutorId:       executorId,
 		Pool:             pool,
@@ -955,7 +952,18 @@ func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
 		info := job.GetRequirements(priorityClasses)
-		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
+		req := PodRequirementFromJobSchedulingInfo(info)
+		if _, ok := req.Annotations[JobIdAnnotation]; !ok {
+			// Auto-populate JobIdAnnotation if not set.
+			if req.Annotations == nil {
+				req.Annotations = map[string]string{
+					JobIdAnnotation: job.GetId(),
+				}
+			} else {
+				req.Annotations[JobIdAnnotation] = job.GetId()
+			}
+		}
+		rv = append(rv, req)
 	}
 	return rv
 }
