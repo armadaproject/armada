@@ -19,7 +19,7 @@ import (
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Scheduler database accordingly.  This pipeline will run until a SIGTERM is received
-func Run(config *Configuration) {
+func Run(config Configuration) {
 	metrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
 
 	log.Infof("Opening connection pool to postgres")
@@ -42,7 +42,7 @@ func Run(config *Configuration) {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error creating  compressor"))
 	}
-	converter := NewInstructionConverter(metrics, submitJobFilter, compressor)
+	converter := NewInstructionConverter(metrics, submitJobFilter, config.PriorityClasses, compressor)
 
 	ingester := ingest.NewIngestionPipeline(
 		config.Pulsar,

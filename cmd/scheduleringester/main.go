@@ -29,5 +29,5 @@ func main() {
 
 	common.LoadConfig(&config, "./config/scheduleringester", userSpecifiedConfigs)
 
-	scheduleringester.Run(&config)
+	scheduleringester.Run(config)
 }

@@ -1,6 +1,7 @@
 package testfixtures
 
 import (
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -19,13 +20,16 @@ const (
 )
 
 var (
-	JobIdProto, _ = armadaevents.ProtoUuidFromUlidString(JobIdString)
-	RunIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(RunIdString))
-	JobIdUuid     = armadaevents.UuidFromProtoUuid(JobIdProto)
-	RunIdUuid     = armadaevents.UuidFromProtoUuid(RunIdProto)
-	Groups        = []string{"group1", "group2"}
-	NodeSelector  = map[string]string{"foo": "bar"}
-	Tolerations   = []v1.Toleration{{
+	JobIdProto, _      = armadaevents.ProtoUuidFromUlidString(JobIdString)
+	RunIdProto         = armadaevents.ProtoUuidFromUuid(uuid.MustParse(RunIdString))
+	JobIdUuid          = armadaevents.UuidFromProtoUuid(JobIdProto)
+	RunIdUuid          = armadaevents.UuidFromProtoUuid(RunIdProto)
+	PriorityClassName  = "test-priority"
+	PriorityClassValue = int32(100)
+	PriorityClasses    = map[string]configuration.PriorityClass{PriorityClassName: {Priority: PriorityClassValue}}
+	Groups             = []string{"group1", "group2"}
+	NodeSelector       = map[string]string{"foo": "bar"}
+	Tolerations        = []v1.Toleration{{
 		Key:      "fish",
 		Operator: "exists",
 	}}
@@ -67,8 +71,9 @@ var Submit = &armadaevents.EventSequence_Event{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
 						PodSpec: &v1.PodSpec{
-							NodeSelector: NodeSelector,
-							Tolerations:  Tolerations,
+							NodeSelector:      NodeSelector,
+							Tolerations:       Tolerations,
+							PriorityClassName: PriorityClassName,
 							Containers: []v1.Container{
 								{
 									Name:    "container1",

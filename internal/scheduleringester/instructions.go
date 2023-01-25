@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
@@ -25,18 +26,23 @@ type eventSequenceCommon struct {
 }
 
 type InstructionConverter struct {
-	metrics     *metrics.Metrics
-	eventFilter func(event *armadaevents.EventSequence_Event) bool
-	compressor  compress.Compressor
+	metrics         *metrics.Metrics
+	eventFilter     func(event *armadaevents.EventSequence_Event) bool
+	priorityClasses map[string]configuration.PriorityClass
+	compressor      compress.Compressor
 }
 
-func NewInstructionConverter(metrics *metrics.Metrics,
-	filter func(event *armadaevents.EventSequence_Event) bool, compressor compress.Compressor,
+func NewInstructionConverter(
+	metrics *metrics.Metrics,
+	filter func(event *armadaevents.EventSequence_Event) bool,
+	priorityClasses map[string]configuration.PriorityClass,
+	compressor compress.Compressor,
 ) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
 	return &InstructionConverter{
-		metrics:     metrics,
-		eventFilter: filter,
-		compressor:  compressor,
+		metrics:         metrics,
+		eventFilter:     filter,
+		priorityClasses: priorityClasses,
+		compressor:      compressor,
 	}
 }
 
@@ -127,7 +133,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 
 	// Produce a minimal representation of the job for the scheduler.
 	// To avoid the scheduler needing to load the entire job spec.
-	schedulingInfo, err := schedulingInfoFromSubmitJob(job)
+	schedulingInfo, err := c.schedulingInfoFromSubmitJob(job)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +283,7 @@ func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.Can
 
 // schedulingInfoFromSubmitJob returns a minimal representation of a job
 // containing only the info needed by the scheduler.
-func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
+func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
@@ -291,8 +297,7 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
 		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
-			// TODO: We should not pass in nil here. Priority will not be set correctly.
-			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, nil),
+			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, c.priorityClasses),
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,
