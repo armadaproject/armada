@@ -175,7 +175,7 @@ func (mr *MockJobRepositoryMockRecorder) FetchJobRunErrors(arg0, arg1 interface{
 }
 
 // FetchJobRunLeases mocks base method.
-func (m *MockJobRepository) FetchJobRunLeases(arg0 context.Context, arg1 string, arg2 int, arg3 []uuid.UUID) ([]*database.JobRunLease, error) {
+func (m *MockJobRepository) FetchJobRunLeases(arg0 context.Context, arg1 string, arg2 uint, arg3 []uuid.UUID) ([]*database.JobRunLease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobRunLeases", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*database.JobRunLease)

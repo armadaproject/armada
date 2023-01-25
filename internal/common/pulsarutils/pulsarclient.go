@@ -1,7 +1,6 @@
 package pulsarutils
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -41,40 +40,4 @@ func NewPulsarClient(config *configuration.PulsarConfig) (pulsar.Client, error) 
 		MaxConnectionsPerBroker:    config.MaxConnectionsPerBroker,
 		Authentication:             authentication,
 	})
-}
-
-func ParsePulsarCompressionType(compressionTypeStr string) (pulsar.CompressionType, error) {
-	switch strings.ToLower(compressionTypeStr) {
-	case "", "none":
-		return pulsar.NoCompression, nil
-	case "lz4":
-		return pulsar.LZ4, nil
-	case "zlib":
-		return pulsar.ZLib, nil
-	case "zstd":
-		return pulsar.ZSTD, nil
-	default:
-		return pulsar.NoCompression, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "pulsar.CompressionType",
-			Value:   compressionTypeStr,
-			Message: fmt.Sprintf("Unknown Pulsar compression type %s", compressionTypeStr),
-		})
-	}
-}
-
-func ParsePulsarCompressionLevel(compressionLevelStr string) (pulsar.CompressionLevel, error) {
-	switch strings.ToLower(compressionLevelStr) {
-	case "", "default":
-		return pulsar.Default, nil
-	case "faster":
-		return pulsar.Faster, nil
-	case "better":
-		return pulsar.Better, nil
-	default:
-		return pulsar.Default, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "pulsar.CompressionLevel",
-			Value:   compressionLevelStr,
-			Message: fmt.Sprintf("Unknown Pulsar compression level %s", compressionLevelStr),
-		})
-	}
 }
