@@ -133,7 +133,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			defer cancel()
 			config := testSchedulingConfig()
 			if tc.perQueueLimit != nil {
-				config = withPerQueueLimits(tc.perQueueLimit, config)
+				config = withPerQueueLimitsConfig(tc.perQueueLimit, config)
 			}
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -191,13 +191,17 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 	}
 	allocatableCpu := resource.MustParse("2")
 	(&allocatableCpu).Sub(usedCpu)
+	id := uuid.NewString()
 	return &schedulerobjects.Node{
-		Id: uuid.NewString(),
+		Id: id,
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("2"),
 				"memory": resource.MustParse("256Gi"),
 			},
+		},
+		Labels: map[string]string{
+			testHostnameLabel: id,
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},
@@ -242,6 +246,9 @@ func OneCpuJob() *SchedulerJob {
 									"memory": resource.MustParse("1"),
 									"cpu":    resource.MustParse("1"),
 								},
+							},
+							Annotations: map[string]string{
+								JobIdAnnotation: uuid.NewString(),
 							},
 						},
 					},
