@@ -1,4 +1,3 @@
-import { Job } from "../../../models/lookoutV2Models"
 import { simulateApiWait } from "../../../utils/fakeJobsUtils"
 import { IGetRunErrorService } from "../GetRunErrorService"
 
