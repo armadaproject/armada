@@ -1,7 +1,6 @@
 package testfixtures
 
 import (
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -9,6 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
