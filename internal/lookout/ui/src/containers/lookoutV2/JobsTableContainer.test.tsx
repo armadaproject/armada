@@ -36,7 +36,7 @@ describe("JobsTableContainer", () => {
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
     getJobsService = new FakeGetJobsService(jobs, false)
     groupJobsService = new FakeGroupJobsService(jobs, false)
-    runErrorService = new FakeGetRunErrorService()
+    runErrorService = new FakeGetRunErrorService(false)
 
     historyService = createMemoryHistory()
     jobsTablePreferencesService = new JobsTablePreferencesService(historyService)

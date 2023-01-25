@@ -1,6 +1,7 @@
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job } from "models/lookoutV2Models"
+import { SnackbarProvider } from "notistack"
 import { makeTestJobs } from "utils/fakeJobsUtils"
 
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
@@ -15,7 +16,11 @@ describe("Sidebar", () => {
   })
 
   const renderComponent = () =>
-    render(<Sidebar job={job} runErrorService={new FakeGetRunErrorService()} onClose={onClose} />)
+    render(
+      <SnackbarProvider>
+        <Sidebar job={job} runErrorService={new FakeGetRunErrorService()} onClose={onClose} />
+      </SnackbarProvider>,
+    )
 
   it("should show job details by default", () => {
     const { getByRole } = renderComponent()

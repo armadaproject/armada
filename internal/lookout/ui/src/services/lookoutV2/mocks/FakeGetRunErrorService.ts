@@ -1,9 +1,14 @@
+import { Job } from "../../../models/lookoutV2Models"
 import { simulateApiWait } from "../../../utils/fakeJobsUtils"
 import { IGetRunErrorService } from "../GetRunErrorService"
 
 export class FakeGetRunErrorService implements IGetRunErrorService {
+  constructor(private simulateApiWait = true) {}
+
   async getRunError(runId: string, signal: AbortSignal | undefined): Promise<string> {
-    await simulateApiWait(signal)
+    if (this.simulateApiWait) {
+      await simulateApiWait(signal)
+    }
     if (runId === "doesnotexist") {
       throw new Error("Failed to retrieve job run because of reasons")
     }
