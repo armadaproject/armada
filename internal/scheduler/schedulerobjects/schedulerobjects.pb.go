@@ -145,7 +145,7 @@ type Node struct {
 	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
 	// where available resources = unused resources + resources assigned to lower-priority jobs.
 	AllocatableByPriorityAndResource map[int32]ResourceList `protobuf:"bytes,8,rep,name=AllocatableByPriorityAndResource,proto3" json:"AllocatableByPriorityAndResource" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// Ids of the jobs runs currently assigned to this this.
+	// Ids of the jobs runs currently assigned to this node.
 	JobRuns []string `protobuf:"bytes,9,rep,name=job_runs,json=jobRuns,proto3" json:"jobRuns,omitempty"`
 	// Resource allocated to jobs on this node.
 	// TODO: Reconcile with job_runs.

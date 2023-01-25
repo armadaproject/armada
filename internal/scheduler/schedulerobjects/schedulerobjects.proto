@@ -47,7 +47,7 @@ message Node {
     // E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
     // where available resources = unused resources + resources assigned to lower-priority jobs.
     map<int32, ResourceList> AllocatableByPriorityAndResource = 8 [(gogoproto.nullable) = false];
-    // Ids of the jobs runs currently assigned to this this.
+    // Ids of the jobs runs currently assigned to this node.
     repeated string job_runs = 9;
     // Resource allocated to jobs on this node.
     // TODO: Reconcile with job_runs.

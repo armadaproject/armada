@@ -190,14 +190,14 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			NodeTypeId:    "foo",
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Items:         testCluster(),
 			ExpectedOrder: []int{0, 1},
 		},
 		"NodeType bar": {
 			NodeTypeId:    "bar",
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Items:         testCluster(),
 			ExpectedOrder: []int{2},
 		},
 		"NodeType foo, cpu lower bound": {
@@ -205,7 +205,7 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testNodeItems1(),
+			Items:                  testCluster(),
 			ExpectedOrder:          []int{1},
 		},
 	}
@@ -258,14 +258,14 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			NodeTypes:     []string{"foo"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Items:         testCluster(),
 			ExpectedOrder: []int{0, 1},
 		},
 		"NodeType bar": {
 			NodeTypes:     []string{"bar"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Items:         testCluster(),
 			ExpectedOrder: []int{2},
 		},
 		"NodeType foo, cpu lower bound": {
@@ -273,14 +273,14 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testNodeItems1(),
+			Items:                  testCluster(),
 			ExpectedOrder:          []int{1},
 		},
 		"NodeType foo and bar": {
 			NodeTypes:     []string{"foo", "bar"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Items:         testCluster(),
 			ExpectedOrder: []int{0, 1, 2},
 		},
 		"NodeType foo and bar, cpu lower bound": {
@@ -288,7 +288,7 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testNodeItems1(),
+			Items:                  testCluster(),
 			ExpectedOrder:          []int{1, 2},
 		},
 	}

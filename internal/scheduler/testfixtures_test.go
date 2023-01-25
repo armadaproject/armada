@@ -240,7 +240,7 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 	}
 }
 
-func testNodeItems1() []*schedulerobjects.Node {
+func testCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:         "node1",
