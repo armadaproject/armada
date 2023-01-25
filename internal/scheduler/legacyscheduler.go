@@ -671,9 +671,6 @@ type LegacyScheduler struct {
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
-	// Map from run id to the name of the node the job is currently running on, if any.
-	// To avoid re-scheduling jobs onto nodes other than the one the job is currently on.
-	nodeByRunId map[string]string
 }
 
 func (sched *LegacyScheduler) String() string {
@@ -779,27 +776,12 @@ func NewLegacyScheduler(
 	if err != nil {
 		return nil, err
 	}
-
-	// For any currently running jobs, remember the node the job is running on.
-	// To avoid re-scheduling jobs onto nodes other than the one the job is currently on.
-	nodeByRunId := make(map[string]string)
-	it, err := NewNodesIterator(nodeDb.Txn(false))
-	if err != nil {
-		return nil, err
-	}
-	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		for _, runId := range node.JobRuns {
-			nodeByRunId[runId] = node.Id
-		}
-	}
-
 	return &LegacyScheduler{
 		ctx:                   ctx,
 		SchedulingConstraints: constraints,
 		SchedulingRoundReport: schedulingRoundReport,
 		CandidateGangIterator: candidateGangIterator,
 		NodeDb:                nodeDb,
-		nodeByRunId:           nodeByRunId,
 	}, nil
 }
 
