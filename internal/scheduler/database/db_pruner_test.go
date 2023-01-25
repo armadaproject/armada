@@ -17,7 +17,7 @@ import (
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 )
 
-func TestPruneDb(t *testing.T) {
+func TestPruneDb_RemoveJobs(t *testing.T) {
 	baseTime := time.Now().UTC()
 	defaultKeepAfterDuration := 1 * time.Hour
 	expiredJobTime := baseTime.Add(-defaultKeepAfterDuration).Add(-time.Second)
@@ -142,6 +142,71 @@ func TestPruneDb(t *testing.T) {
 				assert.Equal(t, tc.expectedJobRunsPostPrune, remainingJobRuns)
 				assert.Equal(t, tc.expectedErrorsPostPrune, remainingJobErrors)
 
+				return nil
+			})
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestPruneDb_RemoveMarkers(t *testing.T) {
+	baseTime := time.Now().UTC()
+	defaultKeepAfterDuration := 1 * time.Hour
+	expiredMarkerTime := baseTime.Add(-defaultKeepAfterDuration).Add(-time.Second)
+	tests := map[string]struct {
+		markers                  []Marker
+		expectedMarkersPostPrune []Marker
+	}{
+		"remove old marker": {
+			markers: []Marker{
+				{
+					GroupID:     uuid.New(),
+					PartitionID: 1,
+					Created:     expiredMarkerTime,
+				},
+			},
+		},
+		"don't remove new marker": {
+			markers: []Marker{
+				{
+					GroupID:     uuid.New(),
+					PartitionID: 1,
+					Created:     baseTime,
+				},
+			},
+			expectedMarkersPostPrune: []Marker{
+				{
+					GroupID:     uuid.New(),
+					PartitionID: 1,
+					Created:     baseTime,
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				testClock := clock.NewFakeClock(baseTime)
+
+				// Set up db
+				for _, m := range tc.markers {
+					_, err := db.Exec(ctx,
+						"INSERT INTO markers VALUES ($1, $2, $3)", m.GroupID, m.PartitionID, m.Created)
+					require.NoError(t, err)
+				}
+
+				queries := New(db)
+				dbConn, err := db.Acquire(ctx)
+				require.NoError(t, err)
+				err = PruneDb(ctx, dbConn.Conn(), defaultBatchSize, defaultKeepAfterDuration, testClock)
+				require.NoError(t, err)
+
+				remainingMarkers, err := queries.SelectAllMarkers(ctx)
+				require.NoError(t, err)
+
+				assert.Equal(t, tc.expectedMarkersPostPrune, remainingMarkers)
 				return nil
 			})
 			assert.NoError(t, err)

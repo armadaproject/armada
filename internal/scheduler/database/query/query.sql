@@ -65,6 +65,12 @@ SELECT run_id FROM runs WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[])
 -- name: CountGroup :one
 SELECT COUNT(*) FROM markers WHERE group_id= $1;
 
+-- name: DeleteOldMarkers :exec
+DELETE FROM markers WHERE created < sqlc.arg(cutoff)::timestamptz;
+
+-- name: SelectAllMarkers :many
+SELECT * FROM markers;
+
 -- Run errors
 -- name: SelectRunErrorsById :many
 SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);

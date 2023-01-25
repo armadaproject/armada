@@ -19,8 +19,14 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 	start := time.Now()
 	cutOffTime := clock.Now().Add(-keepAfterCompletion)
 
+	// First delete the partition messages. This table shouldn't be big so no need for anything fancy
+	err := New(db).DeleteOldMarkers(ctx, cutOffTime)
+	if err != nil {
+		return errors.Wrapf(err, "Error deleting markers")
+	}
+
 	// Insert the ids of all jobs we want to delete into a tmp table
-	_, err := db.Exec(ctx,
+	_, err = db.Exec(ctx,
 		`CREATE TEMP TABLE rows_to_delete AS (
              SELECT job_id FROM jobs 
 			 WHERE last_modified < $1
