@@ -71,24 +71,19 @@ func SchedulingConstraintsFromSchedulingConfig(
 	config configuration.SchedulingConfig,
 	totalResources schedulerobjects.ResourceList,
 ) *SchedulingConstraints {
-	priorities := make([]int32, 0)
 	maximalCumulativeResourceFractionPerQueueAndPriority := make(map[int32]map[string]float64, 0)
 	for _, priority := range config.Preemption.PriorityClasses {
 		maximalCumulativeResourceFractionPerQueueAndPriority[priority.Priority] = priority.MaximalResourceFractionPerQueue
 	}
-	if len(priorities) == 0 {
-		priorities = []int32{0}
-	}
 	return &SchedulingConstraints{
-		PriorityClasses:  config.Preemption.PriorityClasses,
-		ExecutorId:       executorId,
-		Pool:             pool,
-		ResourceScarcity: config.GetResourceScarcity(pool),
-
-		MaximumJobsToSchedule:                                config.MaximumJobsToSchedule,
-		MaxConsecutiveUnschedulableJobs:                      config.QueueLeaseBatchSize,
-		MinimumJobSize:                                       minimumJobSize,
-		MaximalResourceFractionPerQueue:                      config.MaximalResourceFractionPerQueue,
+		PriorityClasses:                 config.Preemption.PriorityClasses,
+		ExecutorId:                      executorId,
+		Pool:                            pool,
+		ResourceScarcity:                config.GetResourceScarcity(pool),
+		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
+		MaxConsecutiveUnschedulableJobs: config.QueueLeaseBatchSize,
+		MinimumJobSize:                  minimumJobSize,
+		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
 		MaximalCumulativeResourceFractionPerQueueAndPriority: maximalCumulativeResourceFractionPerQueueAndPriority,
 		MaximalResourceFractionToSchedulePerQueue:            config.MaximalResourceFractionToSchedulePerQueue,
 		MaximalResourceFractionToSchedule:                    config.MaximalClusterFractionToSchedule,
