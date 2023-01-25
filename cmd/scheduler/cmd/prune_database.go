@@ -17,7 +17,7 @@ func pruneDbCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pruneDatabase",
 		Short: "removes old data from the database",
-		RunE:  migrateDatabase,
+		RunE:  pruneDatabase,
 	}
 	cmd.PersistentFlags().Duration(
 		"timeout",
@@ -35,18 +35,22 @@ func pruneDbCmd() *cobra.Command {
 }
 
 func pruneDatabase(_ *cobra.Command, _ []string) error {
+
 	timeout := viper.GetDuration("timeout")
 	batchSize := viper.GetInt("batchsize")
 	expireAfter := viper.GetDuration("expireAfter")
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+
 	config, err := loadConfig()
 	if err != nil {
 		return err
 	}
+
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		return errors.WithMessagef(err, "Failed to connect to database")
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	return schedulerdb.PruneDb(ctx, db, batchSize, expireAfter, clock.RealClock{})
 }
