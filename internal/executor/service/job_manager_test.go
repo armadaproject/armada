@@ -29,22 +29,18 @@ func TestJobManager_DoesNothingIfNoPodsAreFound(t *testing.T) {
 	jobManager.ManageJobLeases()
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
-
-	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
+	assert.Zero(t, mockLeaseService.ReportDoneCalls)
 }
 
 func TestJobManager_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
-	runningPod := makeRunningPod()
-
 	fakeClusterContext, mockLeaseService, _, jobManager := makejobManagerWithTestDoubles()
-
+	runningPod := makeRunningPod()
 	addPod(t, fakeClusterContext, runningPod)
 
 	jobManager.ManageJobLeases()
 
 	assert.Zero(t, mockLeaseService.ReturnLeaseCalls)
-
-	mockLeaseService.AssertReportDoneCalledOnceWith(t, []string{})
+	assert.Zero(t, mockLeaseService.ReportDoneCalls)
 }
 
 func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(t *testing.T) {
@@ -90,10 +86,8 @@ func TestJobManager_DoesNothing_IfLeaseRenewalPreventOnFinishedPod(t *testing.T)
 }
 
 func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
-	unretryableStuckPod := makeUnretryableStuckPod()
-
 	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
-
+	unretryableStuckPod := makeUnretryableStuckPod()
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
 	jobManager.ManageJobLeases()
@@ -107,8 +101,6 @@ func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) 
 
 	_, ok := eventsReporter.ReceivedEvents[0].(*api.JobUnableToScheduleEvent)
 	assert.True(t, ok)
-
-	jobManager.ManageJobLeases()
 
 	failedEvent, ok := eventsReporter.ReceivedEvents[1].(*api.JobFailedEvent)
 	assert.True(t, ok)
@@ -147,8 +139,7 @@ func TestJobManager_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 	jobManager.ManageJobLeases()
 
 	// Not done as can be retried
-	assert.Equal(t, 1, mockLeaseService.ReportDoneCalls)
-	assert.Equal(t, []string{}, mockLeaseService.ReportDoneArg)
+	assert.Zero(t, mockLeaseService.ReportDoneCalls)
 
 	// Not returning lease yet
 	assert.Equal(t, 0, mockLeaseService.ReturnLeaseCalls)
@@ -160,8 +151,7 @@ func TestJobManager_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 	jobManager.ManageJobLeases()
 
 	// Not done as can be retried
-	assert.Equal(t, 2, mockLeaseService.ReportDoneCalls)
-	assert.Equal(t, []string{}, mockLeaseService.ReportDoneArg)
+	assert.Zero(t, mockLeaseService.ReportDoneCalls)
 
 	// Return lease for retry
 	assert.Equal(t, 1, mockLeaseService.ReturnLeaseCalls)
