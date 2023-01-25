@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -132,7 +133,17 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		}
 	case MarkRunsFailed:
 		runIds := maps.Keys(o)
+		returned := make([]uuid.UUID, 0, len(runIds))
+		for k, v := range o {
+			if v.LeaseReturned {
+				returned = append(returned, k)
+			}
+		}
 		err := queries.MarkJobRunsFailedById(ctx, runIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsReturnedById(ctx, returned)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -141,6 +152,17 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		err := queries.MarkJobRunsRunningById(ctx, runIds)
 		if err != nil {
 			return errors.WithStack(err)
+		}
+	case InsertJobRunErrors:
+		records := make([]any, len(o))
+		i := 0
+		for _, v := range o {
+			records[i] = *v
+			i++
+		}
+		err := database.Upsert(ctx, s.db, "job_run_errors", records)
+		if err != nil {
+			return err
 		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)

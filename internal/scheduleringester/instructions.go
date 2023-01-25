@@ -2,7 +2,7 @@ package scheduleringester
 
 import (
 	"context"
-
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -179,13 +179,27 @@ func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaeven
 }
 
 func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors) ([]DbOperation, error) {
-	runId := jobRunErrors.GetRunId()
+	runId := armadaevents.UuidFromProtoUuid(jobRunErrors.GetRunId())
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunErrors.JobId)
+	if err != nil {
+		return nil, err
+	}
+	insertJobRunErrors := make(InsertJobRunErrors)
+	markRunsFailed := make(MarkRunsFailed)
 	for _, runError := range jobRunErrors.GetErrors() {
-		// For terminal errors, we also need to mark the run as failed.
+		// There should only be one terminal error
 		if runError.GetTerminal() {
-			markRunsFailed := make(MarkRunsFailed)
-			markRunsFailed[armadaevents.UuidFromProtoUuid(runId)] = true
-			return []DbOperation{markRunsFailed}, nil
+			bytes, err := protoutil.MarshallAndCompress(runError, c.compressor)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to marshal RunError")
+			}
+			insertJobRunErrors[runId] = &schedulerdb.JobRunError{
+				RunID: runId,
+				JobID: jobId,
+				Error: bytes,
+			}
+			markRunsFailed[runId] = &JobRunFailed{LeaseReturned: runError.GetPodLeaseReturned() != nil}
+			return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
 		}
 	}
 	return nil, nil

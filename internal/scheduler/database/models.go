@@ -35,10 +35,9 @@ type Job struct {
 }
 
 type JobRunError struct {
-	RunID        uuid.UUID `db:"run_id"`
-	Error        []byte    `db:"error"`
-	Serial       int64     `db:"serial"`
-	LastModified time.Time `db:"last_modified"`
+	RunID uuid.UUID `db:"run_id"`
+	JobID string    `db:"job_id"`
+	Error []byte    `db:"error"`
 }
 
 type Marker struct {

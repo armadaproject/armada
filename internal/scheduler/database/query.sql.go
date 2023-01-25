@@ -75,6 +75,15 @@ func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []uuid.UUID)
 	return err
 }
 
+const markJobRunsReturnedById = `-- name: MarkJobRunsReturnedById :exec
+UPDATE runs SET returned = true WHERE run_id = ANY($1::UUID[])
+`
+
+func (q *Queries) MarkJobRunsReturnedById(ctx context.Context, runIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markJobRunsReturnedById, runIds)
+	return err
+}
+
 const markJobRunsRunningById = `-- name: MarkJobRunsRunningById :exec
 UPDATE runs SET running = true WHERE run_id = ANY($1::UUID[])
 `
@@ -361,7 +370,7 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 }
 
 const selectRunErrorsById = `-- name: SelectRunErrorsById :many
-SELECT run_id, error, serial, last_modified FROM job_run_errors WHERE run_id = ANY($1::UUID[])
+SELECT run_id, job_id, error FROM job_run_errors WHERE run_id = ANY($1::UUID[])
 `
 
 // Run errors
@@ -374,12 +383,7 @@ func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []uuid.UUID) (
 	var items []JobRunError
 	for rows.Next() {
 		var i JobRunError
-		if err := rows.Scan(
-			&i.RunID,
-			&i.Error,
-			&i.Serial,
-			&i.LastModified,
-		); err != nil {
+		if err := rows.Scan(&i.RunID, &i.JobID, &i.Error); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

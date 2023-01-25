@@ -4,23 +4,24 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var (
-	m                   = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
-	compressedGroups, _ = compress.CompressStringArray(f.Groups, &compress.NoOpCompressor{})
+	compressor   = compress.NewThreadSafeZlibCompressor(1024)
+	decompressor = compress.NewThreadSafeZlibDecompressor()
+	m            = metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "test_")
 )
 
 func TestConvertSequence(t *testing.T) {
@@ -35,11 +36,11 @@ func TestConvertSequence(t *testing.T) {
 				JobID:         f.JobIdString,
 				JobSet:        f.JobSetName,
 				UserID:        f.UserId,
-				Groups:        compressedGroups,
+				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
 				Queue:         f.Queue,
 				Priority:      int64(f.Priority),
-				SubmitMessage: mustMarshall(f.Submit.GetSubmitJob()),
-				SchedulingInfo: mustMarshall(&schedulerobjects.JobSchedulingInfo{
+				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+				SchedulingInfo: protoutil.MustMarshall(&schedulerobjects.JobSchedulingInfo{
 					Lifetime:        0,
 					AtMostOnce:      true,
 					Preemptible:     true,
@@ -85,10 +86,26 @@ func TestConvertSequence(t *testing.T) {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
 			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: true}},
 		},
-		"job run errors terminal": {
+		"lease returned": {
 			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
 			expected: []DbOperation{
-				MarkRunsFailed{f.RunIdUuid: true},
+				InsertJobRunErrors{f.RunIdUuid: &schedulerdb.JobRunError{
+					RunID: f.RunIdUuid,
+					JobID: f.JobIdString,
+					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
+				}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true}},
+			},
+		},
+		"job failed": {
+			events: []*armadaevents.EventSequence_Event{f.JobRunFailed},
+			expected: []DbOperation{
+				InsertJobRunErrors{f.RunIdUuid: &schedulerdb.JobRunError{
+					RunID: f.RunIdUuid,
+					JobID: f.JobIdString,
+					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
+				}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false}},
 			},
 		},
 		"job errors terminal": {
@@ -158,7 +175,7 @@ func TestConvertSequence(t *testing.T) {
 					return true
 				}
 			}
-			converter := InstructionConverter{m, tc.filter, &compress.NoOpCompressor{}}
+			converter := InstructionConverter{m, tc.filter, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.convertSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
@@ -168,7 +185,7 @@ func TestConvertSequence(t *testing.T) {
 
 func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []DbOperation) {
 	t.Helper()
-	assert.Equal(t, len(expectedOps), len(actualOps), "operations arrays are not the same length")
+	require.Equal(t, len(expectedOps), len(actualOps), "operations arrays are not the same length")
 	for i := 0; i < len(expectedOps); i++ {
 		expectedOp := expectedOps[i]
 		actualOp := actualOps[i]
@@ -188,6 +205,17 @@ func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []
 				expectedSubmit.SubmitMessage = nil
 				assert.Equal(t, expectedSubmit, actualSubmit)
 			}
+		case InsertJobRunErrors:
+			actualErrors := actualOp.(InsertJobRunErrors)
+			for k, expectedError := range expectedOp.(InsertJobRunErrors) {
+				actualError, ok := actualErrors[k]
+				assert.True(t, ok)
+				assertErrorMessagesEqual(t, expectedError.Error, actualError.Error)
+				// nil out the byte arrays
+				actualError.Error = nil
+				expectedError.Error = nil
+				assert.Equal(t, expectedError, actualError)
+			}
 		default:
 			assert.Equal(t, expectedOp, actualOp)
 		}
@@ -195,37 +223,25 @@ func assertOperationsEqual(t *testing.T, expectedOps []DbOperation, actualOps []
 }
 
 func assertSchedulingInfoEqual(t *testing.T, expectedBytes []byte, actualBytes []byte) {
-	actualSchedInfo, err := unmarshalSchedulingInfo(actualBytes)
+	actualSchedInfo, err := protoutil.Unmarshall(actualBytes, &schedulerobjects.JobSchedulingInfo{})
 	assert.NoError(t, err)
-	expectedSchedInfo, err := unmarshalSchedulingInfo(expectedBytes)
+	expectedSchedInfo, err := protoutil.Unmarshall(expectedBytes, &schedulerobjects.JobSchedulingInfo{})
 	assert.NoError(t, err)
 	assert.Equal(t, expectedSchedInfo, actualSchedInfo)
 }
 
 func assertSubmitMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []byte) {
-	actualSubmitMessage, err := unmarshalSubmitMsg(actualBytes)
+	actualSubmitMessage, err := protoutil.DecompressAndUnmarshall(actualBytes, &armadaevents.SubmitJob{}, decompressor)
 	assert.NoError(t, err)
-	expectedSubmitMessage, err := unmarshalSubmitMsg(expectedBytes)
+	expectedSubmitMessage, err := protoutil.DecompressAndUnmarshall(expectedBytes, &armadaevents.SubmitJob{}, decompressor)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedSubmitMessage, actualSubmitMessage)
 }
 
-func unmarshalSubmitMsg(b []byte) (*armadaevents.SubmitJob, error) {
-	sm := &armadaevents.SubmitJob{}
-	err := proto.Unmarshal(b, sm)
-	return sm, err
-}
-
-func unmarshalSchedulingInfo(b []byte) (*schedulerobjects.JobSchedulingInfo, error) {
-	sm := &schedulerobjects.JobSchedulingInfo{}
-	err := proto.Unmarshal(b, sm)
-	return sm, err
-}
-
-func mustMarshall(msg proto.Message) []byte {
-	b, err := proto.Marshal(msg)
-	if err != nil {
-		panic(err)
-	}
-	return b
+func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []byte) {
+	actualError, err := protoutil.DecompressAndUnmarshall(actualBytes, &armadaevents.Error{}, decompressor)
+	assert.NoError(t, err)
+	expectedError, err := protoutil.DecompressAndUnmarshall(expectedBytes, &armadaevents.Error{}, decompressor)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedError, actualError)
 }

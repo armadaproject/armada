@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"golang.org/x/exp/maps"
 	"testing"
 	"time"
 
@@ -149,6 +150,20 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
+		"Insert JobRunErrors": {Ops: []DbOperation{
+			InsertJobRunErrors{
+				runIds[0]: &schedulerdb.JobRunError{
+					RunID: runIds[0],
+					JobID: jobIds[0],
+					Error: []byte{0x1},
+				},
+				runIds[1]: &schedulerdb.JobRunError{
+					RunID: runIds[1],
+					JobID: jobIds[1],
+					Error: []byte{0x2},
+				},
+			},
+		}},
 		"MarkRunsFailed": {Ops: []DbOperation{
 			InsertJobs{
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
@@ -163,8 +178,8 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkRunsFailed{
-				runIds[0]: true,
-				runIds[1]: true,
+				runIds[0]: &JobRunFailed{LeaseReturned: true},
+				runIds[1]: &JobRunFailed{LeaseReturned: false},
 			},
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
@@ -439,8 +454,9 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		numChanged := 0
 		for _, run := range runs {
-			if _, ok := expected[run.RunID]; ok {
+			if expectedRun, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Failed)
+				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
 				numChanged++
 			}
 		}
@@ -470,6 +486,21 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, len(expected), len(runs))
+	case InsertJobRunErrors:
+		expectedIds := maps.Keys(expected)
+		as, err := queries.SelectRunErrorsById(ctx, expectedIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		actual := make(InsertJobRunErrors, len(as))
+		for _, a := range as {
+			actual[a.RunID] = &schedulerdb.JobRunError{
+				RunID: a.RunID,
+				JobID: a.JobID,
+				Error: a.Error,
+			}
+		}
+		assert.Equal(t, expected, actual)
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

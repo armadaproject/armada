@@ -40,6 +40,9 @@ UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 -- name: MarkJobRunsFailedById :exec
 UPDATE runs SET failed = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 
+-- name: MarkJobRunsReturnedById :exec
+UPDATE runs SET returned = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
 -- name: MarkJobRunsRunningById :exec
 UPDATE runs SET running = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 

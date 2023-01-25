@@ -19,6 +19,10 @@ func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 	return d.MessageIds
 }
 
+type JobRunFailed struct {
+	LeaseReturned bool
+}
+
 // DbOperation captures a generic batch database operation.
 //
 // There are 5 types of operations:
@@ -93,8 +97,9 @@ type (
 	MarkJobsFailed         map[string]bool
 	UpdateJobPriorities    map[string]int64
 	MarkRunsSucceeded      map[uuid.UUID]bool
-	MarkRunsFailed         map[uuid.UUID]bool
+	MarkRunsFailed         map[uuid.UUID]*JobRunFailed
 	MarkRunsRunning        map[uuid.UUID]bool
+	InsertJobRunErrors     map[uuid.UUID]*schedulerdb.JobRunError
 )
 
 type JobSetOperation interface {
@@ -152,6 +157,10 @@ func (a MarkRunsFailed) Merge(b DbOperation) bool {
 }
 
 func (a MarkRunsRunning) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -239,6 +248,12 @@ func (a MarkRunsFailed) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
+}
+
+func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
+	// Inserting errors before a run has been marked as failed is ok.
+	// We only require that errors are written to the schedulerdb before the run is marked as failed.
+	return true
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation
