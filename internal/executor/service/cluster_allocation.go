@@ -121,13 +121,13 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 
 		if details.Recoverable {
 			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId())
-			err := allocationService.eventReporter.Report(reporter.EventMessage{Event: returnLeaseEvent, JobRunId: jobRunId})
+			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: jobRunId}})
 			if err != nil {
 				log.Errorf("Failed to return lease for job %s because %s", details.JobId, err)
 			}
 		} else {
 			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
-			err := allocationService.eventReporter.Report(reporter.EventMessage{Event: failEvent, JobRunId: jobRunId})
+			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: jobRunId}})
 			if err != nil {
 				log.Errorf("Failed to report submission as failed for job %s because %s", details.JobId, err)
 			}
@@ -263,7 +263,7 @@ func (allocationService *LegacyClusterAllocationService) processFailedJobs(faile
 			allocationService.returnLease(details.Pod, fmt.Sprintf("Failed to submit pod because %s", message))
 		} else {
 			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
-			err := allocationService.eventReporter.Report(reporter.EventMessage{Event: failEvent, JobRunId: util.ExtractJobRunId(details.Pod)})
+			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: util.ExtractJobRunId(details.Pod)}})
 
 			if err == nil {
 				toBeReportedDone = append(toBeReportedDone, details.JobId)

@@ -16,7 +16,7 @@ import (
 const batchSize = 200
 
 type EventReporter interface {
-	Report(event EventMessage) error
+	Report(events []EventMessage) error
 	QueueEvent(event EventMessage, callback func(error))
 }
 
@@ -93,8 +93,8 @@ func (eventReporter *JobEventReporter) clusterEventEventHandler() cache.Resource
 	}
 }
 
-func (eventReporter *JobEventReporter) Report(event EventMessage) error {
-	return eventReporter.eventSender.SendEvents([]EventMessage{event})
+func (eventReporter *JobEventReporter) Report(events []EventMessage) error {
+	return eventReporter.eventSender.SendEvents(events)
 }
 
 func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Event) {
