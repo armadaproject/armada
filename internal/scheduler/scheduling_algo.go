@@ -23,7 +23,7 @@ type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided
 	// It should return a slice containing all scheduled jobs.
-	Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error)
+	Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error)
 }
 
 // LegacySchedulingAlgo is a SchedulingAlgo that schedules jobs in the same way as the old lease call
@@ -70,8 +70,8 @@ func NewLegacySchedulingAlgo(
 // Schedule assigns jobs to nodes in the same way as the old lease call.  It iterates over each executor in turn
 // (using a random order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
-func (l *LegacySchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
-	executors, err := l.executorRepository.GetExecutors()
+func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
+	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +101,16 @@ func (l *LegacySchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedu
 	}
 
 	// used to calculate fair share
-	resourceUsagebyPool := aggregateUsage(executors)
+	resourceUsagebyPool, err := aggregateUsage(executors, txn, jobDb)
+	if err != nil {
+		return nil, err
+	}
 
 	jobsToSchedule := make([]*SchedulerJob, 0)
 	for _, executor := range executors {
-		log.Infof("Attempting to schedule jobs on %s", executor.Name)
+		log.Infof("Attempting to schedule jobs on %s", executor.Id)
 		totalResourceUsageByQueue := resourceUsagebyPool[executor.Pool]
-		jobs, err := l.scheduleOnExecutor(executor, totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, txn)
+		jobs, err := l.scheduleOnExecutor(ctx, executor, totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -127,17 +130,11 @@ func (l *LegacySchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedu
 					quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
 					totalResourceUsageByQueue[job.Queue] = quantityByPriorityAndResourceType
 				}
-				objectRequirements := job.jobSchedulingInfo.GetObjectRequirements()
-				if len(objectRequirements) == 0 {
-					return nil, errors.New(fmt.Sprintf("no objectRequirements attached to job %s", job.GetId()))
+				jobQty, err := schedulerQuantityFromJob(job)
+				if err != nil {
+					return nil, err
 				}
-				requirements := objectRequirements[0].GetPodRequirements()
-				jobRequests := requirements.ResourceRequirements.Requests
-				resources := make(map[string]resource.Quantity, 0)
-				for k, v := range jobRequests {
-					resources[string(k)] = v
-				}
-				quantityByPriorityAndResourceType.Add(map[int32]schedulerobjects.ResourceList{requirements.Priority: {resources}})
+				quantityByPriorityAndResourceType.Add(jobQty)
 			}
 		}
 	}
@@ -145,38 +142,54 @@ func (l *LegacySchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*Schedu
 	return jobsToSchedule, nil
 }
 
+type JobQueueIteratorAdapter struct {
+	it *JobQueueIterator
+}
+
+func (it *JobQueueIteratorAdapter) Next() (LegacySchedulerJob, error) {
+	return it.it.NextJobItem(), nil
+}
+
 // scheduleOnExecutor schedules jobs on a single executor
 func (l *LegacySchedulingAlgo) scheduleOnExecutor(
-	executor *database.Executor,
+	ctx context.Context,
+	executor *schedulerobjects.Executor,
 	totalResourceUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	totalCapacity schedulerobjects.ResourceList,
 	priorityFactorByQueue map[string]float64,
 	txn *memdb.Txn,
 ) ([]*SchedulerJob, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3000*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-
-	jobRepo := NewJobDbAdapter(txn)
 	nodeDb, err := l.constructNodeDb(executor.Nodes, l.priorityClassPriorities)
 	if err != nil {
 		return nil, err
 	}
-
 	constraints := SchedulingConstraintsFromSchedulingConfig(
-		executor.Name,
+		executor.Id,
 		executor.Pool,
-		schedulerobjects.ResourceList{Resources: executor.MinimumJobSize},
+		executor.MinimumJobSize,
 		l.config,
 		totalCapacity,
 	)
-
-	legacyScheduler, err := NewLegacyScheduler[*SchedulerJob](
+	queues := make([]*Queue, 0, len(priorityFactorByQueue))
+	for name, priorityFactor := range priorityFactorByQueue {
+		it, err := NewJobQueueIterator(txn, name)
+		if err != nil {
+			return nil, err
+		}
+		if queue, err := NewQueue(name, priorityFactor, &JobQueueIteratorAdapter{it: it}); err != nil {
+			return nil, err
+		} else {
+			queues = append(queues, queue)
+		}
+	}
+	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
 		l.config,
 		nodeDb,
-		jobRepo,
-		priorityFactorByQueue,
+		queues,
 		totalResourceUsageByQueue)
 	if err != nil {
 		return nil, err
@@ -187,9 +200,9 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	}
 	updatedJobs := make([]*SchedulerJob, len(jobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
-		jobCopy := report.Job.DeepCopy()
+		jobCopy := report.Job.(*SchedulerJob).DeepCopy()
 		jobCopy.Queued = false
-		jobCopy.Executor = executor.Name
+		jobCopy.Executor = executor.Id
 		if len(report.PodSchedulingReports) > 0 {
 			jobCopy.Node = report.PodSchedulingReports[0].Node.GetId()
 		}
@@ -231,37 +244,89 @@ func (l *LegacySchedulingAlgo) filterEmptyQueues(allQueues []*database.Queue, tx
 	return activeQueues, nil
 }
 
-func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*database.Executor) []*database.Executor {
-	activeExecutors := make([]*database.Executor, 0, len(allExecutors))
+func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
+	activeExecutors := make([]*schedulerobjects.Executor, 0, len(allExecutors))
 	cutoff := l.clock.Now().Add(-l.config.ExecutorTimeout)
 	for _, executor := range allExecutors {
 		if executor.LastUpdateTime.After(cutoff) {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
-			log.Debugf("Ignoring executor %s because it hasn't heartbeated since %s", executor.Name, executor.LastUpdateTime)
+			log.Debugf("Ignoring executor %s because it hasn't heartbeated since %s", executor.Id, executor.LastUpdateTime)
 		}
 	}
 	return activeExecutors
 }
 
 // aggregateUsage Creates a map of usage by pool
-func aggregateUsage(executors []*database.Executor) map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+func aggregateUsage(executors []*schedulerobjects.Executor, txn *memdb.Txn, jobDb *JobDb) (map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	usageByPool := make(map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, 0)
-
 	for _, executor := range executors {
 		poolUsage, ok := usageByPool[executor.Pool]
 		if !ok {
 			poolUsage = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 			usageByPool[executor.Pool] = poolUsage
 		}
-		for queue, report := range executor.Usage.ResourcesByQueue {
-			quantityByPriorityAndResourceType, ok := poolUsage[queue]
+		executorUsage, err := aggregateUsageForExecutor(executor, txn, jobDb)
+		if err != nil {
+			return nil, err
+		}
+		for queue, usage := range executorUsage {
+			queueUsage, ok := poolUsage[queue]
 			if !ok {
-				quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
-				poolUsage[queue] = quantityByPriorityAndResourceType
+				queueUsage = make(schedulerobjects.QuantityByPriorityAndResourceType)
+				poolUsage[queue] = queueUsage
 			}
-			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
+			queueUsage.Add(usage)
 		}
 	}
-	return usageByPool
+	return usageByPool, nil
+}
+
+// aggregateUsageForExecutor aggregates the resource usage for a given executor, first by queue and then by priority class
+// This is done by taking all the job runs that the executor last reported owning, looking up the corresponding job in jobdb
+// and then aggregating the resources of each job
+func aggregateUsageForExecutor(executor *schedulerobjects.Executor, txn *memdb.Txn, jobDb *JobDb) (map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
+	allRuns, err := executor.AllRuns()
+	if err != nil {
+		return nil, err
+	}
+	usageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+	for _, runId := range allRuns {
+		job, err := jobDb.GetByRunId(txn, runId)
+		if err != nil {
+			return nil, err
+		}
+		if job != nil {
+			queueUsage, ok := usageByQueue[job.Queue]
+			if !ok {
+				queueUsage = make(schedulerobjects.QuantityByPriorityAndResourceType)
+				usageByQueue[job.Queue] = queueUsage
+			}
+			jobQty, err := schedulerQuantityFromJob(job)
+			if err != nil {
+				return nil, err
+			}
+			queueUsage.Add(jobQty)
+		} else {
+			// if the job isn't in jobdb then it is no longer active, and we can ignore it
+			log.Debugf("Ignoring run %s", runId)
+		}
+	}
+	return usageByQueue, nil
+}
+
+func schedulerQuantityFromJob(job *SchedulerJob) (schedulerobjects.QuantityByPriorityAndResourceType, error) {
+	objectRequirements := job.jobSchedulingInfo.GetObjectRequirements()
+	if len(objectRequirements) == 0 {
+		return nil, errors.New(fmt.Sprintf("no objectRequirements attached to job %s", job.GetId()))
+	}
+	requirements := objectRequirements[0].GetPodRequirements()
+	jobRequests := requirements.ResourceRequirements.Requests
+	resources := make(map[string]resource.Quantity, 0)
+	for k, v := range jobRequests {
+		resources[string(k)] = v
+	}
+	return schedulerobjects.QuantityByPriorityAndResourceType{
+		requirements.Priority: schedulerobjects.ResourceList{Resources: resources},
+	}, nil
 }

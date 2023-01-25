@@ -45,6 +45,7 @@ jobs:
           python-version: '3.10'
           tox-env: 'py310'
           path: 'client/python'
+          github-token: ${{secrets.GITHUB_TOKEN}}
 
       - name: Upload Coverage to codecov (./client/python)
         uses: codecov/codecov-action@v3
@@ -75,7 +76,7 @@ jobs:
           python-version: '3.10'
           tox-env: 'py310'
           path: 'third_party/airflow'
-
+          github-token: ${{secrets.GITHUB_TOKEN}}
       - name: Upload Coverage to codecov (./third_party/airflow)
         uses: codecov/codecov-action@v3
         with:

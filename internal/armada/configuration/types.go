@@ -3,12 +3,13 @@ package configuration
 import (
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 type ArmadaConfig struct {
@@ -38,7 +39,7 @@ type ArmadaConfig struct {
 
 type PulsarConfig struct {
 	// Pulsar URL
-	URL string
+	URL string `validate:"required"`
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
 	// Whether Pulsar client accept untrusted TLS certificate from broker
@@ -56,9 +57,9 @@ type PulsarConfig struct {
 	JobsetEventsTopic           string
 	RedisFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
-	CompressionType string
+	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
-	CompressionLevel string
+	CompressionLevel pulsar.CompressionLevel
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
 	HostnameSuffix string
@@ -84,7 +85,7 @@ type SchedulingConfig struct {
 	QueueLeaseBatchSize uint
 	// Minimum resources to schedule per request from an executor.
 	// Applies to the old scheduler.
-	MinimumResourceToSchedule common.ComputeResourcesFloat
+	MinimumResourceToSchedule armadaresource.ComputeResourcesFloat
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
@@ -109,7 +110,7 @@ type SchedulingConfig struct {
 	// to keep the number of stored reports within this limit.
 	MaxJobReportsToStore int
 	Lease                LeaseSettings
-	DefaultJobLimits     common.ComputeResources
+	DefaultJobLimits     armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.

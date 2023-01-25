@@ -33,26 +33,6 @@ func TestNew(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
-	// Invalid compression type
-	pc = cfg.PulsarConfig{
-		URL:               "pulsar://localhost:6650",
-		CompressionType:   "nocompression",
-		JobsetEventsTopic: "events",
-	}
-	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
-	assert.Error(t, err)
-	assert.Nil(t, app)
-
-	// Invalid compression level
-	pc = cfg.PulsarConfig{
-		URL:               "pulsar://localhost:6650",
-		CompressionLevel:  "veryCompressed",
-		JobsetEventsTopic: "events",
-	}
-	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
-	assert.Error(t, err)
-	assert.Nil(t, app)
-
 	// Invalid command type
 	pc = cfg.PulsarConfig{
 		URL:               "pulsar://localhost:6650",

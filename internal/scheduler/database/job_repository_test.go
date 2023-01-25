@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -188,38 +189,250 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 	return dbJobs, expectedJobs
 }
 
+func TestFindInactiveRuns(t *testing.T) {
+	uuids := make([]uuid.UUID, 3)
+	for i := 0; i < len(uuids); i++ {
+		uuids[i] = uuid.New()
+	}
+	tests := map[string]struct {
+		dbRuns           []Run
+		runsToCheck      []uuid.UUID
+		expectedInactive []uuid.UUID
+	}{
+		"empty database": {
+			runsToCheck:      uuids,
+			expectedInactive: uuids,
+		},
+		"no inactive": {
+			runsToCheck: uuids,
+			dbRuns: []Run{
+				{RunID: uuids[0]},
+				{RunID: uuids[1]},
+				{RunID: uuids[2]},
+			},
+			expectedInactive: nil,
+		},
+		"run succeeded": {
+			runsToCheck: uuids,
+			dbRuns: []Run{
+				{RunID: uuids[0]},
+				{RunID: uuids[1], Succeeded: true},
+				{RunID: uuids[2]},
+			},
+			expectedInactive: []uuid.UUID{uuids[1]},
+		},
+		"run failed": {
+			runsToCheck: uuids,
+			dbRuns: []Run{
+				{RunID: uuids[0]},
+				{RunID: uuids[1], Failed: true},
+				{RunID: uuids[2]},
+			},
+			expectedInactive: []uuid.UUID{uuids[1]},
+		},
+		"run cancelled": {
+			runsToCheck: uuids,
+			dbRuns: []Run{
+				{RunID: uuids[0]},
+				{RunID: uuids[1], Cancelled: true},
+				{RunID: uuids[2]},
+			},
+			expectedInactive: []uuid.UUID{uuids[1]},
+		},
+		"run missing": {
+			runsToCheck: uuids,
+			dbRuns: []Run{
+				{RunID: uuids[0]},
+				{RunID: uuids[2]},
+			},
+			expectedInactive: []uuid.UUID{uuids[1]},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withJobRepository(func(repo *PostgresJobRepository) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Second)
+
+				// Set up db
+				err := database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
+				require.NoError(t, err)
+
+				inactive, err := repo.FindInactiveRuns(ctx, tc.runsToCheck)
+				require.NoError(t, err)
+				uuidSort := func(a uuid.UUID, b uuid.UUID) bool { return a.String() > b.String() }
+				slices.SortFunc(inactive, uuidSort)
+				slices.SortFunc(tc.expectedInactive, uuidSort)
+				assert.Equal(t, tc.expectedInactive, inactive)
+				cancel()
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestFetchJobRunLeases(t *testing.T) {
+	const executorName = "testExecutor"
+	dbJobs, _ := createTestJobs(5)
+
+	// first three runs can be picked up by executor
+	// last three runs are not available
+	dbRuns := []Run{
+		{
+			RunID:    uuid.New(),
+			JobID:    dbJobs[0].JobID,
+			JobSet:   "test-jobset",
+			Executor: executorName,
+		},
+		{
+			RunID:    uuid.New(),
+			JobID:    dbJobs[1].JobID,
+			JobSet:   "test-jobset",
+			Executor: executorName,
+		},
+		{
+			RunID:    uuid.New(),
+			JobID:    dbJobs[2].JobID,
+			JobSet:   "test-jobset",
+			Executor: executorName,
+		},
+		{
+			RunID:    uuid.New(),
+			JobID:    dbJobs[0].JobID,
+			JobSet:   "test-jobset",
+			Executor: executorName,
+			Failed:   true, // should be ignored as terminal
+		},
+		{
+			RunID:     uuid.New(),
+			JobID:     dbJobs[0].JobID,
+			JobSet:    "test-jobset",
+			Executor:  executorName,
+			Cancelled: true, // should be ignored as terminal
+		},
+		{
+			RunID:     uuid.New(),
+			JobID:     dbJobs[3].JobID,
+			JobSet:    "test-jobset",
+			Executor:  executorName,
+			Succeeded: true, // should be ignored as terminal
+		},
+	}
+	expectedLeases := make([]*JobRunLease, 3)
+	for i := range expectedLeases {
+		expectedLeases[i] = &JobRunLease{
+			RunID:         dbRuns[i].RunID,
+			Queue:         dbJobs[i].Queue,
+			JobSet:        dbJobs[i].JobSet,
+			UserID:        dbJobs[i].UserID,
+			Groups:        dbJobs[i].Groups,
+			SubmitMessage: dbJobs[i].SubmitMessage,
+		}
+	}
+	tests := map[string]struct {
+		dbRuns         []Run
+		dbJobs         []Job
+		excludedRuns   []uuid.UUID
+		maxRowsToFetch uint
+		executor       string
+		expectedLeases []*JobRunLease
+	}{
+		"all runs": {
+			dbJobs:         dbJobs,
+			dbRuns:         dbRuns,
+			excludedRuns:   nil,
+			maxRowsToFetch: 100,
+			executor:       executorName,
+			expectedLeases: expectedLeases,
+		},
+		"limit rows": {
+			dbJobs:         dbJobs,
+			dbRuns:         dbRuns,
+			excludedRuns:   nil,
+			maxRowsToFetch: 2,
+			executor:       executorName,
+			expectedLeases: []*JobRunLease{expectedLeases[0], expectedLeases[1]},
+		},
+		"exclude one run": {
+			dbJobs:         dbJobs,
+			dbRuns:         dbRuns,
+			excludedRuns:   []uuid.UUID{dbRuns[1].RunID},
+			maxRowsToFetch: 100,
+			executor:       executorName,
+			expectedLeases: []*JobRunLease{expectedLeases[0], expectedLeases[2]},
+		},
+		"exclude everything": {
+			dbJobs:         dbJobs,
+			dbRuns:         dbRuns,
+			excludedRuns:   []uuid.UUID{dbRuns[0].RunID, dbRuns[1].RunID, dbRuns[2].RunID},
+			maxRowsToFetch: 100,
+			executor:       executorName,
+			expectedLeases: nil,
+		},
+		"another executor": {
+			dbJobs:         dbJobs,
+			dbRuns:         dbRuns,
+			excludedRuns:   nil,
+			maxRowsToFetch: 100,
+			executor:       "some other executor",
+			expectedLeases: nil,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withJobRepository(func(repo *PostgresJobRepository) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+				// Set up db
+				err := database.Upsert(ctx, repo.db, "jobs", tc.dbJobs)
+				require.NoError(t, err)
+				err = database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
+				require.NoError(t, err)
+
+				leases, err := repo.FetchJobRunLeases(ctx, tc.executor, tc.maxRowsToFetch, tc.excludedRuns)
+				require.NoError(t, err)
+				leaseSort := func(a *JobRunLease, b *JobRunLease) bool { return a.RunID.String() > b.RunID.String() }
+				slices.SortFunc(leases, leaseSort)
+				slices.SortFunc(tc.expectedLeases, leaseSort)
+				assert.Equal(t, tc.expectedLeases, leases)
+				cancel()
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func createTestRuns(numRuns int) ([]Run, []Run) {
 	dbRuns := make([]Run, numRuns)
 	expectedRuns := make([]Run, numRuns)
 
 	for i := 0; i < numRuns; i++ {
 		dbRuns[i] = Run{
-			RunID:          uuid.New(),
-			JobID:          util.NewULID(),
-			JobSet:         "test-jobset",
-			Executor:       "test-executor",
-			SentToExecutor: true,
-			Cancelled:      true,
-			Running:        true,
-			Succeeded:      true,
-			Failed:         true,
-			Returned:       true,
+			RunID:     uuid.New(),
+			JobID:     util.NewULID(),
+			JobSet:    "test-jobset",
+			Executor:  "test-executor",
+			Cancelled: true,
+			Running:   true,
+			Succeeded: true,
+			Failed:    true,
+			Returned:  true,
 		}
 	}
 
 	for i, run := range dbRuns {
 		expectedRuns[i] = Run{
-			RunID:          run.RunID,
-			JobID:          run.JobID,
-			JobSet:         run.JobSet,
-			Executor:       run.Executor,
-			SentToExecutor: run.SentToExecutor,
-			Cancelled:      run.Cancelled,
-			Running:        run.Running,
-			Succeeded:      run.Succeeded,
-			Failed:         run.Failed,
-			Returned:       run.Returned,
-			Serial:         int64(i + 1),
+			RunID:     run.RunID,
+			JobID:     run.JobID,
+			JobSet:    run.JobSet,
+			Executor:  run.Executor,
+			Cancelled: run.Cancelled,
+			Running:   run.Running,
+			Succeeded: run.Succeeded,
+			Failed:    run.Failed,
+			Returned:  run.Returned,
+			Serial:    int64(i + 1),
 		}
 	}
 	return dbRuns, expectedRuns

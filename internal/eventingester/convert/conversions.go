@@ -17,11 +17,11 @@ import (
 // EventConverter converts event sequences into events that we can store in Redis
 type EventConverter struct {
 	Compressor          compress.Compressor
-	MaxMessageBatchSize int
+	MaxMessageBatchSize uint
 	metrics             *metrics.Metrics
 }
 
-func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize int, metrics *metrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate] {
+func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint, metrics *metrics.Metrics) ingest.InstructionConverter[*model.BatchUpdate] {
 	return &EventConverter{
 		Compressor:          compressor,
 		MaxMessageBatchSize: maxMessageBatchSize,

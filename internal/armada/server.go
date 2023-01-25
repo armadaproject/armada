@@ -133,8 +133,6 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// If Pulsar is enabled, use the Pulsar submit endpoints.
 	// Store a list of all Pulsar components to use during cleanup later.
 	var pulsarClient pulsar.Client
-	var pulsarCompressionType pulsar.CompressionType
-	var pulsarCompressionLevel pulsar.CompressionLevel
 	submitChecker := scheduler.NewSubmitChecker(
 		10*time.Minute,
 		config.Scheduling.Preemption.PriorityClasses,
@@ -150,19 +148,11 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 	defer pulsarClient.Close()
 
-	pulsarCompressionType, err = pulsarutils.ParsePulsarCompressionType(config.Pulsar.CompressionType)
-	if err != nil {
-		return err
-	}
-	pulsarCompressionLevel, err = pulsarutils.ParsePulsarCompressionLevel(config.Pulsar.CompressionLevel)
-	if err != nil {
-		return err
-	}
 	serverPulsarProducerName := fmt.Sprintf("armada-server-%s", serverId)
 	producer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Name:             serverPulsarProducerName,
-		CompressionType:  pulsarCompressionType,
-		CompressionLevel: pulsarCompressionLevel,
+		CompressionType:  config.Pulsar.CompressionType,
+		CompressionLevel: config.Pulsar.CompressionLevel,
 		BatchingMaxSize:  config.Pulsar.MaxAllowedMessageSize,
 		Topic:            config.Pulsar.JobsetEventsTopic,
 	})
@@ -171,7 +161,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 	defer producer.Close()
 
-	eventStore := repository.NewEventStore(producer, int(config.Pulsar.MaxAllowedMessageSize))
+	eventStore := repository.NewEventStore(producer, config.Pulsar.MaxAllowedMessageSize)
 
 	submitServer := server.NewSubmitServer(
 		permissions,
@@ -259,7 +249,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 	aggregatedQueueServer.SubmitChecker = submitChecker
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
-		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository[*api.Job](
+		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
 			config.Scheduling.MaxQueueReportsToStore,
 			config.Scheduling.MaxJobReportsToStore,
 		)

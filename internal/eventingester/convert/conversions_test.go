@@ -107,10 +107,7 @@ func simpleEventConverter() *EventConverter {
 }
 
 func extractEventSeq(b []byte) (*armadaevents.EventSequence, error) {
-	decompressor, err := compress.NewZlibDecompressor()
-	if err != nil {
-		return nil, err
-	}
+	decompressor := compress.NewZlibDecompressor()
 	decompressed, err := decompressor.Decompress(b)
 	if err != nil {
 		return nil, err

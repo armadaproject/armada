@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -395,6 +396,16 @@ type testJobRepository struct {
 	numReceivedPartitions uint32
 }
 
+func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
 		return nil, nil, errors.New("error fetchiung job updates")
@@ -421,15 +432,19 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
-func (t testExecutorRepository) GetExecutors() ([]*database.Executor, error) {
-	panic("GetExecutors not implemented yet")
+func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+	panic("implement me")
 }
 
-func (t testExecutorRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
 	return t.updateTimes, nil
+}
+
+func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+	panic("implement me")
 }
 
 type testSchedulingAlgo struct {
@@ -437,7 +452,7 @@ type testSchedulingAlgo struct {
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}

@@ -17,11 +17,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func Run(_ *Configuration) error {
-	// TODO: instantiate scheduler and start cycling
-	return nil
-}
-
 // Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
 // performed:
 // * Determine if we are leader
@@ -186,14 +181,14 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 
 	// Expire any jobs running on clusters that haven't heartbeated within our time limit
-	expirationEvents, err := s.expireJobsIfNecessary(txn)
+	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
 		return err
 	}
 	events = append(events, expirationEvents...)
 
 	// Schedule Jobs
-	scheduledJobs, err := s.schedulingAlgo.Schedule(txn, s.jobDb)
+	scheduledJobs, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 	if err != nil {
 		return err
 	}
@@ -463,8 +458,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
-func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
-	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes()
+func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
+	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
 		return nil, err
 	}

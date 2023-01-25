@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type Executor struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastRequest []byte    `db:"last_request"`
+	LastUpdated time.Time `db:"last_updated"`
+}
+
 type Job struct {
 	JobID           string    `db:"job_id"`
 	JobSet          string    `db:"job_set"`
@@ -28,13 +34,6 @@ type Job struct {
 	LastModified    time.Time `db:"last_modified"`
 }
 
-type JobRunAssignment struct {
-	RunID        uuid.UUID `db:"run_id"`
-	Assignment   []byte    `db:"assignment"`
-	Serial       int64     `db:"serial"`
-	LastModified time.Time `db:"last_modified"`
-}
-
 type JobRunError struct {
 	RunID        uuid.UUID `db:"run_id"`
 	Error        []byte    `db:"error"`
@@ -47,31 +46,21 @@ type Marker struct {
 	PartitionID int32     `db:"partition_id"`
 }
 
-type Nodeinfo struct {
-	ExecutorNodeName string    `db:"executor_node_name"`
-	NodeName         string    `db:"node_name"`
-	Executor         string    `db:"executor"`
-	Message          []byte    `db:"message"`
-	Serial           int64     `db:"serial"`
-	LastModified     time.Time `db:"last_modified"`
-}
-
 type Queue struct {
 	Name   string  `db:"name"`
 	Weight float64 `db:"weight"`
 }
 
 type Run struct {
-	RunID          uuid.UUID `db:"run_id"`
-	JobID          string    `db:"job_id"`
-	JobSet         string    `db:"job_set"`
-	Executor       string    `db:"executor"`
-	SentToExecutor bool      `db:"sent_to_executor"`
-	Cancelled      bool      `db:"cancelled"`
-	Running        bool      `db:"running"`
-	Succeeded      bool      `db:"succeeded"`
-	Failed         bool      `db:"failed"`
-	Returned       bool      `db:"returned"`
-	Serial         int64     `db:"serial"`
-	LastModified   time.Time `db:"last_modified"`
+	RunID        uuid.UUID `db:"run_id"`
+	JobID        string    `db:"job_id"`
+	JobSet       string    `db:"job_set"`
+	Executor     string    `db:"executor"`
+	Cancelled    bool      `db:"cancelled"`
+	Running      bool      `db:"running"`
+	Succeeded    bool      `db:"succeeded"`
+	Failed       bool      `db:"failed"`
+	Returned     bool      `db:"returned"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
 }
