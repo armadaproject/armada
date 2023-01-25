@@ -36,7 +36,6 @@ type LegacySchedulerJob interface {
 // SchedulingConstraints collects scheduling constraints,
 // e.g., per-queue resource limits.
 type SchedulingConstraints struct {
-	Priorities      []int32
 	PriorityClasses map[string]configuration.PriorityClass
 	// Executor for which we're currently scheduling jobs.
 	ExecutorId string
@@ -72,26 +71,19 @@ func SchedulingConstraintsFromSchedulingConfig(
 	config configuration.SchedulingConfig,
 	totalResources schedulerobjects.ResourceList,
 ) *SchedulingConstraints {
-	priorities := make([]int32, 0)
 	maximalCumulativeResourceFractionPerQueueAndPriority := make(map[int32]map[string]float64, 0)
 	for _, priority := range config.Preemption.PriorityClasses {
-		// priorities = append(priorities, priority.Priority)
 		maximalCumulativeResourceFractionPerQueueAndPriority[priority.Priority] = priority.MaximalResourceFractionPerQueue
 	}
-	if len(priorities) == 0 {
-		priorities = []int32{0}
-	}
 	return &SchedulingConstraints{
-		Priorities:       priorities,
-		PriorityClasses:  config.Preemption.PriorityClasses,
-		ExecutorId:       executorId,
-		Pool:             pool,
-		ResourceScarcity: config.GetResourceScarcity(pool),
-
-		MaximumJobsToSchedule:                                config.MaximumJobsToSchedule,
-		MaxConsecutiveUnschedulableJobs:                      config.QueueLeaseBatchSize,
-		MinimumJobSize:                                       minimumJobSize,
-		MaximalResourceFractionPerQueue:                      config.MaximalResourceFractionPerQueue,
+		PriorityClasses:                 config.Preemption.PriorityClasses,
+		ExecutorId:                      executorId,
+		Pool:                            pool,
+		ResourceScarcity:                config.GetResourceScarcity(pool),
+		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
+		MaxConsecutiveUnschedulableJobs: config.QueueLeaseBatchSize,
+		MinimumJobSize:                  minimumJobSize,
+		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
 		MaximalCumulativeResourceFractionPerQueueAndPriority: maximalCumulativeResourceFractionPerQueueAndPriority,
 		MaximalResourceFractionToSchedulePerQueue:            config.MaximalResourceFractionToSchedulePerQueue,
 		MaximalResourceFractionToSchedule:                    config.MaximalClusterFractionToSchedule,
@@ -671,10 +663,6 @@ type LegacyScheduler struct {
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
 	NodeDb *NodeDb
-	// Jobs are grouped into gangs by this annotation.
-	GangIdAnnotation string
-	// Jobs in a gang specify the number of jobs in the gang via this annotation.
-	GangCardinalityAnnotation string
 }
 
 func (sched *LegacyScheduler) String() string {
@@ -780,7 +768,6 @@ func NewLegacyScheduler(
 	if err != nil {
 		return nil, err
 	}
-
 	return &LegacyScheduler{
 		ctx:                   ctx,
 		SchedulingConstraints: constraints,
@@ -816,7 +803,6 @@ func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 		for i, r := range reports {
 			jobs[i] = r.Job
 		}
-
 		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, sched.PriorityClasses)
 		podSchedulingReports, ok, err := sched.NodeDb.ScheduleMany(reqs)
 		if err != nil {
@@ -961,7 +947,18 @@ func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
 		info := job.GetRequirements(priorityClasses)
-		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
+		req := PodRequirementFromJobSchedulingInfo(info)
+		if _, ok := req.Annotations[JobIdAnnotation]; !ok {
+			// Auto-populate JobIdAnnotation if not set.
+			if req.Annotations == nil {
+				req.Annotations = map[string]string{
+					JobIdAnnotation: job.GetId(),
+				}
+			} else {
+				req.Annotations[JobIdAnnotation] = job.GetId()
+			}
+		}
+		rv = append(rv, req)
 	}
 	return rv
 }
