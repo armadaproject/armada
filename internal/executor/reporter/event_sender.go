@@ -8,28 +8,26 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
+
+const maxMessageSize = 4 * 1024 * 1024
 
 type EventSender interface {
 	SendEvents(events []EventMessage) error
 }
 
 type ExecutorApiEventSender struct {
-	eventClient  executorapi.ExecutorApiClient
-	clientConfig configuration.ClientConfiguration
+	eventClient executorapi.ExecutorApiClient
 }
 
 func NewExecutorApiEventSender(
 	executorApiClient executorapi.ExecutorApiClient,
-	clientConfig configuration.ClientConfiguration,
 ) *ExecutorApiEventSender {
 	return &ExecutorApiEventSender{
-		eventClient:  executorApiClient,
-		clientConfig: clientConfig,
+		eventClient: executorApiClient,
 	}
 }
 
@@ -53,7 +51,7 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 		sequences = append(sequences, sequence)
 	}
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err := eventutil.LimitSequencesByteSize(sequences, eventSender.clientConfig.MaxMessageSizeBytes, true)
+	sequences, err := eventutil.LimitSequencesByteSize(sequences, maxMessageSize, true)
 	if err != nil {
 		return err
 	}

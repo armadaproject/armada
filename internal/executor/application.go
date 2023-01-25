@@ -96,7 +96,7 @@ func StartUpWithContext(
 
 	if config.Application.UseExecutorApi {
 		executorApiClient = executorapi.NewExecutorApiClient(conn)
-		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, config.Client)
+		eventSender = reporter.NewExecutorApiEventSender(executorApiClient)
 	} else {
 		usageClient = api.NewUsageClient(conn)
 		queueClient = api.NewAggregatedQueueClient(conn)
