@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -125,10 +124,7 @@ func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
 
 func withExecutorRepository(action func(repository *PostgresExecutorRepository) error) error {
 	return WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
-		repo := NewPostgresExecutorRepository(
-			db,
-			compress.NewThreadSafeZlibCompressor(1024),
-			compress.NewThreadSafeZlibDecompressor())
+		repo := NewPostgresExecutorRepository(db)
 		return action(repo)
 	})
 }

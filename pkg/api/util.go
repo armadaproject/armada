@@ -5,16 +5,32 @@ import (
 	"strings"
 	time "time"
 
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) *schedulerobjects.Node {
+func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
+	if executor == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "executor",
+			Value:   executor,
+			Message: "executor is empty",
+		})
+	}
+	if nodeInfo.Name == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "nodeInfo.Name",
+			Value:   nodeInfo.Name,
+			Message: "nodeInfo.Name is empty",
+		})
+	}
 	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
@@ -27,10 +43,9 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		JobRuns:                          nodeInfo.RunIds,
-	}
+	}, nil
 }
 
-// TODO: Make method.
 func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {
 	return schedulerobjects.NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
 }

@@ -3,6 +3,7 @@ package configuration
 import (
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	v1 "k8s.io/api/core/v1"
 
@@ -38,7 +39,7 @@ type ArmadaConfig struct {
 
 type PulsarConfig struct {
 	// Pulsar URL
-	URL string
+	URL string `validate:"required"`
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
 	// Whether Pulsar client accept untrusted TLS certificate from broker
@@ -56,9 +57,9 @@ type PulsarConfig struct {
 	JobsetEventsTopic           string
 	RedisFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
-	CompressionType string
+	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
-	CompressionLevel string
+	CompressionLevel pulsar.CompressionLevel
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
 	HostnameSuffix string
