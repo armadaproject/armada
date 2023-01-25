@@ -19,6 +19,8 @@ type LeaderController interface {
 	// ValidateToken allows a caller to determine whether a previously obtained token is still valid.
 	// Returns true if the token is a leader and false otherwise
 	ValidateToken(tok LeaderToken) bool
+	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
+	Run(ctx context.Context) error
 }
 
 // StandaloneLeaderController returns a token that always indicates you are leader
@@ -42,6 +44,15 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 		return lc.token.id == tok.id
 	}
 	return false
+}
+
+func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 // LeaseListener  allows clients to listen for lease events

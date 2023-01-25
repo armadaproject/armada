@@ -99,16 +99,6 @@ func SchedulingConstraintsFromSchedulingConfig(
 	}
 }
 
-// SchedulerJobRepository represents the underlying jobs database.
-type SchedulerJobRepository interface {
-	// GetJobIterator returns a iterator over queued jobs for a given queue.
-	GetJobIterator(ctx context.Context, queue string) (JobIterator, error)
-}
-
-type JobIterator interface {
-	Next() (LegacySchedulerJob, error)
-}
-
 // QueuedGangIterator is an iterator over all gangs in a queue,
 // where a gang is a set of jobs for which the gangIdAnnotation has equal value.
 // A gang is yielded once the final member of the gang has been received.

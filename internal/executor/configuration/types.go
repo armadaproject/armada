@@ -90,6 +90,7 @@ type MetricConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
+	HttpPort      uint16
 	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails
