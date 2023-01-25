@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
@@ -16,6 +17,10 @@ func TestToQuantity(t *testing.T) {
 	assert.Equal(t, makeQuantity(1), toQuantity(1))
 	assert.Equal(t, makeMilliQuantity(1500), toQuantity(1.5))
 	assert.Equal(t, makeMilliQuantity(333), toQuantity(1.0/3.0))
+	q1 := toQuantity(1)
+	assert.Equal(t, "1", q1.String())
+	q2 := toQuantity(1.5)
+	assert.Equal(t, "1500m", q2.String())
 }
 
 func TestExtractPrometheusMetricNames(t *testing.T) {
@@ -58,19 +63,19 @@ func TestUpdateMetrics(t *testing.T) {
 	assert.Equal(t, expectedUtilisationData, podNameToUtilisationData)
 }
 
-func makeTestConfig() []CustomPodUtilisationMetric {
-	return []CustomPodUtilisationMetric{
+func makeTestConfig() []configuration.CustomPodUtilisationMetric {
+	return []configuration.CustomPodUtilisationMetric{
 		{
 			Name:                   "accelerator-duty-cycle",
 			PrometheusMetricName:   "DCGM_FI_DEV_GPU_UTIL",
 			PrometheusPodNameLabel: "pod",
-			AggregateType:          Mean,
+			AggregateType:          configuration.Mean,
 		},
 		{
 			Name:                   "accelerator-memory-pct-util",
 			PrometheusMetricName:   "DCGM_FI_DEV_MEM_COPY_UTIL",
 			PrometheusPodNameLabel: "pod",
-			AggregateType:          Sum,
+			AggregateType:          configuration.Sum,
 		},
 	}
 }
@@ -87,9 +92,9 @@ func makeTestSamples() model.Vector {
 }
 
 func makeQuantity(val int64) resource.Quantity {
-	return *resource.NewQuantity(val, resource.DecimalExponent)
+	return *resource.NewQuantity(val, resource.DecimalSI)
 }
 
 func makeMilliQuantity(milliVal int64) resource.Quantity {
-	return *resource.NewMilliQuantity(milliVal, resource.DecimalExponent)
+	return *resource.NewMilliQuantity(milliVal, resource.DecimalSI)
 }

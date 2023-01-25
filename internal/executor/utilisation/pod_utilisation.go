@@ -1,6 +1,7 @@
 package utilisation
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
@@ -23,17 +26,30 @@ type PodUtilisationService interface {
 
 type PodUtilisationServiceImpl struct {
 	clusterContext     cluster_context.ClusterContext
+	fetchers           []podUtilisationFetcher
 	nodeInfoService    node.NodeInfoService
 	podUtilisationData map[string]*domain.UtilisationData
 	dataAccessMutex    sync.Mutex
 }
 
+type podUtilisationFetcher interface {
+	fetch(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext clusterContext.ClusterContext)
+}
+
 func NewMetricsServerQueueUtilisationService(
 	clusterContext cluster_context.ClusterContext,
 	nodeInfoService node.NodeInfoService,
+	customConfigs []configuration.CustomPodUtilisationMetrics,
+	httpClient *http.Client,
 ) *PodUtilisationServiceImpl {
+	fetchers := []podUtilisationFetcher{newPodUtilisationKubeletMetrics()}
+	for _, customConfig := range customConfigs {
+		fetchers = append(fetchers, newPodUtilisationCustomMetrics(httpClient, &customConfig))
+	}
+
 	return &PodUtilisationServiceImpl{
 		clusterContext:     clusterContext,
+		fetchers:           fetchers,
 		nodeInfoService:    nodeInfoService,
 		podUtilisationData: map[string]*domain.UtilisationData{},
 		dataAccessMutex:    sync.Mutex{},
@@ -105,8 +121,9 @@ func (q *PodUtilisationServiceImpl) RefreshUtilisationData() {
 		}
 	}
 
-	fetchStatsFromNodes(nodes, podNameToUtilisationData, q.clusterContext)
-	fetchCustomStats(nodes, podNameToUtilisationData, q.clusterContext)
+	for _, fetcher := range q.fetchers {
+		fetcher.fetch(nodes, podNameToUtilisationData, q.clusterContext)
+	}
 
 	for podName, utilisationData := range podNameToUtilisationData {
 		q.updatePodUtilisation(podName, utilisationData)

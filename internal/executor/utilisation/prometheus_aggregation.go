@@ -2,20 +2,15 @@ package utilisation
 
 import (
 	"github.com/prometheus/common/model"
+
+	"github.com/armadaproject/armada/internal/executor/configuration"
 )
 
-type AggregateType int64
-
-const (
-	Sum AggregateType = iota
-	Mean
-)
-
-func aggregateSamples(samples model.Vector, aggType AggregateType) float64 {
+func aggregateSamples(samples model.Vector, aggType configuration.AggregateType) float64 {
 	switch aggType {
-	case Mean:
+	case configuration.Mean:
 		return meanSamples(samples)
-	case Sum:
+	case configuration.Sum:
 		return sumSamples(samples)
 	default:
 		return 0.0

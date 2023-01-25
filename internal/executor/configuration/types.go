@@ -88,13 +88,35 @@ type MetricConfiguration struct {
 	ExposeQueueUsageMetrics bool
 }
 
+type CustomPodUtilisationMetrics struct {
+	Namespace                  string
+	EndpointSelectorLabelName  string
+	EndpointSelectorLabelValue string
+	Metrics                    []CustomPodUtilisationMetric
+}
+
+type CustomPodUtilisationMetric struct {
+	Name                   string
+	PrometheusMetricName   string
+	PrometheusPodNameLabel string
+	AggregateType          AggregateType
+}
+
+type AggregateType int64
+
+const (
+	Sum AggregateType = iota
+	Mean
+)
+
 type ExecutorConfiguration struct {
-	HttpPort      uint16
-	Metric        MetricConfiguration
-	Application   ApplicationConfiguration
-	ApiConnection client.ApiConnectionDetails
-	Client        ClientConfiguration
-	GRPC          keepalive.ClientParameters
+	HttpPort                    uint16
+	Metric                      MetricConfiguration
+	Application                 ApplicationConfiguration
+	ApiConnection               client.ApiConnectionDetails
+	Client                      ClientConfiguration
+	CustomPodUtilisationMetrics []CustomPodUtilisationMetrics
+	GRPC                        keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

@@ -15,7 +15,13 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
-func fetchStatsFromNodes(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext clusterContext.ClusterContext) {
+type podUtilisationKubeletMetrics struct{}
+
+func newPodUtilisationKubeletMetrics() *podUtilisationKubeletMetrics {
+	return &podUtilisationKubeletMetrics{}
+}
+
+func (m *podUtilisationKubeletMetrics) fetch(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext clusterContext.ClusterContext) {
 	summaries := make(chan *v1alpha1.Summary, len(nodes))
 	wg := sync.WaitGroup{}
 	for _, n := range nodes {

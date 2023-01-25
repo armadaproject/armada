@@ -6,6 +6,8 @@ import (
 
 	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/executor/configuration"
 )
 
 func makeSamples(values ...float64) model.Vector {
@@ -18,9 +20,9 @@ func makeSamples(values ...float64) model.Vector {
 
 func TestAggregateSamples(t *testing.T) {
 	samples := makeSamples(1, 1)
-	assert.Equal(t, 2.0, aggregateSamples(samples, Sum))
-	assert.Equal(t, 1.0, aggregateSamples(samples, Mean))
-	assert.Equal(t, 0.0, aggregateSamples(samples, AggregateType(999)))
+	assert.Equal(t, 2.0, aggregateSamples(samples, configuration.Sum))
+	assert.Equal(t, 1.0, aggregateSamples(samples, configuration.Mean))
+	assert.Equal(t, 0.0, aggregateSamples(samples, configuration.AggregateType(999)))
 }
 
 func TestSumSamples(t *testing.T) {

@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -127,7 +128,11 @@ func StartUpWithContext(
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
 	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
-		clusterContext, nodeInfoService)
+		clusterContext,
+		nodeInfoService,
+		config.CustomPodUtilisationMetrics,
+		&http.Client{Timeout: 15 * time.Second},
+	)
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
 		queueUtilisationService,
