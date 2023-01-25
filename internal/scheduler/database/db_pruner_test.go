@@ -25,8 +25,10 @@ func TestPruneDb(t *testing.T) {
 	tests := map[string]struct {
 		jobs                     []Job
 		runs                     []Run
+		errors                   []JobRunError
 		expectedJobsPostPrune    []string
 		expectedJobRunsPostPrune []uuid.UUID
+		expectedErrorsPostPrune  []JobRunError
 	}{
 		"remove succeeded job": {
 			jobs: []Job{{
@@ -84,6 +86,20 @@ func TestPruneDb(t *testing.T) {
 			expectedJobsPostPrune:    nil,
 			expectedJobRunsPostPrune: nil,
 		},
+		"remove job errors": {
+			jobs: []Job{{
+				JobID:        "test-job",
+				Cancelled:    true,
+				LastModified: expiredJobTime,
+			}},
+			errors: []JobRunError{{
+				RunID: uuid.New(),
+				JobID: "test-job",
+				Error: []byte{0x1},
+			}},
+			expectedJobsPostPrune:   nil,
+			expectedErrorsPostPrune: nil,
+		},
 		"remove lots of jobs in batches": {
 			jobs:                     make100CompletedJobs(expiredJobTime),
 			expectedJobsPostPrune:    nil,
@@ -105,6 +121,8 @@ func TestPruneDb(t *testing.T) {
 				require.NoError(t, err)
 				err = database.Upsert(ctx, db, "runs", tc.runs)
 				require.NoError(t, err)
+				err = database.Upsert(ctx, db, "job_run_errors", tc.errors)
+				require.NoError(t, err)
 				queries := New(db)
 				dbConn, err := db.Acquire(ctx)
 				require.NoError(t, err)
@@ -117,8 +135,12 @@ func TestPruneDb(t *testing.T) {
 				remainingJobRuns, err := queries.SelectAllRunIds(ctx)
 				require.NoError(t, err)
 
+				remainingJobErrors, err := queries.SelectAllRunErrors(ctx)
+				require.NoError(t, err)
+
 				assert.Equal(t, tc.expectedJobsPostPrune, remainingJobs)
 				assert.Equal(t, tc.expectedJobRunsPostPrune, remainingJobRuns)
+				assert.Equal(t, tc.expectedErrorsPostPrune, remainingJobErrors)
 
 				return nil
 			})
@@ -131,9 +153,8 @@ func TestPruneDb(t *testing.T) {
 // we need to manipulate these as part of the test
 func removeTriggers(ctx context.Context, db *pgxpool.Pool) error {
 	triggers := map[string]string{
-		"jobs":           "next_serial_on_insert_jobs",
-		"runs":           "next_serial_on_insert_runs",
-		"job_run_errors": "next_serial_on_insert_job_run_errors",
+		"jobs": "next_serial_on_insert_jobs",
+		"runs": "next_serial_on_insert_runs",
 	}
 
 	for table, trigger := range triggers {
@@ -162,6 +183,7 @@ func make100CompletedJobs(lastModified time.Time) []Job {
 			JobID:        commonutil.NewULID(),
 			Cancelled:    true,
 			LastModified: lastModified,
+			Serial:       int64(i),
 		}
 	}
 	return jobs

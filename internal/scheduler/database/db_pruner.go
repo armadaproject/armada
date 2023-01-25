@@ -76,6 +76,7 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 			_, err = tx.Exec(ctx, `
 						DELETE FROM runs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM jobs WHERE job_id in (SELECT job_id from batch);
+						DELETE FROM job_run_errors WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM rows_to_delete WHERE job_id in (SELECT job_id from batch);
 						TRUNCATE TABLE batch;`)
 			if err != nil {

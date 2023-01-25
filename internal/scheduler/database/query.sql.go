@@ -177,6 +177,30 @@ func (q *Queries) SelectAllJobIds(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const selectAllRunErrors = `-- name: SelectAllRunErrors :many
+SELECT run_id, job_id, error FROM job_run_errors
+`
+
+func (q *Queries) SelectAllRunErrors(ctx context.Context) ([]JobRunError, error) {
+	rows, err := q.db.Query(ctx, selectAllRunErrors)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobRunError
+	for rows.Next() {
+		var i JobRunError
+		if err := rows.Scan(&i.RunID, &i.JobID, &i.Error); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectAllRunIds = `-- name: SelectAllRunIds :many
 SELECT run_id FROM runs
 `
