@@ -14,6 +14,10 @@ func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourc
 }
 
 func (node *Node) DeepCopy() *Node {
+	allocatedByJobId := maps.Clone(node.AllocatedByJobId)
+	for jobId, rl := range allocatedByJobId {
+		allocatedByJobId[jobId] = rl.DeepCopy()
+	}
 	return &Node{
 		Id:             node.Id,
 		LastSeen:       node.LastSeen,
@@ -26,5 +30,6 @@ func (node *Node) DeepCopy() *Node {
 		AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
+		AllocatedByJobId: allocatedByJobId,
 	}
 }
