@@ -54,10 +54,12 @@ CREATE TABLE runs (
 );
 CREATE UNIQUE INDEX idx_runs_serial ON runs (serial);
 CREATE INDEX idx_runs_job_id ON runs (job_id);
+CREATE INDEX idx_runs_job_set ON runs (job_set);
 
 CREATE TABLE markers (
     group_id uuid NOT NULL,
     partition_id integer NOT NULL,
+    created timestamptz default now(),
     PRIMARY KEY (group_id, partition_id)
 );
 
