@@ -16,7 +16,7 @@ import (
 
 // CompactAndPublishSequences reduces the number of sequences to the smallest possible,
 // while respecting per-job set ordering and max Pulsar message size, and then publishes to Pulsar.
-func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes int) error {
+func CompactAndPublishSequences(ctx context.Context, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes uint) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than maxMessageSizeInBytes.
 	sequences = eventutil.CompactEventSequences(sequences)

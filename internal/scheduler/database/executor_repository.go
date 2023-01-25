@@ -31,11 +31,11 @@ type PostgresExecutorRepository struct {
 	decompressor compress.Decompressor
 }
 
-func NewPostgresExecutorRepository(db *pgxpool.Pool, compressor compress.Compressor, decompressor compress.Decompressor) *PostgresExecutorRepository {
+func NewPostgresExecutorRepository(db *pgxpool.Pool) *PostgresExecutorRepository {
 	return &PostgresExecutorRepository{
 		db:           db,
-		compressor:   compressor,
-		decompressor: decompressor,
+		compressor:   compress.NewThreadSafeZlibCompressor(1024),
+		decompressor: compress.NewThreadSafeZlibDecompressor(),
 	}
 }
 

@@ -462,7 +462,7 @@ func groupsEqual(g1, g2 []string) bool {
 
 // LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
 // and returns all resulting sequences.
-func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
 		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes, strict)
@@ -476,18 +476,18 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
 // into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
-	headerSize := proto.Size(sequence)
+	headerSize := uint(proto.Size(sequence))
 	sequence.Events = events
 
 	// var currentSequence *armadaevents.EventSequence
 	sequences := make([]*armadaevents.EventSequence, 0, 1)
-	lastSequenceEventSize := 0
+	lastSequenceEventSize := uint(0)
 	for _, event := range sequence.Events {
-		eventSize := proto.Size(event)
+		eventSize := uint(proto.Size(event))
 		if eventSize+headerSize > sizeInBytes && strict {
 			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 				Name:  "sequence",

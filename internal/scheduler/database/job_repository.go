@@ -50,7 +50,7 @@ type JobRepository interface {
 
 	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 	// in excludedRunIds will be excluded
-	FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*JobRunLease, error)
+	FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error)
 }
 
 // PostgresJobRepository is an implementation of JobRepository that stores its state in postgres
@@ -193,7 +193,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 
 // FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 // in excludedRunIds will be excluded
-func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
+func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
 	var newRuns []*JobRunLease
 	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
