@@ -404,7 +404,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 		return nil, err
 	}
 
-	// Has the job been requested cancelled.  If so, cancel the job
+	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested {
 		job.Cancelled = true
 		cancel := &armadaevents.EventSequence_Event{

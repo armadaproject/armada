@@ -89,17 +89,18 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 type InsertJobs map[string]*schedulerdb.Job
 
 type (
-	InsertRuns             map[uuid.UUID]*schedulerdb.Run
-	UpdateJobSetPriorities map[string]int64
-	MarkJobSetsCancelled   map[string]bool
-	MarkJobsCancelled      map[string]bool
-	MarkJobsSucceeded      map[string]bool
-	MarkJobsFailed         map[string]bool
-	UpdateJobPriorities    map[string]int64
-	MarkRunsSucceeded      map[uuid.UUID]bool
-	MarkRunsFailed         map[uuid.UUID]*JobRunFailed
-	MarkRunsRunning        map[uuid.UUID]bool
-	InsertJobRunErrors     map[uuid.UUID]*schedulerdb.JobRunError
+	InsertRuns                 map[uuid.UUID]*schedulerdb.Run
+	UpdateJobSetPriorities     map[string]int64
+	MarkJobSetsCancelRequested map[string]bool
+	MarkJobsCancelRequested    map[string]bool
+	MarkJobsCancelled          map[string]bool
+	MarkJobsSucceeded          map[string]bool
+	MarkJobsFailed             map[string]bool
+	UpdateJobPriorities        map[string]int64
+	MarkRunsSucceeded          map[uuid.UUID]bool
+	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
+	MarkRunsRunning            map[uuid.UUID]bool
+	InsertJobRunErrors         map[uuid.UUID]*schedulerdb.JobRunError
 )
 
 type JobSetOperation interface {
@@ -111,7 +112,7 @@ func (a UpdateJobSetPriorities) AffectsJobSet(jobSet string) bool {
 	return ok
 }
 
-func (a MarkJobSetsCancelled) AffectsJobSet(jobSet string) bool {
+func (a MarkJobSetsCancelRequested) AffectsJobSet(jobSet string) bool {
 	_, ok := a[jobSet]
 	return ok
 }
@@ -128,7 +129,11 @@ func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
-func (a MarkJobSetsCancelled) Merge(b DbOperation) bool {
+func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -165,7 +170,7 @@ func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 }
 
 // mergeInMap merges an op b into a, provided that b is of the same type as a.
-// For example, if a is of type MarkJobsCancelled, b is only merged if also of type MarkJobsCancelled.
+// For example, if a is of type MarkJobSetsCancelRequested, b is only merged if also of type MarkJobsCancelRequested.
 // Returns true if the ops were merged and false otherwise.
 func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	// Using a type switch here, since using a type assertion
@@ -217,11 +222,11 @@ func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	return !isUpdateJobPriorities && !definesJobInSet(a, b)
 }
 
-func (a MarkJobSetsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+func (a MarkJobSetsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
 }
 
-func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+func (a MarkJobsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b) && !definesRunForJob(a, b)
 }
 
@@ -230,6 +235,10 @@ func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkJobsFailed) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 
@@ -250,7 +259,7 @@ func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
 
-func (a InsertJobRunErrors) CanBeAppliedBefore(b DbOperation) bool {
+func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {
 	// Inserting errors before a run has been marked as failed is ok.
 	// We only require that errors are written to the schedulerdb before the run is marked as failed.
 	return true

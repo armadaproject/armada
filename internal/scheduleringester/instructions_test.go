@@ -132,22 +132,28 @@ func TestConvertSequence(t *testing.T) {
 				UpdateJobSetPriorities{f.JobSetName: f.NewPriority},
 			},
 		},
-		"cancel job": {
+		"JobCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelRequested},
 			expected: []DbOperation{
-				MarkJobsCancelled{f.JobIdString: true},
+				MarkJobsCancelRequested{f.JobIdString: true},
 			},
 		},
-		"cancel jobSet": {
+		"JobSetCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
-				MarkJobSetsCancelled{f.JobSetName: true},
+				MarkJobSetsCancelRequested{f.JobSetName: true},
+			},
+		},
+		"JobCancelled": {
+			events: []*armadaevents.EventSequence_Event{f.JobCancelled},
+			expected: []DbOperation{
+				MarkJobsCancelled{f.JobIdString: true},
 			},
 		},
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobSetsCancelled{f.JobSetName: true},
+				MarkJobSetsCancelRequested{f.JobSetName: true},
 				MarkRunsRunning{f.RunIdUuid: true},
 				MarkJobsSucceeded{f.JobIdString: true},
 			},

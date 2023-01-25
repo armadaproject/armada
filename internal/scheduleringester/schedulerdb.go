@@ -81,23 +81,21 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 				return errors.WithStack(err)
 			}
 		}
-	case MarkJobSetsCancelled:
+	case MarkJobSetsCancelRequested:
 		jobSets := maps.Keys(o)
-		err := queries.MarkJobsCancelledBySets(ctx, jobSets)
+		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		err = queries.MarkJobRunsCancelledBySets(ctx, jobSets)
+	case MarkJobsCancelRequested:
+		jobIds := maps.Keys(o)
+		err := queries.MarkJobsCancelRequestedById(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkJobsCancelled:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsCancelledById(ctx, jobIds)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = queries.MarkJobRunsCancelledByJobId(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
