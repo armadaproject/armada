@@ -1,13 +1,15 @@
 package protoutil
 
 import (
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"testing"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var (
