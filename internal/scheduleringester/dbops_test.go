@@ -176,7 +176,7 @@ func TestDbOperationOptimisation(t *testing.T) {
 	}
 }
 
-func TestInsertJobCancel(t *testing.T) {
+func TestInsertJobRequestCancel(t *testing.T) {
 	// Submit jobs to two different job sets.
 	var ops []DbOperation
 	expectedCancelledIds := make(map[string]bool)
@@ -213,7 +213,7 @@ func TestInsertJobCancel(t *testing.T) {
 	// Check that the mockDb did the right thing.
 	for jobId, job := range expectedDb.Jobs {
 		_, ok := expectedCancelledIds[jobId]
-		if job.Cancelled {
+		if job.CancelRequested {
 			assert.True(t, ok)
 		} else {
 			assert.False(t, ok)

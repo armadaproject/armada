@@ -13,7 +13,7 @@ type Configuration struct {
 	Metrics configuration.MetricsConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
-	// Map of allowed priority classes to priority
+	// Map of allowed priority classes by name
 	PriorityClasses map[string]configuration.PriorityClass
 	// Pulsar subscription name
 	SubscriptionName string
