@@ -17,11 +17,6 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func Run(_ *Configuration) error {
-	// TODO: instantiate scheduler and start cycling
-	return nil
-}
-
 // Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
 // performed:
 // * Determine if we are leader
@@ -193,7 +188,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, expirationEvents...)
 
 	// Schedule Jobs
-	scheduledJobs, err := s.schedulingAlgo.Schedule(txn, s.jobDb)
+	scheduledJobs, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 	if err != nil {
 		return err
 	}

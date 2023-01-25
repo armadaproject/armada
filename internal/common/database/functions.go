@@ -25,6 +25,15 @@ func CreateConnectionString(values map[string]string) string {
 	return result
 }
 
+func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
+	db, err := pgx.Connect(context.Background(), CreateConnectionString(config.Connection))
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping(context.Background())
+	return db, err
+}
+
 func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
 	db, err := pgxpool.Connect(context.Background(), CreateConnectionString(config.Connection))
 	if err != nil {

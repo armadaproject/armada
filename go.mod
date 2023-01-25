@@ -87,6 +87,7 @@ require (
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3
 	github.com/go-openapi/validate v0.21.0
+	github.com/go-playground/validator/v10 v10.11.1
 	github.com/golang/mock v1.6.0
 	github.com/goreleaser/goreleaser v1.11.5
 	github.com/jessevdk/go-flags v1.5.0
@@ -199,6 +200,8 @@ require (
 	github.com/go-logr/logr v0.4.0 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
+	github.com/go-playground/locales v0.14.0 // indirect
+	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/go-telegram-bot-api/telegram-bot-api v4.6.4+incompatible // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
@@ -256,6 +259,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect

@@ -618,18 +618,18 @@ func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 		newSchedName := "custom"
 
 		results, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
-			assert.Equal(t, 1, len(jobs))
+			require.Equal(t, 1, len(jobs))
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, len(results))
+		require.Equal(t, 1, len(results))
 		assert.Nil(t, results[0].Error)
 		assert.Equal(t, job1.Id, results[0].JobId)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(reloadedJobs))
+		require.Equal(t, 1, len(reloadedJobs))
 		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
 		assert.Equal(t, results[0].Job, reloadedJobs[0])
 	})

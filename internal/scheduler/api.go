@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -28,8 +29,8 @@ type ExecutorApi struct {
 	jobRepository        database.JobRepository
 	executorRepository   database.ExecutorRepository
 	allowedPriorities    []int32 // allowed priority classes
-	maxJobsPerCall       int     // maximum number of jobs that will be leased in a single call
-	maxPulsarMessageSize int     // maximum sizer of pulsar messages produced
+	maxJobsPerCall       uint    // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize uint    // maximum sizer of pulsar messages produced
 	clock                clock.Clock
 }
 
@@ -37,8 +38,7 @@ func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
-	maxJobsPerCall int,
-	maxPulsarMessageSize int,
+	maxJobsPerCall uint,
 ) *ExecutorApi {
 	return &ExecutorApi{
 		producer:             producer,
@@ -46,7 +46,7 @@ func NewExecutorApi(producer pulsar.Producer,
 		executorRepository:   executorRepository,
 		allowedPriorities:    allowedPriorities,
 		maxJobsPerCall:       maxJobsPerCall,
-		maxPulsarMessageSize: maxPulsarMessageSize,
+		maxPulsarMessageSize: 1024 * 1024 * 2,
 		clock:                clock.RealClock{},
 	}
 }
@@ -56,7 +56,8 @@ func NewExecutorApi(producer pulsar.Producer,
 //   - Determines if any of the job runs in the request are no longer active and should be cancelled
 //   - Determines if any new job runs should be leased to the executor
 func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRunsServer) error {
-	log := ctxlogrus.Extract(stream.Context())
+	ctx := stream.Context()
+	log := ctxlogrus.Extract(ctx)
 	// Receive once to get info necessary to get jobs to lease.
 	req, err := stream.Recv()
 	if err != nil {
@@ -66,9 +67,8 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	log.Infof("Handling lease request for executor %s", req.ExecutorId)
 
 	// store the executor state for use by the scheduler
-	executorState := srv.createExecutorState(req)
-	err = srv.executorRepository.StoreExecutor(stream.Context(), executorState)
-	if err != nil {
+	executorState := srv.createExecutorState(ctx, req)
+	if err = srv.executorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
 		return err
 	}
 
@@ -159,10 +159,18 @@ func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.Even
 }
 
 // createExecutorState extracts a schedulerobjects.Executor from the requesrt
-func (srv *ExecutorApi) createExecutorState(req *executorapi.LeaseRequest) *schedulerobjects.Executor {
-	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
-	for i, nodeInfo := range req.Nodes {
-		nodes[i] = api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, srv.clock.Now().UTC())
+func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
+	log := ctxlogrus.Extract(ctx)
+	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+	for _, nodeInfo := range req.Nodes {
+		node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, srv.clock.Now().UTC())
+		if err != nil {
+			logging.WithStacktrace(log, err).Warnf(
+				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
+			)
+		} else {
+			nodes = append(nodes, node)
+		}
 	}
 	return &schedulerobjects.Executor{
 		Id:             req.ExecutorId,

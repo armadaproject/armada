@@ -4,26 +4,45 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/config"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+)
+
+const (
+	// If set on a pod, the value of this annotation is interpreted as the id of a node
+	// and only the node with that id will be considered for scheduling the pod.
+	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
+	// If set on a pod, indicates which job this pod is part of.
+	JobIdAnnotation = "armadaproject.io/jobId"
 )
 
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Metrics configuration
-	Metrics configuration.MetricsConfig
+	// Redis Comnfig
+	Redis config.RedisConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
-	// Pulsar subscription name
-	SubscriptionName string
-	// Maximum time since the last batch before a batch will be inserted into the database
-	BatchDuration time.Duration
-	// Time for which the pulsar consumer will wait for a new message before retrying
-	PulsarReceiveTimeout time.Duration
-	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
-	PulsarBackoffTime time.Duration
+	// Configuration controlling leader election
+	Leader LeaderConfig
+	// Scheduler configuration (this is shared with the old scheduler)
+	Scheduling configuration.SchedulingConfig
+	Auth       authconfig.AuthConfig
+	Grpc       grpcconfig.GrpcConfig
+	// How often the scheduling cycle should run
+	CyclePeriod time.Duration `validate:"required"`
+	// How long after a heartbeat an executor will be considered lost
+	ExecutorTimeout time.Duration `validate:"required"`
+	// Maximum number of rows to fetch in a given query
+	DatabaseFetchSize int `validate:"required"`
+	// Timeout to use when sending messages to pulsar
+	PulsarSendTimeout time.Duration `validate:"required"`
 }
 
 type LeaderConfig struct {
+	// Valid modes are "standalone" or "cluster"
+	Mode string `validate:"required"`
 	// Name of the K8s Lock Object
 	LeaseLockName string
 	// Namespace of the K8s Lock Object
