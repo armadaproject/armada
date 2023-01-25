@@ -2,9 +2,9 @@ package scheduleringester
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
