@@ -16,28 +16,27 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-func NewNodeFromNodeInfo(nodeInfo *NodeInfo, nodeIdLabel string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
+func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
+	if executor == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "executor",
+			Value:   executor,
+			Message: "executor is empty",
+		})
+	}
+	if nodeInfo.Name == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "nodeInfo.Name",
+			Value:   nodeInfo.Name,
+			Message: "nodeInfo.Name is empty",
+		})
+	}
 	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
 	for p, rs := range nodeInfo.AllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
-	nodeId, ok := nodeInfo.Labels[nodeIdLabel]
-	if !ok {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "nodeInfo.Labels",
-			Value:   nodeInfo.Labels,
-			Message: "nodeIdLabel missing",
-		})
-	}
-	if nodeId == "" {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "nodeId",
-			Value:   nodeId,
-			Message: "nodeId must be non-empty",
-		})
-	}
 	return &schedulerobjects.Node{
-		Id:                               nodeId,
+		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
 		LastSeen:                         lastSeen,
 		Taints:                           nodeInfo.GetTaints(),
 		Labels:                           nodeInfo.GetLabels(),

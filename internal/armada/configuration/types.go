@@ -11,12 +11,6 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
-const (
-	// If set on a pod, the value of this annotation is interpreted as the id of a node
-	// and only the node with that id will be considered for scheduling the pod.
-	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
-)
-
 type ArmadaConfig struct {
 	Auth authconfig.AuthConfig
 
@@ -180,9 +174,6 @@ type SchedulingConfig struct {
 	GangCardinalityAnnotation string
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
 	ExecutorTimeout time.Duration
-	// Label used to uniquely identify each node managed by Armada.
-	// This label must be set on all nodes and its value must be unique across all nodes.
-	NodeIdLabel string
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

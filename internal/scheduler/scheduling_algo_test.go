@@ -201,7 +201,7 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 			},
 		},
 		Labels: map[string]string{
-			testNodeIdLabel: id,
+			testHostnameLabel: id,
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},
@@ -246,6 +246,9 @@ func OneCpuJob() *SchedulerJob {
 									"memory": resource.MustParse("1"),
 									"cpu":    resource.MustParse("1"),
 								},
+							},
+							Annotations: map[string]string{
+								testJobIdLabel: uuid.NewString(),
 							},
 						},
 					},

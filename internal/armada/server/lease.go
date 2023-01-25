@@ -282,7 +282,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
-			q.schedulingConfig.NodeIdLabel,
+			req.ClusterId,
 			priorities,
 			time.Now(),
 		)
@@ -303,7 +303,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
-		q.schedulingConfig.NodeIdLabel,
 	)
 	if err != nil {
 		return nil, err

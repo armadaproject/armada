@@ -17,7 +17,7 @@ import (
 const (
 	testGangIdAnnotation          = "armada.io/gangId"
 	testGangCardinalityAnnotation = "armada.io/gangCardinality"
-	testNodeIdLabel               = "kubernetes.io/hostname"
+	testHostnameLabel             = "kubernetes.io/hostname"
 	testJobIdLabel                = "armadaproject.io/jobId"
 )
 
@@ -259,7 +259,7 @@ func testNodeItems1() []*schedulerobjects.Node {
 				},
 			},
 			Labels: map[string]string{
-				testNodeIdLabel: "node1",
+				testHostnameLabel: "node1",
 			},
 		},
 		{
@@ -278,7 +278,7 @@ func testNodeItems1() []*schedulerobjects.Node {
 				},
 			},
 			Labels: map[string]string{
-				testNodeIdLabel: "node2",
+				testHostnameLabel: "node2",
 			},
 		},
 		{
@@ -297,7 +297,7 @@ func testNodeItems1() []*schedulerobjects.Node {
 				},
 			},
 			Labels: map[string]string{
-				testNodeIdLabel: "node3",
+				testHostnameLabel: "node3",
 			},
 		},
 	}
@@ -345,7 +345,7 @@ func testCpuNode(priorities []int32) *schedulerobjects.Node {
 			},
 		),
 		Labels: map[string]string{
-			testNodeIdLabel: id,
+			testHostnameLabel: id,
 		},
 	}
 }
@@ -360,8 +360,8 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 		},
 	}
 	labels := map[string]string{
-		testNodeIdLabel: id,
-		"largeJobsOnly": "true",
+		testHostnameLabel: id,
+		"largeJobsOnly":   "true",
 	}
 	return &schedulerobjects.Node{
 		Id:     id,
@@ -386,8 +386,8 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 func testGpuNode(priorities []int32) *schedulerobjects.Node {
 	id := uuid.NewString()
 	labels := map[string]string{
-		testNodeIdLabel: id,
-		"gpu":           "true",
+		testHostnameLabel: id,
+		"gpu":             "true",
 	}
 	return &schedulerobjects.Node{
 		Id:     id,

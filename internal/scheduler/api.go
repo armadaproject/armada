@@ -29,7 +29,6 @@ type ExecutorApi struct {
 	jobRepository        database.JobRepository
 	executorRepository   database.ExecutorRepository
 	allowedPriorities    []int32 // allowed priority classes
-	nodeIdLabel          string  // label the value of contains the unique id of each node
 	maxJobsPerCall       int     // maximum number of jobs that will be leased in a single call
 	maxPulsarMessageSize int     // maximum sizer of pulsar messages produced
 	clock                clock.Clock
@@ -39,7 +38,6 @@ func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
-	nodeIdLabel string,
 	maxJobsPerCall int,
 	maxPulsarMessageSize int,
 ) *ExecutorApi {
@@ -48,7 +46,6 @@ func NewExecutorApi(producer pulsar.Producer,
 		jobRepository:        jobRepository,
 		executorRepository:   executorRepository,
 		allowedPriorities:    allowedPriorities,
-		nodeIdLabel:          nodeIdLabel,
 		maxJobsPerCall:       maxJobsPerCall,
 		maxPulsarMessageSize: maxPulsarMessageSize,
 		clock:                clock.RealClock{},
@@ -167,7 +164,7 @@ func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorap
 	log := ctxlogrus.Extract(ctx)
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	for _, nodeInfo := range req.Nodes {
-		node, err := api.NewNodeFromNodeInfo(nodeInfo, srv.nodeIdLabel, srv.allowedPriorities, srv.clock.Now().UTC())
+		node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, srv.clock.Now().UTC())
 		if err != nil {
 			logging.WithStacktrace(log, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),

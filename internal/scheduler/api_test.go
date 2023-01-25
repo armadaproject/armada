@@ -38,9 +38,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			{
 				Name:   "test-node",
 				RunIds: []string{runId1.String(), runId2.String()},
-				Labels: map[string]string{
-					testNodeIdLabel: "test-node",
-				},
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
@@ -50,10 +47,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool: "test-pool",
 		Nodes: []*schedulerobjects.Node{
 			{
-				Id: "test-node",
-				Labels: map[string]string{
-					testNodeIdLabel: "test-node",
-				},
+				Id:                               "test-executor-test-node",
 				TotalResources:                   schedulerobjects.ResourceList{},
 				JobRuns:                          []string{runId1.String(), runId2.String()},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{},
@@ -146,11 +140,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					capturedEvents = append(capturedEvents, msg)
 				}).AnyTimes()
 
-			server := NewExecutorApi(mockPulsarProducer,
+			server := NewExecutorApi(
+				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
-				testNodeIdLabel,
 				maxJobsPerCall,
 				1024,
 			)
@@ -221,7 +215,6 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
-				testNodeIdLabel,
 				100,
 				1024,
 			)
