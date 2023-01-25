@@ -8,12 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/metrics"
-	"github.com/G-Research/armada/internal/executor/node"
-	"github.com/G-Research/armada/internal/executor/utilisation"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/metrics"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/executor/utilisation"
 )
 
 const (
@@ -124,8 +124,8 @@ func (m *ClusterContextMetrics) reportPhase(pod *v1.Pod) {
 }
 
 type podMetric struct {
-	resourceRequest common.ComputeResources
-	resourceUsage   common.ComputeResources
+	resourceRequest armadaresource.ComputeResources
+	resourceUsage   armadaresource.ComputeResources
 	count           float64
 }
 
@@ -189,7 +189,7 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			podMetrics[queue][nodeType] = nodeTypeMetric
 		}
 
-		request := common.TotalPodResourceRequest(&pod.Spec)
+		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
 		usage := m.queueUtilisationService.GetPodUtilisation(pod)
 
 		nodeTypeMetric[phase].count++
@@ -205,11 +205,11 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 			for phase, phaseMetric := range phaseMetrics {
 				for resourceType, request := range phaseMetric.resourceRequest {
 					metrics <- prometheus.MustNewConstMetric(podResourceRequestDesc, prometheus.GaugeValue,
-						common.QuantityAsFloat64(request), queue, phase, resourceType, nodeType)
+						armadaresource.QuantityAsFloat64(request), queue, phase, resourceType, nodeType)
 				}
 				for resourceType, usage := range phaseMetric.resourceUsage {
 					metrics <- prometheus.MustNewConstMetric(podResourceUsageDesc, prometheus.GaugeValue,
-						common.QuantityAsFloat64(usage), queue, phase, resourceType, nodeType)
+						armadaresource.QuantityAsFloat64(usage), queue, phase, resourceType, nodeType)
 				}
 				metrics <- prometheus.MustNewConstMetric(podCountDesc, prometheus.GaugeValue, phaseMetric.count, queue, phase, nodeType)
 			}
@@ -220,12 +220,12 @@ func (m *ClusterContextMetrics) Collect(metrics chan<- prometheus.Metric) {
 		metrics <- prometheus.MustNewConstMetric(nodeCountDesc, prometheus.GaugeValue, float64(len(nodeGroup.Nodes)), nodeGroup.NodeType.Id)
 		for resourceType, allocatable := range nodeGroup.NodeGroupAllocatableCapacity {
 			metrics <- prometheus.MustNewConstMetric(nodeAvailableResourceDesc,
-				prometheus.GaugeValue, common.QuantityAsFloat64(allocatable), resourceType,
+				prometheus.GaugeValue, armadaresource.QuantityAsFloat64(allocatable), resourceType,
 				nodeGroup.NodeType.Id)
 		}
 
 		for resourceType, total := range nodeGroup.NodeGroupCapacity {
-			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, common.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType.Id)
+			metrics <- prometheus.MustNewConstMetric(nodeTotalResourceDesc, prometheus.GaugeValue, armadaresource.QuantityAsFloat64(total), resourceType, nodeGroup.NodeType.Id)
 		}
 	}
 }
@@ -280,7 +280,7 @@ func getNodeTypePodIsRunningOn(pod *v1.Pod, nodeNameToNodeTypeMap map[string]str
 }
 
 func createPodPhaseMetric() map[string]*podMetric {
-	zeroComputeResource := common.ComputeResources{
+	zeroComputeResource := armadaresource.ComputeResources{
 		"cpu":               resource.MustParse("0"),
 		"memory":            resource.MustParse("0"),
 		"ephemeral-storage": resource.MustParse("0"),

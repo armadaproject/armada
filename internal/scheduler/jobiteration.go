@@ -5,8 +5,18 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
+
+// SchedulerJobRepository represents the underlying jobs database.
+type SchedulerJobRepository interface {
+	// GetJobIterator returns a iterator over queued jobs for a given queue.
+	GetJobIterator(ctx context.Context, queue string) (JobIterator, error)
+}
+
+type JobIterator interface {
+	Next() (LegacySchedulerJob, error)
+}
 
 type JobRepository interface {
 	GetQueueJobIds(queueName string) ([]string, error)
@@ -39,7 +49,7 @@ func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository
 	return it, nil
 }
 
-func (it *QueuedJobsIterator) Next() (*api.Job, error) {
+func (it *QueuedJobsIterator) Next() (LegacySchedulerJob, error) {
 	// Once this function has returned error,
 	// it will return this error on every invocation.
 	if it.err != nil {
@@ -84,4 +94,34 @@ func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan *api
 		}
 	}
 	return nil
+}
+
+// MultiJobsIterator chains several JobIterators together,
+// emptying them in the order provided.
+type MultiJobsIterator struct {
+	i   int
+	its []JobIterator
+}
+
+func NewMultiJobsIterator(its ...JobIterator) *MultiJobsIterator {
+	return &MultiJobsIterator{
+		its: its,
+	}
+}
+
+func (it *MultiJobsIterator) Next() (LegacySchedulerJob, error) {
+	if it.i >= len(it.its) {
+		return nil, nil
+	} else if it.its[it.i] == nil {
+		it.i++
+		return it.Next()
+	}
+	if v, err := it.its[it.i].Next(); err != nil {
+		return nil, err
+	} else if v == nil {
+		it.i++
+		return it.Next()
+	} else {
+		return v, nil
+	}
 }

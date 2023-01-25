@@ -16,24 +16,24 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/armada/cache"
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/metrics"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/scheduling"
-	"github.com/G-Research/armada/internal/armada/server"
-	"github.com/G-Research/armada/internal/common/auth"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/database"
-	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/common/health"
-	"github.com/G-Research/armada/internal/common/pgkeyvalue"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/common/task"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/cache"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/metrics"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/common/auth"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/database"
+	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/task"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
@@ -259,7 +259,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 	aggregatedQueueServer.SubmitChecker = submitChecker
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
-		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository[*api.Job](
+		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
 			config.Scheduling.MaxQueueReportsToStore,
 			config.Scheduling.MaxJobReportsToStore,
 		)

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/auth/permission"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // ErrUnauthorized represents an error that occurs when a client tries to perform some action

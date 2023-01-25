@@ -5,10 +5,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/eventutil"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // FromEventSequence Converts internal messages to external api messages
@@ -469,13 +469,20 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		return nil, err
 	}
 
-	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(e.PreemptiveJobId)
-	if err != nil {
-		return nil, err
+	preemptiveJobId := ""
+	preemptiveRunId := ""
+
+	if e.PreemptiveJobId != nil {
+		preemptiveJobId, err = armadaevents.UlidStringFromProtoUuid(e.PreemptiveJobId)
+		if err != nil {
+			return nil, err
+		}
 	}
-	preemptiveRunId, err := armadaevents.UuidStringFromProtoUuid(e.PreemptiveRunId)
-	if err != nil {
-		return nil, err
+	if e.PreemptiveRunId != nil {
+		preemptiveRunId, err = armadaevents.UuidStringFromProtoUuid(e.PreemptiveRunId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	apiEvent := &api.JobPreemptedEvent{

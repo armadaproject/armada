@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/compress"
 )
 
 type GetJobRunErrorRepository interface {

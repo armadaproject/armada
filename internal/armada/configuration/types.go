@@ -6,9 +6,9 @@ import (
 	"github.com/go-redis/redis"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 type ArmadaConfig struct {
@@ -84,7 +84,7 @@ type SchedulingConfig struct {
 	QueueLeaseBatchSize uint
 	// Minimum resources to schedule per request from an executor.
 	// Applies to the old scheduler.
-	MinimumResourceToSchedule common.ComputeResourcesFloat
+	MinimumResourceToSchedule armadaresource.ComputeResourcesFloat
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
@@ -109,7 +109,7 @@ type SchedulingConfig struct {
 	// to keep the number of stored reports within this limit.
 	MaxJobReportsToStore int
 	Lease                LeaseSettings
-	DefaultJobLimits     common.ComputeResources
+	DefaultJobLimits     armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.
@@ -172,6 +172,8 @@ type SchedulingConfig struct {
 	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as an integer, e.g., "3".
 	GangCardinalityAnnotation string
+	// If an executor hasn't heartbeated in this time period, it will be considered stale
+	ExecutorTimeout time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

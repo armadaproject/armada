@@ -12,13 +12,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	grpcCommon "github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/internal/jobservice/repository"
-	"github.com/G-Research/armada/internal/jobservice/server"
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/jobservice/repository"
+	"github.com/armadaproject/armada/internal/jobservice/server"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 type App struct {

@@ -4,15 +4,15 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/app"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the

@@ -2,29 +2,28 @@ package scheduling
 
 import (
 	"github.com/pkg/errors"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type PodMatchingContext struct {
 	podSpec                      *v1.PodSpec
-	totalPodResourceRequest      common.ComputeResourcesFloat
+	totalPodResourceRequest      armadaresource.ComputeResourcesFloat
 	requiredNodeAffinitySelector *nodeaffinity.LazyErrorNodeSelector
 }
 
 func NewPodMatchingContext(podSpec *v1.PodSpec) *PodMatchingContext {
 	return &PodMatchingContext{
 		podSpec:                      podSpec,
-		totalPodResourceRequest:      common.TotalPodResourceRequest(podSpec).AsFloat(),
+		totalPodResourceRequest:      armadaresource.TotalPodResourceRequest(podSpec).AsFloat(),
 		requiredNodeAffinitySelector: makeRequiredNodeAffinitySelector(podSpec),
 	}
 }
 
-func (podCtx *PodMatchingContext) Matches(nodeType *api.NodeType, availableResources common.ComputeResourcesFloat) (bool, error) {
+func (podCtx *PodMatchingContext) Matches(nodeType *api.NodeType, availableResources armadaresource.ComputeResourcesFloat) (bool, error) {
 	if ok, err := fits(podCtx.totalPodResourceRequest, availableResources); !ok {
 		return false, err
 	}
@@ -41,7 +40,7 @@ func (podCtx *PodMatchingContext) Matches(nodeType *api.NodeType, availableResou
 }
 
 // fits returns true if the requested resources are no greater than the available resources.
-func fits(resourceRequest, availableResources common.ComputeResourcesFloat) (bool, error) {
+func fits(resourceRequest, availableResources armadaresource.ComputeResourcesFloat) (bool, error) {
 	for resourceType, requestedResourceQuantity := range resourceRequest {
 		// Do not return error on requesting zero of some resource.
 		if requestedResourceQuantity <= 0 {

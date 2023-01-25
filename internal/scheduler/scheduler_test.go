@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Data to be used in tests
@@ -395,6 +396,16 @@ type testJobRepository struct {
 	numReceivedPartitions uint32
 }
 
+func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+	// TODO implement me
+	panic("implement me")
+}
+
 func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
 		return nil, nil, errors.New("error fetchiung job updates")
@@ -421,15 +432,19 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
-func (t testExecutorRepository) GetExecutors() ([]*database.Executor, error) {
-	panic("GetExecutors not implemented yet")
+func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+	panic("implement me")
 }
 
-func (t testExecutorRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
 	return t.updateTimes, nil
+}
+
+func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+	panic("implement me")
 }
 
 type testSchedulingAlgo struct {
@@ -473,7 +488,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ LeaderToken) error {
+func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ func() bool) error {
 	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")

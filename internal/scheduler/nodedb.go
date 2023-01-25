@@ -14,9 +14,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // NodeDb is the scheduler-internal system for storing node information.
@@ -307,7 +307,7 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 			return string(t)
 		}
 
-		f := common.QuantityAsFloat64(q) / common.QuantityAsFloat64(available)
+		f := armadaresource.QuantityAsFloat64(q) / armadaresource.QuantityAsFloat64(available)
 		if f >= dominantResourceFraction {
 			dominantResourceType = string(t)
 			dominantResourceFraction = f

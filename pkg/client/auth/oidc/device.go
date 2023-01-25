@@ -14,7 +14,7 @@ import (
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/logging"
 )
 
 type DeviceDetails struct {

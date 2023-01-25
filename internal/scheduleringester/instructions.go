@@ -7,13 +7,13 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
-
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type eventSequenceCommon struct {
@@ -68,8 +68,6 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			switch event.GetEvent().(type) {
 			case *armadaevents.EventSequence_Event_SubmitJob:
 				operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
-			case *armadaevents.EventSequence_Event_JobRunAssigned:
-				operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned())
 			case *armadaevents.EventSequence_Event_JobRunLeased:
 				operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
 			case *armadaevents.EventSequence_Event_JobRunRunning:
@@ -167,18 +165,6 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 		JobID:    jobId,
 		JobSet:   meta.jobset,
 		Executor: jobRunLeased.GetExecutorId(),
-	}}}, nil
-}
-
-func (c *InstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents.JobRunAssigned) ([]DbOperation, error) {
-	runId := armadaevents.UuidFromProtoUuid(jobRunAssigned.GetRunId())
-	bytes, err := proto.Marshal(jobRunAssigned)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal JobRunAssigned")
-	}
-	return []DbOperation{InsertRunAssignments{runId: &schedulerdb.JobRunAssignment{
-		RunID:      runId,
-		Assignment: bytes,
 	}}}, nil
 }
 
@@ -280,7 +266,7 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 		podSpec := object.PodSpec.PodSpec
 		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
 			// TODO: We should not pass in nil here. Priority will not be set correctly.
-			PodRequirements: schedulerobjects.PodRequirementsFromPodSpec(podSpec, nil),
+			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, nil),
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,

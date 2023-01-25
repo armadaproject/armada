@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 func TestUnaryServerInterceptor(t *testing.T) {

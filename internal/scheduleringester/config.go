@@ -3,7 +3,7 @@ package scheduleringester
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 type Configuration struct {

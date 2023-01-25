@@ -12,8 +12,8 @@ import (
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 const (

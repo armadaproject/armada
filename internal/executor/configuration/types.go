@@ -5,9 +5,9 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
-	"github.com/G-Research/armada/pkg/client"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ApplicationConfiguration struct {
@@ -48,13 +48,13 @@ type KubernetesConfiguration struct {
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
 	MaxTerminatedPods         int
-	MinimumJobSize            common.ComputeResources
+	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
 	// NodeReservedResources config is used to factor in reserved resources on each node
 	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
-	NodeReservedResources common.ComputeResources
+	NodeReservedResources armadaresource.ComputeResources
 	PodKillTimeout        time.Duration
 }
 
@@ -89,6 +89,7 @@ type MetricConfiguration struct {
 }
 
 type ExecutorConfiguration struct {
+	HttpPort      uint16
 	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails

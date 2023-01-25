@@ -12,11 +12,11 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository/apimessages"
-	"github.com/G-Research/armada/internal/armada/repository/sequence"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
+	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -50,7 +50,7 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
-			return compress.NewZlibDecompressor()
+			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 
 	return &RedisEventRepository{db: db, decompressorPool: decompressorPool}

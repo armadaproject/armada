@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/jobservice"
-	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/jobservice"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
 )
 
 func runCmd(app *jobservice.App) *cobra.Command {

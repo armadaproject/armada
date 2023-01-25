@@ -7,16 +7,16 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/grpc"
-	"github.com/G-Research/armada/internal/common/health"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookout/metrics"
-	"github.com/G-Research/armada/internal/lookout/postgres"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookout/server"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookout/metrics"
+	"github.com/armadaproject/armada/internal/lookout/postgres"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookout/server"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 type LogRusLogger struct{}

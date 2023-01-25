@@ -7,8 +7,9 @@ on:
 
 jobs:
   test-and-build-images:
-    if: github.repository_owner == 'G-Research'
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    if: github.repository_owner == 'armadaproject'
+    runs-on: ubuntu-22.04
+    # runs-on: buildjet-4vcpu-ubuntu-2204
     strategy:
       fail-fast: true
       matrix:

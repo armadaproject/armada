@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/G-Research/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/compress"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	f "github.com/G-Research/armada/internal/common/ingest/testfixtures"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 var (
@@ -66,13 +66,6 @@ func TestConvertSequence(t *testing.T) {
 						},
 					},
 				}),
-			}}},
-		},
-		"job run assigned": {
-			events: []*armadaevents.EventSequence_Event{f.Assigned},
-			expected: []DbOperation{InsertRunAssignments{f.RunIdUuid: &schedulerdb.JobRunAssignment{
-				RunID:      f.RunIdUuid,
-				Assignment: mustMarshall(f.Assigned.GetJobRunAssigned()),
 			}}},
 		},
 		"job run leased": {

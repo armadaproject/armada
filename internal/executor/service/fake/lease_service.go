@@ -6,10 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/pkg/api"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type MockLeaseService struct {
@@ -43,10 +43,10 @@ func (ls *MockLeaseService) ReturnLease(pod *v1.Pod, reason string, jobRunAttemp
 }
 
 func (ls *MockLeaseService) RequestJobLeases(
-	availableResource *common.ComputeResources,
+	availableResource *armadaresource.ComputeResources,
 	nodes []api.NodeInfo,
-	leasedResourceByQueue map[string]common.ComputeResources,
-	leasedResourceByQueueAndPriority map[string]map[int32]common.ComputeResources,
+	leasedResourceByQueue map[string]armadaresource.ComputeResources,
+	leasedResourceByQueueAndPriority map[string]map[int32]armadaresource.ComputeResources,
 ) ([]*api.Job, error) {
 	ls.RequestJobLeasesCalls++
 	return make([]*api.Job, 0), nil

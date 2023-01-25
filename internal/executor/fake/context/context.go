@@ -22,9 +22,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	cluster_context "github.com/G-Research/armada/internal/executor/context"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 )
 
 type NodeSpec struct {
@@ -56,7 +56,7 @@ type FakeClusterContext struct {
 	pods                  map[string]*v1.Pod
 	events                map[string]*v1.Event
 	nodes                 []*v1.Node
-	nodeAvailableResource map[string]common.ComputeResources
+	nodeAvailableResource map[string]armadaresource.ComputeResources
 }
 
 func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
@@ -64,7 +64,7 @@ func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nod
 		clusterId:             appConfig.ClusterId,
 		pool:                  appConfig.Pool,
 		pods:                  map[string]*v1.Pod{},
-		nodeAvailableResource: map[string]common.ComputeResources{},
+		nodeAvailableResource: map[string]armadaresource.ComputeResources{},
 	}
 	if nodeSpecs == nil {
 		nodeSpecs = DefaultNodeSpec
@@ -311,7 +311,7 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 				},
 			}
 			c.nodes = append(c.nodes, node)
-			c.nodeAvailableResource[node.Name] = common.FromResourceList(s.Allocatable)
+			c.nodeAvailableResource[node.Name] = armadaresource.FromResourceList(s.Allocatable)
 		}
 	}
 }
@@ -337,7 +337,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 
 	for _, n := range c.nodes {
 		if c.isSchedulableOn(pod, n) {
-			resources := common.TotalPodResourceRequest(&pod.Spec)
+			resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
 			c.nodeAvailableResource[n.Name].Sub(resources)
 			pod.Spec.NodeName = n.Name
 			return true, false
@@ -350,12 +350,12 @@ func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
 
-	resources := common.TotalPodResourceRequest(&pod.Spec)
+	resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
 	c.nodeAvailableResource[pod.Spec.NodeName].Add(resources)
 }
 
 func (c *FakeClusterContext) isSchedulableOn(pod *v1.Pod, n *v1.Node) bool {
-	requiredResource := common.TotalPodResourceRequest(&pod.Spec)
+	requiredResource := armadaresource.TotalPodResourceRequest(&pod.Spec)
 	availableResource := c.nodeAvailableResource[n.Name].DeepCopy()
 	availableResource.Sub(requiredResource)
 

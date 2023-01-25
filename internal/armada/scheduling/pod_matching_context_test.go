@@ -7,8 +7,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_Matches_BasicPod_ReturnsTrue(t *testing.T) {
@@ -146,8 +146,8 @@ func makeTaints() []v1.Taint {
 func Test_matchAnyNodeTypePodAllocation_WhenFindsMatch_ReturnsMatch(t *testing.T) {
 	podSpec := &v1.PodSpec{}
 	nodeAllocations := defaultNodeTypeAllocations()
-	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
-	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
+	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
+	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{"cpu": 3, "memory": 1 * 1024 * 1024 * 1024}}
 
 	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Equal(t, nodeAllocations[0], resultNode)
@@ -166,8 +166,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenAllAvailableCpuConsumed_ReturnsFalse
 		},
 	}
 	nodeAllocations := defaultNodeTypeAllocations()
-	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
-	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
+	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
+	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{"cpu": 4, "memory": 1 * 1024 * 1024 * 1024}}
 
 	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Nil(t, resultNode)
@@ -178,8 +178,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenAllAvailableCpuConsumed_ReturnsFalse
 func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorMatchesNoNodes_ReturnsFalse(t *testing.T) {
 	podSpec := &v1.PodSpec{NodeSelector: map[string]string{"a": "b"}}
 	nodeAllocations := defaultNodeTypeAllocations()
-	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
-	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
+	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
+	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
 
 	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Nil(t, resultNode)
@@ -194,8 +194,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenNodeSelectorRulesOutFirstNode_Return
 	nodeAllocations[0].nodeType.Labels = map[string]string{"a": "does-not-match"}
 	nodeAllocations[1].nodeType.Labels = map[string]string{"a": "b"}
 
-	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
-	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
+	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
+	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
 
 	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Equal(t, nodeAllocations[1], resultNode)
@@ -209,8 +209,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutAllNodes_ReturnsFalse(t
 	nodeAllocations := defaultNodeTypeAllocations()
 	nodeAllocations[0].nodeType.Taints = []v1.Taint{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}
 
-	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
-	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
+	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
+	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
 
 	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Nil(t, resultNode)
@@ -225,8 +225,8 @@ func Test_matchAnyNodeTypePodAllocation_WhenTaintRulesOutFirstNode_ReturnsSecond
 	nodeAllocations[0].nodeType.Taints = []v1.Taint{{Key: "c", Value: "does-not-match", Effect: v1.TaintEffectNoSchedule}}
 	nodeAllocations[1].nodeType.Taints = []v1.Taint{{Key: "a", Value: "b", Effect: v1.TaintEffectNoSchedule}}
 
-	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
-	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: common.ComputeResourcesFloat{}}
+	alreadyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
+	newlyConsumed := nodeTypeUsedResources{nodeAllocations[0]: armadaresource.ComputeResourcesFloat{}}
 
 	resultNode, resultFlag, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
 	assert.Equal(t, nodeAllocations[1], resultNode)
@@ -309,10 +309,10 @@ func Test_matchesRequiredNodeAffinity_WhenNotInAffinitySet_MatchesAllExceptLabel
 	assert.Error(t, err)
 }
 
-func makeResourceList(cores int64, gigabytesRam int64) common.ComputeResources {
+func makeResourceList(cores int64, gigabytesRam int64) armadaresource.ComputeResources {
 	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
 	memoryResource := resource.NewQuantity(gigabytesRam*1024*1024*1024, resource.DecimalSI)
-	resourceMap := common.ComputeResources{
+	resourceMap := armadaresource.ComputeResources{
 		string(v1.ResourceCPU):    *cpuResource,
 		string(v1.ResourceMemory): *memoryResource,
 	}
@@ -328,9 +328,9 @@ func defaultNodeTypeAllocation() *nodeTypeAllocation {
 		nodeType: api.NodeType{
 			Taints:               nil,
 			Labels:               nil,
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")},
 		},
-		availableResources: common.ComputeResourcesFloat{"cpu": 7, "memory": 7 * 1024 * 1024 * 1024},
+		availableResources: armadaresource.ComputeResourcesFloat{"cpu": 7, "memory": 7 * 1024 * 1024 * 1024},
 	}
 }
 

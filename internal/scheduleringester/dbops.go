@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -86,7 +86,6 @@ type InsertJobs map[string]*schedulerdb.Job
 
 type (
 	InsertRuns             map[uuid.UUID]*schedulerdb.Run
-	InsertRunAssignments   map[uuid.UUID]*schedulerdb.JobRunAssignment
 	UpdateJobSetPriorities map[string]int64
 	MarkJobSetsCancelled   map[string]bool
 	MarkJobsCancelled      map[string]bool
@@ -117,10 +116,6 @@ func (a InsertJobs) Merge(b DbOperation) bool {
 }
 
 func (a InsertRuns) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
-}
-
-func (a InsertRunAssignments) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
@@ -205,12 +200,6 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 			}
 		}
 	}
-	return true
-}
-
-func (a InsertRunAssignments) CanBeAppliedBefore(b DbOperation) bool {
-	// Inserting assignments before a run is defined is ok.
-	// We only require that assignments are written to the schedulerdb before the run is marked as running.
 	return true
 }
 

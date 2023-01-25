@@ -196,7 +196,7 @@ build-executor:
 build-fakeexecutor:
 	$(GO_CMD) $(gobuild) -o ./bin/executor cmd/fakeexecutor/main.go
 
-ARMADACTL_BUILD_PACKAGE := github.com/G-Research/armada/internal/armadactl/build
+ARMADACTL_BUILD_PACKAGE := github.com/armadaproject/armada/internal/armadactl/build
 define ARMADACTL_LDFLAGS
 -X '$(ARMADACTL_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(ARMADACTL_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -215,7 +215,7 @@ build-armadactl-release: build-armadactl-multiplatform
 	tar -czvf ./dist/armadactl-$(RELEASE_VERSION)-darwin-amd64.tar.gz -C ./bin/darwin-amd64/ armadactl
 	zip -j ./dist/armadactl-$(RELEASE_VERSION)-windows-amd64.zip ./bin/windows-amd64/armadactl.exe
 
-PULSARTEST_BUILD_PACKAGE := github.com/G-Research/armada/internal/pulsartest/build
+PULSARTEST_BUILD_PACKAGE := github.com/armadaproject/armada/internal/pulsartest/build
 define PULSARTEST_LDFLAGS
 -X '$(PULSARTEST_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(PULSARTEST_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -225,7 +225,7 @@ endef
 build-pulsartest:
 	$(GO_CMD) $(gobuild) -ldflags="$(PULSARTEST_LDFLAGS)" -o ./bin/pulsartest cmd/pulsartest/main.go
 
-TESTSUITE_BUILD_PACKAGE := github.com/G-Research/armada/internal/testsuite/build
+TESTSUITE_BUILD_PACKAGE := github.com/armadaproject/armada/internal/testsuite/build
 define TESTSUITE_LDFLAGS
 -X '$(TESTSUITE_BUILD_PACKAGE).BuildTime=$(BUILD_TIME)' \
 -X '$(TESTSUITE_BUILD_PACKAGE).ReleaseVersion=$(RELEASE_VERSION)' \
@@ -345,29 +345,29 @@ tests-teardown:
 	docker rm -f redis postgres || true
 
 .ONESHELL:
-tests-no-setup:
-	$(GO_TEST_CMD) go test -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) go test -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) go test -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+tests-no-setup: gotestsum
+	$(GOTESTSUM) -- -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GOTESTSUM) -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
-tests:
+tests: gotestsum
 	mkdir -p test_reports
 	docker run -d --name=redis $(DOCKER_NET) -p=6379:6379 redis:6.2.6
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GO_TEST_CMD) go test -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GO_TEST_CMD) go test -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GO_TEST_CMD) go test -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
+	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
 .ONESHELL:
 lint-fix:
-	$(GO_TEST_CMD) golangci-lint run --fix
+	$(GO_TEST_CMD) golangci-lint run --fix --timeout 10m
 
 .ONESHELL:
 lint:
-	$(GO_TEST_CMD) golangci-lint run
+	$(GO_TEST_CMD) golangci-lint run --timeout 10m
 
 .ONESHELL:
 code-checks: lint
@@ -462,7 +462,7 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
 .ONESHELL:
-tests-e2e-no-setup:
+tests-e2e-no-setup: gotestsum
 	function printApplicationLogs {
 		echo -e "\nexecutor logs:"
 		docker logs executor
@@ -471,15 +471,15 @@ tests-e2e-no-setup:
 	}
 	trap printApplicationLogs exit
 	mkdir -p test_reports
-	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
-	$(GO_TEST_CMD) go test -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
+	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
+	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
+	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 
 .ONESHELL:
-tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
+tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup gotestsum
 	function teardown {
 		echo -e "\nexecutor logs:"
 		docker logs executor
@@ -494,11 +494,11 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup
 	trap teardown exit
 	sleep 10
 	echo -e "\nrunning tests:"
-	$(GO_TEST_CMD) go test -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GO_TEST_CMD) go test -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
-	$(GO_TEST_CMD) go test -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
-	$(GO_TEST_CMD) go test -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
+	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
+	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
+	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
+	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
 
 	# $(DOTNET_CMD) dotnet test client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj
 .ONESHELL:
@@ -562,9 +562,21 @@ download:
 generate:
 	$(GO_CMD) go run github.com/rakyll/statik \
 		-dest=internal/lookout/repository/schema/ -src=internal/lookout/repository/schema/ -include=\*.sql -ns=lookout/sql -Z -f -m && \
-		go run golang.org/x/tools/cmd/goimports -w -local "github.com/G-Research/armada" internal/lookout/repository/schema/statik
+		go run golang.org/x/tools/cmd/goimports -w -local "github.com/armadaproject/armada" internal/lookout/repository/schema/statik
 
 	go generate ./...
 
 helm-docs:
 	./scripts/helm-docs.sh
+
+LOCALBIN ?= $(PWD)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+GOTESTSUM ?= $(LOCALBIN)/gotestsum
+
+.PHONY: gotestsum
+gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
+$(GOTESTSUM): $(LOCALBIN)
+	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
+

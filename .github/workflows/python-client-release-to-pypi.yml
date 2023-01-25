@@ -12,11 +12,17 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8'
           tox-env: 'py38'
           path: 'client/python'
+          github-token: ${{secrets.GITHUB_TOKEN}}
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

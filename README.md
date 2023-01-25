@@ -1,7 +1,7 @@
 <img src="./logo.svg" width="200"/>
 
-[![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
-[![Go Report Card](https://goreportcard.com/badge/github.com/G-Research/armada)](https://goreportcard.com/report/github.com/G-Research/armada)
+[![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/armadaproject/armada)
+[![Go Report Card](https://goreportcard.com/badge/github.com/armadaproject/armada)](https://goreportcard.com/report/github.com/armadaproject/armada)
 
 # Armada
 

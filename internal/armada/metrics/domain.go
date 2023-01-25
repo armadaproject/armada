@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 type QueueMetrics struct {
@@ -34,7 +34,7 @@ func (r *JobMetricsRecorder) RecordJobRuntime(pool string, priorityClass string,
 	recorder.durationRecorder.Record(jobRuntime.Seconds())
 }
 
-func (r *JobMetricsRecorder) RecordResources(pool string, priorityClass string, resources common.ComputeResourcesFloat) {
+func (r *JobMetricsRecorder) RecordResources(pool string, priorityClass string, resources armadaresource.ComputeResourcesFloat) {
 	recorder := r.getOrCreateRecorder(pool, priorityClass)
 	recorder.resourceRecorder.Record(resources)
 }

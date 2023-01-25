@@ -7,9 +7,9 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type GroupByResult struct {

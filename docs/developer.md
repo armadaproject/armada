@@ -39,7 +39,7 @@ jobs:
     podSpec:
 ```
 
-For more details on submitting jobs to Armada, see [the user guide](https://github.com/G-Research/armada/blob/master/docs/user.md). Once you submit jobs, you should see pods appearing in your worker cluster(s).
+For more details on submitting jobs to Armada, see [the user guide](https://github.com/armadaproject/armada/blob/master/docs/user.md). Once you submit jobs, you should see pods appearing in your worker cluster(s).
 
 **Note:** Depending on your Docker setup you might need to load images for jobs you plan to run manually:
 ```bash
@@ -83,9 +83,9 @@ $ docker exec -it server bash
 root@3b5e4089edbb:/app# dlv connect :4000
 Type 'help' for list of commands.
 (dlv) b (*SubmitServer).CreateQueue
-Breakpoint 3 set at 0x1fb3800 for github.com/G-Research/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:137
+Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:137
 (dlv) c
-> github.com/G-Research/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
+> github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
    135: }
    136:
 => 137: func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {

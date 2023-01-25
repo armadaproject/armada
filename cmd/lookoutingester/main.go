@@ -4,9 +4,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/lookout/configuration"
-	"github.com/G-Research/armada/internal/lookoutingester"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/lookout/configuration"
+	"github.com/armadaproject/armada/internal/lookoutingester"
 )
 
 const CustomConfigLocation string = "config"

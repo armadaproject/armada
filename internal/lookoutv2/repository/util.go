@@ -12,16 +12,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type JobSimulator struct {

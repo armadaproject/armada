@@ -14,7 +14,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/logging"
 
 	openId "github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"

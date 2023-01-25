@@ -5,7 +5,7 @@ import (
 
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // UnmarshalEventSubmission unmarshalls bytes into an EventSequence

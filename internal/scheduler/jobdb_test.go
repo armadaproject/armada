@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/G-Research/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 func TestJobDbSchema(t *testing.T) {
@@ -71,7 +71,7 @@ func TestBatchDelete(t *testing.T) {
 			// Set up JobDb
 			jobDb := createPopulatedJobDb(t, tc.initialJobs)
 
-			// do the delete
+			// delete
 			txn := jobDb.WriteTxn()
 			err := jobDb.BatchDelete(txn, tc.idsToDelete)
 			require.NoError(t, err)
@@ -169,6 +169,51 @@ func TestGetById(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLookupByRun(t *testing.T) {
+	job := &SchedulerJob{
+		JobId:     uuid.NewString(),
+		Queue:     "A",
+		Priority:  0,
+		Timestamp: 10,
+	}
+
+	run := &JobRun{
+		RunID: uuid.New(),
+	}
+
+	// set up the job db with a single job
+	jobDb, err := NewJobDb()
+	require.NoError(t, err)
+	txn := jobDb.WriteTxn()
+	err = jobDb.Upsert(txn, []*SchedulerJob{job})
+	require.NoError(t, err)
+
+	// try to lookup the job by run id- this should be nil as no run exists yet
+	retrievedJob, err := jobDb.GetByRunId(txn, run.RunID)
+	require.NoError(t, err)
+	assert.Nil(t, retrievedJob)
+
+	// update the job to have a run
+	updatedJob := job.DeepCopy()
+	updatedJob.Runs = append(updatedJob.Runs, run)
+	err = jobDb.Upsert(txn, []*SchedulerJob{updatedJob})
+	require.NoError(t, err)
+
+	// try to lookup the job by run id- this should now return the job
+	retrievedJob, err = jobDb.GetByRunId(txn, run.RunID)
+	require.NoError(t, err)
+	assert.Equal(t, updatedJob, retrievedJob)
+
+	// Delete the job
+	err = jobDb.BatchDelete(txn, []string{job.JobId})
+	require.NoError(t, err)
+
+	// try to lookup the job by run id- this should  be nil as the job has been deleted
+	retrievedJob, err = jobDb.GetByRunId(txn, run.RunID)
+	require.NoError(t, err)
+	assert.Nil(t, retrievedJob)
 }
 
 func TestGetAll(t *testing.T) {

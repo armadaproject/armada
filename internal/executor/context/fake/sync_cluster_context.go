@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 type SyncFakeClusterContext struct {

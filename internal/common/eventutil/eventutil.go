@@ -14,13 +14,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/domain"
-	executorutil "github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	executorutil "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer

@@ -10,7 +10,7 @@ import (
 	"golang.org/x/exp/maps"
 	"gopkg.in/yaml.v2"
 
-	"github.com/G-Research/armada/pkg/client/util"
+	"github.com/armadaproject/armada/pkg/client/util"
 )
 
 const (

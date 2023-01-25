@@ -14,3 +14,8 @@ func (job Job) GetSerial() int64 {
 func (run Run) GetSerial() int64 {
 	return run.Serial
 }
+
+// GetSerial is needed for the HasSerial interface
+func (row SelectUpdatedJobsRow) GetSerial() int64 {
+	return row.Serial
+}

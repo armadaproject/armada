@@ -10,7 +10,7 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 type countsRow struct {

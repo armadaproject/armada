@@ -8,7 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 func TestRequiresIngressToBeReported_FalseWhenIngressHasBeenReported(t *testing.T) {

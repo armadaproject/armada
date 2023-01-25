@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/G-Research/armada/internal/armadactl"
+	"github.com/armadaproject/armada/internal/armadactl"
 
 	"github.com/spf13/cobra"
 )

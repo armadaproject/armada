@@ -7,12 +7,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/internal/jobservice/events"
-	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
-	"github.com/G-Research/armada/internal/jobservice/repository"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/jobservice/events"
+	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
+	"github.com/armadaproject/armada/internal/jobservice/repository"
 
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 type JobServiceServer struct {

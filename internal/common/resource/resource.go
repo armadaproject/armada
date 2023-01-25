@@ -1,4 +1,4 @@
-package common
+package resource
 
 import (
 	"math"
@@ -7,20 +7,29 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/G-Research/armada/pkg/api"
 )
-
-type ComputeResources map[string]resource.Quantity
 
 func FromResourceList(list v1.ResourceList) ComputeResources {
 	resources := make(ComputeResources)
-
 	for k, v := range list {
 		resources[string(k)] = v.DeepCopy()
 	}
 	return resources
 }
+
+// QuantityAsFloat64 returns a float64 representation of a quantity.
+// We need our own function because q.AsApproximateFloat64 sometimes returns surprising results.
+// For example, resource.MustParse("5188205838208Ki").AsApproximateFloat64() returns 0.004291583283300088,
+// whereas this function returns 5.312722778324993e+15.
+func QuantityAsFloat64(q resource.Quantity) float64 {
+	dec := q.AsDec()
+	unscaled := dec.UnscaledBig()
+	scale := dec.Scale()
+	unscaledFloat, _ := new(big.Float).SetInt(unscaled).Float64()
+	return unscaledFloat * math.Pow10(-int(scale))
+}
+
+type ComputeResources map[string]resource.Quantity
 
 func (a ComputeResources) String() string {
 	str := ""
@@ -165,18 +174,6 @@ func (a ComputeResources) AsFloat() ComputeResourcesFloat {
 	return targetComputeResource
 }
 
-// QuantityAsFloat64 returns a float64 representation of a quantity.
-// We need our own function because q.AsApproximateFloat64 sometimes returns surprising results.
-// For example, resource.MustParse("5188205838208Ki").AsApproximateFloat64 returns 0.004291583283300088,
-// whereas this function returns 5.312722778324993e+15.
-func QuantityAsFloat64(q resource.Quantity) float64 {
-	dec := q.AsDec()
-	unscaled := dec.UnscaledBig()
-	scale := dec.Scale()
-	unscaledFloat, _ := new(big.Float).SetInt(unscaled).Float64()
-	return unscaledFloat * math.Pow10(-int(scale))
-}
-
 // ComputeResourcesFloat is float version of compute resource, prefer calculations with quantity where possible
 type ComputeResourcesFloat map[string]float64
 
@@ -270,15 +267,6 @@ func (a ComputeResourcesFloat) Mul(factor float64) ComputeResourcesFloat {
 		targetComputeResource[key] = value * factor
 	}
 	return targetComputeResource
-}
-
-func TotalJobResourceRequest(job *api.Job) ComputeResources {
-	totalResources := make(ComputeResources)
-	for _, podSpec := range job.GetAllPodSpecs() {
-		podResource := TotalPodResourceRequest(podSpec)
-		totalResources.Add(podResource)
-	}
-	return totalResources
 }
 
 // TotalPodResourceRequest represents the resource request for a given pod is the maximum of:

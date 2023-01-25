@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type (
@@ -33,7 +33,7 @@ type JobInfo struct {
 	LastUpdate       time.Time
 	PodLastUpdated   []time.Time
 	ClusterId        string
-	MaxUsedResources common.ComputeResources
+	MaxUsedResources armadaresource.ComputeResources
 }
 
 var statesToIncludeInSummary []JobStatus
@@ -76,7 +76,7 @@ func (context *WatchContext) ProcessEvent(event api.Event) {
 	info, exists := context.state[event.GetJobId()]
 	if !exists {
 		info = &JobInfo{
-			MaxUsedResources: common.ComputeResources{},
+			MaxUsedResources: armadaresource.ComputeResources{},
 		}
 		context.state[event.GetJobId()] = info
 	}

@@ -8,11 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
@@ -343,8 +343,8 @@ func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	return []*api.Job{}, nil
+func (repo *mockJobRepository) TryLeaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
+	return make(map[string][]string), nil
 }
 
 func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {

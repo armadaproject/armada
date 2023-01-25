@@ -1,5 +1,6 @@
 syntax = 'proto3';
 package armadaevents;
+option go_package = "github.com/armadaproject/armada/pkg/armadaevents";
 option csharp_namespace = "ArmadaProject.Io.ArmadaEvents";
 
 import "k8s.io/api/core/v1/generated.proto";
@@ -463,19 +464,6 @@ message JobDuplicateDetected {
     Uuid old_job_id = 2;
 }
 
-message SeqUpdate{
-    int64 jobsetId = 1;
-    int64 seqNo = 2;
-}
-
-message SeqUpdates{
-    repeated SeqUpdate updates = 1;
-}
-
-message DatabaseSequence{
-    EventSequence eventSequence = 1;
-}
-
 // Message to indicate that a JobRun has been preempted
 message JobRunPreempted{
     // Uuid of the job that was preempted
@@ -486,4 +474,12 @@ message JobRunPreempted{
     Uuid preemptive_job_id = 3;
     // Uuid of the job run that caused the preemption.
     Uuid preemptive_run_id = 4;
+}
+
+// Message used internally by Armada to see if messages can be propagated through a pulsar partition
+message PartitionMarker {
+    // group id ties together multiple messages across different partitions
+    Uuid group_id = 1;
+    // The pulsar partition on which this message was sent
+    uint32 partition = 2;
 }

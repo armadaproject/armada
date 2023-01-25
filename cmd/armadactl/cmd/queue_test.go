@@ -20,9 +20,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
-	"github.com/G-Research/armada/internal/armadactl"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 // Used for in-line initialization of pointers to floats

@@ -9,13 +9,12 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestJobDoubleSubmit(t *testing.T) {
@@ -37,8 +36,7 @@ func TestJobAddDifferentQueuesCanHaveSameClientId(t *testing.T) {
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
-
-		leasedAgain, e := r.TryLeaseJobs("cluster2", "queue1", []*api.Job{job})
+		leasedAgain, e := r.TryLeaseJobs("cluster2", map[string][]string{"queue1": {job.Id}})
 		require.NoError(t, e)
 		assert.Equal(t, 0, len(leasedAgain))
 	})
@@ -803,10 +801,11 @@ func whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t *testing.
 
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
-	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
+	leased, e := r.TryLeaseJobs(cluster, map[string][]string{queue: {job.Id}})
 	assert.Nil(t, e)
-	assert.Equal(t, 1, len(leased))
-	assert.Equal(t, job.Id, leased[0].Id)
+	s, ok := leased[queue]
+	require.True(t, ok)
+	assert.Equal(t, []string{job.Id}, s)
 	return job
 }
 

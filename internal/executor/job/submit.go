@@ -12,13 +12,13 @@ import (
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	util2 "github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	util2 "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type Submitter interface {

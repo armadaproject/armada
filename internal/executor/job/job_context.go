@@ -5,15 +5,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/podchecks"
-	"github.com/G-Research/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type IssueType int

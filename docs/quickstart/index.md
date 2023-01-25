@@ -13,10 +13,10 @@ The main purpose of this guide is to install a minimal local Armada deployment f
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters.
 
-Clone [this](https://github.com/G-Research/armada) repository:
+Clone [this](https://github.com/armadaproject/armada) repository:
 
 ```bash
-git clone https://github.com/G-Research/armada.git
+git clone https://github.com/armadaproject/armada.git
 cd armada
 ```
 

@@ -1,7 +1,7 @@
 syntax = 'proto3';
 
 package binoculars;
-option go_package = "github.com/G-Research/armada/pkg/api/binoculars";
+option go_package = "github.com/armadaproject/armada/pkg/api/binoculars";
 option csharp_namespace = "ArmadaProject.Io.Api.Binoculars";
 
 import "k8s.io/api/core/v1/generated.proto";

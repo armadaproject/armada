@@ -9,11 +9,11 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // SchedulerDb writes DbOperations into postgres.
@@ -64,17 +64,6 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			i++
 		}
 		err := database.Upsert(ctx, s.db, "runs", records)
-		if err != nil {
-			return err
-		}
-	case InsertRunAssignments:
-		records := make([]any, len(o))
-		i := 0
-		for _, v := range o {
-			records[i] = *v
-			i++
-		}
-		err := database.Upsert(ctx, s.db, "job_run_assignments", records)
 		if err != nil {
 			return err
 		}

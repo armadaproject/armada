@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 
-	"github.com/G-Research/armada/internal/common/fileutils"
+	"github.com/armadaproject/armada/internal/common/fileutils"
 )
 
 // list of config files loaded into viper

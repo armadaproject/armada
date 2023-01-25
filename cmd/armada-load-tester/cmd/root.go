@@ -6,7 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 func init() {
