@@ -218,7 +218,6 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, p
 		l.indexedResources,
 		l.config.IndexedTaints,
 		l.config.IndexedNodeLabels,
-		l.config.NodeIdLabel,
 	)
 	if err != nil {
 		return nil, err

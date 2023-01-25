@@ -11,6 +11,12 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
+const (
+	// If set on a pod, the value of this annotation is interpreted as the id of a node
+	// and only the node with that id will be considered for scheduling the pod.
+	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
+)
+
 type ArmadaConfig struct {
 	Auth authconfig.AuthConfig
 

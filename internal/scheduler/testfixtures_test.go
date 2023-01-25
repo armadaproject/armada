@@ -19,7 +19,6 @@ const (
 	testGangCardinalityAnnotation = "armada.io/gangCardinality"
 	testNodeIdLabel               = "kubernetes.io/hostname"
 	testJobIdLabel                = "armadaproject.io/jobId"
-	testTargetNodeIdAnnotation    = "armadaproject.io/targetNodeId"
 )
 
 var (
@@ -417,7 +416,6 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
-		testTargetNodeIdAnnotation,
 	)
 	if err != nil {
 		return nil, err

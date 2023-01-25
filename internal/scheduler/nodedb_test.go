@@ -62,7 +62,7 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
 	db, err := createNodeDb(nodes)
 	require.NoError(t, err)
 	reqs := withAnnotationsPodReqs(
-		map[string]string{testTargetNodeIdAnnotation: nodeId},
+		map[string]string{TargetNodeIdAnnotation: nodeId},
 		testNSmallCpuJob(0, 1),
 	)
 	for _, req := range reqs {
@@ -82,7 +82,7 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 	db, err := createNodeDb(nodes)
 	require.NoError(t, err)
 	reqs := withAnnotationsPodReqs(
-		map[string]string{testTargetNodeIdAnnotation: "this node does not exist"},
+		map[string]string{TargetNodeIdAnnotation: "this node does not exist"},
 		testNSmallCpuJob(0, 1),
 	)
 	for _, req := range reqs {
@@ -307,7 +307,6 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
-		testTargetNodeIdAnnotation,
 	)
 	if !assert.NoError(b, err) {
 		return
@@ -326,7 +325,12 @@ func BenchmarkUpsert1000(b *testing.B)   { benchmarkUpsert(testNCpuNode(1000, te
 func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(testNCpuNode(100000, testPriorities), b) }
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
+	db, err := NewNodeDb(
+		testPriorities,
+		testResources,
+		testIndexedTaints,
+		testIndexedNodeLabels,
+	)
 	if !assert.NoError(b, err) {
 		return
 	}

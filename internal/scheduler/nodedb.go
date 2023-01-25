@@ -48,9 +48,6 @@ type NodeDb struct {
 	//
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]interface{}
-	// If set on a pod, the value of this annotation is interpreted as the id of a node
-	// and only the node with that id will be considered for scheduling the pod.
-	targetNodeIdAnnotation string
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources schedulerobjects.ResourceList
@@ -61,7 +58,7 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string, targetNodeIdAnnotation string) (*NodeDb, error) {
+func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(priorities, indexedResources))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -90,14 +87,13 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 		return rv
 	}
 	return &NodeDb{
-		priorities:             priorities,
-		indexedResources:       mapFromSlice(indexedResources),
-		indexedTaints:          mapFromSlice(indexedTaints),
-		indexedNodeLabels:      mapFromSlice(indexedNodeLabels),
-		targetNodeIdAnnotation: targetNodeIdAnnotation,
-		nodeTypes:              make(map[string]*schedulerobjects.NodeType),
-		totalResources:         schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                     db,
+		priorities:        priorities,
+		indexedResources:  mapFromSlice(indexedResources),
+		indexedTaints:     mapFromSlice(indexedTaints),
+		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
+		nodeTypes:         make(map[string]*schedulerobjects.NodeType),
+		totalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		db:                db,
 	}, nil
 }
 
@@ -249,8 +245,8 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// If the targetNodeIdAnnocation is set, only the node with that id is considered.
 	// Otherwise, iterate over all nodes with enough of the dominant resource available.
 	var nodeIt memdb.ResultIterator
-	if req.Annotations != nil && nodeDb.targetNodeIdAnnotation != "" {
-		if nodeId, ok := req.Annotations[nodeDb.targetNodeIdAnnotation]; ok {
+	if req.Annotations != nil && TargetNodeIdAnnotation != "" {
+		if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
 			it, err := txn.Get("nodes", "id", nodeId)
 			if err != nil {
 				return nil, errors.WithStack(err)
