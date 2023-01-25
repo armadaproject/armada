@@ -48,9 +48,9 @@ type NodeDb struct {
 	//
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]interface{}
-	// Label used to uniquely identify each node managed by Armada.
-	// This label must be set on all nodes and its value must be unique across all nodes.
-	nodeIdLabel string
+	// If set on a pod, the value of this annotation is interpreted as the id of a node
+	// and only the node with that id will be considered for scheduling the pod.
+	targetNodeIdAnnotation string
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
 	// Computed approximately by periodically scanning all nodes in the db.
 	totalResources schedulerobjects.ResourceList
@@ -61,7 +61,7 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string, nodeIdLabel string) (*NodeDb, error) {
+func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string, targetNodeIdAnnotation string) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(priorities, indexedResources))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -89,22 +89,15 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 		}
 		return rv
 	}
-	if nodeIdLabel == "" {
-		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "nodeIdLabel",
-			Value:   nodeIdLabel,
-			Message: "nodeIdLabel must be non-empty",
-		})
-	}
 	return &NodeDb{
-		priorities:        priorities,
-		indexedResources:  mapFromSlice(indexedResources),
-		indexedTaints:     mapFromSlice(indexedTaints),
-		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
-		nodeIdLabel:       nodeIdLabel,
-		nodeTypes:         make(map[string]*schedulerobjects.NodeType),
-		totalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                db,
+		priorities:             priorities,
+		indexedResources:       mapFromSlice(indexedResources),
+		indexedTaints:          mapFromSlice(indexedTaints),
+		indexedNodeLabels:      mapFromSlice(indexedNodeLabels),
+		targetNodeIdAnnotation: targetNodeIdAnnotation,
+		nodeTypes:              make(map[string]*schedulerobjects.NodeType),
+		totalResources:         schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		db:                     db,
 	}, nil
 }
 
@@ -253,13 +246,11 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Iterate over candidate nodes.
-	// If using a node selector with nodeIdLabel, consider only the node with that id.
+	// If the targetNodeIdAnnocation is set, only the node with that id is considered.
 	// Otherwise, iterate over all nodes with enough of the dominant resource available.
 	var nodeIt memdb.ResultIterator
-	if req.Annotations != nil {
-		// TODO: Make config.
-		nodeIdAnnotation := "armadaproject.io/nodeId"
-		if nodeId, ok := req.Annotations[nodeIdAnnotation]; ok {
+	if req.Annotations != nil && nodeDb.targetNodeIdAnnotation != "" {
+		if nodeId, ok := req.Annotations[nodeDb.targetNodeIdAnnotation]; ok {
 			it, err := txn.Get("nodes", "id", nodeId)
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -267,15 +258,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 			nodeIt = it
 		}
 	}
-	// if req.NodeSelector != nil {
-	// 	if nodeId, ok := req.NodeSelector[nodeDb.nodeIdLabel]; ok {
-	// 		it, err := txn.Get("nodes", "id", nodeId)
-	// 		if err != nil {
-	// 			return nil, errors.WithStack(err)
-	// 		}
-	// 		nodeIt = it
-	// 	}
-	// }
 	if nodeIt == nil {
 		it, err := NewNodeTypesResourceIterator(
 			txn,

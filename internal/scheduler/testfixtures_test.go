@@ -19,6 +19,7 @@ const (
 	testGangCardinalityAnnotation = "armada.io/gangCardinality"
 	testNodeIdLabel               = "kubernetes.io/hostname"
 	testJobIdLabel                = "armadaproject.io/jobId"
+	testTargetNodeIdAnnotation    = "armadaproject.io/targetNodeId"
 )
 
 var (
@@ -43,7 +44,6 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		GangIdAnnotation:          testGangIdAnnotation,
 		GangCardinalityAnnotation: testGangCardinalityAnnotation,
 		ExecutorTimeout:           15 * time.Minute,
-		NodeIdLabel:               testNodeIdLabel,
 	}
 }
 
@@ -412,7 +412,13 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 }
 
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
+	db, err := NewNodeDb(
+		testPriorities,
+		testResources,
+		testIndexedTaints,
+		testIndexedNodeLabels,
+		testTargetNodeIdAnnotation,
+	)
 	if err != nil {
 		return nil, err
 	}

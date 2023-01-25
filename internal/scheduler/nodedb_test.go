@@ -55,40 +55,44 @@ func TestTotalResources(t *testing.T) {
 	assert.True(t, expected.Equal(nodeDb.totalResources))
 }
 
-func TestSelectNodeForPod_NodeIdSelector(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("1Gi"),
-			},
-		},
-		NodeSelector: map[string]string{testNodeIdLabel: "node1"},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, report.Node)
-	assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
+	nodes := testNCpuNode(1, testPriorities)
+	nodeId := nodes[0].Id
+	require.NotEmpty(t, nodeId)
+	db, err := createNodeDb(nodes)
+	require.NoError(t, err)
+	reqs := withAnnotationsPodReqs(
+		map[string]string{testTargetNodeIdAnnotation: nodeId},
+		testNSmallCpuJob(0, 1),
+	)
+	for _, req := range reqs {
+		report, err := db.SelectAndBindNodeToPod(req)
+		if !assert.NoError(t, err) {
+			continue
+		}
+		assert.NotNil(t, report.Node)
+		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+	}
 }
 
-func TestSelectNodeForPod_InvalidNodeIdSelector(t *testing.T) {
-	db, err := createNodeDb(testNodeItems1())
-	assert.NoError(t, err)
-	report, err := db.SelectAndBindNodeToPod(&schedulerobjects.PodRequirements{
-		Priority: 0,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("1Gi"),
-			},
-		},
-		NodeSelector: map[string]string{testNodeIdLabel: "this node doesn't exist"},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, report.Node)
-	assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
+	nodes := testNCpuNode(1, testPriorities)
+	nodeId := nodes[0].Id
+	require.NotEmpty(t, nodeId)
+	db, err := createNodeDb(nodes)
+	require.NoError(t, err)
+	reqs := withAnnotationsPodReqs(
+		map[string]string{testTargetNodeIdAnnotation: "this node does not exist"},
+		testNSmallCpuJob(0, 1),
+	)
+	for _, req := range reqs {
+		report, err := db.SelectAndBindNodeToPod(req)
+		if !assert.NoError(t, err) {
+			continue
+		}
+		assert.Nil(t, report.Node)
+		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+	}
 }
 
 func TestSelectAndBindNodeToPod(t *testing.T) {
@@ -213,11 +217,20 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 				if !assert.NoError(t, err) {
 					continue
 				}
-				if tc.ExpectSuccess[i] {
-					assert.NotNil(t, report.Node)
-				} else {
+				if !tc.ExpectSuccess[i] {
 					assert.Nil(t, report.Node)
+					continue
 				}
+				assert.NotNil(t, report.Node)
+
+				node, err := nodeDb.GetNode(report.Node.Id)
+				require.NoError(t, err)
+				jobId, err := nodeDb.JobIdFromPodRequirements(req)
+				require.NoError(t, err)
+				expected := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+				actual, ok := node.AllocatedByJobId[jobId]
+				require.True(t, ok)
+				assert.True(t, actual.Equal(expected))
 			}
 		})
 	}
@@ -289,7 +302,13 @@ func TestScheduleMany(t *testing.T) {
 }
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
-	db, err := NewNodeDb(testPriorities, testResources, testIndexedTaints, testIndexedNodeLabels, testNodeIdLabel)
+	db, err := NewNodeDb(
+		testPriorities,
+		testResources,
+		testIndexedTaints,
+		testIndexedNodeLabels,
+		testTargetNodeIdAnnotation,
+	)
 	if !assert.NoError(b, err) {
 		return
 	}
