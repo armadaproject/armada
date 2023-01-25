@@ -104,7 +104,11 @@ export default function ColumnSelect({
           anchorEl={anchorEl.current}
           anchorOrigin={{
             vertical: "bottom",
-            horizontal: "right",
+            horizontal: "center",
+          }}
+          transformOrigin={{
+            vertical: "top",
+            horizontal: "center",
           }}
         >
           <div className={styles.columnMenu}>
