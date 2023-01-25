@@ -10,11 +10,14 @@ SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancelled,
 -- name: UpdateJobPriorityByJobSet :exec
 UPDATE jobs SET priority = $1 WHERE job_set = $2;
 
--- name: MarkJobsCancelledBySets :exec
-UPDATE jobs SET cancelled = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
+-- name: MarkJobsCancelRequestedBySets :exec
+UPDATE jobs SET cancel_requested = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
 
 -- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
+
+-- name: MarkJobsCancelRequestedById :exec
+UPDATE jobs SET cancel_requested = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsCancelledById :exec
 UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
@@ -34,17 +37,14 @@ SELECT run_id FROM runs;
 -- name: SelectNewRunsForJobs :many
 SELECT * FROM runs WHERE serial > $1 AND job_id = ANY(sqlc.arg(job_ids)::text[]) ORDER BY serial;
 
--- name: MarkJobRunsCancelledBySets :exec
-UPDATE runs SET cancelled = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
-
--- name: MarkJobRunsCancelledByJobId :exec
-UPDATE runs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
-
 -- name: MarkJobRunsSucceededById :exec
 UPDATE runs SET succeeded = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 
 -- name: MarkJobRunsFailedById :exec
 UPDATE runs SET failed = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: MarkJobRunsReturnedById :exec
+UPDATE runs SET returned = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 
 -- name: MarkJobRunsRunningById :exec
 UPDATE runs SET running = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
