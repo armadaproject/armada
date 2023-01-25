@@ -394,6 +394,8 @@ type PodSchedulingReport struct {
 	NumExcludedNodeTypesByReason map[string]int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
+	// Set if an error occurred while attempting to schedule this pod.
+	Err error
 }
 
 func (report *PodSchedulingReport) String() string {
@@ -431,6 +433,7 @@ func (report *PodSchedulingReport) String() string {
 			report.Req.Priority,
 		)
 	}
+	fmt.Fprintf(w, "Error:\t%s\n", report.Err)
 	w.Flush()
 	return sb.String()
 }
