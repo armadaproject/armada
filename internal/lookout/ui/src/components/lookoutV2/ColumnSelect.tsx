@@ -1,11 +1,10 @@
-import { useState, MouseEvent, useRef } from "react"
+import { useState, useRef } from "react"
 
 import { ArrowDropDown, ArrowDropUp } from "@material-ui/icons"
 import { Check, Delete, Edit } from "@mui/icons-material"
 import {
   Button,
   Checkbox,
-  Divider,
   FormControl,
   IconButton,
   InputAdornment,
@@ -14,11 +13,9 @@ import {
   MenuItem,
   OutlinedInput,
   Popover,
-  Select,
   TextField,
   Typography,
 } from "@mui/material"
-import { VisibilityColumn } from "@tanstack/react-table"
 import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "utils/jobsTableColumns"
 
 import styles from "./ColumnSelect.module.css"
@@ -42,7 +39,6 @@ export default function ColumnSelect({
   onRemoveAnnotation,
   onEditAnnotation,
 }: ColumnSelectProps) {
-  const labelRef = useRef<HTMLLabelElement>(null)
   const anchorEl = useRef<HTMLInputElement>(null)
   const [isOpen, setIsOpen] = useState<boolean>(false)
 
