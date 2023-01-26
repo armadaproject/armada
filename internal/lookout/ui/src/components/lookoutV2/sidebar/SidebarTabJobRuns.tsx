@@ -26,7 +26,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
   const [runErrorLoadingMap, setRunErrorLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
 
   const fetchRunErrors = async () => {
-    let newRunErrorLoadingMap = new Map<string, LoadState>()
+    const newRunErrorLoadingMap = new Map<string, LoadState>()
     for (const run of job.runs) {
       newRunErrorLoadingMap.set(run.runId, "Loading")
     }
@@ -40,25 +40,25 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
       })
     }
 
-    const newMap = new Map<string, string>()
+    const newRunErrorMap = new Map<string, string>(runErrorMap)
     for (const result of results) {
-      let errorString = ""
-      try {
-        errorString = await result.promise
-      } catch (e) {
-        const errMsg = await getErrorMessage(e)
-        console.error(errMsg)
-        openSnackbar("Failed to retrieve Job Run error for Run with ID: " + result.runId + ": " + errMsg, "error")
-      }
-      newMap.set(result.runId, errorString)
-      setRunErrorMap(newMap)
-    }
+      result.promise
+        .then((errorString) => {
+          newRunErrorMap.set(result.runId, errorString)
+          setRunErrorMap(new Map(newRunErrorMap))
 
-    newRunErrorLoadingMap = new Map<string, LoadState>()
-    for (const run of job.runs) {
-      newRunErrorLoadingMap.set(run.runId, "Idle")
+          newRunErrorLoadingMap.set(result.runId, "Idle")
+          setRunErrorLoadingMap(new Map(newRunErrorLoadingMap))
+        })
+        .catch(async (e) => {
+          const errMsg = await getErrorMessage(e)
+          console.error(errMsg)
+          openSnackbar("Failed to retrieve Job Run error for Run with ID: " + result.runId + ": " + errMsg, "error")
+
+          newRunErrorLoadingMap.set(result.runId, "Idle")
+          setRunErrorLoadingMap(new Map(newRunErrorLoadingMap))
+        })
     }
-    setRunErrorLoadingMap(newRunErrorLoadingMap)
   }
 
   useEffect(() => {
