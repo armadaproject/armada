@@ -15,7 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 const maxPodRequestSize = 10000
@@ -103,7 +102,7 @@ func (m *JobManager) markAsDone(jobs []*job.RunningJob) {
 func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 	for _, pod := range pods {
 		event := reporter.CreateJobTerminatedEvent(pod, "Pod terminated because lease could not be renewed.", m.clusterIdentity.GetClusterId())
-		m.eventReporter.QueueEvent(event, func(err error) {
+		m.eventReporter.QueueEvent(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(pod)}, func(err error) {
 			if err != nil {
 				log.Errorf("Failed to report terminated pod %s: %s", pod.Name, err)
 			}
@@ -147,11 +146,13 @@ func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 			if pod.UID != runningJob.Issue.OriginatingPod.UID {
 				message = fmt.Sprintf("Peer pod %d stuck.", util.ExtractPodNumber(runningJob.Issue.OriginatingPod))
 			}
-			events := make([]api.Event, 0, 2)
+			events := make([]reporter.EventMessage, 0, 2)
 			if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
-				events = append(events, reporter.CreateJobUnableToScheduleEvent(pod, message, m.clusterIdentity.GetClusterId()))
+				unableToScheduleEvent := reporter.CreateJobUnableToScheduleEvent(pod, message, m.clusterIdentity.GetClusterId())
+				events = append(events, reporter.EventMessage{Event: unableToScheduleEvent, JobRunId: util.ExtractJobRunId(pod)})
 			}
-			events = append(events, reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause))
+			failedEvent := reporter.CreateSimpleJobFailedEvent(pod, message, m.clusterIdentity.GetClusterId(), runningJob.Issue.Cause)
+			events = append(events, reporter.EventMessage{Event: failedEvent, JobRunId: util.ExtractJobRunId(pod)})
 
 			err := m.eventReporter.Report(events)
 			if err != nil {
@@ -187,10 +188,10 @@ func (m *JobManager) handleNonRetryableJobIssue(runningJob *job.RunningJob) {
 func (m *JobManager) handleRetryableJobIssue(runningJob *job.RunningJob) {
 	if !runningJob.Issue.Reported {
 		if runningJob.Issue.Type == job.StuckStartingUp || runningJob.Issue.Type == job.UnableToSchedule {
-			event := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
-			err := m.eventReporter.Report([]api.Event{event})
+			unableToScheduleEvent := reporter.CreateJobUnableToScheduleEvent(runningJob.Issue.OriginatingPod, runningJob.Issue.Message, m.clusterIdentity.GetClusterId())
+			err := m.eventReporter.Report([]reporter.EventMessage{{Event: unableToScheduleEvent, JobRunId: util.ExtractJobRunId(runningJob.Issue.OriginatingPod)}})
 			if err != nil {
-				log.Errorf("Failure to report stuck pod event %+v because %s", event, err)
+				log.Errorf("Failure to report stuck pod event %+v because %s", unableToScheduleEvent, err)
 				return
 			}
 		}
