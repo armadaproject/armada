@@ -428,6 +428,7 @@ message PodLeaseReturned {
     ObjectMeta objectMeta = 1;
     string message = 2;
     int32 pod_number = 3;
+    bool run_attempted =4;
 }
 
 // Indicates that the lease on the job that the pod was part of could not be renewed.

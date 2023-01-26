@@ -120,7 +120,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 		jobRunId := util.ExtractJobRunId(details.Pod)
 
 		if details.Recoverable {
-			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId())
+			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), false)
 			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: jobRunId}})
 			if err != nil {
 				log.Errorf("Failed to return lease for job %s because %s", details.JobId, err)
