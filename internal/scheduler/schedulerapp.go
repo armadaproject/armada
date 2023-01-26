@@ -109,6 +109,9 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Starting up scheduling loop")
 	stringInterner, err := util.NewStringInterner(config.InternedStringsCacheSize)
+	if err != nil {
+		return errors.WithMessage(err, "error creating string interner")
+	}
 	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(jobRepository,
 		executorRepository,

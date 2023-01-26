@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-
 	"time"
 
 	"github.com/gogo/protobuf/proto"
