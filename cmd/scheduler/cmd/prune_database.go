@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"context"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -35,7 +35,6 @@ func pruneDbCmd() *cobra.Command {
 }
 
 func pruneDatabase(_ *cobra.Command, _ []string) error {
-
 	timeout := viper.GetDuration("timeout")
 	batchSize := viper.GetInt("batchsize")
 	expireAfter := viper.GetDuration("expireAfter")

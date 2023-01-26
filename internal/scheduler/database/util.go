@@ -4,11 +4,11 @@ import (
 	"context"
 	"embed"
 	_ "embed"
-	"github.com/disgoorg/log"
 	"time"
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/database"
 )
