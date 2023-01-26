@@ -20,6 +20,14 @@ func CompressStringArray(input []string, compressor Compressor) ([]byte, error) 
 	return compressor.Compress(bs)
 }
 
+func MustCompressStringArray(input []string, compressor Compressor) []byte {
+	b, err := CompressStringArray(input, compressor)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 func DecompressStringArray(input []byte, decompressor Decompressor) ([]string, error) {
 	if len(input) <= 0 {
 		return []string{}, nil
@@ -35,4 +43,12 @@ func DecompressStringArray(input []byte, decompressor Decompressor) ([]string, e
 	dec := gob.NewDecoder(buf)
 	err = dec.Decode(&data)
 	return data, err
+}
+
+func MustDecompressStringArray(input []byte, compressor Decompressor) []string {
+	data, err := DecompressStringArray(input, compressor)
+	if err != nil {
+		panic(err)
+	}
+	return data
 }
