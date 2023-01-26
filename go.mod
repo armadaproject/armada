@@ -83,7 +83,6 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
-	github.com/disgoorg/log v1.2.0
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3
@@ -183,6 +182,7 @@ require (
 	github.com/dghubble/sling v1.4.0 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/disgoorg/disgo v0.13.20 // indirect
+	github.com/disgoorg/log v1.2.0 // indirect
 	github.com/disgoorg/snowflake/v2 v2.0.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
