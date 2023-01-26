@@ -50,8 +50,8 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	}
 
 	assert.True(t, len(fakeEventReporter.ReceivedEvents) >= 2)
-	event1 := fakeEventReporter.ReceivedEvents[0].(*api.JobUtilisationEvent)
-	event2 := fakeEventReporter.ReceivedEvents[1].(*api.JobUtilisationEvent)
+	event1 := fakeEventReporter.ReceivedEvents[0].Event.(*api.JobUtilisationEvent)
+	event2 := fakeEventReporter.ReceivedEvents[1].Event.(*api.JobUtilisationEvent)
 
 	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.ComputeResources(event1.MaxResourcesForPeriod))
 	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.ComputeResources(event1.TotalCumulativeUsage))
