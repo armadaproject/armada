@@ -347,10 +347,3 @@ func (p *PodIssueService) handleDeletedPod(pod *v1.Pod) {
 		}
 	}
 }
-
-//
-////Idea:
-//// - PodIssueHandler
-//// - PodIssueDetector
-//// - PodIssueState
-//// - PodIssueManager
