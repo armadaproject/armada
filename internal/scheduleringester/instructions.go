@@ -7,9 +7,11 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -24,18 +26,23 @@ type eventSequenceCommon struct {
 }
 
 type InstructionConverter struct {
-	metrics     *metrics.Metrics
-	eventFilter func(event *armadaevents.EventSequence_Event) bool
-	compressor  compress.Compressor
+	metrics         *metrics.Metrics
+	eventFilter     func(event *armadaevents.EventSequence_Event) bool
+	priorityClasses map[string]configuration.PriorityClass
+	compressor      compress.Compressor
 }
 
-func NewInstructionConverter(metrics *metrics.Metrics,
-	filter func(event *armadaevents.EventSequence_Event) bool, compressor compress.Compressor,
+func NewInstructionConverter(
+	metrics *metrics.Metrics,
+	filter func(event *armadaevents.EventSequence_Event) bool,
+	priorityClasses map[string]configuration.PriorityClass,
+	compressor compress.Compressor,
 ) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
 	return &InstructionConverter{
-		metrics:     metrics,
-		eventFilter: filter,
-		compressor:  compressor,
+		metrics:         metrics,
+		eventFilter:     filter,
+		priorityClasses: priorityClasses,
+		compressor:      compressor,
 	}
 }
 
@@ -88,8 +95,9 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 				operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob())
 			case *armadaevents.EventSequence_Event_CancelJobSet:
 				operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
-			case *armadaevents.EventSequence_Event_CancelledJob,
-				*armadaevents.EventSequence_Event_ReprioritisedJob,
+			case *armadaevents.EventSequence_Event_CancelledJob:
+				operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
+			case *armadaevents.EventSequence_Event_ReprioritisedJob,
 				*armadaevents.EventSequence_Event_JobDuplicateDetected,
 				*armadaevents.EventSequence_Event_ResourceUtilisation,
 				*armadaevents.EventSequence_Event_StandaloneIngressInfo,
@@ -125,7 +133,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 
 	// Produce a minimal representation of the job for the scheduler.
 	// To avoid the scheduler needing to load the entire job spec.
-	schedulingInfo, err := schedulingInfoFromSubmitJob(job)
+	schedulingInfo, err := c.schedulingInfoFromSubmitJob(job)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +187,27 @@ func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaeven
 }
 
 func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors) ([]DbOperation, error) {
-	runId := jobRunErrors.GetRunId()
+	runId := armadaevents.UuidFromProtoUuid(jobRunErrors.GetRunId())
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunErrors.JobId)
+	if err != nil {
+		return nil, err
+	}
+	insertJobRunErrors := make(InsertJobRunErrors)
+	markRunsFailed := make(MarkRunsFailed)
 	for _, runError := range jobRunErrors.GetErrors() {
-		// For terminal errors, we also need to mark the run as failed.
+		// There should only be one terminal error
 		if runError.GetTerminal() {
-			markRunsFailed := make(MarkRunsFailed)
-			markRunsFailed[armadaevents.UuidFromProtoUuid(runId)] = true
-			return []DbOperation{markRunsFailed}, nil
+			bytes, err := protoutil.MarshallAndCompress(runError, c.compressor)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to marshal RunError")
+			}
+			insertJobRunErrors[runId] = &schedulerdb.JobRunError{
+				RunID: runId,
+				JobID: jobId,
+				Error: bytes,
+			}
+			markRunsFailed[runId] = &JobRunFailed{LeaseReturned: runError.GetPodLeaseReturned() != nil}
+			return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
 		}
 	}
 	return nil, nil
@@ -238,20 +260,30 @@ func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob
 	if err != nil {
 		return nil, err
 	}
-	return []DbOperation{MarkJobsCancelled{
+	return []DbOperation{MarkJobsCancelRequested{
 		jobId: true,
 	}}, nil
 }
 
 func (c *InstructionConverter) handleCancelJobSet(jobset string) ([]DbOperation, error) {
-	return []DbOperation{MarkJobSetsCancelled{
+	return []DbOperation{MarkJobSetsCancelRequested{
 		jobset: true,
+	}}, nil
+}
+
+func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.CancelledJob) ([]DbOperation, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(cancelledJob.GetJobId())
+	if err != nil {
+		return nil, err
+	}
+	return []DbOperation{MarkJobsCancelled{
+		jobId: true,
 	}}, nil
 }
 
 // schedulingInfoFromSubmitJob returns a minimal representation of a job
 // containing only the info needed by the scheduler.
-func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
+func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
@@ -265,8 +297,7 @@ func schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulero
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
 		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
-			// TODO: We should not pass in nil here. Priority will not be set correctly.
-			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, nil),
+			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, c.priorityClasses),
 		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,

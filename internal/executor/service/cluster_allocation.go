@@ -127,7 +127,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 			allocationService.returnLease(details.Pod, fmt.Sprintf("Failed to submit pod because %s", message))
 		} else {
 			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
-			err := allocationService.eventReporter.Report(failEvent)
+			err := allocationService.eventReporter.Report([]api.Event{failEvent})
 
 			if err == nil {
 				toBeReportedDone = append(toBeReportedDone, details.Job.Id)

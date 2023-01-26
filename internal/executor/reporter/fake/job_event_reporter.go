@@ -10,12 +10,12 @@ func NewFakeEventReporter() *FakeEventReporter {
 	return &FakeEventReporter{}
 }
 
-func (f *FakeEventReporter) Report(event api.Event) error {
-	f.ReceivedEvents = append(f.ReceivedEvents, event)
+func (f *FakeEventReporter) Report(events []api.Event) error {
+	f.ReceivedEvents = append(f.ReceivedEvents, events...)
 	return nil
 }
 
 func (f *FakeEventReporter) QueueEvent(event api.Event, callback func(error)) {
-	e := f.Report(event)
+	e := f.Report([]api.Event{event})
 	callback(e)
 }

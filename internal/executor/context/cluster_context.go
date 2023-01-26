@@ -6,10 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/clock"
-
-	"k8s.io/utils/pointer"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -20,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
 	discovery_informer "k8s.io/client-go/informers/discovery/v1"
@@ -27,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/cluster"
@@ -63,6 +61,7 @@ type ClusterContext interface {
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error)
+	DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error
 	DeletePods(pods []*v1.Pod)
 	DeleteService(service *v1.Service) error
 	DeleteIngress(ingress *networking.Ingress) error
@@ -323,6 +322,59 @@ func (c *KubernetesClusterContext) AddClusterEventAnnotation(event *v1.Event, an
 	return nil
 }
 
+func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	if !condition(pod) {
+		return fmt.Errorf("pod does not match provided condition")
+	}
+
+	currentPod := pod
+	if !util.IsMarkedForDeletion(pod) {
+		_, err := c.markForDeletion(pod)
+		if err != nil {
+			return err
+		}
+		currentPod, err = c.waitForPodUpdateInLocalCache(pod, time.Second*5)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !condition(currentPod) {
+		return fmt.Errorf("pod does not match provided condition")
+	}
+
+	deleteOptions := metav1.DeleteOptions{GracePeriodSeconds: nil}
+	if pessimistic {
+		deleteOptions.Preconditions = &metav1.Preconditions{
+			ResourceVersion: &currentPod.ResourceVersion,
+		}
+	}
+
+	err := c.deletePod(currentPod, deleteOptions)
+	if err != nil && k8s_errors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+func (c *KubernetesClusterContext) waitForPodUpdateInLocalCache(pod *v1.Pod, timeout time.Duration) (*v1.Pod, error) {
+	timeoutContext, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		if timeoutContext.Err() != nil {
+			return nil, fmt.Errorf("giving up waiting for pod informer cache sync for pod %s", pod.Name)
+		}
+		cachedPod, err := c.podInformer.Lister().Pods(pod.Namespace).Get(pod.Name)
+		if err != nil {
+			return nil, err
+		}
+		if cachedPod.ResourceVersion != pod.ResourceVersion {
+			return cachedPod, nil
+		}
+		time.Sleep(time.Millisecond * 50)
+	}
+}
+
 func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 	for _, podToDelete := range pods {
 		c.podsToDelete.AddIfNotExists(podToDelete)
@@ -389,7 +441,7 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 		if force {
 			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
 		}
-		err = c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, deleteOptions)
+		err = c.deletePod(pod, deleteOptions)
 	}
 
 	if err == nil || k8s_errors.IsNotFound(err) {
@@ -398,6 +450,10 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 		log.Errorf("Failed to delete pod %s/%s because %s", pod.Namespace, pod.Name, err)
 		c.podsToDelete.Delete(podId)
 	}
+}
+
+func (c *KubernetesClusterContext) deletePod(pod *v1.Pod, deleteOptions metav1.DeleteOptions) error {
+	return c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, deleteOptions)
 }
 
 func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {

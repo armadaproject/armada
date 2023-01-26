@@ -103,6 +103,13 @@ func (c *SyncFakeClusterContext) AddClusterEventAnnotation(event *v1.Event, anno
 	return nil
 }
 
+func (c *SyncFakeClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	if condition(pod) {
+		c.DeletePods([]*v1.Pod{pod})
+	}
+	return nil
+}
+
 func (c *SyncFakeClusterContext) DeletePods(pods []*v1.Pod) {
 	for _, p := range pods {
 		delete(c.Pods, p.Labels[domain.JobId])

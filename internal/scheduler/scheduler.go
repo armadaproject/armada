@@ -12,6 +12,7 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -35,6 +36,8 @@ type Scheduler struct {
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs
 	leaderController LeaderController
+	// We intern strings to save memory
+	stringInterner *util.StringInterner
 	// Responsible for publishing messages to Pulsar.  Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduling cycles.
@@ -61,6 +64,7 @@ func NewScheduler(
 	schedulingAlgo SchedulingAlgo,
 	leaderController LeaderController,
 	publisher Publisher,
+	stringInterner *util.StringInterner,
 	cyclePeriod time.Duration,
 	executorTimeout time.Duration,
 	maxLeaseReturns uint,
@@ -75,6 +79,7 @@ func NewScheduler(
 		schedulingAlgo:     schedulingAlgo,
 		leaderController:   leaderController,
 		publisher:          publisher,
+		stringInterner:     stringInterner,
 		jobDb:              jobDb,
 		clock:              clock.RealClock{},
 		cyclePeriod:        cyclePeriod,
@@ -237,7 +242,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		}
 		job = job.DeepCopy()
 		if job == nil {
-			job, err = createSchedulerJob(&dbJob)
+			job, err = s.createSchedulerJob(&dbJob)
 			if err != nil {
 				return nil, err
 			}
@@ -272,7 +277,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		returnProcessed := false
 		run := job.RunById(dbRun.RunID)
 		if run == nil {
-			run = createSchedulerRun(&dbRun)
+			run = s.createSchedulerRun(&dbRun)
 			job.Runs = append(job.Runs, run)
 		} else {
 			returnProcessed = run.Returned
@@ -404,7 +409,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 		return nil, err
 	}
 
-	// Has the job been requested cancelled.  If so, cancel the job
+	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested {
 		job.Cancelled = true
 		cancel := &armadaevents.EventSequence_Event{
@@ -610,17 +615,18 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 }
 
 // createSchedulerJob creates a new scheduler job from a database job
-func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
+func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
 		return nil, errors.Wrapf(
 			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
+	s.internJobSchedulingInfoStrings(schedulingInfo)
 	return &SchedulerJob{
 		JobId:             dbJob.JobID,
-		Jobset:            dbJob.JobSet,
-		Queue:             dbJob.Queue,
+		Jobset:            s.stringInterner.Intern(dbJob.JobSet),
+		Queue:             s.stringInterner.Intern(dbJob.Queue),
 		Queued:            true,
 		Priority:          uint32(dbJob.Priority),
 		jobSchedulingInfo: schedulingInfo,
@@ -631,15 +637,30 @@ func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 }
 
 // createSchedulerRun creates a new scheduler job run from a database job run
-func createSchedulerRun(dbRun *database.Run) *JobRun {
+func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *JobRun {
 	return &JobRun{
 		RunID:     dbRun.RunID,
-		Executor:  dbRun.Executor,
+		Executor:  s.stringInterner.Intern(dbRun.Executor),
 		Running:   dbRun.Running,
 		Succeeded: dbRun.Succeeded,
 		Failed:    dbRun.Failed,
 		Cancelled: dbRun.Cancelled,
 		Returned:  dbRun.Returned,
+	}
+}
+
+func (s *Scheduler) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) {
+	for _, requirement := range info.ObjectRequirements {
+		if podRequirement := requirement.GetPodRequirements(); podRequirement != nil {
+			for k, v := range podRequirement.Annotations {
+				podRequirement.Annotations[s.stringInterner.Intern(k)] = s.stringInterner.Intern(v)
+			}
+
+			for k, v := range podRequirement.NodeSelector {
+				podRequirement.NodeSelector[s.stringInterner.Intern(k)] = s.stringInterner.Intern(v)
+			}
+			podRequirement.PreemptionPolicy = s.stringInterner.Intern(podRequirement.PreemptionPolicy)
+		}
 	}
 }
 

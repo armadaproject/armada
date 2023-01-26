@@ -5,24 +5,13 @@ import (
 	"container/heap"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-)
-
-var (
-	testPriorityClasses   = []configuration.PriorityClass{{0, nil}, {1, nil}, {2, nil}, {3, nil}}
-	testPriorities        = []int32{0, 1, 2, 3}
-	testResources         = []string{"cpu", "memory", "gpu"}
-	testIndexedTaints     = []string{"largeJobsOnly", "gpu"}
-	testIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
 )
 
 func TestNodesIterator(t *testing.T) {
@@ -341,158 +330,6 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 				return
 			}
 		})
-	}
-}
-
-func testNodeItems1() []*schedulerobjects.Node {
-	return []*schedulerobjects.Node{
-		{
-			Id:         "node1",
-			NodeTypeId: "foo",
-			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("3"),
-					"memory": resource.MustParse("3Gi"),
-				},
-			},
-		},
-		{
-			Id:         "node2",
-			NodeTypeId: "foo",
-			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("6"),
-					"memory": resource.MustParse("6Gi"),
-				},
-			},
-		},
-		{
-			Id:         "node3",
-			NodeTypeId: "bar",
-			NodeType:   &schedulerobjects.NodeType{Id: "bar"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("9"),
-					"memory": resource.MustParse("9Gi"),
-				},
-			},
-		},
-	}
-}
-
-func testNCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testCpuNode(priorities)
-	}
-	return rv
-}
-
-func testNTaintedCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testTaintedCpuNode(priorities)
-	}
-	return rv
-}
-
-func testNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testGpuNode(priorities)
-	}
-	return rv
-}
-
-func testCpuNode(priorities []int32) *schedulerobjects.Node {
-	return &schedulerobjects.Node{
-		Id: uuid.NewString(),
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		),
-	}
-}
-
-func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
-	taints := []v1.Taint{
-		{
-			Key:    "largeJobsOnly",
-			Value:  "true",
-			Effect: v1.TaintEffectNoSchedule,
-		},
-	}
-	labels := map[string]string{
-		"largeJobsOnly": "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
-		Taints: taints,
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		),
-	}
-}
-
-func testGpuNode(priorities []int32) *schedulerobjects.Node {
-	labels := map[string]string{
-		"gpu": "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		),
 	}
 }
 

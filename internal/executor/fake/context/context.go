@@ -274,6 +274,13 @@ func (c *FakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotati
 	return nil
 }
 
+func (c *FakeClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	if condition(pod) {
+		c.DeletePods([]*v1.Pod{pod})
+	}
+	return nil
+}
+
 func (c *FakeClusterContext) DeletePods(pods []*v1.Pod) {
 	go func() {
 		// wait a little before actual delete

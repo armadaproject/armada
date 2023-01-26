@@ -18,6 +18,14 @@ func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 	return rv
 }
 
+func V1ResourceListFromResourceList(rl ResourceList) v1.ResourceList {
+	rv := make(v1.ResourceList)
+	for t, q := range rl.Resources {
+		rv[v1.ResourceName(t)] = q.DeepCopy()
+	}
+	return rv
+}
+
 type QuantityByPriorityAndResourceType map[int32]ResourceList
 
 func (a QuantityByPriorityAndResourceType) DeepCopy() QuantityByPriorityAndResourceType {
