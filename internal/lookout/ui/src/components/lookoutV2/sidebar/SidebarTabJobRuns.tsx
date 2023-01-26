@@ -46,15 +46,13 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
         .then((errorString) => {
           newRunErrorMap.set(result.runId, errorString)
           setRunErrorMap(new Map(newRunErrorMap))
-
-          newRunErrorLoadingMap.set(result.runId, "Idle")
-          setRunErrorLoadingMap(new Map(newRunErrorLoadingMap))
         })
         .catch(async (e) => {
           const errMsg = await getErrorMessage(e)
           console.error(errMsg)
           openSnackbar("Failed to retrieve Job Run error for Run with ID: " + result.runId + ": " + errMsg, "error")
-
+        })
+        .finally(() => {
           newRunErrorLoadingMap.set(result.runId, "Idle")
           setRunErrorLoadingMap(new Map(newRunErrorLoadingMap))
         })
