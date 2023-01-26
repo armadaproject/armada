@@ -26,6 +26,7 @@ export interface JobsTableActionBarProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
+
 export const JobsTableActionBar = memo(
   ({
     isLoading,

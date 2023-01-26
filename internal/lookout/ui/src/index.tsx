@@ -14,6 +14,8 @@ import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/loo
 import reportWebVitals from "./reportWebVitals"
 import { LookoutJobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
 import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
@@ -49,6 +51,7 @@ import "./index.css"
   const v2GroupJobsService = fakeDataEnabled
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(lookoutV2BaseUrl)
+  const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService(lookoutV2BaseUrl)
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
 
   ReactDOM.render(
@@ -58,6 +61,7 @@ import "./index.css"
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
       v2UpdateJobsService={v2UpdateJobsService}
+      v2RunErrorService={v2RunErrorService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
