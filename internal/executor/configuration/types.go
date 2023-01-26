@@ -86,37 +86,38 @@ type TaskConfiguration struct {
 type MetricConfiguration struct {
 	Port                    uint16
 	ExposeQueueUsageMetrics bool
+	CustomUsageMetrics      []CustomUsageMetrics
 }
 
-type CustomPodUtilisationMetrics struct {
+type CustomUsageMetrics struct {
 	Namespace                  string
 	EndpointSelectorLabelName  string
 	EndpointSelectorLabelValue string
-	Metrics                    []CustomPodUtilisationMetric
+	Metrics                    []CustomUsageMetric
 }
 
-type CustomPodUtilisationMetric struct {
+type CustomUsageMetric struct {
 	Name                   string
 	PrometheusMetricName   string
 	PrometheusPodNameLabel string
 	AggregateType          AggregateType
+	Multiplier             float64
 }
 
-type AggregateType int64
+type AggregateType string
 
 const (
-	Sum AggregateType = iota
-	Mean
+	Sum  AggregateType = "Sum"
+	Mean               = "Mean"
 )
 
 type ExecutorConfiguration struct {
-	HttpPort                    uint16
-	Metric                      MetricConfiguration
-	Application                 ApplicationConfiguration
-	ApiConnection               client.ApiConnectionDetails
-	Client                      ClientConfiguration
-	CustomPodUtilisationMetrics []CustomPodUtilisationMetrics
-	GRPC                        keepalive.ClientParameters
+	HttpPort      uint16
+	Metric        MetricConfiguration
+	Application   ApplicationConfiguration
+	ApiConnection client.ApiConnectionDetails
+	Client        ClientConfiguration
+	GRPC          keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

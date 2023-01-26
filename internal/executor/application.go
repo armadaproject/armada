@@ -127,15 +127,15 @@ func StartUpWithContext(
 	)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
-	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
+	podUtilisationService := utilisation.NewPodUtilisationService(
 		clusterContext,
 		nodeInfoService,
-		config.CustomPodUtilisationMetrics,
+		config.Metric.CustomUsageMetrics,
 		&http.Client{Timeout: 15 * time.Second},
 	)
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
-		queueUtilisationService,
+		podUtilisationService,
 		nodeInfoService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
@@ -160,7 +160,7 @@ func StartUpWithContext(
 
 	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 
-	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
+	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
@@ -169,12 +169,12 @@ func StartUpWithContext(
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
-		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
+		taskManager.Register(podUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
 
 		if config.Task.UtilisationEventReportingInterval > 0 {
 			podUtilisationReporter := utilisation.NewUtilisationEventReporter(
 				clusterContext,
-				queueUtilisationService,
+				podUtilisationService,
 				eventReporter,
 				config.Task.UtilisationEventReportingInterval)
 			taskManager.Register(

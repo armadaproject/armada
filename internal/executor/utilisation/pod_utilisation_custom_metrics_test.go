@@ -45,15 +45,15 @@ func TestUpdateMetrics(t *testing.T) {
 	expectedUtilisationData := map[string]*domain.UtilisationData{
 		"pod1": {
 			CurrentUsage: armadaresource.ComputeResources{
-				"accelerator-duty-cycle":      makeQuantity(1),
-				"accelerator-memory-pct-util": makeQuantity(4),
+				"gpu":                          makeQuantity(1),
+				"accelerator-memory-copy-util": makeQuantity(4),
 			},
 			CumulativeUsage: armadaresource.ComputeResources{},
 		},
 		"pod2": {
 			CurrentUsage: armadaresource.ComputeResources{
-				"accelerator-duty-cycle":      makeMilliQuantity(2500),
-				"accelerator-memory-pct-util": makeQuantity(11),
+				"gpu":                          makeMilliQuantity(550),
+				"accelerator-memory-copy-util": makeQuantity(5),
 			},
 			CumulativeUsage: armadaresource.ComputeResources{},
 		},
@@ -63,30 +63,31 @@ func TestUpdateMetrics(t *testing.T) {
 	assert.Equal(t, expectedUtilisationData, podNameToUtilisationData)
 }
 
-func makeTestConfig() []configuration.CustomPodUtilisationMetric {
-	return []configuration.CustomPodUtilisationMetric{
+func makeTestConfig() []configuration.CustomUsageMetric {
+	return []configuration.CustomUsageMetric{
 		{
-			Name:                   "accelerator-duty-cycle",
+			Name:                   "gpu",
 			PrometheusMetricName:   "DCGM_FI_DEV_GPU_UTIL",
 			PrometheusPodNameLabel: "pod",
-			AggregateType:          configuration.Mean,
+			AggregateType:          configuration.Sum,
+			Multiplier:             0.01,
 		},
 		{
-			Name:                   "accelerator-memory-pct-util",
+			Name:                   "accelerator-memory-copy-util",
 			PrometheusMetricName:   "DCGM_FI_DEV_MEM_COPY_UTIL",
 			PrometheusPodNameLabel: "pod",
-			AggregateType:          configuration.Sum,
+			AggregateType:          configuration.Mean,
 		},
 	}
 }
 
 func makeTestSamples() model.Vector {
 	return []*model.Sample{
-		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_GPU_UTIL", "pod": "pod1", "gpu": "gpu1"}, Value: 1},
-		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_GPU_UTIL", "pod": "pod2", "gpu": "gpu2"}, Value: 2},
-		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_GPU_UTIL", "pod": "pod2", "gpu": "gpu3"}, Value: 3},
+		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_GPU_UTIL", "pod": "pod1", "gpu": "gpu1"}, Value: 100},
+		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_GPU_UTIL", "pod": "pod2", "gpu": "gpu2"}, Value: 20},
+		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_GPU_UTIL", "pod": "pod2", "gpu": "gpu3"}, Value: 35},
 		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_MEM_COPY_UTIL", "pod": "pod1", "gpu": "gpu1"}, Value: 4},
-		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_MEM_COPY_UTIL", "pod": "pod2", "gpu": "gpu2"}, Value: 5},
+		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_MEM_COPY_UTIL", "pod": "pod2", "gpu": "gpu2"}, Value: 4},
 		{Metric: model.Metric{model.MetricNameLabel: "DCGM_FI_DEV_MEM_COPY_UTIL", "pod": "pod2", "gpu": "gpu3"}, Value: 6},
 	}
 }

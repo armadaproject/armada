@@ -36,10 +36,10 @@ type podUtilisationFetcher interface {
 	fetch(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext clusterContext.ClusterContext)
 }
 
-func NewMetricsServerQueueUtilisationService(
+func NewPodUtilisationService(
 	clusterContext cluster_context.ClusterContext,
 	nodeInfoService node.NodeInfoService,
-	customConfigs []configuration.CustomPodUtilisationMetrics,
+	customConfigs []configuration.CustomUsageMetrics,
 	httpClient *http.Client,
 ) *PodUtilisationServiceImpl {
 	fetchers := []podUtilisationFetcher{newPodUtilisationKubeletMetrics()}

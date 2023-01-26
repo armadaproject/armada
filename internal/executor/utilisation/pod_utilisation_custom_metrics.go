@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
@@ -17,14 +18,18 @@ import (
 
 type podUtilisationCustomMetrics struct {
 	httpClient *http.Client
-	config     *configuration.CustomPodUtilisationMetrics
+	config     *configuration.CustomUsageMetrics
+	clock      clock.Clock
 }
 
-func newPodUtilisationCustomMetrics(httpClient *http.Client, config *configuration.CustomPodUtilisationMetrics) *podUtilisationCustomMetrics {
-	return &podUtilisationCustomMetrics{httpClient: httpClient, config: config}
+func newPodUtilisationCustomMetrics(httpClient *http.Client, config *configuration.CustomUsageMetrics) *podUtilisationCustomMetrics {
+	log.Infof("Configuring %d custom usage metrics to be scraped from %s %s=%s", len(config.Metrics), config.Namespace, config.EndpointSelectorLabelName, config.EndpointSelectorLabelValue)
+	return &podUtilisationCustomMetrics{httpClient: httpClient, config: config, clock: clock.RealClock{}}
 }
 
 func (m *podUtilisationCustomMetrics) fetch(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext clusterContext.ClusterContext) {
+	start := m.clock.Now()
+
 	endpointSlices, err := clusterContext.GetEndpointSlices(m.config.Namespace, m.config.EndpointSelectorLabelName, m.config.EndpointSelectorLabelValue)
 	if err != nil {
 		log.Warnf("could not get prometheus metrics endpoint slices, abandoning custom prometheus scrape: %v", err)
@@ -36,9 +41,12 @@ func (m *podUtilisationCustomMetrics) fetch(nodes []*v1.Node, podNameToUtilisati
 	samples := scrapeUrls(urls, extractPrometheusMetricNames(m.config.Metrics), m.httpClient)
 
 	updateMetrics(samples, m.config.Metrics, podNameToUtilisationData)
+
+	taken := m.clock.Now().Sub(start)
+	log.Infof("Scraped %d urls for custom usage metrics %s %s=%s in %s, got back %d samples", len(urls), m.config.Namespace, m.config.EndpointSelectorLabelName, m.config.EndpointSelectorLabelValue, taken, len(samples))
 }
 
-func updateMetrics(samples model.Vector, metrics []configuration.CustomPodUtilisationMetric, podNameToUtilisationData map[string]*domain.UtilisationData) {
+func updateMetrics(samples model.Vector, metrics []configuration.CustomUsageMetric, podNameToUtilisationData map[string]*domain.UtilisationData) {
 	samplesByMetricName := groupSamplesBy(samples, model.MetricNameLabel)
 	for _, metric := range metrics {
 		metricSamples, exists := samplesByMetricName[model.LabelValue(metric.PrometheusMetricName)]
@@ -49,16 +57,20 @@ func updateMetrics(samples model.Vector, metrics []configuration.CustomPodUtilis
 	}
 }
 
-func updateMetric(metricSamples model.Vector, metric configuration.CustomPodUtilisationMetric, podNameToUtilisationData map[string]*domain.UtilisationData) {
+func updateMetric(metricSamples model.Vector, metric configuration.CustomUsageMetric, podNameToUtilisationData map[string]*domain.UtilisationData) {
 	metricSamplesByPod := groupSamplesBy(metricSamples, model.LabelName(metric.PrometheusPodNameLabel))
 	for podName, podData := range podNameToUtilisationData {
 		if metricPodSamples, exists := metricSamplesByPod[model.LabelValue(podName)]; exists {
-			podData.CurrentUsage[metric.Name] = toQuantity(aggregateSamples(metricPodSamples, metric.AggregateType))
+			val := aggregateSamples(metricPodSamples, metric.AggregateType)
+			if metric.Multiplier > 0 {
+				val *= metric.Multiplier
+			}
+			podData.CurrentUsage[metric.Name] = toQuantity(val)
 		}
 	}
 }
 
-func extractPrometheusMetricNames(specs []configuration.CustomPodUtilisationMetric) []string {
+func extractPrometheusMetricNames(specs []configuration.CustomUsageMetric) []string {
 	var result []string
 	for _, spec := range specs {
 		result = append(result, spec.PrometheusMetricName)
