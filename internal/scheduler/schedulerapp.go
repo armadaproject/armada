@@ -20,6 +20,7 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -107,12 +108,14 @@ func Run(config Configuration) error {
 	// Scheduling
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Starting up scheduling loop")
+	stringInterner, err := util.NewStringInterner(config.InternedStringsCacheSize)
 	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(jobRepository,
 		executorRepository,
 		schedulingAlgo,
 		leaderController,
 		pulsarPublisher,
+		stringInterner,
 		config.CyclePeriod,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries)
