@@ -27,7 +27,7 @@ const (
 )
 
 type podIssue struct {
-	//A copy of the pod when an issue was detected
+	// A copy of the pod when an issue was detected
 	OriginalPodState *v1.Pod
 	JobId            string
 	RunId            string
@@ -50,7 +50,7 @@ type PodIssueService struct {
 
 	stuckTerminatingPodExpiry time.Duration
 
-	//JobRunId -> PodIssue
+	// JobRunId -> PodIssue
 	knownPodIssues map[string]*podIssue
 	podIssueMutex  sync.Mutex
 }
@@ -59,8 +59,8 @@ func NewPodIssueService(
 	clusterContext executorContext.ClusterContext,
 	eventReporter reporter.EventReporter,
 	pendingPodChecker podchecks.PodChecker,
-	stuckTerminatingPodExpiry time.Duration) *PodIssueService {
-
+	stuckTerminatingPodExpiry time.Duration,
+) *PodIssueService {
 	podIssueService := &PodIssueService{
 		clusterContext:            clusterContext,
 		eventReporter:             eventReporter,
@@ -290,7 +290,7 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 		}
 	}
 
-	//jobRunAttempted := issue.Issue.Type != UnableToSchedule
+	// jobRunAttempted := issue.Issue.Type != UnableToSchedule
 	returnLeaseEvent := reporter.CreateReturnLeaseEvent(issue.Issue.OriginalPodState, issue.Issue.Message, p.clusterContext.GetClusterId())
 	err := p.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: issue.Issue.RunId}})
 	if err != nil {
@@ -332,7 +332,7 @@ func createStuckPodMessage(retryable bool, originalMessage string) string {
 func (p *PodIssueService) handleDeletedPod(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
-		//TODO updated is pod finished and reported
+		// TODO updated is pod finished and reported
 		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if isUnexpectedDeletion {
 			p.registerIssue(&podIssue{
