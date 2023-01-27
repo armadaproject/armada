@@ -151,6 +151,18 @@ func TestConvertSequence(t *testing.T) {
 				MarkJobsCancelled{f.JobIdString: true},
 			},
 		},
+		"PositionMarker": {
+			events: []*armadaevents.EventSequence_Event{f.PartitionMarker},
+			expected: []DbOperation{
+				InsertPartitionMarker{markers: []*schedulerdb.Marker{
+					{
+						GroupID:     f.PartitionMarkerGroupIdUuid,
+						PartitionID: f.PartitionMarkerPartitionId,
+						//Created:     baseTime,
+					},
+				}},
+			},
+		},
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{

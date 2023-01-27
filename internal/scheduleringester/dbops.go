@@ -101,6 +101,9 @@ type (
 	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
 	MarkRunsRunning            map[uuid.UUID]bool
 	InsertJobRunErrors         map[uuid.UUID]*schedulerdb.JobRunError
+	InsertPartitionMarker      struct {
+		markers []*schedulerdb.Marker
+	}
 )
 
 type JobSetOperation interface {
@@ -167,6 +170,15 @@ func (a MarkRunsRunning) Merge(b DbOperation) bool {
 
 func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
+}
+
+func (a InsertPartitionMarker) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case InsertPartitionMarker:
+		a.markers = append(a.markers, op.markers...)
+		return true
+	}
+	return false
 }
 
 // mergeInMap merges an op b into a, provided that b is of the same type as a.
@@ -257,6 +269,11 @@ func (a MarkRunsFailed) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
+}
+
+func (a InsertPartitionMarker) CanBeAppliedBefore(b DbOperation) bool {
+	// Partition markers can never be brought forward
+	return false
 }
 
 func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {

@@ -200,6 +200,24 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
+		"Insert PositionMarkers": {Ops: []DbOperation{
+			InsertPartitionMarker{
+				markers: []*schedulerdb.Marker{
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 1,
+					},
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 3,
+					},
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 2,
+					},
+				},
+			},
+		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -272,7 +290,6 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				v.LastModified = job.LastModified
 			}
 		}
-		// assert.Equal(t, expected, actual)
 		for k, v := range expected {
 			assert.Equal(t, v, actual[k])
 		}
@@ -490,6 +507,10 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				Error: a.Error,
 			}
 		}
+		assert.Equal(t, expected, actual)
+	case InsertPartitionMarker:
+		var markers []*schedulerdb.Marker
+		actual := InsertPartitionMarker{markers: markers}
 		assert.Equal(t, expected, actual)
 	default:
 		return errors.Errorf("received unexpected op %+v", op)

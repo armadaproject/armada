@@ -12,7 +12,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -185,7 +184,6 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 						capturedPartitions[key] = true
 					}
 					if numPublished > tc.numSuccessfulPublishes {
-						log.Info("returning error")
 						return pulsarutils.NewMessageId(numPublished), errors.New("error from mock pulsar producer")
 					}
 					return pulsarutils.NewMessageId(numPublished), nil

@@ -158,10 +158,9 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "job_run_errors", records)
-		if err != nil {
-			return err
-		}
+		return database.Upsert(ctx, s.db, "job_run_errors", records)
+	case InsertPartitionMarker:
+		return database.Upsert(ctx, s.db, "markers", o.markers)
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
