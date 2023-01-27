@@ -1459,6 +1459,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("runAttempted", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? RunAttempted { get; set; }
+    
     
     }
     
