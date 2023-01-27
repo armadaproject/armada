@@ -158,7 +158,7 @@ func TestConvertSequence(t *testing.T) {
 					{
 						GroupID:     f.PartitionMarkerGroupIdUuid,
 						PartitionID: f.PartitionMarkerPartitionId,
-						//Created:     baseTime,
+						Created:     f.BaseTime,
 					},
 				}},
 			},

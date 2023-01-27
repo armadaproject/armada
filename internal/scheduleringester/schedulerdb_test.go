@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
@@ -509,9 +510,15 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, expected, actual)
 	case InsertPartitionMarker:
-		var markers []*schedulerdb.Marker
-		actual := InsertPartitionMarker{markers: markers}
-		assert.Equal(t, expected, actual)
+		actual, err := queries.SelectAllMarkers(ctx)
+		require.NoError(t, err)
+		require.Equal(t, len(expected.markers), len(actual))
+		for i, expectedMarker := range actual {
+			actualMarker := actual[i]
+			assert.Equal(t, expectedMarker.GroupID, actualMarker.GroupID)
+			assert.Equal(t, expectedMarker.PartitionID, actualMarker.PartitionID)
+			assert.Equal(t, expectedMarker.Created, actualMarker.Created)
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}
