@@ -1,0 +1,11 @@
+.codeBlock {
+    display: block;
+    white-space: pre;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: scroll;
+    max-width: 100%;
+    min-width: 100px;
+    padding: 5px;
+    background: #1b1b1b none;
+    color: #fff;
+}

@@ -3,8 +3,6 @@ package service
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/pkg/api"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,35 +15,38 @@ import (
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+type ClusterAllocator interface {
+	AllocateSpareClusterCapacity()
+}
+
 type ClusterAllocationService struct {
-	leaseService       LeaseService
+	leaseRequester     LeaseRequester
 	eventReporter      reporter.EventReporter
 	utilisationService utilisation.UtilisationService
 	clusterContext     context.ClusterContext
 	submitter          job.Submitter
 	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
-	reserved           armadaresource.ComputeResources
 }
 
 func NewClusterAllocationService(
 	clusterContext context.ClusterContext,
 	eventReporter reporter.EventReporter,
-	leaseService LeaseService,
+	leaseRequester LeaseRequester,
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
-	reserved armadaresource.ComputeResources,
 ) *ClusterAllocationService {
 	return &ClusterAllocationService{
-		leaseService:       leaseService,
+		leaseRequester:     leaseRequester,
 		eventReporter:      eventReporter,
 		utilisationService: utilisationService,
 		clusterContext:     clusterContext,
 		submitter:          submitter,
 		etcdHealthMonitor:  etcdHealthMonitor,
-		reserved:           reserved,
 	}
 }
 
@@ -56,7 +57,142 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()
+	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(false)
+	if err != nil {
+		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
+		return
+	}
+
+	unassignedRunIds, err := allocationService.getUnassignedRunIds()
+	if err != nil {
+		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
+		return
+	}
+
+	nodes := make([]*api.NodeInfo, 0, len(capacityReport.Nodes))
+	for _, node := range capacityReport.Nodes {
+		nodes = append(nodes, &node)
+	}
+
+	newJobRuns, runsToCancel, err := allocationService.leaseRequester.LeaseJobRuns(
+		capacityReport.AvailableCapacity,
+		nodes,
+		unassignedRunIds,
+	)
+	if err != nil {
+		log.Errorf("failed to lease new jobs: %v", err)
+		return
+	}
+
+	logAvailableResources(capacityReport, len(newJobRuns))
+
+	failedJobs := allocationService.submitter.SubmitExecutorApiJobs(newJobRuns)
+	allocationService.processFailedJobs(failedJobs)
+	allocationService.processRunsToCancel(runsToCancel)
+}
+
+// Returns the RunIds of all managed pods that haven't been assigned to a node
+func (allocationService *ClusterAllocationService) getUnassignedRunIds() ([]armadaevents.Uuid, error) {
+	allManagedPods, err := allocationService.clusterContext.GetBatchPods()
+	if err != nil {
+		return nil, err
+	}
+
+	unassignedPods := util.FilterPods(allManagedPods, func(pod *v1.Pod) bool {
+		return pod.Spec.NodeName == ""
+	})
+
+	runIds := make([]string, 0, len(unassignedPods))
+	for _, unassignedPod := range unassignedPods {
+		runId := util.ExtractJobRunId(unassignedPod)
+		runIds = append(runIds, runId)
+	}
+
+	return util.StringUuidsToUuids(runIds)
+}
+
+func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmissions []*job.FailedSubmissionDetails) {
+	for _, details := range failedSubmissions {
+		message := details.Error.Error()
+		if apiError, ok := details.Error.(errors.APIStatus); ok {
+			message = apiError.Status().Message
+		}
+		jobRunId := util.ExtractJobRunId(details.Pod)
+
+		if details.Recoverable {
+			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId())
+			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: jobRunId}})
+			if err != nil {
+				log.Errorf("Failed to return lease for job %s because %s", details.JobId, err)
+			}
+		} else {
+			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
+			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: jobRunId}})
+			if err != nil {
+				log.Errorf("Failed to report submission as failed for job %s because %s", details.JobId, err)
+			}
+		}
+	}
+}
+
+func (allocationService *ClusterAllocationService) processRunsToCancel(runsToCancel []*armadaevents.Uuid) {
+	runsToCancelStrings := util.UuidsToStrings(runsToCancel)
+	runsToCancelSet := util2.StringListToSet(runsToCancelStrings)
+
+	managedPods, err := allocationService.clusterContext.GetBatchPods()
+	if err != nil {
+		log.Errorf("Failed to cancel runs because unable to get a current managed pods due to %s", err)
+		return
+	}
+
+	podsToDelete := make([]*v1.Pod, 0, len(runsToCancel))
+	for _, pod := range managedPods {
+		runId := util.ExtractJobRunId(pod)
+		if _, ok := runsToCancelSet[runId]; ok {
+			podsToDelete = append(podsToDelete, pod)
+		}
+	}
+	allocationService.clusterContext.DeletePods(podsToDelete)
+}
+
+type LegacyClusterAllocationService struct {
+	leaseService       LeaseService
+	eventReporter      reporter.EventReporter
+	utilisationService utilisation.UtilisationService
+	clusterContext     context.ClusterContext
+	submitter          job.Submitter
+	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
+	reserved           armadaresource.ComputeResources
+}
+
+func NewLegacyClusterAllocationService(
+	clusterContext context.ClusterContext,
+	eventReporter reporter.EventReporter,
+	leaseService LeaseService,
+	utilisationService utilisation.UtilisationService,
+	submitter job.Submitter,
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	reserved armadaresource.ComputeResources,
+) *LegacyClusterAllocationService {
+	return &LegacyClusterAllocationService{
+		leaseService:       leaseService,
+		eventReporter:      eventReporter,
+		utilisationService: utilisationService,
+		clusterContext:     clusterContext,
+		submitter:          submitter,
+		etcdHealthMonitor:  etcdHealthMonitor,
+		reserved:           reserved,
+	}
+}
+
+func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCapacity() {
+	// If a health monitor is provided, avoid leasing jobs when etcd is almost full.
+	if allocationService.etcdHealthMonitor != nil && !allocationService.etcdHealthMonitor.IsWithinSoftHealthLimit() {
+		log.Warnf("Skipping allocating spare cluster capacity as etcd is at its soft health limit")
+		return
+	}
+
+	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(true)
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
@@ -80,7 +216,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	failedJobs := allocationService.submitter.SubmitJobs(newJobs)
+	failedJobs := allocationService.submitter.SubmitApiJobs(newJobs)
 	if err := allocationService.processFailedJobs(failedJobs); err != nil {
 		log.Errorf("failed to process failed jobs: %v", err)
 	}
@@ -114,7 +250,7 @@ func isActive(pod *v1.Pod) bool {
 	return !util.IsInTerminalState(pod)
 }
 
-func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmissions []*job.FailedSubmissionDetails) error {
+func (allocationService *LegacyClusterAllocationService) processFailedJobs(failedSubmissions []*job.FailedSubmissionDetails) error {
 	toBeReportedDone := make([]string, 0, 10)
 
 	for _, details := range failedSubmissions {
@@ -127,10 +263,10 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 			allocationService.returnLease(details.Pod, fmt.Sprintf("Failed to submit pod because %s", message))
 		} else {
 			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
-			err := allocationService.eventReporter.Report([]api.Event{failEvent})
+			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: util.ExtractJobRunId(details.Pod)}})
 
 			if err == nil {
-				toBeReportedDone = append(toBeReportedDone, details.Job.Id)
+				toBeReportedDone = append(toBeReportedDone, details.JobId)
 			}
 		}
 	}
@@ -138,7 +274,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 	return allocationService.leaseService.ReportDone(toBeReportedDone)
 }
 
-func (allocationService *ClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
+func (allocationService *LegacyClusterAllocationService) returnLease(pod *v1.Pod, reason string) {
 	err := allocationService.leaseService.ReturnLease(pod, reason, true)
 	if err != nil {
 		log.Errorf("Failed to return lease for job %s because %s", util.ExtractJobId(pod), err)

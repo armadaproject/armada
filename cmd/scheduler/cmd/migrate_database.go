@@ -29,23 +29,19 @@ func migrateDbCmd() *cobra.Command {
 
 func migrateDatabase(_ *cobra.Command, _ []string) error {
 	timeout := viper.GetDuration("timeout")
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+
 	config, err := loadConfig()
 	if err != nil {
 		return err
 	}
-	start := time.Now()
+
 	log.Info("Beginning scheduler database migration")
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		return errors.WithMessagef(err, "Failed to connect to database")
 	}
-	err = schedulerdb.Migrate(ctx, db)
-	if err != nil {
-		return errors.WithMessagef(err, "Failed to migrate scheduler database")
-	}
-	taken := time.Since(start)
-	log.Infof("Scheduler database migrated in %s", taken)
-	return nil
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return schedulerdb.Migrate(ctx, db)
 }

@@ -22,7 +22,7 @@ import (
 )
 
 type UtilisationService interface {
-	GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error)
+	GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error)
 	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
 }
 
@@ -117,7 +117,7 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 	return (*r.AvailableCapacity)[resource]
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity() (*ClusterAvailableCapacityReport, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
@@ -159,6 +159,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			AvailableResources:   available,
 			TotalResources:       allocatable,
 			AllocatedResources:   allocated,
+			RunIds:               getRunIds(nodePods, useLegacyIds),
 		})
 	}
 
@@ -166,6 +167,15 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		AvailableCapacity: &availableResource, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
+}
+
+// This is required until we transition to the Executor API
+// The server api expects job ids whereas the executor api expects run ids
+func getRunIds(pods []*v1.Pod, useLegacyIds bool) []string {
+	if useLegacyIds {
+		util.ExtractJobIds(pods)
+	}
+	return util.ExtractJobRunIds(pods)
 }
 
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {

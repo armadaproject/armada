@@ -5,7 +5,6 @@
 package database
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,9 +41,9 @@ type JobRunError struct {
 }
 
 type Marker struct {
-	GroupID     uuid.UUID    `db:"group_id"`
-	PartitionID int32        `db:"partition_id"`
-	Created     sql.NullTime `db:"created"`
+	GroupID     uuid.UUID `db:"group_id"`
+	PartitionID int32     `db:"partition_id"`
+	Created     time.Time `db:"created"`
 }
 
 type Queue struct {

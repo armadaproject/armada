@@ -108,6 +108,22 @@ func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
 }
 
+func ExtractJobRunIds(pods []*v1.Pod) []string {
+	runIds := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		if runId := ExtractJobRunId(pod); runId != "" {
+			runIds = append(runIds, runId)
+		}
+	}
+
+	return runIds
+}
+
+func ExtractJobRunId(pod *v1.Pod) string {
+	return pod.Labels[domain.JobRunId]
+}
+
 func ExtractPodNumber(pod *v1.Pod) int {
 	i, _ := strconv.Atoi(pod.Labels[domain.PodNumber])
 	return i

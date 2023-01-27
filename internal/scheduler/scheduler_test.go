@@ -202,6 +202,9 @@ func TestCycle(t *testing.T) {
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{jobsToSchedule: tc.expectedJobRunLeased, shouldError: tc.scheduleError}
 			publisher := &testPublisher{shouldError: tc.publishError}
+			stringInterner, err := util.NewStringInterner(100)
+			require.NoError(t, err)
+
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
 				heartbeatTime = heartbeatTime.Add(-2 * clusterTimeout)
@@ -215,6 +218,7 @@ func TestCycle(t *testing.T) {
 				schedulingAlgo,
 				NewStandaloneLeaderController(),
 				publisher,
+				stringInterner,
 				1*time.Second,
 				clusterTimeout,
 				maxLeaseReturns)
@@ -336,6 +340,8 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
+	stringInterner, err := util.NewStringInterner(100)
+	require.NoError(t, err)
 
 	sched, err := NewScheduler(
 		&jobRepo,
@@ -343,6 +349,7 @@ func TestRun(t *testing.T) {
 		schedulingAlgo,
 		leaderController,
 		publisher,
+		stringInterner,
 		1*time.Second,
 		1*time.Hour,
 		maxLeaseReturns)

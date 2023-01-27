@@ -43,7 +43,7 @@ export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }
   [JobRunState.RunLeaseReturned]: { displayName: "Lease Returned" },
   [JobRunState.RunPreempted]: { displayName: "Preempted" },
   [JobRunState.RunLeaseExpired]: { displayName: "Lease Expired" },
-  [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Expired" },
+  [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Exceeded" },
 }
 
 type ColoredState = {
@@ -82,7 +82,6 @@ export type JobRun = {
   started?: string
   finished?: string
   jobRunState: JobRunState
-  error?: string
   exitCode?: number
 }
 
