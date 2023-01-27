@@ -13,7 +13,7 @@ import (
 // PruneDb removes completed jobs (and related runs and errors) from the database if their `lastUpdateTime`
 // is more than `keepAfterCompletion` in the past.
 // Jobs are deleted in batches across transactions. This means that if this job fails midway through, it still
-// may have deleted som jobs.
+// may have deleted some jobs.
 // The function will run until the supplied context is cancelled.
 func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion time.Duration, clock clock.Clock) error {
 	start := time.Now()
