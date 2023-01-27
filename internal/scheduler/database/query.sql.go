@@ -23,6 +23,15 @@ func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, err
 	return count, err
 }
 
+const deleteOldMarkers = `-- name: DeleteOldMarkers :exec
+DELETE FROM markers WHERE created < $1::timestamptz
+`
+
+func (q *Queries) DeleteOldMarkers(ctx context.Context, cutoff time.Time) error {
+	_, err := q.db.Exec(ctx, deleteOldMarkers, cutoff)
+	return err
+}
+
 const findActiveRuns = `-- name: FindActiveRuns :many
 SELECT run_id FROM runs WHERE run_id = ANY($1::UUID[])
                          AND (succeeded = false AND failed = false AND cancelled = false)
@@ -146,6 +155,102 @@ func (q *Queries) SelectAllExecutors(ctx context.Context) ([]Executor, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectAllJobIds = `-- name: SelectAllJobIds :many
+SELECT job_id FROM jobs
+`
+
+func (q *Queries) SelectAllJobIds(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, selectAllJobIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var job_id string
+		if err := rows.Scan(&job_id); err != nil {
+			return nil, err
+		}
+		items = append(items, job_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectAllMarkers = `-- name: SelectAllMarkers :many
+SELECT group_id, partition_id, created FROM markers
+`
+
+func (q *Queries) SelectAllMarkers(ctx context.Context) ([]Marker, error) {
+	rows, err := q.db.Query(ctx, selectAllMarkers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Marker
+	for rows.Next() {
+		var i Marker
+		if err := rows.Scan(&i.GroupID, &i.PartitionID, &i.Created); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectAllRunErrors = `-- name: SelectAllRunErrors :many
+SELECT run_id, job_id, error FROM job_run_errors
+`
+
+func (q *Queries) SelectAllRunErrors(ctx context.Context) ([]JobRunError, error) {
+	rows, err := q.db.Query(ctx, selectAllRunErrors)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobRunError
+	for rows.Next() {
+		var i JobRunError
+		if err := rows.Scan(&i.RunID, &i.JobID, &i.Error); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectAllRunIds = `-- name: SelectAllRunIds :many
+SELECT run_id FROM runs
+`
+
+func (q *Queries) SelectAllRunIds(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, selectAllRunIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var run_id uuid.UUID
+		if err := rows.Scan(&run_id); err != nil {
+			return nil, err
+		}
+		items = append(items, run_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
