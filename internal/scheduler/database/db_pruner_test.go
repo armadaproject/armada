@@ -150,7 +150,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 }
 
 func TestPruneDb_RemoveMarkers(t *testing.T) {
-	baseTime := time.Now().UTC()
+	baseTime := time.Now().UTC().Round(1 * time.Microsecond) // postgres only has micro precision
 	defaultKeepAfterDuration := 1 * time.Hour
 	expiredMarkerTime := baseTime.Add(-defaultKeepAfterDuration).Add(-time.Second).UTC()
 	defaultGroupId := uuid.New()
