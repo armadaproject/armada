@@ -78,7 +78,7 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 			}
 
 			// Delete everything that's present in the batch table
-			// Do this all in oe call so as to be more terse with the syntax
+			// Do this all in one call so as to be more terse with the syntax
 			_, err = tx.Exec(ctx, `
 						DELETE FROM runs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM jobs WHERE job_id in (SELECT job_id from batch);
