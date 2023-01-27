@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"regexp"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -188,6 +190,10 @@ func (c *FakeClusterContext) SubmitIngress(ingress *networking.Ingress) (*networ
 
 func (c *FakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error) {
 	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
+}
+
+func (c *FakeClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
+	return nil, fmt.Errorf("EndpointSlices not implemented in SyncFakeClusterContext")
 }
 
 func (c *FakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
