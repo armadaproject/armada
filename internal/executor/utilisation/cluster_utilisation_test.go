@@ -15,7 +15,7 @@ import (
 
 func TestCreateReportsOfQueueUsages(t *testing.T) {
 	utilisationService := &ClusterUtilisationService{
-		queueUtilisationService: NewMetricsServerQueueUtilisationService(nil, nil),
+		queueUtilisationService: NewPodUtilisationService(nil, nil, nil, nil),
 	}
 
 	var priority int32
@@ -39,7 +39,7 @@ func TestCreateReportsOfQueueUsages(t *testing.T) {
 
 func TestCreateReportsOfQueueUsages_WhenAllPending(t *testing.T) {
 	utilisationService := &ClusterUtilisationService{
-		queueUtilisationService: NewMetricsServerQueueUtilisationService(nil, nil),
+		queueUtilisationService: NewPodUtilisationService(nil, nil, nil, nil),
 	}
 
 	var priority int32
