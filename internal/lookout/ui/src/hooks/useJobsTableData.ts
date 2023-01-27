@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table"
 import { JobTableRow, JobRow, JobGroupRow } from "models/jobsTableModels"
 import { Job, JobId } from "models/lookoutV2Models"
-import { SnackbarProvider } from "notistack"
+import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
@@ -37,8 +37,9 @@ export interface UseFetchJobsTableDataArgs {
   updateSelectedRows: (newState: RowSelectionState) => void
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  enqueueSnackbar: SnackbarProvider["enqueueSnackbar"]
+  openSnackbar: (message: string, variant: VariantType) => void
 }
+
 export interface UseFetchJobsTableDataResult {
   data: JobTableRow[]
   jobInfoMap: Map<JobId, Job>
@@ -47,6 +48,7 @@ export interface UseFetchJobsTableDataResult {
   setRowsToFetch: (toFetch: PendingData[]) => void
   totalRowCount: number
 }
+
 export const useFetchJobsTableData = ({
   groupedColumns,
   expandedState,
@@ -58,7 +60,7 @@ export const useFetchJobsTableData = ({
   updateSelectedRows,
   getJobsService,
   groupJobsService,
-  enqueueSnackbar,
+  openSnackbar,
 }: UseFetchJobsTableDataArgs): UseFetchJobsTableDataResult => {
   const [data, setData] = useState<JobTableRow[]>([])
   const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
@@ -123,7 +125,7 @@ export const useFetchJobsTableData = ({
         }
 
         const errMsg = await getErrorMessage(err)
-        enqueueSnackbar("Failed to retrieve jobs. Error: " + errMsg, { variant: "error" })
+        openSnackbar("Failed to retrieve jobs. Error: " + errMsg, "error")
         return
       }
 

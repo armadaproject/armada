@@ -12,6 +12,8 @@ import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeTestJobs } from "utils/fakeJobsUtils"
 import { formatJobState, formatUtcDate } from "utils/jobsTableFormatters"
 
+import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
+import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { JobsTableContainer } from "./JobsTableContainer"
 
 // This is quite a heavy component, and tests can timeout on a slower machine
@@ -22,6 +24,7 @@ describe("JobsTableContainer", () => {
   let jobs: Job[],
     getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
+    runErrorService: IGetRunErrorService,
     updateJobsService: UpdateJobsService,
     historyService: History,
     jobsTablePreferencesService: JobsTablePreferencesService
@@ -33,6 +36,7 @@ describe("JobsTableContainer", () => {
     jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
     getJobsService = new FakeGetJobsService(jobs, false)
     groupJobsService = new FakeGroupJobsService(jobs, false)
+    runErrorService = new FakeGetRunErrorService(false)
 
     historyService = createMemoryHistory()
     jobsTablePreferencesService = new JobsTablePreferencesService(historyService)
@@ -50,6 +54,7 @@ describe("JobsTableContainer", () => {
           getJobsService={getJobsService}
           groupJobsService={groupJobsService}
           updateJobsService={updateJobsService}
+          runErrorService={runErrorService}
           debug={false}
         />
       </SnackbarProvider>,
