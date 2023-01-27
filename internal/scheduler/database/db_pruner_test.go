@@ -152,7 +152,8 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 func TestPruneDb_RemoveMarkers(t *testing.T) {
 	baseTime := time.Now().UTC()
 	defaultKeepAfterDuration := 1 * time.Hour
-	expiredMarkerTime := baseTime.Add(-defaultKeepAfterDuration).Add(-time.Second)
+	expiredMarkerTime := baseTime.Add(-defaultKeepAfterDuration).Add(-time.Second).UTC()
+	defaultGroupId := uuid.New()
 	tests := map[string]struct {
 		markers                  []Marker
 		expectedMarkersPostPrune []Marker
@@ -160,7 +161,7 @@ func TestPruneDb_RemoveMarkers(t *testing.T) {
 		"remove old marker": {
 			markers: []Marker{
 				{
-					GroupID:     uuid.New(),
+					GroupID:     defaultGroupId,
 					PartitionID: 1,
 					Created:     expiredMarkerTime,
 				},
@@ -169,14 +170,14 @@ func TestPruneDb_RemoveMarkers(t *testing.T) {
 		"don't remove new marker": {
 			markers: []Marker{
 				{
-					GroupID:     uuid.New(),
+					GroupID:     defaultGroupId,
 					PartitionID: 1,
 					Created:     baseTime,
 				},
 			},
 			expectedMarkersPostPrune: []Marker{
 				{
-					GroupID:     uuid.New(),
+					GroupID:     defaultGroupId,
 					PartitionID: 1,
 					Created:     baseTime,
 				},
@@ -206,6 +207,10 @@ func TestPruneDb_RemoveMarkers(t *testing.T) {
 				remainingMarkers, err := queries.SelectAllMarkers(ctx)
 				require.NoError(t, err)
 
+				// database creates times as local
+				for i, marker := range remainingMarkers {
+					remainingMarkers[i].Created = marker.Created.UTC()
+				}
 				assert.Equal(t, tc.expectedMarkersPostPrune, remainingMarkers)
 				return nil
 			})

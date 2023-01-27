@@ -40,7 +40,7 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 		return errors.WithStack(err)
 	}
 	if totalJobsToDelete == 0 {
-		log.Infof("Fouind no jobs to be deleted. Exiting")
+		log.Infof("Found no jobs to be deleted. Exiting")
 		return nil
 	}
 
