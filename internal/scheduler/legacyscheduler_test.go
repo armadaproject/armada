@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -433,7 +434,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				MaximalResourceFractionPerQueue: common.ComputeResourcesFloat{
 					"gpu": 0,
 				},
-				MaxConsecutiveUnschedulableJobs: 3,
+				MaxLookbackPerQueue: 3,
 			},
 			ExpectedIndices: []int{0},
 		},
@@ -506,6 +507,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				queuedJobsIterator,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
+				tc.SchedulingConstraints.MaxLookbackPerQueue,
 			)
 			it := &QueueCandidateGangIterator[*api.Job]{
 				ctx:                        ctx,
@@ -540,7 +542,8 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		priorityClasses[fmt.Sprintf("%d", priority.Priority)] = priority
 	}
 	return configuration.SchedulingConfig{
-		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
+		QueueLeaseBatchSize: math.MaxUint32,
+		ResourceScarcity:    map[string]float64{"cpu": 1, "memory": 0},
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses: priorityClasses,
 		},
@@ -549,6 +552,11 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 		GangCardinalityAnnotation: testGangCardinalityAnnotation,
 		ExecutorTimeout:           15 * time.Minute,
 	}
+}
+
+func withQueueLeaseBatchSizeConfig(leaseBatchSize uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.QueueLeaseBatchSize = leaseBatchSize
+	return config
 }
 
 func withRoundLimits(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
@@ -1264,6 +1272,19 @@ func TestSchedule(t *testing.T) {
 				"A": {0},
 			},
 		},
+		"QueueLeaseBatchSize Respected": {
+			SchedulingConfig: withQueueLeaseBatchSizeConfig(3, testSchedulingConfig()), // should quit after 3 unschedulable jobs
+			Nodes:            testNCpuNode(1, testPriorities),                          //32 cores
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 3)...), testNSmallCpuJob(0, 1)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
 		"gang scheduling success": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1446,7 +1467,10 @@ func TestSchedule(t *testing.T) {
 						continue
 					}
 
-					for _, job := range jobs {
+					for i, job := range jobs {
+						if i >= int(tc.SchedulingConfig.QueueLeaseBatchSize) {
+							break
+						}
 						jobId, err := uuidFromUlidString(job.Id)
 						if !assert.NoError(t, err) {
 							return

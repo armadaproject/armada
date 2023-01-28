@@ -47,8 +47,8 @@ type SchedulingConstraints struct {
 	ResourceScarcity map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
-	// Max number of consecutive unschedulable jobs to consider for a queue before giving up.
-	MaxConsecutiveUnschedulableJobs uint
+	// Max number of jobs to consider for a queue before giving up.
+	MaxLookbackPerQueue uint
 	// Jobs leased to this executor must be at least this large.
 	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
 	MinimumJobSize schedulerobjects.ResourceList
@@ -89,10 +89,10 @@ func SchedulingConstraintsFromSchedulingConfig(
 		Pool:             pool,
 		ResourceScarcity: config.GetResourceScarcity(pool),
 
-		MaximumJobsToSchedule:                                config.MaximumJobsToSchedule,
-		MaxConsecutiveUnschedulableJobs:                      config.QueueLeaseBatchSize,
-		MinimumJobSize:                                       minimumJobSize,
-		MaximalResourceFractionPerQueue:                      config.MaximalResourceFractionPerQueue,
+		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
+		MaxLookbackPerQueue:             config.QueueLeaseBatchSize,
+		MinimumJobSize:                  minimumJobSize,
+		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
 		MaximalCumulativeResourceFractionPerQueueAndPriority: maximalCumulativeResourceFractionPerQueueAndPriority,
 		MaximalResourceFractionToSchedulePerQueue:            config.MaximalResourceFractionToSchedulePerQueue,
 		MaximalResourceFractionToSchedule:                    config.MaximalClusterFractionToSchedule,
@@ -126,19 +126,29 @@ type QueuedGangIterator[T LegacySchedulerJob] struct {
 	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
 	jobsByGangId map[string][]T
+	// Maximum number of jobs to look at before giving up
+	maxLookback uint
+	// Number of jobs we have seen so far
+	jobsSeen uint
 }
 
-func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIterator[T], gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator[T] {
+func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIterator[T], gangIdAnnotation, gangCardinalityAnnotation string, maxLookback uint) *QueuedGangIterator[T] {
 	return &QueuedGangIterator[T]{
 		ctx:                       ctx,
 		queuedJobsIterator:        it,
 		gangIdAnnotation:          gangIdAnnotation,
 		gangCardinalityAnnotation: gangCardinalityAnnotation,
 		jobsByGangId:              make(map[string][]T),
+		maxLookback:               maxLookback,
 	}
 }
 
 func (it *QueuedGangIterator[T]) Next() ([]T, error) {
+
+	if it.jobsSeen >= it.maxLookback {
+		return nil, nil
+	}
+
 	if it.jobsByGangId == nil {
 		it.jobsByGangId = make(map[string][]T)
 	}
@@ -148,6 +158,7 @@ func (it *QueuedGangIterator[T]) Next() ([]T, error) {
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
 		job, err := it.queuedJobsIterator.Next()
+		it.jobsSeen++
 		if err != nil {
 			return nil, err
 		}
@@ -188,14 +199,12 @@ type QueueCandidateGangIterator[T LegacySchedulerJob] struct {
 }
 
 func (it *QueueCandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
-	var consecutiveUnschedulableJobs uint
+
 	for gang, err := it.queuedGangIterator.Next(); gang != nil; gang, err = it.queuedGangIterator.Next() {
 		if err != nil {
 			return nil, err
 		}
-		if it.MaxConsecutiveUnschedulableJobs != 0 && consecutiveUnschedulableJobs == it.MaxConsecutiveUnschedulableJobs {
-			break
-		}
+
 		reports, err := it.schedulingReportsFromJobs(it.ctx, gang)
 		if err != nil {
 			return nil, err
@@ -212,7 +221,6 @@ func (it *QueueCandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], erro
 			for _, report := range reports {
 				it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
 			}
-			consecutiveUnschedulableJobs++
 		} else {
 			return reports, nil
 		}
@@ -573,6 +581,7 @@ func NewLegacyScheduler[T LegacySchedulerJob](
 			queuedJobsIterator,
 			config.GangIdAnnotation,
 			config.GangCardinalityAnnotation,
+			config.QueueLeaseBatchSize,
 		)
 
 		// Enforce per-queue constraints.
