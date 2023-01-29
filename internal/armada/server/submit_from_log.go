@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"reflect"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/armadaproject/armada/internal/common/requestid"
 	"github.com/armadaproject/armada/internal/common/util"

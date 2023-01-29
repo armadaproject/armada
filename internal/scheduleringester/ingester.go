@@ -1,16 +1,18 @@
 package scheduleringester
 
 import (
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 
 	"github.com/armadaproject/armada/internal/common/database"
 
-	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/ingest"

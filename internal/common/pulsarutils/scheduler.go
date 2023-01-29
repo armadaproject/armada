@@ -12,9 +12,11 @@ const (
 	Pulsar
 )
 
-const SchedulerNameKey string = "schedulerName"
-const PulsarScheduler string = "pulsar"
-const LegacyScheduler string = "legacy"
+const (
+	SchedulerNameKey string = "schedulerName"
+	PulsarScheduler  string = "pulsar"
+	LegacyScheduler  string = "legacy"
+)
 
 func SchedulerFromMsg(msg pulsar.Message) Scheduler {
 	s := msg.Properties()[SchedulerNameKey]
