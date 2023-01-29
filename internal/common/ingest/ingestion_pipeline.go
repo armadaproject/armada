@@ -211,11 +211,6 @@ func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metr
 		// As they must be acked at the end
 		messageIds[i] = msg.ID()
 
-		// If it's not a control message then ignore
-		if !armadaevents.IsControlMessage(msg) {
-			continue
-		}
-
 		// Try and unmarshall the proto
 		es, err := eventutil.UnmarshalEventSequence(context.Background(), msg.Payload())
 		if err != nil {

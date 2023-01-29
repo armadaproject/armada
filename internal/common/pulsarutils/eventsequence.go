@@ -68,8 +68,7 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 			&pulsar.ProducerMessage{
 				Payload: payloads[i],
 				Properties: map[string]string{
-					requestid.MetadataKey:                     requestId,
-					armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+					requestid.MetadataKey: requestId,
 				},
 				Key: sequences[i].JobSetName,
 			},
