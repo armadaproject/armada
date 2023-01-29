@@ -2,10 +2,11 @@ package scheduleringester
 
 import (
 	"context"
+	"time"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/compress"
