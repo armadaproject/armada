@@ -1274,7 +1274,7 @@ func TestSchedule(t *testing.T) {
 		},
 		"QueueLeaseBatchSize Respected": {
 			SchedulingConfig: withQueueLeaseBatchSizeConfig(3, testSchedulingConfig()), // should quit after 3 unschedulable jobs
-			Nodes:            testNCpuNode(1, testPriorities),                          //32 cores
+			Nodes:            testNCpuNode(1, testPriorities),                          // 32 cores
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 3)...), testNSmallCpuJob(0, 1)...),
 			},

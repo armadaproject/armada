@@ -144,7 +144,6 @@ func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIter
 }
 
 func (it *QueuedGangIterator[T]) Next() ([]T, error) {
-
 	if it.jobsSeen >= it.maxLookback {
 		return nil, nil
 	}
@@ -199,7 +198,6 @@ type QueueCandidateGangIterator[T LegacySchedulerJob] struct {
 }
 
 func (it *QueueCandidateGangIterator[T]) Next() ([]*JobSchedulingReport[T], error) {
-
 	for gang, err := it.queuedGangIterator.Next(); gang != nil; gang, err = it.queuedGangIterator.Next() {
 		if err != nil {
 			return nil, err
