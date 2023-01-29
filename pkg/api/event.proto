@@ -55,6 +55,7 @@ message JobLeaseReturnedEvent {
     string reason = 6;
     string kubernetes_id = 7;
     int32  pod_number = 8;
+    bool run_attempted = 9;
 }
 
 message JobLeaseExpiredEvent {

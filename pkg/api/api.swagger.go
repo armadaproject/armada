@@ -967,6 +967,9 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"reason\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"runAttempted\": {\n" +
+		"          \"type\": \"boolean\"\n" +
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
