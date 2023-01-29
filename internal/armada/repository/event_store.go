@@ -54,5 +54,5 @@ func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences)
+	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences, pulsarutils.Legacy)
 }

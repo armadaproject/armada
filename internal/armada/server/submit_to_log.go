@@ -736,7 +736,7 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences)
+	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences, pulsarutils.Legacy)
 }
 
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId

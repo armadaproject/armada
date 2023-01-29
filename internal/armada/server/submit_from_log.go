@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"reflect"
 	"time"
 
@@ -105,6 +106,13 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
 				time.Sleep(100 * time.Millisecond)
+				break
+			}
+
+			// If this message isn't for us we can simply ack it
+			// and go to the next message
+			if !pulsarutils.ForLegacyScheduler(msg) {
+				srv.Consumer.Ack(msg)
 				break
 			}
 

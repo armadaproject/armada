@@ -43,7 +43,7 @@ type EventSequencesWithIds struct {
 	MessageIds     []pulsar.MessageID
 }
 
-// IngestionPipeline is an pipeline that reads message from pulsar and inserts them into a sink. The pipeline will
+// IngestionPipeline is a pipeline that reads message from pulsar and inserts them into a sink. The pipeline will
 // handle the following automatically:
 //   - Receiving messages from pulsar
 //   - Combining messages into batches for efficient processing
@@ -59,16 +59,44 @@ type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarSubscriptionName string
 	pulsarBatchSize        int
 	pulsarBatchDuration    time.Duration
+	msgFilter              func(msg pulsar.Message) bool
 	converter              InstructionConverter[T]
 	sink                   Sink[T]
 	consumer               pulsar.Consumer // for test purposes only
 }
 
+// NewIngestionPipeline creates an IngestionPipeline that processes all pulsar messages
 func NewIngestionPipeline[T HasPulsarMessageIds](
 	pulsarConfig configuration.PulsarConfig,
 	pulsarSubscriptionName string,
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,
+	converter InstructionConverter[T],
+	sink Sink[T],
+	metricsConfig configuration.MetricsConfig,
+	metrics *commonmetrics.Metrics,
+) *IngestionPipeline[T] {
+	return NewFilteredMsgIngestionPipeline[T](
+		pulsarConfig,
+		pulsarSubscriptionName,
+		pulsarBatchSize,
+		pulsarBatchDuration,
+		func(_ pulsar.Message) bool { return true },
+		converter,
+		sink,
+		metricsConfig,
+		metrics,
+	)
+}
+
+// NewFilteredMsgIngestionPipeline creates an IngestionPipeline that processes only messages corresponding to the
+// supplied message filter
+func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
+	pulsarConfig configuration.PulsarConfig,
+	pulsarSubscriptionName string,
+	pulsarBatchSize int,
+	pulsarBatchDuration time.Duration,
+	msgFilter func(msg pulsar.Message) bool,
 	converter InstructionConverter[T],
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
@@ -81,6 +109,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 		pulsarSubscriptionName: pulsarSubscriptionName,
 		pulsarBatchSize:        pulsarBatchSize,
 		pulsarBatchDuration:    pulsarBatchDuration,
+		msgFilter:              msgFilter,
 		converter:              converter,
 		sink:                   sink,
 	}
@@ -105,7 +134,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	}
 	pulsarMsgs := pulsarutils.Receive(ctx, ingester.consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
 
-	// Setup a context that n seconds after ctx
+	// Set up a context that n seconds after ctx
 	// This gives the rest of the pipeline a chance to flush pending messages
 	pipelineShutdownContext, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -131,7 +160,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 	eventSequences := make(chan *EventSequencesWithIds)
 	go func() {
 		for msg := range batchedMsgs {
-			converted := unmarshalEventSequences(msg, ingester.metrics)
+			converted := unmarshalEventSequences(msg, ingester.msgFilter, ingester.metrics)
 			eventSequences <- converted
 		}
 		close(eventSequences)
@@ -202,7 +231,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 	}, nil
 }
 
-func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
+func unmarshalEventSequences(batch []pulsar.Message, msgFilter func(msg pulsar.Message) bool, metrics *commonmetrics.Metrics) *EventSequencesWithIds {
 	sequences := make([]*armadaevents.EventSequence, 0, len(batch))
 	messageIds := make([]pulsar.MessageID, len(batch))
 	for i, msg := range batch {
@@ -210,6 +239,11 @@ func unmarshalEventSequences(batch []pulsar.Message, metrics *commonmetrics.Metr
 		// Record the messageId- we need to record all message Ids, even if the event they contain is invalid
 		// As they must be acked at the end
 		messageIds[i] = msg.ID()
+
+		// If we're not interested in this then continue
+		if !msgFilter(msg) {
+			continue
+		}
 
 		// Try and unmarshall the proto
 		es, err := eventutil.UnmarshalEventSequence(context.Background(), msg.Payload())

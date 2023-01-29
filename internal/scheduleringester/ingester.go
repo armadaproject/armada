@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -8,8 +9,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -29,26 +28,18 @@ func Run(config Configuration) {
 	}
 	schedulerDb := NewSchedulerDb(db, metrics, 100*time.Millisecond, 60*time.Second)
 
-	// Discard submit job messages not intended for this scheduler.
-	submitJobFilter := func(event *armadaevents.EventSequence_Event) bool {
-		// Discard if a SubmitJob event that doesn't target this scheduler.
-		if e := event.GetSubmitJob(); e != nil && e.Scheduler != "pulsar" {
-			return false
-		}
-		return true
-	}
-
 	compressor, err := compress.NewZlibCompressor(1024)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error creating  compressor"))
 	}
-	converter := NewInstructionConverter(metrics, submitJobFilter, config.PriorityClasses, compressor)
+	converter := NewInstructionConverter(metrics, config.PriorityClasses, compressor)
 
-	ingester := ingest.NewIngestionPipeline(
+	ingester := ingest.NewFilteredMsgIngestionPipeline(
 		config.Pulsar,
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,
+		pulsarutils.ForPulsarScheduler,
 		converter,
 		schedulerDb,
 		config.Metrics,

@@ -27,20 +27,17 @@ type eventSequenceCommon struct {
 
 type InstructionConverter struct {
 	metrics         *metrics.Metrics
-	eventFilter     func(event *armadaevents.EventSequence_Event) bool
 	priorityClasses map[string]configuration.PriorityClass
 	compressor      compress.Compressor
 }
 
 func NewInstructionConverter(
 	metrics *metrics.Metrics,
-	filter func(event *armadaevents.EventSequence_Event) bool,
 	priorityClasses map[string]configuration.PriorityClass,
 	compressor compress.Compressor,
 ) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
 	return &InstructionConverter{
 		metrics:         metrics,
-		eventFilter:     filter,
 		priorityClasses: priorityClasses,
 		compressor:      compressor,
 	}
@@ -69,51 +66,49 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
-		if c.eventFilter(event) {
-			var err error = nil
-			var operationsFromEvent []DbOperation
-			switch event.GetEvent().(type) {
-			case *armadaevents.EventSequence_Event_SubmitJob:
-				operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
-			case *armadaevents.EventSequence_Event_JobRunLeased:
-				operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
-			case *armadaevents.EventSequence_Event_JobRunRunning:
-				operationsFromEvent, err = c.handleJobRunRunning(event.GetJobRunRunning())
-			case *armadaevents.EventSequence_Event_JobRunSucceeded:
-				operationsFromEvent, err = c.handleJobRunSucceeded(event.GetJobRunSucceeded())
-			case *armadaevents.EventSequence_Event_JobRunErrors:
-				operationsFromEvent, err = c.handleJobRunErrors(event.GetJobRunErrors())
-			case *armadaevents.EventSequence_Event_JobSucceeded:
-				operationsFromEvent, err = c.handleJobSucceeded(event.GetJobSucceeded())
-			case *armadaevents.EventSequence_Event_JobErrors:
-				operationsFromEvent, err = c.handleJobErrors(event.GetJobErrors())
-			case *armadaevents.EventSequence_Event_ReprioritiseJob:
-				operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob())
-			case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
-				operationsFromEvent, err = c.handleReprioritiseJobSet(event.GetReprioritiseJobSet(), meta)
-			case *armadaevents.EventSequence_Event_CancelJob:
-				operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob())
-			case *armadaevents.EventSequence_Event_CancelJobSet:
-				operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
-			case *armadaevents.EventSequence_Event_CancelledJob:
-				operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
-			case *armadaevents.EventSequence_Event_ReprioritisedJob,
-				*armadaevents.EventSequence_Event_JobDuplicateDetected,
-				*armadaevents.EventSequence_Event_ResourceUtilisation,
-				*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-				*armadaevents.EventSequence_Event_JobRunPreempted:
-				// These events can all be safely ignored
-				log.Debugf("Ignoring event type %T", event)
-			default:
-				// This is an event type we haven't considered. Log a warning
-				log.Warnf("Ignoring unknown event type %T", event)
-			}
-			if err != nil {
-				c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-				log.WithError(err).Warnf("Could not convert event at index %d.", idx)
-			} else {
-				operations = append(operations, operationsFromEvent...)
-			}
+		var err error = nil
+		var operationsFromEvent []DbOperation
+		switch event.GetEvent().(type) {
+		case *armadaevents.EventSequence_Event_SubmitJob:
+			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
+		case *armadaevents.EventSequence_Event_JobRunLeased:
+			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
+		case *armadaevents.EventSequence_Event_JobRunRunning:
+			operationsFromEvent, err = c.handleJobRunRunning(event.GetJobRunRunning())
+		case *armadaevents.EventSequence_Event_JobRunSucceeded:
+			operationsFromEvent, err = c.handleJobRunSucceeded(event.GetJobRunSucceeded())
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			operationsFromEvent, err = c.handleJobRunErrors(event.GetJobRunErrors())
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			operationsFromEvent, err = c.handleJobSucceeded(event.GetJobSucceeded())
+		case *armadaevents.EventSequence_Event_JobErrors:
+			operationsFromEvent, err = c.handleJobErrors(event.GetJobErrors())
+		case *armadaevents.EventSequence_Event_ReprioritiseJob:
+			operationsFromEvent, err = c.handleReprioritiseJob(event.GetReprioritiseJob())
+		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
+			operationsFromEvent, err = c.handleReprioritiseJobSet(event.GetReprioritiseJobSet(), meta)
+		case *armadaevents.EventSequence_Event_CancelJob:
+			operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob())
+		case *armadaevents.EventSequence_Event_CancelJobSet:
+			operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
+		case *armadaevents.EventSequence_Event_ReprioritisedJob,
+			*armadaevents.EventSequence_Event_JobDuplicateDetected,
+			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
+			*armadaevents.EventSequence_Event_JobRunPreempted:
+			// These events can all be safely ignored
+			log.Debugf("Ignoring event type %T", event)
+		default:
+			// This is an event type we haven't considered. Log a warning
+			log.Warnf("Ignoring unknown event type %T", event)
+		}
+		if err != nil {
+			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+			log.WithError(err).Warnf("Could not convert event at index %d.", idx)
+		} else {
+			operations = append(operations, operationsFromEvent...)
 		}
 	}
 	return operations
