@@ -144,7 +144,9 @@ func NewQueuedGangIterator[T LegacySchedulerJob](ctx context.Context, it JobIter
 }
 
 func (it *QueuedGangIterator[T]) Next() ([]T, error) {
-	if it.jobsSeen >= it.maxLookback {
+	// TODO: a maxLookback of 0 should probably be an error at construction time, however we treat it as
+	// an infinite lookback to maintain compatibility with the ol system
+	if it.maxLookback != 0 && it.jobsSeen >= it.maxLookback {
 		return nil, nil
 	}
 
