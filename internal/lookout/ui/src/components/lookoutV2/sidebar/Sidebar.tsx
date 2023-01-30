@@ -4,6 +4,7 @@ import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
 import { Job } from "models/lookoutV2Models"
 
+import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
 import { SidebarHeader } from "./SidebarHeader"
 import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
 import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
@@ -17,9 +18,10 @@ enum SidebarTab {
 
 export interface SidebarProps {
   job: Job
+  runErrorService: IGetRunErrorService
   onClose: () => void
 }
-export const Sidebar = memo(({ job, onClose }: SidebarProps) => {
+export const Sidebar = memo(({ job, runErrorService, onClose }: SidebarProps) => {
   const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
   const handleTabChange = useCallback((_, newValue: SidebarTab) => {
     setOpenTab(newValue)
@@ -83,7 +85,7 @@ export const Sidebar = memo(({ job, onClose }: SidebarProps) => {
           </TabPanel>
 
           <TabPanel value={SidebarTab.JobRuns}>
-            <SidebarTabJobRuns job={job} />
+            <SidebarTabJobRuns job={job} runErrorService={runErrorService} />
           </TabPanel>
 
           <TabPanel value={SidebarTab.Yaml}>TODO</TabPanel>

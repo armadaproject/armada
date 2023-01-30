@@ -59,7 +59,7 @@ CREATE INDEX idx_runs_job_set ON runs (job_set);
 CREATE TABLE markers (
     group_id uuid NOT NULL,
     partition_id integer NOT NULL,
-    created timestamptz default now(),
+    created timestamptz NOT NULL default now(),
     PRIMARY KEY (group_id, partition_id)
 );
 

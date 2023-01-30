@@ -324,6 +324,7 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 							Reason:       reason.PodLeaseReturned.GetMessage(),
 							KubernetesId: objectMeta.GetKubernetesId(),
 							PodNumber:    reason.PodLeaseReturned.GetPodNumber(),
+							RunAttempted: reason.PodLeaseReturned.GetRunAttempted(),
 						},
 					},
 				}

@@ -5,13 +5,13 @@ import { LoadingButton } from "@mui/lab"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 
@@ -35,7 +35,7 @@ export const CancelDialog = ({
   const cancellableJobs = useMemo(() => selectedJobs.filter((job) => !isTerminatedJobState(job.state)), [selectedJobs])
   const [isCancelling, setIsCancelling] = useState(false)
   const [hasAttemptedCancel, setHasAttemptedCancel] = useState(false)
-  const { enqueueSnackbar } = useSnackbar()
+  const openSnackbar = useCustomSnackbar()
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
@@ -55,14 +55,14 @@ export const CancelDialog = ({
     const response = await updateJobsService.cancelJobs(cancellableJobs)
 
     if (response.failedJobIds.length === 0) {
-      enqueueSnackbar(
+      openSnackbar(
         "Successfully began cancellation. Jobs may take some time to cancel, but you may navigate away.",
-        { variant: "success" },
+        "success",
       )
     } else if (response.successfulJobIds.length === 0) {
-      enqueueSnackbar("All jobs failed to cancel. See table for error responses.", { variant: "error" })
+      openSnackbar("All jobs failed to cancel. See table for error responses.", "error")
     } else {
-      enqueueSnackbar("Some jobs failed to cancel. See table for error responses.", { variant: "warning" })
+      openSnackbar("Some jobs failed to cancel. See table for error responses.", "warning")
     }
 
     const newResponseStatus = { ...jobIdsToCancelResponses }
