@@ -31,7 +31,12 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 			Message: "nodeInfo.Name is empty",
 		})
 	}
-	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
+	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(
+		allowedPriorities,
+		schedulerobjects.ResourceList{
+			Resources: nodeInfo.TotalResources,
+		},
+	)
 	for p, rs := range nodeInfo.AllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
@@ -69,6 +74,7 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 		}
 	}
 	return &schedulerobjects.JobSchedulingInfo{
+		PriorityClassName:  podSpecs[0].PriorityClassName,
 		ObjectRequirements: objectRequirements,
 	}
 }

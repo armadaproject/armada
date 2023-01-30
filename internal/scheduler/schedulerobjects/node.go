@@ -1,6 +1,8 @@
 package schedulerobjects
 
 import (
+	"fmt"
+
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -32,4 +34,11 @@ func (node *Node) DeepCopy() *Node {
 		).DeepCopy(),
 		AllocatedByJobId: allocatedByJobId,
 	}
+}
+
+func (node *Node) CompactString() string {
+	if node == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("Node{Id; %s}", node.Id)
 }

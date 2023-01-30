@@ -192,14 +192,10 @@ func (rl ResourceList) CompactString() string {
 // where alloctable resources = unused resources + resources allocated to lower-priority pods.
 type AllocatableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAllocatableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AllocatableByPriorityAndResourceType {
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) AllocatableByPriorityAndResourceType {
 	rv := make(AllocatableByPriorityAndResourceType)
 	for _, priority := range priorities {
-		m := make(map[string]resource.Quantity)
-		for t, q := range resources {
-			m[t] = q.DeepCopy()
-		}
-		rv[priority] = ResourceList{Resources: m}
+		rv[priority] = rl.DeepCopy()
 	}
 	return rv
 }

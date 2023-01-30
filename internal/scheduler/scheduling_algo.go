@@ -161,7 +161,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 ) ([]*SchedulerJob, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	nodeDb, err := l.constructNodeDb(executor.Nodes, l.priorityClassPriorities)
+	nodeDb, err := l.constructNodeDb(executor.Nodes, l.config.Preemption.PriorityClasses)
 	if err != nil {
 		return nil, err
 	}
@@ -211,10 +211,10 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	return updatedJobs, nil
 }
 
-func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, priorities []int32) (*NodeDb, error) {
+func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
 	// Nodes to be considered by the scheduler.
 	nodeDb, err := NewNodeDb(
-		priorities,
+		priorityClasses,
 		l.indexedResources,
 		l.config.IndexedTaints,
 		l.config.IndexedNodeLabels,

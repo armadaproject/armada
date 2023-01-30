@@ -100,7 +100,8 @@ message JobSchedulingInfo {
     uint32 lifetime = 1;
     bool atMostOnce = 2;
     bool preemptible = 3;
-    bool concurrencySafe = 4;
+    bool concurrencySafe = 4;    
+    string PriorityClassName = 6;
     // Kubernetes objects that make up this job and their respective scheduling requirements.
     repeated ObjectRequirements objectRequirements = 5;
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -93,6 +94,43 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 		assert.Nil(t, report.Node)
 		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
 	}
+}
+
+func TestPodToFromNodeBinding(t *testing.T) {
+	node := testGpuNode(testPriorities)
+	req := testGpuJob(0)
+	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+
+	nodeDb, err := createNodeDb([]*schedulerobjects.Node{node})
+	require.NoError(t, err)
+
+	txn := nodeDb.Txn(true)
+	err = nodeDb.BindPodToNode(txn, req, node)
+	require.NoError(t, err)
+
+	jobId, err := nodeDb.JobIdFromPodRequirements(req)
+	require.NoError(t, err)
+
+	newNode, err := nodeDb.GetNodeWithTxn(txn, node.Id)
+	require.NoError(t, err)
+	assert.Equal(t, []string{jobId}, maps.Keys(newNode.AllocatedByJobId))
+	assert.True(
+		t,
+		request.Equal(newNode.AllocatedByJobId[jobId]),
+	)
+
+	expectedAllocatable := newNode.TotalResources.DeepCopy()
+	expectedAllocatable.Sub(request)
+	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
+
+	err = nodeDb.UnbindPodFromNode(txn, req, newNode)
+	require.NoError(t, err)
+	newNode, err = nodeDb.GetNodeWithTxn(txn, node.Id)
+	require.NoError(t, err)
+
+	assert.Empty(t, newNode.AllocatedByJobId)
+	expectedAllocatable = newNode.TotalResources.DeepCopy()
+	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
 }
 
 func TestSelectAndBindNodeToPod(t *testing.T) {
@@ -303,7 +341,7 @@ func TestScheduleMany(t *testing.T) {
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	db, err := NewNodeDb(
-		testPriorities,
+		testPriorityClasses,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
@@ -326,7 +364,7 @@ func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(testNCpuNode(100000, 
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
 	db, err := NewNodeDb(
-		testPriorities,
+		testPriorityClasses,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,

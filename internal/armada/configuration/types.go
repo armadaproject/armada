@@ -201,6 +201,8 @@ type PreemptionConfig struct {
 
 type PriorityClass struct {
 	Priority int32
+	// If true, Armada will may automatically preempt jobs of this class.
+	AutoBalanced bool
 	// Max fraction of resources assigned to jobs of this priority or lower.
 	// Must be non-increasing with higher priority.
 	//
@@ -214,6 +216,14 @@ type PriorityClass struct {
 	// - 5: 50%
 	// - 3: 80%
 	MaximalResourceFractionPerQueue map[string]float64
+}
+
+func PrioritiesFromPriorityClasses(priorityClasses map[string]PriorityClass) map[string]int32 {
+	rv := make(map[string]int32, len(priorityClasses))
+	for name, pc := range priorityClasses {
+		rv[name] = pc.Priority
+	}
+	return rv
 }
 
 type DatabaseRetentionPolicy struct {

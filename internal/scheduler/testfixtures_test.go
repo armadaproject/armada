@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -21,7 +22,12 @@ const (
 )
 
 var (
-	testPriorityClasses   = []configuration.PriorityClass{{0, nil}, {1, nil}, {2, nil}, {3, nil}}
+	testPriorityClasses = map[string]configuration.PriorityClass{
+		"priority-0": {0, true, nil},
+		"priority-1": {1, true, nil},
+		"priority-2": {2, true, nil},
+		"priority-3": {3, false, nil},
+	}
 	testPriorities        = []int32{0, 1, 2, 3}
 	testResources         = []string{"cpu", "memory", "gpu"}
 	testIndexedTaints     = []string{"largeJobsOnly", "gpu"}
@@ -192,7 +198,7 @@ func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 		Annotations: map[string]string{
-			JobIdAnnotation: uuid.NewString(),
+			JobIdAnnotation: util.NewULID(),
 		},
 	}
 }
@@ -213,7 +219,7 @@ func testLargeCpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 		Annotations: map[string]string{
-			JobIdAnnotation: uuid.NewString(),
+			JobIdAnnotation: util.NewULID(),
 		},
 	}
 }
@@ -235,7 +241,7 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 			},
 		},
 		Annotations: map[string]string{
-			JobIdAnnotation: uuid.NewString(),
+			JobIdAnnotation: util.NewULID(),
 		},
 	}
 }
@@ -338,9 +344,11 @@ func testCpuNode(priorities []int32) *schedulerobjects.Node {
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
+			schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("32"),
+					"memory": resource.MustParse("256Gi"),
+				},
 			},
 		),
 		Labels: map[string]string{
@@ -374,9 +382,11 @@ func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
+			schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("32"),
+					"memory": resource.MustParse("256Gi"),
+				},
 			},
 		),
 	}
@@ -400,10 +410,12 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
+			schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("64"),
+					"memory": resource.MustParse("1024Gi"),
+					"gpu":    resource.MustParse("8"),
+				},
 			},
 		),
 	}
@@ -411,7 +423,7 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	db, err := NewNodeDb(
-		testPriorities,
+		testPriorityClasses,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,

@@ -10,10 +10,10 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -27,10 +27,10 @@ type NodeDb struct {
 	db *memdb.MemDB
 	// Time at which the most recent upsert took place.
 	timeOfMostRecentUpsert time.Time
-	// Allowed pod priorities in sorted order.
+	// Allowed priority classes in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
-	priorities []int32
+	priorityClasses map[string]configuration.PriorityClass
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which indexes are created to enable efficient lookup.
 	indexedResources map[string]interface{}
@@ -58,20 +58,23 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
-	db, err := memdb.NewMemDB(nodeDbSchema(priorities, indexedResources))
+func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
+	db, err := memdb.NewMemDB(nodeDbSchema(
+		maps.Values(configuration.PrioritiesFromPriorityClasses(priorityClasses)),
+		indexedResources,
+	))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if len(priorities) == 0 {
+	if len(priorityClasses) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "priorities",
-			Value:   priorities,
-			Message: "there must be at least one supported priority",
+			Name:    "priorityClasses",
+			Value:   priorityClasses,
+			Message: "there must be at least one supported priority class",
 		})
 	}
-	priorities = slices.Clone(priorities)
-	slices.Sort(priorities) // To enable binary search.
+	priorityClasses = maps.Clone(priorityClasses)
+	// slices.Sort(priorities) // To enable binary search. TODO: Do we need this?
 	if len(indexedResources) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "indexedResources",
@@ -87,7 +90,7 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 		return rv
 	}
 	return &NodeDb{
-		priorities:        priorities,
+		priorityClasses:   priorityClasses,
 		indexedResources:  mapFromSlice(indexedResources),
 		indexedTaints:     mapFromSlice(indexedTaints),
 		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
@@ -100,7 +103,7 @@ func NewNodeDb(priorities []int32, indexedResources, indexedTaints, indexedNodeL
 func (nodeDb *NodeDb) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Priorities:\t%v\n", nodeDb.priorities)
+	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.PrioritiesFromPriorityClasses(nodeDb.priorityClasses))
 	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
 	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
 	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
@@ -171,7 +174,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 		// Otherwise, zero out the node binding in all previous reports,
 		// abort the transaction, and return.
 		if report.Node != nil {
-			err = nodeDb.BindNodeToPod(txn, req, report.Node)
+			err = nodeDb.BindPodToNode(txn, req, report.Node)
 			if err != nil {
 				return nil, false, err
 			}
@@ -199,7 +202,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 		return nil, err
 	}
 	if report.Node != nil {
-		err = nodeDb.BindNodeToPod(txn, req, report.Node)
+		err = nodeDb.BindPodToNode(txn, req, report.Node)
 		if err != nil {
 			return nil, err
 		}
@@ -289,28 +292,46 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	return report, nil
 }
 
-func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+func (nodeDb *NodeDb) BindPodToNode(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
 	jobId, err := nodeDb.JobIdFromPodRequirements(req)
 	if err != nil {
 		return err
 	}
-	if _, ok := node.AllocatedByJobId[jobId]; ok {
-		return errors.Errorf("job %s already has resources allocated on this node", jobId)
-	}
 	node = node.DeepCopy()
+	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 	if node.AllocatedByJobId == nil {
 		node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
 	}
-	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-
-	allocatedToJob := node.AllocatedByJobId[jobId]
-	allocatedToJob.Add(requests)
-	node.AllocatedByJobId[jobId] = allocatedToJob
-
+	if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
+		return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
+	} else {
+		allocatedToJob.Add(requests)
+		node.AllocatedByJobId[jobId] = allocatedToJob
+	}
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
 	).MarkAllocated(req.Priority, requests)
+	if err := txn.Insert("nodes", node); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
 
+func (nodeDb *NodeDb) UnbindPodFromNode(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+	jobId, err := nodeDb.JobIdFromPodRequirements(req)
+	if err != nil {
+		return err
+	}
+	node = node.DeepCopy()
+	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+	} else {
+		delete(node.AllocatedByJobId, jobId)
+	}
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocatable(req.Priority, requests)
 	if err := txn.Insert("nodes", node); err != nil {
 		return errors.WithStack(err)
 	}
@@ -448,8 +469,8 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.DeepCopy()
 		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			nodeDb.priorities,
-			nodeDb.totalResources.Resources,
+			maps.Values(configuration.PrioritiesFromPriorityClasses(nodeDb.priorityClasses)),
+			nodeDb.totalResources,
 		)
 		err := txn.Insert("nodes", node)
 		if err != nil {

@@ -3,16 +3,16 @@ package scheduler
 import (
 	"context"
 
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/armadaproject/armada/pkg/api"
 )
 
-// SchedulerJobRepository represents the underlying jobs database.
-type SchedulerJobRepository interface {
-	// GetJobIterator returns a iterator over queued jobs for a given queue.
-	GetJobIterator(ctx context.Context, queue string) (JobIterator, error)
-}
+// // SchedulerJobRepository represents the underlying jobs database.
+// // TODO: Delete in favour of JobRepository.
+// type SchedulerJobRepository interface {
+// 	// GetJobIterator returns a iterator over queued jobs for a given queue.
+// 	GetJobIterator(ctx context.Context, queue string) (JobIterator, error)
+// }
 
 type JobIterator interface {
 	Next() (LegacySchedulerJob, error)
@@ -20,7 +20,74 @@ type JobIterator interface {
 
 type JobRepository interface {
 	GetQueueJobIds(queueName string) ([]string, error)
-	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
+	GetExistingJobsByIds(ids []string) ([]LegacySchedulerJob, error)
+}
+
+type InMemoryJobIterator struct {
+	i    int
+	jobs []LegacySchedulerJob
+}
+
+func NewInMemoryJobIterator(jobs []LegacySchedulerJob) *InMemoryJobIterator {
+	return &InMemoryJobIterator{
+		jobs: slices.Clone(jobs),
+	}
+}
+
+func (it *InMemoryJobIterator) Next() (LegacySchedulerJob, error) {
+	if it.i >= len(it.jobs) {
+		return nil, nil
+	}
+	v := it.jobs[it.i]
+	it.i++
+	return v, nil
+}
+
+type InMemoryJobRepository struct {
+	jobsByQueue map[string][]LegacySchedulerJob
+	jobsById    map[string]LegacySchedulerJob
+}
+
+func NewInMemoryJobRepository() *InMemoryJobRepository {
+	return &InMemoryJobRepository{
+		jobsByQueue: make(map[string][]LegacySchedulerJob),
+		jobsById:    make(map[string]LegacySchedulerJob),
+	}
+}
+
+func (repo *InMemoryJobRepository) EnqueueMany(jobs []LegacySchedulerJob) {
+	for _, job := range jobs {
+		repo.Enqueue(job)
+	}
+}
+
+func (repo *InMemoryJobRepository) Enqueue(job LegacySchedulerJob) {
+	queue := job.GetQueue()
+	repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
+	repo.jobsById[job.GetId()] = job
+}
+
+func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error) {
+	jobs := repo.jobsByQueue[queue]
+	rv := make([]string, len(jobs))
+	for i, job := range jobs {
+		rv[i] = job.GetId()
+	}
+	return rv, nil
+}
+
+func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]LegacySchedulerJob, error) {
+	rv := make([]LegacySchedulerJob, len(jobIds))
+	for i, jobId := range jobIds {
+		if job, ok := repo.jobsById[jobId]; ok {
+			rv[i] = job
+		}
+	}
+	return rv, nil
+}
+
+func (repo *InMemoryJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
+	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
@@ -28,7 +95,7 @@ type JobRepository interface {
 type QueuedJobsIterator struct {
 	ctx context.Context
 	err error
-	c   chan *api.Job
+	c   chan LegacySchedulerJob
 }
 
 func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
@@ -36,7 +103,7 @@ func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository
 	g, ctx := errgroup.WithContext(ctx)
 	it := &QueuedJobsIterator{
 		ctx: ctx,
-		c:   make(chan *api.Job, 2*batchSize), // 2x batchSize to load one batch async.
+		c:   make(chan LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
 	}
 
 	jobIds, err := repo.GetQueueJobIds(queue)
@@ -71,7 +138,7 @@ func (it *QueuedJobsIterator) Next() (LegacySchedulerJob, error) {
 
 // queuedJobsIteratorLoader loads jobs from Redis lazily.
 // Used with QueuedJobsIterator.
-func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan *api.Job, batchSize int, repo JobRepository) error {
+func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan LegacySchedulerJob, batchSize int, repo JobRepository) error {
 	defer close(ch)
 	batch := make([]string, batchSize)
 	for i, jobId := range jobIds {

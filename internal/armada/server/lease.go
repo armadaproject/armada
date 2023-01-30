@@ -14,6 +14,7 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -240,6 +242,26 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	return result.ErrorOrNil()
 }
 
+type SchedulerJobRepositoryAdapter struct {
+	r repository.JobRepository
+}
+
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+	return repo.r.GetQueueJobIds(queue)
+}
+
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]scheduler.LegacySchedulerJob, error) {
+	jobs, err := repo.r.GetExistingJobsByIds(ids)
+	if err != nil {
+		return nil, err
+	}
+	rv := make([]scheduler.LegacySchedulerJob, len(jobs))
+	for i, job := range jobs {
+		rv[i] = job
+	}
+	return rv, nil
+}
+
 func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log.Info("using new scheduler for lease call")
@@ -268,13 +290,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	aggregatedUsageByQueue := q.aggregateUsage(reportsByExecutor, req.Pool)
 
 	// Collect all allowed priorities.
-	priorities := make([]int32, 0)
-	if len(q.schedulingConfig.Preemption.PriorityClasses) > 0 {
-		for _, p := range q.schedulingConfig.Preemption.PriorityClasses {
-			priorities = append(priorities, p.Priority)
-		}
-	} else {
-		priorities = append(priorities, 0)
+	priorities := maps.Values(configuration.PrioritiesFromPriorityClasses(q.schedulingConfig.Preemption.PriorityClasses))
+	if len(priorities) == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "PriorityClasses",
+			Value:   q.schedulingConfig.Preemption.PriorityClasses,
+			Message: "there must be at least one supported priority",
+		})
 	}
 
 	// Nodes to be considered by the scheduler.
@@ -299,7 +321,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		indexedResources = []string{"cpu", "memory"}
 	}
 	nodeDb, err := scheduler.NewNodeDb(
-		priorities,
+		q.schedulingConfig.Preemption.PriorityClasses,
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
@@ -349,7 +371,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	)
 	schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 	for i, apiQueue := range activeQueues {
-		jobIterator, err := scheduler.NewQueuedJobsIterator(ctx, apiQueue.Name, q.jobRepository)
+		jobIterator, err := scheduler.NewQueuedJobsIterator(
+			ctx,
+			apiQueue.Name,
+			&SchedulerJobRepositoryAdapter{
+				r: q.jobRepository,
+			},
+		)
 		if err != nil {
 			return nil, err
 		}

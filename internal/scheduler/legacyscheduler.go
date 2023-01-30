@@ -30,6 +30,7 @@ type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
 	GetAnnotations() map[string]string
+	// SetAnnotation(key, value string)
 	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 }
 
@@ -709,6 +710,54 @@ func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Qu
 	}, nil
 }
 
+// Evict removes from all nodes any jobs of a priority class marked as balanced.
+// Returns a slice of all evicted jobs.
+func (nodeDb *NodeDb) Evict(jobRepo JobRepository) ([]LegacySchedulerJob, error) {
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	it, err := NewNodesIterator(txn)
+	if err != nil {
+		return nil, err
+	}
+	evictedJobs := make([]LegacySchedulerJob, 0)
+	for node := it.NextNode(); node != nil; node = it.NextNode() {
+		jobIds := maps.Keys(node.AllocatedByJobId)
+		jobs, err := jobRepo.GetExistingJobsByIds(jobIds)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("found", len(jobs), "jobs on node", node.Id, "->", jobIds)
+		for _, job := range jobs {
+			if job == nil {
+				continue
+			}
+			jobInfo := job.GetRequirements(nodeDb.priorityClasses)
+			if jobInfo == nil {
+				continue
+			}
+			req := PodRequirementFromJobSchedulingInfo(jobInfo)
+			if req == nil {
+				continue
+			}
+			pc := nodeDb.priorityClasses[jobInfo.PriorityClassName]
+			fmt.Println("pc:", pc)
+			if pc.AutoBalanced {
+				if err := nodeDb.UnbindPodFromNode(txn, req, node); err != nil {
+					return nil, err
+				}
+				// Ensure this job can only be re-scheduled onto the same node
+				// and mark this job as currently running.
+				// TODO: This should be done by the caller.
+				req.Annotations[TargetNodeIdAnnotation] = node.Id
+				req.Annotations[IsRunningAnnotation] = "true"
+				evictedJobs = append(evictedJobs, job)
+			}
+		}
+	}
+	txn.Commit()
+	return evictedJobs, nil
+}
+
 func NewLegacyScheduler(
 	ctx context.Context,
 	constraints SchedulingConstraints,
@@ -775,6 +824,116 @@ func NewLegacyScheduler(
 		CandidateGangIterator: candidateGangIterator,
 		NodeDb:                nodeDb,
 	}, nil
+}
+
+func Reschedule(
+	ctx context.Context,
+	jobRepo JobRepository,
+	constraints SchedulingConstraints,
+	config configuration.SchedulingConfig,
+	nodeDb *NodeDb,
+	priorityFactorByQueue map[string]float64,
+	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+) ([]LegacySchedulerJob, []LegacySchedulerDecision, error) {
+
+	txn := nodeDb.Txn(false)
+	evictedJobs, err := nodeDb.Evict(jobRepo)
+	if err != nil {
+		return nil, nil, err
+	}
+	inMemoryJobRepo := NewInMemoryJobRepository()
+	inMemoryJobRepo.EnqueueMany(evictedJobs)
+
+	queues := make([]*Queue, 0)
+	for queue, priorityFactor := range priorityFactorByQueue {
+		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, queue)
+		if err != nil {
+			return nil, nil, err
+		}
+		queueIt, err := NewQueuedJobsIterator(ctx, queue, jobRepo)
+		if err != nil {
+			return nil, nil, err
+		}
+		queue, err := NewQueue(
+			queue,
+			priorityFactor,
+			NewMultiJobsIterator(evictedIt, queueIt),
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		queues = append(queues, queue)
+	}
+
+	sched, err := NewLegacyScheduler(
+		ctx,
+		constraints,
+		config,
+		nodeDb,
+		queues,
+		initialResourcesByQueueAndPriority,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	jobs, err := sched.Schedule()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	diff := make([]LegacySchedulerDecision, 0, len(jobs))
+	nodePairIterator, err := NewNodePairIterator(txn, sched.NodeDb.Txn(false))
+	if err != nil {
+		return nil, nil, err
+	}
+	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
+		if item.NodeA != nil && item.NodeB == nil {
+			// NodeA was removed while scheduling. All jobs on NodeA are preempted.
+			for jobId := range item.NodeA.AllocatedByJobId {
+				diff = append(diff, LegacySchedulerDecision{
+					JobId:        jobId,
+					OriginalNode: item.NodeA,
+				})
+			}
+		} else if item.NodeA == nil && item.NodeB != nil {
+			// NodeB was added while scheduling. All jobs on NodeB are scheduled.
+			for jobId := range item.NodeB.AllocatedByJobId {
+				diff = append(diff, LegacySchedulerDecision{
+					JobId:   jobId,
+					NewNode: item.NodeB,
+				})
+			}
+		} else if item.NodeA != nil && item.NodeB != nil {
+			// NodeA is the same as NodeB.
+			// Jobs on NodeA that are not on NodeB are preempted.
+			// Jobs on NodeB that are not on NodeA are scheduled.
+			for jobId := range item.NodeA.AllocatedByJobId {
+				if _, ok := item.NodeB.AllocatedByJobId[jobId]; !ok {
+					diff = append(diff, LegacySchedulerDecision{
+						JobId:        jobId,
+						OriginalNode: item.NodeA,
+					})
+				}
+			}
+			for jobId := range item.NodeB.AllocatedByJobId {
+				if _, ok := item.NodeA.AllocatedByJobId[jobId]; !ok {
+					diff = append(diff, LegacySchedulerDecision{
+						JobId:   jobId,
+						NewNode: item.NodeB,
+					})
+				}
+			}
+		}
+	}
+	return jobs, diff, nil
+}
+
+type LegacySchedulerDecision struct {
+	JobId        string
+	OriginalNode *schedulerobjects.Node
+	NewNode      *schedulerobjects.Node
 }
 
 func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
@@ -977,6 +1136,5 @@ func PodRequirementFromJobSchedulingInfo(info *schedulerobjects.JobSchedulingInf
 			return preq
 		}
 	}
-	// TODO: Don't panic.
-	panic("expected at least one pod requirements")
+	return nil
 }

@@ -13,6 +13,9 @@ const (
 	// If set on a pod, the value of this annotation is interpreted as the id of a node
 	// and only the node with that id will be considered for scheduling the pod.
 	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
+	// If present on a pod, indicates this pod is currently running.
+	// Used by the scheduler to differentiate between pods from running and queued jobs.
+	IsRunningAnnotation = "armadaproject.io/isRunning"
 	// If set on a pod, indicates which job this pod is part of.
 	JobIdAnnotation = "armadaproject.io/jobId"
 )

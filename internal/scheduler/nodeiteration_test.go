@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -51,6 +52,51 @@ func TestNodesIterator(t *testing.T) {
 			assert.Equal(t, expected, actual)
 		})
 	}
+}
+
+func TestNodePairIterator(t *testing.T) {
+	nodes := testCluster()
+	for i, c := range []string{"A", "B", "C"} {
+		nodes[i].Id = c
+	}
+
+	db, err := memdb.NewMemDB(nodeDbSchema(testPriorities, testResources))
+	require.NoError(t, err)
+
+	txn := db.Txn(true)
+	require.NoError(t, txn.Insert("nodes", nodes[0]))
+	require.NoError(t, txn.Insert("nodes", nodes[1]))
+	txn.Commit()
+	txnA := db.Txn(false)
+
+	txn = db.Txn(true)
+	require.NoError(t, txn.Delete("nodes", nodes[0]))
+	require.NoError(t, txn.Insert("nodes", nodes[2]))
+	txn.Commit()
+	txnB := db.Txn(false)
+
+	it, err := NewNodePairIterator(txnA, txnB)
+	require.NoError(t, err)
+
+	actual := make([]*NodePairIteratorItem, 0)
+	for item := it.NextItem(); item != nil; item = it.NextItem() {
+		actual = append(actual, item)
+	}
+	expected := []*NodePairIteratorItem{
+		{
+			NodeA: nodes[0],
+			NodeB: nil,
+		},
+		{
+			NodeA: nodes[1],
+			NodeB: nodes[1],
+		},
+		{
+			NodeA: nil,
+			NodeB: nodes[2],
+		},
+	}
+	assert.Equal(t, expected, actual)
 }
 
 // The memdb internally uses bytes.Compare to compare keys.

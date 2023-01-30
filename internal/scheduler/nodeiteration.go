@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"bytes"
 	"container/heap"
 	"encoding/binary"
 	"fmt"
@@ -45,6 +46,84 @@ func (it *NodesIterator) NextNode() *schedulerobjects.Node {
 
 func (it *NodesIterator) Next() interface{} {
 	return it.NextNode()
+}
+
+type NodePairIterator struct {
+	itA   *NodesIterator
+	itB   *NodesIterator
+	nodeA *schedulerobjects.Node
+	nodeB *schedulerobjects.Node
+}
+
+type NodePairIteratorItem struct {
+	NodeA *schedulerobjects.Node
+	NodeB *schedulerobjects.Node
+}
+
+func NewNodePairIterator(txnA, txnB *memdb.Txn) (*NodePairIterator, error) {
+	itA, err := NewNodesIterator(txnA)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	itB, err := NewNodesIterator(txnB)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &NodePairIterator{
+		itA: itA,
+		itB: itB,
+	}, nil
+}
+
+func (it *NodePairIterator) WatchCh() <-chan struct{} {
+	panic("not implemented")
+}
+
+func (it *NodePairIterator) NextItem() (rv *NodePairIteratorItem) {
+	defer func() {
+		if rv == nil {
+			return
+		}
+		if rv.NodeA != nil {
+			it.nodeA = nil
+		}
+		if rv.NodeB != nil {
+			it.nodeB = nil
+		}
+	}()
+	if it.nodeA == nil {
+		it.nodeA = it.itA.NextNode()
+	}
+	if it.nodeB == nil {
+		it.nodeB = it.itB.NextNode()
+	}
+	if it.nodeA == nil && it.nodeB == nil {
+		return nil
+	} else if it.nodeA == nil || it.nodeB == nil {
+		return &NodePairIteratorItem{
+			NodeA: it.nodeA,
+			NodeB: it.nodeB,
+		}
+	}
+	cmp := bytes.Compare([]byte(it.nodeA.Id), []byte(it.nodeB.Id))
+	if cmp == 0 {
+		return &NodePairIteratorItem{
+			NodeA: it.nodeA,
+			NodeB: it.nodeB,
+		}
+	} else if cmp == -1 {
+		return &NodePairIteratorItem{
+			NodeA: it.nodeA,
+		}
+	} else {
+		return &NodePairIteratorItem{
+			NodeB: it.nodeB,
+		}
+	}
+}
+
+func (it *NodePairIterator) Next() interface{} {
+	return it.NextItem()
 }
 
 // NodeTypesResourceIterator extends NodeTypeResourceIterator to iterate over nodes of several node types.
