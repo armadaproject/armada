@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -24,8 +25,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/util"
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
-	"github.com/armadaproject/armada/internal/executor/configuration"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -46,9 +45,11 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
-	// Used to check at job submit time if the job could ever be scheduled.
-	// Currently only used for gang jobs.
-	SubmitChecker *scheduler.SubmitChecker
+	// Used to check at job submit time if the job could ever be scheduled on either legacy or pulsar schedulers
+	SubmitChecker SubmitChecker
+	// Probability of using the pulsar scheduler
+	ProbabilityOdfUsingPulsarScheduler float64
+	Rand                               rand.Rand
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -58,7 +59,15 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	// Prepare an event sequence to be submitted to the log
-	sequence := &armadaevents.EventSequence{
+	pulsarSchedulerEvents := &armadaevents.EventSequence{
+		Queue:      req.Queue,
+		JobSetName: req.JobSetId,
+		UserId:     userId,
+		Groups:     groups,
+		Events:     make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems)),
+	}
+
+	legacySchedulerEvents := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
 		UserId:     userId,
@@ -76,6 +85,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
+	schedulersByJobId, err := srv.assignScheduler(apiJobs)
+	if err != nil {
+		return nil, err
+	}
+
 	// Convert the API jobs to log jobs.
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
 
@@ -83,47 +97,22 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	if err != nil {
 		return nil, err
 	}
-	jobDuplicateFoundEvents := make([]*api.JobDuplicateFoundEvent, 0)
+
 	for i, apiJob := range apiJobs {
+		eventTime := time.Now()
+		scheduler, ok := schedulersByJobId[apiJob.Scheduler]
+		if !ok {
+			// This should never happen as if we can't find a scheduler we would have errored earlier
+			return nil, errors.Errorf("Didn't allocate a scheduler for job %s", apiJob.Id)
+		}
+
+		es := legacySchedulerEvents
+		if scheduler == pulsarutils.Pulsar {
+			es = pulsarSchedulerEvents
+		}
+
 		responses[i] = &api.JobSubmitResponseItem{
 			JobId: apiJob.GetId(),
-		}
-
-		// If a ClientId (i.e., a deduplication id) is provided,
-		// check for previous job submissions with the ClientId for this queue.
-		// If we find a duplicate, insert the previous jobId in the corresponding response
-		// and generate a job duplicate found event.
-		originalId, found := originalIds[apiJob.GetId()]
-		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
-			if found && originalId != "" {
-				jobDuplicateFoundEvents = append(jobDuplicateFoundEvents, &api.JobDuplicateFoundEvent{
-					JobId:         responses[i].JobId,
-					Queue:         req.Queue,
-					JobSetId:      req.JobSetId,
-					Created:       time.Now(),
-					OriginalJobId: originalIds[apiJob.GetId()],
-				})
-				responses[i].JobId = originalIds[apiJob.GetId()]
-				// The job shouldn't be submitted twice. Move on to the next job.
-				continue
-			} else {
-				log.Warnf(
-					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
-					apiJob.ClientId,
-					apiJob.GetId())
-			}
-		}
-
-		// Users submit API-specific service and ingress objects.
-		// However, the log only accepts proper k8s objects.
-		// Hence, the API-specific objects must be converted to proper k8s objects.
-		//
-		// We use an empty ingress config here.
-		// The executor applies executor-specific information later.
-		// We only need this here because we're re-using code that was previously called by the executor.
-		err = eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{})
-		if err != nil {
-			return nil, err
 		}
 
 		// The log accept a different type of job.
@@ -139,88 +128,73 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			return nil, err
 		}
 
-		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		es.Events = append(es.Events, &armadaevents.EventSequence_Event{
+			Created: &eventTime,
 			Event: &armadaevents.EventSequence_Event_SubmitJob{
 				SubmitJob: logJob,
 			},
 		})
-	}
 
-	// Check if all jobs can be scheduled.
-	// This check uses the legacy resource reporting logic.
-	legacySchedulerJobs := selectApiJobsForLegacyScheduler(apiJobs)
-	if len(legacySchedulerJobs) > 0 {
-		allClusterSchedulingInfo, err := srv.SubmitServer.schedulingInfoRepository.GetClusterSchedulingInfo()
-		if err != nil {
-			err = errors.WithMessage(err, "error getting scheduling info")
-			return nil, err
-		}
-		if ok, err := validateJobsCanBeScheduled(legacySchedulerJobs, allClusterSchedulingInfo); !ok {
-			if err != nil {
-				return nil, errors.WithMessagef(err, "can't schedule job for user %s", userId)
+		// If a ClientId (i.e., a deduplication id) is provided,
+		// check for previous job submissions with the ClientId for this queue.
+		// If we find a duplicate, insert the previous jobId in the corresponding response
+		// and generate a job duplicate found event.
+		originalId, found := originalIds[apiJob.GetId()]
+		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
+			if found && originalId != "" {
+				oldJobId, err := armadaevents.ProtoUuidFromUlidString(originalIds[apiJob.GetId()])
+				if err != nil {
+					return nil, status.Error(codes.Internal, "error marshalling oldJobId")
+				}
+				es.Events = append(es.Events, &armadaevents.EventSequence_Event{
+					Created: &eventTime,
+					Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
+						JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
+							NewJobId: logJob.JobId,
+							OldJobId: oldJobId,
+						},
+					},
+				})
+				responses[i].JobId = originalIds[apiJob.GetId()]
+				// The job shouldn't be submitted twice. Move on to the next job.
+				continue
 			} else {
-				return nil, errors.Errorf("can't schedule job for user %s", userId)
+				log.Warnf(
+					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
+					apiJob.ClientId,
+					apiJob.GetId())
 			}
 		}
 	}
 
-	// Check if all jobs can be scheduled.
-	// This check uses the NodeDb of the new scheduler and
-	// can check if all jobs in a gang can go onto the same cluster.
-	if canSchedule, reason := srv.SubmitChecker.CheckApiJobs(apiJobs); !canSchedule {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one job or gang is unschedulable:\n%s", reason)
+	if len(pulsarSchedulerEvents.Events) > 0 {
+		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerEvents}, pulsarutils.Pulsar)
+		if err != nil {
+			log.WithError(err).Error("failed send pulsar scheduler events to Pulsar")
+			return nil, status.Error(codes.Internal, "Failed to send message")
+		}
 	}
 
-	// Create events marking the jobs as submitted
-	err = reportSubmitted(srv.SubmitServer.eventStore, apiJobs)
-	if err != nil {
-		return nil, status.Errorf(codes.Aborted, "[SubmitJobs] error getting submitted report: %s", err)
-	}
-
-	err = reportDuplicateFoundEvents(srv.SubmitServer.eventStore, jobDuplicateFoundEvents)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "error reporting duplicates: %s", err)
-	}
-
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
-
-	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
-		return nil, status.Error(codes.Internal, "Failed to send message")
+	if len(legacySchedulerEvents.Events) > 0 {
+		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerEvents}, pulsarutils.Legacy)
+		if err != nil {
+			log.WithError(err).Error("failed send legacy scheduler events to Pulsar")
+			return nil, status.Error(codes.Internal, "Failed to send message")
+		}
 	}
 
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
 }
 
-// selectApiJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
-func selectApiJobsForLegacyScheduler(jobs []*api.Job) []*api.Job {
-	rv := make([]*api.Job, 0, len(jobs))
-	for _, job := range jobs {
-		if job.Scheduler == "" {
-			rv = append(rv, job)
-		}
-	}
-	return rv
-}
-
-// selectJobsForLegacyScheduler return a slice composed of all jobs for which the scheduler field is empty.
-func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevents.SubmitJob {
-	rv := make([]*armadaevents.SubmitJob, 0, len(jobs))
-	for _, job := range jobs {
-		if job.Scheduler == "" {
-			rv = append(rv, job)
-		}
-	}
-	return rv
-}
-
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
 		if req.Queue == "" || req.JobSetId == "" {
 			return srv.cancelJobsByIds(ctx, req.JobIds)
 		}
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
 	}
+
 	// If either queue or jobSetId is missing, we need to get those from Redis.
 	// This must be done before checking auth, since the auth check expects a queue.
 	// If both queue and jobSetId are provided, we assume that those are correct
@@ -712,23 +686,8 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 	return srv.SubmitServer.GetQueueInfo(ctx, req)
 }
 
-// SubmitApiEvents converts several api.EventMessage into Pulsar state transition messages and publishes those to Pulsar.
-func (srv *PulsarSubmitServer) SubmitApiEvents(ctx context.Context, apiEvents []*api.EventMessage) error {
-	// Because (queue, userId, jobSetId) may differ between events,
-	// several sequences may be necessary.
-	sequences, err := eventutil.EventSequencesFromApiEvents(apiEvents)
-	if err != nil {
-		return err
-	}
-	if len(sequences) == 0 {
-		return nil
-	}
-
-	return srv.publishToPulsar(ctx, sequences)
-}
-
 // PublishToPulsar sends pulsar messages async
-func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence) error {
+func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence, scheduler pulsarutils.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -736,7 +695,7 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences, pulsarutils.Legacy)
+	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences, scheduler)
 }
 
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
@@ -789,4 +748,35 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	}
 
 	return nil, nil
+}
+
+func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]pulsarutils.Scheduler, error) {
+	// Check to see where the jobs may be scheduled
+	statuses, err := srv.SubmitChecker.CheckApiJobs(jobs, false)
+	if err != nil {
+		return nil, err
+	}
+	schedulers := make(map[string]pulsarutils.Scheduler, len(jobs))
+	for i, result := range statuses {
+		// Job can't be scheduled anywhere
+		if result.Error != nil {
+			return nil, err
+		}
+
+		r := srv.Rand.Float64()
+		if jobs[i].Scheduler == "pulsar" { // explicitly to pulsar
+			schedulers[result.JobId] = pulsarutils.Pulsar
+		} else if jobs[i].Scheduler == "legacy" { // explicitly to legacy
+			schedulers[result.JobId] = pulsarutils.Legacy
+		} else if result.SchedulableOnPulsarScheduler && !result.SchedulableOnLegacyScheduler { // only schedulable on pulsar
+			schedulers[result.JobId] = pulsarutils.Pulsar
+		} else if result.SchedulableOnLegacyScheduler && !result.SchedulableOnPulsarScheduler { // only schedulable on legacy
+			schedulers[result.JobId] = pulsarutils.Legacy
+		} else if r < srv.ProbabilityOdfUsingPulsarScheduler { // probabilistic routing to pulsar
+			schedulers[result.JobId] = pulsarutils.Pulsar
+		} else { // probabilistic routing to legacy
+			schedulers[result.JobId] = pulsarutils.Legacy
+		}
+	}
+	return schedulers, nil
 }
