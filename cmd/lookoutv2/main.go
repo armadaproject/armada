@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
-
+	"github.com/armadaproject/armada/internal/lookoutv2/pruner"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"k8s.io/apimachinery/pkg/util/clock"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -20,6 +21,7 @@ import (
 const (
 	CustomConfigLocation string = "config"
 	MigrateDatabase             = "migrateDatabase"
+	PruneDatabase               = "pruneDatabase"
 )
 
 func init() {
@@ -29,6 +31,7 @@ func init() {
 		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)",
 	)
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
+	pflag.Bool(PruneDatabase, false, "Prune database of old jobs instead of running server")
 	pflag.Parse()
 }
 
@@ -70,6 +73,27 @@ func migrate(ctx context.Context, config configuration.LookoutV2Configuration) {
 	}
 }
 
+func prune(ctx context.Context, config configuration.LookoutV2Configuration) {
+	db, err := database.OpenPgxConn(config.Postgres)
+	if err != nil {
+		panic(err)
+	}
+
+	if config.PrunerConfig.Timeout <= 0 {
+		panic("timeout must be greater than 0")
+	}
+	if config.PrunerConfig.ExpireAfter <= 0 {
+		panic("expireAfter must be greater than 0")
+	}
+	if config.PrunerConfig.BatchSize <= 0 {
+		panic("batchSize must be greater than 0")
+	}
+
+	ctxTimeout, cancel := context.WithTimeout(ctx, config.PrunerConfig.Timeout)
+	defer cancel()
+	err = pruner.PruneDb(ctxTimeout, db, config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, clock.RealClock{})
+}
+
 func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
@@ -86,6 +110,12 @@ func main() {
 	if viper.GetBool(MigrateDatabase) {
 		log.Info("Migrating database")
 		migrate(ctx, config)
+		return
+	}
+
+	if viper.GetBool(PruneDatabase) {
+		log.Info("Pruning database")
+		prune(ctx, config)
 		return
 	}
 

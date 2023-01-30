@@ -32,3 +32,17 @@ func TestFilter_IncludeAllFilter(t *testing.T) {
 	output := Filter(input, includeAll)
 	assert.Equal(t, expectedOutput, output)
 }
+
+func TestConcat_Empty(t *testing.T) {
+	output := Concat([][]int{})
+	assert.Equal(t, []int{}, output)
+}
+
+func TestConcat(t *testing.T) {
+	output := Concat([][]int{
+		{1, 2, 3},
+		{4, 5, 6, 7},
+		{8, 9, 10, 11, 12},
+	})
+	assert.Equal(t, []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, output)
+}
