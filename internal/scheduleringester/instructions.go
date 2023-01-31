@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
@@ -93,6 +94,8 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
+		case *armadaevents.EventSequence_Event_PartitionMarker:
+			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
@@ -273,6 +276,18 @@ func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.Can
 	}
 	return []DbOperation{MarkJobsCancelled{
 		jobId: true,
+	}}, nil
+}
+
+func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionMarker, created time.Time) ([]DbOperation, error) {
+	return []DbOperation{InsertPartitionMarker{
+		markers: []*schedulerdb.Marker{
+			{
+				GroupID:     armadaevents.UuidFromProtoUuid(pm.GroupId),
+				PartitionID: int32(pm.Partition),
+				Created:     created,
+			},
+		},
 	}}, nil
 }
 

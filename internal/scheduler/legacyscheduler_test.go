@@ -182,6 +182,13 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			},
 			ExpectedIndices: []int{3, 4},
 		},
+		"lookback limit hit": {
+			Reqs: testNSmallCpuJob(0, 10),
+			SchedulingConstraints: SchedulingConstraints{
+				MaxLookbackPerQueue: 4,
+			},
+			ExpectedIndices: []int{0, 1, 2, 3},
+		},
 		"minimum job size at limit": {
 			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
@@ -257,7 +264,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"gpu": 0,
 				},
-				MaxConsecutiveUnschedulableJobs: 3,
+				MaxLookbackPerQueue: 3,
 			},
 			ExpectedIndices: []int{0},
 		},
@@ -326,6 +333,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			queuedGangIterator := NewQueuedGangIterator(
 				ctx,
 				queuedJobsIterator,
+				tc.SchedulingConstraints.MaxLookbackPerQueue,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
 			)
@@ -985,6 +993,19 @@ func TestSchedule(t *testing.T) {
 				"A": {0},
 			},
 		},
+		"QueueLeaseBatchSize Respected": {
+			SchedulingConfig: withQueueLeaseBatchSizeConfig(3, testSchedulingConfig()), // should quit after 3 unschedulable jobs
+			Nodes:            testNCpuNode(1, testPriorities),                          // 32 cores
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 3)...), testNSmallCpuJob(0, 1)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
 		"gang scheduling success": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1173,7 +1194,10 @@ func TestSchedule(t *testing.T) {
 						continue
 					}
 
-					for _, job := range jobs {
+					for i, job := range jobs {
+						if i >= int(tc.SchedulingConfig.QueueLeaseBatchSize) {
+							break
+						}
 						jobId, err := uuidFromUlidString(job.Id)
 						if !assert.NoError(t, err) {
 							return

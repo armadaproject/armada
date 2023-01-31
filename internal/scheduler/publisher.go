@@ -126,7 +126,19 @@ func (p *PulsarPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID)
 			GroupId:   armadaevents.ProtoUuidFromUuid(groupId),
 			Partition: uint32(i),
 		}
-		bytes, err := proto.Marshal(pm)
+		es := &armadaevents.EventSequence{
+			Queue:      "armada-scheduler",
+			JobSetName: "armada-scheduler",
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: now(),
+					Event: &armadaevents.EventSequence_Event_PartitionMarker{
+						PartitionMarker: pm,
+					},
+				},
+			},
+		}
+		bytes, err := proto.Marshal(es)
 		if err != nil {
 			return 0, err
 		}
@@ -172,6 +184,11 @@ func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMe
 		}
 		return defaultRouter(msg, md.NumPartitions())
 	}
+}
+
+func now() *time.Time {
+	t := time.Now()
+	return &t
 }
 
 // JavaStringHash is the default hashing algorithm used by Pulsar

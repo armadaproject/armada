@@ -15,20 +15,24 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
 // Scheduler database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config Configuration) {
-	metrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
+	svcMetrics := metrics.NewMetrics(metrics.ArmadaEventIngesterMetricsPrefix + "armada_scheduler_ingester_")
 
 	log.Infof("Opening connection pool to postgres")
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	schedulerDb := NewSchedulerDb(db, metrics, 100*time.Millisecond, 60*time.Second)
+	schedulerDb := NewSchedulerDb(db, svcMetrics, 100*time.Millisecond, 60*time.Second)
 
 	compressor, err := compress.NewZlibCompressor(1024)
 	if err != nil {
@@ -45,7 +49,7 @@ func Run(config Configuration) {
 		converter,
 		schedulerDb,
 		config.Metrics,
-		metrics)
+		svcMetrics)
 
 	err = ingester.Run(app.CreateContextWithShutdown())
 	if err != nil {

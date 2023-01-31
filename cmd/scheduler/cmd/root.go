@@ -21,10 +21,13 @@ func RootCmd() *cobra.Command {
 	}
 
 	cmd.PersistentFlags().StringSlice(
-		"armadaUrl",
+		CustomConfigLocation,
 		[]string{},
 		"Fully qualified path to application configuration file (for multiple config files repeat this arg or separate paths with commas)")
-
+	err := viper.BindPFlag(CustomConfigLocation, cmd.PersistentFlags().Lookup(CustomConfigLocation))
+	if err != nil {
+		panic(err)
+	}
 	cmd.AddCommand(
 		runCmd(),
 		migrateDbCmd(),

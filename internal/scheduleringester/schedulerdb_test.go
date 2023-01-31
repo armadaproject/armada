@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 
@@ -200,6 +201,24 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
+		"Insert PositionMarkers": {Ops: []DbOperation{
+			InsertPartitionMarker{
+				markers: []*schedulerdb.Marker{
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 1,
+					},
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 3,
+					},
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 2,
+					},
+				},
+			},
+		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -272,7 +291,6 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				v.LastModified = job.LastModified
 			}
 		}
-		// assert.Equal(t, expected, actual)
 		for k, v := range expected {
 			assert.Equal(t, v, actual[k])
 		}
@@ -491,6 +509,16 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, expected, actual)
+	case InsertPartitionMarker:
+		actual, err := queries.SelectAllMarkers(ctx)
+		require.NoError(t, err)
+		require.Equal(t, len(expected.markers), len(actual))
+		for i, expectedMarker := range actual {
+			actualMarker := actual[i]
+			assert.Equal(t, expectedMarker.GroupID, actualMarker.GroupID)
+			assert.Equal(t, expectedMarker.PartitionID, actualMarker.PartitionID)
+			assert.Equal(t, expectedMarker.Created, actualMarker.Created)
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

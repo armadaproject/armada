@@ -30,7 +30,13 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		os.Exit(-1)
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, auth.ConfigureAuth(config.Auth))
+	authServices, err := auth.ConfigureAuth(config.Auth)
+	if err != nil {
+		log.Errorf("Failed to create auth services %s", err)
+		os.Exit(-1)
+	}
+
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 
 	logService := logs.NewKubernetesLogService(kubernetesClientProvider)
 	binocularsServer := server.NewBinocularsServer(logService)

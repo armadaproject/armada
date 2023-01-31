@@ -22,7 +22,6 @@ var job1 = &SchedulerJob{
 	Queue:             "A",
 	Priority:          0,
 	Timestamp:         10,
-	Node:              "",
 	jobSchedulingInfo: nil,
 }
 
@@ -31,7 +30,6 @@ var job2 = &SchedulerJob{
 	Queue:             "A",
 	Priority:          0,
 	Timestamp:         10,
-	Node:              "",
 	jobSchedulingInfo: nil,
 }
 

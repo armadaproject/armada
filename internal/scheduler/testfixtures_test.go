@@ -85,6 +85,11 @@ func withIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuratio
 	return config
 }
 
+func withQueueLeaseBatchSizeConfig(queueLeasebatchSize uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.QueueLeaseBatchSize = queueLeasebatchSize
+	return config
+}
+
 func withUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)
