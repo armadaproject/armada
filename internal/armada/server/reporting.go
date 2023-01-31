@@ -138,6 +138,7 @@ func reportJobLeaseReturned(repository repository.EventStore, job *api.Job, leas
 		ClusterId:    leaseReturnRequest.ClusterId,
 		Reason:       leaseReturnRequest.Reason,
 		KubernetesId: leaseReturnRequest.KubernetesId,
+		RunAttempted: leaseReturnRequest.JobRunAttempted,
 	})
 	if err != nil {
 		return fmt.Errorf("error wrapping event: %w", err)

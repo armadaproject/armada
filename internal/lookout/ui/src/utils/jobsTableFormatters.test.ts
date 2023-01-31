@@ -61,12 +61,18 @@ describe("JobsTableFormatters", () => {
   })
 
   describe("formatTimeSince", () => {
-    const now = new Date("2022-12-13T13:00:00.000Z").getTime()
     it("formats dates to expected format", () => {
+      const now = new Date("2022-12-13T13:00:00.000Z").getTime()
       expect(formatTimeSince("2022-12-12T12:19:14.956Z", now)).toBe("1d 40m 45s")
     })
 
+    it("formats date longer than a month", () => {
+      const now = new Date("2023-01-25T16:27:00.000Z").getTime()
+      expect(formatTimeSince("2022-12-12T12:19:14.956Z", now)).toBe("44d 4h 7m 45s")
+    })
+
     it("formats undefined to empty string", () => {
+      const now = new Date("2022-12-13T13:00:00.000Z").getTime()
       expect(formatTimeSince(undefined, now)).toBe("")
     })
   })

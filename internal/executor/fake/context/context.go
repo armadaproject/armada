@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"regexp"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -190,6 +192,10 @@ func (c *FakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingress, e
 	return nil, errors.Errorf("Ingresses not implemented in FakeClusterContext")
 }
 
+func (c *FakeClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
+	return nil, fmt.Errorf("EndpointSlices not implemented in SyncFakeClusterContext")
+}
+
 func (c *FakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
 	return errors.Errorf("Ingresses not implemented in FakeClusterContext")
 }
@@ -264,6 +270,13 @@ func (c *FakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotati
 	}
 	for k, v := range annotations {
 		p.Annotations[k] = v
+	}
+	return nil
+}
+
+func (c *FakeClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	if condition(pod) {
+		c.DeletePods([]*v1.Pod{pod})
 	}
 	return nil
 }

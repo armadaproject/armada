@@ -16,6 +16,7 @@ type ApplicationConfiguration struct {
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
+	UseExecutorApi         bool
 }
 
 type PodDefaults struct {
@@ -86,7 +87,30 @@ type TaskConfiguration struct {
 type MetricConfiguration struct {
 	Port                    uint16
 	ExposeQueueUsageMetrics bool
+	CustomUsageMetrics      []CustomUsageMetrics
 }
+
+type CustomUsageMetrics struct {
+	Namespace                  string
+	EndpointSelectorLabelName  string
+	EndpointSelectorLabelValue string
+	Metrics                    []CustomUsageMetric
+}
+
+type CustomUsageMetric struct {
+	Name                   string
+	PrometheusMetricName   string
+	PrometheusPodNameLabel string
+	AggregateType          AggregateType
+	Multiplier             float64
+}
+
+type AggregateType string
+
+const (
+	Sum  AggregateType = "Sum"
+	Mean               = "Mean"
+)
 
 type ExecutorConfiguration struct {
 	HttpPort      uint16

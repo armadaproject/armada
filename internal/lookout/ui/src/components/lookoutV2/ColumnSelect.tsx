@@ -1,17 +1,18 @@
-import { useState } from "react"
+import { useState, useRef } from "react"
 
+import { ArrowDropDown, ArrowDropUp } from "@material-ui/icons"
 import { Check, Delete, Edit } from "@mui/icons-material"
 import {
   Button,
   Checkbox,
-  Divider,
   FormControl,
   IconButton,
+  InputAdornment,
   InputLabel,
   ListItemText,
   MenuItem,
   OutlinedInput,
-  Select,
+  Popover,
   TextField,
   Typography,
 } from "@mui/material"
@@ -38,6 +39,9 @@ export default function ColumnSelect({
   onRemoveAnnotation,
   onEditAnnotation,
 }: ColumnSelectProps) {
+  const anchorEl = useRef<HTMLInputElement>(null)
+  const [isOpen, setIsOpen] = useState<boolean>(false)
+
   const [creatingAnnotation, setCreatingAnnotation] = useState(false)
   const [newAnnotationKey, setNewAnnotationKey] = useState("")
 
@@ -70,17 +74,38 @@ export default function ColumnSelect({
   return (
     <>
       <FormControl sx={{ m: 0, mt: "4px", width: 200 }} focused={false}>
-        <InputLabel id="checkbox-select-label">Columns</InputLabel>
-        <Select
-          labelId="checkbox-select-label"
-          id="demo-multiple-checkbox"
-          multiple
-          value={visibleColumns}
-          input={<OutlinedInput label="Column" />}
-          renderValue={(selected) => {
-            return `${selectableColumns.filter((col) => selected.includes(toColId(col.id))).length} columns selected`
+        <InputLabel
+          htmlFor="column-select-input"
+          variant="filled"
+          style={{ transform: "translate(12px, -8px) scale(0.75)" }}
+        >
+          Columns
+        </InputLabel>
+        <OutlinedInput
+          id="column-select-input"
+          ref={anchorEl}
+          size={"small"}
+          onClick={() => setIsOpen(true)}
+          type={"button"}
+          label={"Columns"}
+          value={`${
+            selectableColumns.filter((col) => (visibleColumns as string[]).includes(col.id ?? "")).length
+          } columns selected`}
+          endAdornment={<InputAdornment position="end">{isOpen ? <ArrowDropUp /> : <ArrowDropDown />}</InputAdornment>}
+          style={{ paddingRight: 5 }}
+        />
+        <Popover
+          open={isOpen}
+          onClose={() => setIsOpen(false)}
+          anchorEl={anchorEl.current}
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "center",
           }}
-          size="small"
+          transformOrigin={{
+            vertical: "top",
+            horizontal: "center",
+          }}
         >
           <div className={styles.columnMenu}>
             <div className={styles.columnSelect} style={{ height: "100%" }}>
@@ -91,7 +116,16 @@ export default function ColumnSelect({
                 const colMetadata = getColumnMetadata(column)
                 const colIsAnnotation = colMetadata.annotation ?? false
                 return (
-                  <MenuItem key={colId} value={colMetadata.displayName} disabled={colIsGrouped}>
+                  <MenuItem
+                    onClick={() => {
+                      if (!colIsAnnotation) {
+                        onToggleColumn(colId)
+                      }
+                    }}
+                    key={colId}
+                    value={colMetadata.displayName}
+                    disabled={colIsGrouped}
+                  >
                     <Checkbox checked={colIsVisible} onClick={() => onToggleColumn(colId)} />
                     {colIsAnnotation ? (
                       <>
@@ -156,7 +190,6 @@ export default function ColumnSelect({
                 )
               })}
             </div>
-            <Divider orientation="vertical" style={{ height: "100%" }} />
             <div className={styles.annotationSelectContainer}>
               <Typography display="block" variant="caption" sx={{ width: "100%" }}>
                 Click here to add an annotation column.
@@ -204,7 +237,7 @@ export default function ColumnSelect({
               </div>
             </div>
           </div>
-        </Select>
+        </Popover>
       </FormControl>
     </>
   )

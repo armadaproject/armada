@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	// If set on a pod, the value of this annotation is interpreted as the id of a node
+	// TargetNodeIdAnnotation if set on a pod, the value of this annotation is interpreted as the id of a node
 	// and only the node with that id will be considered for scheduling the pod.
 	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
 	// If present on a pod, indicates this pod is currently running.
 	// Used by the scheduler to differentiate between pods from running and queued jobs.
 	IsRunningAnnotation = "armadaproject.io/isRunning"
-	// If set on a pod, indicates which job this pod is part of.
+	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
 	JobIdAnnotation = "armadaproject.io/jobId"
 )
 
@@ -33,6 +33,8 @@ type Configuration struct {
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
+	// Maximum number of strings that should be cached at any one time
+	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
 	CyclePeriod time.Duration `validate:"required"`
 	// How long after a heartbeat an executor will be considered lost

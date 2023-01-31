@@ -8,13 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -107,6 +106,22 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 
 func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
+}
+
+func ExtractJobRunIds(pods []*v1.Pod) []string {
+	runIds := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		if runId := ExtractJobRunId(pod); runId != "" {
+			runIds = append(runIds, runId)
+		}
+	}
+
+	return runIds
+}
+
+func ExtractJobRunId(pod *v1.Pod) string {
+	return pod.Labels[domain.JobRunId]
 }
 
 func ExtractPodNumber(pod *v1.Pod) int {
