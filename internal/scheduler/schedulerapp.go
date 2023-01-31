@@ -2,8 +2,11 @@ package scheduler
 
 import (
 	"fmt"
+	"net"
+	"strings"
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -11,10 +14,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"net"
-	"strings"
-	"time"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"

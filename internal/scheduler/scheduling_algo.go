@@ -3,10 +3,10 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"math/rand"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
