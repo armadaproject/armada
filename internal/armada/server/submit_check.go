@@ -12,7 +12,7 @@ type SubmitCheckResult struct {
 	JobId                        string
 	SchedulableOnLegacyScheduler bool
 	SchedulableOnPulsarScheduler bool
-	Error                        error // error that will be filled in if scheduleable on neither
+	Error                        error // error that will be filled in if schedulable on neither
 }
 
 type SubmitChecker interface {

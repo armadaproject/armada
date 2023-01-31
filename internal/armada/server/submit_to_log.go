@@ -30,6 +30,17 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
+type MinimalJob struct {
+	jobId  string
+	queue  string
+	jobset string
+}
+
+type MinimalJobRepository interface {
+	FetchJobById(jobId string) (*MinimalJob, error)
+	FetchJobs(jobIds []string) (*[]MinimalJob, error)
+}
+
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
 // TODO: Consider returning a list of message ids of the messages generated
