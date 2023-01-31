@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/armadaproject/armada/pkg/armadaevents"
+
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -65,8 +67,10 @@ func (submitService *SubmitService) SubmitExecutorApiJobs(jobsToSubmit []*execut
 	for _, jobToSubmit := range jobsToSubmit {
 		submitJob, err := CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, submitService.podDefaults)
 		if err != nil {
+			jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobToSubmit.Job.JobId)
+			// TODO: fix error
 			failedSubmissions = append(failedSubmissions, &FailedSubmissionDetails{
-				JobId: jobToSubmit.Job.JobId.String(),
+				JobId: jobIdString,
 				// TODO work out how to handle that we have no pod - especially in downstream funcs
 				Pod:         nil,
 				Recoverable: false,

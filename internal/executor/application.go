@@ -150,7 +150,8 @@ func StartUpWithContext(
 	var clusterAllocationService service.ClusterAllocator
 
 	if config.Application.UseExecutorApi {
-		leaseRequester := service.NewJobLeaseRequester()
+		leaseRequester := service.NewJobLeaseRequester(
+			executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
 		clusterAllocationService = service.NewClusterAllocationService(
 			clusterContext,
 			eventReporter,
