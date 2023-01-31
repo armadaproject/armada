@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
