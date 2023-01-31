@@ -53,12 +53,6 @@ type SchedulerJob struct {
 	// Jobs with identical Queue and Priority
 	// are sorted by timestamp.
 	Timestamp int64
-	// Name of the executor to which this job has been assigned.
-	// Empty if this job has not yet been assigned.
-	Executor string
-	// Name of the node to which this job has been assigned.
-	// Empty if this job has not yet been assigned.
-	Node string
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling
 	Queued bool
@@ -155,7 +149,6 @@ func (job *SchedulerJob) DeepCopy() *SchedulerJob {
 		Jobset:            job.Jobset,
 		Priority:          job.Priority,
 		Timestamp:         job.Timestamp,
-		Node:              job.Node,
 		Queued:            job.Queued,
 		jobSchedulingInfo: proto.Clone(job.jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo),
 		CancelRequested:   job.CancelRequested,
@@ -172,8 +165,6 @@ type JobRun struct {
 	RunID uuid.UUID
 	// The name of the executor this run has been leased to
 	Executor string
-	// True if the job has been reported as pending by the executor
-	Pending bool
 	// True if the job has been reported as running by the executor
 	Running bool
 	// True if the job has been reported as succeeded by the executor
@@ -199,7 +190,6 @@ func (run *JobRun) DeepCopy() *JobRun {
 	return &JobRun{
 		RunID:     run.RunID,
 		Executor:  run.Executor,
-		Pending:   run.Pending,
 		Running:   run.Running,
 		Succeeded: run.Succeeded,
 		Failed:    run.Failed,

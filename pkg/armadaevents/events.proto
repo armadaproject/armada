@@ -86,6 +86,7 @@ message EventSequence {
             StandaloneIngressInfo standaloneIngressInfo = 16;
             ResourceUtilisation resourceUtilisation = 17;
             JobRunPreempted jobRunPreempted = 19;
+            PartitionMarker partitionMarker = 20;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
