@@ -2,15 +2,15 @@ package auth
 
 import (
 	"context"
-	"errors"
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/authorization/groups"
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
-func ConfigureAuth(config configuration.AuthConfig) []authorization.AuthService {
-	authServices := []authorization.AuthService{}
+func ConfigureAuth(config configuration.AuthConfig) ([]authorization.AuthService, error) {
+	var authServices []authorization.AuthService
 
 	if len(config.BasicAuth.Users) > 0 {
 		authServices = append(authServices,
@@ -25,7 +25,7 @@ func ConfigureAuth(config configuration.AuthConfig) []authorization.AuthService 
 	if config.OpenIdAuth.ProviderUrl != "" {
 		openIdAuthService, err := authorization.NewOpenIdAuthServiceForProvider(context.Background(), &config.OpenIdAuth)
 		if err != nil {
-			panic(err)
+			return nil, errors.WithMessage(err, "error initialising openId auth")
 		}
 		authServices = append(authServices, openIdAuthService)
 	}
@@ -43,14 +43,14 @@ func ConfigureAuth(config configuration.AuthConfig) []authorization.AuthService 
 
 		kerberosAuthService, err := authorization.NewKerberosAuthService(&config.Kerberos, groupLookup)
 		if err != nil {
-			panic(err)
+			return nil, errors.WithMessage(err, "error initialising kerberos auth")
 		}
 		authServices = append(authServices, kerberosAuthService)
 	}
 
 	if len(authServices) == 0 {
-		panic(errors.New("At least one auth method must be specified in config"))
+		return nil, errors.New("at least one auth method must be specified in config")
 	}
 
-	return authServices
+	return authServices, nil
 }

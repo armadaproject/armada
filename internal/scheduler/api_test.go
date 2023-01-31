@@ -140,13 +140,14 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					capturedEvents = append(capturedEvents, msg)
 				}).AnyTimes()
 
-			server := NewExecutorApi(
+			server, err := NewExecutorApi(
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
 				maxJobsPerCall,
 			)
+			require.NoError(t, err)
 			server.clock = testClock
 
 			err = server.LeaseJobRuns(mockStream)
@@ -209,13 +210,15 @@ func TestExecutorApi_Publish(t *testing.T) {
 					callback(pulsarutils.NewMessageId(1), msg, nil)
 				}).AnyTimes()
 
-			server := NewExecutorApi(
+			server, err := NewExecutorApi(
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
 				[]int32{},
 				100,
 			)
+
+			require.NoError(t, err)
 
 			empty, err := server.ReportEvents(ctx, &executorapi.EventList{Events: tc.sequences})
 			require.NoError(t, err)

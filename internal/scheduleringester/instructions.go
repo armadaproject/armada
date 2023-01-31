@@ -2,7 +2,6 @@ package scheduleringester
 
 import (
 	"context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"

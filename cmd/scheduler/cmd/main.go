@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
-
 	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/spf13/cobra"
 )
 
 func runCmd() *cobra.Command {
