@@ -2,8 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"testing"
 	"time"
 
@@ -328,9 +326,9 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			queuedGangIterator := NewQueuedGangIterator(
 				ctx,
 				queuedJobsIterator,
+				tc.SchedulingConstraints.MaxLookbackPerQueue,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
-				tc.SchedulingConstraints.MaxLookbackPerQueue,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
