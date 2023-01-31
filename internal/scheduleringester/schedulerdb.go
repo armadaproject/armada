@@ -167,7 +167,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 				Created:     marker.Created,
 			})
 			if err != nil {
-				return errors.Wrapf(err, "error inseerting partition merker")
+				return errors.Wrapf(err, "error inserting partition marker")
 			}
 		}
 		return nil
