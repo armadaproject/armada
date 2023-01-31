@@ -33,7 +33,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/hashicorp/go-memdb v1.3.4
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/golang-lru v0.5.4
 	github.com/instrumenta/kubeval v0.0.0-20190918223246-8d013ec9fc56
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
