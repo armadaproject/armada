@@ -87,6 +87,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, u
 			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_PartitionMarker,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			log.Debugf("Ignoring event type %T", event)
 		default:
