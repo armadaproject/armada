@@ -183,16 +183,11 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{3, 4},
 		},
 		"lookback limit hit": {
-			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
+			Reqs: testNSmallCpuJob(0, 10),
 			SchedulingConstraints: SchedulingConstraints{
 				MaxLookbackPerQueue: 4,
-				MinimumJobSize: schedulerobjects.ResourceList{
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("31"),
-					},
-				},
 			},
-			ExpectedIndices: []int{3},
+			ExpectedIndices: []int{0, 1, 2, 3},
 		},
 		"minimum job size at limit": {
 			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
