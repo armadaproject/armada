@@ -76,7 +76,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// We support multiple simultaneous authentication services (e.g., username/password  OpenId).
 	// For each gRPC request, we try them all until one succeeds, at which point the process is
 	// short-circuited.
-	authServices := auth.ConfigureAuth(config.Auth)
+	authServices, err := auth.ConfigureAuth(config.Auth)
+	if err != nil {
+		return err
+	}
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 
 	// Shut down grpcServer if the context is cancelled.

@@ -9,6 +9,12 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
+redis:
+  addrs:
+    - redis:6379
+  password: ""
+  db: 0
+  poolSize: 1000
 postgres:
   connection:
     host: postgres

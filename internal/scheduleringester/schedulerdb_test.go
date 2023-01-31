@@ -272,7 +272,6 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				v.LastModified = job.LastModified
 			}
 		}
-		// assert.Equal(t, expected, actual)
 		for k, v := range expected {
 			assert.Equal(t, v, actual[k])
 		}
