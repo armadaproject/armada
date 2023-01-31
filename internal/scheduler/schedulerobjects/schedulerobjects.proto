@@ -98,12 +98,14 @@ message ResourceList {
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
     uint32 lifetime = 1;
-    bool atMostOnce = 2;
+    bool at_most_once = 2;
     bool preemptible = 3;
-    bool concurrencySafe = 4;    
-    string PriorityClassName = 6;
+    bool concurrency_safe = 4;    
+    string priority_class_name = 6;
+    google.protobuf.Timestamp submit_time = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    uint32 priority = 8;
     // Kubernetes objects that make up this job and their respective scheduling requirements.
-    repeated ObjectRequirements objectRequirements = 5;
+    repeated ObjectRequirements object_requirements = 5;
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.

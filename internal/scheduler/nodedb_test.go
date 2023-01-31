@@ -123,7 +123,8 @@ func TestPodToFromNodeBinding(t *testing.T) {
 	expectedAllocatable.Sub(request)
 	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
 
-	err = nodeDb.UnbindPodFromNode(txn, req, newNode)
+	// TODO: Test the returned node.
+	_, err = nodeDb.UnbindPodFromNode(txn, req, newNode)
 	require.NoError(t, err)
 	newNode, err = nodeDb.GetNodeWithTxn(txn, node.Id)
 	require.NoError(t, err)

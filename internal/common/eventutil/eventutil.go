@@ -200,22 +200,15 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Message: "Both PodSpec and PodSpecs are set",
 		})
 	}
-
 	jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 	if err != nil {
 		return nil, err
 	}
-
-	priority, err := LogSubmitPriorityFromApiPriority(job.GetPriority())
-	if err != nil {
-		return nil, err
-	}
-
+	priority := LogSubmitPriorityFromApiPriority(job.GetPriority())
 	mainObject, objects, err := LogSubmitObjectsFromApiJob(job)
 	if err != nil {
 		return nil, err
 	}
-
 	return &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: job.GetClientId(),
@@ -338,7 +331,7 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 
 // LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
 // or an error if the conversion fails.
-func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
+func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
 	if priority < 0 {
 		priority = 0
 	}
@@ -346,7 +339,7 @@ func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
 		priority = math.MaxUint32
 	}
 	priority = math.Round(priority)
-	return uint32(priority), nil
+	return uint32(priority)
 }
 
 func LogObjectMetaFromK8sObjectMeta(meta *metav1.ObjectMeta) *armadaevents.ObjectMeta {
@@ -942,17 +935,11 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId
 		sequence.UserId = m.Reprioritized.Requestor
-
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
 		if err != nil {
 			return nil, err
 		}
-
-		priority, err := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
-		if err != nil {
-			return nil, err
-		}
-
+		priority := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: &m.Reprioritized.Created,
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{

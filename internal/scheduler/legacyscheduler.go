@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/hashicorp/go-memdb"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -30,7 +31,6 @@ type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
 	GetAnnotations() map[string]string
-	// SetAnnotation(key, value string)
 	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 }
 
@@ -726,31 +726,32 @@ func (nodeDb *NodeDb) Evict(jobRepo JobRepository) ([]LegacySchedulerJob, error)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("found", len(jobs), "jobs on node", node.Id, "->", jobIds)
 		for _, job := range jobs {
 			if job == nil {
 				continue
 			}
 			jobInfo := job.GetRequirements(nodeDb.priorityClasses)
 			if jobInfo == nil {
+				fmt.Println("skipping job", job.GetId(), "no jobInfo")
 				continue
 			}
 			req := PodRequirementFromJobSchedulingInfo(jobInfo)
 			if req == nil {
+				fmt.Println("skipping job", job.GetId(), "no podReqs")
 				continue
 			}
 			pc := nodeDb.priorityClasses[jobInfo.PriorityClassName]
-			fmt.Println("pc:", pc)
 			if pc.AutoBalanced {
-				if err := nodeDb.UnbindPodFromNode(txn, req, node); err != nil {
+				if node, err = nodeDb.UnbindPodFromNode(txn, req, node); err != nil {
 					return nil, err
+				} else {
+					// Ensure this job can only be re-scheduled onto the same node
+					// and mark this job as currently running.
+					// TODO: This should be done by the caller.
+					req.Annotations[TargetNodeIdAnnotation] = node.Id
+					req.Annotations[IsRunningAnnotation] = "true"
+					evictedJobs = append(evictedJobs, job)
 				}
-				// Ensure this job can only be re-scheduled onto the same node
-				// and mark this job as currently running.
-				// TODO: This should be done by the caller.
-				req.Annotations[TargetNodeIdAnnotation] = node.Id
-				req.Annotations[IsRunningAnnotation] = "true"
-				evictedJobs = append(evictedJobs, job)
 			}
 		}
 	}
@@ -834,12 +835,15 @@ func Reschedule(
 	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-) ([]LegacySchedulerJob, []LegacySchedulerDecision, error) {
-
+) ([]LegacySchedulerJob, []LegacySchedulerJob, error) {
 	txn := nodeDb.Txn(false)
 	evictedJobs, err := nodeDb.Evict(jobRepo)
 	if err != nil {
 		return nil, nil, err
+	}
+	jobsById := make(map[string]LegacySchedulerJob)
+	for _, job := range evictedJobs {
+		jobsById[job.GetId()] = job
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository()
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
@@ -865,7 +869,6 @@ func Reschedule(
 
 		queues = append(queues, queue)
 	}
-
 	sched, err := NewLegacyScheduler(
 		ctx,
 		constraints,
@@ -878,13 +881,77 @@ func Reschedule(
 		return nil, nil, err
 	}
 
-	jobs, err := sched.Schedule()
+	rescheduledJobs, err := sched.Schedule()
 	if err != nil {
 		return nil, nil, err
 	}
+	for _, job := range rescheduledJobs {
+		jobsById[job.GetId()] = job
+	}
 
-	diff := make([]LegacySchedulerDecision, 0, len(jobs))
-	nodePairIterator, err := NewNodePairIterator(txn, sched.NodeDb.Txn(false))
+	preemptionDecisions, schedulingDecisions, err := MyDiff2(txn, nodeDb.Txn(false))
+	if err != nil {
+		return nil, nil, err
+	}
+	preemptedJobs := make([]LegacySchedulerJob, 0)
+	for _, decision := range preemptionDecisions {
+		if job, ok := jobsById[decision.JobId]; ok {
+			preemptedJobs = append(preemptedJobs, job)
+		}
+	}
+	scheduledJobs := make([]LegacySchedulerJob, 0)
+	for _, decision := range schedulingDecisions {
+		if job, ok := jobsById[decision.JobId]; ok {
+			scheduledJobs = append(scheduledJobs, job)
+		}
+	}
+
+	return preemptedJobs, scheduledJobs, nil
+}
+
+func MyDiff(txnA, txnB *memdb.Txn) ([]LegacySchedulerDecision, error) {
+	oldNodeByJobId := make(map[string]*schedulerobjects.Node)
+	newNodeByJobId := make(map[string]*schedulerobjects.Node)
+	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
+	if err != nil {
+		return nil, err
+	}
+	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
+		for jobId := range item.NodeA.AllocatedByJobId {
+			oldNodeByJobId[jobId] = item.NodeA
+		}
+		for jobId := range item.NodeB.AllocatedByJobId {
+			newNodeByJobId[jobId] = item.NodeB
+		}
+	}
+
+	// Exists in old but not new
+	// Exists in new but not old
+	// Exists in both
+	diffs := make([]LegacySchedulerDecision, 0)
+	for jobId, oldNode := range oldNodeByJobId {
+		newNode := newNodeByJobId[jobId]
+		diffs = append(diffs, LegacySchedulerDecision{
+			JobId:   jobId,
+			OldNode: oldNode,
+			NewNode: newNode,
+		})
+	}
+	for jobId, newNode := range newNodeByJobId {
+		if _, ok := oldNodeByJobId[jobId]; !ok {
+			diffs = append(diffs, LegacySchedulerDecision{
+				JobId:   jobId,
+				NewNode: newNode,
+			})
+		}
+	}
+	return diffs, nil
+}
+
+func MyDiff2(txnA, txnB *memdb.Txn) ([]SchedulingDecision, []SchedulingDecision, error) {
+	schedulingDecisions := make([]SchedulingDecision, 0)
+	preemptionDecisions := make([]SchedulingDecision, 0)
+	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -892,17 +959,17 @@ func Reschedule(
 		if item.NodeA != nil && item.NodeB == nil {
 			// NodeA was removed while scheduling. All jobs on NodeA are preempted.
 			for jobId := range item.NodeA.AllocatedByJobId {
-				diff = append(diff, LegacySchedulerDecision{
-					JobId:        jobId,
-					OriginalNode: item.NodeA,
+				preemptionDecisions = append(preemptionDecisions, SchedulingDecision{
+					JobId: jobId,
+					Node:  item.NodeA,
 				})
 			}
 		} else if item.NodeA == nil && item.NodeB != nil {
 			// NodeB was added while scheduling. All jobs on NodeB are scheduled.
 			for jobId := range item.NodeB.AllocatedByJobId {
-				diff = append(diff, LegacySchedulerDecision{
-					JobId:   jobId,
-					NewNode: item.NodeB,
+				schedulingDecisions = append(schedulingDecisions, SchedulingDecision{
+					JobId: jobId,
+					Node:  item.NodeB,
 				})
 			}
 		} else if item.NodeA != nil && item.NodeB != nil {
@@ -911,29 +978,34 @@ func Reschedule(
 			// Jobs on NodeB that are not on NodeA are scheduled.
 			for jobId := range item.NodeA.AllocatedByJobId {
 				if _, ok := item.NodeB.AllocatedByJobId[jobId]; !ok {
-					diff = append(diff, LegacySchedulerDecision{
-						JobId:        jobId,
-						OriginalNode: item.NodeA,
+					preemptionDecisions = append(preemptionDecisions, SchedulingDecision{
+						JobId: jobId,
+						Node:  item.NodeA,
 					})
 				}
 			}
 			for jobId := range item.NodeB.AllocatedByJobId {
 				if _, ok := item.NodeA.AllocatedByJobId[jobId]; !ok {
-					diff = append(diff, LegacySchedulerDecision{
-						JobId:   jobId,
-						NewNode: item.NodeB,
+					schedulingDecisions = append(schedulingDecisions, SchedulingDecision{
+						JobId: jobId,
+						Node:  item.NodeB,
 					})
 				}
 			}
 		}
 	}
-	return jobs, diff, nil
+	return preemptionDecisions, schedulingDecisions, nil
+}
+
+type SchedulingDecision struct {
+	JobId string
+	Node  *schedulerobjects.Node
 }
 
 type LegacySchedulerDecision struct {
-	JobId        string
-	OriginalNode *schedulerobjects.Node
-	NewNode      *schedulerobjects.Node
+	JobId   string
+	OldNode *schedulerobjects.Node
+	NewNode *schedulerobjects.Node
 }
 
 func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {

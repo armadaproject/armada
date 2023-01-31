@@ -563,11 +563,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 			Message: "JobSetId is empty",
 		}
 	}
-
-	priority, err := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
-	if err != nil {
-		return nil, err
-	}
+	priority := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
 
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)

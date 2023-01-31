@@ -143,6 +143,11 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*schedulerobjec
 	}
 }
 
+func (nodeDb *NodeDb) Diff(txnA, txnB *memdb.Txn) error {
+
+	return nil
+}
+
 // ScheduleMany assigns a set of pods to nodes.
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
@@ -317,15 +322,17 @@ func (nodeDb *NodeDb) BindPodToNode(txn *memdb.Txn, req *schedulerobjects.PodReq
 	return nil
 }
 
-func (nodeDb *NodeDb) UnbindPodFromNode(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+// UnbindPodFromNode unbinds a pod from a node, inserts into the memdb, and returns the inserted node.
+// The provided node is not mutated.
+func (nodeDb *NodeDb) UnbindPodFromNode(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
 	jobId, err := nodeDb.JobIdFromPodRequirements(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	node = node.DeepCopy()
 	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
-		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+		return nil, errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
 	} else {
 		delete(node.AllocatedByJobId, jobId)
 	}
@@ -333,9 +340,9 @@ func (nodeDb *NodeDb) UnbindPodFromNode(txn *memdb.Txn, req *schedulerobjects.Po
 		node.AllocatableByPriorityAndResource,
 	).MarkAllocatable(req.Priority, requests)
 	if err := txn.Insert("nodes", node); err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
-	return nil
+	return node, nil
 }
 
 func (nodeDb *NodeDb) JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {

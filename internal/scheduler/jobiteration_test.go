@@ -5,9 +5,59 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestInMemoryJobRepository(t *testing.T) {
+	T := time.Now()
+	jobs := []*api.Job{
+		{
+			Queue:    "A",
+			Id:       "3",
+			Priority: 1,
+			Created:  T.Add(3 * time.Second),
+		},
+		{
+			Queue:    "A",
+			Id:       "1",
+			Priority: 1,
+			Created:  T.Add(1 * time.Second),
+		},
+		{
+			Queue:    "A",
+			Id:       "2",
+			Priority: 1,
+			Created:  T.Add(2 * time.Second),
+		},
+		{
+			Queue:    "A",
+			Id:       "5",
+			Priority: 3,
+		},
+		{
+			Queue:    "A",
+			Id:       "0",
+			Priority: 0,
+		},
+		{
+			Queue:    "A",
+			Id:       "4",
+			Priority: 2,
+		},
+	}
+	legacySchedulerJobs := make([]LegacySchedulerJob, len(jobs))
+	for i, job := range jobs {
+		legacySchedulerJobs[i] = job
+	}
+	repo := NewInMemoryJobRepository()
+	repo.EnqueueMany(legacySchedulerJobs)
+	expected := []string{"0", "1", "2", "3", "4", "5"}
+	actual, err := repo.GetQueueJobIds("A")
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}
 
 func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()

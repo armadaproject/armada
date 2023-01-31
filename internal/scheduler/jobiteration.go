@@ -5,14 +5,9 @@ import (
 
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
-)
 
-// // SchedulerJobRepository represents the underlying jobs database.
-// // TODO: Delete in favour of JobRepository.
-// type SchedulerJobRepository interface {
-// 	// GetJobIterator returns a iterator over queued jobs for a given queue.
-// 	GetJobIterator(ctx context.Context, queue string) (JobIterator, error)
-// }
+	"github.com/armadaproject/armada/internal/armada/configuration"
+)
 
 type JobIterator interface {
 	Next() (LegacySchedulerJob, error)
@@ -28,9 +23,13 @@ type InMemoryJobIterator struct {
 	jobs []LegacySchedulerJob
 }
 
-func NewInMemoryJobIterator(jobs []LegacySchedulerJob) *InMemoryJobIterator {
+func NewInMemoryJobIterator[S ~[]E, E LegacySchedulerJob](jobs S) *InMemoryJobIterator {
+	vs := make([]LegacySchedulerJob, len(jobs))
+	for i, job := range jobs {
+		vs[i] = job
+	}
 	return &InMemoryJobIterator{
-		jobs: slices.Clone(jobs),
+		jobs: vs,
 	}
 }
 
@@ -56,8 +55,15 @@ func NewInMemoryJobRepository() *InMemoryJobRepository {
 }
 
 func (repo *InMemoryJobRepository) EnqueueMany(jobs []LegacySchedulerJob) {
+	updatedQueues := make(map[string]bool)
 	for _, job := range jobs {
-		repo.Enqueue(job)
+		queue := job.GetQueue()
+		repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
+		repo.jobsById[job.GetId()] = job
+		updatedQueues[queue] = true
+	}
+	for queue := range updatedQueues {
+		repo.sortQueue(queue)
 	}
 }
 
@@ -65,6 +71,19 @@ func (repo *InMemoryJobRepository) Enqueue(job LegacySchedulerJob) {
 	queue := job.GetQueue()
 	repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
 	repo.jobsById[job.GetId()] = job
+	repo.sortQueue(queue)
+}
+
+func (repo *InMemoryJobRepository) sortQueue(queue string) {
+	slices.SortFunc(repo.jobsByQueue[queue], func(a, b LegacySchedulerJob) bool {
+		// Smaller value indicate higher priority.
+		infoa := a.GetRequirements(make(map[string]configuration.PriorityClass))
+		infob := b.GetRequirements(make(map[string]configuration.PriorityClass))
+		if infoa.GetPriority() == infob.GetPriority() {
+			return infoa.GetSubmitTime().Before(infob.GetSubmitTime())
+		}
+		return infoa.GetPriority() < infob.GetPriority()
+	})
 }
 
 func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error) {
@@ -77,10 +96,10 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error
 }
 
 func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]LegacySchedulerJob, error) {
-	rv := make([]LegacySchedulerJob, len(jobIds))
-	for i, jobId := range jobIds {
+	rv := make([]LegacySchedulerJob, 0, len(jobIds))
+	for _, jobId := range jobIds {
 		if job, ok := repo.jobsById[jobId]; ok {
-			rv[i] = job
+			rv = append(rv, job)
 		}
 	}
 	return rv, nil

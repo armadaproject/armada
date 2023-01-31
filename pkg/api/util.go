@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	math "math"
 	"strings"
 	time "time"
 
@@ -57,11 +58,11 @@ func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interf
 
 func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	podSpecs := job.GetAllPodSpecs()
-	if len(podSpecs) == 0 {
-		return nil
-	}
 	objectRequirements := make([]*schedulerobjects.ObjectRequirements, len(podSpecs))
 	for i, podSpec := range podSpecs {
+		if podSpec == nil {
+			continue
+		}
 		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
 			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 				PodRequirements: adapters.PodRequirementsFromPod(&v1.Pod{
@@ -73,10 +74,29 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 			},
 		}
 	}
+	priorityClassName := ""
+	if len(podSpecs) > 0 {
+		priorityClassName = podSpecs[0].PriorityClassName
+	}
 	return &schedulerobjects.JobSchedulingInfo{
-		PriorityClassName:  podSpecs[0].PriorityClassName,
+		PriorityClassName:  priorityClassName,
+		Priority:           LogSubmitPriorityFromApiPriority(job.GetPriority()),
+		SubmitTime:         job.GetCreated(),
 		ObjectRequirements: objectRequirements,
 	}
+}
+
+// LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
+// or an error if the conversion fails.
+func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
+	if priority < 0 {
+		priority = 0
+	}
+	if priority > math.MaxUint32 {
+		priority = math.MaxUint32
+	}
+	priority = math.Round(priority)
+	return uint32(priority)
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
