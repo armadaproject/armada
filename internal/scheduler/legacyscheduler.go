@@ -190,7 +190,7 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 	if it.maxLookback == 0 {
 		return false
 	}
-	return it.jobsSeen >= it.maxLookback
+	return it.jobsSeen > it.maxLookback
 }
 
 // QueueCandidateGangIterator is an iterator over gangs in a queue that could be scheduled
