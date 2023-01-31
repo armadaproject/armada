@@ -45,8 +45,8 @@ type SchedulingConstraints struct {
 	ResourceScarcity map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
-	// Max number of consecutive unschedulable jobs to consider for a queue before giving up.
-	MaxConsecutiveUnschedulableJobs uint
+	// Max number of jobs to consider for a queue before giving up.
+	MaxLookbackPerQueue uint
 	// Jobs leased to this executor must be at least this large.
 	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
 	MinimumJobSize schedulerobjects.ResourceList
@@ -81,7 +81,6 @@ func SchedulingConstraintsFromSchedulingConfig(
 		Pool:                            pool,
 		ResourceScarcity:                config.GetResourceScarcity(pool),
 		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
-		MaxConsecutiveUnschedulableJobs: config.QueueLeaseBatchSize,
 		MinimumJobSize:                  minimumJobSize,
 		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
 		MaximalCumulativeResourceFractionPerQueueAndPriority: maximalCumulativeResourceFractionPerQueueAndPriority,
@@ -104,7 +103,11 @@ type QueuedGangIterator struct {
 	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
 	jobsByGangId map[string][]LegacySchedulerJob
-	next         []LegacySchedulerJob
+	// Maximum number of jobs to look at before giving up
+	maxLookback uint
+	// Number of jobs we have seen so far
+	jobsSeen uint
+	next     []LegacySchedulerJob
 }
 
 func NewQueuedGangIterator(ctx context.Context, it JobIterator, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
@@ -143,6 +146,7 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
 		job, err := it.queuedJobsIterator.Next()
+		it.jobsSeen++
 		if err != nil {
 			return nil, err
 		}
@@ -746,6 +750,7 @@ func NewLegacyScheduler(
 			queue.jobIterator,
 			config.GangIdAnnotation,
 			config.GangCardinalityAnnotation,
+			config.QueueLeaseBatchSize,
 		)
 
 		// Enforce per-queue constraints.

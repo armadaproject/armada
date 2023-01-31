@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -257,7 +259,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				MaximalResourceFractionPerQueue: armadaresource.ComputeResourcesFloat{
 					"gpu": 0,
 				},
-				MaxConsecutiveUnschedulableJobs: 3,
+				MaxLookbackPerQueue: 3,
 			},
 			ExpectedIndices: []int{0},
 		},
@@ -328,6 +330,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				queuedJobsIterator,
 				testGangIdAnnotation,
 				testGangCardinalityAnnotation,
+				tc.SchedulingConstraints.MaxLookbackPerQueue,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
@@ -985,6 +988,19 @@ func TestSchedule(t *testing.T) {
 				"A": {0},
 			},
 		},
+		"QueueLeaseBatchSize Respected": {
+			SchedulingConfig: withQueueLeaseBatchSizeConfig(3, testSchedulingConfig()), // should quit after 3 unschedulable jobs
+			Nodes:            testNCpuNode(1, testPriorities),                          // 32 cores
+			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 3)...), testNSmallCpuJob(0, 1)...),
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+			ExpectedIndicesByQueue: map[string][]int{
+				"A": {0},
+			},
+		},
 		"gang scheduling success": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1173,7 +1189,10 @@ func TestSchedule(t *testing.T) {
 						continue
 					}
 
-					for _, job := range jobs {
+					for i, job := range jobs {
+						if i >= int(tc.SchedulingConfig.QueueLeaseBatchSize) {
+							break
+						}
 						jobId, err := uuidFromUlidString(job.Id)
 						if !assert.NoError(t, err) {
 							return
