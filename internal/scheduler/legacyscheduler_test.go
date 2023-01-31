@@ -20,144 +20,6 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func TestQueueSelectionWeights(t *testing.T) {
-	tests := map[string]struct {
-		PriorityFactorByQueue         map[string]float64
-		AggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList
-		ResourceScarcity              map[string]float64
-		ExpectedByQueue               map[string]float64
-	}{
-		"one queues": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-			},
-			ResourceScarcity: map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 1.0,
-			},
-		},
-		"two queues with equal factors no usage": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			ResourceScarcity: map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 1.0 / 2.0,
-				"B": 1.0 / 2.0,
-			},
-		},
-		"three queues with equal factors no usage": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-				"C": 1,
-			},
-			ResourceScarcity: map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 1.0 / 3.0,
-				"B": 1.0 / 3.0,
-				"C": 1.0 / 3.0,
-			},
-		},
-		"two queues with unequal factors no usage": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 2,
-			},
-			ResourceScarcity: map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 2.0 / 3.0,
-				"B": 1.0 / 3.0,
-			},
-		},
-		"two queues with one far above its share": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			AggregateResourceUsageByQueue: map[string]schedulerobjects.ResourceList{
-				"B": {
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("100000"),
-					},
-				},
-			},
-			ResourceScarcity: map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 1.0,
-				"B": 0.0,
-			},
-		},
-		"two queues using exactly using their share": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 2,
-			},
-			AggregateResourceUsageByQueue: map[string]schedulerobjects.ResourceList{
-				"A": {
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("2"),
-					},
-				},
-				"B": {
-					Resources: map[string]resource.Quantity{
-						"cpu": resource.MustParse("1"),
-					},
-				},
-			},
-			ResourceScarcity: map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 1.0 / 2.0,
-				"B": 1.0 / 2.0,
-			},
-		},
-		"two queues with no usage": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			AggregateResourceUsageByQueue: make(map[string]schedulerobjects.ResourceList),
-			ResourceScarcity:              map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 1.0 / 2.0,
-				"B": 1.0 / 2.0,
-			},
-		},
-		"two queues with unequal factors and no usage": {
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 2,
-			},
-			AggregateResourceUsageByQueue: make(map[string]schedulerobjects.ResourceList),
-			ResourceScarcity:              map[string]float64{"cpu": 1},
-			ExpectedByQueue: map[string]float64{
-				"A": 2.0 / 3.0,
-				"B": 1.0 / 3.0,
-			},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			actualByQueue := queueSelectionWeights(
-				tc.PriorityFactorByQueue,
-				tc.AggregateResourceUsageByQueue,
-				tc.ResourceScarcity,
-			)
-			if !assert.Equal(t, len(tc.ExpectedByQueue), len(actualByQueue)) {
-				return
-			}
-			for queue, actual := range actualByQueue {
-				expected, ok := tc.ExpectedByQueue[queue]
-				if !assert.True(t, ok) {
-					continue
-				}
-				assert.InDelta(t, expected, actual, 1e-2)
-			}
-		})
-	}
-}
-
 func TestQueueCandidateGangIterator(t *testing.T) {
 	tests := map[string]struct {
 		Reqs                   []*schedulerobjects.PodRequirements
@@ -1226,10 +1088,6 @@ func TestReschedule(t *testing.T) {
 		// For each queue, indices of jobs expected to be preempted.
 		// E.g., ExpectedPreemptedIndices["A"][0] is the indices of jobs declared for queue A in round 0.
 		ExpectedPreemptedIndices map[string]map[int][]int
-		// // For each queue, the expected amount of scheduled resources.
-		// ExpectedScheduledResourcesByQueue map[string]resourceLimits
-		// // For each queue, the expected amount of preempted resoruces.
-		// ExpectedPreemptedResourcesByQueue map[string]resourceLimits
 	}
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -1298,7 +1156,66 @@ func TestReschedule(t *testing.T) {
 				"C": 1,
 			},
 		},
+		"balancing two queues weighted": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob(0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob(0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 20),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(11, 31),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 2,
+				"B": 1,
+			},
+		},
+		// "reschedule onto same node": {
+		// 	SchedulingConfig: testSchedulingConfig(),
+		// 	Nodes:            testNCpuNode(10, testPriorities),
+		// 	Rounds: []ReschedulingRound{
+		// 		{
+		// 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+		// 				"B": testNSmallCpuJob(0, 40),
+		// 			},
+		// 			ExpectedScheduledIndices: map[string][]int{
+		// 				"B": intRange(0, 39),
+		// 			},
+		// 		},
+		// 		{
+		// 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+		// 				"A": testNSmallCpuJob(0, 32),
+		// 			},
+		// 			ExpectedScheduledIndices: map[string][]int{
+		// 				"A": intRange(0, 31),
+		// 			},
+		// 		},
+		// 	},
+		// 	PriorityFactorByQueue: map[string]float64{
+		// 		"A": 2,
+		// 		"B": 1,
+		// 	},
+		// },
 	}
+	// TODO: Test
+	// - Rescheduled jobs doesn't count against lookback.
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			nodeDb, err := createNodeDb(tc.Nodes)
@@ -1363,7 +1280,7 @@ func TestReschedule(t *testing.T) {
 					}
 					slices.Sort(actual)
 					slices.Sort(expected)
-					assert.Equal(t, expected, actual)
+					assert.Equal(t, expected, actual, "scheduling from queue %s", queue)
 				}
 
 				for queue, jobIds := range jobIdsByQueueFromJobs(preemptedJobs) {
@@ -1380,7 +1297,7 @@ func TestReschedule(t *testing.T) {
 					for _, s := range actual {
 						slices.Sort(s)
 					}
-					assert.Equal(t, expected, actual)
+					assert.Equal(t, expected, actual, "preempting from queue %s", queue)
 				}
 			}
 		})

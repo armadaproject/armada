@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/hashicorp/go-memdb"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -889,123 +888,23 @@ func Reschedule(
 		jobsById[job.GetId()] = job
 	}
 
-	preemptionDecisions, schedulingDecisions, err := MyDiff2(txn, nodeDb.Txn(false))
+	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
 	if err != nil {
 		return nil, nil, err
 	}
 	preemptedJobs := make([]LegacySchedulerJob, 0)
-	for _, decision := range preemptionDecisions {
-		if job, ok := jobsById[decision.JobId]; ok {
+	for jobId := range preempted {
+		if job, ok := jobsById[jobId]; ok {
 			preemptedJobs = append(preemptedJobs, job)
 		}
 	}
 	scheduledJobs := make([]LegacySchedulerJob, 0)
-	for _, decision := range schedulingDecisions {
-		if job, ok := jobsById[decision.JobId]; ok {
+	for jobId := range scheduled {
+		if job, ok := jobsById[jobId]; ok {
 			scheduledJobs = append(scheduledJobs, job)
 		}
 	}
-
 	return preemptedJobs, scheduledJobs, nil
-}
-
-func MyDiff(txnA, txnB *memdb.Txn) ([]LegacySchedulerDecision, error) {
-	oldNodeByJobId := make(map[string]*schedulerobjects.Node)
-	newNodeByJobId := make(map[string]*schedulerobjects.Node)
-	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
-	if err != nil {
-		return nil, err
-	}
-	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
-		for jobId := range item.NodeA.AllocatedByJobId {
-			oldNodeByJobId[jobId] = item.NodeA
-		}
-		for jobId := range item.NodeB.AllocatedByJobId {
-			newNodeByJobId[jobId] = item.NodeB
-		}
-	}
-
-	// Exists in old but not new
-	// Exists in new but not old
-	// Exists in both
-	diffs := make([]LegacySchedulerDecision, 0)
-	for jobId, oldNode := range oldNodeByJobId {
-		newNode := newNodeByJobId[jobId]
-		diffs = append(diffs, LegacySchedulerDecision{
-			JobId:   jobId,
-			OldNode: oldNode,
-			NewNode: newNode,
-		})
-	}
-	for jobId, newNode := range newNodeByJobId {
-		if _, ok := oldNodeByJobId[jobId]; !ok {
-			diffs = append(diffs, LegacySchedulerDecision{
-				JobId:   jobId,
-				NewNode: newNode,
-			})
-		}
-	}
-	return diffs, nil
-}
-
-func MyDiff2(txnA, txnB *memdb.Txn) ([]SchedulingDecision, []SchedulingDecision, error) {
-	schedulingDecisions := make([]SchedulingDecision, 0)
-	preemptionDecisions := make([]SchedulingDecision, 0)
-	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
-	if err != nil {
-		return nil, nil, err
-	}
-	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
-		if item.NodeA != nil && item.NodeB == nil {
-			// NodeA was removed while scheduling. All jobs on NodeA are preempted.
-			for jobId := range item.NodeA.AllocatedByJobId {
-				preemptionDecisions = append(preemptionDecisions, SchedulingDecision{
-					JobId: jobId,
-					Node:  item.NodeA,
-				})
-			}
-		} else if item.NodeA == nil && item.NodeB != nil {
-			// NodeB was added while scheduling. All jobs on NodeB are scheduled.
-			for jobId := range item.NodeB.AllocatedByJobId {
-				schedulingDecisions = append(schedulingDecisions, SchedulingDecision{
-					JobId: jobId,
-					Node:  item.NodeB,
-				})
-			}
-		} else if item.NodeA != nil && item.NodeB != nil {
-			// NodeA is the same as NodeB.
-			// Jobs on NodeA that are not on NodeB are preempted.
-			// Jobs on NodeB that are not on NodeA are scheduled.
-			for jobId := range item.NodeA.AllocatedByJobId {
-				if _, ok := item.NodeB.AllocatedByJobId[jobId]; !ok {
-					preemptionDecisions = append(preemptionDecisions, SchedulingDecision{
-						JobId: jobId,
-						Node:  item.NodeA,
-					})
-				}
-			}
-			for jobId := range item.NodeB.AllocatedByJobId {
-				if _, ok := item.NodeA.AllocatedByJobId[jobId]; !ok {
-					schedulingDecisions = append(schedulingDecisions, SchedulingDecision{
-						JobId: jobId,
-						Node:  item.NodeB,
-					})
-				}
-			}
-		}
-	}
-	return preemptionDecisions, schedulingDecisions, nil
-}
-
-type SchedulingDecision struct {
-	JobId string
-	Node  *schedulerobjects.Node
-}
-
-type LegacySchedulerDecision struct {
-	JobId   string
-	OldNode *schedulerobjects.Node
-	NewNode *schedulerobjects.Node
 }
 
 func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
@@ -1111,58 +1010,6 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string, gangIdAn
 		return "", 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
 	}
 	return gangId, gangCardinality, true, nil
-}
-
-func queueSelectionWeights(priorityFactorByQueue map[string]float64, aggregateResourceUsageByQueue map[string]schedulerobjects.ResourceList, resourceScarcity map[string]float64) map[string]float64 {
-	rv := make(map[string]float64)
-	total := 0.0
-	for _, rl := range aggregateResourceUsageByQueue {
-		total += ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
-	}
-	if total == 0 {
-		// Avoid division by 0.
-		total = 1
-	}
-	inversePriorityFactorsSum := 0.0
-	for _, priorityFactor := range priorityFactorByQueue {
-		if priorityFactor < 1 {
-			// Avoid division by 0.
-			priorityFactor = 1
-		}
-		inversePriorityFactorsSum += 1 / priorityFactor
-	}
-	weightsSum := 0.0
-	for queue, priorityFactor := range priorityFactorByQueue {
-		if priorityFactor < 1 {
-			// Avoid division by 0.
-			priorityFactor = 1
-		}
-		expected := 1 / priorityFactor / inversePriorityFactorsSum
-		rl := aggregateResourceUsageByQueue[queue]
-		usage := ResourceListAsWeightedApproximateFloat64(resourceScarcity, rl)
-		if usage == 0 {
-			// Avoid division by 0.
-			usage = 1
-		}
-		actual := usage / total
-		weight := expected / actual
-
-		// Amplify weights to push queues towards their fair share.
-		if weight < 1 {
-			weight /= float64(len(priorityFactorByQueue))
-		} else {
-			weight *= float64(len(priorityFactorByQueue))
-		}
-
-		weightsSum += weight
-		rv[queue] = weight
-	}
-
-	// Normalise
-	for queue, weight := range rv {
-		rv[queue] = weight / weightsSum
-	}
-	return rv
 }
 
 func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float64, rl schedulerobjects.ResourceList) float64 {

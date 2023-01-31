@@ -148,6 +148,48 @@ func (nodeDb *NodeDb) Diff(txnA, txnB *memdb.Txn) error {
 	return nil
 }
 
+// NodeJobDiff compares two snapshots of the NodeDb memdb and returns
+// all preemptions and
+// - a slice composed of all preempted jobs
+// - a slice composed of all scheduled jobs
+// that happened between the two snapshots.
+func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[string]*schedulerobjects.Node, error) {
+	preempted := make(map[string]*schedulerobjects.Node)
+	scheduled := make(map[string]*schedulerobjects.Node)
+	nodePairIterator, err := NewNodePairIterator(txnA, txnB)
+	if err != nil {
+		return nil, nil, err
+	}
+	for item := nodePairIterator.NextItem(); item != nil; item = nodePairIterator.NextItem() {
+		if item.NodeA != nil && item.NodeB == nil {
+			// NodeA was removed. All jobs on NodeA are preempted.
+			for jobId := range item.NodeA.AllocatedByJobId {
+				preempted[jobId] = item.NodeA
+			}
+		} else if item.NodeA == nil && item.NodeB != nil {
+			// NodeB was added. All jobs on NodeB are scheduled.
+			for jobId := range item.NodeB.AllocatedByJobId {
+				scheduled[jobId] = item.NodeB
+			}
+		} else if item.NodeA != nil && item.NodeB != nil {
+			// NodeA is the same as NodeB.
+			// Jobs on NodeA that are not on NodeB are preempted.
+			// Jobs on NodeB that are not on NodeA are scheduled.
+			for jobId := range item.NodeA.AllocatedByJobId {
+				if _, ok := item.NodeB.AllocatedByJobId[jobId]; !ok {
+					preempted[jobId] = item.NodeA
+				}
+			}
+			for jobId := range item.NodeB.AllocatedByJobId {
+				if _, ok := item.NodeA.AllocatedByJobId[jobId]; !ok {
+					scheduled[jobId] = item.NodeB
+				}
+			}
+		}
+	}
+	return preempted, scheduled, nil
+}
+
 // ScheduleMany assigns a set of pods to nodes.
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
