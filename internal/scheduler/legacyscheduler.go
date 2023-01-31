@@ -138,7 +138,6 @@ func (it *QueuedGangIterator) Clear() error {
 }
 
 func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
-
 	if it.hitLookbackLimit() {
 		return nil, nil
 	}
