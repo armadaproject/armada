@@ -9,6 +9,7 @@ import (
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
