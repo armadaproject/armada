@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
-
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
@@ -14,7 +12,10 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
@@ -29,11 +30,17 @@ import (
 func Run(config Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 
+	// List of services to run concurrently.
+	// Because we want to start services only once all input validation has been completed,
+	// we add all services to a slice and start them together at the end of this function.
+	var services []func() error
+
 	//////////////////////////////////////////////////////////////////////////
 	// Database setup (postgres and redis)
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
+	defer db.Close()
 	if err != nil {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
@@ -76,7 +83,7 @@ func Run(config Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
-	g.Go(func() error { return leaderController.Run(ctx) })
+	services = append(services, func() error { return leaderController.Run(ctx) })
 
 	//////////////////////////////////////////////////////////////////////////
 	// Executor Api
@@ -92,22 +99,33 @@ func Run(config Configuration) error {
 	if err != nil {
 		return errors.Wrapf(err, "error creating pulsar producer for executor api")
 	}
-	authServices := auth.ConfigureAuth(config.Auth)
+	defer apiProducer.Close()
+	authServices, err := auth.ConfigureAuth(config.Auth)
+	if err != nil {
+		return errors.WithMessage(err, "error creating auth services")
+	}
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
 		return errors.WithMessage(err, "error setting up grpc server")
 	}
-	executorServer := NewExecutorApi(apiProducer, jobRepository, executorRepository, []int32{}, config.Scheduling.MaximumJobsToSchedule)
+	allowedPcs := allowedPrioritiesFromPriorityClasses(config.Scheduling.Preemption.PriorityClasses)
+	executorServer, err := NewExecutorApi(apiProducer, jobRepository, executorRepository, allowedPcs, config.Scheduling.MaximumJobsToSchedule)
+	if err != nil {
+		return errors.WithMessage(err, "error creating executorApi")
+	}
 	executorapi.RegisterExecutorApiServer(grpcServer, executorServer)
-	g.Go(func() error { return grpcServer.Serve(lis) })
-	log.Infof("Executor api listening on %s", lis.Addr())
+	services = append(services, func() error {
+		log.Infof("Executor api listening on %s", lis.Addr())
+		return grpcServer.Serve(lis)
+	})
+	services = append(services, grpcCommon.CreateShutdownHandler(ctx, 5*time.Second, grpcServer))
 
 	//////////////////////////////////////////////////////////////////////////
 	// Scheduling
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Starting up scheduling loop")
+	log.Infof("setting up scheduling loop")
 	stringInterner, err := util.NewStringInterner(config.InternedStringsCacheSize)
 	if err != nil {
 		return errors.WithMessage(err, "error creating string interner")
@@ -125,7 +143,12 @@ func Run(config Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
 	}
-	g.Go(func() error { return scheduler.Run(ctx) })
+	services = append(services, func() error { return scheduler.Run(ctx) })
+
+	// start all services
+	for _, service := range services {
+		g.Go(service)
+	}
 
 	return g.Wait()
 }
@@ -149,4 +172,12 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}
+}
+
+func allowedPrioritiesFromPriorityClasses(pcs map[string]configuration.PriorityClass) []int32 {
+	allowedPcs := make([]int32, 0, len(pcs))
+	for _, v := range pcs {
+		allowedPcs = append(allowedPcs, v.Priority)
+	}
+	return allowedPcs
 }
