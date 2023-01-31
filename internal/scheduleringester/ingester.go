@@ -3,23 +3,15 @@ package scheduleringester
 import (
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
-
-	"github.com/armadaproject/armada/internal/common/compress"
-
-	"github.com/armadaproject/armada/internal/common/database"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
@@ -38,7 +30,7 @@ func Run(config Configuration) {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error creating  compressor"))
 	}
-	converter := NewInstructionConverter(metrics, config.PriorityClasses, compressor)
+	converter := NewInstructionConverter(svcMetrics, config.PriorityClasses, compressor)
 
 	ingester := ingest.NewFilteredMsgIngestionPipeline(
 		config.Pulsar,
