@@ -214,7 +214,6 @@ func selectJobsForLegacyScheduler(jobs []*armadaevents.SubmitJob) []*armadaevent
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
-
 	if len(req.JobIds) > 0 {
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
 	}
