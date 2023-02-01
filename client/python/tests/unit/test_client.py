@@ -250,7 +250,6 @@ def test_update_queues_full():
 
 
 def test_reprioritize_jobs():
-
     # Similar to test_cancel_jobs(), test that the right combination of jobid
     # or jobsetid and queue is used
     # also check that the Value error is raised
