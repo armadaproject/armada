@@ -145,26 +145,23 @@ func (rl *ResourceList) DeepCopy() ResourceList {
 	return rv
 }
 
-func (a ResourceList) Equal(b ResourceList) bool {
-	if len(a.Resources) != len(b.Resources) {
-		return false
-	}
-	if a.Resources == nil {
-		if b.Resources == nil {
-			return true
-		} else {
+func (a ResourceList) IsZero() bool {
+	for _, q := range a.Resources {
+		if !q.IsZero() {
 			return false
 		}
 	}
-	if b.Resources == nil && a.Resources != nil {
-		return false
-	}
+	return true
+}
+
+func (a ResourceList) Equal(b ResourceList) bool {
 	for t, qa := range a.Resources {
-		if qb, ok := b.Resources[t]; ok {
-			if qa.Cmp(qb) != 0 {
-				return false
-			}
-		} else {
+		if qa.Cmp(b.Get(t)) != 0 {
+			return false
+		}
+	}
+	for t, qb := range b.Resources {
+		if qb.Cmp(a.Get(t)) != 0 {
 			return false
 		}
 	}

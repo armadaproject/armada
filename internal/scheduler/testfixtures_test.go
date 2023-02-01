@@ -91,6 +91,19 @@ func withIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuratio
 	return config
 }
 
+func withPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+	for i := range nodes {
+		for _, req := range reqs[i] {
+			node, err := BindPodToNode(req, nodes[i])
+			if err != nil {
+				panic(err)
+			}
+			nodes[i] = node
+		}
+	}
+	return nodes
+}
+
 func withUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)
@@ -135,6 +148,13 @@ func withNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*sc
 	return reqs
 }
 
+func withQueueAnnotationsPodReqs(queue string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+	return withAnnotationsPodReqs(
+		map[string]string{QueueAnnotation: queue},
+		reqs,
+	)
+}
+
 func withGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))
@@ -164,31 +184,31 @@ func withRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobje
 	return reqs
 }
 
-func testNSmallCpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
+func testNSmallCpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testSmallCpuJob(priority)
+		rv[i] = testSmallCpuJob(queue, priority)
 	}
 	return rv
 }
 
-func testNLargeCpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
+func testNLargeCpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testLargeCpuJob(priority)
+		rv[i] = testLargeCpuJob(queue, priority)
 	}
 	return rv
 }
 
-func testNGpuJob(priority int32, n int) []*schedulerobjects.PodRequirements {
+func testNGpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = testGpuJob(priority)
+		rv[i] = testGpuJob(queue, priority)
 	}
 	return rv
 }
 
-func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
+func testSmallCpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
@@ -199,11 +219,12 @@ func testSmallCpuJob(priority int32) *schedulerobjects.PodRequirements {
 		},
 		Annotations: map[string]string{
 			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: queue,
 		},
 	}
 }
 
-func testLargeCpuJob(priority int32) *schedulerobjects.PodRequirements {
+func testLargeCpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
@@ -220,11 +241,12 @@ func testLargeCpuJob(priority int32) *schedulerobjects.PodRequirements {
 		},
 		Annotations: map[string]string{
 			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: queue,
 		},
 	}
 }
 
-func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
+func testGpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
@@ -242,6 +264,7 @@ func testGpuJob(priority int32) *schedulerobjects.PodRequirements {
 		},
 		Annotations: map[string]string{
 			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: queue,
 		},
 	}
 }
@@ -431,8 +454,7 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = db.Upsert(nodes)
-	if err != nil {
+	if err := db.UpsertMany(nodes); err != nil {
 		return nil, err
 	}
 	return db, nil

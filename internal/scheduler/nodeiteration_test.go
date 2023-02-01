@@ -225,34 +225,79 @@ func TestNodeTypesResourceIteratorPQ(t *testing.T) {
 
 func TestNodeTypeResourceIterator(t *testing.T) {
 	tests := map[string]struct {
+		DominantQueue          string
+		MaxActiveQueues        int
 		NodeTypeId             string
 		Resource               string
 		Priority               int32
 		RequiredResourceAmount resource.Quantity
-		Items                  []*schedulerobjects.Node
+		Nodes                  []*schedulerobjects.Node
 		ExpectedOrder          []int
 	}{
 		"NodeType foo": {
+			DominantQueue: "*",
 			NodeTypeId:    "foo",
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testCluster(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{0, 1},
 		},
 		"NodeType bar": {
+			DominantQueue: "*",
 			NodeTypeId:    "bar",
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testCluster(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{2},
 		},
 		"NodeType foo, cpu lower bound": {
+			DominantQueue:          "*",
 			NodeTypeId:             "foo",
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testCluster(),
+			Nodes:                  testCluster(),
 			ExpectedOrder:          []int{1},
+		},
+		"dominantQueue": {
+			DominantQueue:          "A",
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: append(
+						testNSmallCpuJob("A", 0, 3),
+						testNSmallCpuJob("B", 0, 3)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{0, 1},
+		},
+		"dominantQueue and maxActiveQueues": {
+			DominantQueue:          "A",
+			MaxActiveQueues:        1,
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: testNSmallCpuJob("A", 0, 2),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
 		},
 	}
 	for name, tc := range tests {
@@ -261,14 +306,15 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			err = populateDatabase(db, tc.Items)
+			err = populateDatabase(db, tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
-
 			txn := db.Txn(false)
 			it, err := NewNodeTypeResourceIterator(
 				txn,
+				tc.DominantQueue,
+				tc.MaxActiveQueues,
 				tc.Resource,
 				tc.Priority,
 				&schedulerobjects.NodeType{Id: tc.NodeTypeId},
@@ -277,65 +323,122 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			for _, i := range tc.ExpectedOrder {
-				item := it.NextNodeItem()
-				if !assert.Equal(t, tc.Items[i], item) {
-					return
-				}
+
+			indexById := make(map[string]int)
+			for i, node := range tc.Nodes {
+				indexById[node.Id] = i
 			}
-			item := it.NextNodeItem()
-			if !assert.Nil(t, item) {
-				return
+			actual := make([]int, 0, len(tc.ExpectedOrder))
+			for node := it.NextNodeItem(); node != nil; node = it.NextNodeItem() {
+				i, ok := indexById[node.Id]
+				require.True(t, ok)
+				actual = append(actual, i)
 			}
+			assert.Equal(t, tc.ExpectedOrder, actual)
 		})
 	}
 }
 
 func TestNodeTypesResourceIterator(t *testing.T) {
 	tests := map[string]struct {
+		DominantQueue          string
+		MaxActiveQueues        int
 		NodeTypes              []string
 		Resource               string
 		Priority               int32
 		RequiredResourceAmount resource.Quantity
-		Items                  []*schedulerobjects.Node
+		Nodes                  []*schedulerobjects.Node
 		ExpectedOrder          []int
 	}{
 		"NodeType foo": {
+			DominantQueue: "*",
 			NodeTypes:     []string{"foo"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testCluster(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{0, 1},
 		},
 		"NodeType bar": {
+			DominantQueue: "*",
 			NodeTypes:     []string{"bar"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testCluster(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{2},
 		},
 		"NodeType foo, cpu lower bound": {
+			DominantQueue:          "*",
 			NodeTypes:              []string{"foo"},
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testCluster(),
+			Nodes:                  testCluster(),
 			ExpectedOrder:          []int{1},
 		},
 		"NodeType foo and bar": {
+			DominantQueue: "*",
 			NodeTypes:     []string{"foo", "bar"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testCluster(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{0, 1, 2},
 		},
 		"NodeType foo and bar, cpu lower bound": {
+			DominantQueue:          "*",
 			NodeTypes:              []string{"foo", "bar"},
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testCluster(),
+			Nodes:                  testCluster(),
 			ExpectedOrder:          []int{1, 2},
+		},
+		"dominantQueue": {
+			DominantQueue:          "A",
+			NodeTypes:              []string{"foo", "bar"},
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: append(
+						testNSmallCpuJob("A", 0, 3),
+						testNSmallCpuJob("B", 0, 3)...,
+					),
+					2: append(
+						testNSmallCpuJob("A", 0, 1),
+						testNSmallCpuJob("B", 0, 2)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{0, 1},
+		},
+		"dominantQueue and maxActiveQueues": {
+			DominantQueue:          "A",
+			MaxActiveQueues:        1,
+			NodeTypes:              []string{"foo", "bar"},
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: testNSmallCpuJob("A", 0, 3),
+					2: append(
+						testNSmallCpuJob("A", 0, 1),
+						testNSmallCpuJob("B", 0, 2)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
 		},
 	}
 	for name, tc := range tests {
@@ -344,7 +447,7 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			err = populateDatabase(db, tc.Items)
+			err = populateDatabase(db, tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -357,24 +460,26 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			txn := db.Txn(false)
 			it, err := NewNodeTypesResourceIterator(
 				txn,
+				tc.DominantQueue,
+				tc.MaxActiveQueues,
 				tc.Resource,
 				tc.Priority,
 				nodeTypes,
 				tc.RequiredResourceAmount,
 			)
-			if !assert.NoError(t, err) {
-				return
+			require.NoError(t, err)
+
+			indexById := make(map[string]int)
+			for i, node := range tc.Nodes {
+				indexById[node.Id] = i
 			}
-			for _, i := range tc.ExpectedOrder {
-				item := it.NextNodeItem()
-				if !assert.Equal(t, tc.Items[i], item) {
-					return
-				}
+			actual := make([]int, 0, len(tc.ExpectedOrder))
+			for node := it.NextNodeItem(); node != nil; node = it.NextNodeItem() {
+				i, ok := indexById[node.Id]
+				require.True(t, ok)
+				actual = append(actual, i)
 			}
-			item := it.NextNodeItem()
-			if !assert.Nil(t, item) {
-				return
-			}
+			assert.Equal(t, tc.ExpectedOrder, actual)
 		})
 	}
 }

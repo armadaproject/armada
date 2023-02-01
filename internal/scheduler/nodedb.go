@@ -136,16 +136,14 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*schedulerobjec
 		return nil, errors.WithStack(err)
 	}
 	obj := it.Next()
+	if obj == nil {
+		return nil, nil
+	}
 	if node, ok := obj.(*schedulerobjects.Node); !ok {
 		panic(fmt.Sprintf("expected *Node, but got %T", obj))
 	} else {
 		return node, nil
 	}
-}
-
-func (nodeDb *NodeDb) Diff(txnA, txnB *memdb.Txn) error {
-
-	return nil
 }
 
 // NodeJobDiff compares two snapshots of the NodeDb memdb and returns
@@ -221,9 +219,13 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 		// Otherwise, zero out the node binding in all previous reports,
 		// abort the transaction, and return.
 		if report.Node != nil {
-			err = nodeDb.BindPodToNode(txn, req, report.Node)
-			if err != nil {
+			if node, err := BindPodToNode(req, report.Node); err != nil {
 				return nil, false, err
+			} else {
+				if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+					return nil, false, err
+				}
+				report.Node = node
 			}
 		} else {
 			return reports, false, nil
@@ -249,9 +251,13 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 		return nil, err
 	}
 	if report.Node != nil {
-		err = nodeDb.BindPodToNode(txn, req, report.Node)
-		if err != nil {
+		if node, err := BindPodToNode(req, report.Node); err != nil {
 			return nil, err
+		} else {
+			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+				return nil, err
+			}
+			report.Node = node
 		}
 	}
 	return report, nil
@@ -307,6 +313,8 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	if nodeIt == nil {
 		it, err := NewNodeTypesResourceIterator(
 			txn,
+			"*",
+			0,
 			dominantResourceType,
 			req.Priority,
 			nodeTypes,
@@ -339,71 +347,105 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	return report, nil
 }
 
-func (nodeDb *NodeDb) BindPodToNode(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
-	jobId, err := nodeDb.JobIdFromPodRequirements(req)
+// BindPodToNode returns a copy of node with req bound to it.
+func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	jobId, err := JobIdFromPodRequirements(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	queue, err := QueueFromPodRequirements(req)
+	if err != nil {
+		return nil, err
+	}
+
 	node = node.DeepCopy()
 	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+
 	if node.AllocatedByJobId == nil {
 		node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
 	}
 	if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
-		return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
+		return nil, errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
 	} else {
 		allocatedToJob.Add(requests)
 		node.AllocatedByJobId[jobId] = allocatedToJob
 	}
+
+	if node.AllocatedByQueue == nil {
+		node.AllocatedByQueue = make(map[string]schedulerobjects.ResourceList)
+	}
+	allocatedToQueue := node.AllocatedByQueue[queue]
+	allocatedToQueue.Add(requests)
+	node.AllocatedByQueue[queue] = allocatedToQueue
+
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
 	).MarkAllocated(req.Priority, requests)
-	if err := txn.Insert("nodes", node); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
+	return node, nil
 }
 
-// UnbindPodFromNode unbinds a pod from a node, inserts into the memdb, and returns the inserted node.
-// The provided node is not mutated.
-func (nodeDb *NodeDb) UnbindPodFromNode(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
-	jobId, err := nodeDb.JobIdFromPodRequirements(req)
+// UnbindPodFromNode returns a copy of node with req unbound from it.
+func UnbindPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	jobId, err := JobIdFromPodRequirements(req)
 	if err != nil {
 		return nil, err
 	}
+	queue, err := QueueFromPodRequirements(req)
+	if err != nil {
+		return nil, err
+	}
+
 	node = node.DeepCopy()
 	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return nil, errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
 	} else {
 		delete(node.AllocatedByJobId, jobId)
 	}
+
+	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
+		return nil, errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+	} else {
+		allocatedToQueue.Sub(requests)
+		if allocatedToQueue.Equal(schedulerobjects.ResourceList{}) {
+			delete(node.AllocatedByQueue, queue)
+		} else {
+			node.AllocatedByQueue[queue] = allocatedToQueue
+		}
+	}
+
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
 	).MarkAllocatable(req.Priority, requests)
-	if err := txn.Insert("nodes", node); err != nil {
-		return nil, errors.WithStack(err)
-	}
 	return node, nil
 }
 
-func (nodeDb *NodeDb) JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	jobId, ok := req.Annotations[JobIdAnnotation]
+func JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
+	return valueFromPodRequirements(req, JobIdAnnotation)
+}
+
+func QueueFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
+	return valueFromPodRequirements(req, QueueAnnotation)
+}
+
+func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string) (string, error) {
+	v, ok := req.Annotations[key]
 	if !ok {
 		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "req.Annotations",
 			Value:   req.Annotations,
-			Message: fmt.Sprintf("%s annotation missing", JobIdAnnotation),
+			Message: fmt.Sprintf("%s annotation missing", key),
 		})
 	}
-	if jobId == "" {
+	if v == "" {
 		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "jobId",
-			Value:   jobId,
-			Message: "jobId is empty",
+			Name:    key,
+			Value:   v,
+			Message: fmt.Sprintf("value of %s is empty", key),
 		})
 	}
-	return jobId, nil
+	return v, nil
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
@@ -455,49 +497,72 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 	return dominantResourceType
 }
 
-// Upsert nodes.
-func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
+func (nodeDb *NodeDb) UpsertMany(nodes []*schedulerobjects.Node) error {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
+	if err := nodeDb.UpsertManyWithTxn(txn, nodes); err != nil {
+		return err
+	}
+	txn.Commit()
+	return nil
+}
+
+func (nodeDb *NodeDb) UpsertManyWithTxn(txn *memdb.Txn, nodes []*schedulerobjects.Node) error {
 	for _, node := range nodes {
-
-		// Compute the node type of the node
-		// and update the node with the node accordingly.
-		nodeType := schedulerobjects.NewNodeType(
-			node.GetTaints(),
-			node.GetLabels(),
-			nodeDb.indexedTaints,
-			nodeDb.indexedNodeLabels,
-		)
-		node.NodeTypeId = nodeType.Id
-		node.NodeType = nodeType
-
-		// Record all unique node types.
-		nodeDb.mu.Lock()
-		nodeDb.nodeTypes[nodeType.Id] = nodeType
-		nodeDb.mu.Unlock()
-
-		// If this is a new node, increase the overall resource count.
-		it, err := nodeDb.db.Txn(false).Get("nodes", "id", node.Id)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if it.Next() == nil {
-			nodeDb.mu.Lock()
-			nodeDb.totalResources.Add(node.TotalResources)
-			nodeDb.mu.Unlock()
-		}
-
-		// Add the node to the db.
-		err = txn.Insert("nodes", node)
-		if err != nil {
-			return errors.WithStack(err)
+		if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+func (nodeDb *NodeDb) Upsert(node *schedulerobjects.Node) error {
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+		return err
+	}
+	txn.Commit()
+	return nil
+}
+
+func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node) error {
+	// Compute the node type of the node
+	// and update the node with the node accordingly.
+	nodeType := schedulerobjects.NewNodeType(
+		node.GetTaints(),
+		node.GetLabels(),
+		nodeDb.indexedTaints,
+		nodeDb.indexedNodeLabels,
+	)
+	node.NodeTypeId = nodeType.Id
+	node.NodeType = nodeType
+
+	// Record all unique node types.
+	nodeDb.mu.Lock()
+	nodeDb.nodeTypes[nodeType.Id] = nodeType
+	nodeDb.mu.Unlock()
+
+	// If this is a new node, increase the overall resource count.
+	// Note that nodeDb.totalResources isn't rolled back on txn abort.
+	if existingNode, err := nodeDb.GetNodeWithTxn(txn, node.Id); err != nil {
+		return err
+	} else if existingNode == nil {
+		nodeDb.mu.Lock()
+		nodeDb.totalResources.Add(node.TotalResources)
+		nodeDb.mu.Unlock()
+	}
+
+	// Add the node to the db.
+	if err := txn.Insert("nodes", node); err != nil {
+		return errors.WithStack(err)
+	}
+
+	// TODO: Doing this at every node insert seems wasteful.
 	nodeDb.mu.Lock()
 	nodeDb.timeOfMostRecentUpsert = time.Now()
 	nodeDb.mu.Unlock()
-	txn.Commit()
+
 	return nil
 }
 
@@ -546,7 +611,23 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 				Indexer: &memdb.CompoundIndex{
 					Indexes: []memdb.Indexer{
 						&memdb.StringFieldIndex{Field: "NodeTypeId"},
-						&NodeItemAvailableResourceIndex{
+						&NodeAvailableResourceIndex{
+							Resource: resource,
+							Priority: priority,
+						},
+					},
+				},
+			}
+
+			name = nodeDominantQueueResourcePriorityIndexName(resource, priority)
+			indexes[name] = &memdb.IndexSchema{
+				Name:   name,
+				Unique: false,
+				Indexer: &memdb.CompoundIndex{
+					Indexes: []memdb.Indexer{
+						&NodeDominantQueueIndex{},
+						&memdb.StringFieldIndex{Field: "NodeTypeId"},
+						&NodeAvailableResourceIndex{
 							Resource: resource,
 							Priority: priority,
 						},
@@ -563,6 +644,10 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 			},
 		},
 	}
+}
+
+func nodeDominantQueueResourcePriorityIndexName(resource string, priority int32) string {
+	return fmt.Sprintf("queue-%s", nodeResourcePriorityIndexName(resource, priority))
 }
 
 func nodeResourcePriorityIndexName(resource string, priority int32) string {

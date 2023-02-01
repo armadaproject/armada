@@ -741,9 +741,12 @@ func (nodeDb *NodeDb) Evict(jobRepo JobRepository) ([]LegacySchedulerJob, error)
 			}
 			pc := nodeDb.priorityClasses[jobInfo.PriorityClassName]
 			if pc.AutoBalanced {
-				if node, err = nodeDb.UnbindPodFromNode(txn, req, node); err != nil {
+				if node, err = UnbindPodFromNode(req, node); err != nil {
 					return nil, err
 				} else {
+					if err := nodeDb.UpsertManyWithTxn(txn, []*schedulerobjects.Node{node}); err != nil {
+						return nil, err
+					}
 					// Ensure this job can only be re-scheduled onto the same node
 					// and mark this job as currently running.
 					// TODO: This should be done by the caller.

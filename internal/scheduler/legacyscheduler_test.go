@@ -31,11 +31,11 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 		ExpectedIndices []int
 	}{
 		"all jobs schedulable": {
-			Reqs:            testNSmallCpuJob(0, 3),
+			Reqs:            testNSmallCpuJob("A", 0, 3),
 			ExpectedIndices: []int{0, 1, 2},
 		},
 		"minimum job size below limit": {
-			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
+			Reqs: append(testNSmallCpuJob("A", 0, 3), testNLargeCpuJob("A", 0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
 				MinimumJobSize: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -46,7 +46,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{3, 4},
 		},
 		"minimum job size at limit": {
-			Reqs: append(testNSmallCpuJob(0, 3), testNLargeCpuJob(0, 2)...),
+			Reqs: append(testNSmallCpuJob("A", 0, 3), testNLargeCpuJob("A", 0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
 				MinimumJobSize: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -57,7 +57,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{3, 4},
 		},
 		"MaximalResourceFractionToSchedulePerQueue": {
-			Reqs: testNSmallCpuJob(0, 3),
+			Reqs: testNSmallCpuJob("A", 0, 3),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -72,7 +72,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0, 1},
 		},
 		"MaximalResourceFractionPerQueue": {
-			Reqs: testNSmallCpuJob(0, 3),
+			Reqs: testNSmallCpuJob("A", 0, 3),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -87,7 +87,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0, 1},
 		},
 		"MaximalResourceFractionPerQueue with initial usage": {
-			Reqs: testNSmallCpuJob(0, 3),
+			Reqs: testNSmallCpuJob("A", 0, 3),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -109,7 +109,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0},
 		},
 		"MaxConsecutiveUnschedulableJobs": {
-			Reqs: append(append(testNSmallCpuJob(0, 1), testNGpuJob(0, 3)...), testNSmallCpuJob(0, 1)...),
+			Reqs: append(append(testNSmallCpuJob("A", 0, 1), testNGpuJob("A", 0, 3)...), testNSmallCpuJob("A", 0, 1)...),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -125,7 +125,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0},
 		},
 		"MaximalCumulativeResourceFractionPerQueueAndPriority": {
-			Reqs: append(append(testNSmallCpuJob(9, 11), testNSmallCpuJob(7, 11)...), testNSmallCpuJob(3, 11)...),
+			Reqs: append(append(testNSmallCpuJob("A", 9, 11), testNSmallCpuJob("A", 7, 11)...), testNSmallCpuJob("A", 3, 11)...),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -142,7 +142,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: append(append(intRange(0, 9), intRange(11, 20)...), intRange(22, 31)...),
 		},
 		"MaximalCumulativeResourceFractionPerQueueAndPriority with initial usage": {
-			Reqs: append(append(testNSmallCpuJob(9, 11), testNSmallCpuJob(7, 11)...), testNSmallCpuJob(3, 11)...),
+			Reqs: append(append(testNSmallCpuJob("A", 9, 11), testNSmallCpuJob("A", 7, 11)...), testNSmallCpuJob("A", 3, 11)...),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -250,7 +250,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 1),
+				"A": testNSmallCpuJob("A", 0, 1),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -263,7 +263,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 32),
+				"A": testNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -279,7 +279,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 33),
+				"A": testNSmallCpuJob("A", 0, 33),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -292,7 +292,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 32), testNLargeCpuJob(0, 1)...),
+				"A": append(testNSmallCpuJob("A", 0, 32), testNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -305,7 +305,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(1, 1)...),
+				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 1, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -319,7 +319,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNLargeCpuJob(1, 1), testNSmallCpuJob(0, 1)...),
+				"A": append(testNLargeCpuJob("A", 1, 1), testNSmallCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -332,7 +332,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 10)...), testNSmallCpuJob(0, 1)...),
+				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 10)...), testNSmallCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -345,7 +345,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withMaxJobsToScheduleConfig(2, testSchedulingConfig()),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 5),
+				"A": testNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -359,7 +359,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 5),
+				"A": testNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -372,8 +372,8 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withPerQueueRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 5),
-				"B": testNSmallCpuJob(0, 5),
+				"A": testNSmallCpuJob("A", 0, 5),
+				"B": testNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -388,8 +388,8 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 5),
-				"B": testNSmallCpuJob(0, 5),
+				"A": testNSmallCpuJob("A", 0, 5),
+				"B": testNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -409,8 +409,8 @@ func TestSchedule(t *testing.T) {
 				testSchedulingConfig()),
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 5),
-				"B": testNSmallCpuJob(0, 5),
+				"A": testNSmallCpuJob("A", 0, 5),
+				"B": testNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -431,8 +431,8 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 5),
-				"B": testNSmallCpuJob(0, 5),
+				"A": testNSmallCpuJob("A", 0, 5),
+				"B": testNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -469,7 +469,7 @@ func TestSchedule(t *testing.T) {
 				}, testSchedulingConfig()),
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(3, 5), testNSmallCpuJob(0, 5)...),
+				"A": append(testNSmallCpuJob("A", 3, 5), testNSmallCpuJob("A", 0, 5)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -487,7 +487,7 @@ func TestSchedule(t *testing.T) {
 				}, testSchedulingConfig()),
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 5), testNSmallCpuJob(0, 5)...),
+				"A": append(testNSmallCpuJob("A", 0, 5), testNSmallCpuJob("A", 0, 5)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -518,7 +518,7 @@ func TestSchedule(t *testing.T) {
 				}, testSchedulingConfig()),
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(1, 1), testNSmallCpuJob(0, 5)...),
+				"A": append(testNSmallCpuJob("A", 1, 1), testNSmallCpuJob("A", 0, 5)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -545,8 +545,8 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 32),
-				"B": testNSmallCpuJob(0, 32),
+				"A": testNSmallCpuJob("A", 0, 32),
+				"B": testNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -567,9 +567,9 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 32),
-				"B": testNSmallCpuJob(0, 32),
-				"C": testNSmallCpuJob(0, 32),
+				"A": testNSmallCpuJob("A", 0, 32),
+				"B": testNSmallCpuJob("A", 0, 32),
+				"C": testNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -595,8 +595,8 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(3, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 96),
-				"B": testNSmallCpuJob(0, 96),
+				"A": testNSmallCpuJob("A", 0, 96),
+				"B": testNSmallCpuJob("A", 0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -617,9 +617,9 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(3, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 96),
-				"B": testNSmallCpuJob(0, 96),
-				"C": testNSmallCpuJob(0, 96),
+				"A": testNSmallCpuJob("A", 0, 96),
+				"B": testNSmallCpuJob("A", 0, 96),
+				"C": testNSmallCpuJob("A", 0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -645,8 +645,8 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 32),
-				"B": testNSmallCpuJob(0, 32),
+				"A": testNSmallCpuJob("A", 0, 32),
+				"B": testNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -684,7 +684,7 @@ func TestSchedule(t *testing.T) {
 				testNCpuNode(1, testPriorities),
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 1),
+				"A": testNSmallCpuJob("A", 0, 1),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -705,7 +705,7 @@ func TestSchedule(t *testing.T) {
 				testNCpuNode(1, testPriorities),
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob(0, 2),
+				"A": testNSmallCpuJob("A", 0, 2),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -726,7 +726,7 @@ func TestSchedule(t *testing.T) {
 				testNCpuNode(1, testPriorities),
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNLargeCpuJob(1, 1),
+				"A": testNLargeCpuJob("A", 1, 1),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -739,7 +739,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNTaintedCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -752,7 +752,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -768,7 +768,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNGpuNode(2, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...), testNGpuJob(0, 1)...),
+				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...), testNGpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -784,7 +784,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNGpuNode(2, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...), testNGpuJob(0, 1)...),
+				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...), testNGpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -800,7 +800,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNTaintedCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -816,7 +816,7 @@ func TestSchedule(t *testing.T) {
 				withLabelsNodes(map[string]string{"foo": "foo"}, testNCpuNode(1, testPriorities))...,
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testNLargeCpuJob(0, 2)),
+				"A": withNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testNLargeCpuJob("A", 0, 2)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -829,7 +829,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withIndexedTaintsConfig([]string{"largeJobsOnly"}, testSchedulingConfig()),
 			Nodes:            testNTaintedCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 1)...),
+				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -845,7 +845,7 @@ func TestSchedule(t *testing.T) {
 				withLabelsNodes(map[string]string{"foo": "foo"}, testNCpuNode(1, testPriorities))...,
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testNLargeCpuJob(0, 2)),
+				"A": withNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testNLargeCpuJob("A", 0, 2)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -858,7 +858,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withGangAnnotationsPodReqs(testNLargeCpuJob(0, 2)),
+				"A": withGangAnnotationsPodReqs(testNLargeCpuJob("A", 0, 2)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -871,7 +871,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withGangAnnotationsPodReqs(testNLargeCpuJob(0, 3)),
+				"A": withGangAnnotationsPodReqs(testNLargeCpuJob("A", 0, 3)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -890,9 +890,9 @@ func TestSchedule(t *testing.T) {
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(append(
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob(0, 1)),
-					testNSmallCpuJob(0, 1)...),
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob(0, 1))...,
+					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1)),
+					testNSmallCpuJob("A", 0, 1)...),
+					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1))...,
 				),
 			},
 			PriorityFactorByQueue: map[string]float64{
@@ -1114,7 +1114,7 @@ func TestReschedule(t *testing.T) {
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob(0, 32),
+						"A": testNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": intRange(0, 31),
@@ -1122,7 +1122,7 @@ func TestReschedule(t *testing.T) {
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNSmallCpuJob(0, 32),
+						"B": testNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": intRange(0, 15),
@@ -1135,7 +1135,7 @@ func TestReschedule(t *testing.T) {
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"C": testNSmallCpuJob(0, 10),
+						"C": testNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": intRange(0, 9),
@@ -1162,7 +1162,7 @@ func TestReschedule(t *testing.T) {
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob(0, 32),
+						"A": testNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": intRange(0, 31),
@@ -1170,7 +1170,7 @@ func TestReschedule(t *testing.T) {
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNSmallCpuJob(0, 32),
+						"B": testNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": intRange(0, 20),
@@ -1193,7 +1193,7 @@ func TestReschedule(t *testing.T) {
 		// 	Rounds: []ReschedulingRound{
 		// 		{
 		// 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-		// 				"B": testNSmallCpuJob(0, 40),
+		// 				"B": testNSmallCpuJob("A", 0, 40),
 		// 			},
 		// 			ExpectedScheduledIndices: map[string][]int{
 		// 				"B": intRange(0, 39),
@@ -1201,7 +1201,7 @@ func TestReschedule(t *testing.T) {
 		// 		},
 		// 		{
 		// 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-		// 				"A": testNSmallCpuJob(0, 32),
+		// 				"A": testNSmallCpuJob("A", 0, 32),
 		// 			},
 		// 			ExpectedScheduledIndices: map[string][]int{
 		// 				"A": intRange(0, 31),
@@ -1233,7 +1233,7 @@ func TestReschedule(t *testing.T) {
 
 				for _, reqs := range round.ReqsByQueue {
 					for j, req := range reqs {
-						jobId, err := nodeDb.JobIdFromPodRequirements(req)
+						jobId, err := JobIdFromPodRequirements(req)
 						require.NoError(t, err)
 						roundByJobId[jobId] = i
 						indexByJobId[jobId] = j

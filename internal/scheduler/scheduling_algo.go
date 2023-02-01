@@ -222,7 +222,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, p
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.Upsert(nodes)
+	err = nodeDb.UpsertMany(nodes)
 	if err != nil {
 		return nil, err
 	}

@@ -18,6 +18,8 @@ const (
 	IsRunningAnnotation = "armadaproject.io/isRunning"
 	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
 	JobIdAnnotation = "armadaproject.io/jobId"
+	// QueueAnnotation if set on a pod, indicates which queue this pod is part of.
+	QueueAnnotation = "armadaproject.io/queue"
 )
 
 type Configuration struct {

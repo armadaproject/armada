@@ -329,7 +329,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.Upsert(nodes)
+	err = nodeDb.UpsertMany(nodes)
 	if err != nil {
 		return nil, err
 	}
