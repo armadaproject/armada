@@ -23,7 +23,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/util"
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -200,9 +199,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
-		if req.Queue == "" || req.JobSetId == "" {
-			return srv.cancelJobsByIds(ctx, req.JobIds)
-		}
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
 	}
 
@@ -320,58 +316,22 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	}, nil
 }
 
-func (srv *PulsarSubmitServer) cancelJobsByIds(ctx context.Context, jobIds []string) (*api.CancellationResult, error) {
-	batchSize := srv.SubmitServer.cancelJobsBatchSize
-	batches := util.Batch(jobIds, batchSize)
-	idQueueJobSetMap := make(map[string]map[string][]string)
-
-	for _, batch := range batches {
-		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds(batch)
-		if err != nil {
-			return nil, status.Error(codes.Internal, "failed to get jobs from redis")
-		}
-		for _, job := range jobs {
-			q := job.Job.GetQueue()
-			jobSet := job.Job.GetJobSetId()
-			_, ok := idQueueJobSetMap[q]
-			if !ok {
-				idQueueJobSetMap[q] = make(map[string][]string)
-			}
-			_, ok = idQueueJobSetMap[q][jobSet]
-			if !ok {
-				idQueueJobSetMap[q][jobSet] = []string{}
-			}
-			idQueueJobSetMap[q][jobSet] = append(idQueueJobSetMap[q][jobSet], job.Job.Id)
-		}
-	}
-
-	var cancelledIds []string
-	var eventSequences []*armadaevents.EventSequence
-	for q, jobSets := range idQueueJobSetMap {
-		userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
-		if err != nil {
-			return nil, err
-		}
-
-		for jobSet, jobIds := range jobSets {
-			sequence, validIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
-			eventSequences = append(eventSequences, sequence)
-			cancelledIds = append(cancelledIds, validIds...)
-		}
-	}
-
-	err := srv.publishToPulsar(ctx, eventSequences)
-	if err != nil {
-		log.WithError(err).Error("failed send to Pulsar")
-		return nil, status.Error(codes.Internal, "Failed to send message")
-	}
-	return &api.CancellationResult{
-		CancelledIds: cancelledIds,
-	}, nil
-}
-
 // Assumes all Job IDs are in the queue and job set provided
 func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string) (*api.CancellationResult, error) {
+	if q == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   "",
+			Message: "Queue cannot be empty when cancelling multiple jobs",
+		}
+	}
+	if jobSet == "" {
+		return nil, &armadaerrors.ErrInvalidArgument{
+			Name:    "Jobset",
+			Value:   "",
+			Message: "Jobset cannot be empty when cancelling multiple jobs",
+		}
+	}
 	userId, groups, err := srv.Authorize(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
