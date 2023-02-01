@@ -265,21 +265,18 @@ func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*
 	return nodeDb.SelectNodeForPodWithTxn(nodeDb.db.Txn(false), req)
 }
 
-// SelectAndBindNodeToPod selects a node on which the pod can be scheduled,
-// and updates the internal state of the db to indicate that this pod is bound to that node.
+// SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store number of nodes excluded by reason.
-	numExcludedNodesByReason := make(map[string]int)
-
+	// The scheduler excludes nodes with too little of the dominant resource.
 	// The dominant resource is the one for which the pod requests
 	// the largest fraction of available resources.
-	// For efficiency, the scheduler only considers nodes with enough of the dominant resource.
 	dominantResourceType := nodeDb.dominantResource(req)
 	if dominantResourceType == "" {
 		return nil, errors.Errorf("requests include no indexed resource: %v", req.ResourceRequirements.Requests)
@@ -292,54 +289,102 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		DominantResourceType:         dominantResourceType,
 		NumMatchedNodeTypes:          len(nodeTypes),
 		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
-		NumExcludedNodesByReason:     numExcludedNodesByReason,
+		NumExcludedNodesByReason:     make(map[string]int),
 	}
 
-	// Iterate over candidate nodes.
-	// If the targetNodeIdAnnocation is set, only the node with that id is considered.
-	// Otherwise, iterate over all nodes with enough of the dominant resource available.
-	var nodeIt memdb.ResultIterator
+	// If the targetNodeIdAnnocation is set, consider only that node.
 	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
-		it, err := txn.Get("nodes", "id", nodeId)
-		if err != nil {
+		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
+		} else {
+			if _, err := selectNodeForPodWithIt(report, it, req); err != nil {
+				return nil, err
+			} else {
+				fmt.Println("Scheduled on specific node")
+				return report, nil
+			}
 		}
-		nodeIt = it
-	} else {
-		it, err := NewNodeTypesResourceIterator(
-			txn,
-			"*",
-			0,
-			dominantResourceType,
-			req.Priority,
-			nodeTypes,
-			req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
-		)
-		if err != nil {
-			return nil, err
-		}
-		nodeIt = it
 	}
-	for obj := nodeIt.Next(); obj != nil; obj = nodeIt.Next() {
+
+	// Otherwise, first try to schedule onto a node with jobs only from this queue.
+	queue, err := QueueFromPodRequirements(req)
+	if err != nil {
+		return nil, err
+	}
+	if it, err := NewNodeTypesResourceIterator(
+		txn,
+		queue, 0,
+		dominantResourceType, req.Priority,
+		nodeTypes,
+		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
+	); err != nil {
+		return nil, err
+	} else {
+		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
+			return nil, err
+		} else if node != nil {
+			fmt.Println("Scheduled from queue nodes")
+			return report, nil
+		}
+	}
+
+	// Then try to schedule onto a node with no jobs.
+	if it, err := NewNodeTypesResourceIterator(
+		txn,
+		"", 0,
+		dominantResourceType, req.Priority,
+		nodeTypes,
+		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
+	); err != nil {
+		return nil, err
+	} else {
+		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
+			return nil, err
+		} else if node != nil {
+			fmt.Println("Scheduled from empty nodes")
+			return report, nil
+		}
+	}
+
+	// Finally, try to schedule onto any node.
+	if it, err := NewNodeTypesResourceIterator(
+		txn,
+		"*", 0,
+		dominantResourceType, req.Priority,
+		nodeTypes,
+		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
+	); err != nil {
+		return nil, err
+	} else {
+		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
+			return nil, err
+		} else if node != nil {
+			fmt.Println("Scheduled from global set")
+			return report, nil
+		}
+	}
+
+	return report, nil
+}
+
+func selectNodeForPodWithIt(report *PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
+	for obj := it.Next(); obj != nil; obj = it.Next() {
 		node := obj.(*schedulerobjects.Node)
 		if node == nil {
-			break
+			return nil, nil
 		}
 		// TODO: Use the score when selecting a node.
 		matches, score, reason, err := node.PodRequirementsMet(req)
 		if err != nil {
 			return nil, err
+		} else if matches {
+			report.Node = node
+			report.Score = score
+			return node, nil
 		}
-		if !matches {
-			numExcludedNodesByReason[reason.String()] += 1
-			continue
-		}
-
-		report.Node = node
-		report.Score = score
-		return report, nil
+		report.NumExcludedNodesByReason[reason.String()] += 1
 	}
-	return report, nil
+	return nil, nil
 }
 
 // BindPodToNode returns a copy of node with req bound to it.

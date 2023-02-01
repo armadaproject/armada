@@ -5,12 +5,12 @@ import (
 	"container/heap"
 	"encoding/binary"
 	"fmt"
-	"math"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -270,17 +270,10 @@ func (it *NodeTypeResourceIterator) NextNodeItem() *schedulerobjects.Node {
 	// If it.dominantQueue != *, the index is sorted by node.DominantQueue() first.
 	// Otherwise, the index is sorted by NodeTypeId first.
 	if it.dominantQueue != "*" {
-		a := encodeNodeDominantQueueIndexKey(node.DominantQueue(), node.NumActiveQueues())
-		// TODO: This can be optimised by computing b once in New...()
-		var b []byte
-		if it.maxActiveQueues == 0 {
-			b = encodeNodeDominantQueueIndexKey(it.dominantQueue, math.MaxInt)
-		} else {
-			b = encodeNodeDominantQueueIndexKey(it.dominantQueue, it.maxActiveQueues)
+		if it.dominantQueue != node.DominantQueue() {
+			return nil
 		}
-		if bytes.Compare(a, b) == 1 {
-			// We've either seen all nodes with the specified dominant queue,
-			// or all nodes with <= it.maxActiveQueues with the specified dominant queue.
+		if it.maxActiveQueues != 0 && node.NumActiveQueues() > it.maxActiveQueues {
 			return nil
 		}
 	}
@@ -296,6 +289,13 @@ func (it *NodeTypeResourceIterator) Next() interface{} {
 }
 
 func NewNodeTypeResourceIterator(txn *memdb.Txn, dominantQueue string, maxActiveQueues int, resource string, priority int32, nodeType *schedulerobjects.NodeType, resourceAmount resource.Quantity) (*NodeTypeResourceIterator, error) {
+	if dominantQueue == "*" && maxActiveQueues != 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "maxActiveQueues",
+			Value:   maxActiveQueues,
+			Message: "maxActiveQueues can only be used with non-wildcard dominantQueue",
+		})
+	}
 	var it memdb.ResultIterator
 	var err error
 	if dominantQueue == "*" {

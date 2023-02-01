@@ -299,6 +299,41 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			),
 			ExpectedOrder: []int{1},
 		},
+		"empty dominantQueue": {
+			DominantQueue:          "",
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
+		},
+		"empty dominantQueue and maxActiveQueues": {
+			DominantQueue:          "",
+			MaxActiveQueues:        0,
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
