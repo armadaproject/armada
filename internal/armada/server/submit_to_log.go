@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"math/rand"
 	"time"
 
@@ -29,15 +30,14 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-type MinimalJob struct {
+type PulsarSchedulerJobDetails struct {
 	jobId  string
 	queue  string
-	jobset string
+	jobSet string
 }
 
-type MinimalJobRepository interface {
-	FetchJobById(jobId string) (*MinimalJob, error)
-	FetchJobs(jobIds []string) (*[]MinimalJob, error)
+type PulsarSchedulerJobResolver interface {
+	GetJobDetails(jobId string) (*PulsarSchedulerJobDetails, error)
 }
 
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
@@ -55,9 +55,13 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
+	// Used to resolve job details from Pulsar scheduler Jobs
+	PulsarSchedulerJobResolver PulsarSchedulerJobResolver
 	// Used to check at job submit time if the job could ever be scheduled on either legacy or pulsar schedulers
 	SubmitChecker SubmitChecker
-	// Probability of using the pulsar scheduler
+	// Flag to control if we enable sending messages to the pulsar scheduler
+	PulsarSchedulerEnabled bool
+	// Probability of using the pulsar scheduler.  Has no effect if PulsarSchedulerEnabled is false
 	ProbabilityOdfUsingPulsarScheduler float64
 	Rand                               rand.Rand
 }
@@ -197,80 +201,52 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
 	}
 
-	// If either queue or jobSetId is missing, we need to get those from Redis.
-	// This must be done before checking auth, since the auth check expects a queue.
-	// If both queue and jobSetId are provided, we assume that those are correct
-	// to make it possible to cancel jobs that have been submitted but not written to Redis yet.
-	if req.JobId != "" && (req.Queue == "" || req.JobSetId == "") {
-		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{req.JobId})
+	// Another separate code path for cancelling an entire job set
+	// TODO: We should deprecate this and move people over to CancelJobSet()
+	if req.JobId == "" {
+		log.Warnf("CancelJobs called for queue=%s and jobset=%s but with empty job id. Redirecting to CancelJobSet()", req.Queue, req.JobSetId)
+		_, err := srv.CancelJobSet(ctx, &api.JobSetCancelRequest{
+			Queue:    req.Queue,
+			JobSetId: req.JobSetId,
+		})
 		if err != nil {
 			return nil, err
 		}
-		if len(jobs) == 0 {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:  "job",
-				Value: req.JobId,
-			}
-		}
-		if len(jobs) != 1 { // Internal error; should never happen.
-			return nil, fmt.Errorf("expected 1 job result, but got %v", jobs)
-		}
-		queue := jobs[0].Job.GetQueue()
-		jobSetId := jobs[0].Job.GetJobSetId()
+		return &api.CancellationResult{
+			CancelledIds: []string{req.JobId}, // we return an empty string here which seems a bit nonsensical- but that's what the old code did!
+		}, nil
+	}
 
-		// We allow clients to submit requests only containing a job id.
-		// For these requests, we need to populate the queue and jobSetId fields.
-		if req.Queue == "" {
-			req.Queue = queue
-		}
-		if req.JobSetId == "" {
-			req.JobSetId = jobSetId
-		}
+	// resolve the queue and jobset of the job- we can't trust what the user has given us
+	resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(req.JobId)
 
-		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
-		// since the job could not be found for the provided queue/jobSetId.
-		if req.Queue != queue {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:    "job",
-				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in queue %s, try waiting or setting queue/jobSetId explicitly", req.Queue),
-			}
+	// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+	// since the job could not be found for the provided queue/jobSetId.
+	if req.Queue != "" && req.Queue != resolvedQueue {
+		return nil, &armadaerrors.ErrNotFound{
+			Type:    "job",
+			Value:   req.JobId,
+			Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
 		}
-		if req.JobSetId != jobSetId {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:    "job",
-				Value:   req.JobId,
-				Message: fmt.Sprintf("job not found in job set %s, try waiting or setting queue/jobSetId explicitly", req.JobSetId),
-			}
+	}
+	if req.JobSetId != "" && req.JobSetId != resolvedJobset {
+		return nil, &armadaerrors.ErrNotFound{
+			Type:    "job",
+			Value:   req.JobId,
+			Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
 		}
 	}
 
-	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+	userId, groups, err := srv.Authorize(ctx, resolvedQueue, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
 	if err != nil {
 		return nil, err
 	}
-
-	if req.Queue == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "Queue",
-			Value:   req.Queue,
-			Message: "queue is empty",
-		}
-	}
-	if req.JobSetId == "" {
-		return nil, &armadaerrors.ErrInvalidArgument{
-			Name:    "JobSetId",
-			Value:   req.JobSetId,
-			Message: "JobSetId is empty",
-		}
-	}
-
-	var cancelledIds []string
 
 	sequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
@@ -280,31 +256,19 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		Events:     make([]*armadaevents.EventSequence_Event, 1, 1),
 	}
 
-	// Empty JobId indicates that all jobs in the job set should be cancelled.
-	if req.JobId == "" {
-		sequence.Events[0] = &armadaevents.EventSequence_Event{
-			Event: &armadaevents.EventSequence_Event_CancelJobSet{
-				CancelJobSet: &armadaevents.CancelJobSet{},
-			},
-		}
-
-		cancelledIds = []string{fmt.Sprintf("all jobs in job set %s", req.JobSetId)}
-	} else {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
-		if err != nil {
-			return nil, err
-		}
-
-		sequence.Events[0] = &armadaevents.EventSequence_Event{
-			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
-			},
-		}
-
-		cancelledIds = []string{req.JobId} // indicates no error
+	jobId, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
+	if err != nil {
+		return nil, err
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	sequence.Events[0] = &armadaevents.EventSequence_Event{
+		Event: &armadaevents.EventSequence_Event_CancelJob{
+			CancelJob: &armadaevents.CancelJob{JobId: jobId},
+		},
+	}
+
+	// we can send the message to cancel to both schedulers- the scheduler it doesn't belong to it'll be a no-op
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -312,7 +276,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	}
 
 	return &api.CancellationResult{
-		CancelledIds: cancelledIds,
+		CancelledIds: []string{req.JobId}, // indicates no error
 	}, nil
 }
 
@@ -338,7 +302,8 @@ func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, j
 	}
 	var cancelledIds []string
 	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	// send the message to both schedulers because jobs may be on either
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
@@ -379,14 +344,14 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
 			Value:   req.Queue,
-			Message: "queue is empty",
+			Message: "queue cannot be empty when cancelling a jobset",
 		}
 	}
 	if req.JobSetId == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "JobSetId",
 			Value:   req.JobSetId,
-			Message: "JobSetId is empty",
+			Message: "jobsetId cannot be empty when cancelling a jobset",
 		}
 	}
 
@@ -400,12 +365,13 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		return nil, err
 	}
 
+	// We don't know if the jobs are allocated to the legacy scheduler or the new scheduler.  We therefore send messages to both
 	ids, err := srv.SubmitServer.jobRepository.GetJobSetJobIds(req.Queue, req.JobSetId, createJobSetFilter(req.Filter))
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "error getting job IDs: %s", err)
 	}
 
-	sequence := &armadaevents.EventSequence{
+	legacySchedulerSequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
 		UserId:     userId,
@@ -419,18 +385,41 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 			return nil, err
 		}
 
-		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+		legacySchedulerSequence.Events = append(legacySchedulerSequence.Events, &armadaevents.EventSequence_Event{
+			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{JobId: jobId},
 			},
 		})
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	pulsarSchedulerSequence := &armadaevents.EventSequence{
+		Queue:      req.Queue,
+		JobSetName: req.JobSetId,
+		UserId:     userId,
+		Groups:     groups,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Created: pointer.Now(),
+				Event: &armadaevents.EventSequence_Event_CancelJobSet{
+					CancelJobSet: &armadaevents.CancelJobSet{
+						//TODO: fill in states
+					},
+				},
+			},
+		},
+	}
 
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerSequence}, pulsarutils.Legacy)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel job messages to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
+	}
+
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, pulsarutils.Pulsar)
+	if err != nil {
+		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
+		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
 	}
 
 	return &types.Empty{}, err
@@ -441,54 +430,37 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	// with the first job id in the request.
 	//
 	// This must be done before checking auth, since the auth check expects a queue.
-	// If both queue and jobSetId are provided, we assume that those are correct
-	// to make it possible to cancel jobs that have been submitted but not written to Redis yet.
 	if len(req.JobIds) > 0 && (req.Queue == "" || req.JobSetId == "") {
 		firstJobId := req.JobIds[0]
 
-		jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{firstJobId})
+		resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(firstJobId)
 		if err != nil {
 			return nil, err
-		}
-		if len(jobs) == 0 {
-			return nil, &armadaerrors.ErrNotFound{
-				Type:  "job",
-				Value: firstJobId,
-			}
-		}
-		if len(jobs) != 1 { // Internal error; should never happen.
-			return nil, fmt.Errorf("expected 1 job result, but got %v", jobs)
-		}
-		queue := jobs[0].Job.GetQueue()
-		jobSetId := jobs[0].Job.GetJobSetId()
-
-		// We allow clients to submit requests only containing a job id.
-		// For these requests, we need to populate the queue and jobSetId fields.
-		if req.Queue == "" {
-			req.Queue = queue
-		}
-		if req.JobSetId == "" {
-			req.JobSetId = jobSetId
 		}
 
 		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
 		// since the job could not be found for the provided queue/jobSetId.
-		if req.Queue != queue {
+		// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
+		// since the job could not be found for the provided queue/jobSetId.
+		if req.Queue != "" && req.Queue != resolvedQueue {
 			return nil, &armadaerrors.ErrNotFound{
 				Type:    "job",
 				Value:   firstJobId,
-				Message: fmt.Sprintf("job not found in queue %s, try waiting or setting queue/jobSetId explicitly", req.Queue),
+				Message: fmt.Sprintf("job not found in queue %s, try waiting", req.Queue),
 			}
 		}
-		if req.JobSetId != jobSetId {
+		if req.JobSetId != "" && req.JobSetId != resolvedJobset {
 			return nil, &armadaerrors.ErrNotFound{
 				Type:    "job",
 				Value:   firstJobId,
-				Message: fmt.Sprintf("job not found in job set %s, try waiting or setting queue/jobSetId explicitly", req.JobSetId),
+				Message: fmt.Sprintf("job not found in job set %s, try waiting", req.JobSetId),
 			}
 		}
+		req.Queue = resolvedQueue
+		req.JobSetId = resolvedJobset
 	}
 
+	// TODO: this is incorrect we only validate the permissions on the first job but the other jobs may belong to different queues
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
 	if err != nil {
 		return nil, err
@@ -519,7 +491,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 
 	sequence := &armadaevents.EventSequence{
 		Queue:      req.Queue,
-		JobSetName: req.JobSetId,
+		JobSetName: req.JobSetId, // TODO: this is incorrect- the jobs may be for different jobsets
 		UserId:     userId,
 		Groups:     groups,
 		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobIds), len(req.JobIds)),
@@ -559,7 +531,8 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 		results[jobIdString] = "" // empty string indicates no error
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence})
+	// can send the message to both schedulers
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -723,7 +696,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 
 func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]pulsarutils.Scheduler, error) {
 	// Check to see where the jobs may be scheduled
-	statuses, err := srv.SubmitChecker.CheckApiJobs(jobs, false)
+	statuses, err := srv.SubmitChecker.CheckApiJobs(jobs, srv.PulsarSchedulerEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -750,4 +723,32 @@ func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]puls
 		}
 	}
 	return schedulers, nil
+}
+
+func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
+
+	// Check the legacy scheduler first
+	jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{jobId})
+	if err != nil {
+		return "", "", err
+	}
+	if len(jobs) >= 1 {
+		return jobs[0].Job.GetQueue(), jobs[0].Job.GetJobSetId(), nil
+	}
+
+	// now check the pulsar scheduler
+	if srv.PulsarSchedulerEnabled {
+		jobDetails, err := srv.PulsarSchedulerJobResolver.GetJobDetails(jobId)
+		if err != nil {
+			return "", "", err
+		}
+		if jobDetails != nil {
+			return jobDetails.queue, jobDetails.jobSet, nil
+		}
+	}
+
+	return "", "", &armadaerrors.ErrNotFound{
+		Type:  "job",
+		Value: jobId,
+	}
 }

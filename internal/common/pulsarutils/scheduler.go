@@ -10,12 +10,14 @@ type Scheduler int
 const (
 	Legacy Scheduler = iota
 	Pulsar
+	All
 )
 
 const (
 	SchedulerNameKey string = "schedulerName"
 	PulsarScheduler  string = "pulsar"
 	LegacyScheduler  string = "legacy"
+	AllSchedulers    string = "all"
 )
 
 func SchedulerFromMsg(msg pulsar.Message) Scheduler {
@@ -24,8 +26,10 @@ func SchedulerFromMsg(msg pulsar.Message) Scheduler {
 	case PulsarScheduler:
 		return Pulsar
 	case LegacyScheduler:
-	case "":
+	case "": // empty string means legacy scheduler for compatibility
 		return Legacy
+	case AllSchedulers:
+		return All
 	}
 	log.Warnf("Unknown scheduler [%s] associated with pulsar message [%s]. Defaulting to legacy scheduler", s, msg.ID())
 	return Legacy
@@ -37,15 +41,19 @@ func MsgPropertyFromScheduler(s Scheduler) string {
 		return PulsarScheduler
 	case Legacy:
 		return LegacyScheduler
+	case All:
+		return AllSchedulers
 	}
 	log.Warnf("Unknown scheduler [%d]. Defaulting to legacy scheduler", s)
 	return LegacyScheduler
 }
 
 func ForPulsarScheduler(msg pulsar.Message) bool {
-	return SchedulerFromMsg(msg) == Pulsar
+	s := SchedulerFromMsg(msg)
+	return s == Pulsar || s == All
 }
 
 func ForLegacyScheduler(msg pulsar.Message) bool {
-	return SchedulerFromMsg(msg) == Legacy
+	s := SchedulerFromMsg(msg)
+	return s == Legacy || s == All
 }
