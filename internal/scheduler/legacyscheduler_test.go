@@ -46,7 +46,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{3, 4},
 		},
 		"lookback limit hit": {
-			Reqs: testNSmallCpuJob(0, 10),
+			Reqs: testNSmallCpuJob("A", 0, 10),
 			SchedulingConstraints: SchedulingConstraints{
 				MaxLookbackPerQueue: 4,
 			},
@@ -866,7 +866,7 @@ func TestSchedule(t *testing.T) {
 			SchedulingConfig: withQueueLeaseBatchSizeConfig(3, testSchedulingConfig()), // should quit after 3 unschedulable jobs
 			Nodes:            testNCpuNode(1, testPriorities),                          // 32 cores
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob(0, 1), testNLargeCpuJob(0, 3)...), testNSmallCpuJob(0, 1)...),
+				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 3)...), testNSmallCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
