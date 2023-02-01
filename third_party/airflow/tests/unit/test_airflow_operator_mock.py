@@ -81,7 +81,6 @@ def test_job_service_health():
 
 
 def test_mock_success_job():
-
     tester_client.submit_jobs(
         queue="test",
         job_set_id="test",
@@ -100,7 +99,6 @@ def test_mock_success_job():
 
 
 def test_mock_failed_job():
-
     tester_client.submit_jobs(
         queue="test",
         job_set_id="test",
@@ -119,7 +117,6 @@ def test_mock_failed_job():
 
 
 def test_mock_cancelled_job():
-
     tester_client.submit_jobs(
         queue="test",
         job_set_id="test",
@@ -138,7 +135,6 @@ def test_mock_cancelled_job():
 
 
 def test_annotate_job_request_items():
-
     no_auth_client = ArmadaClient(
         channel=grpc.insecure_channel(target="127.0.0.1:50051")
     )
