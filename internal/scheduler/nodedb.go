@@ -74,7 +74,6 @@ func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedRe
 		})
 	}
 	priorityClasses = maps.Clone(priorityClasses)
-	// slices.Sort(priorities) // To enable binary search. TODO: Do we need this?
 	if len(indexedResources) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "indexedResources",
@@ -147,9 +146,8 @@ func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*schedulerobjec
 }
 
 // NodeJobDiff compares two snapshots of the NodeDb memdb and returns
-// all preemptions and
-// - a slice composed of all preempted jobs
-// - a slice composed of all scheduled jobs
+// - a map from job ids of all preempted jobs to the node they used to be on
+// - a map from job ids of all scheduled jobs to the node they were scheduled on
 // that happened between the two snapshots.
 func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[string]*schedulerobjects.Node, error) {
 	preempted := make(map[string]*schedulerobjects.Node)
@@ -301,16 +299,13 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// If the targetNodeIdAnnocation is set, only the node with that id is considered.
 	// Otherwise, iterate over all nodes with enough of the dominant resource available.
 	var nodeIt memdb.ResultIterator
-	if req.Annotations != nil && TargetNodeIdAnnotation != "" {
-		if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
-			it, err := txn.Get("nodes", "id", nodeId)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-			nodeIt = it
+	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
+		it, err := txn.Get("nodes", "id", nodeId)
+		if err != nil {
+			return nil, errors.WithStack(err)
 		}
-	}
-	if nodeIt == nil {
+		nodeIt = it
+	} else {
 		it, err := NewNodeTypesResourceIterator(
 			txn,
 			"*",
