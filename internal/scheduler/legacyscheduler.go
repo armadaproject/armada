@@ -45,8 +45,8 @@ type SchedulingConstraints struct {
 	ResourceScarcity map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
-	// Max number of consecutive unschedulable jobs to consider for a queue before giving up.
-	MaxConsecutiveUnschedulableJobs uint
+	// Max number of jobs to consider for a queue before giving up.
+	MaxLookbackPerQueue uint
 	// Jobs leased to this executor must be at least this large.
 	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
 	MinimumJobSize schedulerobjects.ResourceList
@@ -81,7 +81,6 @@ func SchedulingConstraintsFromSchedulingConfig(
 		Pool:                            pool,
 		ResourceScarcity:                config.GetResourceScarcity(pool),
 		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
-		MaxConsecutiveUnschedulableJobs: config.QueueLeaseBatchSize,
 		MinimumJobSize:                  minimumJobSize,
 		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
 		MaximalCumulativeResourceFractionPerQueueAndPriority: maximalCumulativeResourceFractionPerQueueAndPriority,
@@ -104,15 +103,20 @@ type QueuedGangIterator struct {
 	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
 	jobsByGangId map[string][]LegacySchedulerJob
-	next         []LegacySchedulerJob
+	// Maximum number of jobs to look at before giving up
+	maxLookback uint
+	// Number of jobs we have seen so far
+	jobsSeen uint
+	next     []LegacySchedulerJob
 }
 
-func NewQueuedGangIterator(ctx context.Context, it JobIterator, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
+func NewQueuedGangIterator(ctx context.Context, it JobIterator, maxLookback uint, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		ctx:                       ctx,
 		queuedJobsIterator:        it,
 		gangIdAnnotation:          gangIdAnnotation,
 		gangCardinalityAnnotation: gangCardinalityAnnotation,
+		maxLookback:               maxLookback,
 		jobsByGangId:              make(map[string][]LegacySchedulerJob),
 	}
 }
@@ -134,6 +138,10 @@ func (it *QueuedGangIterator) Clear() error {
 }
 
 func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
+	if it.hitLookbackLimit() {
+		return nil, nil
+	}
+
 	if it.next != nil {
 		return it.next, nil
 	}
@@ -143,10 +151,11 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
 		job, err := it.queuedJobsIterator.Next()
+		it.jobsSeen++
 		if err != nil {
 			return nil, err
 		}
-		if job == nil {
+		if job == nil || it.hitLookbackLimit() {
 			return nil, nil
 		}
 		if reflect.ValueOf(job).IsNil() {
@@ -175,6 +184,13 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 			return it.next, nil
 		}
 	}
+}
+
+func (it *QueuedGangIterator) hitLookbackLimit() bool {
+	if it.maxLookback == 0 {
+		return false
+	}
+	return it.jobsSeen > it.maxLookback
 }
 
 // QueueCandidateGangIterator is an iterator over gangs in a queue that could be scheduled
@@ -209,9 +225,6 @@ func (it *QueueCandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
 	for gang, err := it.queuedGangIterator.Peek(); gang != nil; gang, err = it.queuedGangIterator.Peek() {
 		if err != nil {
 			return nil, err
-		}
-		if it.MaxConsecutiveUnschedulableJobs != 0 && consecutiveUnschedulableJobs == it.MaxConsecutiveUnschedulableJobs {
-			break
 		}
 		if v, ok, err := it.f(gang); err != nil {
 			return nil, err
@@ -796,6 +809,7 @@ func NewLegacyScheduler(
 		queuedGangIterator := NewQueuedGangIterator(
 			ctx,
 			queue.jobIterator,
+			config.QueueLeaseBatchSize,
 			config.GangIdAnnotation,
 			config.GangCardinalityAnnotation,
 		)

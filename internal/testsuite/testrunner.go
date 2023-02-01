@@ -9,6 +9,7 @@ import (
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
@@ -149,7 +150,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	g.Go(func() error { return splitter.Run(ctx) })
 
 	// Cancel the errgroup if there are no active jobs.
-	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, jobIdMap) })
+	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
 
 	// Record time spent per job state. Used to benchmark jobs.
 	eventBenchmark := eventbenchmark.New(benchmarkCh)
@@ -164,7 +165,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
-	if err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents); err != nil {
+	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
 		groupErr := g.Wait()
 		if groupErr != nil {
 			return errors.Errorf("%s: %s", err, groupErr)

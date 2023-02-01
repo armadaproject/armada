@@ -104,6 +104,11 @@ func withPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []
 	return nodes
 }
 
+func withQueueLeaseBatchSizeConfig(queueLeasebatchSize uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.QueueLeaseBatchSize = queueLeasebatchSize
+	return config
+}
+
 func withUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)

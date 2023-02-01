@@ -140,6 +140,12 @@ func TestDbOperationOptimisation(t *testing.T) {
 			MarkRunsRunning{runIds[1]: true},                                            // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
+		"InsertPartitionMarker": {N: 2, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
+			InsertPartitionMarker{markers: []*schedulerdb.Marker{}},   // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 1
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 1
+		}},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

@@ -164,8 +164,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			for _, job := range scheduledJobs {
 				expectedExecutor, ok := tc.expectedJobs[job.JobId]
-				assert.True(t, ok)
-				assert.Equal(t, expectedExecutor, job.Executor)
+				require.True(t, ok)
+				run := job.CurrentRun()
+				require.NotEqual(t, t, run)
+				assert.Equal(t, expectedExecutor, run.Executor)
 				assert.Equal(t, false, job.Queued)
 			}
 
