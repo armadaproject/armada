@@ -69,7 +69,6 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
 
     # Contains all the possible message types
     for event in event_stream:
-
         event = client.unmarshal_event_response(event)
         if event.message.job_id == job_id:
             if event.type == event_state:
@@ -131,7 +130,6 @@ def creating_queues_example(client, queue):
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
-
             print(f"Queue {queue} already exists")
             queue_req = client.create_queue_request(name=queue, priority_factor=1)
             client.update_queue(queue_req)
