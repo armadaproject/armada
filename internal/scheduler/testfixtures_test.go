@@ -39,7 +39,7 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
 		Preemption: configuration.PreemptionConfig{
-			PriorityClasses:      testPriorityClasses,
+			PriorityClasses:      maps.Clone(testPriorityClasses),
 			DefaultPriorityClass: testDefaultPriorityClass,
 		},
 		IndexedResources:          []string{"cpu", "memory"},
@@ -76,6 +76,12 @@ func withPerQueueRoundLimitsConfig(limits map[string]float64, config configurati
 
 func withMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximumJobsToSchedule = n
+	return config
+}
+
+func withMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	// For legacy reasons, it's called QueueLeaseBatchSize in config.
+	config.QueueLeaseBatchSize = n
 	return config
 }
 

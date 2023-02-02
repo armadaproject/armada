@@ -151,14 +151,20 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
 		job, err := it.queuedJobsIterator.Next()
-		it.jobsSeen++
 		if err != nil {
 			return nil, err
 		}
-		if job == nil || it.hitLookbackLimit() {
+		if job == nil {
 			return nil, nil
 		}
 		if reflect.ValueOf(job).IsNil() {
+			return nil, nil
+		}
+		// Rescheduled jobs don't count towards the limit.
+		if !isEvictedJob(job) {
+			it.jobsSeen++
+		}
+		if it.hitLookbackLimit() {
 			return nil, nil
 		}
 		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(
@@ -591,7 +597,7 @@ func (it *CandidateGangIterator) f(reports []*JobSchedulingReport) ([]*JobSchedu
 		unschedulableReason := reason + " (overall per scheduling round limit)"
 		for _, report := range reports {
 			report.UnschedulableReason = unschedulableReason
-			it.SchedulingRoundReport.AddJobSchedulingReport(report)
+			it.SchedulingRoundReport.AddJobSchedulingReport(report, false)
 		}
 		return reports, false, nil
 	} else {
@@ -995,12 +1001,14 @@ func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 				}
 			}
 			for _, r := range reports {
-				sched.SchedulingRoundReport.AddJobSchedulingReport(r)
+				sched.SchedulingRoundReport.AddJobSchedulingReport(r, false)
 			}
 		} else {
 			for _, r := range reports {
+				// Rescheduled jobs should not count towards limits on shceduled jobs.
+				updateTotals := !isEvictedJob(r.Job)
 				jobsToLeaseByQueue[r.Job.GetQueue()] = append(jobsToLeaseByQueue[r.Job.GetQueue()], r.Job)
-				sched.SchedulingRoundReport.AddJobSchedulingReport(r)
+				sched.SchedulingRoundReport.AddJobSchedulingReport(r, updateTotals)
 			}
 			numJobsToLease += len(reports)
 		}
@@ -1011,6 +1019,14 @@ func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 		rv = append(rv, jobs...)
 	}
 	return rv, nil
+}
+
+func isEvictedJob(job LegacySchedulerJob) bool {
+	req := PodRequirementFromLegacySchedulerJob(job, nil)
+	if req != nil && req.Annotations[IsEvictedAnnotation] == "true" {
+		return true
+	}
+	return false
 }
 
 func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, gangIdAnnotation, gangCardinalityAnnotation string, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {

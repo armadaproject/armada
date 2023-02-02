@@ -1264,9 +1264,117 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"rescheduled jobs don't count towards maxJobsToSchedule": {
+			SchedulingConfig: withMaxJobsToScheduleConfig(5, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"rescheduled jobs don't count towards maxLookbackPerQueue": {
+			SchedulingConfig: withMaxLookbackPerQueueConfig(5, testSchedulingConfig()),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"rescheduled jobs don't count towards MaximalResourceFractionToSchedulePerQueue": {
+			SchedulingConfig: withPerQueueRoundLimitsConfig(
+				map[string]float64{
+					"cpu": 5.0 / 32.0,
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"rescheduled jobs don't count towards MaximalClusterFractionToSchedule": {
+			SchedulingConfig: withRoundLimitsConfig(
+				map[string]float64{
+					"cpu": 5.0 / 32.0,
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 4),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
 	}
-	// TODO: Test
-	// - Rescheduled jobs doesn't count against lookback.
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			nodeDb, err := createNodeDb(tc.Nodes)
