@@ -171,6 +171,7 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", job.GetId())
 			gangCardinality = 1 // Schedule jobs with invalid gang cardinality one by one.
 		}
+		fmt.Println("Got job", job.GetQueue())
 		if isGangJob {
 			it.jobsByGangId[gangId] = append(it.jobsByGangId[gangId], job)
 			gang := it.jobsByGangId[gangId]
@@ -724,54 +725,37 @@ func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Qu
 
 // Evict removes from all nodes any jobs of a priority class marked as balanced.
 // Returns a slice of all evicted jobs.
-func (nodeDb *NodeDb) Evict(jobRepo JobRepository) ([]LegacySchedulerJob, error) {
-	txn := nodeDb.Txn(true)
-	defer txn.Abort()
-	it, err := NewNodesIterator(txn)
-	if err != nil {
-		return nil, err
-	}
-	evictedJobs := make([]LegacySchedulerJob, 0)
+func Evict(
+	it NodeIterator,
+	jobRepo JobRepository,
+	shouldEvictFunc func(LegacySchedulerJob, *schedulerobjects.Node) bool,
+	postEvictFunc func(LegacySchedulerJob, *schedulerobjects.Node),
+) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
+	evictedJobsById := make(map[string]LegacySchedulerJob)
+	affectedNodesById := make(map[string]*schedulerobjects.Node)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		jobIds := maps.Keys(node.AllocatedByJobId)
 		jobs, err := jobRepo.GetExistingJobsByIds(jobIds)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, job := range jobs {
-			if job == nil {
-				continue
-			}
-			jobInfo := job.GetRequirements(nodeDb.priorityClasses)
-			if jobInfo == nil {
-				fmt.Println("skipping job", job.GetId(), "no jobInfo")
-				continue
-			}
-			req := PodRequirementFromJobSchedulingInfo(jobInfo)
-			if req == nil {
-				fmt.Println("skipping job", job.GetId(), "no podReqs")
-				continue
-			}
-			pc := nodeDb.priorityClasses[jobInfo.PriorityClassName]
-			if pc.AutoBalanced {
-				if node, err = UnbindPodFromNode(req, node); err != nil {
-					return nil, err
-				} else {
-					if err := nodeDb.UpsertManyWithTxn(txn, []*schedulerobjects.Node{node}); err != nil {
-						return nil, err
-					}
-					// Ensure this job can only be re-scheduled onto the same node
-					// and mark this job as currently running.
-					// TODO: This should be done by the caller.
-					req.Annotations[TargetNodeIdAnnotation] = node.Id
-					req.Annotations[IsRunningAnnotation] = "true"
-					evictedJobs = append(evictedJobs, job)
+			if shouldEvictFunc(job, node) {
+				req := PodRequirementFromLegacySchedulerJob(job, nil)
+				if req == nil {
+					continue
 				}
+				node, err = UnbindPodFromNode(req, node)
+				if err != nil {
+					return nil, nil, err
+				}
+				postEvictFunc(job, node)
+				evictedJobsById[job.GetId()] = job
+				affectedNodesById[node.Id] = node
 			}
 		}
 	}
-	txn.Commit()
-	return evictedJobs, nil
+	return evictedJobsById, affectedNodesById, nil
 }
 
 func NewLegacyScheduler(
@@ -853,13 +837,54 @@ func Reschedule(
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, error) {
 	txn := nodeDb.Txn(false)
-	evictedJobs, err := nodeDb.Evict(jobRepo)
+	it, err := NewNodesIterator(txn)
 	if err != nil {
 		return nil, nil, err
 	}
-	jobsById := make(map[string]LegacySchedulerJob)
-	for _, job := range evictedJobs {
-		jobsById[job.GetId()] = job
+	evictedJobsById, affectedNodesById, err := Evict(
+		it, jobRepo,
+		func(job LegacySchedulerJob, node *schedulerobjects.Node) bool {
+			// TODO: Add a per-node probability here.
+			priorityClassName := job.GetRequirements(nil).PriorityClassName
+			priorityClass, ok := config.Preemption.PriorityClasses[priorityClassName]
+			if !ok {
+				priorityClass = config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]
+			}
+			if priorityClass.AutoBalanced {
+				return true
+			}
+			return false
+		},
+		func(job LegacySchedulerJob, node *schedulerobjects.Node) {
+			// Add annotations to this pod that indicate to the scheduler
+			// - that this pod was evicted and
+			// - which node it was evicted from.
+			req := PodRequirementFromLegacySchedulerJob(job, nil)
+			if req == nil {
+				return
+			}
+			if req.Annotations == nil {
+				req.Annotations = make(map[string]string)
+			}
+			req.Annotations[TargetNodeIdAnnotation] = node.Id
+			req.Annotations[IsEvictedAnnotation] = "true"
+
+			// Add an empty allocation for this queue.
+			// To make the scheduler avoid this node when scheduling pods from other queues.
+			// (As a result of per-queue bin-packing.)
+			if rl, ok := node.AllocatedByQueue[job.GetQueue()]; !ok {
+				node.AllocatedByQueue[job.GetQueue()] = rl
+			}
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	evictedJobs := maps.Values(evictedJobsById)
+	affectedNodes := maps.Values(affectedNodesById)
+	if err := nodeDb.UpsertMany(affectedNodes); err != nil {
+		return nil, nil, err
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository()
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
@@ -882,7 +907,6 @@ func Reschedule(
 		if err != nil {
 			return nil, nil, err
 		}
-
 		queues = append(queues, queue)
 	}
 	sched, err := NewLegacyScheduler(
@@ -901,8 +925,9 @@ func Reschedule(
 	if err != nil {
 		return nil, nil, err
 	}
+	rescheduledJobsById := make(map[string]LegacySchedulerJob, len(rescheduledJobs))
 	for _, job := range rescheduledJobs {
-		jobsById[job.GetId()] = job
+		rescheduledJobsById[job.GetId()] = job
 	}
 
 	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
@@ -911,13 +936,13 @@ func Reschedule(
 	}
 	preemptedJobs := make([]LegacySchedulerJob, 0)
 	for jobId := range preempted {
-		if job, ok := jobsById[jobId]; ok {
+		if job, ok := evictedJobsById[jobId]; ok {
 			preemptedJobs = append(preemptedJobs, job)
 		}
 	}
 	scheduledJobs := make([]LegacySchedulerJob, 0)
 	for jobId := range scheduled {
-		if job, ok := jobsById[jobId]; ok {
+		if job, ok := rescheduledJobsById[jobId]; ok {
 			scheduledJobs = append(scheduledJobs, job)
 		}
 	}
@@ -1041,21 +1066,26 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
-		info := job.GetRequirements(priorityClasses)
-		req := PodRequirementFromJobSchedulingInfo(info)
-		if _, ok := req.Annotations[JobIdAnnotation]; !ok {
-			// Auto-populate JobIdAnnotation if not set.
-			if req.Annotations == nil {
-				req.Annotations = map[string]string{
-					JobIdAnnotation: job.GetId(),
-				}
-			} else {
-				req.Annotations[JobIdAnnotation] = job.GetId()
-			}
-		}
-		rv = append(rv, req)
+		rv = append(rv, PodRequirementFromLegacySchedulerJob(job, priorityClasses))
 	}
 	return rv
+}
+
+func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+	info := job.GetRequirements(priorityClasses)
+	req := PodRequirementFromJobSchedulingInfo(info)
+
+	// Auto-populate annotations if not set.
+	if req.Annotations == nil {
+		req.Annotations = make(map[string]string)
+	}
+	if _, ok := req.Annotations[JobIdAnnotation]; !ok {
+		req.Annotations[JobIdAnnotation] = job.GetId()
+	}
+	if _, ok := req.Annotations[QueueAnnotation]; !ok {
+		req.Annotations[JobIdAnnotation] = job.GetQueue()
+	}
+	return req
 }
 
 func PodRequirementsFromJobSchedulingInfos(infos []*schedulerobjects.JobSchedulingInfo) []*schedulerobjects.PodRequirements {

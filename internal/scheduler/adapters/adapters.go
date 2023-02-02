@@ -2,7 +2,6 @@ package adapters
 
 import (
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -12,7 +11,8 @@ import (
 
 func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	rv := PodRequirementsFromPodSpec(&pod.Spec, priorityByPriorityClassName)
-	rv.Annotations = maps.Clone(pod.Annotations)
+	// We need to be able to update annotations in-place.
+	rv.Annotations = pod.Annotations
 	return rv
 }
 

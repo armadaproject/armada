@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -1211,32 +1212,58 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
-		// "reschedule onto same node": {
-		// 	SchedulingConfig: testSchedulingConfig(),
-		// 	Nodes:            testNCpuNode(10, testPriorities),
-		// 	Rounds: []ReschedulingRound{
-		// 		{
-		// 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-		// 				"B": testNSmallCpuJob("A", 0, 40),
-		// 			},
-		// 			ExpectedScheduledIndices: map[string][]int{
-		// 				"B": intRange(0, 39),
-		// 			},
-		// 		},
-		// 		{
-		// 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-		// 				"A": testNSmallCpuJob("A", 0, 32),
-		// 			},
-		// 			ExpectedScheduledIndices: map[string][]int{
-		// 				"A": intRange(0, 31),
-		// 			},
-		// 		},
-		// 	},
-		// 	PriorityFactorByQueue: map[string]float64{
-		// 		"A": 2,
-		// 		"B": 1,
-		// 	},
-		// },
+		"reschedule onto same node": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob("B", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 31),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"reschedule onto same node reverse order": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob("B", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 	}
 	// TODO: Test
 	// - Rescheduled jobs doesn't count against lookback.
@@ -1248,6 +1275,7 @@ func TestReschedule(t *testing.T) {
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			for i, round := range tc.Rounds {
+				fmt.Println("== round", i, "==")
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
 					jobs = append(jobs, legacySchedulerJobsFromPodReqs(queue, "priority-0", reqs)...)

@@ -14,6 +14,10 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+type NodeIterator interface {
+	NextNode() *schedulerobjects.Node
+}
+
 // NodesIterator is an iterator over all nodes in the db.
 type NodesIterator struct {
 	it memdb.ResultIterator

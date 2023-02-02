@@ -28,21 +28,19 @@ var (
 		"priority-2": {2, true, nil},
 		"priority-3": {3, false, nil},
 	}
-	testPriorities        = []int32{0, 1, 2, 3}
-	testResources         = []string{"cpu", "memory", "gpu"}
-	testIndexedTaints     = []string{"largeJobsOnly", "gpu"}
-	testIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
+	testDefaultPriorityClass = "priority-3"
+	testPriorities           = []int32{0, 1, 2, 3}
+	testResources            = []string{"cpu", "memory", "gpu"}
+	testIndexedTaints        = []string{"largeJobsOnly", "gpu"}
+	testIndexedNodeLabels    = []string{"largeJobsOnly", "gpu"}
 )
 
 func testSchedulingConfig() configuration.SchedulingConfig {
-	priorityClasses := make(map[string]configuration.PriorityClass)
-	for _, priority := range testPriorityClasses {
-		priorityClasses[fmt.Sprintf("%d", priority.Priority)] = priority
-	}
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
 		Preemption: configuration.PreemptionConfig{
-			PriorityClasses: priorityClasses,
+			PriorityClasses:      testPriorityClasses,
+			DefaultPriorityClass: testDefaultPriorityClass,
 		},
 		IndexedResources:          []string{"cpu", "memory"},
 		GangIdAnnotation:          testGangIdAnnotation,

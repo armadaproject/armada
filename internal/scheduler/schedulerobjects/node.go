@@ -24,7 +24,7 @@ func (node *Node) DominantQueue() string {
 	dominantQueueCombinedResources := 0.0
 	for queue, rl := range node.AllocatedByQueue {
 		v := armadaresource.QuantityAsFloat64(rl.Get("cpu"))
-		if v > dominantQueueCombinedResources || (v == dominantQueueCombinedResources && queue < dominantQueue) {
+		if dominantQueue == "" || v > dominantQueueCombinedResources || (v == dominantQueueCombinedResources && queue < dominantQueue) {
 			dominantQueue = queue
 			dominantQueueCombinedResources = v
 		}
