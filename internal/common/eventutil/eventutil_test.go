@@ -2,12 +2,12 @@ package eventutil
 
 import (
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
