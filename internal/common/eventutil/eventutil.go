@@ -865,18 +865,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},
