@@ -382,6 +382,12 @@ message KubernetesError {
     Uuid resourceId = 2;
 }
 
+// These messages represent the reason for why the por/container failed.
+// We use empty messages to give the option of adding fields specific to each cause later.
+message OutOfMemory {}
+message Evicted {}
+message DeadlineExceeded {}
+
 // Indicates one or more of the containers in the pod failed.
 message PodError {
 	// This ObjectMeta identifies the Pod.
@@ -390,23 +396,15 @@ message PodError {
     string node_name = 3;
     int32 pod_number = 4;
     repeated ContainerError containerErrors = 5;
+    oneof KubernetesReason {
+        OutOfMemory outOfMemory = 6;
+        Error error = 7;
+        Evicted evicted = 8;
+        DeadlineExceeded deadlineExceeded = 9;
+    }
 }
 
 message ContainerError {
-    // These messages represent the reason for why the container failed.
-    // We use empty messages to give the option of adding fields specific to each cause later.
-    message OutOfMemory {
-
-    }
-    message ContainerError {
-
-    }
-    message Evicted {
-
-    }
-    message DeadlineExceeded {
-
-    }
     // this ObjectMeta identifies the container
     ObjectMeta objectMeta = 1;
     // Exit code of the application running in the container.
