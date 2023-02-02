@@ -521,7 +521,7 @@ func TestConvertJobError(t *testing.T) {
 										ExitCode:         -1,
 										Message:          "container1 Error",
 										Reason:           "container1 Reason",
-										KubernetesReason: &armadaevents.ContainerError_OutOfMemory_{},
+										KubernetesReason: &armadaevents.ContainerError_OutOfMemory{},
 									},
 								},
 							},
