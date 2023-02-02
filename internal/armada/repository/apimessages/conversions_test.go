@@ -1,9 +1,12 @@
 package apimessages
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
