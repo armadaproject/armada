@@ -4,6 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -491,6 +495,26 @@ func TestConvertPodTerminated(t *testing.T) {
 	apiEvents, err := FromEventSequence(toEventSeq(terminated))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
+}
+
+func TestWeirdMarshaling(t *testing.T) {
+	// create an object
+	containerError := &armadaevents.ContainerError{
+		Message:          "test error",
+		KubernetesReason: &armadaevents.ContainerError_OutOfMemory_{},
+	}
+
+	// marshall it
+	bytes, err := proto.Marshal(containerError)
+	require.NoError(t, err)
+
+	// unmarshall it
+	unmarshalledContainerError := &armadaevents.ContainerError{}
+	err = proto.Unmarshal(bytes, unmarshalledContainerError)
+	require.NoError(t, err)
+
+	require.Equal(t, containerError.Message, unmarshalledContainerError.Message)                   // passes
+	require.Equal(t, containerError.KubernetesReason, unmarshalledContainerError.KubernetesReason) // fails wtf?!
 }
 
 func TestConvertJobError(t *testing.T) {
