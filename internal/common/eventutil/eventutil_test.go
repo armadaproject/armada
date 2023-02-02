@@ -292,7 +292,7 @@ func TestEventSequenceFromApiEvent_Failed(t *testing.T) {
 					Message:          testEvent.Reason,
 					NodeName:         testEvent.NodeName,
 					PodNumber:        testEvent.PodNumber,
-					KubernetesReason: &armadaevents.PodError_DeadlineExceeded{},
+					KubernetesReason: armadaevents.KubernetesReason_DeadlineExceeded,
 					ContainerErrors: []*armadaevents.ContainerError{
 						{
 							ObjectMeta: &armadaevents.ObjectMeta{
@@ -304,7 +304,7 @@ func TestEventSequenceFromApiEvent_Failed(t *testing.T) {
 							ExitCode:         testEvent.ContainerStatuses[0].ExitCode,
 							Message:          testEvent.ContainerStatuses[0].Message,
 							Reason:           testEvent.ContainerStatuses[0].Reason,
-							KubernetesReason: &armadaevents.ContainerError_OutOfMemory{},
+							KubernetesReason: armadaevents.KubernetesReason_OOM,
 						},
 					},
 				},

@@ -579,14 +579,14 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 		Reason:       podError.GetMessage(),
 		PodName:      podError.GetObjectMeta().GetName(),
 	}
-	switch podError.KubernetesReason.(type) {
-	case *armadaevents.PodError_DeadlineExceeded:
+	switch podError.KubernetesReason {
+	case armadaevents.KubernetesReason_DeadlineExceeded:
 		event.Cause = api.Cause_DeadlineExceeded
-	case *armadaevents.PodError_Error:
+	case armadaevents.KubernetesReason_AppError:
 		event.Cause = api.Cause_Error
-	case *armadaevents.PodError_Evicted:
+	case armadaevents.KubernetesReason_Evicted:
 		event.Cause = api.Cause_Evicted
-	case *armadaevents.PodError_OutOfMemory:
+	case armadaevents.KubernetesReason_OOM:
 		event.Cause = api.Cause_OOM
 	default:
 		log.Warnf("Unknown KubernetesReason of type %T", podError.KubernetesReason)
@@ -600,14 +600,14 @@ func makeJobFailed(jobId string, queueName string, jobSetName string, time time.
 			Message:  containerErr.Message,
 			Reason:   containerErr.Reason,
 		}
-		switch containerErr.KubernetesReason.(type) {
-		case *armadaevents.ContainerError_DeadlineExceeded:
+		switch containerErr.KubernetesReason {
+		case armadaevents.KubernetesReason_DeadlineExceeded:
 			containerStatus.Cause = api.Cause_DeadlineExceeded
-		case *armadaevents.ContainerError_Error:
+		case armadaevents.KubernetesReason_AppError:
 			containerStatus.Cause = api.Cause_Error
-		case *armadaevents.ContainerError_Evicted:
+		case armadaevents.KubernetesReason_Evicted:
 			containerStatus.Cause = api.Cause_Evicted
-		case *armadaevents.ContainerError_OutOfMemory:
+		case armadaevents.KubernetesReason_OOM:
 			containerStatus.Cause = api.Cause_OOM
 		default:
 			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)

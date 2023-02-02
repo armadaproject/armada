@@ -796,13 +796,13 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			// Legacy messages encode the reason as an enum, whereas Pulsar uses objects.
 			switch st.Cause {
 			case api.Cause_DeadlineExceeded:
-				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
 			case api.Cause_Error:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Error{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_AppError
 			case api.Cause_Evicted:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_Evicted
 			case api.Cause_OOM:
-				containerError.KubernetesReason = &armadaevents.ContainerError_OutOfMemory{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_OOM
 			default:
 				log.Warnf("Unknown cause %s on container %s", st.Cause, st.Name)
 			}
@@ -825,13 +825,13 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 
 		switch m.Failed.Cause {
 		case api.Cause_DeadlineExceeded:
-			podError.KubernetesReason = &armadaevents.PodError_DeadlineExceeded{}
+			podError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
 		case api.Cause_Error:
-			podError.KubernetesReason = &armadaevents.PodError_Error{}
+			podError.KubernetesReason = armadaevents.KubernetesReason_AppError
 		case api.Cause_Evicted:
-			podError.KubernetesReason = &armadaevents.PodError_Evicted{}
+			podError.KubernetesReason = armadaevents.KubernetesReason_Evicted
 		case api.Cause_OOM:
-			podError.KubernetesReason = &armadaevents.PodError_OutOfMemory{}
+			podError.KubernetesReason = armadaevents.KubernetesReason_OOM
 		default:
 			log.Warnf("Unknown cause %s for job %s", m.Failed.Cause, m.Failed.JobId)
 		}

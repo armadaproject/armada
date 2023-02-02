@@ -4,10 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/stretchr/testify/require"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -497,26 +493,6 @@ func TestConvertPodTerminated(t *testing.T) {
 	assert.Equal(t, expected, apiEvents)
 }
 
-func TestWeirdMarshaling(t *testing.T) {
-	// create an object
-	containerError := &armadaevents.ContainerError{
-		Message:          "test error",
-		KubernetesReason: &armadaevents.ContainerError_OutOfMemory_{},
-	}
-
-	// marshall it
-	bytes, err := proto.Marshal(containerError)
-	require.NoError(t, err)
-
-	// unmarshall it
-	unmarshalledContainerError := &armadaevents.ContainerError{}
-	err = proto.Unmarshal(bytes, unmarshalledContainerError)
-	require.NoError(t, err)
-
-	require.Equal(t, containerError.Message, unmarshalledContainerError.Message)                   // passes
-	require.Equal(t, containerError.KubernetesReason, unmarshalledContainerError.KubernetesReason) // fails wtf?!
-}
-
 func TestConvertJobError(t *testing.T) {
 	errored := &armadaevents.EventSequence_Event{
 		Created: &baseTime,
@@ -537,7 +513,7 @@ func TestConvertJobError(t *testing.T) {
 								Message:          "The pod was terminated",
 								NodeName:         nodeName,
 								PodNumber:        podNumber,
-								KubernetesReason: &armadaevents.PodError_DeadlineExceeded{},
+								KubernetesReason: armadaevents.KubernetesReason_DeadlineExceeded,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{
 										ObjectMeta: &armadaevents.ObjectMeta{
@@ -546,7 +522,7 @@ func TestConvertJobError(t *testing.T) {
 										ExitCode:         -1,
 										Message:          "container1 Error",
 										Reason:           "container1 Reason",
-										KubernetesReason: &armadaevents.ContainerError_OutOfMemory{},
+										KubernetesReason: armadaevents.KubernetesReason_OOM,
 									},
 								},
 							},
