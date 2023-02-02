@@ -1,9 +1,9 @@
 package server
 
 import (
-	"fmt"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/pkg/errors"
 )
@@ -12,58 +12,54 @@ type SubmitCheckResult struct {
 	JobId                        string
 	SchedulableOnLegacyScheduler bool
 	SchedulableOnPulsarScheduler bool
-	Error                        error // error that will be filled in if schedulable on neither
+	LegacySchedulerError         error
+	PulsarSchedulerError         error
 }
 
 type SubmitChecker interface {
-	CheckApiJobs(jobs []*api.Job, considerPulsarScheduler bool) ([]SubmitCheckResult, error)
+	CheckApiJobs(jobs []*api.Job, considerPulsarScheduler bool) ([]*SubmitCheckResult, error)
 }
 
-type LegacySchedulerSubmitChecker struct {
-	schedulingInfoRepository repository.SchedulingInfoRepository
+type DualSchedulerSubmitChecker struct {
+	schedulingInfoRepository     repository.SchedulingInfoRepository
+	pulsarSchedulerSubmitChecker scheduler.SubmitChecker
 }
 
-func (s *LegacySchedulerSubmitChecker) CheckApiJobs(jobs []*api.Job, considerPulsarScheduler bool) ([]SubmitCheckResult, error) {
-	allClusterSchedulingInfo, err := s.schedulingInfoRepository.GetClusterSchedulingInfo()
+func (s *DualSchedulerSubmitChecker) CheckApiJobs(jobs []*api.Job, considerPulsarScheduler bool) ([]*SubmitCheckResult, error) {
+
+	results, err := s.checkLegacyScheduling(jobs)
 	if err != nil {
-		err = errors.WithMessage(err, "error getting scheduling info")
 		return nil, err
 	}
-	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
+
+	if considerPulsarScheduler {
+		err := s.checkPulsarScheduling(jobs, results)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return results, nil
+}
+
+func (s *DualSchedulerSubmitChecker) checkLegacyScheduling(jobs []*api.Job) ([]*SubmitCheckResult, error) {
 	results := make([]SubmitCheckResult, len(jobs))
+	allClusterSchedulingInfo, err := s.schedulingInfoRepository.GetClusterSchedulingInfo()
+	if err != nil {
+		return nil, errors.WithMessage(err, "error getting scheduling info")
+	}
+	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
+
 	for i, job := range jobs {
 		ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo)
 		results[i] = SubmitCheckResult{
 			SchedulableOnLegacyScheduler: ok,
-			Error:                        err,
+			LegacySchedulerError:         err,
 		}
 	}
-	return results, nil
+	return results
 }
 
-type PulsarSchedulerSubmitChecker struct {
-}
+func (s *DualSchedulerSubmitChecker) checkPulsarScheduling(jobs []*api.Job, results []*SubmitCheckResult) error {
 
-func (s *PulsarSchedulerSubmitChecker) CheckApiJobs(jobs []*api.Job) ([]SubmitCheckResult, error) {
-
-	// First, check if all jobs can be scheduled individually.
-	for i, job := range jobs {
-		reqs := PodRequirementsFromJob(srv.priorityClasses, job)
-		canSchedule, reason := srv.Check(reqs)
-		if !canSchedule {
-			return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
-		}
-	}
-	// Then, check if all gangs can be scheduled.
-	for gangId, jobs := range groupJobsByAnnotation(srv.gangIdAnnotation, jobs) {
-		if gangId == "" {
-			continue
-		}
-		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, srv.priorityClasses)
-		canSchedule, reason := srv.Check(reqs)
-		if !canSchedule {
-			return canSchedule, fmt.Sprintf("gang %s is unschedulable:\n%s", gangId, reason)
-		}
-	}
-	return true, ""
 }

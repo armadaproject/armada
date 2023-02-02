@@ -1,7 +1,10 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	log "github.com/sirupsen/logrus"
 	"strings"
 	"sync"
 	"time"
@@ -14,11 +17,12 @@ import (
 )
 
 type SubmitChecker struct {
-	executorTimeout  time.Duration
-	priorityClasses  map[string]configuration.PriorityClass
-	gangIdAnnotation string
-	nodeDbByExecutor map[string]*NodeDb
-	mu               sync.Mutex
+	executorTimeout    time.Duration
+	priorityClasses    map[string]configuration.PriorityClass
+	gangIdAnnotation   string
+	nodeDbByExecutor   map[string]*NodeDb
+	executorRepository database.ExecutorRepository
+	mu                 sync.Mutex
 }
 
 func NewSubmitChecker(executorTimeout time.Duration, priorityClasses map[string]configuration.PriorityClass, gangIdAnnotation string) *SubmitChecker {
@@ -29,28 +33,46 @@ func NewSubmitChecker(executorTimeout time.Duration, priorityClasses map[string]
 	}
 }
 
-// RegisterNodeDb adds a NodeDb to use when checking if a pod can be scheduled.
-// To only check static scheduling requirements, set NodeDb.CheckOnlyStaticRequirements = true
-// before registering it.
-func (srv *SubmitChecker) RegisterNodeDb(executor string, nodeDb *NodeDb) {
+func (srv *SubmitChecker) start(ctx context.Context) error {
+	srv.updateExecutors(ctx)
+	ticker := time.NewTicker(1 * time.Minute)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			srv.updateExecutors(ctx)
+		}
+	}
+}
+
+func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	if srv.nodeDbByExecutor == nil {
-		srv.nodeDbByExecutor = make(map[string]*NodeDb)
+	executors, err := database.ExecutorRepository.GetExecutors(ctx)
+	if err != nil {
+		log.WithError(err).Error("Error fetching executors")
+		return
 	}
-	srv.nodeDbByExecutor[executor] = nodeDb
+	for _, executor := range executors {
+		nodeDb, err := srv.constructNodeDb(executor.Nodes, l.priorityClassPriorities)
+		if err != nil {
+			log.WithError(err).Error("Error constructing node db for executor %s", executor.Id)
+		}
+	}
+
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	// // First, check if all jobs can be scheduled individually.
-	// // TODO: Disabled for now; the SubmitChecker would reject all jobs until populated.
-	// for i, job := range jobs {
-	// 	reqs := PodRequirementsFromJob(srv.priorityClasses, job)
-	// 	canSchedule, reason := srv.Check(reqs)
-	// 	if !canSchedule {
-	// 		return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
-	// 	}
-	// }
+	// First, check if all jobs can be scheduled individually.
+	// TODO: Disabled for now; the SubmitChecker would reject all jobs until populated.
+	for i, job := range jobs {
+		reqs := PodRequirementsFromJob(srv.priorityClasses, job)
+		canSchedule, reason := srv.Check(reqs)
+		if !canSchedule {
+			return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
+		}
+	}
 	// Then, check if all gangs can be scheduled.
 	for gangId, jobs := range groupJobsByAnnotation(srv.gangIdAnnotation, jobs) {
 		if gangId == "" {
@@ -140,4 +162,22 @@ func (srv *SubmitChecker) filterStaleNodeDbs(nodeDbByExecutor map[string]*NodeDb
 		}
 	}
 	return rv
+}
+
+func (l *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node, priorities []int32) (*NodeDb, error) {
+	// Nodes to be considered by the scheduler.
+	nodeDb, err := NewNodeDb(
+		priorities,
+		l.indexedResources,
+		l.config.IndexedTaints,
+		l.config.IndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = nodeDb.Upsert(nodes)
+	if err != nil {
+		return nil, err
+	}
+	return nodeDb, nil
 }
