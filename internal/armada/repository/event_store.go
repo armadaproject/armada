@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 
@@ -54,5 +55,5 @@ func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences, pulsarutils.Legacy)
+	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences, schedulers.Legacy)
 }

@@ -2,6 +2,7 @@ package pulsarutils
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"testing"
 	"time"
 
@@ -14,13 +15,13 @@ import (
 
 func TestPublishSequences_SendAsyncErr(t *testing.T) {
 	producer := &mockProducer{}
-	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}}, Pulsar)
+	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
 	assert.NoError(t, err)
 
 	producer = &mockProducer{
 		sendAsyncErr: errors.New("sendAsyncErr"),
 	}
-	err = PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}}, Pulsar)
+	err = PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
 	assert.ErrorIs(t, err, producer.sendAsyncErr)
 }
 
@@ -30,7 +31,7 @@ func TestPublishSequences_RespectTimeout(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
-	err := PublishSequences(ctx, producer, []*armadaevents.EventSequence{{}}, Pulsar)
+	err := PublishSequences(ctx, producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 

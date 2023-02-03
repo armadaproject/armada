@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
@@ -114,7 +115,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 
 		es := legacySchedulerEvents
-		if assignedScheduler == pulsarutils.Pulsar {
+		if assignedScheduler == schedulers.Pulsar {
 			es = pulsarSchedulerEvents
 		}
 
@@ -175,7 +176,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	if len(pulsarSchedulerEvents.Events) > 0 {
-		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerEvents}, pulsarutils.Pulsar)
+		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerEvents}, schedulers.Pulsar)
 		if err != nil {
 			log.WithError(err).Error("failed send pulsar scheduler events to Pulsar")
 			return nil, status.Error(codes.Internal, "Failed to send message")
@@ -183,7 +184,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	if len(legacySchedulerEvents.Events) > 0 {
-		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerEvents}, pulsarutils.Legacy)
+		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerEvents}, schedulers.Legacy)
 		if err != nil {
 			log.WithError(err).Error("failed send legacy scheduler events to Pulsar")
 			return nil, status.Error(codes.Internal, "Failed to send message")
@@ -261,7 +262,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 	}
 
 	// we can send the message to cancel to both schedulers. If the scheduler it doesn't belong to it'll be a no-op
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -296,7 +297,7 @@ func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, j
 	var cancelledIds []string
 	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
 	// send the message to both schedulers because jobs may be on either
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
 		return nil, status.Error(codes.Internal, "Failed to send message")
@@ -403,13 +404,13 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		},
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerSequence}, pulsarutils.Legacy)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerSequence}, schedulers.Legacy)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel job messages to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, pulsarutils.Pulsar)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, schedulers.Pulsar)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
@@ -525,7 +526,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	}
 
 	// can send the message to both schedulers
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
+	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 
 	if err != nil {
 		log.WithError(err).Error("failed send to Pulsar")
@@ -624,7 +625,7 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 }
 
 // PublishToPulsar sends pulsar messages async
-func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence, scheduler pulsarutils.Scheduler) error {
+func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -687,11 +688,11 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	return nil, nil
 }
 
-func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]pulsarutils.Scheduler, error) {
+func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]schedulers.Scheduler, error) {
 
 	// when assigning jobs to a scheduler, all the jobs in a gang have to go on the same scheduler
 	groups := groupJobsByAnnotation(srv.GangIdAnnotation, jobs)
-	schedulers := make(map[string]pulsarutils.Scheduler, len(jobs))
+	schedulers := make(map[string]schedulers.Scheduler, len(jobs))
 	for _, group := range groups {
 		schedulableOnLegacyScheduler, legacyMsg := srv.LegacySchedulerSubmitChecker.CheckApiJobs(group)
 		schedulableOnPulsarScheduler := false
@@ -710,19 +711,19 @@ func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]puls
 		}
 
 		r := srv.Rand.Float64()
-		assignedScheduler := pulsarutils.Legacy
+		assignedScheduler := schedulers.Legacy
 		if jobs[0].Scheduler == "pulsar" { // explicitly to pulsar.  I'm only checking the first job here, but as this is a debug option should be fine
-			assignedScheduler = pulsarutils.Pulsar
+			assignedScheduler = schedulers.Pulsar
 		} else if jobs[0].Scheduler == "legacy" { // explicitly to legacy.  Again only check first job
-			assignedScheduler = pulsarutils.Legacy
+			assignedScheduler = schedulers.Legacy
 		} else if schedulableOnPulsarScheduler && !schedulableOnLegacyScheduler { // only schedulable on pulsar
-			assignedScheduler = pulsarutils.Pulsar
+			assignedScheduler = schedulers.Pulsar
 		} else if schedulableOnLegacyScheduler && !schedulableOnPulsarScheduler { // only schedulable on legacy
-			assignedScheduler = pulsarutils.Legacy
+			assignedScheduler = schedulers.Legacy
 		} else if r < srv.ProbabilityOdfUsingPulsarScheduler { // probabilistic routing to pulsar
-			assignedScheduler = pulsarutils.Pulsar
+			assignedScheduler = schedulers.Pulsar
 		} else { // probabilistic routing to legacy
-			assignedScheduler = pulsarutils.Legacy
+			assignedScheduler = schedulers.Legacy
 		}
 		for _, job := range group {
 			schedulers[job.Id] = assignedScheduler

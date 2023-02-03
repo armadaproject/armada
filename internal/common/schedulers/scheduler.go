@@ -1,4 +1,4 @@
-package pulsarutils
+package schedulers
 
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -14,21 +14,21 @@ const (
 )
 
 const (
-	SchedulerNameKey string = "schedulerName"
-	PulsarScheduler  string = "pulsar"
-	LegacyScheduler  string = "legacy"
-	AllSchedulers    string = "all"
+	PropertyName             string = "schedulerName"
+	PulsarSchedulerAttribute string = "pulsar"
+	LegacySchedulerAttribute string = "legacy"
+	AllSchedulersAttribute   string = "all"
 )
 
 func SchedulerFromMsg(msg pulsar.Message) Scheduler {
-	s := msg.Properties()[SchedulerNameKey]
+	s := msg.Properties()[PropertyName]
 	switch s {
-	case PulsarScheduler:
+	case PulsarSchedulerAttribute:
 		return Pulsar
-	case LegacyScheduler:
+	case LegacySchedulerAttribute:
 	case "": // empty string means legacy scheduler for compatibility
 		return Legacy
-	case AllSchedulers:
+	case AllSchedulersAttribute:
 		return All
 	}
 	log.Warnf("Unknown scheduler [%s] associated with pulsar message [%s]. Defaulting to legacy scheduler", s, msg.ID())
@@ -38,14 +38,14 @@ func SchedulerFromMsg(msg pulsar.Message) Scheduler {
 func MsgPropertyFromScheduler(s Scheduler) string {
 	switch s {
 	case Pulsar:
-		return PulsarScheduler
+		return PulsarSchedulerAttribute
 	case Legacy:
-		return LegacyScheduler
+		return LegacySchedulerAttribute
 	case All:
-		return AllSchedulers
+		return AllSchedulersAttribute
 	}
 	log.Warnf("Unknown scheduler [%d]. Defaulting to legacy scheduler", s)
-	return LegacyScheduler
+	return LegacySchedulerAttribute
 }
 
 func ForPulsarScheduler(msg pulsar.Message) bool {

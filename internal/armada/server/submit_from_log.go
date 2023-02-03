@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"reflect"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/armadaproject/armada/internal/common/requestid"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -112,7 +112,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
-			if !pulsarutils.ForLegacyScheduler(msg) {
+			if !schedulers.ForLegacyScheduler(msg) {
 				srv.Consumer.Ack(msg)
 				break
 			}

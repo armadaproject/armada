@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"strconv"
 	"sync"
 	"time"
@@ -14,7 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
-	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -85,7 +85,7 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 			Payload: bytes,
 			Key:     sequences[i].JobSetName,
 			Properties: map[string]string{
-				pulsarutils.SchedulerNameKey: pulsarutils.PulsarScheduler,
+				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
 			},
 		}
 	}
@@ -144,8 +144,8 @@ func (p *PulsarPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID)
 		}
 		msg := &pulsar.ProducerMessage{
 			Properties: map[string]string{
-				explicitPartitionKey:         fmt.Sprintf("%d", i),
-				pulsarutils.SchedulerNameKey: pulsarutils.PulsarScheduler,
+				explicitPartitionKey:    fmt.Sprintf("%d", i),
+				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
 			},
 			Payload: bytes,
 		}
