@@ -79,8 +79,9 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
-	Preemption                                PreemptionConfig
-	UseProbabilisticSchedulingForAllResources bool
+	Preemption PreemptionConfig
+	// Whether the Armada scheduler sets node names on pods, thus bypassing kube-scheduler.
+	SetNodeNameOnPods bool
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
 	// Minimum resources to schedule per request from an executor.
@@ -185,11 +186,20 @@ type NewSchedulerConfig struct {
 
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
+	// TODO: We should remove the enabled flag. Disabling it makes no sense now.
 	// If true, Armada will:
 	// 1. Validate that submitted pods specify no or a valid priority class.
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
+	// Whether to preempt jobs with a balanced priority class to divide resources more fairly.
+	PreemptToFairShare bool
+	// If using PreemptToFairShare, the max number of nodes to evict jobs on to balance resource usage.
+	// TODO: Implement
+	MaxNodesToEvict uint
+	// If using PreemptToFairShare, the probability of evicting jobs on a node to balance resource usage.
+	// TODO: Implement
+	NodeEvictionProbability float64
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.

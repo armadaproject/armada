@@ -29,6 +29,9 @@ eventsApiRedis:
 scheduling:
   preemption:
     enabled: true
+    preemptToFairShare: true
+    maxNodesToEvict: 0
+    nodeEvictionProbability: 1.0
     priorityClasses:
       armada-default:
         priority: 1000

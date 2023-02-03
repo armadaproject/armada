@@ -942,6 +942,8 @@ func Reschedule(
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, error) {
+	log := ctxlogrus.Extract(ctx)
+
 	txn := nodeDb.Txn(false)
 	it, err := NewNodesIterator(txn)
 	if err != nil {
@@ -958,8 +960,7 @@ func Reschedule(
 	}
 	jobsById := make(map[string]LegacySchedulerJob)
 	maps.Copy(jobsById, evictedJobsById)
-
-	fmt.Println("evicted", len(evictedJobsById), "balanced jobs")
+	log.Infof("evicted %d balanced jobs", len(evictedJobsById))
 
 	evictedJobs := maps.Values(evictedJobsById)
 	affectedNodes := maps.Values(affectedNodesById)
@@ -1008,8 +1009,7 @@ func Reschedule(
 	for _, job := range rescheduledJobs {
 		jobsById[job.GetId()] = job
 	}
-
-	fmt.Println("rescheduled", len(rescheduledJobs), "jobs first time")
+	log.Infof("rescheduled %d jobs first time", len(rescheduledJobs))
 
 	it, err = NewNodesIterator(nodeDb.Txn(false))
 	if err != nil {
@@ -1024,8 +1024,7 @@ func Reschedule(
 		return nil, nil, err
 	}
 	maps.Copy(jobsById, evictedJobsById)
-
-	fmt.Println("evicted", len(evictedJobsById), "oversubscribed jobs")
+	log.Infof("evicted %d oversubscribed jobs", len(evictedJobsById))
 
 	evictedJobs = maps.Values(evictedJobsById)
 	affectedNodes = maps.Values(affectedNodesById)
@@ -1070,8 +1069,7 @@ func Reschedule(
 	for _, job := range rescheduledJobs {
 		jobsById[job.GetId()] = job
 	}
-
-	fmt.Println("rescheduled", len(rescheduledJobs), "jobs second time")
+	log.Infof("rescheduled %d jobs second time", len(rescheduledJobs))
 
 	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
 	if err != nil {

@@ -1,10 +1,12 @@
 package adapters
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -19,7 +21,8 @@ func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]
 func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	priority, ok := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
 	if !ok {
-		log.Errorf("failed to get priority from priorityClassName %s", podSpec.PriorityClassName)
+		err := errors.Errorf("unknown priorityClassName %s", podSpec.PriorityClassName)
+		logging.WithStacktrace(logrus.NewEntry(logrus.New()), err).Error("failed to get priority from priorityClassName")
 	}
 	preemptionPolicy := string(v1.PreemptLowerPriority)
 	if podSpec.PreemptionPolicy != nil {
