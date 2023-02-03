@@ -54,6 +54,8 @@ func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duratio
 		jobsDeleted += batchSize
 		log.Infof("Deleted %d jobs in %s. Deleted %d jobs out of %d", batchSize, batchDuration, jobsDeleted, totalJobsToDelete)
 	}
+	totalTime := clock.Since(now)
+	log.Infof("Total jobs deleted: %d, time taken: %v", jobsDeleted, totalTime)
 	return nil
 }
 
