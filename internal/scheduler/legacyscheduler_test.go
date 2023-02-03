@@ -1383,7 +1383,6 @@ func TestReschedule(t *testing.T) {
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			for i, round := range tc.Rounds {
-				fmt.Println("== round", i, "==")
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
 					jobs = append(jobs, legacySchedulerJobsFromPodReqs(queue, "priority-0", reqs)...)
@@ -1462,6 +1461,96 @@ func TestReschedule(t *testing.T) {
 			}
 		})
 	}
+}
+
+type InMemoryNodeIterator struct {
+	i     int
+	nodes []*schedulerobjects.Node
+}
+
+func NewInMemoryNodeIterator(nodes []*schedulerobjects.Node) *InMemoryNodeIterator {
+	vs := make([]*schedulerobjects.Node, len(nodes))
+	for i, node := range nodes {
+		vs[i] = node
+	}
+	return &InMemoryNodeIterator{
+		nodes: vs,
+	}
+}
+
+func (it *InMemoryNodeIterator) NextNode() *schedulerobjects.Node {
+	if it.i >= len(it.nodes) {
+		return nil
+	}
+	v := it.nodes[it.i]
+	it.i++
+	return v
+}
+
+func TestEvictOversubscribed(t *testing.T) {
+	nodes := testNCpuNode(1, testPriorities)
+	node := nodes[0]
+	var err error
+	jobs := append(
+		legacySchedulerJobsFromPodReqs("A", "priority-0", testNSmallCpuJob("A", 0, 20)),
+		legacySchedulerJobsFromPodReqs("A", "priority-1", testNSmallCpuJob("A", 1, 20))...,
+	)
+	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testPriorityClasses)
+	for _, req := range reqs {
+		node, err = BindPodToNode(req, node)
+		require.NoError(t, err)
+	}
+	nodes[0] = node
+	fmt.Println(node.AllocatableByPriorityAndResource)
+
+	it := NewInMemoryNodeIterator(nodes)
+
+	jobRepo := NewInMemoryJobRepository()
+	jobRepo.EnqueueMany(jobs)
+
+	evictedJobsById, affectedNodesById, err := EvictOversubscribed(
+		it,
+		jobRepo,
+		testPriorityClasses,
+	)
+	require.NoError(t, err)
+	fmt.Println(maps.Keys(evictedJobsById))
+	fmt.Println(maps.Keys(affectedNodesById))
+
+	prioritiesByName := configuration.PrioritiesFromPriorityClasses(testPriorityClasses)
+	priorities := maps.Values(prioritiesByName)
+	slices.Sort(priorities)
+	for nodeId, node := range affectedNodesById {
+		for _, p := range priorities {
+			for resourceType, q := range node.AllocatableByPriorityAndResource[p].Resources {
+				assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), nodeId)
+			}
+		}
+	}
+
+	// I want to have a simple and efficient implementation.
+	// Bc I want to entirely remove this later.
+	// Ideally also deterministic to make it predictable and easy to test.
+	// Best would be to take jobs out in order of fraction of fair share.
+	// Maybe I could do another scheduling cycle.
+	// Evict all jobs for PCs with oversubscribed resources.
+	// Put all evicted jobs back onto the queue.
+	// Do another scheduling cycle. Without queue jobs.
+	// Bc if we add queue jobs we could keep going forever.
+	// That would place jobs back onto nodes they could go on.
+	// We could mark all those jobs to go onto the same node.
+	// It'd be more efficient to only require jobs not scheduled in this cycle to go onto the same node.
+	// They should all be marked as evicted.
+	// This could result in a large number of evictions.
+	// Thankfully, it should be relatively efficient to put them back again.
+	// But this does add a lot of complexity to the scheduling cycle.
+	// In any case, I think this is a good approach to take.
+	// Evict all jobs for which their PC is oversubscribed.
+	// Put those jobs into an InMemoryJobRepo.
+	// Run a scheduling cycle to re-schedule those jobs.
+	// Initially, let's mark all jobs as having to go back onto the same node.
+	// Later, let's only do that for jobs not shceduled in this cycle.
+	// Let's start by fixing the InMemoryJobRepo.
 }
 
 func intRange(a, b int) []int {
