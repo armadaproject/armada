@@ -3,6 +3,7 @@ package armada
 import (
 	"context"
 	"fmt"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"net"
 	"time"
 
@@ -133,17 +134,29 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		defer pool.Close()
 	}
 
-	// If Pulsar is enabled, use the Pulsar submit endpoints.
-	// Store a list of all Pulsar components to use during cleanup later.
-	var pulsarClient pulsar.Client
-	submitChecker := scheduler.NewSubmitChecker(
+	// Executor Repositories for pulsar and legacy schedulers respectively
+	pulsarExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "pulsar")
+	legacyExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "legacy")
+
+	pulsarSchedulerSubmitChecker := scheduler.NewSubmitChecker(
 		10*time.Minute,
-		config.Scheduling.Preemption.PriorityClasses,
-		config.Scheduling.GangIdAnnotation,
+		config.Scheduling,
+		pulsarExecutorRepo,
 	)
+	services = append(services, func() error {
+		return pulsarSchedulerSubmitChecker.Run(ctx)
+	})
+	legacySchedulerSubmitChecker := scheduler.NewSubmitChecker(
+		10*time.Minute,
+		config.Scheduling,
+		legacyExecutorRepo,
+	)
+	services = append(services, func() error {
+		return legacySchedulerSubmitChecker.Run(ctx)
+	})
 
 	serverId := uuid.New()
-
+	var pulsarClient pulsar.Client
 	// API endpoints that generate Pulsar messages.
 	pulsarClient, err = pulsarutils.NewPulsarClient(&config.Pulsar)
 	if err != nil {
@@ -178,12 +191,17 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 
 	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:              producer,
-		QueueRepository:       queueRepository,
-		Permissions:           permissions,
-		SubmitServer:          submitServer,
-		MaxAllowedMessageSize: config.Pulsar.MaxAllowedMessageSize,
-		SubmitChecker:         submitChecker,
+		Producer:                           producer,
+		QueueRepository:                    queueRepository,
+		Permissions:                        permissions,
+		SubmitServer:                       submitServer,
+		MaxAllowedMessageSize:              config.Pulsar.MaxAllowedMessageSize,
+		PulsarSchedulerSubmitChecker:       pulsarSchedulerSubmitChecker,
+		LegacySchedulerSubmitChecker:       legacySchedulerSubmitChecker,
+		PulsarSchedulerEnabled:             config.PulsarSchedulerEnabled,
+		ProbabilityOdfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
+		Rand:                               util.NewThreadsafeRand(time.Now().UnixNano()),
+		GangIdAnnotation:                   config.Scheduling.GangIdAnnotation,
 	}
 	submitServerToRegister := pulsarSubmitServer
 
@@ -249,8 +267,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		usageRepository,
 		eventStore,
 		schedulingInfoRepository,
+		legacyExecutorRepo,
 	)
-	aggregatedQueueServer.SubmitChecker = submitChecker
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
 		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
 			config.Scheduling.MaxQueueReportsToStore,

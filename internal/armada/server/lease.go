@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	"io"
 	"math"
 	"sync/atomic"
@@ -48,7 +49,7 @@ type AggregatedQueueServer struct {
 	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
-	SubmitChecker *scheduler.SubmitChecker
+	executorRepository database.ExecutorRepository
 }
 
 func NewAggregatedQueueServer(
@@ -59,6 +60,7 @@ func NewAggregatedQueueServer(
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	executorRepository database.ExecutorRepository,
 ) *AggregatedQueueServer {
 	poolConfig := pool.ObjectPoolConfig{
 		MaxTotal:                 100,
@@ -84,6 +86,7 @@ func NewAggregatedQueueServer(
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
+		executorRepository:       executorRepository,
 		clock:                    clock.RealClock{},
 	}
 }
@@ -312,6 +315,21 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 
+	// Store the executor details in redis so that they can be used by
+	// submit check and the new scheduler.
+	err = q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
+		Id:             req.ClusterId,
+		Pool:           req.Pool,
+		Nodes:          nodes,
+		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		LastUpdateTime: time.Now(),
+	})
+
+	if err != nil {
+		// This is not fatal because we can still schedule if it doesn't happen
+		log.WithError(err).Warnf("Could not store executor details for cluster %s", req.ClusterId)
+	}
+
 	// Map queue names to priority factor for all active queues, i.e.,
 	// all queues for which the jobs queue has not been deleted automatically by Redis.
 	queues, err := q.queueRepository.GetAllQueues()
@@ -455,16 +473,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	} else if err != nil {
 		return nil, err
 	}
-
-	// Use this NodeDb when checking if a job could ever be scheduled.
-	// We clear allocated resources since we want to check if a job
-	// could be scheduled if the cluster was empty.
-	if err := nodeDb.ClearAllocated(); err == nil {
-		q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
-	} else {
-		logging.WithStacktrace(log, err).Error("failed to clear allocated resources in NodeDb")
-	}
-
 	return apiJobs, nil
 }
 

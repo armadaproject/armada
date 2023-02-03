@@ -23,18 +23,20 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime    time.Duration
-	CancelJobsBatchSize int
-	Redis               redis.UniversalOptions
-	EventsApiRedis      redis.UniversalOptions
-	Scheduling          SchedulingConfig
-	NewScheduler        NewSchedulerConfig
-	QueueManagement     QueueManagementConfig
-	DatabaseRetention   DatabaseRetentionPolicy
-	Pulsar              PulsarConfig
-	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi            EventApiConfig
-	Metrics             MetricsConfig
+	PriorityHalfTime                  time.Duration
+	CancelJobsBatchSize               int
+	Redis                             redis.UniversalOptions
+	EventsApiRedis                    redis.UniversalOptions
+	Scheduling                        SchedulingConfig
+	NewScheduler                      NewSchedulerConfig
+	QueueManagement                   QueueManagementConfig
+	DatabaseRetention                 DatabaseRetentionPolicy
+	Pulsar                            PulsarConfig
+	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
+	EventApi                          EventApiConfig
+	Metrics                           MetricsConfig
+	PulsarSchedulerEnabled            bool
+	ProbabilityOfUsingPulsarScheduler float64
 }
 
 type PulsarConfig struct {
@@ -214,6 +216,14 @@ type PriorityClass struct {
 	// - 5: 50%
 	// - 3: 80%
 	MaximalResourceFractionPerQueue map[string]float64
+}
+
+func (p PreemptionConfig) AllowedPriorities() []int32 {
+	allowedPcs := make([]int32, 0, len(p.PriorityClasses))
+	for _, v := range p.PriorityClasses {
+		allowedPcs = append(allowedPcs, v.Priority)
+	}
+	return allowedPcs
 }
 
 type DatabaseRetentionPolicy struct {

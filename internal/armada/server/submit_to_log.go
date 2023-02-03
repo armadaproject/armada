@@ -5,6 +5,9 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/google/uuid"
+	"golang.org/x/exp/maps"
 	"math/rand"
 	"time"
 
@@ -30,16 +33,6 @@ import (
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-type PulsarSchedulerJobDetails struct {
-	jobId  string
-	queue  string
-	jobSet string
-}
-
-type PulsarSchedulerJobResolver interface {
-	GetJobDetails(jobId string) (*PulsarSchedulerJobDetails, error)
-}
-
 // PulsarSubmitServer is a service that accepts API calls according to the original Armada submit API
 // and publishes messages to Pulsar based on those calls.
 // TODO: Consider returning a list of message ids of the messages generated
@@ -55,15 +48,15 @@ type PulsarSubmitServer struct {
 	SubmitServer *SubmitServer
 	// Used for job submission deduplication.
 	KVStore *pgkeyvalue.PGKeyValueStore
-	// Used to resolve job details from Pulsar scheduler Jobs
-	PulsarSchedulerJobResolver PulsarSchedulerJobResolver
 	// Used to check at job submit time if the job could ever be scheduled on either legacy or pulsar schedulers
-	SubmitChecker SubmitChecker
+	PulsarSchedulerSubmitChecker *scheduler.SubmitChecker
+	LegacySchedulerSubmitChecker *scheduler.SubmitChecker
 	// Flag to control if we enable sending messages to the pulsar scheduler
 	PulsarSchedulerEnabled bool
 	// Probability of using the pulsar scheduler.  Has no effect if PulsarSchedulerEnabled is false
 	ProbabilityOdfUsingPulsarScheduler float64
-	Rand                               rand.Rand
+	Rand                               *rand.Rand
+	GangIdAnnotation                   string
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -114,14 +107,14 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 	for i, apiJob := range apiJobs {
 		eventTime := time.Now()
-		scheduler, ok := schedulersByJobId[apiJob.Scheduler]
+		assignedScheduler, ok := schedulersByJobId[apiJob.Scheduler]
 		if !ok {
 			// This should never happen as if we can't find a scheduler we would have errored earlier
 			return nil, errors.Errorf("Didn't allocate a scheduler for job %s", apiJob.Id)
 		}
 
 		es := legacySchedulerEvents
-		if scheduler == pulsarutils.Pulsar {
+		if assignedScheduler == pulsarutils.Pulsar {
 			es = pulsarSchedulerEvents
 		}
 
@@ -223,7 +216,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		}, nil
 	}
 
-	// resolve the queue and jobset of the job- we can't trust what the user has given us
+	// resolve the queue and jobset of the job: we can't trust what the user has given us
 	resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(req.JobId)
 
 	// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
@@ -267,7 +260,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		},
 	}
 
-	// we can send the message to cancel to both schedulers- the scheduler it doesn't belong to it'll be a no-op
+	// we can send the message to cancel to both schedulers. If the scheduler it doesn't belong to it'll be a no-op
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, pulsarutils.All)
 
 	if err != nil {
@@ -695,34 +688,64 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 }
 
 func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]pulsarutils.Scheduler, error) {
-	// Check to see where the jobs may be scheduled
-	statuses, err := srv.SubmitChecker.CheckApiJobs(jobs, srv.PulsarSchedulerEnabled)
-	if err != nil {
-		return nil, err
-	}
+
+	// when assigning jobs to a scheduler, all the jobs in a gang have to go on the same scheduler
+	groups := groupJobsByAnnotation(srv.GangIdAnnotation, jobs)
 	schedulers := make(map[string]pulsarutils.Scheduler, len(jobs))
-	for i, result := range statuses {
-		// Job can't be scheduled anywhere
-		if result.Error != nil {
-			return nil, err
+	for _, group := range groups {
+		schedulableOnLegacyScheduler, legacyMsg := srv.LegacySchedulerSubmitChecker.CheckApiJobs(group)
+		schedulableOnPulsarScheduler := false
+		pulsarMsg := ""
+		if srv.PulsarSchedulerEnabled {
+			schedulableOnPulsarScheduler, pulsarMsg = srv.PulsarSchedulerSubmitChecker.CheckApiJobs(group)
+		}
+
+		// Not schedulable anywhere!
+		if !schedulableOnLegacyScheduler && !schedulableOnPulsarScheduler {
+			msg := fmt.Sprintf("Could not schedule on legacy scheduler because: %s", legacyMsg)
+			if srv.PulsarSchedulerEnabled {
+				msg = fmt.Sprintf("%s\nCould not schedule on pulsar scheduler because: %s", msg, pulsarMsg)
+			}
+			return nil, errors.New(msg)
 		}
 
 		r := srv.Rand.Float64()
-		if jobs[i].Scheduler == "pulsar" { // explicitly to pulsar
-			schedulers[result.JobId] = pulsarutils.Pulsar
-		} else if jobs[i].Scheduler == "legacy" { // explicitly to legacy
-			schedulers[result.JobId] = pulsarutils.Legacy
-		} else if result.SchedulableOnPulsarScheduler && !result.SchedulableOnLegacyScheduler { // only schedulable on pulsar
-			schedulers[result.JobId] = pulsarutils.Pulsar
-		} else if result.SchedulableOnLegacyScheduler && !result.SchedulableOnPulsarScheduler { // only schedulable on legacy
-			schedulers[result.JobId] = pulsarutils.Legacy
+		assignedScheduler := pulsarutils.Legacy
+		if jobs[0].Scheduler == "pulsar" { // explicitly to pulsar.  I'm only checking the first job here, but as this is a debug option should be fine
+			assignedScheduler = pulsarutils.Pulsar
+		} else if jobs[0].Scheduler == "legacy" { // explicitly to legacy.  Again only check first job
+			assignedScheduler = pulsarutils.Legacy
+		} else if schedulableOnPulsarScheduler && !schedulableOnLegacyScheduler { // only schedulable on pulsar
+			assignedScheduler = pulsarutils.Pulsar
+		} else if schedulableOnLegacyScheduler && !schedulableOnPulsarScheduler { // only schedulable on legacy
+			assignedScheduler = pulsarutils.Legacy
 		} else if r < srv.ProbabilityOdfUsingPulsarScheduler { // probabilistic routing to pulsar
-			schedulers[result.JobId] = pulsarutils.Pulsar
+			assignedScheduler = pulsarutils.Pulsar
 		} else { // probabilistic routing to legacy
-			schedulers[result.JobId] = pulsarutils.Legacy
+			assignedScheduler = pulsarutils.Legacy
+		}
+		for _, job := range group {
+			schedulers[job.Id] = assignedScheduler
 		}
 	}
 	return schedulers, nil
+}
+
+func groupJobsByAnnotation(annotation string, jobs []*api.Job) [][]*api.Job {
+	rv := make(map[string][]*api.Job)
+	for _, job := range jobs {
+		groupId := uuid.NewString()
+		if len(job.Annotations) == 0 {
+			rv[groupId] = append(rv[groupId], job)
+		} else {
+			value := job.Annotations[annotation]
+			if value == "" {
+				rv[groupId] = append(rv[groupId], job)
+			}
+			rv[value] = append(rv[value], job)
+		}
+	}
+	return maps.Values(rv)
 }
 
 func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
@@ -738,12 +761,12 @@ func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string
 
 	// now check the pulsar scheduler
 	if srv.PulsarSchedulerEnabled {
-		jobDetails, err := srv.PulsarSchedulerJobResolver.GetJobDetails(jobId)
+		jobDetails, err := srv.SubmitServer.jobRepository.GetPulsarSchedulerJobDetails(jobId)
 		if err != nil {
 			return "", "", err
 		}
 		if jobDetails != nil {
-			return jobDetails.queue, jobDetails.jobSet, nil
+			return jobDetails.Queue, jobDetails.JobSet, nil
 		}
 	}
 
