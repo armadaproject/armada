@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
@@ -43,14 +44,16 @@ func (it *InMemoryJobIterator) Next() (LegacySchedulerJob, error) {
 }
 
 type InMemoryJobRepository struct {
-	jobsByQueue map[string][]LegacySchedulerJob
-	jobsById    map[string]LegacySchedulerJob
+	jobsByQueue     map[string][]LegacySchedulerJob
+	jobsById        map[string]LegacySchedulerJob
+	priorityClasses map[string]configuration.PriorityClass
 }
 
-func NewInMemoryJobRepository() *InMemoryJobRepository {
+func NewInMemoryJobRepository(priorityClasses map[string]configuration.PriorityClass) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
-		jobsByQueue: make(map[string][]LegacySchedulerJob),
-		jobsById:    make(map[string]LegacySchedulerJob),
+		jobsByQueue:     make(map[string][]LegacySchedulerJob),
+		jobsById:        make(map[string]LegacySchedulerJob),
+		priorityClasses: maps.Clone(priorityClasses),
 	}
 }
 
@@ -74,15 +77,27 @@ func (repo *InMemoryJobRepository) Enqueue(job LegacySchedulerJob) {
 	repo.sortQueue(queue)
 }
 
+// Sort jobs queued jobs
+// first by priority class priority, with higher values first,
+// second by in-queue priority, with smaller values first, and
+// finally by submit time, with earlier submit times first.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jobsByQueue[queue], func(a, b LegacySchedulerJob) bool {
-		// Smaller value indicate higher priority.
-		infoa := a.GetRequirements(make(map[string]configuration.PriorityClass))
-		infob := b.GetRequirements(make(map[string]configuration.PriorityClass))
-		if infoa.GetPriority() == infob.GetPriority() {
-			return infoa.GetSubmitTime().Before(infob.GetSubmitTime())
+		infoa := a.GetRequirements(repo.priorityClasses)
+		infob := b.GetRequirements(repo.priorityClasses)
+		pca := repo.priorityClasses[infoa.PriorityClassName]
+		pcb := repo.priorityClasses[infob.PriorityClassName]
+		if pca.Priority > pcb.Priority {
+			return true
+		} else if pca.Priority < pcb.Priority {
+			return false
 		}
-		return infoa.GetPriority() < infob.GetPriority()
+		if infoa.GetPriority() < infob.GetPriority() {
+			return true
+		} else if infoa.GetPriority() > infob.GetPriority() {
+			return false
+		}
+		return infoa.GetSubmitTime().Before(infob.GetSubmitTime())
 	})
 }
 

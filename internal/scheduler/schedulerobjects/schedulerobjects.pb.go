@@ -529,7 +529,8 @@ type JobSchedulingInfo struct {
 	ConcurrencySafe   bool      `protobuf:"varint,4,opt,name=concurrency_safe,json=concurrencySafe,proto3" json:"concurrencySafe,omitempty"`
 	PriorityClassName string    `protobuf:"bytes,6,opt,name=priority_class_name,json=priorityClassName,proto3" json:"priorityClassName,omitempty"`
 	SubmitTime        time.Time `protobuf:"bytes,7,opt,name=submit_time,json=submitTime,proto3,stdtime" json:"submitTime"`
-	Priority          uint32    `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
+	// In-queue priority. I.e., not the priority class priority.
+	Priority uint32 `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
 	// Kubernetes objects that make up this job and their respective scheduling requirements.
 	ObjectRequirements []*ObjectRequirements `protobuf:"bytes,5,rep,name=object_requirements,json=objectRequirements,proto3" json:"objectRequirements,omitempty"`
 }

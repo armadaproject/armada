@@ -1129,9 +1129,6 @@ func TestReschedule(t *testing.T) {
 		TotalResources schedulerobjects.ResourceList
 		// Minimum job size.
 		MinimumJobSize map[string]resource.Quantity
-		// Skip checking if reports were generated.
-		// Needed for tests where not all jobs are considered.
-		DoNotCheckReports bool
 	}{
 		"balancing three queues": {
 			SchedulingConfig: testSchedulingConfig(),
@@ -1374,18 +1371,131 @@ func TestReschedule(t *testing.T) {
 				"A": 1,
 			},
 		},
+		"priority class preemption two classes": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 0, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(0, 0),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"priority class preemption cross-queue": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 0, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNLargeCpuJob("B", 1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(0, 0),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"priority class preemption not scheduled": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(testNLargeCpuJob("A", 0, 1), testNLargeCpuJob("A", 1, 1)...),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(1, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"priority class preemption four classes": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(append(
+							testNSmallCpuJob("A", 0, 10),
+							testNSmallCpuJob("A", 1, 10)...),
+							testNSmallCpuJob("A", 2, 10)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 29),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 3, 24),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 23),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: append(intRange(0, 19), intRange(28, 29)...),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			nodeDb, err := createNodeDb(tc.Nodes)
 			require.NoError(t, err)
-			repo := NewInMemoryJobRepository()
+			repo := NewInMemoryJobRepository(testPriorityClasses)
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			for i, round := range tc.Rounds {
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
-					jobs = append(jobs, legacySchedulerJobsFromPodReqs(queue, "priority-0", reqs)...)
+					// TODO: Remove PC name argument. Since we now infer it.
+					jobs = append(jobs, legacySchedulerJobsFromPodReqs(queue, "", reqs)...)
 				}
 				repo.jobsByQueue = make(map[string][]LegacySchedulerJob)
 				repo.EnqueueMany(jobs)
@@ -1399,14 +1509,15 @@ func TestReschedule(t *testing.T) {
 					}
 				}
 
-				for _, reqs := range repo.jobsByQueue {
-					expected := intRange(0, len(reqs)-1)
-					actual := make([]int, 0)
-					for _, req := range reqs {
-						actual = append(actual, indexByJobId[req.GetId()])
-					}
-					assert.Equal(t, expected, actual)
-				}
+				// TODO: Add separate tests for the InMemoryRepo.
+				// for _, reqs := range repo.jobsByQueue {
+				// 	expected := intRange(0, len(reqs)-1)
+				// 	actual := make([]int, 0)
+				// 	for _, req := range reqs {
+				// 		actual = append(actual, indexByJobId[req.GetId()])
+				// 	}
+				// 	assert.Equal(t, expected, actual)
+				// }
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
 				if tc.TotalResources.Resources == nil {
@@ -1431,6 +1542,7 @@ func TestReschedule(t *testing.T) {
 				)
 				require.NoError(t, err)
 
+				// Expected scheduled jobs.
 				for queue, jobIds := range jobIdsByQueueFromJobs(scheduledJobs) {
 					expected := round.ExpectedScheduledIndices[queue]
 					actual := make([]int, 0)
@@ -1442,6 +1554,7 @@ func TestReschedule(t *testing.T) {
 					assert.Equal(t, expected, actual, "scheduling from queue %s", queue)
 				}
 
+				// Expected preempted jobs.
 				for queue, jobIds := range jobIdsByQueueFromJobs(preemptedJobs) {
 					expected := round.ExpectedPreemptedIndices[queue]
 					actual := make(map[int][]int)
@@ -1457,6 +1570,20 @@ func TestReschedule(t *testing.T) {
 						slices.Sort(s)
 					}
 					assert.Equal(t, expected, actual, "preempting from queue %s", queue)
+				}
+
+				// We expect there to be no oversubscribed nodes.
+				prioritiesByName := configuration.PrioritiesFromPriorityClasses(testPriorityClasses)
+				priorities := maps.Values(prioritiesByName)
+				slices.Sort(priorities)
+				it, err := NewNodesIterator(nodeDb.Txn(false))
+				require.NoError(t, err)
+				for node := it.NextNode(); node != nil; node = it.NextNode() {
+					for _, p := range priorities {
+						for resourceType, q := range node.AllocatableByPriorityAndResource[p].Resources {
+							assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), node.Id)
+						}
+					}
 				}
 			}
 		})
@@ -1505,9 +1632,8 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	it := NewInMemoryNodeIterator(nodes)
 
-	jobRepo := NewInMemoryJobRepository()
+	jobRepo := NewInMemoryJobRepository(testPriorityClasses)
 	jobRepo.EnqueueMany(jobs)
-
 	evictedJobsById, affectedNodesById, err := EvictOversubscribed(
 		it,
 		jobRepo,
@@ -1581,9 +1707,21 @@ func apiJobsFromPodReqs(queue string, reqs []*schedulerobjects.PodRequirements) 
 func legacySchedulerJobsFromPodReqs(queue, priorityClassName string, reqs []*schedulerobjects.PodRequirements) []LegacySchedulerJob {
 	rv := make([]LegacySchedulerJob, len(reqs))
 	T := time.Now()
+	// TODO: This only works if each PC has a unique priority.
+	priorityClassNameByPriority := make(map[int32]string)
+	for priorityClassName, priorityClass := range testPriorityClasses {
+		if _, ok := priorityClassNameByPriority[priorityClass.Priority]; ok {
+			panic(fmt.Sprintf("duplicate priority %d", priorityClass.Priority))
+		}
+		priorityClassNameByPriority[priorityClass.Priority] = priorityClassName
+	}
 	for i, req := range reqs {
 		// TODO: Let's find a better way to pass around PCs. And for setting, e.g., created.
 		podSpec := podSpecFromPodRequirements(req)
+		priorityClassName := priorityClassNameByPriority[*podSpec.Priority]
+		if priorityClassName == "" {
+			panic(fmt.Sprintf("no priority class with priority %d", *podSpec.Priority))
+		}
 		podSpec.PriorityClassName = priorityClassName
 		job := apiJobFromPodSpec(queue, podSpec)
 		job.Annotations = maps.Clone(req.Annotations)
