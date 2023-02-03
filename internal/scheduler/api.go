@@ -39,7 +39,14 @@ func NewExecutorApi(producer pulsar.Producer,
 	executorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall uint,
-) *ExecutorApi {
+) (*ExecutorApi, error) {
+	if len(allowedPriorities) == 0 {
+		return nil, errors.New("allowedPriorities cannot be empty")
+	}
+	if maxJobsPerCall == 0 {
+		return nil, errors.New("maxJobsPerCall cannot be 0")
+	}
+
 	return &ExecutorApi{
 		producer:             producer,
 		jobRepository:        jobRepository,
@@ -48,7 +55,7 @@ func NewExecutorApi(producer pulsar.Producer,
 		maxJobsPerCall:       maxJobsPerCall,
 		maxPulsarMessageSize: 1024 * 1024 * 2,
 		clock:                clock.RealClock{},
-	}
+	}, nil
 }
 
 // LeaseJobRuns performs the following actions:

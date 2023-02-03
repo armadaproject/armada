@@ -57,6 +57,21 @@ func (q *Queries) FindActiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uui
 	return items, nil
 }
 
+const insertMarker = `-- name: InsertMarker :exec
+INSERT INTO markers (group_id, partition_id, created) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
+`
+
+type InsertMarkerParams struct {
+	GroupID     uuid.UUID `db:"group_id"`
+	PartitionID int32     `db:"partition_id"`
+	Created     time.Time `db:"created"`
+}
+
+func (q *Queries) InsertMarker(ctx context.Context, arg InsertMarkerParams) error {
+	_, err := q.db.Exec(ctx, insertMarker, arg.GroupID, arg.PartitionID, arg.Created)
+	return err
+}
+
 const markJobRunsFailedById = `-- name: MarkJobRunsFailedById :exec
 UPDATE runs SET failed = true WHERE run_id = ANY($1::UUID[])
 `
