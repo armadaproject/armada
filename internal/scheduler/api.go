@@ -26,18 +26,20 @@ import (
 
 // ExecutorApi is a gRPC service that exposes functionality required by the armada executors
 type ExecutorApi struct {
-	producer             pulsar.Producer
-	jobRepository        database.JobRepository
-	executorRepository   database.ExecutorRepository
-	allowedPriorities    []int32 // allowed priority classes
-	maxJobsPerCall       uint    // maximum number of jobs that will be leased in a single call
-	maxPulsarMessageSize uint    // maximum sizer of pulsar messages produced
-	clock                clock.Clock
+	producer                 pulsar.Producer
+	jobRepository            database.JobRepository
+	executorRepository       database.ExecutorRepository
+	legacyExecutorRepository database.ExecutorRepository
+	allowedPriorities        []int32 // allowed priority classes
+	maxJobsPerCall           uint    // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize     uint    // maximum sizer of pulsar messages produced
+	clock                    clock.Clock
 }
 
 func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
+	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall uint,
 ) (*ExecutorApi, error) {
@@ -49,13 +51,14 @@ func NewExecutorApi(producer pulsar.Producer,
 	}
 
 	return &ExecutorApi{
-		producer:             producer,
-		jobRepository:        jobRepository,
-		executorRepository:   executorRepository,
-		allowedPriorities:    allowedPriorities,
-		maxJobsPerCall:       maxJobsPerCall,
-		maxPulsarMessageSize: 1024 * 1024 * 2,
-		clock:                clock.RealClock{},
+		producer:                 producer,
+		jobRepository:            jobRepository,
+		executorRepository:       executorRepository,
+		legacyExecutorRepository: legacyExecutorRepository,
+		allowedPriorities:        allowedPriorities,
+		maxJobsPerCall:           maxJobsPerCall,
+		maxPulsarMessageSize:     1024 * 1024 * 2,
+		clock:                    clock.RealClock{},
 	}, nil
 }
 
@@ -77,6 +80,11 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	// store the executor state for use by the scheduler
 	executorState := srv.createExecutorState(ctx, req)
 	if err = srv.executorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
+		return err
+	}
+
+	// store the executor state  for the legacy executor to use
+	if err = srv.legacyExecutorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
 		return err
 	}
 

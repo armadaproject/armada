@@ -54,6 +54,7 @@ func Run(config Configuration) error {
 		}
 	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)
+	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
 
 	//////////////////////////////////////////////////////////////////////////
 	// Pulsar
@@ -110,7 +111,13 @@ func Run(config Configuration) error {
 		return errors.WithMessage(err, "error setting up grpc server")
 	}
 	allowedPcs := config.Scheduling.Preemption.AllowedPriorities()
-	executorServer, err := NewExecutorApi(apiProducer, jobRepository, executorRepository, allowedPcs, config.Scheduling.MaximumJobsToSchedule)
+	executorServer, err := NewExecutorApi(
+		apiProducer,
+		jobRepository,
+		executorRepository,
+		legacyExecutorRepository,
+		allowedPcs,
+		config.Scheduling.MaximumJobsToSchedule)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}
