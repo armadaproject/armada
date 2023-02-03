@@ -300,7 +300,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 			if _, err := selectNodeForPodWithIt(report, it, req); err != nil {
 				return nil, err
 			} else {
-				fmt.Println("Scheduled on specific node")
 				return report, nil
 			}
 		}
@@ -323,7 +322,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
 			return nil, err
 		} else if node != nil {
-			fmt.Println("Scheduled from queue nodes")
 			return report, nil
 		}
 	}
@@ -341,7 +339,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
 			return nil, err
 		} else if node != nil {
-			fmt.Println("Scheduled from empty nodes")
 			return report, nil
 		}
 	}
@@ -359,7 +356,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
 			return nil, err
 		} else if node != nil {
-			fmt.Println("Scheduled from global set")
 			return report, nil
 		}
 	}

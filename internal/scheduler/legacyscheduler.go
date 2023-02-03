@@ -795,7 +795,6 @@ func EvictOversubscribed(
 				for _, q := range rl.Resources {
 					if q.Cmp(resource.Quantity{}) == -1 {
 						overSubscribedPriorities[p] = true
-						fmt.Println("priority", p, "is oversubscribed")
 						break
 					}
 				}
@@ -1237,7 +1236,7 @@ func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityC
 		req.Annotations[JobIdAnnotation] = job.GetId()
 	}
 	if _, ok := req.Annotations[QueueAnnotation]; !ok {
-		req.Annotations[JobIdAnnotation] = job.GetQueue()
+		req.Annotations[QueueAnnotation] = job.GetQueue()
 	}
 	return req
 }
