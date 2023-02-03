@@ -132,7 +132,12 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 		ingester.consumer = consumer
 		defer closePulsar()
 	}
-	pulsarMsgs := pulsarutils.Receive(ctx, ingester.consumer, ingester.pulsarConfig.ReceiveTimeout, ingester.pulsarConfig.BackoffTime, ingester.metrics)
+	pulsarMsgs := pulsarutils.Receive(
+		ctx,
+		ingester.consumer,
+		ingester.pulsarConfig.ReceiveTimeout,
+		ingester.pulsarConfig.BackoffTime,
+		ingester.metrics)
 
 	// Set up a context that n seconds after ctx
 	// This gives the rest of the pipeline a chance to flush pending messages
