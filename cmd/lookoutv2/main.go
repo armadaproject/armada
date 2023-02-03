@@ -89,6 +89,8 @@ func prune(ctx context.Context, config configuration.LookoutV2Configuration) {
 	if config.PrunerConfig.BatchSize <= 0 {
 		panic("batchSize must be greater than 0")
 	}
+	log.Infof("expireAfter: %v, batchSize: %v, timeout: %v",
+		config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, config.PrunerConfig.Timeout)
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, config.PrunerConfig.Timeout)
 	defer cancel()
