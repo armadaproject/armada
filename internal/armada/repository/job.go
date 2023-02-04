@@ -2,11 +2,12 @@ package repository
 
 import (
 	"fmt"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"strconv"
 	"strings"
 	"time"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
@@ -1033,12 +1034,14 @@ func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*sch
 		}
 		pipe.Set(key, jobData, 375*24*time.Hour)
 	}
-	pipe.Exec()
+	_, err := pipe.Exec()
+	if err != nil {
+		return errors.Wrapf(err, "error storing pulsar job details in redis")
+	}
 	return nil
 }
 
 func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
-
 	cmd := repo.db.Get(pulsarJobPrefix + jobId)
 
 	bytes, err := cmd.Bytes()
@@ -1061,14 +1064,16 @@ func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string)
 	for _, jobId := range jobIds {
 		pipe.Expire(pulsarJobPrefix+jobId, repo.retentionPolicy.JobRetentionDuration)
 	}
-	pipe.Exec()
+	_, err := pipe.Exec()
+	if err != nil {
+		return errors.Wrap(err, "Error expiring pulsar job details in redis")
+	}
 	return nil
 }
 
-//StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
-//GetPulsarSchedulerJobDetails(jobIds []string) ([]*schedulerobjects.PulsarSchedulerJobDetails, error)
-//DeletePulsarSchedulerJobDetails(jobId []string) error
-
+// StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
+// GetPulsarSchedulerJobDetails(jobIds []string) ([]*schedulerobjects.PulsarSchedulerJobDetails, error)
+// DeletePulsarSchedulerJobDetails(jobId []string) error
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
 	now := time.Now()
 	pipe := repo.db.Pipeline()

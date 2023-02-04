@@ -1,8 +1,9 @@
 package scheduleringester
 
 import (
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/schedulers"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"

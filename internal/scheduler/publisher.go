@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"strconv"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

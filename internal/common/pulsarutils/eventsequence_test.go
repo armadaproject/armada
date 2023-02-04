@@ -2,7 +2,6 @@ package pulsarutils
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"testing"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 

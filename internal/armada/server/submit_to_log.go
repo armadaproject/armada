@@ -4,13 +4,15 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"math/rand"
+	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/exp/maps"
+
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/internal/scheduler"
-	"github.com/google/uuid"
-	"golang.org/x/exp/maps"
-	"math/rand"
-	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
@@ -195,7 +197,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
-
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
@@ -219,6 +220,9 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 
 	// resolve the queue and jobset of the job: we can't trust what the user has given us
 	resolvedQueue, resolvedJobset, err := srv.resolveQueueAndJobsetForJob(req.JobId)
+	if err != nil {
+		return nil, err
+	}
 
 	// If both a job id and queue or jobsetId is provided, return ErrNotFound if they don't match,
 	// since the job could not be found for the provided queue/jobSetId.
@@ -397,7 +401,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 				Created: pointer.Now(),
 				Event: &armadaevents.EventSequence_Event_CancelJobSet{
 					CancelJobSet: &armadaevents.CancelJobSet{
-						//TODO: fill in states
+						// TODO: fill in states
 					},
 				},
 			},
@@ -689,10 +693,9 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 }
 
 func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]schedulers.Scheduler, error) {
-
 	// when assigning jobs to a scheduler, all the jobs in a gang have to go on the same scheduler
 	groups := groupJobsByAnnotation(srv.GangIdAnnotation, jobs)
-	schedulers := make(map[string]schedulers.Scheduler, len(jobs))
+	assignedSchedulers := make(map[string]schedulers.Scheduler, len(jobs))
 	for _, group := range groups {
 		schedulableOnLegacyScheduler, legacyMsg := srv.LegacySchedulerSubmitChecker.CheckApiJobs(group)
 		schedulableOnPulsarScheduler := false
@@ -711,7 +714,7 @@ func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]sche
 		}
 
 		r := srv.Rand.Float64()
-		assignedScheduler := schedulers.Legacy
+		var assignedScheduler schedulers.Scheduler
 		if jobs[0].Scheduler == "pulsar" { // explicitly to pulsar.  I'm only checking the first job here, but as this is a debug option should be fine
 			assignedScheduler = schedulers.Pulsar
 		} else if jobs[0].Scheduler == "legacy" { // explicitly to legacy.  Again only check first job
@@ -726,10 +729,10 @@ func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]sche
 			assignedScheduler = schedulers.Legacy
 		}
 		for _, job := range group {
-			schedulers[job.Id] = assignedScheduler
+			assignedSchedulers[job.Id] = assignedScheduler
 		}
 	}
-	return schedulers, nil
+	return assignedSchedulers, nil
 }
 
 func groupJobsByAnnotation(annotation string, jobs []*api.Job) [][]*api.Job {
@@ -750,7 +753,6 @@ func groupJobsByAnnotation(annotation string, jobs []*api.Job) [][]*api.Job {
 }
 
 func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
-
 	// Check the legacy scheduler first
 	jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{jobId})
 	if err != nil {

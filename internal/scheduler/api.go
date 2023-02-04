@@ -2,8 +2,9 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"strings"
+
+	"github.com/armadaproject/armada/internal/common/schedulers"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"

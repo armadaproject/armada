@@ -3,15 +3,15 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/database"
-	log "github.com/sirupsen/logrus"
 	"strings"
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -32,7 +32,8 @@ type SubmitChecker struct {
 func NewSubmitChecker(
 	executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
-	executorRepository database.ExecutorRepository) *SubmitChecker {
+	executorRepository database.ExecutorRepository,
+) *SubmitChecker {
 	return &SubmitChecker{
 		executorTimeout:    executorTimeout,
 		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,
@@ -60,7 +61,6 @@ func (srv *SubmitChecker) Run(ctx context.Context) error {
 }
 
 func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
-
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		log.WithError(err).Error("Error fetching executors")
@@ -68,7 +68,6 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 	}
 	for _, executor := range executors {
 		nodeDb, err := srv.constructNodeDb(executor.Nodes)
-		err = nodeDb.ClearAllocated()
 		if err != nil {
 			srv.mu.Lock()
 			srv.nodeDbByExecutor[executor.Id] = nodeDb
@@ -195,6 +194,10 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*Node
 		return nil, err
 	}
 	err = nodeDb.Upsert(nodes)
+	if err != nil {
+		return nil, err
+	}
+	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err
 	}

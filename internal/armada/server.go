@@ -3,7 +3,6 @@ package armada
 import (
 	"context"
 	"fmt"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"net"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )

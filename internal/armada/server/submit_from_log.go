@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/schedulers"
 	"reflect"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -360,7 +360,6 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
 ) (bool, error) {
-
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
