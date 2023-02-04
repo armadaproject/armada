@@ -1070,9 +1070,6 @@ func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string)
 	return nil
 }
 
-// StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
-// GetPulsarSchedulerJobDetails(jobIds []string) ([]*schedulerobjects.PulsarSchedulerJobDetails, error)
-// DeletePulsarSchedulerJobDetails(jobId []string) error
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
 	now := time.Now()
 	pipe := repo.db.Pipeline()

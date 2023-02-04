@@ -3,12 +3,11 @@ package repository
 import (
 	"context"
 
-	"github.com/armadaproject/armada/internal/common/schedulers"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/api"
 )
 

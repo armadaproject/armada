@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/executor/configuration"
 	"math/rand"
 	"time"
 
@@ -119,6 +120,18 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		es := legacySchedulerEvents
 		if assignedScheduler == schedulers.Pulsar {
 			es = pulsarSchedulerEvents
+		}
+
+		// Users submit API-specific service and ingress objects.
+		// However, the log only accepts proper k8s objects.
+		// Hence, the API-specific objects must be converted to proper k8s objects.
+		//
+		// We use an empty ingress config here.
+		// The executor applies executor-specific information later.
+		// We only need this here because we're re-using code that was previously called by the executor.
+		err = eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{})
+		if err != nil {
+			return nil, err
 		}
 
 		responses[i] = &api.JobSubmitResponseItem{
