@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/armadaproject/armada/internal/executor/configuration"
 	"math/rand"
 	"time"
+
+	"github.com/armadaproject/armada/internal/executor/configuration"
+
+	"github.com/armadaproject/armada/internal/executor/configuration"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
