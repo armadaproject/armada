@@ -2,7 +2,6 @@ package repository
 
 import (
 	"errors"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"math"
 	"testing"
 	"time"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 

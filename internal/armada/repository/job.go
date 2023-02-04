@@ -6,9 +6,6 @@ import (
 	"strings"
 	"time"
 
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-multierror"
@@ -17,7 +14,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -1032,7 +1031,7 @@ func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*sch
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		pipe.Set(key, jobData, 375*24*time.Hour)
+		pipe.Set(key, jobData, 375*24*time.Hour) // expire after a year
 	}
 	_, err := pipe.Exec()
 	if err != nil {

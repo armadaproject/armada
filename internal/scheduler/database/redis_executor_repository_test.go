@@ -2,13 +2,15 @@ package database
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"testing"
+	"time"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"testing"
-	"time"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
@@ -74,7 +76,6 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 }
 
 func withRedisExecutorRepository(action func(repository *RedisExecutorRepository)) {
-
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
