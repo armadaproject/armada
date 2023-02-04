@@ -25,8 +25,6 @@ type NodeDb struct {
 	// In-memory database. Stores *SchedulerNode.
 	// Used to efficiently iterate over nodes in sorted order.
 	db *memdb.MemDB
-	// Time at which the most recent upsert took place.
-	timeOfMostRecentUpsert time.Time
 	// Allowed pod priorities in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -424,17 +422,8 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 			return errors.WithStack(err)
 		}
 	}
-	nodeDb.mu.Lock()
-	nodeDb.timeOfMostRecentUpsert = time.Now()
-	nodeDb.mu.Unlock()
 	txn.Commit()
 	return nil
-}
-
-func (nodeDb *NodeDb) TimeOfMostRecentUpsert() time.Time {
-	nodeDb.mu.Lock()
-	defer nodeDb.mu.Unlock()
-	return nodeDb.timeOfMostRecentUpsert
 }
 
 // ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
