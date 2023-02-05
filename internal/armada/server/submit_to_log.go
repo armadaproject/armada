@@ -257,22 +257,23 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		return nil, err
 	}
 
-	sequence := &armadaevents.EventSequence{
-		Queue:      req.Queue,
-		JobSetName: req.JobSetId,
-		UserId:     userId,
-		Groups:     groups,
-		Events:     make([]*armadaevents.EventSequence_Event, 1, 1),
-	}
-
 	jobId, err := armadaevents.ProtoUuidFromUlidString(req.JobId)
 	if err != nil {
 		return nil, err
 	}
 
-	sequence.Events[0] = &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_CancelJob{
-			CancelJob: &armadaevents.CancelJob{JobId: jobId},
+	sequence := &armadaevents.EventSequence{
+		Queue:      resolvedQueue,
+		JobSetName: resolvedJobset,
+		UserId:     userId,
+		Groups:     groups,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Created: pointer.Now(),
+				Event: &armadaevents.EventSequence_Event_CancelJob{
+					CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				},
+			},
 		},
 	}
 
@@ -340,6 +341,7 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 		}
 		validIds = append(validIds, jobIdStr)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
+			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
 				CancelJob: &armadaevents.CancelJob{JobId: jobId},
 			},
