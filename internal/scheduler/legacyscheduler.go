@@ -945,13 +945,13 @@ func Reschedule(
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	nodeFairShareEvictionProbability float64,
 	nodeOversubscriptionEvictionProbability float64,
-) ([]LegacySchedulerJob, []LegacySchedulerJob, error) {
+) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
 	log := ctxlogrus.Extract(ctx)
 
 	txn := nodeDb.Txn(false)
 	it, err := NewNodesIterator(txn)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	evictedJobsById, affectedNodesById, err := EvictBalanced(
 		it,
@@ -961,7 +961,7 @@ func Reschedule(
 		nodeFairShareEvictionProbability,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	jobsById := make(map[string]LegacySchedulerJob)
 	maps.Copy(jobsById, evictedJobsById)
@@ -970,7 +970,7 @@ func Reschedule(
 	evictedJobs := maps.Values(evictedJobsById)
 	affectedNodes := maps.Values(affectedNodesById)
 	if err := nodeDb.UpsertMany(affectedNodes); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(config.Preemption.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
@@ -979,11 +979,11 @@ func Reschedule(
 	for queue, priorityFactor := range priorityFactorByQueue {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, queue)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		queueIt, err := NewQueuedJobsIterator(ctx, queue, jobRepo)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		queue, err := NewQueue(
 			queue,
@@ -991,7 +991,7 @@ func Reschedule(
 			NewMultiJobsIterator(evictedIt, queueIt),
 		)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		queues = append(queues, queue)
 	}
@@ -1004,12 +1004,12 @@ func Reschedule(
 		initialResourcesByQueueAndPriority,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	rescheduledJobs, err := sched.Schedule()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, job := range rescheduledJobs {
 		jobsById[job.GetId()] = job
@@ -1018,7 +1018,7 @@ func Reschedule(
 
 	it, err = NewNodesIterator(nodeDb.Txn(false))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	evictedJobsById, affectedNodesById, err = EvictOversubscribed(
 		it,
@@ -1027,7 +1027,7 @@ func Reschedule(
 		nodeOversubscriptionEvictionProbability,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	maps.Copy(jobsById, evictedJobsById)
 	log.Infof("evicted %d oversubscribed jobs", len(evictedJobsById))
@@ -1035,7 +1035,7 @@ func Reschedule(
 	evictedJobs = maps.Values(evictedJobsById)
 	affectedNodes = maps.Values(affectedNodesById)
 	if err := nodeDb.UpsertMany(affectedNodes); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	inMemoryJobRepo = NewInMemoryJobRepository(config.Preemption.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
@@ -1044,7 +1044,7 @@ func Reschedule(
 	for queue, priorityFactor := range priorityFactorByQueue {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, queue)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		queue, err := NewQueue(
 			queue,
@@ -1052,7 +1052,7 @@ func Reschedule(
 			evictedIt,
 		)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		queues = append(queues, queue)
 	}
@@ -1065,12 +1065,12 @@ func Reschedule(
 		initialResourcesByQueueAndPriority,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	rescheduledJobs, err = sched.Schedule()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, job := range rescheduledJobs {
 		jobsById[job.GetId()] = job
@@ -1079,21 +1079,24 @@ func Reschedule(
 
 	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	nodesByJobId := make(map[string]*schedulerobjects.Node, len(preempted)+len(scheduled))
 	preemptedJobs := make([]LegacySchedulerJob, 0)
-	for jobId := range preempted {
+	for jobId, node := range preempted {
 		if job, ok := jobsById[jobId]; ok {
+			nodesByJobId[jobId] = node
 			preemptedJobs = append(preemptedJobs, job)
 		}
 	}
 	scheduledJobs := make([]LegacySchedulerJob, 0)
-	for jobId := range scheduled {
+	for jobId, node := range scheduled {
 		if job, ok := jobsById[jobId]; ok {
+			nodesByJobId[jobId] = node
 			scheduledJobs = append(scheduledJobs, job)
 		}
 	}
-	return preemptedJobs, scheduledJobs, nil
+	return preemptedJobs, scheduledJobs, nodesByJobId, nil
 }
 
 func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {

@@ -1531,7 +1531,7 @@ func TestReschedule(t *testing.T) {
 					tc.SchedulingConfig,
 					tc.TotalResources,
 				)
-				preemptedJobs, scheduledJobs, err := Reschedule(
+				preemptedJobs, scheduledJobs, nodesByJobId, err := Reschedule(
 					context.Background(),
 					repo,
 					*constraints,
@@ -1542,6 +1542,18 @@ func TestReschedule(t *testing.T) {
 					1, 1,
 				)
 				require.NoError(t, err)
+
+				// Test that all jobs are mapped to a node.
+				for _, job := range preemptedJobs {
+					node, ok := nodesByJobId[job.GetId()]
+					assert.True(t, ok)
+					assert.NotNil(t, node)
+				}
+				for _, job := range scheduledJobs {
+					node, ok := nodesByJobId[job.GetId()]
+					assert.True(t, ok)
+					assert.NotNil(t, node)
+				}
 
 				// Expected scheduled jobs.
 				for queue, jobIds := range jobIdsByQueueFromJobs(scheduledJobs) {

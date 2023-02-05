@@ -383,8 +383,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// var schedulingRoundReport *scheduler.SchedulingRoundReport
 	var preemptedJobs []scheduler.LegacySchedulerJob
 	var scheduledJobs []scheduler.LegacySchedulerJob
+	var nodesByJobId map[string]*schedulerobjects.Node
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
-		preemptedJobs, scheduledJobs, err = scheduler.Reschedule(
+		preemptedJobs, scheduledJobs, nodesByJobId, err = scheduler.Reschedule(
 			ctx,
 			&SchedulerJobRepositoryAdapter{
 				r: q.jobRepository,
@@ -498,6 +499,69 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	for _, job := range scheduledJobs {
 		if apiJob, ok := job.(*api.Job); ok {
 			apiJobsById[job.GetId()] = apiJob
+		}
+	}
+
+	// Optionally set node id selectors on scheduled jobs.
+	if q.schedulingConfig.Preemption.SetNodeIdSelector {
+		numSuccessfulNodeIdSelectorAssignments := 0
+		numNodeNameAssignmentsMissingPodSpec := 0
+		numNodeNameAssignmentsMissingNode := 0
+		numNodeNameAssignmentsMissingNodeId := 0
+		for jobId, apiJob := range apiJobsById {
+			if apiJob.PodSpec != nil {
+				if node := nodesByJobId[jobId]; node != nil {
+					if nodeId := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]; nodeId != "" {
+						if apiJob.PodSpec.NodeSelector == nil {
+							apiJob.PodSpec.NodeSelector = make(map[string]string)
+						}
+						apiJob.PodSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
+						numSuccessfulNodeIdSelectorAssignments++
+					} else {
+						numNodeNameAssignmentsMissingNodeId++
+					}
+				} else {
+					numNodeNameAssignmentsMissingNode++
+				}
+			} else {
+				numNodeNameAssignmentsMissingPodSpec++
+			}
+		}
+		if numSuccessfulNodeIdSelectorAssignments != len(apiJobsById) {
+			log.Warnf(
+				"failed to set node id selectors on %d out of %d jobs; %d failures due missing pod spec, %d failures to to missing node, and %d failures due to missing node id",
+				len(apiJobsById)-numSuccessfulNodeIdSelectorAssignments,
+				numNodeNameAssignmentsMissingPodSpec,
+				numNodeNameAssignmentsMissingNode,
+				numNodeNameAssignmentsMissingNodeId,
+			)
+		}
+	}
+
+	// Optionally set node names on scheduled jobs.
+	if q.schedulingConfig.Preemption.SetNodeName {
+		numSuccessfulNodeNameAssignments := 0
+		numNodeNameAssignmentsMissingPodSpec := 0
+		numNodeNameAssignmentsMissingNode := 0
+		for jobId, apiJob := range apiJobsById {
+			if apiJob.PodSpec != nil {
+				if node := nodesByJobId[jobId]; node != nil {
+					apiJob.PodSpec.NodeName = node.Name
+					numSuccessfulNodeNameAssignments++
+				} else {
+					numNodeNameAssignmentsMissingNode++
+				}
+			} else {
+				numNodeNameAssignmentsMissingPodSpec++
+			}
+		}
+		if numSuccessfulNodeNameAssignments != len(apiJobsById) {
+			log.Warnf(
+				"failed to set node name on %d out of %d jobs; %d failures due missing pod spec and %d failures to to missing node",
+				len(apiJobsById)-numSuccessfulNodeNameAssignments,
+				numNodeNameAssignmentsMissingPodSpec,
+				numNodeNameAssignmentsMissingNode,
+			)
 		}
 	}
 
