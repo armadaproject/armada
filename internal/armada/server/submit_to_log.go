@@ -7,21 +7,12 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/configuration"
-
-	"github.com/armadaproject/armada/internal/executor/configuration"
-
-	"github.com/google/uuid"
-	"golang.org/x/exp/maps"
-
-	"github.com/armadaproject/armada/internal/common/pointer"
-	"github.com/armadaproject/armada/internal/common/schedulers"
-	"github.com/armadaproject/armada/internal/scheduler"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -33,8 +24,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
