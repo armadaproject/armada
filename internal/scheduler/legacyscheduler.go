@@ -745,7 +745,7 @@ func EvictBalanced(
 			return len(node.AllocatedByJobId) > 0 && rand.Float64() < evictionProbability
 		},
 		func(job LegacySchedulerJob) bool {
-			priorityClassName := job.GetRequirements(nil).PriorityClassName
+			priorityClassName := job.GetRequirements(priorityClasses).PriorityClassName
 			priorityClass, ok := priorityClasses[priorityClassName]
 			if !ok {
 				priorityClass = priorityClasses[defaultPriorityClass]
@@ -804,7 +804,7 @@ func EvictOversubscribed(
 			return len(overSubscribedPriorities) > 0 && rand.Float64() < evictionProbability
 		},
 		func(job LegacySchedulerJob) bool {
-			info := job.GetRequirements(nil)
+			info := job.GetRequirements(priorityClasses)
 			if info == nil {
 				return false
 			}

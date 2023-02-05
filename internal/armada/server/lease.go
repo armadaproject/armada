@@ -95,6 +95,8 @@ func NewAggregatedQueueServer(
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
 		clock:                    clock.RealClock{},
+		pulsarProducer:           pulsarProducer,
+		maxPulsarMessageSize:     maxPulsarMessageSize,
 	}
 }
 
@@ -531,6 +533,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			log.Warnf(
 				"failed to set node id selectors on %d out of %d jobs; %d failures due missing pod spec, %d failures to to missing node, and %d failures due to missing node id",
 				len(apiJobsById)-numSuccessfulNodeIdSelectorAssignments,
+				len(apiJobsById),
 				numNodeNameAssignmentsMissingPodSpec,
 				numNodeNameAssignmentsMissingNode,
 				numNodeNameAssignmentsMissingNodeId,
@@ -559,6 +562,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			log.Warnf(
 				"failed to set node name on %d out of %d jobs; %d failures due missing pod spec and %d failures to to missing node",
 				len(apiJobsById)-numSuccessfulNodeNameAssignments,
+				len(apiJobsById),
 				numNodeNameAssignmentsMissingPodSpec,
 				numNodeNameAssignmentsMissingNode,
 			)

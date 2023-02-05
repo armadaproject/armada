@@ -20,7 +20,9 @@ func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]
 
 func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	priority, ok := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
-	if !ok {
+	if priorityByPriorityClassName != nil && !ok {
+		// Ignore this error if priorityByPriorityClassName is explicitly set to nil.
+		// We assume that in this case the caller is sure the priority does not need to be set.
 		err := errors.Errorf("unknown priorityClassName %s", podSpec.PriorityClassName)
 		logging.WithStacktrace(logrus.NewEntry(logrus.New()), err).Error("failed to get priority from priorityClassName")
 	}
