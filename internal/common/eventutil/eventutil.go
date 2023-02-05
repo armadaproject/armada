@@ -787,24 +787,46 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			}
 
 			// Legacy messages encode the reason as an enum, whereas Pulsar uses objects.
-			switch m.Failed.Cause {
+			switch st.Cause {
 			case api.Cause_DeadlineExceeded:
-				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
 			case api.Cause_Error:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Error{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_AppError
 			case api.Cause_Evicted:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_Evicted
 			case api.Cause_OOM:
-				containerError.KubernetesReason = &armadaevents.ContainerError_OutOfMemory_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_OOM
 			default:
-				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-					Name:    "Cause",
-					Value:   m.Failed.Cause,
-					Message: "Unknown cause",
-				})
+				log.Warnf("Unknown cause %s on container %s", st.Cause, st.Name)
 			}
 
 			containerErrors = append(containerErrors, containerError)
+		}
+
+		podError := &armadaevents.PodError{
+			ObjectMeta: &armadaevents.ObjectMeta{
+				ExecutorId:   m.Failed.ClusterId,
+				Namespace:    m.Failed.PodNamespace,
+				Name:         m.Failed.PodName,
+				KubernetesId: m.Failed.KubernetesId,
+			},
+			Message:         m.Failed.Reason,
+			NodeName:        m.Failed.NodeName,
+			PodNumber:       m.Failed.PodNumber,
+			ContainerErrors: containerErrors,
+		}
+
+		switch m.Failed.Cause {
+		case api.Cause_DeadlineExceeded:
+			podError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
+		case api.Cause_Error:
+			podError.KubernetesReason = armadaevents.KubernetesReason_AppError
+		case api.Cause_Evicted:
+			podError.KubernetesReason = armadaevents.KubernetesReason_Evicted
+		case api.Cause_OOM:
+			podError.KubernetesReason = armadaevents.KubernetesReason_OOM
+		default:
+			log.Warnf("Unknown cause %s for job %s", m.Failed.Cause, m.Failed.JobId)
 		}
 
 		// Event indicating the job run failed.
@@ -818,18 +840,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},
@@ -847,18 +858,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},
