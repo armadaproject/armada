@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -736,11 +737,15 @@ func EvictBalanced(
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	defaultPriorityClass string,
+	evictionProbability float64,
 ) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
 	return Evict(
 		it, jobRepo,
 		func(node *schedulerobjects.Node) bool {
-			return true
+			if rand.Float64() < evictionProbability {
+				return true
+			}
+			return false
 		},
 		func(job LegacySchedulerJob) bool {
 			// TODO: Add a per-node probability here.
@@ -784,14 +789,17 @@ func EvictOversubscribed(
 	it NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
+	evictionProbability float64,
 ) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
 	var overSubscribedPriorities map[int32]bool
 	prioritiesByName := configuration.PrioritiesFromPriorityClasses(priorityClasses)
 	return Evict(
 		it, jobRepo,
 		func(node *schedulerobjects.Node) bool {
+			if !(rand.Float64() < evictionProbability) {
+				return false
+			}
 			overSubscribedPriorities = make(map[int32]bool)
-			fmt.Println(node.AllocatableByPriorityAndResource)
 			for p, rl := range node.AllocatableByPriorityAndResource {
 				for _, q := range rl.Resources {
 					if q.Cmp(resource.Quantity{}) == -1 {
@@ -808,14 +816,7 @@ func EvictOversubscribed(
 				return false
 			}
 			p := prioritiesByName[info.PriorityClassName]
-			if overSubscribedPriorities[p] {
-				req := PodRequirementFromLegacySchedulerJob(job, nil)
-				if req == nil {
-					return false
-				}
-				return true
-			}
-			return false
+			return overSubscribedPriorities[p]
 		},
 		nil,
 	)
@@ -942,6 +943,8 @@ func Reschedule(
 	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	nodeFairShareEvictionProbability float64,
+	nodeOversubscriptionEvictionProbability float64,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, error) {
 	log := ctxlogrus.Extract(ctx)
 
@@ -955,6 +958,7 @@ func Reschedule(
 		jobRepo,
 		config.Preemption.PriorityClasses,
 		config.Preemption.DefaultPriorityClass,
+		nodeFairShareEvictionProbability,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -1020,6 +1024,7 @@ func Reschedule(
 		it,
 		jobRepo,
 		config.Preemption.PriorityClasses,
+		nodeOversubscriptionEvictionProbability,
 	)
 	if err != nil {
 		return nil, nil, err

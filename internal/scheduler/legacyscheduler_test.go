@@ -1539,6 +1539,7 @@ func TestReschedule(t *testing.T) {
 					nodeDb,
 					tc.PriorityFactorByQueue,
 					make(map[string]schedulerobjects.QuantityByPriorityAndResourceType),
+					1, 1,
 				)
 				require.NoError(t, err)
 
@@ -1638,6 +1639,7 @@ func TestEvictOversubscribed(t *testing.T) {
 		it,
 		jobRepo,
 		testPriorityClasses,
+		1,
 	)
 	require.NoError(t, err)
 	fmt.Println(maps.Keys(evictedJobsById))
@@ -1653,30 +1655,6 @@ func TestEvictOversubscribed(t *testing.T) {
 			}
 		}
 	}
-
-	// I want to have a simple and efficient implementation.
-	// Bc I want to entirely remove this later.
-	// Ideally also deterministic to make it predictable and easy to test.
-	// Best would be to take jobs out in order of fraction of fair share.
-	// Maybe I could do another scheduling cycle.
-	// Evict all jobs for PCs with oversubscribed resources.
-	// Put all evicted jobs back onto the queue.
-	// Do another scheduling cycle. Without queue jobs.
-	// Bc if we add queue jobs we could keep going forever.
-	// That would place jobs back onto nodes they could go on.
-	// We could mark all those jobs to go onto the same node.
-	// It'd be more efficient to only require jobs not scheduled in this cycle to go onto the same node.
-	// They should all be marked as evicted.
-	// This could result in a large number of evictions.
-	// Thankfully, it should be relatively efficient to put them back again.
-	// But this does add a lot of complexity to the scheduling cycle.
-	// In any case, I think this is a good approach to take.
-	// Evict all jobs for which their PC is oversubscribed.
-	// Put those jobs into an InMemoryJobRepo.
-	// Run a scheduling cycle to re-schedule those jobs.
-	// Initially, let's mark all jobs as having to go back onto the same node.
-	// Later, let's only do that for jobs not shceduled in this cycle.
-	// Let's start by fixing the InMemoryJobRepo.
 }
 
 func intRange(a, b int) []int {

@@ -194,12 +194,25 @@ type PreemptionConfig struct {
 	Enabled bool
 	// Whether to preempt jobs with a balanced priority class to divide resources more fairly.
 	PreemptToFairShare bool
-	// If using PreemptToFairShare, the max number of nodes to evict jobs on to balance resource usage.
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to balance resource usage.
+	NodeFairShareEvictionProbability float64
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to preempt jobs requesting more
+	// resources than are available on the node.
+	NodeOversubscriptionEvictionProbability float64
+	// If true, the Armada scheduler will add to scheduled pods a node selector
+	// NodeIdLabel: <value of label on node selected by scheduler>.
+	// If true, NodeIdLabel must be non-empty.
 	// TODO: Implement
-	MaxNodesToEvict uint
-	// If using PreemptToFairShare, the probability of evicting jobs on a node to balance resource usage.
+	SetNodeIdSelector bool
+	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
 	// TODO: Implement
-	NodeEvictionProbability float64
+	NodeIdLabel string
+	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
+	// thus bypassing kube-scheduler entirely.
+	// TODO: Implement
+	SetNodeName bool
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.

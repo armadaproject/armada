@@ -394,6 +394,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			nodeDb,
 			priorityFactorByActiveQueue,
 			aggregatedUsageByQueue,
+			q.schedulingConfig.Preemption.NodeFairShareEvictionProbability,
+			q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 		)
 		if err != nil {
 			return nil, err
