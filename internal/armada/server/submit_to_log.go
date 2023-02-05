@@ -109,7 +109,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 	for i, apiJob := range apiJobs {
 		eventTime := time.Now()
-		assignedScheduler, ok := schedulersByJobId[apiJob.Scheduler]
+		assignedScheduler, ok := schedulersByJobId[apiJob.Id]
 		if !ok {
 			// This should never happen as if we can't find a scheduler we would have errored earlier
 			return nil, errors.Errorf("Didn't allocate a scheduler for job %s", apiJob.Id)
