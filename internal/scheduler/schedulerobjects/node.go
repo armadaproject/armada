@@ -57,6 +57,7 @@ func (node *Node) DeepCopy() *Node {
 	}
 	return &Node{
 		Id:             node.Id,
+		Name:           node.Name,
 		LastSeen:       node.LastSeen,
 		NodeType:       node.NodeType.DeepCopy(),
 		NodeTypeId:     node.NodeTypeId,

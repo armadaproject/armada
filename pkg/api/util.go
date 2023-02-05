@@ -43,6 +43,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	}
 	return &schedulerobjects.Node{
 		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		Name:                             nodeInfo.Name,
 		LastSeen:                         lastSeen,
 		Taints:                           nodeInfo.GetTaints(),
 		Labels:                           nodeInfo.GetLabels(),
