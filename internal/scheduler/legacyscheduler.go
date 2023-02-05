@@ -742,13 +742,9 @@ func EvictBalanced(
 	return Evict(
 		it, jobRepo,
 		func(node *schedulerobjects.Node) bool {
-			if rand.Float64() < evictionProbability {
-				return true
-			}
-			return false
+			return len(node.AllocatedByJobId) > 0 && rand.Float64() < evictionProbability
 		},
 		func(job LegacySchedulerJob) bool {
-			// TODO: Add a per-node probability here.
 			priorityClassName := job.GetRequirements(nil).PriorityClassName
 			priorityClass, ok := priorityClasses[priorityClassName]
 			if !ok {
@@ -796,9 +792,6 @@ func EvictOversubscribed(
 	return Evict(
 		it, jobRepo,
 		func(node *schedulerobjects.Node) bool {
-			if !(rand.Float64() < evictionProbability) {
-				return false
-			}
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriorityAndResource {
 				for _, q := range rl.Resources {
@@ -808,7 +801,7 @@ func EvictOversubscribed(
 					}
 				}
 			}
-			return len(overSubscribedPriorities) > 0
+			return len(overSubscribedPriorities) > 0 && rand.Float64() < evictionProbability
 		},
 		func(job LegacySchedulerJob) bool {
 			info := job.GetRequirements(nil)
@@ -818,7 +811,33 @@ func EvictOversubscribed(
 			p := prioritiesByName[info.PriorityClassName]
 			return overSubscribedPriorities[p]
 		},
-		nil,
+		func(job LegacySchedulerJob, node *schedulerobjects.Node) {
+			// TODO: This is only necessary for jobs not shceduled in this cycle.
+			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
+			//
+			// Add annotations to this pod that indicate to the scheduler
+			// - that this pod was evicted and
+			// - which node it was evicted from.
+			req := PodRequirementFromLegacySchedulerJob(job, nil)
+			if req == nil {
+				return
+			}
+			if req.Annotations == nil {
+				req.Annotations = make(map[string]string)
+			}
+			req.Annotations[TargetNodeIdAnnotation] = node.Id
+			req.Annotations[IsEvictedAnnotation] = "true"
+
+			// TODO: This is only necessary for jobs not shceduled in this cycle.
+			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
+			//
+			// Add an empty allocation for this queue.
+			// To make the scheduler avoid this node when scheduling pods from other queues.
+			// (As a result of per-queue bin-packing.)
+			if rl, ok := node.AllocatedByQueue[job.GetQueue()]; !ok {
+				node.AllocatedByQueue[job.GetQueue()] = rl
+			}
+		},
 	)
 }
 
