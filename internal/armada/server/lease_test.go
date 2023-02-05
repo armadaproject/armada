@@ -205,7 +205,10 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,
-		fakeSchedulingInfoRepository)
+		fakeSchedulingInfoRepository,
+		nil,
+		0,
+	)
 }
 
 type mockJobRepository struct {

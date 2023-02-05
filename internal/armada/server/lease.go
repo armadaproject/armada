@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
@@ -29,11 +30,13 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type AggregatedQueueServer struct {
@@ -51,6 +54,9 @@ type AggregatedQueueServer struct {
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
 	SubmitChecker *scheduler.SubmitChecker
+	// Necessary to generate preempted messages.
+	pulsarProducer       pulsar.Producer
+	maxPulsarMessageSize uint
 }
 
 func NewAggregatedQueueServer(
@@ -61,6 +67,8 @@ func NewAggregatedQueueServer(
 	usageRepository repository.UsageRepository,
 	eventStore repository.EventStore,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
+	pulsarProducer pulsar.Producer,
+	maxPulsarMessageSize uint,
 ) *AggregatedQueueServer {
 	poolConfig := pool.ObjectPoolConfig{
 		MaxTotal:                 100,
@@ -455,6 +463,31 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	log.Infof("preempting jobs %v from queues %v", preemptedJobIds, maps.Keys(preemptedQueues))
 	log.Infof("scheduling jobs %v from queues %v", scheduledJobIds, maps.Keys(scheduledQueues))
 
+	// Prepare preempted messages.
+	sequences := make([]*armadaevents.EventSequence, len(preemptedJobs))
+	for i, job := range preemptedJobs {
+		jobId, err := armadaevents.ProtoUuidFromUuidString(job.GetId())
+		if err != nil {
+			return nil, err
+		}
+		created := q.clock.Now()
+		sequences[i] = &armadaevents.EventSequence{
+			Queue:      job.GetQueue(),
+			JobSetName: job.GetJobSet(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: &created,
+					Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+						JobRunPreempted: &armadaevents.JobRunPreempted{
+							PreemptedJobId:  jobId,
+							PreemptiveJobId: jobId,
+						},
+					},
+				},
+			},
+		}
+	}
+
 	jobIdsByQueue := make(map[string][]string)
 	for _, job := range scheduledJobs {
 		jobIdsByQueue[job.GetQueue()] = append(jobIdsByQueue[job.GetQueue()], job.GetId())
@@ -465,6 +498,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			apiJobsById[job.GetId()] = apiJob
 		}
 	}
+
+	// Create leases by writing into Redis.
 	leasedJobIdsByQueue, err := q.jobRepository.TryLeaseJobs(req.ClusterId, jobIdsByQueue)
 	if err != nil {
 		return nil, err
@@ -477,14 +512,26 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 		}
 	}
+
+	// Delete preempted jobs from Redis. This will cause lease renewal to fail for these jobs.
+	// TODO: We can avoid potential inconsistency by deleting in a pulsar subscriber instead.
 	preemptedApiJobs := make([]*api.Job, len(preemptedJobs))
 	for i, job := range preemptedJobs {
 		preemptedApiJobs[i] = job.(*api.Job)
 	}
-	// TODO: Generate preempted pulsar messages.
 	_, err = q.jobRepository.DeleteJobs(preemptedApiJobs)
 	if err != nil {
-		logging.WithStacktrace(log, err).Error("failed to delete preempted jobs: %v", preemptedJobIds)
+		logging.WithStacktrace(log, err).Errorf("failed to delete preempted jobs: %v", preemptedJobIds)
+	}
+
+	// Publish preempted messages.
+	if q.pulsarProducer != nil {
+		err = pulsarutils.CompactAndPublishSequences(ctx, sequences, q.pulsarProducer, q.maxPulsarMessageSize)
+		if err != nil {
+			logging.WithStacktrace(log, err).Error("failed to publish preempted messages")
+		}
+	} else {
+		log.Info("no Pulsar producer provided; omitting publishing preempted messages")
 	}
 
 	// TODO: Re-enable

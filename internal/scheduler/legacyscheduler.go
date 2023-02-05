@@ -30,6 +30,7 @@ import (
 type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
+	GetJobSet() string
 	GetAnnotations() map[string]string
 	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 }

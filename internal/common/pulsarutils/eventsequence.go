@@ -86,7 +86,7 @@ func PublishSequences(ctx context.Context, producer pulsar.Producer, sequences [
 		)
 	}
 
-	// Wait for all asynd send call to complete, collect any errors and return.
+	// Wait for all async send calls to complete, collect any errors, and return.
 	var result *multierror.Error
 	for range sequences {
 		select {

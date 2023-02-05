@@ -86,6 +86,10 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 	}
 }
 
+func (job *Job) GetJobSet() string {
+	return job.JobSetId
+}
+
 // LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
 // or an error if the conversion fails.
 func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
