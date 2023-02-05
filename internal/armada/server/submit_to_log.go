@@ -402,33 +402,45 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		})
 	}
 
-	pulsarSchedulerSequence := &armadaevents.EventSequence{
-		Queue:      req.Queue,
-		JobSetName: req.JobSetId,
-		UserId:     userId,
-		Groups:     groups,
-		Events: []*armadaevents.EventSequence_Event{
-			{
-				Created: pointer.Now(),
-				Event: &armadaevents.EventSequence_Event_CancelJobSet{
-					CancelJobSet: &armadaevents.CancelJobSet{
-						// TODO: fill in states
-					},
-				},
-			},
-		},
-	}
-
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerSequence}, schedulers.Legacy)
 	if err != nil {
 		log.WithError(err).Error("failed to send cancel job messages to pulsar")
 		return nil, status.Error(codes.Internal, "failed to send cancel job messages to pulsar")
 	}
 
-	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, schedulers.Pulsar)
-	if err != nil {
-		log.WithError(err).Error("failed to send cancel jobset message to pulsar")
-		return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
+	if srv.PulsarSchedulerEnabled {
+		states := make([]armadaevents.JobState, len(req.GetFilter().GetStates()))
+		for i := 0; i < len(states); i++ {
+			switch req.GetFilter().GetStates()[i] {
+			case api.JobState_PENDING:
+				states[i] = armadaevents.JobState_PENDING
+			case api.JobState_QUEUED:
+				states[i] = armadaevents.JobState_QUEUED
+			case api.JobState_RUNNING:
+				states[i] = armadaevents.JobState_RUNNING
+			}
+		}
+		pulsarSchedulerSequence := &armadaevents.EventSequence{
+			Queue:      req.Queue,
+			JobSetName: req.JobSetId,
+			UserId:     userId,
+			Groups:     groups,
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: pointer.Now(),
+					Event: &armadaevents.EventSequence_Event_CancelJobSet{
+						CancelJobSet: &armadaevents.CancelJobSet{
+							States: states,
+						},
+					},
+				},
+			},
+		}
+		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerSequence}, schedulers.Pulsar)
+		if err != nil {
+			log.WithError(err).Error("failed to send cancel jobset message to pulsar")
+			return nil, status.Error(codes.Internal, "failed to send cancel jobset message to pulsar")
+		}
 	}
 
 	return &types.Empty{}, err

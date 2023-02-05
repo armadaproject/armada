@@ -25,8 +25,7 @@ func SchedulerFromMsg(msg pulsar.Message) Scheduler {
 	switch s {
 	case PulsarSchedulerAttribute:
 		return Pulsar
-	case LegacySchedulerAttribute:
-	case "": // empty string means legacy scheduler for compatibility
+	case LegacySchedulerAttribute, "": // empty string means legacy scheduler for compatibility
 		return Legacy
 	case AllSchedulersAttribute:
 		return All
