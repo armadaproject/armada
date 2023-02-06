@@ -138,7 +138,8 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource.Sub(totalPodResource)
 
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
-	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
+	podsByNode := groupPodsByNodes(allPodsRequiringResource)
+	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
 	for _, n := range processingNodes {
 		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
@@ -148,8 +149,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		// if nil, behaviour is same as subtracting 0
 		available.Sub(clusterUtilisationService.nodeReservedResources)
 
-		nodePods := podsByNodes[n.Name]
-		allocated := getAllocatedResourcesByPriority(nodePods)
+		nodePods := podsByNode[n.Name]
+		runningNodePods := runningPodsByNode[n.Name]
+		allocated := getAllocatedResourcesByPriority(runningNodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,

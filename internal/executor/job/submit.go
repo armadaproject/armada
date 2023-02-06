@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/armadaproject/armada/pkg/armadaevents"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -20,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -67,7 +66,7 @@ func (submitService *SubmitService) SubmitExecutorApiJobs(jobsToSubmit []*execut
 	for _, jobToSubmit := range jobsToSubmit {
 		submitJob, err := CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, submitService.podDefaults)
 		if err != nil {
-			jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobToSubmit.Job.JobId)
+			jobIdString, _ := armadaevents.UlidStringFromProtoUuid(jobToSubmit.Job.JobId)
 			// TODO: fix error
 			failedSubmissions = append(failedSubmissions, &FailedSubmissionDetails{
 				JobId: jobIdString,
@@ -132,7 +131,6 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 
 			// remove just created pods
 			submitService.clusterContext.DeletePods(jobPods)
-			break
 		}
 	}
 }

@@ -70,8 +70,8 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	}
 
 	nodes := make([]*api.NodeInfo, 0, len(capacityReport.Nodes))
-	for _, node := range capacityReport.Nodes {
-		nodes = append(nodes, &node)
+	for i := range capacityReport.Nodes {
+		nodes = append(nodes, &capacityReport.Nodes[i])
 	}
 
 	newJobRuns, runsToCancel, err := allocationService.leaseRequester.LeaseJobRuns(
@@ -136,7 +136,12 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 }
 
 func (allocationService *ClusterAllocationService) processRunsToCancel(runsToCancel []*armadaevents.Uuid) {
-	runsToCancelStrings := util.UuidsToStrings(runsToCancel)
+	runsToCancelStrings, err := util.UuidsToStrings(runsToCancel)
+	if err != nil {
+		log.Errorf("Failed to cancel runs because %s", err)
+		return
+	}
+
 	runsToCancelSet := util2.StringListToSet(runsToCancelStrings)
 
 	managedPods, err := allocationService.clusterContext.GetBatchPods()
