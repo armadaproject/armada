@@ -564,36 +564,50 @@ func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time
 	}, nil
 }
 
-func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podError *armadaevents.Error_PodError) *api.JobFailedEvent {
+func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podErrorEvent *armadaevents.Error_PodError) *api.JobFailedEvent {
+	podError := podErrorEvent.PodError
 	event := &api.JobFailedEvent{
 		JobId:        jobId,
 		JobSetId:     jobSetName,
 		Queue:        queueName,
 		Created:      time,
-		ClusterId:    podError.PodError.GetObjectMeta().GetExecutorId(),
-		PodNamespace: podError.PodError.GetObjectMeta().GetNamespace(),
-		KubernetesId: podError.PodError.GetObjectMeta().GetKubernetesId(),
-		PodNumber:    podError.PodError.GetPodNumber(),
-		NodeName:     podError.PodError.GetNodeName(),
-		Reason:       podError.PodError.GetMessage(),
-		PodName:      podError.PodError.GetObjectMeta().GetName(),
+		ClusterId:    podError.GetObjectMeta().GetExecutorId(),
+		PodNamespace: podError.GetObjectMeta().GetNamespace(),
+		KubernetesId: podError.GetObjectMeta().GetKubernetesId(),
+		PodNumber:    podError.GetPodNumber(),
+		NodeName:     podError.GetNodeName(),
+		Reason:       podError.GetMessage(),
+		PodName:      podError.GetObjectMeta().GetName(),
 	}
+	switch podError.KubernetesReason {
+	case armadaevents.KubernetesReason_DeadlineExceeded:
+		event.Cause = api.Cause_DeadlineExceeded
+	case armadaevents.KubernetesReason_AppError:
+		event.Cause = api.Cause_Error
+	case armadaevents.KubernetesReason_Evicted:
+		event.Cause = api.Cause_Evicted
+	case armadaevents.KubernetesReason_OOM:
+		event.Cause = api.Cause_OOM
+	default:
+		log.Warnf("Unknown KubernetesReason of type %T", podError.KubernetesReason)
+	}
+
 	containerStatuses := make([]*api.ContainerStatus, 0)
-	for _, containerErr := range podError.PodError.ContainerErrors {
+	for _, containerErr := range podError.ContainerErrors {
 		containerStatus := &api.ContainerStatus{
 			Name:     containerErr.GetObjectMeta().GetName(),
 			ExitCode: containerErr.GetExitCode(),
 			Message:  containerErr.Message,
 			Reason:   containerErr.Reason,
 		}
-		switch containerErr.KubernetesReason.(type) {
-		case *armadaevents.ContainerError_DeadlineExceeded_:
+		switch containerErr.KubernetesReason {
+		case armadaevents.KubernetesReason_DeadlineExceeded:
 			containerStatus.Cause = api.Cause_DeadlineExceeded
-		case *armadaevents.ContainerError_Error:
+		case armadaevents.KubernetesReason_AppError:
 			containerStatus.Cause = api.Cause_Error
-		case *armadaevents.ContainerError_Evicted_:
+		case armadaevents.KubernetesReason_Evicted:
 			containerStatus.Cause = api.Cause_Evicted
-		case *armadaevents.ContainerError_OutOfMemory_:
+		case armadaevents.KubernetesReason_OOM:
 			containerStatus.Cause = api.Cause_OOM
 		default:
 			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)
