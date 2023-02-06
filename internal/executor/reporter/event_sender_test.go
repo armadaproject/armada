@@ -4,15 +4,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/executorapi"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func TestSendEvents_OnlySendsJobRunEvents(t *testing.T) {
@@ -205,7 +206,7 @@ func newFakeExecutorApiClient() *fakeExecutorApiClient {
 }
 
 func (fakeClient *fakeExecutorApiClient) LeaseJobRuns(ctx context.Context, opts ...grpc.CallOption) (executorapi.ExecutorApi_LeaseJobRunsClient, error) {
-	//No implemented
+	// Not implemented
 	return nil, nil
 }
 

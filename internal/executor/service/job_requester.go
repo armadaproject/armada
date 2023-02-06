@@ -30,7 +30,8 @@ type JobLeaseRequester struct {
 func NewJobLeaseRequester(
 	executorApiClient executorapi.ExecutorApiClient,
 	clusterIdentity clusterContext.ClusterIdentity,
-	minimumJobSize armadaresource.ComputeResources) *JobLeaseRequester {
+	minimumJobSize armadaresource.ComputeResources,
+) *JobLeaseRequester {
 	return &JobLeaseRequester{
 		executorApiClient: executorApiClient,
 		clusterIdentity:   clusterIdentity,
