@@ -290,8 +290,8 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 		}
 	}
 
-	// jobRunAttempted := issue.Issue.Type != UnableToSchedule
-	returnLeaseEvent := reporter.CreateReturnLeaseEvent(issue.Issue.OriginalPodState, issue.Issue.Message, p.clusterContext.GetClusterId())
+	jobRunAttempted := issue.Issue.Type != UnableToSchedule
+	returnLeaseEvent := reporter.CreateReturnLeaseEvent(issue.Issue.OriginalPodState, issue.Issue.Message, p.clusterContext.GetClusterId(), jobRunAttempted)
 	err := p.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: issue.Issue.RunId}})
 	if err != nil {
 		log.Errorf("Failed to return lease for job %s because %s", issue.Issue.JobId, err)
