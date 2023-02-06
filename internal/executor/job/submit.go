@@ -18,13 +18,11 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	util2 "github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 type Submitter interface {
 	SubmitApiJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails
-	SubmitExecutorApiJobs(jobsToSubmit []*executorapi.JobRunLease) []*FailedSubmissionDetails
+	SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails
 }
 
 type SubmitService struct {
@@ -60,27 +58,8 @@ func (submitService *SubmitService) SubmitApiJobs(jobsToSubmit []*api.Job) []*Fa
 	return submitService.submitJobs(submitJobs)
 }
 
-func (submitService *SubmitService) SubmitExecutorApiJobs(jobsToSubmit []*executorapi.JobRunLease) []*FailedSubmissionDetails {
-	submitJobs := make([]*SubmitJob, 0, len(jobsToSubmit))
-	failedSubmissions := []*FailedSubmissionDetails{}
-	for _, jobToSubmit := range jobsToSubmit {
-		submitJob, err := CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, submitService.podDefaults)
-		if err != nil {
-			jobIdString, _ := armadaevents.UlidStringFromProtoUuid(jobToSubmit.Job.JobId)
-			// TODO: fix error
-			failedSubmissions = append(failedSubmissions, &FailedSubmissionDetails{
-				JobId: jobIdString,
-				// TODO work out how to handle that we have no pod - especially in downstream funcs
-				Pod:         nil,
-				Recoverable: false,
-				Error:       err,
-			})
-		} else {
-			submitJobs = append(submitJobs, submitJob)
-		}
-	}
-	failedSubmissions = append(failedSubmissions, submitService.submitJobs(submitJobs)...)
-	return failedSubmissions
+func (submitService *SubmitService) SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
+	return submitService.submitJobs(jobsToSubmit)
 }
 
 func (submitService *SubmitService) submitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {

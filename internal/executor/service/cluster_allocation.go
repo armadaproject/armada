@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 
+	"github.com/armadaproject/armada/pkg/executorapi"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -86,9 +87,38 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 
 	logAvailableResources(capacityReport, len(newJobRuns))
 
-	failedJobs := allocationService.submitter.SubmitExecutorApiJobs(newJobRuns)
-	allocationService.processFailedJobs(failedJobs)
+	jobs, failedJobCreations := allocationService.createSubmitJobs()
+	allocationService.handleFailedJobCreation(failedJobCreations)
+	failedJobSubmissions := allocationService.submitter.SubmitJobs(jobs)
+	allocationService.processFailedJobSubmissions(failedJobSubmissions)
 	allocationService.processRunsToCancel(runsToCancel)
+}
+
+type failedJobCreationDetails struct {
+	JobId  string
+	RunId  string
+	Queue  string
+	JobSet string
+	Error  error
+}
+
+func (allocationService *ClusterAllocationService) createSubmitJobs(newJobRuns []*executorapi.JobRunLease) ([]*job.SubmitJob, []*failedJobCreationDetails) {
+	//submitJobs := make([]*job.SubmitJob, 0, len(newJobRuns))
+	//failedCreation := []*failedJobCreationDetails{}
+	//for _, jobToSubmit := range newJobRuns {
+	//	submitJob, err := job.CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, submitService.podDefaults)
+	//	if err != nil {
+	//		jobIdString, _ := armadaevents.UlidStringFromProtoUuid(jobToSubmit.Job.JobId)
+	//	} else {
+	//		submitJobs = append(submitJobs, submitJob)
+	//	}
+	//}
+	//
+	//return submitJobs,
+}
+
+func (allocationService *ClusterAllocationService) handleFailedJobCreation([]*failedJobCreationDetails) {
+
 }
 
 // Returns the RunIds of all managed pods that haven't been assigned to a node
@@ -111,7 +141,7 @@ func (allocationService *ClusterAllocationService) getUnassignedRunIds() ([]arma
 	return util.StringUuidsToUuids(runIds)
 }
 
-func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmissions []*job.FailedSubmissionDetails) {
+func (allocationService *ClusterAllocationService) processFailedJobSubmissions(failedSubmissions []*job.FailedSubmissionDetails) {
 	for _, details := range failedSubmissions {
 		message := details.Error.Error()
 		if apiError, ok := details.Error.(errors.APIStatus); ok {
