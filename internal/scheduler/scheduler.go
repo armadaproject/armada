@@ -263,21 +263,24 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			if err != nil {
 				return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", jobId)
 			}
+
+			// If the job is nil at this point then it cannot be active.
+			// In this case we can ignore the run
+			if job == nil {
+				log.Debugf("Job %s is not an active job. Ignoring update for run %s", jobId, dbRun.RunID)
+				continue
+			}
+
 			job = job.DeepCopy()
 			jobsToUpdateById[jobId] = job
-		}
-
-		// If the job is nil at this point then it cannot be active.
-		// In this case we can ignore the run
-		if job == nil {
-			log.Debugf("Job %s is not an active job. Ignoring update for run %s", jobId, dbRun.RunID)
-			continue
 		}
 
 		returnProcessed := false
 		run := job.RunById(dbRun.RunID)
 		if run == nil {
 			run = s.createSchedulerRun(&dbRun)
+			// TODO: we need to ensure that runs end up in the correct order here
+			// This will need us to store an order id in the db
 			job.Runs = append(job.Runs, run)
 		} else {
 			returnProcessed = run.Returned
@@ -290,8 +293,6 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
 		if !returnProcessed && run.Returned && job.NumReturned() <= s.maxLeaseReturns {
 			job.Queued = true
-			job.Node = ""
-			job.Executor = ""
 			run.Failed = false // unset failed here so that we don't generate a job failed message later
 		}
 	}
@@ -299,11 +300,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	// any jobs that have don't have active run need to be marked as queued
 	for _, job := range jobsToUpdateById {
 		run := job.CurrentRun()
-		if run == nil || run.InTerminalState() {
-			job.Queued = true
-			job.Node = ""
-			job.Executor = ""
-		}
+		job.Queued = run == nil || run.InTerminalState()
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
@@ -343,7 +340,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      armadaevents.ProtoUuidFromUuid(job.CurrentRun().RunID),
 							JobId:      jobId,
-							ExecutorId: job.Executor,
+							ExecutorId: job.CurrentRun().Executor,
 						},
 					},
 				},
@@ -608,7 +605,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 				log.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			log.Infof("Recevied %d partitions, still waiting on  %d", numSent, numSent-numReceived)
+			log.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}

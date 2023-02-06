@@ -239,7 +239,7 @@ func CreateJobFailedEvent(pod *v1.Pod, reason string, cause api.Cause, container
 	}
 }
 
-func CreateReturnLeaseEvent(pod *v1.Pod, reason string, clusterId string) api.Event {
+func CreateReturnLeaseEvent(pod *v1.Pod, reason string, clusterId string, runAttempted bool) api.Event {
 	return &api.JobLeaseReturnedEvent{
 		JobId:        pod.Labels[domain.JobId],
 		JobSetId:     pod.Annotations[domain.JobSetId],
@@ -249,6 +249,7 @@ func CreateReturnLeaseEvent(pod *v1.Pod, reason string, clusterId string) api.Ev
 		ClusterId:    clusterId,
 		KubernetesId: string(pod.ObjectMeta.UID),
 		PodNumber:    getPodNumber(pod),
+		RunAttempted: runAttempted,
 	}
 }
 

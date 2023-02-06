@@ -307,6 +307,60 @@ func makePodsWithJobIds(jobIds []string) []*v1.Pod {
 	return pods
 }
 
+func TestExtractJobRunIds(t *testing.T) {
+	runIds := []string{"1", "2", "3", "4"}
+	pods := makePodsWithJobRunIds(runIds)
+
+	result := ExtractJobRunIds(pods)
+	assert.Equal(t, result, runIds)
+}
+
+func TestExtractJobRunIds_HandlesEmptyList(t *testing.T) {
+	expected := []string{}
+	pods := []*v1.Pod{}
+
+	result := ExtractJobRunIds(pods)
+	assert.Equal(t, result, expected)
+}
+
+func TestExtractJobRunIds_SkipsWhenJobIdNotPresent(t *testing.T) {
+	expected := []string{}
+	podWithNoJobRunId := v1.Pod{}
+	pods := []*v1.Pod{&podWithNoJobRunId}
+
+	result := ExtractJobRunIds(pods)
+	assert.Equal(t, result, expected)
+}
+
+func TestExtractJobRunId(t *testing.T) {
+	pod := makePodsWithJobRunIds([]string{"1"})[0]
+
+	result := ExtractJobRunId(pod)
+	assert.Equal(t, result, "1")
+}
+
+func TestExtractRunJobId_ReturnsEmpty_WhenJobIdNotPresent(t *testing.T) {
+	pod := v1.Pod{}
+
+	result := ExtractJobRunId(&pod)
+	assert.Equal(t, result, "")
+}
+
+func makePodsWithJobRunIds(runIds []string) []*v1.Pod {
+	pods := make([]*v1.Pod, 0, len(runIds))
+
+	for _, runId := range runIds {
+		pod := v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{domain.JobRunId: runId},
+			},
+		}
+		pods = append(pods, &pod)
+	}
+
+	return pods
+}
+
 func TestIsReportingPhaseRequired(t *testing.T) {
 	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodRunning))
 	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodSucceeded))

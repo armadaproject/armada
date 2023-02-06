@@ -406,8 +406,9 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 									Name:         podName,
 									KubernetesId: runIdString,
 								},
-								Message:   "couldn't schedule pod",
-								PodNumber: podNumber,
+								Message:      "couldn't schedule pod",
+								PodNumber:    podNumber,
+								RunAttempted: true,
 							},
 						},
 					},
@@ -428,6 +429,7 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      baseTime,
+					RunAttempted: true,
 				},
 			},
 		},
@@ -508,9 +510,10 @@ func TestConvertJobError(t *testing.T) {
 									Name:         podName,
 									KubernetesId: runIdString,
 								},
-								Message:   "The pod was terminated",
-								NodeName:  nodeName,
-								PodNumber: podNumber,
+								Message:          "The pod was terminated",
+								NodeName:         nodeName,
+								PodNumber:        podNumber,
+								KubernetesReason: armadaevents.KubernetesReason_DeadlineExceeded,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{
 										ObjectMeta: &armadaevents.ObjectMeta{
@@ -519,7 +522,7 @@ func TestConvertJobError(t *testing.T) {
 										ExitCode:         -1,
 										Message:          "container1 Error",
 										Reason:           "container1 Reason",
-										KubernetesReason: &armadaevents.ContainerError_OutOfMemory_{},
+										KubernetesReason: armadaevents.KubernetesReason_OOM,
 									},
 								},
 							},
@@ -545,6 +548,7 @@ func TestConvertJobError(t *testing.T) {
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      baseTime,
+					Cause:        api.Cause_DeadlineExceeded,
 					ContainerStatuses: []*api.ContainerStatus{
 						{
 							Name:     "container1",

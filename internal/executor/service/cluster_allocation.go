@@ -57,7 +57,7 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()
+	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(false)
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return
@@ -120,7 +120,7 @@ func (allocationService *ClusterAllocationService) processFailedJobs(failedSubmi
 		jobRunId := util.ExtractJobRunId(details.Pod)
 
 		if details.Recoverable {
-			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId())
+			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), true)
 			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: jobRunId}})
 			if err != nil {
 				log.Errorf("Failed to return lease for job %s because %s", details.JobId, err)
@@ -192,7 +192,7 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 		return
 	}
 
-	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity()
+	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(true)
 	if err != nil {
 		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
 		return

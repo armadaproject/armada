@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -238,6 +240,99 @@ func TestEventSequenceFromApiEvent_Preempted(t *testing.T) {
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptedRunId, expectedPreemptedRunId)
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptiveJobId, expectedPreemptiveJobId)
 	assert.Equal(t, evtSeqPreempted.JobRunPreempted.PreemptiveRunId, expectedPreemptiveRunId)
+}
+
+func TestEventSequenceFromApiEvent_Failed(t *testing.T) {
+	testEvent := api.JobFailedEvent{
+		JobId:        "01gddx8ezywph2tbwfcvgpe5nn",
+		JobSetId:     "test-set-a",
+		Queue:        "queue-a",
+		Created:      time.Now(),
+		ClusterId:    "test-cluster",
+		Reason:       "some reason",
+		KubernetesId: uuid.New().String(),
+		NodeName:     "test-node",
+		PodNumber:    1,
+		PodName:      "test-pod",
+		PodNamespace: "test-namespace",
+		ContainerStatuses: []*api.ContainerStatus{
+			{
+				Name:     "container-1",
+				ExitCode: 1,
+				Message:  "test message",
+				Reason:   "test reason",
+				Cause:    api.Cause_OOM,
+			},
+		},
+		Cause: api.Cause_DeadlineExceeded,
+	}
+	testEventMessage := api.EventMessage{Events: &api.EventMessage_Failed{Failed: &testEvent}}
+
+	converted, err := EventSequenceFromApiEvent(&testEventMessage)
+
+	require.NoError(t, err)
+	require.Len(t, converted.Events, 2)
+
+	expectedRunId, err := armadaevents.ProtoUuidFromUuidString(testEvent.KubernetesId)
+	require.NoError(t, err)
+	expectedJobId, err := armadaevents.ProtoUuidFromUlidString(testEvent.JobId)
+	require.NoError(t, err)
+
+	expectedErrors := []*armadaevents.Error{
+		{
+			Terminal: true,
+			Reason: &armadaevents.Error_PodError{
+				PodError: &armadaevents.PodError{
+					ObjectMeta: &armadaevents.ObjectMeta{
+						ExecutorId:   testEvent.ClusterId,
+						Namespace:    testEvent.PodNamespace,
+						Name:         testEvent.PodName,
+						KubernetesId: testEvent.KubernetesId,
+					},
+					Message:          testEvent.Reason,
+					NodeName:         testEvent.NodeName,
+					PodNumber:        testEvent.PodNumber,
+					KubernetesReason: armadaevents.KubernetesReason_DeadlineExceeded,
+					ContainerErrors: []*armadaevents.ContainerError{
+						{
+							ObjectMeta: &armadaevents.ObjectMeta{
+								ExecutorId:   testEvent.ClusterId,
+								Namespace:    testEvent.PodNamespace,
+								Name:         testEvent.ContainerStatuses[0].Name,
+								KubernetesId: "", // only the id of the pod is stored in the failed message
+							},
+							ExitCode:         testEvent.ContainerStatuses[0].ExitCode,
+							Message:          testEvent.ContainerStatuses[0].Message,
+							Reason:           testEvent.ContainerStatuses[0].Reason,
+							KubernetesReason: armadaevents.KubernetesReason_OOM,
+						},
+					},
+				},
+			},
+		},
+	}
+	expectedEvents := []*armadaevents.EventSequence_Event{
+		{
+			Created: &testEvent.Created,
+			Event: &armadaevents.EventSequence_Event_JobRunErrors{
+				JobRunErrors: &armadaevents.JobRunErrors{
+					RunId:  expectedRunId,
+					JobId:  expectedJobId,
+					Errors: expectedErrors,
+				},
+			},
+		},
+		{
+			Created: &testEvent.Created,
+			Event: &armadaevents.EventSequence_Event_JobErrors{
+				JobErrors: &armadaevents.JobErrors{
+					JobId:  expectedJobId,
+					Errors: expectedErrors,
+				},
+			},
+		},
+	}
+	assert.Equal(t, expectedEvents, converted.Events)
 }
 
 func TestConvertJobSinglePodSpec(t *testing.T) {

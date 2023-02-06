@@ -19,7 +19,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         return submit_pb2.Queue(name=request.name)
 
     def SubmitJobs(self, request, context):
-
         # read job_ids from request.job_request_items
         job_ids = [f"job-{i}" for i in range(1, len(request.job_request_items) + 1)]
 
@@ -33,7 +32,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         return submit_pb2.QueueInfo(name=request.name)
 
     def CancelJobs(self, request, context):
-
         return submit_pb2.CancellationResult(
             cancelled_ids=["job-1"],
         )
@@ -42,7 +40,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         return empty_pb2.Empty()
 
     def ReprioritizeJobs(self, request, context):
-
         new_priority = request.new_priority
         if len(request.job_ids) > 0:
             job_id = request.job_ids[0]
@@ -77,7 +74,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
         )
 
     def UpdateQueues(self, request, context):
-
         return submit_pb2.BatchQueueUpdateResponse(
             failed_queues=[
                 submit_pb2.QueueUpdateResponse(queue=submit_pb2.Queue(name=queue.name))
@@ -93,7 +89,6 @@ class SubmitService(submit_pb2_grpc.SubmitServicer):
 
 class EventService(event_pb2_grpc.EventServicer):
     def GetJobSetEvents(self, request, context):
-
         events = [event_pb2.EventStreamMessage()]
 
         for event in events:

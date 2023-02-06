@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -202,10 +203,11 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 		jobCopy := report.Job.(*SchedulerJob).DeepCopy()
 		jobCopy.Queued = false
-		jobCopy.Executor = executor.Id
-		if len(report.PodSchedulingReports) > 0 {
-			jobCopy.Node = report.PodSchedulingReports[0].Node.GetId()
+		run := JobRun{
+			RunID:    uuid.New(),
+			Executor: executor.Id,
 		}
+		jobCopy.Runs = append(jobCopy.Runs, &run)
 		updatedJobs[i] = jobCopy
 	}
 	return updatedJobs, nil
