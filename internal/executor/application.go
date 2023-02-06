@@ -158,6 +158,7 @@ func StartUpWithContext(
 			leaseRequester,
 			clusterUtilisationService,
 			submitter,
+			config.Kubernetes.PodDefaults,
 			etcdHealthMonitor)
 	} else {
 		jobLeaseService := service.NewJobLeaseService(
