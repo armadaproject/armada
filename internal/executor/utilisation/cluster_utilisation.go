@@ -32,6 +32,7 @@ type ClusterUtilisationService struct {
 	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	nodeIdLabel             string
 	nodeReservedResources   armadaresource.ComputeResources
 }
 
@@ -41,6 +42,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	nodeIdLabel string,
 	nodeReservedResources armadaresource.ComputeResources,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
@@ -49,6 +51,7 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
+		nodeIdLabel:             nodeIdLabel,
 		nodeReservedResources:   nodeReservedResources,
 	}
 }
@@ -159,7 +162,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			AvailableResources:   available,
 			TotalResources:       allocatable,
 			AllocatedResources:   allocated,
-			RunIds:               getRunIds(nodePods, useLegacyIds),
+			RunIds:               clusterUtilisationService.getNodeRunIds(n, allPods, useLegacyIds),
 		})
 	}
 
@@ -170,12 +173,36 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 }
 
 // This is required until we transition to the Executor API
-// The server api expects job ids whereas the executor api expects run ids
-func getRunIds(pods []*v1.Pod, useLegacyIds bool) []string {
-	if useLegacyIds {
-		util.ExtractJobIds(pods)
+// The server api expects job ids of:
+// - All the jobs using resource on the node or soon to be using resource (through node-selector)
+// The executor api expects the run ids of:
+// - All the jobs on the node or soon to be using resource (through node-selector) that the executor api hasn't told us to delete
+func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) []string {
+	nodeId, nodeIdPresent := node.Labels[clusterUtilisationService.nodeIdLabel]
+
+	noLongerNeedsReportingFunc := util.IsReportedDone
+	if legacy {
+		noLongerNeedsReportingFunc = util.IsInTerminalState
 	}
-	return util.ExtractJobRunIds(pods)
+
+	podsToReport := []*v1.Pod{}
+	for _, pod := range allPodsOnCluster {
+		if !util.IsManagedPod(pod) {
+			continue
+		}
+		if pod.Spec.NodeName == node.Name && !noLongerNeedsReportingFunc(pod) {
+			podsToReport = append(podsToReport, pod)
+		} else if pod.Spec.NodeName == "" && nodeIdPresent {
+			nodeIdNodeSelector, exists := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]
+			if exists && nodeIdNodeSelector == nodeId {
+				podsToReport = append(podsToReport, pod)
+			}
+		}
+	}
+	if legacy {
+		return util.ExtractJobIds(podsToReport)
+	}
+	return util.ExtractJobRunIds(podsToReport)
 }
 
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
