@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"testing"
 	"time"
 
@@ -123,7 +124,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -207,7 +208,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)

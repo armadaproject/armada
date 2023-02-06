@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"math"
 	"testing"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -92,8 +92,8 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			ctrl := gomock.NewController(t)
-			mockPulsarClient := schedulermocks.NewMockClient(ctrl)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarClient := mocks.NewMockClient(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			numPublished := 0
@@ -167,8 +167,8 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockPulsarClient := schedulermocks.NewMockClient(ctrl)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarClient := mocks.NewMockClient(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			numPublished := 0

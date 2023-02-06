@@ -57,8 +57,10 @@ type PulsarSubmitServer struct {
 	PulsarSchedulerEnabled bool
 	// Probability of using the pulsar scheduler.  Has no effect if PulsarSchedulerEnabled is false
 	ProbabilityOdfUsingPulsarScheduler float64
-	Rand                               *rand.Rand
-	GangIdAnnotation                   string
+	// Used to assign a job to either legacy or pulsar schedulers. Injected here to allow repeatable tests
+	Rand *rand.Rand
+	// Gang id annotation. Needed because we cannot split a gang across schedulers.
+	GangIdAnnotation string
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -717,9 +719,13 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	return nil, nil
 }
 
+// assignScheduler Assign a slice of jobs to either the legacy or pulsar schedulers.  This done by checking whether each
+// job can be scheduled on either scheduler.  If the job can only be scheduled on only one of the schedulers, it is
+// assigned to that scheduler. If it can be assigned to both scheduler it is assigned randomly based on
+// ProbabilityOdfUsingPulsarScheduler.  If it can be assigned on neither scheduler then an error is returned.
 func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]schedulers.Scheduler, error) {
 	// when assigning jobs to a scheduler, all the jobs in a gang have to go on the same scheduler
-	groups := groupJobsByAnnotation(srv.GangIdAnnotation, jobs)
+	groups := srv.groupJobsByGangId(jobs)
 	assignedSchedulers := make(map[string]schedulers.Scheduler, len(jobs))
 	for _, group := range groups {
 		schedulableOnLegacyScheduler, legacyMsg := srv.LegacySchedulerSubmitChecker.CheckApiJobs(group)
@@ -760,14 +766,15 @@ func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]sche
 	return assignedSchedulers, nil
 }
 
-func groupJobsByAnnotation(annotation string, jobs []*api.Job) [][]*api.Job {
+// group all the jobs by  gang id.  If no gang annotation is present then they will be put into a group of 1
+func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) [][]*api.Job {
 	rv := make(map[string][]*api.Job)
 	for _, job := range jobs {
 		groupId := uuid.NewString()
 		if len(job.Annotations) == 0 {
 			rv[groupId] = append(rv[groupId], job)
 		} else {
-			value := job.Annotations[annotation]
+			value := job.Annotations[srv.GangIdAnnotation]
 			if value == "" {
 				rv[groupId] = append(rv[groupId], job)
 			}
@@ -777,6 +784,10 @@ func groupJobsByAnnotation(annotation string, jobs []*api.Job) [][]*api.Job {
 	return maps.Values(rv)
 }
 
+// resolveQueueAndJobsetForJob returns the queue and jobset for a job.
+// First we check the legacy scheeduler jobs and then (if no job resolved and pulsar scheduler enabled) we check
+// the pulsar scheduler jobs.
+// If no job can be retrieved then an error is returned.
 func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
 	// Check the legacy scheduler first
 	jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{jobId})

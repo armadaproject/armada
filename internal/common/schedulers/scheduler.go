@@ -20,6 +20,7 @@ const (
 	AllSchedulersAttribute   string = "all"
 )
 
+// SchedulerFromMsg parses the message properties to retrieve the Scheduler associated with the message
 func SchedulerFromMsg(msg pulsar.Message) Scheduler {
 	s := msg.Properties()[PropertyName]
 	switch s {
@@ -34,6 +35,7 @@ func SchedulerFromMsg(msg pulsar.Message) Scheduler {
 	return Legacy
 }
 
+// MsgPropertyFromScheduler returns the pulsar message property associated with the scheduler
 func MsgPropertyFromScheduler(s Scheduler) string {
 	switch s {
 	case Pulsar:
@@ -47,11 +49,13 @@ func MsgPropertyFromScheduler(s Scheduler) string {
 	return LegacySchedulerAttribute
 }
 
+// ForPulsarScheduler returns true if this message should be processed by the pulsar scheduler
 func ForPulsarScheduler(msg pulsar.Message) bool {
 	s := SchedulerFromMsg(msg)
 	return s == Pulsar || s == All
 }
 
+// ForLegacyScheduler returns true if this message should be processed by the legacy scheduler
 func ForLegacyScheduler(msg pulsar.Message) bool {
 	s := SchedulerFromMsg(msg)
 	return s == Legacy || s == All
