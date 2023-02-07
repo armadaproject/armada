@@ -1,7 +1,7 @@
 FROM codercom/enterprise-base:ubuntu
 
 ENV GOROOT /usr/local/go
-ENV GOPATH /home/coder/go
+ENV GOPATH /home/codespace/go
 ENV PATH $GOPATH/bin:$GOROOT/bin:$PATH
 
 ENV DEBIAN_FRONTEND noninteractive
@@ -46,4 +46,16 @@ RUN apt-get update && apt-get install -y yarn nodejs && \
     apt-get clean &&\
     rm -rf /var/lib/apt/lists/*
 
-USER coder
+RUN chown -R codespace:codespace /home/codespace
+
+# Create codespace user
+RUN useradd -m codespace &&\
+    chown -R codespace:codespace /home/codespace
+
+USER codespace
+WORKDIR /home/codespace/
+
+RUN git clone https://github.com/armadaproject/armada.git
+
+WORKDIR /home/codespace/armada
+
