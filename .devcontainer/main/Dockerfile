@@ -57,5 +57,8 @@ WORKDIR /home/codespace/
 
 RUN git clone https://github.com/armadaproject/armada.git
 
-WORKDIR /home/codespace/armada
+# Set default shell to bash
+ENV SHELL /bin/bash
+
+
 

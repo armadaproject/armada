@@ -4,7 +4,7 @@
   "image": "sharp6292/quick-armada-image",
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   // "forwardPorts": [],
-  "postStartCommand": "dockerd",
+  "postStartCommand": "sudo dockerd &",
   // privileged is required by GitHub codespaces - https://github.com/microsoft/vscode-dev-containers/issues/727
   "runArgs": [
     "--cap-add=SYS_PTRACE",
@@ -13,7 +13,9 @@
     "--privileged",
     "--init"
   ],
-  "workspaceFolder": "/home/codespace/armada",
+  "workspaceFolder": "/home/codespace/armada"
   // Add startup commands here.
   // postAttachCommand
+  // TODO
+  // Bash by default?
 }
