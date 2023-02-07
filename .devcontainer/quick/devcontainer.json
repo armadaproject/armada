@@ -14,5 +14,5 @@
     "--init"
   ],
   // Add startup commands here.
-  "postCreateCommand": "cd localdev && sh ./scripts/kind-start.sh && cd .. && ./localdev/run.sh"
+  // "postCreateCommand": "cd localdev && sh ./scripts/kind-start.sh && cd .. && ./localdev/run.sh"
 }
