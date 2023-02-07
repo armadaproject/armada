@@ -101,14 +101,14 @@ func (p *PodIssueService) registerIssue(issue *podIssue) {
 	}
 }
 
-func (p *PodIssueService) MarkIssuesResolved(issue *podIssue) {
+func (p *PodIssueService) markIssuesResolved(issue *podIssue) {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
 
 	delete(p.knownPodIssues, issue.RunId)
 }
 
-func (p *PodIssueService) MarkIssueReported(issue *podIssue) {
+func (p *PodIssueService) markIssueReported(issue *podIssue) {
 	issue.Reported = true
 }
 
@@ -213,7 +213,7 @@ func (p *PodIssueService) handlePodIssue(issue *issue) {
 
 	hasSelfResolved := hasPodIssueSelfResolved(issue)
 	if hasSelfResolved {
-		p.MarkIssuesResolved(issue.Issue)
+		p.markIssuesResolved(issue.Issue)
 		return
 	}
 
@@ -247,13 +247,13 @@ func (p *PodIssueService) handleNonRetryableJobIssue(issue *issue) {
 			return
 		}
 
-		p.MarkIssueReported(issue.Issue)
+		p.markIssueReported(issue.Issue)
 	}
 
 	if issue.CurrentPodState != nil {
 		p.clusterContext.DeletePods([]*v1.Pod{issue.CurrentPodState})
 	} else {
-		p.MarkIssuesResolved(issue.Issue)
+		p.markIssuesResolved(issue.Issue)
 	}
 }
 
@@ -276,7 +276,7 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 				return
 			}
 		}
-		p.MarkIssueReported(issue.Issue)
+		p.markIssueReported(issue.Issue)
 	}
 
 	if issue.CurrentPodState != nil {
@@ -297,7 +297,7 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 		log.Errorf("Failed to return lease for job %s because %s", issue.Issue.JobId, err)
 		return
 	}
-	p.MarkIssuesResolved(issue.Issue)
+	p.markIssuesResolved(issue.Issue)
 }
 
 func hasPodIssueSelfResolved(issue *issue) bool {
@@ -308,7 +308,7 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 	isStuckStartingUpAndResolvable := issue.Issue.Type == StuckStartingUp &&
 		(issue.Issue.Retryable || (!issue.Issue.Retryable && !issue.Issue.Reported))
 	if issue.Issue.Type == UnableToSchedule || isStuckStartingUpAndResolvable {
-		// TODO - what is the right thing to do here?
+		// If pod has disappeared - don't consider it resolved as we still need to report the issue
 		if issue.CurrentPodState == nil {
 			return false
 		}
@@ -332,7 +332,6 @@ func createStuckPodMessage(retryable bool, originalMessage string) string {
 func (p *PodIssueService) handleDeletedPod(pod *v1.Pod) {
 	jobId := util.ExtractJobId(pod)
 	if jobId != "" {
-		// TODO updated is pod finished and reported
 		isUnexpectedDeletion := !util.IsMarkedForDeletion(pod) && !util.IsPodFinishedAndReported(pod)
 		if isUnexpectedDeletion {
 			p.registerIssue(&podIssue{
