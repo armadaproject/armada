@@ -192,7 +192,7 @@ func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *
 		if pod.Spec.NodeName == node.Name {
 			result[runId] = getJobRunState(pod)
 		} else if pod.Spec.NodeName == "" && nodeIdPresent && nodeSelectorPresent && nodeIdNodeSelector == nodeId {
-			//Not scheduled on a node, but has node selector matching the current node
+			// Not scheduled on a node, but has node selector matching the current node
 			result[runId] = getJobRunState(pod)
 		}
 	}
