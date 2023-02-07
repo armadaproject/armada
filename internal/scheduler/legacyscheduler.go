@@ -788,7 +788,7 @@ func EvictOversubscribed(
 	evictionProbability float64,
 ) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
 	var overSubscribedPriorities map[int32]bool
-	prioritiesByName := configuration.PrioritiesFromPriorityClasses(priorityClasses)
+	prioritiesByName := configuration.PriorityByPriorityClassName(priorityClasses)
 	return Evict(
 		it, jobRepo,
 		func(node *schedulerobjects.Node) bool {

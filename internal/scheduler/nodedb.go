@@ -27,7 +27,7 @@ type NodeDb struct {
 	db *memdb.MemDB
 	// Time at which the most recent upsert took place.
 	timeOfMostRecentUpsert time.Time
-	// Allowed priority classes in sorted order.
+	// Allowed priority classes..
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
 	priorityClasses map[string]configuration.PriorityClass
@@ -60,7 +60,7 @@ type NodeDb struct {
 
 func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(
-		maps.Values(configuration.PrioritiesFromPriorityClasses(priorityClasses)),
+		configuration.AllowedPriorities(priorityClasses),
 		indexedResources,
 	))
 	if err != nil {
@@ -102,7 +102,7 @@ func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedRe
 func (nodeDb *NodeDb) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.PrioritiesFromPriorityClasses(nodeDb.priorityClasses))
+	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
 	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
 	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
 	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
@@ -599,13 +599,8 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	nodeDb.timeOfMostRecentUpsert = time.Now()
 	nodeDb.mu.Unlock()
 
+	txn.Commit()
 	return nil
-}
-
-func (nodeDb *NodeDb) TimeOfMostRecentUpsert() time.Time {
-	nodeDb.mu.Lock()
-	defer nodeDb.mu.Unlock()
-	return nodeDb.timeOfMostRecentUpsert
 }
 
 // ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
@@ -619,7 +614,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.DeepCopy()
 		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			maps.Values(configuration.PrioritiesFromPriorityClasses(nodeDb.priorityClasses)),
+			configuration.AllowedPriorities(nodeDb.priorityClasses),
 			nodeDb.totalResources,
 		)
 		err := txn.Insert("nodes", node)

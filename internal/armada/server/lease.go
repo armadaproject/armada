@@ -32,9 +32,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -58,6 +60,7 @@ type AggregatedQueueServer struct {
 	// Necessary to generate preempted messages.
 	pulsarProducer       pulsar.Producer
 	maxPulsarMessageSize uint
+	executorRepository   database.ExecutorRepository
 }
 
 func NewAggregatedQueueServer(
@@ -70,6 +73,7 @@ func NewAggregatedQueueServer(
 	schedulingInfoRepository repository.SchedulingInfoRepository,
 	pulsarProducer pulsar.Producer,
 	maxPulsarMessageSize uint,
+	executorRepository database.ExecutorRepository,
 ) *AggregatedQueueServer {
 	poolConfig := pool.ObjectPoolConfig{
 		MaxTotal:                 100,
@@ -95,6 +99,7 @@ func NewAggregatedQueueServer(
 		eventStore:               eventStore,
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
+		executorRepository:       executorRepository,
 		clock:                    clock.RealClock{},
 		pulsarProducer:           pulsarProducer,
 		maxPulsarMessageSize:     maxPulsarMessageSize,
@@ -303,7 +308,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	aggregatedUsageByQueue := q.aggregateUsage(reportsByExecutor, req.Pool)
 
 	// Collect all allowed priorities.
-	priorities := maps.Values(configuration.PrioritiesFromPriorityClasses(q.schedulingConfig.Preemption.PriorityClasses))
+	priorities := q.schedulingConfig.Preemption.AllowedPriorities()
 	if len(priorities) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "PriorityClasses",
@@ -406,6 +411,21 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	err = nodeDb.UpsertMany(nodes)
 	if err != nil {
 		return nil, err
+	}
+
+	// Store the executor details in redis so that they can be used by
+	// submit check and the new scheduler.
+	err = q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
+		Id:             req.ClusterId,
+		Pool:           req.Pool,
+		Nodes:          nodes,
+		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		LastUpdateTime: time.Now(),
+	})
+
+	if err != nil {
+		// This is not fatal because we can still schedule if it doesn't happen
+		log.WithError(err).Warnf("Could not store executor details for cluster %s", req.ClusterId)
 	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
@@ -660,7 +680,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Publish preempted messages.
 	if q.pulsarProducer != nil {
-		err = pulsarutils.CompactAndPublishSequences(ctx, sequences, q.pulsarProducer, q.maxPulsarMessageSize)
+		err = pulsarutils.CompactAndPublishSequences(ctx, sequences, q.pulsarProducer, q.maxPulsarMessageSize, schedulers.All)
 		if err != nil {
 			logging.WithStacktrace(log, err).Error("failed to publish preempted messages")
 		}
@@ -719,16 +739,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	} else if err != nil {
 		return nil, err
 	}
-
-	// Use this NodeDb when checking if a job could ever be scheduled.
-	// We clear allocated resources since we want to check if a job
-	// could be scheduled if the cluster was empty.
-	if err := nodeDb.ClearAllocated(); err == nil {
-		q.SubmitChecker.RegisterNodeDb(req.ClusterId, nodeDb)
-	} else {
-		logging.WithStacktrace(log, err).Error("failed to clear allocated resources in NodeDb")
-	}
-
 	return scheduledApiJobs, nil
 }
 

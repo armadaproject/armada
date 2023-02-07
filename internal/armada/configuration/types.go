@@ -5,6 +5,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
@@ -23,18 +24,21 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime    time.Duration
-	CancelJobsBatchSize int
-	Redis               redis.UniversalOptions
-	EventsApiRedis      redis.UniversalOptions
-	Scheduling          SchedulingConfig
-	NewScheduler        NewSchedulerConfig
-	QueueManagement     QueueManagementConfig
-	DatabaseRetention   DatabaseRetentionPolicy
-	Pulsar              PulsarConfig
-	Postgres            PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi            EventApiConfig
-	Metrics             MetricsConfig
+	PriorityHalfTime                  time.Duration
+	CancelJobsBatchSize               int
+	Redis                             redis.UniversalOptions
+	EventsApiRedis                    redis.UniversalOptions
+	Scheduling                        SchedulingConfig
+	NewScheduler                      NewSchedulerConfig
+	QueueManagement                   QueueManagementConfig
+	DatabaseRetention                 DatabaseRetentionPolicy
+	Pulsar                            PulsarConfig
+	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
+	EventApi                          EventApiConfig
+	Metrics                           MetricsConfig
+	IgnoreJobSubmitChecks             bool // Temporary flag to stop us rejecting jobs on switch over
+	PulsarSchedulerEnabled            bool
+	ProbabilityOfUsingPulsarScheduler float64
 }
 
 type PulsarConfig struct {
@@ -238,12 +242,29 @@ type PriorityClass struct {
 	MaximalResourceFractionPerQueue map[string]float64
 }
 
-func PrioritiesFromPriorityClasses(priorityClasses map[string]PriorityClass) map[string]int32 {
+func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
+	return PriorityByPriorityClassName(p.PriorityClasses)
+}
+
+func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
 	rv := make(map[string]int32, len(priorityClasses))
 	for name, pc := range priorityClasses {
 		rv[name] = pc.Priority
 	}
 	return rv
+}
+
+func (p PreemptionConfig) AllowedPriorities() []int32 {
+	return AllowedPriorities(p.PriorityClasses)
+}
+
+func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+	rv := make([]int32, 0, len(priorityClasses))
+	for _, v := range priorityClasses {
+		rv = append(rv, v.Priority)
+	}
+	slices.Sort(rv)
+	return slices.Compact(rv)
 }
 
 type DatabaseRetentionPolicy struct {

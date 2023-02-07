@@ -1,63 +1,114 @@
 package scheduler
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+type minimalExecutor struct {
+	nodeDb     *NodeDb
+	updateTime time.Time
+}
+
 type SubmitChecker struct {
-	executorTimeout  time.Duration
-	priorityClasses  map[string]configuration.PriorityClass
-	gangIdAnnotation string
-	nodeDbByExecutor map[string]*NodeDb
-	mu               sync.Mutex
+	executorTimeout    time.Duration
+	priorityClasses    map[string]configuration.PriorityClass
+	gangIdAnnotation   string
+	executorById       map[string]minimalExecutor
+	priorities         []int32
+	indexedResources   []string
+	indexedTaints      []string
+	indexedNodeLabels  []string
+	executorRepository database.ExecutorRepository
+	clock              clock.Clock
+	mu                 sync.Mutex
 }
 
-func NewSubmitChecker(executorTimeout time.Duration, priorityClasses map[string]configuration.PriorityClass, gangIdAnnotation string) *SubmitChecker {
+func NewSubmitChecker(
+	executorTimeout time.Duration,
+	schedulingConfig configuration.SchedulingConfig,
+	executorRepository database.ExecutorRepository,
+) *SubmitChecker {
 	return &SubmitChecker{
-		executorTimeout:  executorTimeout,
-		priorityClasses:  priorityClasses,
-		gangIdAnnotation: gangIdAnnotation,
+		executorTimeout:    executorTimeout,
+		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,
+		gangIdAnnotation:   schedulingConfig.GangIdAnnotation,
+		executorById:       map[string]minimalExecutor{},
+		priorities:         schedulingConfig.Preemption.AllowedPriorities(),
+		indexedResources:   schedulingConfig.IndexedResources,
+		indexedTaints:      schedulingConfig.IndexedTaints,
+		indexedNodeLabels:  schedulingConfig.IndexedNodeLabels,
+		executorRepository: executorRepository,
+		clock:              clock.RealClock{},
 	}
 }
 
-// RegisterNodeDb adds a NodeDb to use when checking if a pod can be scheduled.
-// To only check static scheduling requirements, set NodeDb.CheckOnlyStaticRequirements = true
-// before registering it.
-func (srv *SubmitChecker) RegisterNodeDb(executor string, nodeDb *NodeDb) {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	if srv.nodeDbByExecutor == nil {
-		srv.nodeDbByExecutor = make(map[string]*NodeDb)
+func (srv *SubmitChecker) Run(ctx context.Context) error {
+	srv.updateExecutors(ctx)
+	ticker := time.NewTicker(1 * time.Minute)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			srv.updateExecutors(ctx)
+		}
 	}
-	srv.nodeDbByExecutor[executor] = nodeDb
+}
+
+func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
+	executors, err := srv.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		log.WithError(err).Error("Error fetching executors")
+		return
+	}
+	for _, executor := range executors {
+		nodeDb, err := srv.constructNodeDb(executor.Nodes)
+		if err == nil {
+			srv.mu.Lock()
+			srv.executorById[executor.Id] = minimalExecutor{
+				nodeDb:     nodeDb,
+				updateTime: executor.LastUpdateTime,
+			}
+			srv.mu.Unlock()
+			if err != nil {
+				log.WithError(err).Errorf("Error constructing node db for executor %s", executor.Id)
+			}
+		} else {
+			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
+		}
+
+	}
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	// // First, check if all jobs can be scheduled individually.
-	// // TODO: Disabled for now; the SubmitChecker would reject all jobs until populated.
-	// for i, job := range jobs {
-	// 	reqs := PodRequirementsFromJob(srv.priorityClasses, job)
-	// 	canSchedule, reason := srv.Check(reqs)
-	// 	if !canSchedule {
-	// 		return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
-	// 	}
-	// }
+	// First, check if all jobs can be scheduled individually.
+	for i, job := range jobs {
+		reqs := PodRequirementFromLegacySchedulerJob(job, srv.priorityClasses)
+		canSchedule, reason := srv.check([]*schedulerobjects.PodRequirements{reqs})
+		if !canSchedule {
+			return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
+		}
+	}
 	// Then, check if all gangs can be scheduled.
-	for gangId, jobs := range groupJobsByAnnotation(srv.gangIdAnnotation, jobs) {
+	for gangId, jobs := range GroupJobsByAnnotation(srv.gangIdAnnotation, jobs) {
 		if gangId == "" {
 			continue
 		}
 		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, srv.priorityClasses)
-		canSchedule, reason := srv.Check(reqs)
+		canSchedule, reason := srv.check(reqs)
 		if !canSchedule {
 			return canSchedule, fmt.Sprintf("gang %s is unschedulable:\n%s", gangId, reason)
 		}
@@ -65,7 +116,7 @@ func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
 	return true, ""
 }
 
-func groupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api.Job {
+func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api.Job {
 	rv := make(map[string][]*api.Job)
 	for _, job := range jobs {
 		if len(job.Annotations) == 0 {
@@ -79,29 +130,30 @@ func groupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 }
 
 // Check if a set of pods can be scheduled onto some cluster.
-func (srv *SubmitChecker) Check(reqs []*schedulerobjects.PodRequirements) (bool, string) {
+func (srv *SubmitChecker) check(reqs []*schedulerobjects.PodRequirements) (bool, string) {
 	if len(reqs) == 0 {
 		return true, ""
 	}
 
 	// Make a shallow copy to avoid holding the lock and
-	// preventing registering new NodeDbs while checking if jobs can be scheduled.
+	// preventing updating NodeDbs while checking if jobs can be scheduled.
 	srv.mu.Lock()
-	nodeDbByExecutor := maps.Clone(srv.nodeDbByExecutor)
+	executorById := maps.Clone(srv.executorById)
 	srv.mu.Unlock()
-	nodeDbByExecutor = srv.filterStaleNodeDbs(nodeDbByExecutor)
-	if len(nodeDbByExecutor) == 0 {
+	executorById = srv.filterStaleNodeDbs(executorById)
+	if len(executorById) == 0 {
 		return false, "no executor clusters available"
 	}
 
 	canSchedule := false
 	var sb strings.Builder
-	for executor, nodeDb := range nodeDbByExecutor {
+	for id, executor := range executorById {
+		nodeDb := executor.nodeDb
 		txn := nodeDb.db.Txn(true)
 		reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
 		txn.Abort()
 
-		sb.WriteString(executor)
+		sb.WriteString(id)
 		if err != nil {
 			sb.WriteString(err.Error())
 			sb.WriteString("\n")
@@ -132,12 +184,34 @@ func (srv *SubmitChecker) Check(reqs []*schedulerobjects.PodRequirements) (bool,
 	return canSchedule, sb.String()
 }
 
-func (srv *SubmitChecker) filterStaleNodeDbs(nodeDbByExecutor map[string]*NodeDb) map[string]*NodeDb {
-	rv := make(map[string]*NodeDb)
-	for executor, nodeDb := range nodeDbByExecutor {
-		if time.Since(nodeDb.TimeOfMostRecentUpsert()) < srv.executorTimeout {
-			rv[executor] = nodeDb
+func (srv *SubmitChecker) filterStaleNodeDbs(executorsById map[string]minimalExecutor) map[string]minimalExecutor {
+	rv := make(map[string]minimalExecutor)
+	for id, executor := range executorsById {
+		if srv.clock.Since(executor.updateTime) < srv.executorTimeout {
+			rv[id] = executor
 		}
 	}
 	return rv
+}
+
+func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+	// Nodes to be considered by the scheduler.
+	nodeDb, err := NewNodeDb(
+		srv.priorityClasses,
+		srv.indexedResources,
+		srv.indexedTaints,
+		srv.indexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = nodeDb.UpsertMany(nodes)
+	if err != nil {
+		return nil, err
+	}
+	err = nodeDb.ClearAllocated()
+	if err != nil {
+		return nil, err
+	}
+	return nodeDb, nil
 }

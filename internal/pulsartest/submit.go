@@ -42,8 +42,7 @@ func (a *App) Submit(path string) error {
 		&pulsar.ProducerMessage{
 			Payload: payload,
 			Properties: map[string]string{
-				requestid.MetadataKey:                     requestId,
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+				requestid.MetadataKey: requestId,
 			},
 			Key: es.JobSetName,
 		},

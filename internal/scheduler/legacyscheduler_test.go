@@ -1586,7 +1586,7 @@ func TestReschedule(t *testing.T) {
 				}
 
 				// We expect there to be no oversubscribed nodes.
-				prioritiesByName := configuration.PrioritiesFromPriorityClasses(testPriorityClasses)
+				prioritiesByName := configuration.PriorityByPriorityClassName(testPriorityClasses)
 				priorities := maps.Values(prioritiesByName)
 				slices.Sort(priorities)
 				it, err := NewNodesIterator(nodeDb.Txn(false))
@@ -1657,7 +1657,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	fmt.Println(maps.Keys(evictedJobsById))
 	fmt.Println(maps.Keys(affectedNodesById))
 
-	prioritiesByName := configuration.PrioritiesFromPriorityClasses(testPriorityClasses)
+	prioritiesByName := configuration.PriorityByPriorityClassName(testPriorityClasses)
 	priorities := maps.Values(prioritiesByName)
 	slices.Sort(priorities)
 	for nodeId, node := range affectedNodesById {

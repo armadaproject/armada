@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -123,9 +124,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
 			runIds, err := extractRunIds(tc.request)
@@ -135,6 +137,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
 			mockExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+				assert.Equal(t, tc.expectedExecutor, executor)
+				return nil
+			}).Times(1)
+			mockLegacyExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
@@ -152,6 +158,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
+				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				maxJobsPerCall,
 			)
@@ -201,9 +208,10 @@ func TestExecutorApi_Publish(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -222,6 +230,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
+				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				100,
 			)
