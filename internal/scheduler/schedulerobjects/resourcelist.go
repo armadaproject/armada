@@ -135,9 +135,12 @@ func (a *ResourceList) Sub(b ResourceList) {
 	}
 }
 
-func (rl *ResourceList) DeepCopy() ResourceList {
+func (rl ResourceList) DeepCopy() ResourceList {
+	if rl.Resources == nil {
+		return ResourceList{}
+	}
 	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity),
+		Resources: make(map[string]resource.Quantity, len(rl.Resources)),
 	}
 	for t, q := range rl.Resources {
 		rv.Resources[t] = q.DeepCopy()

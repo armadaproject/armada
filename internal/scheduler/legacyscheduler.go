@@ -967,6 +967,21 @@ func Reschedule(
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
 	log := ctxlogrus.Extract(ctx)
 
+	// TODO: Remove
+	myIt, err := NewNodesIterator(nodeDb.Txn(false))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	for node := myIt.NextNode(); node != nil; node = myIt.NextNode() {
+		log.Infof(
+			"These are my nodes (1) %s, %v --- %v --- %v",
+			node.Id,
+			node.AllocatableByPriorityAndResource,
+			node.AllocatedByJobId,
+			node.AllocatedByQueue,
+		)
+	}
+
 	txn := nodeDb.Txn(false)
 	it, err := NewNodesIterator(txn)
 	if err != nil {
@@ -984,7 +999,9 @@ func Reschedule(
 	}
 	jobsById := make(map[string]LegacySchedulerJob)
 	maps.Copy(jobsById, evictedJobsById)
-	log.Infof("evicted %d balanced jobs", len(evictedJobsById))
+	if len(evictedJobsById) > 0 || len(affectedNodesById) > 0 {
+		log.Infof("evicted for resource balancing jobs %v on nodes %v", maps.Keys(evictedJobsById), maps.Keys(affectedNodesById))
+	}
 
 	evictedJobs := maps.Values(evictedJobsById)
 	affectedNodes := maps.Values(affectedNodesById)
@@ -993,6 +1010,21 @@ func Reschedule(
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(config.Preemption.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
+
+	// TODO: Remove
+	myIt, err = NewNodesIterator(nodeDb.Txn(false))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	for node := myIt.NextNode(); node != nil; node = myIt.NextNode() {
+		log.Infof(
+			"These are my nodes (2) %s, %v --- %v --- %v",
+			node.Id,
+			node.AllocatableByPriorityAndResource,
+			node.AllocatedByJobId,
+			node.AllocatedByQueue,
+		)
+	}
 
 	queues := make([]*Queue, 0)
 	for queue, priorityFactor := range priorityFactorByQueue {
@@ -1049,7 +1081,9 @@ func Reschedule(
 		return nil, nil, nil, err
 	}
 	maps.Copy(jobsById, evictedJobsById)
-	log.Infof("evicted %d oversubscribed jobs", len(evictedJobsById))
+	if len(evictedJobsById) > 0 || len(affectedNodesById) > 0 {
+		log.Infof("evicted oversubscribed jobs %v on nodes %v", maps.Keys(evictedJobsById), maps.Keys(affectedNodesById))
+	}
 
 	evictedJobs = maps.Values(evictedJobsById)
 	affectedNodes = maps.Values(affectedNodesById)

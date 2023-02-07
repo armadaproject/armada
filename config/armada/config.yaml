@@ -31,10 +31,10 @@ scheduling:
     enabled: true
     preemptToFairShare: true
     nodeFairShareEvictionProbability: 1.0
-    nodeOversubscriptionEvictionProbability: 1.0
+    nodeOversubscriptionEvictionProbability: 0.0
     setNodeIdSelector: true
     nodeIdLabel: kubernetes.io/hostname
-    setNodeName: true
+    setNodeName: false
     priorityClasses:
       armada-default:
         priority: 1000

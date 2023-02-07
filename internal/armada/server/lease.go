@@ -32,6 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -311,22 +312,83 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		})
 	}
 
+	// Get all jobs running across all nodes.
+	// To reduce memory usage, get jobs in batches of size at most 100.
+	jobsBatchSize := 100
+	jobSchedulingInfoByJobId := make(map[string]*schedulerobjects.JobSchedulingInfo)
+	for _, nodeInfo := range req.Nodes {
+		// During a transition period we assign to runIds the jobIds.
+		for _, jobId := range nodeInfo.RunIds {
+			jobSchedulingInfoByJobId[jobId] = nil
+		}
+	}
+	for _, jobIds := range armadaslices.PartitionToMaxLen(maps.Keys(jobSchedulingInfoByJobId), jobsBatchSize) {
+		jobs, err := q.jobRepository.GetExistingJobsByIds(jobIds)
+		if err != nil {
+			return nil, err
+		}
+		for _, job := range jobs {
+			jobSchedulingInfoByJobId[job.Id] = job.GetRequirements(q.schedulingConfig.Preemption.PriorityClasses)
+		}
+	}
+
 	// Nodes to be considered by the scheduler.
+	lastSeen := q.clock.Now()
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
 			req.ClusterId,
 			priorities,
-			time.Now(),
+			lastSeen,
 		)
 		if err != nil {
 			logging.WithStacktrace(log, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetClusterId(),
 			)
-		} else {
-			nodes = append(nodes, node)
+			continue
 		}
+
+		// Clear node.AllocatableByPriorityAndResource and assign pods to this node.
+		// This ensures all fields of the node are set correctly.
+		// TODO: We no longer need AllocatableByPriorityAndResource to be sent from the executor.
+		skipNode := false
+		node.AllocatableByPriorityAndResource = make(map[int32]schedulerobjects.ResourceList)
+		for _, jobId := range nodeInfo.RunIds {
+			info, ok := jobSchedulingInfoByJobId[jobId]
+			if !ok {
+				log.Errorf(
+					"skipping node %s from executor %s: no scheduling info for job %s",
+					node.Id, req.GetClusterId(), jobId,
+				)
+				skipNode = true
+				break
+			}
+			podReq := scheduler.PodRequirementFromJobSchedulingInfo(info)
+			node, err = scheduler.BindPodToNode(podReq, node)
+			if err != nil {
+				logging.WithStacktrace(log, err).Warnf(
+					"skipping node %s from executor %s: failed to bind job %s to node",
+					nodeInfo.GetName(), req.GetClusterId(), jobId,
+				)
+				skipNode = true
+				break
+			}
+		}
+		if skipNode {
+			continue
+		}
+		nodes = append(nodes, node)
+
+		// TODO: Remove
+		log.Infof(
+			"These are my nodes (0) %s, %v --- %v --- %v --- %v",
+			node.Id,
+			node.AllocatableByPriorityAndResource,
+			node.AllocatedByJobId,
+			node.AllocatedByQueue,
+			node.JobRuns,
+		)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
 	if len(indexedResources) == 0 {
@@ -387,6 +449,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	var scheduledJobs []scheduler.LegacySchedulerJob
 	var nodesByJobId map[string]*schedulerobjects.Node
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
+		log.Info("preemption-to-fair-share enabled")
 		preemptedJobs, scheduledJobs, nodesByJobId, err = scheduler.Reschedule(
 			ctx,
 			&SchedulerJobRepositoryAdapter{
@@ -404,6 +467,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			return nil, err
 		}
 	} else {
+		log.Info("preemption-to-fair-share disabled")
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
 			jobIterator, err := scheduler.NewQueuedJobsIterator(
@@ -667,19 +731,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	return scheduledApiJobs, nil
 }
-
-// func (q *AggregatedQueueServer) Reschedule(ctx context.Context) {
-
-// 	Reschedule(
-// 		ctx,
-// 		jobRepo JobRepository,
-// 		constraints SchedulingConstraints,
-// 		config configuration.SchedulingConfig,
-// 		nodeDb *NodeDb,
-// 		priorityFactorByQueue map[string]float64,
-// 		initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-// 	) ([]LegacySchedulerJob, []LegacySchedulerJob, error) {
-// }
 
 // aggregateUsage Creates a map of usage first by cluster and then by queue
 // Note that the desired cluster is excluded as this will be filled in later as are clusters that are not in the
