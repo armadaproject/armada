@@ -27,7 +27,6 @@ var (
 func TestConvertSequence(t *testing.T) {
 	tests := map[string]struct {
 		events   []*armadaevents.EventSequence_Event
-		filter   func(event *armadaevents.EventSequence_Event) bool
 		expected []DbOperation
 	}{
 		"submit": {
@@ -171,13 +170,6 @@ func TestConvertSequence(t *testing.T) {
 				MarkJobsSucceeded{f.JobIdString: true},
 			},
 		},
-		"filtered events": {
-			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
-			filter: func(event *armadaevents.EventSequence_Event) bool {
-				return event.GetJobRunRunning() != nil
-			},
-			expected: []DbOperation{MarkRunsRunning{f.RunIdUuid: true}},
-		},
 		"ignored events": {
 			events: []*armadaevents.EventSequence_Event{f.Running, f.JobPreempted, f.JobSucceeded},
 			expected: []DbOperation{
@@ -189,12 +181,7 @@ func TestConvertSequence(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			if tc.filter == nil {
-				tc.filter = func(event *armadaevents.EventSequence_Event) bool {
-					return true
-				}
-			}
-			converter := InstructionConverter{m, tc.filter, f.PriorityClasses, compressor}
+			converter := InstructionConverter{m, f.PriorityClasses, compressor}
 			es := f.NewEventSequence(tc.events...)
 			results := converter.convertSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
