@@ -38,8 +38,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool:       "test-pool",
 		Nodes: []*api.NodeInfo{
 			{
-				Name:          "test-node",
-				RunIdsByState: map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
+				Name: "test-node",
+				RunIdsByState: map[string]api.JobState{
+					runId1.String(): api.JobState_RUNNING,
+					runId2.String(): api.JobState_RUNNING,
+				},
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
