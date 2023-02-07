@@ -171,17 +171,15 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}, nil
 }
 
-// This is required until we transition to the Executor API
-// The server api expects job ids of:
-// - All the jobs using resource on the node or soon to be using resource (through node-selector)
-// The executor api expects the run ids of:
-// - All the jobs on the node or soon to be using resource (through node-selector) that the executor api hasn't told us to delete
+// This returns all the pods assigned the node or soon to be assigned (via node-selector)
+// The server api expects job ids, the executor api expects run ids - the legacy flag controls which this returns
 func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) map[string]schedulerobjects.JobRunState {
 	nodeId, nodeIdPresent := node.Labels[clusterUtilisationService.nodeIdLabel]
 	noLongerNeedsReportingFunc := util.IsReportedDone
 
 	result := map[string]schedulerobjects.JobRunState{}
 	for _, pod := range allPodsOnCluster {
+		// Skip pods that are not armada pods or "complete" from the servers point of view
 		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
 			continue
 		}
