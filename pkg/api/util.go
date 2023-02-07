@@ -35,6 +35,12 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	for p, rs := range nodeInfo.AllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
+
+	jobRunsByState := make(map[string]schedulerobjects.JobRunState, len(nodeInfo.RunIdsByState))
+	for runId, runState := range nodeInfo.RunIdsByState {
+		jobRunsByState[runId] = schedulerobjects.JobRunState(JobRunState_value[runState.String()])
+	}
+
 	return &schedulerobjects.Node{
 		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
 		LastSeen:                         lastSeen,
@@ -42,7 +48,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
-		JobRuns:                          nodeInfo.RunIds,
+		JobRunsByState:                   jobRunsByState,
 	}, nil
 }
 

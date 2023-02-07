@@ -162,7 +162,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			AvailableResources:   available,
 			TotalResources:       allocatable,
 			AllocatedResources:   allocated,
-			RunIds:               clusterUtilisationService.getNodeRunIds(n, allPods, useLegacyIds),
+			RunIdsByState:        clusterUtilisationService.getNodeRunIds(n, allPods, useLegacyIds),
 		})
 	}
 
@@ -177,32 +177,43 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 // - All the jobs using resource on the node or soon to be using resource (through node-selector)
 // The executor api expects the run ids of:
 // - All the jobs on the node or soon to be using resource (through node-selector) that the executor api hasn't told us to delete
-func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) []string {
+func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) map[string]api.JobRunState {
 	nodeId, nodeIdPresent := node.Labels[clusterUtilisationService.nodeIdLabel]
-
 	noLongerNeedsReportingFunc := util.IsReportedDone
-	if legacy {
-		noLongerNeedsReportingFunc = util.IsInTerminalState
-	}
 
-	podsToReport := []*v1.Pod{}
+	result := map[string]api.JobRunState{}
 	for _, pod := range allPodsOnCluster {
-		if !util.IsManagedPod(pod) {
+		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
 			continue
 		}
-		if pod.Spec.NodeName == node.Name && !noLongerNeedsReportingFunc(pod) {
-			podsToReport = append(podsToReport, pod)
-		} else if pod.Spec.NodeName == "" && nodeIdPresent {
-			nodeIdNodeSelector, exists := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]
-			if exists && nodeIdNodeSelector == nodeId {
-				podsToReport = append(podsToReport, pod)
-			}
+		nodeIdNodeSelector, nodeSelectorPresent := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]
+		runId := util.ExtractJobRunId(pod)
+		if legacy {
+			runId = util.ExtractJobId(pod)
+		}
+
+		if pod.Spec.NodeName == node.Name {
+			result[runId] = getJobRunState(pod)
+		} else if pod.Spec.NodeName == "" && nodeIdPresent && nodeSelectorPresent && nodeIdNodeSelector == nodeId {
+			//Not scheduled on a node, but has node selector matching the current node
+			result[runId] = getJobRunState(pod)
 		}
 	}
-	if legacy {
-		return util.ExtractJobIds(podsToReport)
+	return result
+}
+
+func getJobRunState(pod *v1.Pod) api.JobRunState {
+	switch {
+	case pod.Status.Phase == v1.PodPending:
+		return api.JobRunState_JOB_RUN_PENDING
+	case pod.Status.Phase == v1.PodRunning:
+		return api.JobRunState_JOB_RUN_RUNNING
+	case pod.Status.Phase == v1.PodSucceeded:
+		return api.JobRunState_JOB_RUN_SUCCEEDED
+	case pod.Status.Phase == v1.PodFailed:
+		return api.JobRunState_JOB_RUN_SUCCEEDED
 	}
-	return util.ExtractJobRunIds(podsToReport)
+	return api.JobRunState_JOB_RUN_UNKNOWN
 }
 
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
