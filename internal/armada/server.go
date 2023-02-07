@@ -139,7 +139,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	legacyExecutorRepo := schedulerdb.NewRedisExecutorRepository(db, "legacy")
 
 	pulsarSchedulerSubmitChecker := scheduler.NewSubmitChecker(
-		10*time.Minute,
+		30*time.Minute,
 		config.Scheduling,
 		pulsarExecutorRepo,
 	)
@@ -147,7 +147,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		return pulsarSchedulerSubmitChecker.Run(ctx)
 	})
 	legacySchedulerSubmitChecker := scheduler.NewSubmitChecker(
-		10*time.Minute,
+		30*time.Minute,
 		config.Scheduling,
 		legacyExecutorRepo,
 	)
