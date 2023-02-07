@@ -324,7 +324,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 		}
 
 		// Test that we get submit, cancel job set, and cancelled messages.
-		numEventsExpected := numJobs + 1 + numJobs
+		numEventsExpected := numJobs + numJobs + numJobs
 		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
 		if err != nil {
 			return err
@@ -349,12 +349,14 @@ func TestSubmitCancelJobSet(t *testing.T) {
 				},
 			)
 		}
-		expected.Events = append(
-			expected.Events,
-			&armadaevents.EventSequence_Event{
-				Event: &armadaevents.EventSequence_Event_CancelJobSet{},
-			},
-		)
+		for range res.JobResponseItems {
+			expected.Events = append(
+				expected.Events,
+				&armadaevents.EventSequence_Event{
+					Event: &armadaevents.EventSequence_Event_CancelJob{},
+				},
+			)
+		}
 		for range res.JobResponseItems {
 			expected.Events = append(
 				expected.Events,

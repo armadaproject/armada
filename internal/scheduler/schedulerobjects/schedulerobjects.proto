@@ -138,3 +138,11 @@ message PodRequirements {
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
 }
+
+// Used to store details about pulsar scheduler jobs in Redis
+// Can be removed once we deprecate the legacy scheduler
+message PulsarSchedulerJobDetails  {
+    string JobId = 1;
+    string Queue = 2;
+    string JobSet = 3;
+}

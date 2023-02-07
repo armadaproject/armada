@@ -14,7 +14,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -29,6 +31,7 @@ const (
 	jobClientIdPrefix  = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
 	jobExistsPrefix    = "Job:added"     // {jobId}            - flag to say we've added the job
 	keySeparator       = ":"
+	pulsarJobPrefix    = "PulsarJob:" // {jobId}            - pulsarjob protobuf object
 )
 
 type ErrJobNotFound struct {
@@ -80,6 +83,9 @@ type JobRepository interface {
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
 	GetNumberOfRetryAttempts(jobId string) (int, error)
+	StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
+	GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error)
+	DeletePulsarSchedulerJobDetails(jobId []string) error
 }
 
 type RedisJobRepository struct {
@@ -1015,6 +1021,53 @@ func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, err
 	}
 
 	return retries, nil
+}
+
+func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
+	pipe := repo.db.Pipeline()
+	for _, job := range jobDetails {
+		key := fmt.Sprintf("%s%s", pulsarJobPrefix, job.JobId)
+		jobData, err := proto.Marshal(job)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		pipe.Set(key, jobData, 375*24*time.Hour) // expire after a year
+	}
+	_, err := pipe.Exec()
+	if err != nil {
+		return errors.Wrapf(err, "error storing pulsar job details in redis")
+	}
+	return nil
+}
+
+func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
+	cmd := repo.db.Get(pulsarJobPrefix + jobId)
+
+	bytes, err := cmd.Bytes()
+	if err != nil && err != redis.Nil {
+		return nil, errors.Wrapf(err, "Errror retrieving job details for %s in redis", jobId)
+	}
+	if err == redis.Nil {
+		return nil, nil
+	}
+	details, err := protoutil.Unmarshall(bytes, &schedulerobjects.PulsarSchedulerJobDetails{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Errror unmarshalling job details for %s in redis", jobId)
+	}
+
+	return details, nil
+}
+
+func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string) error {
+	pipe := repo.db.Pipeline()
+	for _, jobId := range jobIds {
+		pipe.Expire(pulsarJobPrefix+jobId, repo.retentionPolicy.JobRetentionDuration)
+	}
+	_, err := pipe.Exec()
+	if err != nil {
+		return errors.Wrap(err, "Error expiring pulsar job details in redis")
+	}
+	return nil
 }
 
 func (repo *RedisJobRepository) leaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {

@@ -16,6 +16,7 @@ type MockPulsarMessage struct {
 	messageId   pulsar.MessageID
 	payload     []byte
 	publishTime time.Time
+	properties  map[string]string
 }
 
 func NewMessageId(id int) pulsar.MessageID {
@@ -56,6 +57,6 @@ func (m MockPulsarMessage) PublishTime() time.Time {
 	return m.publishTime
 }
 
-func (MockPulsarMessage) Properties() map[string]string {
-	return nil
+func (m MockPulsarMessage) Properties() map[string]string {
+	return m.properties
 }
