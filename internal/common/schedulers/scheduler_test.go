@@ -1,10 +1,12 @@
 package schedulers
 
 import (
-	"github.com/armadaproject/armada/internal/common/mocks"
+	"testing"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/armadaproject/armada/internal/common/mocks"
 )
 
 func TestSchedulerFromMsg(t *testing.T) {

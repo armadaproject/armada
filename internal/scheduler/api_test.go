@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/mocks"
 	"testing"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
