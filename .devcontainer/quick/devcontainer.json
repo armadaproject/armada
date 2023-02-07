@@ -12,7 +12,8 @@
     "seccomp=unconfined",
     "--privileged",
     "--init"
-  ]
+  ],
+  "workspaceFolder": "/home/codespace/armada",
   // Add startup commands here.
-  // "postCreateCommand": "uname -a",
+  // postAttachCommand
 }
