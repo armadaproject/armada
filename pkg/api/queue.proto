@@ -10,6 +10,7 @@ import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
+import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
 import "k8s.io/api/networking/v1/generated.proto";
 
@@ -89,15 +90,7 @@ message NodeInfo {
     // All run ids of jobs on the node, mapped to their current state
     // this should be of type armadaevents.uuid, but this creates a circular loop
     // once the old scheduler has gone, we can correct this
-    map<string, JobRunState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
-}
-
-enum JobRunState {
-    JOB_RUN_UNKNOWN = 0;
-    JOB_RUN_PENDING = 1;
-    JOB_RUN_RUNNING= 2;
-    JOB_RUN_SUCCEEDED = 3;
-    JOB_RUN_FAILED = 4;
+    map<string, schedulerobjects.JobRunState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.

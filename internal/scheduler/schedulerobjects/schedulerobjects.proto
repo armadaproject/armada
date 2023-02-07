@@ -55,11 +55,11 @@ message Node {
 }
 
 enum JobRunState {
-    JOB_RUN_UNKNOWN = 0;
-    JOB_RUN_PENDING = 1;
-    JOB_RUN_RUNNING= 2;
-    JOB_RUN_SUCCEEDED = 3;
-    JOB_RUN_FAILED = 4;
+    UNKNOWN = 0;
+    PENDING = 1;
+    RUNNING= 2;
+    SUCCEEDED = 3;
+    FAILED = 4;
 }
 
 // NodeType represents a particular combination of taints and labels.

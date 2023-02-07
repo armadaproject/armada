@@ -5,11 +5,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -18,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/util"
 	. "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -177,11 +176,11 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 // - All the jobs using resource on the node or soon to be using resource (through node-selector)
 // The executor api expects the run ids of:
 // - All the jobs on the node or soon to be using resource (through node-selector) that the executor api hasn't told us to delete
-func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) map[string]api.JobRunState {
+func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) map[string]schedulerobjects.JobRunState {
 	nodeId, nodeIdPresent := node.Labels[clusterUtilisationService.nodeIdLabel]
 	noLongerNeedsReportingFunc := util.IsReportedDone
 
-	result := map[string]api.JobRunState{}
+	result := map[string]schedulerobjects.JobRunState{}
 	for _, pod := range allPodsOnCluster {
 		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
 			continue
@@ -202,18 +201,18 @@ func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *
 	return result
 }
 
-func getJobRunState(pod *v1.Pod) api.JobRunState {
+func getJobRunState(pod *v1.Pod) schedulerobjects.JobRunState {
 	switch {
 	case pod.Status.Phase == v1.PodPending:
-		return api.JobRunState_JOB_RUN_PENDING
+		return schedulerobjects.JobRunState_PENDING
 	case pod.Status.Phase == v1.PodRunning:
-		return api.JobRunState_JOB_RUN_RUNNING
+		return schedulerobjects.JobRunState_RUNNING
 	case pod.Status.Phase == v1.PodSucceeded:
-		return api.JobRunState_JOB_RUN_SUCCEEDED
+		return schedulerobjects.JobRunState_SUCCEEDED
 	case pod.Status.Phase == v1.PodFailed:
-		return api.JobRunState_JOB_RUN_SUCCEEDED
+		return schedulerobjects.JobRunState_FAILED
 	}
-	return api.JobRunState_JOB_RUN_UNKNOWN
+	return schedulerobjects.JobRunState_UNKNOWN
 }
 
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
