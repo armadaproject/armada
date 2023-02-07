@@ -11,7 +11,10 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/pkg/api"
 )
+
+const nodeIdLabel = "node-id"
 
 func TestCreateReportsOfQueueUsages(t *testing.T) {
 	utilisationService := &ClusterUtilisationService{
@@ -302,6 +305,108 @@ func TestGetAllocationByQueueAndPriority_AggregatesResources(t *testing.T) {
 
 	result := GetAllocationByQueueAndPriority(pods)
 	assert.Equal(t, result, expectedResult)
+}
+
+func TestGetRunIdsByNode(t *testing.T) {
+	utilisationService := &ClusterUtilisationService{
+		nodeIdLabel: nodeIdLabel,
+	}
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1", Labels: map[string]string{nodeIdLabel: "node-1-id"}}}
+	node2 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2", Labels: map[string]string{nodeIdLabel: "node-2-id"}}}
+
+	tests := map[string]struct {
+		inputPods      []*v1.Pod
+		legacyIds      bool
+		expectedOutput map[string]map[string]api.JobState
+	}{
+		"MatchesOnNodeName": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-3", "run-3", v1.PodRunning, "node-2", ""),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_RUNNING, "run-2": api.JobState_RUNNING},
+				"node-2": {"run-3": api.JobState_RUNNING},
+			},
+		},
+		"LegacyGivesJobIds": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-2", ""),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"job-1": api.JobState_RUNNING},
+				"node-2": {"job-2": api.JobState_RUNNING},
+			},
+			legacyIds: true,
+		},
+		"HandlesAllPodPhases": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodPending, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-3", "run-3", v1.PodSucceeded, "node-1", ""),
+				createPodOnNode("job-4", "run-4", v1.PodFailed, "node-1", ""),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_PENDING, "run-2": api.JobState_RUNNING, "run-3": api.JobState_SUCCEEDED, "run-4": api.JobState_FAILED},
+			},
+		},
+		"PodWithNodeSelectorTargetingNode": {
+			inputPods: []*v1.Pod{
+				// Node selector matches node-1 label
+				createPodOnNode("job-1", "run-1", v1.PodPending, "", "node-1-id"),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_PENDING},
+			},
+		},
+		"PodWithNodeSelectorTargetingInvalidNode": {
+			inputPods: []*v1.Pod{
+				// Node selector does not match any node
+				createPodOnNode("job-1", "run-1", v1.PodPending, "", "node-3-id"),
+			},
+			// No matches
+			expectedOutput: map[string]map[string]api.JobState{},
+		},
+		"Mixed": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodPending, "", "node-1-id"),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_RUNNING, "run-2": api.JobState_PENDING},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := utilisationService.getRunIdsByNode([]*v1.Node{node1, node2}, tc.inputPods, tc.legacyIds)
+			assert.Equal(t, tc.expectedOutput, result)
+		})
+	}
+}
+
+func createPodOnNode(jobId string, runId string, phase v1.PodPhase, nodeName string, nodeIdSelector string) *v1.Pod {
+	pod := &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: phase,
+		},
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				domain.JobId:    jobId,
+				domain.JobRunId: runId,
+			},
+		},
+	}
+	if nodeIdSelector != "" {
+		pod.Spec.NodeSelector = map[string]string{nodeIdLabel: nodeIdSelector}
+	}
+	return pod
 }
 
 func TestGetAllocationByQueueAndPriority_HandlesEmptyList(t *testing.T) {

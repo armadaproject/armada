@@ -141,6 +141,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
+	runIdsByNode := clusterUtilisationService.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
 	for _, n := range processingNodes {
 		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
@@ -160,7 +161,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			AvailableResources:   available,
 			TotalResources:       allocatable,
 			AllocatedResources:   allocated,
-			RunIdsByState:        clusterUtilisationService.getNodeRunIds(n, allPods, useLegacyIds),
+			RunIdsByState:        runIdsByNode[n.Name],
 		})
 	}
 
@@ -172,12 +173,17 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 
 // This returns all the pods assigned the node or soon to be assigned (via node-selector)
 // The server api expects job ids, the executor api expects run ids - the legacy flag controls which this returns
-func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *v1.Node, allPodsOnCluster []*v1.Pod, legacy bool) map[string]api.JobState {
-	nodeId, nodeIdPresent := node.Labels[clusterUtilisationService.nodeIdLabel]
+func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(nodes []*v1.Node, pods []*v1.Pod, legacy bool) map[string]map[string]api.JobState {
+	nodeIdToNodeName := make(map[string]string, len(nodes))
+	for _, n := range nodes {
+		if nodeId, nodeIdPresent := n.Labels[clusterUtilisationService.nodeIdLabel]; nodeIdPresent {
+			nodeIdToNodeName[nodeId] = n.Name
+		}
+	}
 	noLongerNeedsReportingFunc := util.IsReportedDone
 
-	result := make(map[string]api.JobState)
-	for _, pod := range allPodsOnCluster {
+	result := map[string]map[string]api.JobState{}
+	for _, pod := range pods {
 		// Skip pods that are not armada pods or "complete" from the servers point of view
 		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
 			continue
@@ -188,11 +194,20 @@ func (clusterUtilisationService *ClusterUtilisationService) getNodeRunIds(node *
 			runId = util.ExtractJobId(pod)
 		}
 
-		if pod.Spec.NodeName == node.Name {
-			result[runId] = getJobRunState(pod)
-		} else if pod.Spec.NodeName == "" && nodeIdPresent && nodeSelectorPresent && nodeIdNodeSelector == nodeId {
+		nodeName := pod.Spec.NodeName
+		if nodeName == "" && nodeSelectorPresent {
+			targetedNodeName, present := nodeIdToNodeName[nodeIdNodeSelector]
 			// Not scheduled on a node, but has node selector matching the current node
-			result[runId] = getJobRunState(pod)
+			if present {
+				nodeName = targetedNodeName
+			}
+		}
+
+		if nodeName != "" {
+			if _, present := result[nodeName]; !present {
+				result[nodeName] = map[string]api.JobState{}
+			}
+			result[nodeName][runId] = getJobRunState(pod)
 		}
 	}
 	return result
