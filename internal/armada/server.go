@@ -202,6 +202,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		ProbabilityOdfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
 		Rand:                               util.NewThreadsafeRand(time.Now().UnixNano()),
 		GangIdAnnotation:                   config.Scheduling.GangIdAnnotation,
+		DisableJobSubmitChecks:             config.IgnoreJobSubmitChecks,
 	}
 	submitServerToRegister := pulsarSubmitServer
 

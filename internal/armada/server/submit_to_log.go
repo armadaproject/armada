@@ -61,6 +61,8 @@ type PulsarSubmitServer struct {
 	Rand *rand.Rand
 	// Gang id annotation. Needed because we cannot split a gang across schedulers.
 	GangIdAnnotation string
+	// Temporary flag to stop us rejecting jobs as we switch over to new submit checks
+	IgnoreJobSubmitChecks bool
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
@@ -729,10 +731,12 @@ func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]sche
 	assignedSchedulers := make(map[string]schedulers.Scheduler, len(jobs))
 	for _, group := range groups {
 		schedulableOnLegacyScheduler, legacyMsg := srv.LegacySchedulerSubmitChecker.CheckApiJobs(group)
+		schedulableOnLegacyScheduler = schedulableOnLegacyScheduler || srv.IgnoreJobSubmitChecks
 		schedulableOnPulsarScheduler := false
 		pulsarMsg := ""
 		if srv.PulsarSchedulerEnabled {
 			schedulableOnPulsarScheduler, pulsarMsg = srv.PulsarSchedulerSubmitChecker.CheckApiJobs(group)
+			schedulableOnPulsarScheduler = schedulableOnPulsarScheduler || srv.IgnoreJobSubmitChecks
 		}
 
 		// Not schedulable anywhere!
@@ -785,7 +789,7 @@ func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) [][]*api.Job {
 }
 
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
-// First we check the legacy scheeduler jobs and then (if no job resolved and pulsar scheduler enabled) we check
+// First we check the legacy scheduler jobs and then (if no job resolved and pulsar scheduler enabled) we check
 // the pulsar scheduler jobs.
 // If no job can be retrieved then an error is returned.
 func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {

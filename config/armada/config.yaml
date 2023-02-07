@@ -8,6 +8,7 @@ corsAllowedOrigins:
 cancelJobsBatchSize: 1000
 pulsarSchedulerEnabled: false
 probabilityOfUsingPulsarScheduler: 0
+ignoreJobSubmitChecks: true
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m

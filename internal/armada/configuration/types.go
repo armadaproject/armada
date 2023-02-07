@@ -35,6 +35,7 @@ type ArmadaConfig struct {
 	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
 	EventApi                          EventApiConfig
 	Metrics                           MetricsConfig
+	IgnoreJobSubmitChecks             bool // Temporary flag to stop us rejecting jobs on switch over
 	PulsarSchedulerEnabled            bool
 	ProbabilityOfUsingPulsarScheduler float64
 }
