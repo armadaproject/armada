@@ -20,10 +20,10 @@ import (
 type IssueType int
 
 const (
-	UnableToSchedule  IssueType = iota
-	StuckStartingUp   IssueType = iota
-	StuckTerminating  IssueType = iota
-	ExternallyDeleted IssueType = iota
+	UnableToSchedule IssueType = iota
+	StuckStartingUp
+	StuckTerminating
+	ExternallyDeleted
 )
 
 type podIssue struct {
@@ -192,6 +192,8 @@ func createIssues(managedPods []*v1.Pod, podIssues map[string]*podIssue) []*issu
 		runId := util.ExtractJobRunId(pod)
 		if runId != "" {
 			podsByRunId[runId] = pod
+		} else {
+			log.Warnf("failed to find run id for pod %s", pod.Name)
 		}
 	}
 
