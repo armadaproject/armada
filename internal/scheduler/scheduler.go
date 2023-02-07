@@ -233,6 +233,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		// Scheduler has sent a terminal message therefore we can safely remove the job
 		if dbJob.InTerminalState() {
 			jobsToDelete = append(jobsToDelete, dbJob.JobID)
+			continue
 		}
 
 		// Try and retrieve the job from the jobDb.  If it doesn't exist then create it.
@@ -264,9 +265,9 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 				return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", jobId)
 			}
 
-			// If the job is nil at this point then it cannot be active.
+			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run
-			if job == nil {
+			if job == nil || job.InTerminalState() {
 				log.Debugf("Job %s is not an active job. Ignoring update for run %s", jobId, dbRun.RunID)
 				continue
 			}
@@ -275,7 +276,6 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			jobsToUpdateById[jobId] = job
 		}
 
-		returnProcessed := false
 		run := job.RunById(dbRun.RunID)
 		if run == nil {
 			run = s.createSchedulerRun(&dbRun)
@@ -283,7 +283,6 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			// This will need us to store an order id in the db
 			job.Runs = append(job.Runs, run)
 		} else {
-			returnProcessed = run.Returned
 			// make the scheduler job look like the db job
 			updateSchedulerRun(run, &dbRun)
 		}
