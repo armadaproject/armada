@@ -3,7 +3,7 @@
   "features": {
     "ghcr.io/mpriscella/features/kind:1": {}
   },
-  "postAttachCommand": "cd ./internal/lookout/ui && yarn install && yarn run openapi && yarn run build && cd localdev && ./scripts/kind-start.sh && cd .. && ./localdev/run.sh && cd localdev && docker-compose logs -f --tail=10",
+  "postAttachCommand": "./start.sh",
   "extensions": [
     "golang.go",
     "ms-python.python"
