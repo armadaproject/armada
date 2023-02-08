@@ -14,3 +14,7 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
+prunerConfig:
+  expireAfter: 1008h  # 42 days, 6 weeks
+  timeout: 1h
+  batchSize: 1000
