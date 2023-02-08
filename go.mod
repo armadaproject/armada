@@ -95,6 +95,7 @@ require (
 	github.com/magefile/mage v1.14.0
 	github.com/matryer/moq v0.3.0
 	github.com/openconfig/goyang v1.2.0
+	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
 )
@@ -289,7 +290,6 @@ require (
 	github.com/pganalyze/pg_query_go/v2 v2.2.0 // indirect
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
 	github.com/pingcap/errors v0.11.5-0.20210425183316-da1aaba5fb63 // indirect
-	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354 // indirect
 	github.com/pingcap/tidb/parser v0.0.0-20220725134311-c80026e61f00 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect

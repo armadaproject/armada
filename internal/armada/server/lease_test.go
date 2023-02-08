@@ -205,7 +205,8 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,
-		fakeSchedulingInfoRepository)
+		fakeSchedulingInfoRepository,
+		fakeExecutorRepository{})
 }
 
 type mockJobRepository struct {
@@ -222,6 +223,18 @@ type mockJobRepository struct {
 	jobStartTimeInfos       map[string]*repository.JobStartInfo
 	updateJobStartTimeError error
 	redisError              error
+}
+
+func (repo *mockJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
+	return nil
+}
+
+func (repo *mockJobRepository) GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
+	return nil, nil
+}
+
+func (repo *mockJobRepository) DeletePulsarSchedulerJobDetails(jobId []string) error {
+	return nil
 }
 
 func newMockJobRepository() *mockJobRepository {
@@ -448,5 +461,19 @@ func (repo *fakeSchedulingInfoRepository) GetClusterSchedulingInfo() (map[string
 }
 
 func (repo *fakeSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *api.ClusterSchedulingInfoReport) error {
+	return nil
+}
+
+type fakeExecutorRepository struct{}
+
+func (f fakeExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+	return nil, nil
+}
+
+func (f fakeExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
+	return nil, nil
+}
+
+func (f fakeExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
 	return nil
 }

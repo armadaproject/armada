@@ -33,11 +33,6 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 			}
 			consumer.Ack(msg)
 
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
-			}
-
 			sequence := &armadaevents.EventSequence{}
 			err = proto.Unmarshal(msg.Payload(), sequence)
 			if err != nil {
