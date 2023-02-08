@@ -1756,6 +1756,15 @@ namespace GResearch.Armada.Client
         [System.Runtime.Serialization.EnumMember(Value = @"RUNNING")]
         RUNNING = 2,
     
+        [System.Runtime.Serialization.EnumMember(Value = @"SUCCEEDED")]
+        SUCCEEDED = 3,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"FAILED")]
+        FAILED = 4,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"UNKNOWN")]
+        UNKNOWN = 5,
+    
     }
     
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "10.0.27.0 (Newtonsoft.Json v12.0.0.0)")]

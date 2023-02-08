@@ -9,7 +9,7 @@ func (m *Executor) AllRuns() ([]uuid.UUID, error) {
 	runIds := make([]uuid.UUID, 0)
 	// add all runids from nodes
 	for _, node := range m.Nodes {
-		for _, runIdStr := range node.JobRuns {
+		for runIdStr := range node.JobRunsByState {
 			runId, err := uuid.Parse(runIdStr)
 			if err != nil {
 				return nil, errors.WithStack(err)
