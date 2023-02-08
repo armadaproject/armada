@@ -3,13 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	commonUtil "github.com/armadaproject/armada/internal/common/util"
 	context2 "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -111,7 +109,7 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 }
 
 func (m *JobManager) handlePodIssues(ctx context.Context, allRunningJobs []*job.RunningJob) {
-	ProcessRunningJobsWithThreadPool(ctx, allRunningJobs, 20, m.handlePodIssue)
+	util.ProcessItemsWithThreadPool(ctx, 20, allRunningJobs, m.handlePodIssue)
 }
 
 func (m *JobManager) handlePodIssue(runningJob *job.RunningJob) {
@@ -236,33 +234,4 @@ func hasIssueSelfResolved(runningJob *job.RunningJob) bool {
 	}
 
 	return false
-}
-
-func ProcessRunningJobsWithThreadPool(ctx context.Context, runningJobs []*job.RunningJob, maxThreadCount int, processPod func(*job.RunningJob)) {
-	wg := &sync.WaitGroup{}
-	processChannel := make(chan *job.RunningJob)
-
-	for i := 0; i < commonUtil.Min(len(runningJobs), maxThreadCount); i++ {
-		wg.Add(1)
-		go threadPoolWorker(ctx, wg, processChannel, processPod)
-	}
-
-	for _, runningJob := range runningJobs {
-		processChannel <- runningJob
-	}
-
-	close(processChannel)
-	wg.Wait()
-}
-
-func threadPoolWorker(ctx context.Context, wg *sync.WaitGroup, jobsToProcess chan *job.RunningJob, processFunc func(*job.RunningJob)) {
-	defer wg.Done()
-
-	for pod := range jobsToProcess {
-		// Skip processing once context is finished
-		if ctx.Err() != nil {
-			continue
-		}
-		processFunc(pod)
-	}
 }

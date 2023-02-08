@@ -401,7 +401,7 @@ func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) er
 
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
-	util.ProcessPodsWithThreadPool(pods, c.deleteThreadCount, func(podToDelete *v1.Pod) {
+	util.ProcessItemsWithThreadPool(context.Background(), c.deleteThreadCount, pods, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
 			return
 		}
