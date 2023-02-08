@@ -46,7 +46,7 @@ func Filter[T any](list []T, predicate func(val T) bool) []T {
 	return out
 }
 
-func Concat[T any](slices [][]T) []T {
+func Concat[T any](slices ...[]T) []T {
 	total := 0
 	for _, s := range slices {
 		total += len(s)

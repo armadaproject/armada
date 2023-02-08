@@ -95,12 +95,12 @@ func TestPruneDb(t *testing.T) {
 		{
 			testName:    "expire many jobs",
 			expireAfter: 100 * time.Hour,
-			jobs: util.Concat([][]testJob{
+			jobs: util.Concat(
 				manyJobs(0, 10, baseTime.Add(-300*time.Hour)),
 				manyJobs(10, 20, baseTime.Add(-200*time.Hour)),
-				manyJobs(20, 50, baseTime.Add(-(100*time.Hour + 5*time.Minute))),
+				manyJobs(20, 50, baseTime.Add(-(100*time.Hour+5*time.Minute))),
 				manyJobs(50, 100, baseTime.Add(-99*time.Hour)),
-			}),
+			),
 			jobIdsLeft: sampleJobIds[50:],
 		},
 	}
@@ -111,7 +111,8 @@ func TestPruneDb(t *testing.T) {
 				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{})
 				store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-				ctx := context.TODO()
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
 				for _, tj := range tc.jobs {
 					runId := uuid.NewString()
 					repository.NewJobSimulator(converter, store).
