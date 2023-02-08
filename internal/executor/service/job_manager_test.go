@@ -233,8 +233,9 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 	return &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				domain.JobId: "job-id-1",
-				domain.Queue: "queue-id-1",
+				domain.JobId:    "job-id-1",
+				domain.JobRunId: "job-run-id-1",
+				domain.Queue:    "queue-id-1",
 			},
 			Annotations: map[string]string{
 				domain.JobSetId: "job-set-id-1",

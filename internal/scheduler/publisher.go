@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -82,10 +83,10 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 		}
 		msgs[i] = &pulsar.ProducerMessage{
 			Payload: bytes,
+			Key:     sequences[i].JobSetName,
 			Properties: map[string]string{
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
 			},
-			Key: sequences[i].JobSetName,
 		}
 	}
 
@@ -143,8 +144,8 @@ func (p *PulsarPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID)
 		}
 		msg := &pulsar.ProducerMessage{
 			Properties: map[string]string{
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				explicitPartitionKey:                      fmt.Sprintf("%d", i),
+				explicitPartitionKey:    fmt.Sprintf("%d", i),
+				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
 			},
 			Payload: bytes,
 		}

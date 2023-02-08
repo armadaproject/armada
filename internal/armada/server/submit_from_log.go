@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -94,8 +95,9 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
+			cancel()
 			if errors.Is(err, context.DeadlineExceeded) {
 				break // expected
 			}
@@ -105,6 +107,13 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
 				time.Sleep(100 * time.Millisecond)
+				break
+			}
+
+			// If this message isn't for us we can simply ack it
+			// and go to the next message
+			if !schedulers.ForLegacyScheduler(msg) {
+				srv.Consumer.Ack(msg)
 				break
 			}
 
@@ -351,15 +360,11 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
 ) (bool, error) {
-	// Filter out jobs not indented for this scheduler.
-	// This is the default scheduler, which is indicated by the empty string.
-	schedulerJobs := selectJobsForLegacyScheduler(es)
-
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
-	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), schedulerJobs)
+	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err
 	}

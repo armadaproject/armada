@@ -146,6 +146,9 @@ class JobState(Enum):
     QUEUED = 0
     PENDING = 1
     RUNNING = 2
+    SUCCEEDED = 3
+    FAILED = 4
+    UNKNOWN = 5
 
 '''
 
@@ -153,6 +156,9 @@ expected_jobstates = [
     ("QUEUED", 0),
     ("PENDING", 1),
     ("RUNNING", 2),
+    ("SUCCEEDED", 3),
+    ("FAILED", 4),
+    ("UNKNOWN", 5),
 ]
 
 

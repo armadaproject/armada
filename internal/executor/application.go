@@ -97,7 +97,7 @@ func StartUpWithContext(
 
 	if config.Application.UseExecutorApi {
 		executorApiClient = executorapi.NewExecutorApiClient(conn)
-		eventSender = reporter.NewExecutorApiEventSender(executorApiClient)
+		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
 	} else {
 		usageClient = api.NewUsageClient(conn)
 		queueClient = api.NewAggregatedQueueClient(conn)
@@ -144,20 +144,29 @@ func StartUpWithContext(
 		nodeInfoService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.NodeReservedResources,
 	)
 
 	var clusterAllocationService service.ClusterAllocator
 
 	if config.Application.UseExecutorApi {
-		leaseRequester := service.NewJobLeaseRequester()
+		leaseRequester := service.NewJobLeaseRequester(
+			executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
 		clusterAllocationService = service.NewClusterAllocationService(
 			clusterContext,
 			eventReporter,
 			leaseRequester,
 			clusterUtilisationService,
 			submitter,
+			config.Kubernetes.PodDefaults,
 			etcdHealthMonitor)
+		podIssueService := service.NewPodIssueService(
+			clusterContext,
+			eventReporter,
+			pendingPodChecker,
+			config.Kubernetes.StuckTerminatingPodExpiry)
+		taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
 	} else {
 		jobLeaseService := service.NewJobLeaseService(
 			clusterContext,
