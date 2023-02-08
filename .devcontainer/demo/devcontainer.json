@@ -13,9 +13,5 @@
       "version": "3.9"
     }
   },
-  // Get docker and golang extensions
-  "extensions": [
-    "ms-azuretools.vscode-docker",
-    "golang.go"
-  ],
+  "postAttachCommand": "cd localdev && ./scripts/kind-start.sh && cd .. && ./localdev/run.sh"
 }
