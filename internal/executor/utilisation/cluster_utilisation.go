@@ -139,7 +139,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource.Sub(totalPodResource)
 
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
-	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
+	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
 	runIdsByNode := clusterUtilisationService.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
 	for _, n := range processingNodes {
@@ -150,8 +150,8 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		// if nil, behaviour is same as subtracting 0
 		available.Sub(clusterUtilisationService.nodeReservedResources)
 
-		nodePods := podsByNodes[n.Name]
-		allocated := getAllocatedResourcesByPriority(nodePods)
+		runningNodePods := runningPodsByNode[n.Name]
+		allocated := getAllocatedResourcesByPriority(runningNodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
