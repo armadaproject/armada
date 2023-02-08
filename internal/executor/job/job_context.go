@@ -1,19 +1,19 @@
 package job
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/armadaproject/armada/internal/executor/context"
+	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type IssueType int
@@ -56,7 +56,7 @@ type JobContext interface {
 }
 
 type ClusterJobContext struct {
-	clusterContext            context.ClusterContext
+	clusterContext            executorContext.ClusterContext
 	stuckTerminatingPodExpiry time.Duration
 	pendingPodChecker         podchecks.PodChecker
 	updateThreadCount         int
@@ -66,7 +66,7 @@ type ClusterJobContext struct {
 }
 
 func NewClusterJobContext(
-	clusterContext context.ClusterContext,
+	clusterContext executorContext.ClusterContext,
 	pendingPodChecker podchecks.PodChecker,
 	stuckTerminatingPodExpiry time.Duration,
 	updateThreadCount int,
@@ -119,9 +119,6 @@ func (c *ClusterJobContext) MarkIssueReported(issue *PodIssue) {
 }
 
 func (c *ClusterJobContext) DeleteJobWithCondition(job *RunningJob, condition func(pod *v1.Pod) bool) error {
-	c.activeJobIdsMutex.Lock()
-	defer c.activeJobIdsMutex.Unlock()
-
 	for _, pod := range job.ActivePods {
 		err := c.clusterContext.DeletePodWithCondition(pod, condition, true)
 		if err != nil {
@@ -148,7 +145,7 @@ func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[st
 		}
 	}
 
-	util.ProcessPodsWithThreadPool(podsToAnnotate, c.updateThreadCount,
+	util.ProcessItemsWithThreadPool(context.Background(), c.updateThreadCount, podsToAnnotate,
 		func(pod *v1.Pod) {
 			err := c.clusterContext.AddAnnotation(pod, annotations)
 			if err != nil {

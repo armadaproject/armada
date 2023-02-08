@@ -159,6 +159,12 @@ func StartUpWithContext(
 			clusterUtilisationService,
 			submitter,
 			etcdHealthMonitor)
+		podIssueService := service.NewPodIssueService(
+			clusterContext,
+			eventReporter,
+			pendingPodChecker,
+			config.Kubernetes.StuckTerminatingPodExpiry)
+		taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
 	} else {
 		jobLeaseService := service.NewJobLeaseService(
 			clusterContext,
