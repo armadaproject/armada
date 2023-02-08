@@ -32,6 +32,7 @@ kubernetes:
     minimumAvailable: 2
   QPS: 10000
   Burst: 10000
+  nodeIdLabel: kubernetes.io/hostname
   minimumPodAge: 3m
   failedPodExpiry: 10m
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)

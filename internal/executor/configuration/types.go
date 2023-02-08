@@ -42,6 +42,7 @@ type KubernetesConfiguration struct {
 	QPS                       float32
 	Burst                     int
 	Etcd                      EtcdConfiguration
+	NodeIdLabel               string
 	TrackedNodeLabels         []string
 	AvoidNodeLabelsOnRetry    []string
 	ToleratedTaints           []string
