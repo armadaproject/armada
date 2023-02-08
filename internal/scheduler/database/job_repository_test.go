@@ -333,7 +333,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 		dbRuns         []Run
 		dbJobs         []Job
 		excludedRuns   []uuid.UUID
-		maxRowsToFetch int
+		maxRowsToFetch uint
 		executor       string
 		expectedLeases []*JobRunLease
 	}{

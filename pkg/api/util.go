@@ -3,7 +3,119 @@ package api
 import (
 	"fmt"
 	"strings"
+	time "time"
+
+	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
+	if executor == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "executor",
+			Value:   executor,
+			Message: "executor is empty",
+		})
+	}
+	if nodeInfo.Name == "" {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "nodeInfo.Name",
+			Value:   nodeInfo.Name,
+			Message: "nodeInfo.Name is empty",
+		})
+	}
+	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
+	for p, rs := range nodeInfo.AllocatedResources {
+		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
+	}
+
+	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
+	for jobId, state := range nodeInfo.RunIdsByState {
+		jobRunsByState[jobId] = JobRunStateFromApiJobState(state)
+	}
+	return &schedulerobjects.Node{
+		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		LastSeen:                         lastSeen,
+		Taints:                           nodeInfo.GetTaints(),
+		Labels:                           nodeInfo.GetLabels(),
+		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
+		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
+		JobRunsByState:                   jobRunsByState,
+	}, nil
+}
+
+func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
+	switch s {
+	case JobState_QUEUED:
+		return schedulerobjects.JobRunState_UNKNOWN
+	case JobState_PENDING:
+		return schedulerobjects.JobRunState_PENDING
+	case JobState_RUNNING:
+		return schedulerobjects.JobRunState_RUNNING
+	case JobState_SUCCEEDED:
+		return schedulerobjects.JobRunState_SUCCEEDED
+	case JobState_FAILED:
+		return schedulerobjects.JobRunState_FAILED
+	case JobState_UNKNOWN:
+		return schedulerobjects.JobRunState_UNKNOWN
+	}
+	return schedulerobjects.JobRunState_UNKNOWN
+}
+
+func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {
+	return schedulerobjects.NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
+}
+
+func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+	podSpecs := job.GetAllPodSpecs()
+	if len(podSpecs) == 0 {
+		return nil
+	}
+	objectRequirements := make([]*schedulerobjects.ObjectRequirements, len(podSpecs))
+	for i, podSpec := range podSpecs {
+		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
+			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+				PodRequirements: adapters.PodRequirementsFromPod(&v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: job.Annotations,
+					},
+					Spec: *podSpec,
+				}, priorityClasses),
+			},
+		}
+	}
+	return &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: objectRequirements,
+	}
+}
+
+func (job *Job) GetMainPodSpec() *v1.PodSpec {
+	if job.PodSpec != nil {
+		return job.PodSpec
+	}
+	for _, podSpec := range job.PodSpecs {
+		if podSpec != nil {
+			return podSpec
+		}
+	}
+	return nil
+}
+
+func (job *Job) TotalResourceRequest() armadaresource.ComputeResources {
+	totalResources := make(armadaresource.ComputeResources)
+	for _, podSpec := range job.GetAllPodSpecs() {
+		podResource := armadaresource.TotalPodResourceRequest(podSpec)
+		totalResources.Add(podResource)
+	}
+	return totalResources
+}
 
 func ShortStringFromEventMessages(msgs []*EventMessage) string {
 	var sb strings.Builder

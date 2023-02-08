@@ -17,6 +17,7 @@ import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 
 import "./App.css"
 
@@ -63,6 +64,7 @@ type AppProps = {
   v2JobsTablePrefsService: JobsTablePreferencesService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
+  v2RunErrorService: IGetRunErrorService
   v2UpdateJobsService: UpdateJobsService
   logService: LogService
   overviewAutoRefreshMs: number
@@ -96,6 +98,7 @@ export function App(props: AppProps) {
                         getJobsService={props.v2GetJobsService}
                         groupJobsService={props.v2GroupJobsService}
                         updateJobsService={props.v2UpdateJobsService}
+                        runErrorService={props.v2RunErrorService}
                         debug={props.debugEnabled}
                       />
                     </Route>

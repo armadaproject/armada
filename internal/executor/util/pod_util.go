@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -107,6 +105,22 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 
 func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
+}
+
+func ExtractJobRunIds(pods []*v1.Pod) []string {
+	runIds := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		if runId := ExtractJobRunId(pod); runId != "" {
+			runIds = append(runIds, runId)
+		}
+	}
+
+	return runIds
+}
+
+func ExtractJobRunId(pod *v1.Pod) string {
+	return pod.Labels[domain.JobRunId]
 }
 
 func ExtractPodNumber(pod *v1.Pod) int {
@@ -348,29 +362,4 @@ func GroupByQueue(pods []*v1.Pod) map[string][]*v1.Pod {
 		podsByQueue[queue] = append(podsByQueue[queue], pod)
 	}
 	return podsByQueue
-}
-
-func ProcessPodsWithThreadPool(pods []*v1.Pod, maxThreadCount int, processPod func(*v1.Pod)) {
-	wg := &sync.WaitGroup{}
-	processChannel := make(chan *v1.Pod)
-
-	for i := 0; i < util.Min(len(pods), maxThreadCount); i++ {
-		wg.Add(1)
-		go threadPoolWorker(wg, processChannel, processPod)
-	}
-
-	for _, pod := range pods {
-		processChannel <- pod
-	}
-
-	close(processChannel)
-	wg.Wait()
-}
-
-func threadPoolWorker(wg *sync.WaitGroup, podsToProcess chan *v1.Pod, processPod func(*v1.Pod)) {
-	defer wg.Done()
-
-	for pod := range podsToProcess {
-		processPod(pod)
-	}
 }

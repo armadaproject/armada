@@ -10,6 +10,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type Executor struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastRequest []byte    `db:"last_request"`
+	LastUpdated time.Time `db:"last_updated"`
+}
+
 type Job struct {
 	JobID           string    `db:"job_id"`
 	JobSet          string    `db:"job_set"`
@@ -29,15 +35,15 @@ type Job struct {
 }
 
 type JobRunError struct {
-	RunID        uuid.UUID `db:"run_id"`
-	Error        []byte    `db:"error"`
-	Serial       int64     `db:"serial"`
-	LastModified time.Time `db:"last_modified"`
+	RunID uuid.UUID `db:"run_id"`
+	JobID string    `db:"job_id"`
+	Error []byte    `db:"error"`
 }
 
 type Marker struct {
 	GroupID     uuid.UUID `db:"group_id"`
 	PartitionID int32     `db:"partition_id"`
+	Created     time.Time `db:"created"`
 }
 
 type Queue struct {

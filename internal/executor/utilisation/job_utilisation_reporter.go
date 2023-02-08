@@ -12,7 +12,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 )
 
 type UtilisationEventReporter struct {
@@ -134,11 +133,11 @@ func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) bool {
 		return false
 	}
 	event := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationMax, r.clusterContext.GetClusterId())
-	r.queueEventWithRetry(event, 3)
+	r.queueEventWithRetry(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(info.pod)}, 3)
 	return true
 }
 
-func (r *UtilisationEventReporter) queueEventWithRetry(event api.Event, retry int) {
+func (r *UtilisationEventReporter) queueEventWithRetry(event reporter.EventMessage, retry int) {
 	var callback func(e error)
 	callback = func(e error) {
 		if e != nil {

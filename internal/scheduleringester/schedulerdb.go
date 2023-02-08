@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
@@ -80,23 +81,21 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 				return errors.WithStack(err)
 			}
 		}
-	case MarkJobSetsCancelled:
+	case MarkJobSetsCancelRequested:
 		jobSets := maps.Keys(o)
-		err := queries.MarkJobsCancelledBySets(ctx, jobSets)
+		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		err = queries.MarkJobRunsCancelledBySets(ctx, jobSets)
+	case MarkJobsCancelRequested:
+		jobIds := maps.Keys(o)
+		err := queries.MarkJobsCancelRequestedById(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkJobsCancelled:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsCancelledById(ctx, jobIds)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = queries.MarkJobRunsCancelledByJobId(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -132,7 +131,17 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		}
 	case MarkRunsFailed:
 		runIds := maps.Keys(o)
+		returned := make([]uuid.UUID, 0, len(runIds))
+		for k, v := range o {
+			if v.LeaseReturned {
+				returned = append(returned, k)
+			}
+		}
 		err := queries.MarkJobRunsFailedById(ctx, runIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsReturnedById(ctx, returned)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -142,6 +151,26 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	case InsertJobRunErrors:
+		records := make([]any, len(o))
+		i := 0
+		for _, v := range o {
+			records[i] = *v
+			i++
+		}
+		return database.Upsert(ctx, s.db, "job_run_errors", records)
+	case InsertPartitionMarker:
+		for _, marker := range o.markers {
+			err := queries.InsertMarker(ctx, schedulerdb.InsertMarkerParams{
+				GroupID:     marker.GroupID,
+				PartitionID: marker.PartitionID,
+				Created:     marker.Created,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error inserting partition marker")
+			}
+		}
+		return nil
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

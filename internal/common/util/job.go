@@ -7,6 +7,7 @@ import (
 )
 
 func PodSpecFromJob(job *api.Job) *v1.PodSpec {
+	// TODO: Remove
 	if job.PodSpec != nil {
 		return job.PodSpec
 	}

@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -41,14 +42,13 @@ type PulsarPublisher struct {
 	pulsarSendTimeout time.Duration
 	// Maximum size (in bytes) of produced pulsar messages.
 	// This must be below 4MB which is the pulsar message size limit
-	maxMessageBatchSize int
+	maxMessageBatchSize uint
 }
 
 func NewPulsarPublisher(
 	pulsarClient pulsar.Client,
 	producerOptions pulsar.ProducerOptions,
 	pulsarSendTimeout time.Duration,
-	maxMessageBatchSize int,
 ) (*PulsarPublisher, error) {
 	partitions, err := pulsarClient.TopicPartitions(producerOptions.Topic)
 	if err != nil {
@@ -62,7 +62,7 @@ func NewPulsarPublisher(
 	return &PulsarPublisher{
 		producer:            producer,
 		pulsarSendTimeout:   pulsarSendTimeout,
-		maxMessageBatchSize: maxMessageBatchSize,
+		maxMessageBatchSize: 2 * 1024 * 1024, // max pulsar message size is 4MB, so we use 2MB here to be safe
 		numPartitions:       len(partitions),
 	}, nil
 }
@@ -83,10 +83,10 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 		}
 		msgs[i] = &pulsar.ProducerMessage{
 			Payload: bytes,
+			Key:     sequences[i].JobSetName,
 			Properties: map[string]string{
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
 			},
-			Key: sequences[i].JobSetName,
 		}
 	}
 
@@ -126,14 +126,26 @@ func (p *PulsarPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID)
 			GroupId:   armadaevents.ProtoUuidFromUuid(groupId),
 			Partition: uint32(i),
 		}
-		bytes, err := proto.Marshal(pm)
+		es := &armadaevents.EventSequence{
+			Queue:      "armada-scheduler",
+			JobSetName: "armada-scheduler",
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: now(),
+					Event: &armadaevents.EventSequence_Event_PartitionMarker{
+						PartitionMarker: pm,
+					},
+				},
+			},
+		}
+		bytes, err := proto.Marshal(es)
 		if err != nil {
 			return 0, err
 		}
 		msg := &pulsar.ProducerMessage{
 			Properties: map[string]string{
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
-				explicitPartitionKey:                      fmt.Sprintf("%d", i),
+				explicitPartitionKey:    fmt.Sprintf("%d", i),
+				schedulers.PropertyName: schedulers.PulsarSchedulerAttribute,
 			},
 			Payload: bytes,
 		}
@@ -172,6 +184,11 @@ func createMessageRouter(options pulsar.ProducerOptions) func(*pulsar.ProducerMe
 		}
 		return defaultRouter(msg, md.NumPartitions())
 	}
+}
+
+func now() *time.Time {
+	t := time.Now()
+	return &t
 }
 
 // JavaStringHash is the default hashing algorithm used by Pulsar

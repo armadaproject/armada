@@ -7,6 +7,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -25,10 +26,10 @@ func (es *TestEventStore) ReportEvents(message []*api.EventMessage) error {
 
 type StreamEventStore struct {
 	Producer              pulsar.Producer
-	MaxAllowedMessageSize int
+	MaxAllowedMessageSize uint
 }
 
-func NewEventStore(producer pulsar.Producer, maxAllowedMessageSize int) *StreamEventStore {
+func NewEventStore(producer pulsar.Producer, maxAllowedMessageSize uint) *StreamEventStore {
 	return &StreamEventStore{
 		Producer: producer, MaxAllowedMessageSize: maxAllowedMessageSize,
 	}
@@ -50,9 +51,9 @@ func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
 	}
 
 	sequences = eventutil.CompactEventSequences(sequences)
-	sequences, err = eventutil.LimitSequencesByteSize(sequences, int(n.MaxAllowedMessageSize), true)
+	sequences, err = eventutil.LimitSequencesByteSize(sequences, n.MaxAllowedMessageSize, true)
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences)
+	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences, schedulers.Legacy)
 }

@@ -12,15 +12,11 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-func Run(_ *Configuration) error {
-	// TODO: instantiate scheduler and start cycling
-	return nil
-}
 
 // Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
 // performed:
@@ -40,6 +36,8 @@ type Scheduler struct {
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs
 	leaderController LeaderController
+	// We intern strings to save memory
+	stringInterner *util.StringInterner
 	// Responsible for publishing messages to Pulsar.  Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduling cycles.
@@ -66,6 +64,7 @@ func NewScheduler(
 	schedulingAlgo SchedulingAlgo,
 	leaderController LeaderController,
 	publisher Publisher,
+	stringInterner *util.StringInterner,
 	cyclePeriod time.Duration,
 	executorTimeout time.Duration,
 	maxLeaseReturns uint,
@@ -80,6 +79,7 @@ func NewScheduler(
 		schedulingAlgo:     schedulingAlgo,
 		leaderController:   leaderController,
 		publisher:          publisher,
+		stringInterner:     stringInterner,
 		jobDb:              jobDb,
 		clock:              clock.RealClock{},
 		cyclePeriod:        cyclePeriod,
@@ -186,14 +186,14 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 
 	// Expire any jobs running on clusters that haven't heartbeated within our time limit
-	expirationEvents, err := s.expireJobsIfNecessary(txn)
+	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
 		return err
 	}
 	events = append(events, expirationEvents...)
 
 	// Schedule Jobs
-	scheduledJobs, err := s.schedulingAlgo.Schedule(txn, s.jobDb)
+	scheduledJobs, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		}
 		job = job.DeepCopy()
 		if job == nil {
-			job, err = createSchedulerJob(&dbJob)
+			job, err = s.createSchedulerJob(&dbJob)
 			if err != nil {
 				return nil, err
 			}
@@ -263,21 +263,24 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			if err != nil {
 				return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", jobId)
 			}
+
+			// If the job is nil at this point then it cannot be active.
+			// In this case we can ignore the run
+			if job == nil {
+				log.Debugf("Job %s is not an active job. Ignoring update for run %s", jobId, dbRun.RunID)
+				continue
+			}
+
 			job = job.DeepCopy()
 			jobsToUpdateById[jobId] = job
-		}
-
-		// If the job is nil at this point then it cannot be active.
-		// In this case we can ignore the run
-		if job == nil {
-			log.Debugf("Job %s is not an active job. Ignoring update for run %s", jobId, dbRun.RunID)
-			continue
 		}
 
 		returnProcessed := false
 		run := job.RunById(dbRun.RunID)
 		if run == nil {
-			run = createSchedulerRun(&dbRun)
+			run = s.createSchedulerRun(&dbRun)
+			// TODO: we need to ensure that runs end up in the correct order here
+			// This will need us to store an order id in the db
 			job.Runs = append(job.Runs, run)
 		} else {
 			returnProcessed = run.Returned
@@ -290,8 +293,6 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
 		if !returnProcessed && run.Returned && job.NumReturned() <= s.maxLeaseReturns {
 			job.Queued = true
-			job.Node = ""
-			job.Executor = ""
 			run.Failed = false // unset failed here so that we don't generate a job failed message later
 		}
 	}
@@ -299,11 +300,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	// any jobs that have don't have active run need to be marked as queued
 	for _, job := range jobsToUpdateById {
 		run := job.CurrentRun()
-		if run == nil || run.InTerminalState() {
-			job.Queued = true
-			job.Node = ""
-			job.Executor = ""
-		}
+		job.Queued = run == nil || run.InTerminalState()
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
@@ -343,7 +340,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      armadaevents.ProtoUuidFromUuid(job.CurrentRun().RunID),
 							JobId:      jobId,
-							ExecutorId: job.Executor,
+							ExecutorId: job.CurrentRun().Executor,
 						},
 					},
 				},
@@ -409,7 +406,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 		return nil, err
 	}
 
-	// Has the job been requested cancelled.  If so, cancel the job
+	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested {
 		job.Cancelled = true
 		cancel := &armadaevents.EventSequence_Event{
@@ -463,8 +460,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
-func (s *Scheduler) expireJobsIfNecessary(txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
-	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes()
+func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
+	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -608,24 +605,25 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 				log.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			log.Infof("Recevied %d partitions, still waiting on  %d", numSent, numSent-numReceived)
+			log.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}
 }
 
 // createSchedulerJob creates a new scheduler job from a database job
-func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
+func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
 		return nil, errors.Wrapf(
 			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
+	s.internJobSchedulingInfoStrings(schedulingInfo)
 	return &SchedulerJob{
 		JobId:             dbJob.JobID,
-		Jobset:            dbJob.JobSet,
-		Queue:             dbJob.Queue,
+		Jobset:            s.stringInterner.Intern(dbJob.JobSet),
+		Queue:             s.stringInterner.Intern(dbJob.Queue),
 		Queued:            true,
 		Priority:          uint32(dbJob.Priority),
 		jobSchedulingInfo: schedulingInfo,
@@ -636,15 +634,30 @@ func createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
 }
 
 // createSchedulerRun creates a new scheduler job run from a database job run
-func createSchedulerRun(dbRun *database.Run) *JobRun {
+func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *JobRun {
 	return &JobRun{
 		RunID:     dbRun.RunID,
-		Executor:  dbRun.Executor,
+		Executor:  s.stringInterner.Intern(dbRun.Executor),
 		Running:   dbRun.Running,
 		Succeeded: dbRun.Succeeded,
 		Failed:    dbRun.Failed,
 		Cancelled: dbRun.Cancelled,
 		Returned:  dbRun.Returned,
+	}
+}
+
+func (s *Scheduler) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) {
+	for _, requirement := range info.ObjectRequirements {
+		if podRequirement := requirement.GetPodRequirements(); podRequirement != nil {
+			for k, v := range podRequirement.Annotations {
+				podRequirement.Annotations[s.stringInterner.Intern(k)] = s.stringInterner.Intern(v)
+			}
+
+			for k, v := range podRequirement.NodeSelector {
+				podRequirement.NodeSelector[s.stringInterner.Intern(k)] = s.stringInterner.Intern(v)
+			}
+			podRequirement.PreemptionPolicy = s.stringInterner.Intern(podRequirement.PreemptionPolicy)
+		}
 	}
 }
 

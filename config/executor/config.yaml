@@ -1,13 +1,16 @@
+httpPort: 8080
 application:
   clusterId : "Cluster1"
   pool: "default"
   submitConcurrencyLimit: 2
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
+  useExecutorApi: false
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
   jobLeaseRenewalInterval: 15s
+  podIssueHandlingInterval: 5s
   podDeletionInterval: 5s
   resourceCleanupInterval: 15s
   allocateSpareClusterCapacityInterval: 5s
@@ -15,7 +18,7 @@ task:
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
 apiConnection:
-  armadaUrl : "server:50051"
+  armadaUrl: "server:50051"
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
@@ -29,6 +32,7 @@ kubernetes:
     minimumAvailable: 2
   QPS: 10000
   Burst: 10000
+  nodeIdLabel: kubernetes.io/hostname
   minimumPodAge: 3m
   failedPodExpiry: 10m
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)

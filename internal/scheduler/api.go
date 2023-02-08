@@ -2,6 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"strings"
+
+	"github.com/armadaproject/armada/internal/common/schedulers"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
@@ -9,37 +12,55 @@ import (
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // ExecutorApi is a gRPC service that exposes functionality required by the armada executors
 type ExecutorApi struct {
-	producer             pulsar.Producer
-	jobRepository        database.JobRepository
-	executorRepository   database.ExecutorRepository
-	maxJobsPerCall       int // maximum number of jobs that will be leased in a single call
-	maxPulsarMessageSize int // maximum sizer of pulsar messages produced
+	producer                 pulsar.Producer
+	jobRepository            database.JobRepository
+	executorRepository       database.ExecutorRepository
+	legacyExecutorRepository database.ExecutorRepository
+	allowedPriorities        []int32 // allowed priority classes
+	maxJobsPerCall           uint    // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize     uint    // maximum sizer of pulsar messages produced
+	clock                    clock.Clock
 }
 
 func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
-	maxJobsPerCall int,
-	maxPulsarMessageSize int,
-) *ExecutorApi {
-	return &ExecutorApi{
-		producer:             producer,
-		jobRepository:        jobRepository,
-		executorRepository:   executorRepository,
-		maxJobsPerCall:       maxJobsPerCall,
-		maxPulsarMessageSize: maxPulsarMessageSize,
+	legacyExecutorRepository database.ExecutorRepository,
+	allowedPriorities []int32,
+	maxJobsPerCall uint,
+) (*ExecutorApi, error) {
+	if len(allowedPriorities) == 0 {
+		return nil, errors.New("allowedPriorities cannot be empty")
 	}
+	if maxJobsPerCall == 0 {
+		return nil, errors.New("maxJobsPerCall cannot be 0")
+	}
+
+	return &ExecutorApi{
+		producer:                 producer,
+		jobRepository:            jobRepository,
+		executorRepository:       executorRepository,
+		legacyExecutorRepository: legacyExecutorRepository,
+		allowedPriorities:        allowedPriorities,
+		maxJobsPerCall:           maxJobsPerCall,
+		maxPulsarMessageSize:     1024 * 1024 * 2,
+		clock:                    clock.RealClock{},
+	}, nil
 }
 
 // LeaseJobRuns performs the following actions:
@@ -47,7 +68,8 @@ func NewExecutorApi(producer pulsar.Producer,
 //   - Determines if any of the job runs in the request are no longer active and should be cancelled
 //   - Determines if any new job runs should be leased to the executor
 func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRunsServer) error {
-	log := ctxlogrus.Extract(stream.Context())
+	ctx := stream.Context()
+	log := ctxlogrus.Extract(ctx)
 	// Receive once to get info necessary to get jobs to lease.
 	req, err := stream.Recv()
 	if err != nil {
@@ -56,9 +78,14 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 	log.Infof("Handling lease request for executor %s", req.ExecutorId)
 
-	// store the request so that updated usage can be used for scheduling
-	err = srv.executorRepository.StoreRequest(req)
-	if err != nil {
+	// store the executor state for use by the scheduler
+	executorState := srv.createExecutorState(ctx, req)
+	if err = srv.executorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
+		return err
+	}
+
+	// store the executor state  for the legacy executor to use
+	if err = srv.legacyExecutorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
 		return err
 	}
 
@@ -144,8 +171,34 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 // ReportEvents publishes all events to pulsar. The events are compacted for more efficient publishing
 func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSize)
+	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSize, schedulers.Pulsar)
 	return &types.Empty{}, err
+}
+
+// createExecutorState extracts a schedulerobjects.Executor from the requesrt
+func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
+	log := ctxlogrus.Extract(ctx)
+	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+	for _, nodeInfo := range req.Nodes {
+		node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, srv.clock.Now().UTC())
+		if err != nil {
+			logging.WithStacktrace(log, err).Warnf(
+				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
+			)
+		} else {
+			nodes = append(nodes, node)
+		}
+	}
+	return &schedulerobjects.Executor{
+		Id:             req.ExecutorId,
+		Pool:           req.Pool,
+		Nodes:          nodes,
+		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
+		LastUpdateTime: srv.clock.Now().UTC(),
+		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(x armadaevents.Uuid) string {
+			return strings.ToLower(armadaevents.UuidFromProtoUuid(&x).String())
+		}),
+	}
 }
 
 // extractRunIds extracts all the job runs contained in the executor request
@@ -153,7 +206,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 	runIds := make([]uuid.UUID, 0)
 	// add all runids from nodes
 	for _, node := range req.Nodes {
-		for _, runIdStr := range node.RunIds {
+		for runIdStr := range node.RunIdsByState {
 			runId, err := uuid.Parse(runIdStr)
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -161,7 +214,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	// add all unassigned runids
+	// add all unassigned runidsreq *executorapi.LeaseRequest
 	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
 	}

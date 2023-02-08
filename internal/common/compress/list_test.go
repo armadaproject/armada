@@ -19,3 +19,16 @@ func TestCompressAndDecompressGiveOriginalValue(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, input, decompressedOutput)
 }
+
+func TestMustCompressAndDecompressGiveOriginalValue(t *testing.T) {
+	compressor, err := NewZlibCompressor(0)
+	assert.NoError(t, err)
+	decompressor := NewZlibDecompressor()
+
+	input := []string{"test", "array", "values"}
+
+	compressedInput := MustCompressStringArray(input, compressor)
+	decompressedOutput := MustDecompressStringArray(compressedInput, decompressor)
+	assert.NoError(t, err)
+	assert.Equal(t, input, decompressedOutput)
+}

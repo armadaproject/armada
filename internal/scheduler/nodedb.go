@@ -14,8 +14,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -25,8 +25,6 @@ type NodeDb struct {
 	// In-memory database. Stores *SchedulerNode.
 	// Used to efficiently iterate over nodes in sorted order.
 	db *memdb.MemDB
-	// Time at which the most recent upsert took place.
-	timeOfMostRecentUpsert time.Time
 	// Allowed pod priorities in sorted order.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -120,6 +118,26 @@ func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
 	return nodeDb.db.Txn(write)
 }
 
+// GetNode returns a node in the db with given id.
+func (nodeDb *NodeDb) GetNode(id string) (*schedulerobjects.Node, error) {
+	return nodeDb.GetNodeWithTxn(nodeDb.Txn(false), id)
+}
+
+// GetNodeWithTxn returns a node in the db with given id,
+// within the provided transactions.
+func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*schedulerobjects.Node, error) {
+	it, err := txn.Get("nodes", "id", id)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	obj := it.Next()
+	if node, ok := obj.(*schedulerobjects.Node); !ok {
+		panic(fmt.Sprintf("expected *Node, but got %T", obj))
+	} else {
+		return node, nil
+	}
+}
+
 // ScheduleMany assigns a set of pods to nodes.
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
@@ -207,6 +225,9 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// the largest fraction of available resources.
 	// For efficiency, the scheduler only considers nodes with enough of the dominant resource.
 	dominantResourceType := nodeDb.dominantResource(req)
+	if dominantResourceType == "" {
+		return nil, errors.Errorf("requests include no indexed resource: %v", req.ResourceRequirements.Requests)
+	}
 
 	// Create a report to be returned to the caller.
 	report := &PodSchedulingReport{
@@ -219,18 +240,32 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Iterate over candidate nodes.
-	it, err := NewNodeTypesResourceIterator(
-		txn,
-		dominantResourceType,
-		req.Priority,
-		nodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
-	)
-	if err != nil {
-		return nil, err
+	// If the targetNodeIdAnnocation is set, only the node with that id is considered.
+	// Otherwise, iterate over all nodes with enough of the dominant resource available.
+	var nodeIt memdb.ResultIterator
+	if req.Annotations != nil && TargetNodeIdAnnotation != "" {
+		if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
+			it, err := txn.Get("nodes", "id", nodeId)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			nodeIt = it
+		}
 	}
-
-	for obj := it.Next(); obj != nil; obj = it.Next() {
+	if nodeIt == nil {
+		it, err := NewNodeTypesResourceIterator(
+			txn,
+			dominantResourceType,
+			req.Priority,
+			nodeTypes,
+			req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
+		)
+		if err != nil {
+			return nil, err
+		}
+		nodeIt = it
+	}
+	for obj := nodeIt.Next(); obj != nil; obj = nodeIt.Next() {
 		node := obj.(*schedulerobjects.Node)
 		if node == nil {
 			break
@@ -253,18 +288,50 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 }
 
 func (nodeDb *NodeDb) BindNodeToPod(txn *memdb.Txn, req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
+	jobId, err := nodeDb.JobIdFromPodRequirements(req)
+	if err != nil {
+		return err
+	}
+	if _, ok := node.AllocatedByJobId[jobId]; ok {
+		return errors.Errorf("job %s already has resources allocated on this node", jobId)
+	}
 	node = node.DeepCopy()
+	if node.AllocatedByJobId == nil {
+		node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
+	}
+	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+
+	allocatedToJob := node.AllocatedByJobId[jobId]
+	allocatedToJob.Add(requests)
+	node.AllocatedByJobId[jobId] = allocatedToJob
+
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
-	).MarkAllocated(
-		req.Priority,
-		schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests),
-	)
-	err := txn.Insert("nodes", node)
-	if err != nil {
+	).MarkAllocated(req.Priority, requests)
+
+	if err := txn.Insert("nodes", node); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (nodeDb *NodeDb) JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
+	jobId, ok := req.Annotations[JobIdAnnotation]
+	if !ok {
+		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "req.Annotations",
+			Value:   req.Annotations,
+			Message: fmt.Sprintf("%s annotation missing", JobIdAnnotation),
+		})
+	}
+	if jobId == "" {
+		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "jobId",
+			Value:   jobId,
+			Message: "jobId is empty",
+		})
+	}
+	return jobId, nil
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
@@ -307,7 +374,7 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 			return string(t)
 		}
 
-		f := common.QuantityAsFloat64(q) / common.QuantityAsFloat64(available)
+		f := armadaresource.QuantityAsFloat64(q) / armadaresource.QuantityAsFloat64(available)
 		if f >= dominantResourceFraction {
 			dominantResourceType = string(t)
 			dominantResourceFraction = f
@@ -355,17 +422,8 @@ func (nodeDb *NodeDb) Upsert(nodes []*schedulerobjects.Node) error {
 			return errors.WithStack(err)
 		}
 	}
-	nodeDb.mu.Lock()
-	nodeDb.timeOfMostRecentUpsert = time.Now()
-	nodeDb.mu.Unlock()
 	txn.Commit()
 	return nil
-}
-
-func (nodeDb *NodeDb) TimeOfMostRecentUpsert() time.Time {
-	nodeDb.mu.Lock()
-	defer nodeDb.mu.Unlock()
-	return nodeDb.timeOfMostRecentUpsert
 }
 
 // ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.

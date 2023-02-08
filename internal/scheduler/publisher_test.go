@@ -12,19 +12,17 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
 	topic         = "testTopic"
 	numPartitions = 100
-	messageSize   = 1024 // 1kb
 )
 
 func TestPulsarPublisher_TestPublish(t *testing.T) {
@@ -91,9 +89,11 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
 			ctrl := gomock.NewController(t)
-			mockPulsarClient := schedulermocks.NewMockClient(ctrl)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarClient := mocks.NewMockClient(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			numPublished := 0
@@ -120,8 +120,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 				}).AnyTimes()
 
 			options := pulsar.ProducerOptions{Topic: topic}
-			ctx := context.TODO()
-			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second, messageSize)
+			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second)
 			require.NoError(t, err)
 			err = publisher.PublishMessages(ctx, tc.eventSequences, func() bool { return tc.amLeader })
 
@@ -147,33 +146,33 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 		allPartitions[fmt.Sprintf("%d", i)] = true
 	}
 	tests := map[string]struct {
-		numSucessfulPublishes int
-		expectedError         bool
-		expectedPartitons     map[string]bool
+		numSuccessfulPublishes int
+		expectedError          bool
+		expectedPartitions     map[string]bool
 	}{
 		"Publish successful": {
-			numSucessfulPublishes: math.MaxInt,
-			expectedError:         false,
-			expectedPartitons:     allPartitions,
+			numSuccessfulPublishes: math.MaxInt,
+			expectedError:          false,
+			expectedPartitions:     allPartitions,
 		},
 		"All Publishes fail": {
-			numSucessfulPublishes: 0,
-			expectedError:         true,
+			numSuccessfulPublishes: 0,
+			expectedError:          true,
 		},
 		"Some Publishes fail": {
-			numSucessfulPublishes: 10,
-			expectedError:         true,
+			numSuccessfulPublishes: 10,
+			expectedError:          true,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockPulsarClient := schedulermocks.NewMockClient(ctrl)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarClient := mocks.NewMockClient(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockPulsarClient.EXPECT().CreateProducer(gomock.Any()).Return(mockPulsarProducer, nil).Times(1)
 			mockPulsarClient.EXPECT().TopicPartitions(topic).Return(make([]string, numPartitions), nil)
 			numPublished := 0
-			capturedPartitons := make(map[string]bool)
+			capturedPartitions := make(map[string]bool)
 
 			mockPulsarProducer.
 				EXPECT().
@@ -182,10 +181,9 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 					numPublished++
 					key, ok := msg.Properties[explicitPartitionKey]
 					if ok {
-						capturedPartitons[key] = true
+						capturedPartitions[key] = true
 					}
-					if numPublished > tc.numSucessfulPublishes {
-						log.Info("returning error")
+					if numPublished > tc.numSuccessfulPublishes {
 						return pulsarutils.NewMessageId(numPublished), errors.New("error from mock pulsar producer")
 					}
 					return pulsarutils.NewMessageId(numPublished), nil
@@ -193,7 +191,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 
 			options := pulsar.ProducerOptions{Topic: topic}
 			ctx := context.TODO()
-			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second, messageSize)
+			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second)
 			require.NoError(t, err)
 
 			published, err := publisher.PublishMarkers(ctx, uuid.New())
@@ -207,7 +205,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 
 			if !tc.expectedError {
 				assert.Equal(t, uint32(numPartitions), published)
-				assert.Equal(t, tc.expectedPartitons, capturedPartitons)
+				assert.Equal(t, tc.expectedPartitions, capturedPartitions)
 			}
 		})
 	}

@@ -146,6 +146,9 @@ class JobState(Enum):
     QUEUED = 0
     PENDING = 1
     RUNNING = 2
+    SUCCEEDED = 3
+    FAILED = 4
+    UNKNOWN = 5
 
 '''
 
@@ -153,16 +156,17 @@ expected_jobstates = [
     ("QUEUED", 0),
     ("PENDING", 1),
     ("RUNNING", 2),
+    ("SUCCEEDED", 3),
+    ("FAILED", 4),
+    ("UNKNOWN", 5),
 ]
 
 
 def test_event_states():
-
     assert get_event_states() == expected_event_states
 
 
 def test_union_var():
-
     assert get_all_job_event_classes() == expected_events
 
 
@@ -171,7 +175,6 @@ def test_job_states():
 
 
 def test_file_gen():
-
     import_text, states_text, union_text, jobstates_text = gen_file(
         get_event_states(), get_all_job_event_classes(), get_job_states()
     )

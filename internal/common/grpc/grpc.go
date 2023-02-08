@@ -1,10 +1,12 @@
 package grpc
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -103,6 +105,20 @@ func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 
 		wg.Done()
 	}()
+}
+
+// CreateShutdownHandler returns a function that shuts down the grpcServer when the context is closed.
+// The server is given gracePeriod to perform a graceful showdown and is then forcably stopped if necessary
+func CreateShutdownHandler(ctx context.Context, gracePeriod time.Duration, grpcServer *grpc.Server) func() error {
+	return func() error {
+		<-ctx.Done()
+		go func() {
+			time.Sleep(gracePeriod)
+			grpcServer.Stop()
+		}()
+		grpcServer.GracefulStop()
+		return nil
+	}
 }
 
 // This function is called whenever a gRPC handler panics.

@@ -16,17 +16,17 @@ func TestMerge(t *testing.T) {
 	jobId1 := util.NewULID()
 	jobId2 := util.NewULID()
 	jobId3 := util.NewULID()
-	markJobsCancelled1 := MarkJobsCancelled{jobId1: false, jobId2: false}
-	markJobsCancelled2 := MarkJobsCancelled{jobId2: true, jobId3: true}
+	markJobsCancelled1 := MarkJobsCancelRequested{jobId1: false, jobId2: false}
+	markJobsCancelled2 := MarkJobsCancelRequested{jobId2: true, jobId3: true}
 	ok := markJobsCancelled1.Merge(markJobsCancelled2)
 	assert.True(t, ok)
-	assert.Equal(t, MarkJobsCancelled{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
+	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
 
 	jobId4 := util.NewULID()
 	markJobsSucceeded1 := MarkJobsSucceeded{jobId1: true, jobId4: true}
 	ok = markJobsCancelled1.Merge(markJobsSucceeded1)
 	assert.False(t, ok)
-	assert.Equal(t, MarkJobsCancelled{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
+	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
 }
 
 // Test that db op optimisation
@@ -76,21 +76,21 @@ func TestDbOperationOptimisation(t *testing.T) {
 			UpdateJobPriorities{jobIds[1]: 4},                                         // 4
 			UpdateJobPriorities{jobIds[2]: 5},                                         // 4
 		}},
-		"MarkJobSetsCancelled": {N: 3, Ops: []DbOperation{
+		"MarkJobSetsCancelRequested": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
-			MarkJobSetsCancelled{"set1": true},                                        // 2
+			MarkJobSetsCancelRequested{"set1": true},                                  // 2
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set1"}}, // 3
-			MarkJobSetsCancelled{"set2": true},                                        // 3
+			MarkJobSetsCancelRequested{"set2": true},                                  // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}}, // 3
 		}},
-		"MarkJobSetsCancelled, MarkJobsCancelled": {N: 4, Ops: []DbOperation{
+		"MarkJobSetsCancelRequested, MarkJobsCancelRequested": {N: 4, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}}, // 1
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set1"}}, // 1
-			MarkJobsCancelled{jobIds[0]: true},                                        // 2
-			MarkJobSetsCancelled{"set1": true},                                        // 3
+			MarkJobsCancelRequested{jobIds[0]: true},                                  // 2
+			MarkJobSetsCancelRequested{"set1": true},                                  // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"}}, // 4
-			MarkJobsCancelled{jobIds[1]: true},                                        // 4
-			MarkJobsCancelled{jobIds[2]: true},                                        // 4
+			MarkJobsCancelRequested{jobIds[1]: true},                                  // 4
+			MarkJobsCancelRequested{jobIds[2]: true},                                  // 4
 		}},
 		"MarkJobsSucceeded": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
@@ -106,6 +106,13 @@ func TestDbOperationOptimisation(t *testing.T) {
 			MarkJobsFailed{jobIds[1]: true},                           // 2
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
 		}},
+		"MarkJobsCancelled": {N: 2, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
+			MarkJobsCancelled{jobIds[0]: true},                        // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
+			MarkJobsCancelled{jobIds[1]: true},                        // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
+		}},
 		"MarkRunsSucceeded": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
 			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
@@ -118,10 +125,10 @@ func TestDbOperationOptimisation(t *testing.T) {
 		"MarkRunsFailed": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
 			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			MarkRunsFailed{runIds[0]: true},                                             // 3
+			MarkRunsFailed{runIds[0]: &JobRunFailed{true}},                              // 3
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 3
 			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
-			MarkRunsFailed{runIds[1]: true},                                             // 3
+			MarkRunsFailed{runIds[1]: &JobRunFailed{true}},                              // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
 		"MarkRunsRunning": {N: 3, Ops: []DbOperation{
@@ -132,6 +139,12 @@ func TestDbOperationOptimisation(t *testing.T) {
 			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
 			MarkRunsRunning{runIds[1]: true},                                            // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
+		}},
+		"InsertPartitionMarker": {N: 2, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
+			InsertPartitionMarker{markers: []*schedulerdb.Marker{}},   // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 1
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 1
 		}},
 	}
 	for name, tc := range tests {
@@ -169,7 +182,7 @@ func TestDbOperationOptimisation(t *testing.T) {
 	}
 }
 
-func TestInsertJobCancel(t *testing.T) {
+func TestInsertJobRequestCancel(t *testing.T) {
 	// Submit jobs to two different job sets.
 	var ops []DbOperation
 	expectedCancelledIds := make(map[string]bool)
@@ -184,7 +197,7 @@ func TestInsertJobCancel(t *testing.T) {
 	}
 
 	// Cancel one job set.
-	ops = append(ops, MarkJobSetsCancelled{"set1": true})
+	ops = append(ops, MarkJobSetsCancelRequested{"set1": true})
 
 	// Submit some more jobs to both job sets.
 	for i := 0; i < 2; i++ {
@@ -206,7 +219,7 @@ func TestInsertJobCancel(t *testing.T) {
 	// Check that the mockDb did the right thing.
 	for jobId, job := range expectedDb.Jobs {
 		_, ok := expectedCancelledIds[jobId]
-		if job.Cancelled {
+		if job.CancelRequested {
 			assert.True(t, ok)
 		} else {
 			assert.False(t, ok)
@@ -284,18 +297,18 @@ func (db *mockDb) apply(op DbOperation) error {
 				}
 			}
 		}
-	case MarkJobSetsCancelled:
+	case MarkJobSetsCancelRequested:
 		for jobSet := range o {
 			for _, job := range db.Jobs {
 				if job.JobSet == jobSet {
-					job.Cancelled = true
+					job.CancelRequested = true
 				}
 			}
 		}
-	case MarkJobsCancelled:
+	case MarkJobsCancelRequested:
 		for jobId := range o {
 			if job, ok := db.Jobs[jobId]; ok {
-				job.Cancelled = true
+				job.CancelRequested = true
 			} else {
 				return errors.Errorf("job %s not in db", jobId)
 			}

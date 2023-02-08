@@ -16,8 +16,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // Data to be used in tests
@@ -202,6 +202,9 @@ func TestCycle(t *testing.T) {
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{jobsToSchedule: tc.expectedJobRunLeased, shouldError: tc.scheduleError}
 			publisher := &testPublisher{shouldError: tc.publishError}
+			stringInterner, err := util.NewStringInterner(100)
+			require.NoError(t, err)
+
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
 				heartbeatTime = heartbeatTime.Add(-2 * clusterTimeout)
@@ -215,6 +218,7 @@ func TestCycle(t *testing.T) {
 				schedulingAlgo,
 				NewStandaloneLeaderController(),
 				publisher,
+				stringInterner,
 				1*time.Second,
 				clusterTimeout,
 				maxLeaseReturns)
@@ -336,6 +340,8 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
+	stringInterner, err := util.NewStringInterner(100)
+	require.NoError(t, err)
 
 	sched, err := NewScheduler(
 		&jobRepo,
@@ -343,6 +349,7 @@ func TestRun(t *testing.T) {
 		schedulingAlgo,
 		leaderController,
 		publisher,
+		stringInterner,
 		1*time.Second,
 		1*time.Hour,
 		maxLeaseReturns)
@@ -401,7 +408,7 @@ func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.
 	panic("implement me")
 }
 
-func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults int, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -432,20 +439,19 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
-func (t testExecutorRepository) StoreRequest(req *executorapi.LeaseRequest) error {
-	// TODO implement me
+func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
 	panic("implement me")
 }
 
-func (t testExecutorRepository) GetExecutors() ([]*database.Executor, error) {
-	panic("GetExecutors not implemented yet")
-}
-
-func (t testExecutorRepository) GetLastUpdateTimes() (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
 	return t.updateTimes, nil
+}
+
+func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+	panic("implement me")
 }
 
 type testSchedulingAlgo struct {
@@ -453,7 +459,7 @@ type testSchedulingAlgo struct {
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}

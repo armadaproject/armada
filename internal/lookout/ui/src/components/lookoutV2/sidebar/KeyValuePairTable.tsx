@@ -10,7 +10,7 @@ export interface KeyValuePairTable {
 }
 export const KeyValuePairTable = ({ data }: KeyValuePairTable) => {
   return (
-    <Table sx={{ marginBottom: "1.5em" }} size="small">
+    <Table size="small">
       <TableBody>
         {data.map(({ key, value }) => {
           return (

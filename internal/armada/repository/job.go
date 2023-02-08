@@ -14,7 +14,9 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -29,6 +31,7 @@ const (
 	jobClientIdPrefix  = "job:ClientId:" // {queue}:{clientId} - corresponding jobId
 	jobExistsPrefix    = "Job:added"     // {jobId}            - flag to say we've added the job
 	keySeparator       = ":"
+	pulsarJobPrefix    = "PulsarJob:" // {jobId}            - pulsarjob protobuf object
 )
 
 type ErrJobNotFound struct {
@@ -56,7 +59,10 @@ type JobResult struct {
 
 type JobRepository interface {
 	PeekQueue(queue string, limit int64) ([]*api.Job, error)
-	TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error)
+	// TryLeaseJobs attempts to lease a set of jobs to the executor with the given clusterId.
+	// Takes as argument a map from queue name to slice of job ids to lease from that queue.
+	// Returns a map from queue name to ids of successfully leased jobs for that queue.
+	TryLeaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error)
 	AddJobs(job []*api.Job) ([]*SubmitJobResult, error)
 	GetJobsByIds(ids []string) ([]*JobResult, error)
 	GetExistingJobsByIds(ids []string) ([]*api.Job, error)
@@ -77,6 +83,9 @@ type JobRepository interface {
 	GetQueueActiveJobSets(queue string) ([]*api.JobSetInfo, error)
 	AddRetryAttempt(jobId string) error
 	GetNumberOfRetryAttempts(jobId string) (int, error)
+	StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
+	GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error)
+	DeletePulsarSchedulerJobDetails(jobId []string) error
 }
 
 type RedisJobRepository struct {
@@ -139,17 +148,28 @@ func (repo *RedisJobRepository) AddJobs(jobs []*api.Job) ([]*SubmitJobResult, er
 }
 
 func (repo *RedisJobRepository) RenewLease(clusterId string, jobIds []string) (renewedJobIds []string, e error) {
+	// TODO: If we can pass in the queue, we don't need to load jobs from Redis.
 	jobs, err := repo.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
 	}
-
-	leasedJobs, err := repo.leaseJobs(clusterId, jobs)
+	jobsById := make(map[string]*api.Job, len(jobIds))
+	for _, job := range jobs {
+		jobsById[job.Id] = job
+	}
+	jobIdsByQueue := make(map[string][]string)
+	for _, job := range jobs {
+		jobIdsByQueue[job.Queue] = append(jobIdsByQueue[job.Queue], job.Id)
+	}
+	leasedJobIdsByQueue, err := repo.leaseJobs(clusterId, jobIdsByQueue)
 	if err != nil {
 		return nil, err
 	}
-
-	return leasedJobs, nil
+	leasedJobIds := make([]string, 0, len(jobs))
+	for _, jobIds := range leasedJobIdsByQueue {
+		leasedJobIds = append(leasedJobIds, jobIds...)
+	}
+	return leasedJobIds, nil
 }
 
 func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (returnedJob *api.Job, err error) {
@@ -326,22 +346,12 @@ func (repo *RedisJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job
 
 // TryLeaseJobs attempts to assign jobs to a given cluster and returns a list composed of the jobs
 // that were successfully leased.
-func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	jobById := map[string]*api.Job{}
-	for _, job := range jobs {
-		jobById[job.Id] = job
-	}
-
-	leasedIds, err := repo.leaseJobs(clusterId, jobs)
+func (repo *RedisJobRepository) TryLeaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
+	leasedJobIdsByQueue, err := repo.leaseJobs(clusterId, jobIdsByQueue)
 	if err != nil {
 		return nil, err
 	}
-
-	leasedJobs := make([]*api.Job, 0)
-	for _, id := range leasedIds {
-		leasedJobs = append(leasedJobs, jobById[id])
-	}
-	return leasedJobs, nil
+	return leasedJobIdsByQueue, nil
 }
 
 // GetExistingJobsByIds queries Redis for job details. Missing jobs are omitted, i.e.,
@@ -1013,7 +1023,54 @@ func (repo *RedisJobRepository) GetNumberOfRetryAttempts(jobId string) (int, err
 	return retries, nil
 }
 
-func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]string, error) {
+func (repo *RedisJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
+	pipe := repo.db.Pipeline()
+	for _, job := range jobDetails {
+		key := fmt.Sprintf("%s%s", pulsarJobPrefix, job.JobId)
+		jobData, err := proto.Marshal(job)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		pipe.Set(key, jobData, 375*24*time.Hour) // expire after a year
+	}
+	_, err := pipe.Exec()
+	if err != nil {
+		return errors.Wrapf(err, "error storing pulsar job details in redis")
+	}
+	return nil
+}
+
+func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
+	cmd := repo.db.Get(pulsarJobPrefix + jobId)
+
+	bytes, err := cmd.Bytes()
+	if err != nil && err != redis.Nil {
+		return nil, errors.Wrapf(err, "Errror retrieving job details for %s in redis", jobId)
+	}
+	if err == redis.Nil {
+		return nil, nil
+	}
+	details, err := protoutil.Unmarshall(bytes, &schedulerobjects.PulsarSchedulerJobDetails{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Errror unmarshalling job details for %s in redis", jobId)
+	}
+
+	return details, nil
+}
+
+func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string) error {
+	pipe := repo.db.Pipeline()
+	for _, jobId := range jobIds {
+		pipe.Expire(pulsarJobPrefix+jobId, repo.retentionPolicy.JobRetentionDuration)
+	}
+	_, err := pipe.Exec()
+	if err != nil {
+		return errors.Wrap(err, "Error expiring pulsar job details in redis")
+	}
+	return nil
+}
+
+func (repo *RedisJobRepository) leaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
 	now := time.Now()
 	pipe := repo.db.Pipeline()
 
@@ -1021,30 +1078,37 @@ func (repo *RedisJobRepository) leaseJobs(clusterId string, jobs []*api.Job) ([]
 	// However, calling script.Run() without first calling script.Load() results in a NOSCRIPT error,
 	// perhaps due to a bug in go-redis.
 	leaseJobScript.Load(pipe)
-
 	cmds := make(map[string]*redis.Cmd)
-	for _, job := range jobs {
-		cmds[job.Id] = leaseJob(pipe, job.Queue, clusterId, job.Id, now)
+	for queue, jobIds := range jobIdsByQueue {
+		for _, jobId := range jobIds {
+			cmds[jobId] = leaseJob(pipe, queue, clusterId, jobId, now)
+		}
 	}
 	_, err := pipe.Exec()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	leasedJobs := make([]string, 0)
-	for jobId, cmd := range cmds {
-		value, err := cmd.Int()
-		if err != nil {
-			log.Error(err)
-		} else if value == alreadyAllocatedByDifferentCluster {
-			log.WithField("jobId", jobId).Info("Job Already allocated to different cluster")
-		} else if value == jobCancelled {
-			log.WithField("jobId", jobId).Info("Trying to renew cancelled job")
-		} else {
-			leasedJobs = append(leasedJobs, jobId)
+	leasedJobIdsByQueue := make(map[string][]string, len(jobIdsByQueue))
+	for queue, jobIds := range jobIdsByQueue {
+		for _, jobId := range jobIds {
+			cmd, ok := cmds[jobId]
+			if !ok {
+				continue
+			}
+			value, err := cmd.Int()
+			if err != nil {
+				log.Error(err)
+			} else if value == alreadyAllocatedByDifferentCluster {
+				log.WithField("jobId", jobId).Info("job already allocated to different cluster")
+			} else if value == jobCancelled {
+				log.WithField("jobId", jobId).Info("trying to renew cancelled job")
+			} else {
+				leasedJobIdsByQueue[queue] = append(leasedJobIdsByQueue[queue], jobId)
+			}
 		}
 	}
-	return leasedJobs, nil
+	return leasedJobIdsByQueue, nil
 }
 
 func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {

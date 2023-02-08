@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -49,7 +49,7 @@ func TestUpdateClusterLeased(t *testing.T) {
 }
 
 func makeClusterLeasedReport(clusterId string, queueNames ...string) *api.ClusterLeasedReport {
-	cpuAndMemory := common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
+	cpuAndMemory := armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}
 	queueReports := make([]*api.QueueLeasedReport, 0, len(queueNames))
 	for _, queueName := range queueNames {
 		report := &api.QueueLeasedReport{

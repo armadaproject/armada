@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -16,6 +16,7 @@ type ApplicationConfiguration struct {
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
+	UseExecutorApi         bool
 }
 
 type PodDefaults struct {
@@ -41,6 +42,7 @@ type KubernetesConfiguration struct {
 	QPS                       float32
 	Burst                     int
 	Etcd                      EtcdConfiguration
+	NodeIdLabel               string
 	TrackedNodeLabels         []string
 	AvoidNodeLabelsOnRetry    []string
 	ToleratedTaints           []string
@@ -48,13 +50,13 @@ type KubernetesConfiguration struct {
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
 	MaxTerminatedPods         int
-	MinimumJobSize            common.ComputeResources
+	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
 	// NodeReservedResources config is used to factor in reserved resources on each node
 	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
-	NodeReservedResources common.ComputeResources
+	NodeReservedResources armadaresource.ComputeResources
 	PodKillTimeout        time.Duration
 }
 
@@ -76,6 +78,7 @@ type TaskConfiguration struct {
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
 	AllocateSpareClusterCapacityInterval  time.Duration
+	PodIssueHandlingInterval              time.Duration
 	PodDeletionInterval                   time.Duration
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
@@ -86,9 +89,33 @@ type TaskConfiguration struct {
 type MetricConfiguration struct {
 	Port                    uint16
 	ExposeQueueUsageMetrics bool
+	CustomUsageMetrics      []CustomUsageMetrics
 }
 
+type CustomUsageMetrics struct {
+	Namespace                  string
+	EndpointSelectorLabelName  string
+	EndpointSelectorLabelValue string
+	Metrics                    []CustomUsageMetric
+}
+
+type CustomUsageMetric struct {
+	Name                   string
+	PrometheusMetricName   string
+	PrometheusPodNameLabel string
+	AggregateType          AggregateType
+	Multiplier             float64
+}
+
+type AggregateType string
+
+const (
+	Sum  AggregateType = "Sum"
+	Mean               = "Mean"
+)
+
 type ExecutorConfiguration struct {
+	HttpPort      uint16
 	Metric        MetricConfiguration
 	Application   ApplicationConfiguration
 	ApiConnection client.ApiConnectionDetails

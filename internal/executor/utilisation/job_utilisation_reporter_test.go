@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/common"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -20,11 +20,11 @@ import (
 )
 
 var testPodResources = domain.UtilisationData{
-	CurrentUsage: common.ComputeResources{
+	CurrentUsage: armadaresource.ComputeResources{
 		"cpu":    resource.MustParse("1"),
 		"memory": resource.MustParse("640Ki"),
 	},
-	CumulativeUsage: common.ComputeResources{
+	CumulativeUsage: armadaresource.ComputeResources{
 		"cpu": resource.MustParse("10"),
 	},
 }
@@ -50,11 +50,11 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	}
 
 	assert.True(t, len(fakeEventReporter.ReceivedEvents) >= 2)
-	event1 := fakeEventReporter.ReceivedEvents[0].(*api.JobUtilisationEvent)
-	event2 := fakeEventReporter.ReceivedEvents[1].(*api.JobUtilisationEvent)
+	event1 := fakeEventReporter.ReceivedEvents[0].Event.(*api.JobUtilisationEvent)
+	event2 := fakeEventReporter.ReceivedEvents[1].Event.(*api.JobUtilisationEvent)
 
-	assert.Equal(t, testPodResources.CurrentUsage, common.ComputeResources(event1.MaxResourcesForPeriod))
-	assert.Equal(t, testPodResources.CumulativeUsage, common.ComputeResources(event1.TotalCumulativeUsage))
+	assert.Equal(t, testPodResources.CurrentUsage, armadaresource.ComputeResources(event1.MaxResourcesForPeriod))
+	assert.Equal(t, testPodResources.CumulativeUsage, armadaresource.ComputeResources(event1.TotalCumulativeUsage))
 
 	period := event2.Created.Sub(event1.Created)
 

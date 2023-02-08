@@ -462,7 +462,7 @@ func groupsEqual(g1, g2 []string) bool {
 
 // LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
 // and returns all resulting sequences.
-func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
 		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes, strict)
@@ -476,18 +476,18 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
 // into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
-	headerSize := proto.Size(sequence)
+	headerSize := uint(proto.Size(sequence))
 	sequence.Events = events
 
 	// var currentSequence *armadaevents.EventSequence
 	sequences := make([]*armadaevents.EventSequence, 0, 1)
-	lastSequenceEventSize := 0
+	lastSequenceEventSize := uint(0)
 	for _, event := range sequence.Events {
-		eventSize := proto.Size(event)
+		eventSize := uint(proto.Size(event))
 		if eventSize+headerSize > sizeInBytes && strict {
 			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 				Name:  "sequence",
@@ -602,8 +602,9 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 										ExecutorId:   m.LeaseReturned.ClusterId,
 										KubernetesId: m.LeaseReturned.KubernetesId,
 									},
-									PodNumber: m.LeaseReturned.PodNumber,
-									Message:   m.LeaseReturned.Reason,
+									PodNumber:    m.LeaseReturned.PodNumber,
+									Message:      m.LeaseReturned.Reason,
+									RunAttempted: m.LeaseReturned.RunAttempted,
 								},
 							},
 						},
@@ -793,24 +794,46 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			}
 
 			// Legacy messages encode the reason as an enum, whereas Pulsar uses objects.
-			switch m.Failed.Cause {
+			switch st.Cause {
 			case api.Cause_DeadlineExceeded:
-				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
 			case api.Cause_Error:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Error{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_AppError
 			case api.Cause_Evicted:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_Evicted
 			case api.Cause_OOM:
-				containerError.KubernetesReason = &armadaevents.ContainerError_OutOfMemory_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_OOM
 			default:
-				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-					Name:    "Cause",
-					Value:   m.Failed.Cause,
-					Message: "Unknown cause",
-				})
+				log.Warnf("Unknown cause %s on container %s", st.Cause, st.Name)
 			}
 
 			containerErrors = append(containerErrors, containerError)
+		}
+
+		podError := &armadaevents.PodError{
+			ObjectMeta: &armadaevents.ObjectMeta{
+				ExecutorId:   m.Failed.ClusterId,
+				Namespace:    m.Failed.PodNamespace,
+				Name:         m.Failed.PodName,
+				KubernetesId: m.Failed.KubernetesId,
+			},
+			Message:         m.Failed.Reason,
+			NodeName:        m.Failed.NodeName,
+			PodNumber:       m.Failed.PodNumber,
+			ContainerErrors: containerErrors,
+		}
+
+		switch m.Failed.Cause {
+		case api.Cause_DeadlineExceeded:
+			podError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
+		case api.Cause_Error:
+			podError.KubernetesReason = armadaevents.KubernetesReason_AppError
+		case api.Cause_Evicted:
+			podError.KubernetesReason = armadaevents.KubernetesReason_Evicted
+		case api.Cause_OOM:
+			podError.KubernetesReason = armadaevents.KubernetesReason_OOM
+		default:
+			log.Warnf("Unknown cause %s for job %s", m.Failed.Cause, m.Failed.JobId)
 		}
 
 		// Event indicating the job run failed.
@@ -824,18 +847,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},
@@ -853,18 +865,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},

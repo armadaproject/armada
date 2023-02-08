@@ -47,7 +47,6 @@ def wait_for(client: ArmadaClient, queue, job_set_id=None):
 
     while True:
         try:
-
             # queue active test
             client.get_queue(name=queue)
 
@@ -100,7 +99,6 @@ def get_queue():
 
 @pytest.fixture(scope="session", autouse=True)
 def create_queue(client: ArmadaClient, queue_name):
-
     queue = client.create_queue_request(name=queue_name, priority_factor=1)
     client.create_queue(queue)
     wait_for(client, queue=queue_name)

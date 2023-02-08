@@ -9,12 +9,12 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -37,8 +37,7 @@ func TestJobAddDifferentQueuesCanHaveSameClientId(t *testing.T) {
 func TestJobCanBeLeasedOnlyOnce(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job := addLeasedJob(t, r, "queue1", "cluster1")
-
-		leasedAgain, e := r.TryLeaseJobs("cluster2", "queue1", []*api.Job{job})
+		leasedAgain, e := r.TryLeaseJobs("cluster2", map[string][]string{"queue1": {job.Id}})
 		require.NoError(t, e)
 		assert.Equal(t, 0, len(leasedAgain))
 	})
@@ -613,6 +612,26 @@ func TestRetriesOfDeletedJobShouldBeZero(t *testing.T) {
 	})
 }
 
+func TestStoreAndGetPulsarSchedulerJobDetails(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		details := &schedulerobjects.PulsarSchedulerJobDetails{
+			JobId:  util.NewULID(),
+			Queue:  "testQueue",
+			JobSet: "testJobset",
+		}
+		err := r.StorePulsarSchedulerJobDetails([]*schedulerobjects.PulsarSchedulerJobDetails{details})
+		require.NoError(t, err)
+
+		retrievedDetails, err := r.GetPulsarSchedulerJobDetails(details.JobId)
+		require.NoError(t, err)
+		assert.Equal(t, details, retrievedDetails)
+
+		nonExistantDetails, err := r.GetPulsarSchedulerJobDetails("not a valid details key")
+		require.NoError(t, err)
+		assert.Nil(t, nonExistantDetails)
+	})
+}
+
 func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
@@ -620,18 +639,18 @@ func TestUpdateJobs_SingleJobThatExists_ChangesJob(t *testing.T) {
 		newSchedName := "custom"
 
 		results, err := r.UpdateJobs([]string{job1.Id}, func(jobs []*api.Job) {
-			assert.Equal(t, 1, len(jobs))
+			require.Equal(t, 1, len(jobs))
 			jobs[0].PodSpec.SchedulerName = newSchedName
 		})
 		require.NoError(t, err)
 
-		assert.Equal(t, 1, len(results))
+		require.Equal(t, 1, len(results))
 		assert.Nil(t, results[0].Error)
 		assert.Equal(t, job1.Id, results[0].JobId)
 
 		reloadedJobs, err := r.GetExistingJobsByIds([]string{job1.Id})
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(reloadedJobs))
+		require.Equal(t, 1, len(reloadedJobs))
 		assert.Equal(t, newSchedName, reloadedJobs[0].PodSpec.SchedulerName)
 		assert.Equal(t, results[0].Job, reloadedJobs[0])
 	})
@@ -803,10 +822,11 @@ func whenOneOfThreeJobsIsMissing_SkipsMissingJob_OtherChangesSucceed(t *testing.
 
 func addLeasedJob(t *testing.T, r *RedisJobRepository, queue string, cluster string) *api.Job {
 	job := addTestJob(t, r, queue)
-	leased, e := r.TryLeaseJobs(cluster, queue, []*api.Job{job})
+	leased, e := r.TryLeaseJobs(cluster, map[string][]string{queue: {job.Id}})
 	assert.Nil(t, e)
-	assert.Equal(t, 1, len(leased))
-	assert.Equal(t, job.Id, leased[0].Id)
+	s, ok := leased[queue]
+	require.True(t, ok)
+	assert.Equal(t, []string{job.Id}, s)
 	return job
 }
 
