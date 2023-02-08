@@ -144,6 +144,7 @@ func StartUpWithContext(
 		nodeInfoService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.NodeReservedResources,
 	)
 

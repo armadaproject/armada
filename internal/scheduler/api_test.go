@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -37,8 +38,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool:       "test-pool",
 		Nodes: []*api.NodeInfo{
 			{
-				Name:   "test-node",
-				RunIds: []string{runId1.String(), runId2.String()},
+				Name: "test-node",
+				RunIdsByState: map[string]api.JobState{
+					runId1.String(): api.JobState_RUNNING,
+					runId2.String(): api.JobState_RUNNING,
+				},
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
@@ -50,7 +54,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			{
 				Id:             "test-executor-test-node",
 				TotalResources: schedulerobjects.ResourceList{},
-				JobRuns:        []string{runId1.String(), runId2.String()},
+				JobRunsByState: map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 					1000: {
 						Resources: map[string]resource.Quantity{},
@@ -123,9 +127,10 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
 			runIds, err := extractRunIds(tc.request)
@@ -138,7 +143,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), runIds).Return(tc.runsToCancel, nil).Times(1)
+			mockLegacyExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+				assert.Equal(t, tc.expectedExecutor, executor)
+				return nil
+			}).Times(1)
+			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher[uuid.UUID]{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
 
 			// capture all sent messages
@@ -152,6 +161,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
+				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				maxJobsPerCall,
 			)
@@ -201,9 +211,10 @@ func TestExecutorApi_Publish(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
-			mockPulsarProducer := schedulermocks.NewMockProducer(ctrl)
+			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
 			mockExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 
 			// capture all sent messages
 			var capturedEvents []*armadaevents.EventSequence
@@ -222,6 +233,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockPulsarProducer,
 				mockJobRepository,
 				mockExecutorRepository,
+				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				100,
 			)

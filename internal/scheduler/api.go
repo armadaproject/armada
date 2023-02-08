@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/armadaproject/armada/internal/common/schedulers"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -25,18 +27,20 @@ import (
 
 // ExecutorApi is a gRPC service that exposes functionality required by the armada executors
 type ExecutorApi struct {
-	producer             pulsar.Producer
-	jobRepository        database.JobRepository
-	executorRepository   database.ExecutorRepository
-	allowedPriorities    []int32 // allowed priority classes
-	maxJobsPerCall       uint    // maximum number of jobs that will be leased in a single call
-	maxPulsarMessageSize uint    // maximum sizer of pulsar messages produced
-	clock                clock.Clock
+	producer                 pulsar.Producer
+	jobRepository            database.JobRepository
+	executorRepository       database.ExecutorRepository
+	legacyExecutorRepository database.ExecutorRepository
+	allowedPriorities        []int32 // allowed priority classes
+	maxJobsPerCall           uint    // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize     uint    // maximum sizer of pulsar messages produced
+	clock                    clock.Clock
 }
 
 func NewExecutorApi(producer pulsar.Producer,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
+	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall uint,
 ) (*ExecutorApi, error) {
@@ -48,13 +52,14 @@ func NewExecutorApi(producer pulsar.Producer,
 	}
 
 	return &ExecutorApi{
-		producer:             producer,
-		jobRepository:        jobRepository,
-		executorRepository:   executorRepository,
-		allowedPriorities:    allowedPriorities,
-		maxJobsPerCall:       maxJobsPerCall,
-		maxPulsarMessageSize: 1024 * 1024 * 2,
-		clock:                clock.RealClock{},
+		producer:                 producer,
+		jobRepository:            jobRepository,
+		executorRepository:       executorRepository,
+		legacyExecutorRepository: legacyExecutorRepository,
+		allowedPriorities:        allowedPriorities,
+		maxJobsPerCall:           maxJobsPerCall,
+		maxPulsarMessageSize:     1024 * 1024 * 2,
+		clock:                    clock.RealClock{},
 	}, nil
 }
 
@@ -76,6 +81,11 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	// store the executor state for use by the scheduler
 	executorState := srv.createExecutorState(ctx, req)
 	if err = srv.executorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
+		return err
+	}
+
+	// store the executor state  for the legacy executor to use
+	if err = srv.legacyExecutorRepository.StoreExecutor(stream.Context(), executorState); err != nil {
 		return err
 	}
 
@@ -161,7 +171,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 // ReportEvents publishes all events to pulsar. The events are compacted for more efficient publishing
 func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
-	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSize)
+	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSize, schedulers.Pulsar)
 	return &types.Empty{}, err
 }
 
@@ -196,7 +206,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 	runIds := make([]uuid.UUID, 0)
 	// add all runids from nodes
 	for _, node := range req.Nodes {
-		for _, runIdStr := range node.RunIds {
+		for runIdStr := range node.RunIdsByState {
 			runId, err := uuid.Parse(runIdStr)
 			if err != nil {
 				return nil, errors.WithStack(err)
