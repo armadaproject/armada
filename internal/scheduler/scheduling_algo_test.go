@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -194,6 +193,10 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 	allocatableCpu := resource.MustParse("2")
 	(&allocatableCpu).Sub(usedCpu)
 	id := uuid.NewString()
+	jobRunsByState := make(map[string]schedulerobjects.JobRunState, len(jobs))
+	for _, job := range jobs {
+		jobRunsByState[job.Runs[0].RunID.String()] = schedulerobjects.JobRunState_RUNNING
+	}
 	return &schedulerobjects.Node{
 		Id: id,
 		TotalResources: schedulerobjects.ResourceList{
@@ -214,9 +217,7 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 				},
 			},
 		),
-		JobRuns: slices.Map(jobs, func(j *SchedulerJob) string {
-			return j.Runs[0].RunID.String()
-		}),
+		JobRunsByState: jobRunsByState,
 	}
 }
 

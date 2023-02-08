@@ -41,6 +41,11 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	for p, rs := range nodeInfo.AllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
+
+	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
+	for jobId, state := range nodeInfo.RunIdsByState {
+		jobRunsByState[jobId] = JobRunStateFromApiJobState(state)
+	}
 	return &schedulerobjects.Node{
 		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
 		Name:                             nodeInfo.Name,
@@ -49,8 +54,26 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
-		JobRuns:                          nodeInfo.RunIds,
+		JobRunsByState:                   jobRunsByState,
 	}, nil
+}
+
+func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
+	switch s {
+	case JobState_QUEUED:
+		return schedulerobjects.JobRunState_UNKNOWN
+	case JobState_PENDING:
+		return schedulerobjects.JobRunState_PENDING
+	case JobState_RUNNING:
+		return schedulerobjects.JobRunState_RUNNING
+	case JobState_SUCCEEDED:
+		return schedulerobjects.JobRunState_SUCCEEDED
+	case JobState_FAILED:
+		return schedulerobjects.JobRunState_FAILED
+	case JobState_UNKNOWN:
+		return schedulerobjects.JobRunState_UNKNOWN
+	}
+	return schedulerobjects.JobRunState_UNKNOWN
 }
 
 func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {

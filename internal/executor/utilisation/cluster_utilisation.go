@@ -5,11 +5,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -32,6 +30,7 @@ type ClusterUtilisationService struct {
 	nodeInfoService         node.NodeInfoService
 	usageClient             api.UsageClient
 	trackedNodeLabels       []string
+	nodeIdLabel             string
 	nodeReservedResources   armadaresource.ComputeResources
 }
 
@@ -41,6 +40,7 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	nodeIdLabel string,
 	nodeReservedResources armadaresource.ComputeResources,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
@@ -49,6 +49,7 @@ func NewClusterUtilisationService(
 		nodeInfoService:         nodeInfoService,
 		usageClient:             usageClient,
 		trackedNodeLabels:       trackedNodeLabels,
+		nodeIdLabel:             nodeIdLabel,
 		nodeReservedResources:   nodeReservedResources,
 	}
 }
@@ -140,6 +141,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
+	runIdsByNode := clusterUtilisationService.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
 	for _, n := range processingNodes {
 		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
@@ -159,7 +161,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 			AvailableResources:   available,
 			TotalResources:       allocatable,
 			AllocatedResources:   allocated,
-			RunIds:               getRunIds(nodePods, useLegacyIds),
+			RunIdsByState:        runIdsByNode[n.Name],
 		})
 	}
 
@@ -169,13 +171,60 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}, nil
 }
 
-// This is required until we transition to the Executor API
-// The server api expects job ids whereas the executor api expects run ids
-func getRunIds(pods []*v1.Pod, useLegacyIds bool) []string {
-	if useLegacyIds {
-		util.ExtractJobIds(pods)
+// This returns all the pods assigned the node or soon to be assigned (via node-selector)
+// The server api expects job ids, the executor api expects run ids - the legacy flag controls which this returns
+func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(nodes []*v1.Node, pods []*v1.Pod, legacy bool) map[string]map[string]api.JobState {
+	nodeIdToNodeName := make(map[string]string, len(nodes))
+	for _, n := range nodes {
+		if nodeId, nodeIdPresent := n.Labels[clusterUtilisationService.nodeIdLabel]; nodeIdPresent {
+			nodeIdToNodeName[nodeId] = n.Name
+		}
 	}
-	return util.ExtractJobRunIds(pods)
+	noLongerNeedsReportingFunc := util.IsReportedDone
+
+	result := map[string]map[string]api.JobState{}
+	for _, pod := range pods {
+		// Skip pods that are not armada pods or "complete" from the servers point of view
+		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
+			continue
+		}
+		nodeIdNodeSelector, nodeSelectorPresent := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]
+		runId := util.ExtractJobRunId(pod)
+		if legacy {
+			runId = util.ExtractJobId(pod)
+		}
+
+		nodeName := pod.Spec.NodeName
+		if nodeName == "" && nodeSelectorPresent {
+			targetedNodeName, present := nodeIdToNodeName[nodeIdNodeSelector]
+			// Not scheduled on a node, but has node selector matching the current node
+			if present {
+				nodeName = targetedNodeName
+			}
+		}
+
+		if nodeName != "" {
+			if _, present := result[nodeName]; !present {
+				result[nodeName] = map[string]api.JobState{}
+			}
+			result[nodeName][runId] = getJobRunState(pod)
+		}
+	}
+	return result
+}
+
+func getJobRunState(pod *v1.Pod) api.JobState {
+	switch {
+	case pod.Status.Phase == v1.PodPending:
+		return api.JobState_PENDING
+	case pod.Status.Phase == v1.PodRunning:
+		return api.JobState_RUNNING
+	case pod.Status.Phase == v1.PodSucceeded:
+		return api.JobState_SUCCEEDED
+	case pod.Status.Phase == v1.PodFailed:
+		return api.JobState_FAILED
+	}
+	return api.JobState_UNKNOWN
 }
 
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {

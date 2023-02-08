@@ -87,6 +87,9 @@ enum JobState {
     QUEUED = 0;
     PENDING = 1;
     RUNNING = 2;
+    SUCCEEDED = 3;
+    FAILED = 4;    
+    UNKNOWN = 5;
 }
 
 // swagger:model

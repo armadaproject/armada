@@ -49,13 +49,21 @@ message Node {
     // E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
     // where available resources = unused resources + resources assigned to lower-priority jobs.
     map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false];
-    // Ids of the jobs runs currently assigned to this node.
-    repeated string job_runs = 9;
+    // Ids of the job runs currently assigned to this node and their current state.
+    map<string, JobRunState> job_runs_by_state = 9;
     // Resource allocated to jobs on this node.
     // TODO: Reconcile with job_runs.
     map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
     // Resource allocated to queues on this node.
     map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
+}
+
+enum JobRunState {
+    UNKNOWN = 0;
+    PENDING = 1;
+    RUNNING= 2;
+    SUCCEEDED = 3;
+    FAILED = 4;
 }
 
 // NodeType represents a particular combination of taints and labels.
