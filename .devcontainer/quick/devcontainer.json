@@ -4,7 +4,7 @@
   "image": "sharp6292/quick-armada-image",
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   // "forwardPorts": [],
-  "workspaceFolder": "/home/codespace/armada",
+  "workspaceFolder": "/home/vscode/armada",
   // https://github.com/microsoft/vscode-dev-containers/tree/main/containers/docker-from-docker
   "runArgs": [
     "--init"
