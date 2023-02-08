@@ -3,16 +3,21 @@ package schedulermocks
 import (
 	"sort"
 	"strings"
-
-	"github.com/google/uuid"
 )
 
-type UuidSliceMatcher struct {
-	Expected []uuid.UUID
+type Stringer interface {
+	String() string
 }
 
-func (s UuidSliceMatcher) Matches(x interface{}) bool {
-	inputs, ok := x.([]uuid.UUID)
+type SliceMatcher[T Stringer] struct {
+	Expected []T
+}
+
+// Matches
+// Matches input against provided expected input
+// This matching ignores the input ordering, so args don't need to be passed in a known order
+func (s SliceMatcher[T]) Matches(x interface{}) bool {
+	inputs, ok := x.([]T)
 	if !ok {
 		return false
 	}
@@ -35,6 +40,6 @@ func (s UuidSliceMatcher) Matches(x interface{}) bool {
 }
 
 // String describes what the matcher matches.
-func (s UuidSliceMatcher) String() string {
+func (s SliceMatcher[T]) String() string {
 	return "checks provided matches expected uuid list"
 }

@@ -147,7 +147,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.UuidSliceMatcher{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
+			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher[uuid.UUID]{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
 
 			// capture all sent messages
