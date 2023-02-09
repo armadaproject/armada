@@ -394,7 +394,6 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*S
 // generateUpdateMessages generates EventSequence representing the state change on a single jobs
 // If there are no state changes then nil will be returned
 func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors) (*armadaevents.EventSequence, error) {
-
 	// Is the job already in a terminal state?  If so then don't send any more messages
 	if job.InTerminalState() {
 		return nil, nil
