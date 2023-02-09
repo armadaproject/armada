@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"sync"
 	"testing"
 	"time"
@@ -23,18 +24,27 @@ import (
 // Data to be used in tests
 const maxLeaseReturns = 1
 
+var schedulingInfo = &schedulerobjects.JobSchedulingInfo{AtMostOnce: true}
+var schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
+
 var queuedJob = SchedulerJob{
-	JobId:  util.NewULID(),
-	Queue:  "testQueue",
-	Jobset: "testJobset",
-	Queued: true,
+	JobId:             util.NewULID(),
+	Queue:             "testQueue",
+	Jobset:            "testJobset",
+	Priority:          10,
+	Timestamp:         100,
+	Queued:            true,
+	jobSchedulingInfo: schedulingInfo,
+	Runs:              []*JobRun{},
 }
 
 var leasedJob = SchedulerJob{
-	JobId:  util.NewULID(),
-	Queue:  "testQueue",
-	Jobset: "testJobset",
-	Queued: false,
+	JobId:     util.NewULID(),
+	Queue:     "testQueue",
+	Jobset:    "testJobset",
+	Queued:    false,
+	Priority:  10,
+	Timestamp: 100,
 	Runs: []*JobRun{
 		{
 			RunID:    uuid.New(),
@@ -44,7 +54,7 @@ var leasedJob = SchedulerJob{
 }
 
 // Test a single scheduler cycle
-func TestCycle(t *testing.T) {
+func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
 		initialJobs          []*SchedulerJob // jobs in the jobdb at the start of the cycle
 		jobUpdates           []database.Job  // job updates from the database
@@ -392,6 +402,175 @@ func TestRun(t *testing.T) {
 	assert.Equal(t, 1, len(publisher.events))
 
 	cancel()
+}
+
+func TestScheduler_TestSyncState(t *testing.T) {
+
+	tests := map[string]struct {
+		initialJobs         []*SchedulerJob // jobs in the jobdb at the start of the cycle
+		jobUpdates          []database.Job  // job updates from the database
+		runUpdates          []database.Run  // run updates from the database
+		expectedUpdatedJobs []*SchedulerJob
+		expectedJobDbIds    []string
+	}{
+		"insert job": {
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJob.JobId,
+					JobSet:         queuedJob.Jobset,
+					Queue:          queuedJob.Queue,
+					Submitted:      queuedJob.Timestamp,
+					Priority:       int64(queuedJob.Priority),
+					SchedulingInfo: schedulingInfoBytes,
+					Serial:         1,
+				},
+			},
+			expectedUpdatedJobs: []*SchedulerJob{&queuedJob},
+			expectedJobDbIds:    []string{queuedJob.JobId},
+		},
+		"insert job that already exists": {
+			initialJobs: []*SchedulerJob{&queuedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJob.JobId,
+					JobSet:         queuedJob.Jobset,
+					Queue:          queuedJob.Queue,
+					Submitted:      queuedJob.Timestamp,
+					Priority:       int64(queuedJob.Priority),
+					SchedulingInfo: schedulingInfoBytes,
+					Serial:         1,
+				},
+			},
+			expectedUpdatedJobs: []*SchedulerJob{&queuedJob},
+			expectedJobDbIds:    []string{queuedJob.JobId},
+		},
+		"add job run": {
+			initialJobs: []*SchedulerJob{&queuedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:    uuid.UUID{},
+					JobID:    queuedJob.JobId,
+					JobSet:   queuedJob.Jobset,
+					Executor: "test-executor",
+				},
+			},
+			expectedUpdatedJobs: []*SchedulerJob{
+				{
+					JobId:             queuedJob.JobId,
+					Queue:             queuedJob.Queue,
+					Jobset:            queuedJob.Jobset,
+					Priority:          queuedJob.Priority,
+					Timestamp:         queuedJob.Timestamp,
+					Queued:            false,
+					jobSchedulingInfo: schedulingInfo,
+					Runs: []*JobRun{
+						{
+							Executor: "test-executor",
+						},
+					},
+				},
+			},
+			expectedJobDbIds: []string{queuedJob.JobId},
+		},
+		"job succeeded": {
+			initialJobs: []*SchedulerJob{&queuedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJob.JobId,
+					JobSet:         queuedJob.Jobset,
+					Queue:          queuedJob.Queue,
+					Submitted:      queuedJob.Timestamp,
+					Priority:       int64(queuedJob.Priority),
+					SchedulingInfo: schedulingInfoBytes,
+					Succeeded:      true,
+					Serial:         1,
+				},
+			},
+			expectedUpdatedJobs: []*SchedulerJob{},
+			expectedJobDbIds:    []string{},
+		},
+		"lease returned": {
+			initialJobs: []*SchedulerJob{&leasedJob},
+			runUpdates: []database.Run{
+				{
+					JobID:    leasedJob.JobId,
+					JobSet:   leasedJob.Jobset,
+					RunID:    leasedJob.CurrentRun().RunID,
+					Failed:   true,
+					Returned: true,
+				},
+			},
+			expectedUpdatedJobs: []*SchedulerJob{
+				{
+					JobId:     leasedJob.JobId,
+					Queue:     leasedJob.Queue,
+					Jobset:    leasedJob.Jobset,
+					Queued:    true, // should be queued
+					Priority:  leasedJob.Priority,
+					Timestamp: leasedJob.Timestamp,
+					Runs: []*JobRun{
+						{
+							RunID:    leasedJob.CurrentRun().RunID,
+							Executor: leasedJob.CurrentRun().Executor,
+							Returned: true,
+						},
+					},
+				},
+			},
+			expectedJobDbIds: []string{leasedJob.JobId},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Test objects
+			// Test objects
+			jobRepo := &testJobRepository{
+				updatedJobs: tc.jobUpdates,
+				updatedRuns: tc.runUpdates,
+			}
+			schedulingAlgo := &testSchedulingAlgo{}
+			publisher := &testPublisher{}
+			clusterRepo := &testExecutorRepository{}
+			leaderController := NewStandaloneLeaderController()
+			stringInterner, err := util.NewStringInterner(100)
+			require.NoError(t, err)
+
+			sched, err := NewScheduler(
+				jobRepo,
+				clusterRepo,
+				schedulingAlgo,
+				leaderController,
+				publisher,
+				stringInterner,
+				1*time.Second,
+				1*time.Hour,
+				maxLeaseReturns)
+			require.NoError(t, err)
+
+			// insert initial jobs
+			txn := sched.jobDb.WriteTxn()
+			err = sched.jobDb.Upsert(txn, tc.initialJobs)
+			require.NoError(t, err)
+			txn.Commit()
+
+			updatedJobs, err := sched.syncState(ctx)
+
+			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
+			allDbJobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
+			require.NoError(t, err)
+
+			expectedIds := stringSet(tc.expectedJobDbIds)
+			require.Equal(t, len(tc.expectedJobDbIds), len(allDbJobs))
+			for _, job := range allDbJobs {
+				_, ok := expectedIds[job.JobId]
+				assert.True(t, ok)
+			}
+		})
+	}
 }
 
 // Test implementations of the interfaces needed by the Scheduler

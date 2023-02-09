@@ -179,12 +179,6 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		return err
 	}
 
-	// Remove any jobs that have moved into a terminal state as a result of the above actions
-	err = s.removeTerminalJobs(txn, updatedJobs)
-	if err != nil {
-		return err
-	}
-
 	// Expire any jobs running on clusters that haven't heartbeated within our time limit
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
@@ -286,20 +280,22 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			// make the scheduler job look like the db job
 			updateSchedulerRun(run, &dbRun)
 		}
-
-		// work out if the job needs to be re-queued.  This is a bit awkward as the old scheduler
-		// didn't send an explicit queued message here which means we have to infer it. For now, we
-		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
-		if !returnProcessed && run.Returned && job.NumReturned() <= s.maxLeaseReturns {
-			job.Queued = true
-			run.Failed = false // unset failed here so that we don't generate a job failed message later
-		}
 	}
 
 	// any jobs that have don't have active run need to be marked as queued
 	for _, job := range jobsToUpdateById {
+		// work out if the job needs to be re-queued.  This is a bit awkward as the old scheduler
+		// didn't send an explicit queued message here which means we have to infer it. For now, we
+		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
 		run := job.CurrentRun()
-		job.Queued = run == nil || run.InTerminalState()
+		if run == nil {
+			job.Queued = true
+		} else if run.Returned && job.NumReturned() <= s.maxLeaseReturns {
+			job.CurrentRun().Failed = false // set errored to false here so that we don't fail the job later
+			job.Queued = true
+		} else {
+			job.Queued = false
+		}
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
@@ -493,6 +489,11 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) (
 
 	jobsToDelete := make([]string, 0)
 	for _, job := range jobs {
+
+		if job.InTerminalState() {
+			continue
+		}
+
 		run := job.CurrentRun()
 		if run != nil && !job.Queued && staleExecutors[run.Executor] {
 			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.JobId, run.Executor)
@@ -629,6 +630,7 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*SchedulerJob, erro
 		CancelRequested:   dbJob.CancelRequested,
 		Cancelled:         dbJob.Cancelled,
 		Timestamp:         dbJob.Submitted,
+		Runs:              []*JobRun{},
 	}, nil
 }
 
