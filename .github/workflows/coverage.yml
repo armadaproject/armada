@@ -68,17 +68,3 @@ jobs:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/workflows/go-setup
-      - run: make airflow-operator
-
-      - name: Run Python Tests for Airflow Operator
-        uses: ./.github/workflows/python-tests
-        with:
-          python-version: '3.10'
-          tox-env: 'py310'
-          path: 'third_party/airflow'
-          github-token: ${{secrets.GITHUB_TOKEN}}
-      - name: Upload Coverage to codecov (./third_party/airflow)
-        uses: codecov/codecov-action@v3
-        with:
-          files: 'third_party/airflow/coverage.xml'
-          flags: airflow-operator
