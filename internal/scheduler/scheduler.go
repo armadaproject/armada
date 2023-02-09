@@ -346,17 +346,6 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 	return events, nil
 }
 
-// removeTerminalJobs takes the supplied list of jobs and removes any that are in a terminal state from the Job Db
-func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJob) error {
-	idsToDelete := make([]string, 0)
-	for _, job := range updatedJobs {
-		if job.InTerminalState() {
-			idsToDelete = append(idsToDelete, job.JobId)
-		}
-	}
-	return s.jobDb.BatchDelete(txn, idsToDelete)
-}
-
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs
 // If there are no state changes then an empty slice will be returned
 func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*SchedulerJob) ([]*armadaevents.EventSequence, error) {

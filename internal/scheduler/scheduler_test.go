@@ -3,10 +3,11 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"sync"
 	"testing"
 	"time"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
@@ -24,8 +25,10 @@ import (
 // Data to be used in tests
 const maxLeaseReturns = 1
 
-var schedulingInfo = &schedulerobjects.JobSchedulingInfo{AtMostOnce: true}
-var schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
+var (
+	schedulingInfo      = &schedulerobjects.JobSchedulingInfo{AtMostOnce: true}
+	schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
+)
 
 var queuedJob = SchedulerJob{
 	JobId:             util.NewULID(),
@@ -405,7 +408,6 @@ func TestRun(t *testing.T) {
 }
 
 func TestScheduler_TestSyncState(t *testing.T) {
-
 	tests := map[string]struct {
 		initialJobs         []*SchedulerJob // jobs in the jobdb at the start of the cycle
 		jobUpdates          []database.Job  // job updates from the database
@@ -522,7 +524,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -558,6 +559,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			txn.Commit()
 
 			updatedJobs, err := sched.syncState(ctx)
+			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
 			allDbJobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
