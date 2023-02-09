@@ -16,6 +16,8 @@ CREATE TABLE jobs (
     cancel_requested boolean NOT NULL DEFAULT false,
     -- Indicates if this job has been cancelled
     cancelled boolean NOT NULL DEFAULT false,
+    -- Indicates if this job has has been cancelled as part of a cancel jobset op
+    cancelled_by_jobset_requested boolean NOT NULL DEFAULT false,
     -- Set to true when a JobSucceeded event has been received for this job by the ingester.
     succeeded boolean NOT NULL DEFAULT false,
     -- Set to true when a terminal JobErrors event has been received for this job by the ingester.

@@ -60,6 +60,9 @@ type SchedulerJob struct {
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
 	// True if the user has requested this job be cancelled
 	CancelRequested bool
+	// True if the user has requested this job be cancelled as part of a jobset
+	// We need this to be separate from CancelRequested as here we need to also send a cancelling message
+	CancelByJobsetRequested bool
 	// True if the scheduler has cancelled the job
 	Cancelled bool
 	// True if the scheduler has failed the job

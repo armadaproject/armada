@@ -11,7 +11,7 @@ SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancelled,
 UPDATE jobs SET priority = $1 WHERE job_set = $2;
 
 -- name: MarkJobsCancelRequestedBySets :exec
-UPDATE jobs SET cancel_requested = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
+UPDATE jobs SET cancelled_by_jobset_requested = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
 
 -- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);

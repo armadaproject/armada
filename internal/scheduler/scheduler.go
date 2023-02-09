@@ -394,7 +394,6 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*S
 // generateUpdateMessages generates EventSequence representing the state change on a single jobs
 // If there are no state changes then nil will be returned
 func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors) (*armadaevents.EventSequence, error) {
-	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
 	if job.InTerminalState() {
@@ -406,51 +405,86 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 		return nil, err
 	}
 
-	// Has the job been requested cancelled. If so, cancel the job
-	if job.CancelRequested {
-		job.Cancelled = true
-		cancel := &armadaevents.EventSequence_Event{
-			Created: s.now(),
-			Event: &armadaevents.EventSequence_Event_CancelledJob{
-				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
-			},
-		}
-		events = append(events, cancel)
-	} else if len(job.Runs) > 0 {
-		lastRun := job.CurrentRun()
-		// InTerminalState states. Can only have one of these
-		if lastRun.Succeeded {
-			job.Succeeded = true
-			jobSucceeded := &armadaevents.EventSequence_Event{
-				Created: s.now(),
-				Event: &armadaevents.EventSequence_Event_JobSucceeded{
-					JobSucceeded: &armadaevents.JobSucceeded{
-						JobId: jobId,
-					},
-				},
-			}
-			events = append(events, jobSucceeded)
-		} else if lastRun.Failed || lastRun.Expired {
-			job.Failed = true
-			runErrors := jobRunErrors[lastRun.RunID]
-			jobErrors := &armadaevents.EventSequence_Event{
-				Created: s.now(),
-				Event: &armadaevents.EventSequence_Event_JobErrors{
-					JobErrors: &armadaevents.JobErrors{
-						JobId:  jobId,
-						Errors: runErrors.GetErrors(),
-					},
-				},
-			}
-			events = append(events, jobErrors)
-		}
-	}
+	// Has the job succeeded or failed
+	lastRun := job.CurrentRun()
 
-	if len(events) > 0 {
+	// Succeeded
+	if lastRun.Succeeded {
+		job.Succeeded = true
 		return &armadaevents.EventSequence{
 			Queue:      job.Queue,
 			JobSetName: job.Jobset,
-			Events:     events,
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_JobSucceeded{
+						JobSucceeded: &armadaevents.JobSucceeded{
+							JobId: jobId,
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	// Failed
+	if lastRun.Failed || lastRun.Expired {
+		runErrors := jobRunErrors[lastRun.RunID]
+		job.Failed = true
+		return &armadaevents.EventSequence{
+			Queue:      job.Queue,
+			JobSetName: job.Jobset,
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_JobErrors{
+						JobErrors: &armadaevents.JobErrors{
+							JobId:  jobId,
+							Errors: runErrors.GetErrors(),
+						},
+					},
+				},
+			},
+		}, nil
+	}
+
+	// Cancel by job Id
+	if job.CancelRequested {
+		job.Cancelled = true
+		return &armadaevents.EventSequence{
+			Queue:      job.Queue,
+			JobSetName: job.Jobset,
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_CancelledJob{
+						CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+					},
+				},
+			},
+		}, nil
+	}
+
+	// Cancel by job set
+	if job.CancelByJobsetRequested {
+		job.Cancelled = true
+		return &armadaevents.EventSequence{
+			Queue:      job.Queue,
+			JobSetName: job.Jobset,
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_CancelJob{
+						CancelJob: &armadaevents.CancelJob{JobId: jobId},
+					},
+				},
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_CancelledJob{
+						CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+					},
+				},
+			},
 		}, nil
 	}
 
@@ -621,15 +655,16 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*SchedulerJob, erro
 	}
 	s.internJobSchedulingInfoStrings(schedulingInfo)
 	return &SchedulerJob{
-		JobId:             dbJob.JobID,
-		Jobset:            s.stringInterner.Intern(dbJob.JobSet),
-		Queue:             s.stringInterner.Intern(dbJob.Queue),
-		Queued:            true,
-		Priority:          uint32(dbJob.Priority),
-		jobSchedulingInfo: schedulingInfo,
-		CancelRequested:   dbJob.CancelRequested,
-		Cancelled:         dbJob.Cancelled,
-		Timestamp:         dbJob.Submitted,
+		JobId:                   dbJob.JobID,
+		Jobset:                  s.stringInterner.Intern(dbJob.JobSet),
+		Queue:                   s.stringInterner.Intern(dbJob.Queue),
+		Queued:                  true,
+		Priority:                uint32(dbJob.Priority),
+		jobSchedulingInfo:       schedulingInfo,
+		CancelRequested:         dbJob.CancelRequested,
+		CancelByJobsetRequested: dbJob.CancelledByJobsetRequested,
+		Cancelled:               dbJob.Cancelled,
+		Timestamp:               dbJob.Submitted,
 	}, nil
 }
 
@@ -672,6 +707,7 @@ func updateSchedulerRun(run *JobRun, dbRun *database.Run) {
 // updateSchedulerJob updates the scheduler job  (in-place) to match the database job
 func updateSchedulerJob(job *SchedulerJob, dbJob *database.Job) {
 	job.CancelRequested = dbJob.CancelRequested
+	job.CancelByJobsetRequested = dbJob.CancelledByJobsetRequested
 	job.Succeeded = dbJob.Succeeded
 	job.Cancelled = dbJob.Cancelled
 	job.Failed = dbJob.Failed
