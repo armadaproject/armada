@@ -32,7 +32,7 @@ type ConsumerMessage struct {
 	ConsumerId int
 }
 
-var log = logrus.NewEntry(logrus.StandardLogger())
+var msgLogger = logrus.NewEntry(logrus.StandardLogger())
 
 func Receive(
 	ctx context.Context,
@@ -55,7 +55,7 @@ func Receive(
 		for {
 			// Periodic logging.
 			if time.Since(lastLogged) > logInterval {
-				log.WithFields(
+				msgLogger.WithFields(
 					logrus.Fields{
 						"received":      numReceived,
 						"interval":      logInterval,
@@ -70,7 +70,7 @@ func Receive(
 			// Exit if the context has been cancelled. Otherwise, get a message from Pulsar.
 			select {
 			case <-ctx.Done():
-				log.Infof("Shutting down pulsar receiver")
+				msgLogger.Infof("Shutting down pulsar receiver")
 				close(out)
 				return
 			default:
@@ -78,7 +78,7 @@ func Receive(
 				ctxWithTimeout, cancel := context.WithTimeout(ctx, receiveTimeout)
 				msg, err := consumer.Receive(ctxWithTimeout)
 				if errors.Is(err, context.DeadlineExceeded) {
-					log.Debugf("No message received")
+					msgLogger.Debugf("No message received")
 					cancel()
 					break // expected
 				}
@@ -88,7 +88,7 @@ func Receive(
 				if err != nil {
 					m.RecordPulsarConnectionError()
 					logging.
-						WithStacktrace(log, err).
+						WithStacktrace(msgLogger, err).
 						WithField("lastMessageId", lastMessageId).
 						Warnf("Pulsar receive failed; backing off for %s", backoffTime)
 					time.Sleep(backoffTime)
@@ -121,6 +121,6 @@ func Ack(ctx context.Context, consumers []pulsar.Consumer, msgs chan []*Consumer
 			consumers[id.ConsumerId].AckID(id.MessageId)
 		}
 	}
-	log.Info("Shutting down Ackker")
+	msgLogger.Info("Shutting down Ackker")
 	wg.Done()
 }

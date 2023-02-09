@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -81,9 +82,12 @@ func kindSetup() error {
 	images := []string{
 		"alpine:3.10",
 		"nginx:1.21.6",
-		"bitnami/kubectl:1.24.8",
 		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
 		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
+	}
+	if !isAppleSilicon() {
+		// TODO: find suitable kubectl image for arm64
+		images = append(images, "bitnami/kubectl:1.24.8")
 	}
 	for _, image := range images {
 		err := dockerRun("pull", image)
@@ -163,4 +167,8 @@ func kindWaitUntilReady() error {
 
 func kindTeardown() error {
 	return kindRun("delete", "cluster", "--name", KIND_NAME)
+}
+
+func isAppleSilicon() bool {
+	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
 }

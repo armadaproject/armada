@@ -7,6 +7,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -54,5 +55,5 @@ func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences)
+	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences, schedulers.Legacy)
 }
