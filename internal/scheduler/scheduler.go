@@ -409,7 +409,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 	lastRun := job.CurrentRun()
 
 	// Succeeded
-	if lastRun.Succeeded {
+	if lastRun != nil && lastRun.Succeeded {
 		job.Succeeded = true
 		return &armadaevents.EventSequence{
 			Queue:      job.Queue,
@@ -428,7 +428,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 	}
 
 	// Failed
-	if lastRun.Failed || lastRun.Expired {
+	if lastRun != nil && (lastRun.Failed || lastRun.Expired) {
 		runErrors := jobRunErrors[lastRun.RunID]
 		job.Failed = true
 		return &armadaevents.EventSequence{
