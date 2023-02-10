@@ -972,6 +972,14 @@ func NewLegacyScheduler(
 	}, nil
 }
 
+// Reschedule
+// - preempts jobs belonging to queues with total allocation above their fair share and
+// - schedules new jobs belonging to queues with total allocation less than their fair share.
+// Returns:
+// - Slice of jobs to preempt.
+// - Slice of jobs to schedule.
+// - Map from job id to node the job was preempted on (scheduled onto).
+// - Total resource usage per queue, accounting for preempted/scheduled jobs.
 func Reschedule(
 	ctx context.Context,
 	jobRepo JobRepository,

@@ -681,6 +681,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
+	//
+	// TODO: This will overestimate resource usage since it includes jobs that failed to lease.
+	// It'll be corrected automatically in the next scheduler round.
 	executorReport, ok := reportsByExecutor[req.ClusterId]
 	if !ok || executorReport.ResourcesByQueue == nil {
 		executorReport = &schedulerobjects.ClusterResourceUsageReport{
