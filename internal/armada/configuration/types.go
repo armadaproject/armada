@@ -84,8 +84,6 @@ type PulsarConfig struct {
 
 type SchedulingConfig struct {
 	Preemption PreemptionConfig
-	// Whether the Armada scheduler sets node names on pods, thus bypassing kube-scheduler.
-	SetNodeNameOnPods bool
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
 	// Minimum resources to schedule per request from an executor.
@@ -200,7 +198,7 @@ type PreemptionConfig struct {
 	PreemptToFairShare bool
 	// If using PreemptToFairShare,
 	// the probability of evicting jobs on a node to balance resource usage.
-	NodeFairShareEvictionProbability float64
+	NodeEvictionProbability float64
 	// If using PreemptToFairShare,
 	// the probability of evicting jobs on oversubscribed nodes, i.e.,
 	// nodes on which the total resource requests are greater than the available resoruces.

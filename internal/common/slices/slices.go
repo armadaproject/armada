@@ -15,17 +15,6 @@ func Map[T any, U any](list []T, fn func(val T) U) []U {
 	return out
 }
 
-// Filter returns a slice composed of the subset of elements of s for which filterFunc returns true.
-func Filter[S ~[]E, E any](s S, filterFunc func(E) bool) S {
-	rv := make(S, 0)
-	for _, e := range s {
-		if filterFunc(e) {
-			rv = append(rv, e)
-		}
-	}
-	return rv
-}
-
 // PartitionToLen partitions the elements of s into non-overlapping slices,
 // such that each such slice contains at most maxLen elements.
 func PartitionToMaxLen[S ~[]E, E any](s S, maxLen int) []S {

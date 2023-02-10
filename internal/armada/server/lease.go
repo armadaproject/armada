@@ -467,7 +467,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			// May need priority factors for inactive queues for rescheduling evicted jobs.
 			priorityFactorByQueue,
 			aggregatedUsageByQueue,
-			q.schedulingConfig.Preemption.NodeFairShareEvictionProbability,
+			q.schedulingConfig.Preemption.NodeEvictionProbability,
 			q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 		)
 		if err != nil {
@@ -526,23 +526,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		)
 	}
 
-	// preemptedJobIds := make([]string, len(preemptedJobs))
-	// for i, job := range preemptedJobs {
-	// 	preemptedJobIds[i] = job.GetId()
-	// }
-	// scheduledJobIds := make([]string, len(scheduledJobs))
-	// for i, job := range scheduledJobs {
-	// 	scheduledJobIds[i] = job.GetId()
-	// }
-	// preemptedQueues := make(map[string]bool)
-	// for _, job := range preemptedJobs {
-	// 	preemptedQueues[job.GetQueue()] = true
-	// }
-	// scheduledQueues := make(map[string]bool)
-	// for _, job := range scheduledJobs {
-	// 	scheduledQueues[job.GetQueue()] = true
-	// }
-
 	// Prepare preempted messages.
 	sequences := make([]*armadaevents.EventSequence, len(preemptedJobs))
 	for i, job := range preemptedJobs {
@@ -568,10 +551,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	}
 
-	// jobIdsByQueue := make(map[string][]string)
-	// for _, job := range scheduledJobs {
-	// 	jobIdsByQueue[job.GetQueue()] = append(jobIdsByQueue[job.GetQueue()], job.GetId())
-	// }
 	scheduledApiJobsById := make(map[string]*api.Job)
 	for _, job := range scheduledJobs {
 		if apiJob, ok := job.(*api.Job); ok {

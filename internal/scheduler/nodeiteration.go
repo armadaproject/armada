@@ -14,6 +14,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+const NodeDominantQueueWildcard = "*"
+
 type NodeIterator interface {
 	NextNode() *schedulerobjects.Node
 }
@@ -134,7 +136,7 @@ func (it *NodePairIterator) Next() interface{} {
 // NodeTypesResourceIterator extends NodeTypeResourceIterator to iterate over nodes of several node types.
 // Nodes are returned in sorted order, going from least to most of the specified resource available.
 //
-// If exclusiveToQueue is "*", all nodes of the given node type are considered.
+// If exclusiveToQueue is NodeDominantQueueWildcard, all nodes of the given node type are considered.
 // Otherwise, only nodes exclusive to that queue are considered.
 type NodeTypesResourceIterator struct {
 	priority int32
@@ -248,7 +250,7 @@ func (pq *NodeTypesResourceIteratorPQ) Pop() any {
 // Available resources is the sum of unused resources and resources assigned to lower-priority jobs.
 // Nodes are returned in sorted order, going from least to most of the specified resource available.
 //
-// If exclusiveToQueue is "*", all nodes of the given node type are considered.
+// If exclusiveToQueue is NodeDominantQueueWildcard, all nodes of the given node type are considered.
 // Otherwise, only nodes for which the given queue has the largest request are returned.
 // If maxActiveQueues > 0, only nodes with less than or equal to this number of active queues are returned.
 type NodeTypeResourceIterator struct {
@@ -273,7 +275,7 @@ func (it *NodeTypeResourceIterator) NextNodeItem() *schedulerobjects.Node {
 	}
 	// If it.dominantQueue != *, the index is sorted by node.DominantQueue() first.
 	// Otherwise, the index is sorted by NodeTypeId first.
-	if it.dominantQueue != "*" {
+	if it.dominantQueue != NodeDominantQueueWildcard {
 		if it.dominantQueue != node.DominantQueue() {
 			return nil
 		}
@@ -293,7 +295,7 @@ func (it *NodeTypeResourceIterator) Next() interface{} {
 }
 
 func NewNodeTypeResourceIterator(txn *memdb.Txn, dominantQueue string, maxActiveQueues int, resource string, priority int32, nodeType *schedulerobjects.NodeType, resourceAmount resource.Quantity) (*NodeTypeResourceIterator, error) {
-	if dominantQueue == "*" && maxActiveQueues != 0 {
+	if dominantQueue == NodeDominantQueueWildcard && maxActiveQueues != 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "maxActiveQueues",
 			Value:   maxActiveQueues,
@@ -302,7 +304,7 @@ func NewNodeTypeResourceIterator(txn *memdb.Txn, dominantQueue string, maxActive
 	}
 	var it memdb.ResultIterator
 	var err error
-	if dominantQueue == "*" {
+	if dominantQueue == NodeDominantQueueWildcard {
 		indexName := nodeResourcePriorityIndexName(resource, priority)
 		it, err = txn.LowerBound("nodes", indexName, nodeType.Id, resourceAmount)
 		if err != nil {

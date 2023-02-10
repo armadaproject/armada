@@ -25,8 +25,6 @@ type NodeDb struct {
 	// In-memory database. Stores *SchedulerNode.
 	// Used to efficiently iterate over nodes in sorted order.
 	db *memdb.MemDB
-	// Time at which the most recent upsert took place.
-	timeOfMostRecentUpsert time.Time
 	// Allowed priority classes..
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -267,7 +265,6 @@ func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*
 
 // SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -346,7 +343,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// Finally, try to schedule onto any node.
 	if it, err := NewNodeTypesResourceIterator(
 		txn,
-		"*", 0,
+		NodeDominantQueueWildcard, 0,
 		dominantResourceType, req.Priority,
 		nodeTypes,
 		req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
@@ -596,7 +593,6 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	if isNewNode {
 		nodeDb.totalResources.Add(node.TotalResources)
 	}
-	nodeDb.timeOfMostRecentUpsert = time.Now()
 	nodeDb.nodeTypes[nodeType.Id] = nodeType
 	nodeDb.mu.Unlock()
 

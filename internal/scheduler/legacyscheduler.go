@@ -1074,17 +1074,6 @@ func Reschedule(
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	// // TODO: Remove
-	// for queue, queueReport := range sched.SchedulingRoundReport.QueueSchedulingRoundReports {
-	// 	for _, jobReport := range queueReport.UnsuccessfulJobSchedulingReports {
-	// 		log.Infof("failed to schedule job %s from queue %s: %s", jobReport.Job.GetId(), queue, jobReport.UnschedulableReason)
-	// 	}
-	// 	for _, jobReport := range queueReport.SuccessfulJobSchedulingReports {
-	// 		log.Infof("scheduled job %s from queue %s", jobReport.Job.GetId(), queue)
-	// 	}
-	// }
-	// log.Infof("termination reason: %s", sched.SchedulingRoundReport.TerminationReason)
-
 	sched.SchedulingRoundReport.ClearJobSpecs()
 	for _, job := range rescheduledJobs {
 		evictedAndScheduledJobsById[job.GetId()] = job
@@ -1315,16 +1304,6 @@ func validateEvictedJobs(evictedJobsById map[string]LegacySchedulerJob, affected
 		}
 	}
 	return nil
-}
-
-func affectedQueuesFromJobsById(jobsById map[string]LegacySchedulerJob) []string {
-	queues := make(map[string]bool)
-	for _, job := range jobsById {
-		queues[job.GetQueue()] = true
-	}
-	rv := maps.Keys(queues)
-	slices.Sort(rv)
-	return rv
 }
 
 func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {

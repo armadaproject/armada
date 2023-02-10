@@ -380,7 +380,7 @@ func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.Even
 }
 
 // CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
-// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence,
+// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence
 // when doing so is possible without changing the order of events within job sets.
 //
 // For example, three sequences [A, B, C], [D, E], [F, G]
