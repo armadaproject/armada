@@ -17,6 +17,18 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+// IsTerminal returns true if the JobState s corresponds to a state
+// that indicates the job has been terminated.
+func (s JobState) IsTerminal() bool {
+	switch s {
+	case JobState_SUCCEEDED:
+		return true
+	case JobState_FAILED:
+		return true
+	}
+	return false
+}
+
 func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
 	if executor == "" {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
@@ -223,6 +235,8 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Reprioritizing.JobId
 	case *EventMessage_Updated:
 		return e.Updated.JobId
+	case *EventMessage_Preempted:
+		return e.Preempted.JobId
 	}
 	return ""
 }
@@ -267,6 +281,8 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Reprioritizing.JobSetId
 	case *EventMessage_Updated:
 		return e.Updated.JobSetId
+	case *EventMessage_Preempted:
+		return e.Preempted.JobSetId
 	}
 	return ""
 }

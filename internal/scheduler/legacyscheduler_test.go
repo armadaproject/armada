@@ -1123,6 +1123,8 @@ func TestReschedule(t *testing.T) {
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorByQueue map[string]float64
 		// Initial resource usage for all queues.
+		// This value is used across all rounds,
+		// i.e., we don't update it based on preempted/scheduled jobs.
 		InitialUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
 		// Total resources across all clusters.
 		// If empty, it is computed as the total resources across the provided nodes.
@@ -1491,6 +1493,10 @@ func TestReschedule(t *testing.T) {
 			repo := NewInMemoryJobRepository(testPriorityClasses)
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
+			initialUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+			for k, v := range tc.InitialUsageByQueue {
+				initialUsageByQueue[k] = v.DeepCopy()
+			}
 			for i, round := range tc.Rounds {
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
@@ -1531,17 +1537,41 @@ func TestReschedule(t *testing.T) {
 					tc.SchedulingConfig,
 					tc.TotalResources,
 				)
-				preemptedJobs, scheduledJobs, nodesByJobId, err := Reschedule(
+				preemptedJobs, scheduledJobs, nodesByJobId, updatedUsageByQueue, err := Reschedule(
 					context.Background(),
 					repo,
 					*constraints,
 					tc.SchedulingConfig,
 					nodeDb,
 					tc.PriorityFactorByQueue,
-					make(map[string]schedulerobjects.QuantityByPriorityAndResourceType),
+					initialUsageByQueue,
 					1, 1,
 				)
 				require.NoError(t, err)
+
+				// Update initialUsage.
+				for _, job := range preemptedJobs {
+					req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
+					requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+					quantityByPriorityAndResourceType := schedulerobjects.QuantityByPriorityAndResourceType{
+						req.Priority: requests,
+					}
+					initialUsageByQueue[job.GetQueue()].Sub(quantityByPriorityAndResourceType)
+				}
+				for _, job := range scheduledJobs {
+					req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
+					requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+					quantityByPriorityAndResourceType := schedulerobjects.QuantityByPriorityAndResourceType{
+						req.Priority: requests,
+					}
+					m := initialUsageByQueue[job.GetQueue()]
+					if m == nil {
+						m = make(schedulerobjects.QuantityByPriorityAndResourceType)
+					}
+					m.Add(quantityByPriorityAndResourceType)
+					initialUsageByQueue[job.GetQueue()] = m
+				}
+				assert.Equal(t, initialUsageByQueue, updatedUsageByQueue)
 
 				// Test that all jobs are mapped to a node.
 				for _, job := range preemptedJobs {
@@ -1603,6 +1633,23 @@ func TestReschedule(t *testing.T) {
 	}
 }
 
+// func TestLegacySchedulerJobAnnotationsMutable(t *testing.T) {
+// 	// Make an api job.
+// 	// Convert to LegacySchedulerJob.
+// 	// Mutate annotations.
+// 	// Check the api job annotations changed.
+// 	key := "foo"
+// 	value := "bar"
+// 	apiJob := &api.Job{
+// 		Annotations: map[string]string{
+// 			key: value,
+// 		},
+// 	}
+
+// 	podReq := PodRequirementFromLegacySchedulerJob(apiJob, nil)
+// 	assert.Equal(t, value, podReq.Annotations[key])
+// }
+
 type InMemoryNodeIterator struct {
 	i     int
 	nodes []*schedulerobjects.Node
@@ -1647,15 +1694,14 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	jobRepo := NewInMemoryJobRepository(testPriorityClasses)
 	jobRepo.EnqueueMany(jobs)
-	evictedJobsById, affectedNodesById, err := EvictOversubscribed(
+	_, affectedNodesById, err := EvictOversubscribed(
+		context.Background(),
 		it,
 		jobRepo,
 		testPriorityClasses,
 		1,
 	)
 	require.NoError(t, err)
-	fmt.Println(maps.Keys(evictedJobsById))
-	fmt.Println(maps.Keys(affectedNodesById))
 
 	prioritiesByName := configuration.PriorityByPriorityClassName(testPriorityClasses)
 	priorities := maps.Values(prioritiesByName)

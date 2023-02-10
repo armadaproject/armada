@@ -121,7 +121,7 @@ func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]Lega
 }
 
 func (repo *InMemoryJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
-	return NewQueuedJobsIterator(ctx, queue, repo)
+	return NewInMemoryJobIterator(slices.Clone(repo.jobsByQueue[queue])), nil
 }
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
@@ -213,9 +213,6 @@ func NewMultiJobsIterator(its ...JobIterator) *MultiJobsIterator {
 func (it *MultiJobsIterator) Next() (LegacySchedulerJob, error) {
 	if it.i >= len(it.its) {
 		return nil, nil
-	} else if it.its[it.i] == nil {
-		it.i++
-		return it.Next()
 	}
 	if v, err := it.its[it.i].Next(); err != nil {
 		return nil, err

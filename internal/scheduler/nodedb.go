@@ -563,6 +563,9 @@ func (nodeDb *NodeDb) Upsert(node *schedulerobjects.Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node) error {
+	// Mutating the node once inserted is forbidden.
+	node = node.DeepCopy()
+
 	// Compute the node type of the node
 	// and update the node with the node accordingly.
 	nodeType := schedulerobjects.NewNodeType(
@@ -574,19 +577,13 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	node.NodeTypeId = nodeType.Id
 	node.NodeType = nodeType
 
-	// Record all unique node types.
-	nodeDb.mu.Lock()
-	nodeDb.nodeTypes[nodeType.Id] = nodeType
-	nodeDb.mu.Unlock()
-
 	// If this is a new node, increase the overall resource count.
 	// Note that nodeDb.totalResources isn't rolled back on txn abort.
+	isNewNode := false
 	if existingNode, err := nodeDb.GetNodeWithTxn(txn, node.Id); err != nil {
 		return err
 	} else if existingNode == nil {
-		nodeDb.mu.Lock()
-		nodeDb.totalResources.Add(node.TotalResources)
-		nodeDb.mu.Unlock()
+		isNewNode = true
 	}
 
 	// Add the node to the db.
@@ -594,12 +591,15 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 		return errors.WithStack(err)
 	}
 
-	// TODO: Doing this at every node insert seems wasteful.
+	// Record time of the most recent upsert and all unique node types.
 	nodeDb.mu.Lock()
+	if isNewNode {
+		nodeDb.totalResources.Add(node.TotalResources)
+	}
 	nodeDb.timeOfMostRecentUpsert = time.Now()
+	nodeDb.nodeTypes[nodeType.Id] = nodeType
 	nodeDb.mu.Unlock()
 
-	txn.Commit()
 	return nil
 }
 

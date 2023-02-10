@@ -225,8 +225,8 @@ type PreemptionConfig struct {
 
 type PriorityClass struct {
 	Priority int32
-	// If true, Armada will may automatically preempt jobs of this class.
-	AutoBalanced bool
+	// If true, Armada will may preempt jobs of this class to improve fairness.
+	Preemptible bool
 	// Max fraction of resources assigned to jobs of this priority or lower.
 	// Must be non-increasing with higher priority.
 	//

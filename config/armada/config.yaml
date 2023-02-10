@@ -41,11 +41,13 @@ scheduling:
     priorityClasses:
       armada-default:
         priority: 1000
+        preemptible: false
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
       armada-preemptible:
         priority: 900
+        preemptible: true
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99

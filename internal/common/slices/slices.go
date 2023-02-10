@@ -15,6 +15,17 @@ func Map[T any, U any](list []T, fn func(val T) U) []U {
 	return out
 }
 
+// Filter returns a slice composed of the subset of elements of s for which filterFunc returns true.
+func Filter[S ~[]E, E any](s S, filterFunc func(E) bool) S {
+	rv := make(S, 0)
+	for _, e := range s {
+		if filterFunc(e) {
+			rv = append(rv, e)
+		}
+	}
+	return rv
+}
+
 // PartitionToLen partitions the elements of s into non-overlapping slices,
 // such that each such slice contains at most maxLen elements.
 func PartitionToMaxLen[S ~[]E, E any](s S, maxLen int) []S {
@@ -64,6 +75,27 @@ func Flatten[S ~[]E, E any](s []S) S {
 			rv[i] = e
 			i++
 		}
+	}
+	return rv
+}
+
+// GroupByFunc groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e).
+func GroupByFunc[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]S {
+	rv := make(map[K]S)
+	for _, e := range s {
+		k := keyFunc(e)
+		rv[k] = append(rv[k], e)
+	}
+	return rv
+}
+
+// MapAndGroupByFuncs groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e)
+// and then maps those resulting elements by mapFunc(e).
+func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E) K, mapFunc func(E) V) map[K][]V {
+	rv := make(map[K][]V)
+	for _, e := range s {
+		k := keyFunc(e)
+		rv[k] = append(rv[k], mapFunc(e))
 	}
 	return rv
 }

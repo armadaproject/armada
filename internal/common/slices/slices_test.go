@@ -114,3 +114,23 @@ func TestPartitionToMaxLen(t *testing.T) {
 		})
 	}
 }
+
+func TestGroupByFunc(t *testing.T) {
+	s := []int{1, 2, 3, 4, 5}
+	actual := GroupByFunc(s, func(e int) int { return e / 3 })
+	expected := map[int][]int{
+		0: {1, 2},
+		1: {3, 4, 5},
+	}
+	assert.Equal(t, expected, actual)
+}
+
+func TestMapAndGroupByFuncs(t *testing.T) {
+	s := []int{1, 2, 3, 4, 5}
+	actual := MapAndGroupByFuncs(s, func(e int) int { return e / 3 }, func(e int) float64 { return float64(e) })
+	expected := map[int][]float64{
+		0: {1.0, 2.0},
+		1: {3.0, 4.0, 5.0},
+	}
+	assert.Equal(t, expected, actual)
+}

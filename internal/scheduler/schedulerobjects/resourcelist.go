@@ -201,7 +201,7 @@ func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList
 }
 
 func (m AllocatableByPriorityAndResourceType) DeepCopy() AllocatableByPriorityAndResourceType {
-	rv := make(AllocatableByPriorityAndResourceType)
+	rv := make(AllocatableByPriorityAndResourceType, len(m))
 	for priority, resourcesAtPriority := range m {
 		rv[priority] = resourcesAtPriority.DeepCopy()
 	}
