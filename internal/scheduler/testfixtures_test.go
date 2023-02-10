@@ -157,13 +157,6 @@ func withNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*sc
 	return reqs
 }
 
-func withQueueAnnotationsPodReqs(queue string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
-	return withAnnotationsPodReqs(
-		map[string]string{QueueAnnotation: queue},
-		reqs,
-	)
-}
-
 func withGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))

@@ -182,7 +182,7 @@ func TestResourceListEqual(t *testing.T) {
 			b:        ResourceList{},
 			expected: true,
 		},
-		"zero equals emtpy": {
+		"zero equals empty": {
 			a: ResourceList{
 				Resources: map[string]resource.Quantity{
 					"foo": resource.MustParse("0"),
