@@ -6,12 +6,16 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-func UuidsToStrings(uuids []*armadaevents.Uuid) []string {
+func UuidsToStrings(uuids []*armadaevents.Uuid) ([]string, error) {
 	result := make([]string, 0, len(uuids))
 	for _, uuid := range uuids {
-		result = append(result, uuid.String())
+		stringUuid, err := armadaevents.UuidStringFromProtoUuid(uuid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert uuid %s to string because %s", uuid, err)
+		}
+		result = append(result, stringUuid)
 	}
-	return result
+	return result, nil
 }
 
 func StringUuidsToUuids(uuidStrings []string) ([]armadaevents.Uuid, error) {

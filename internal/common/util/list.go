@@ -45,3 +45,16 @@ func Filter[T any](list []T, predicate func(val T) bool) []T {
 	}
 	return out
 }
+
+func Concat[T any](slices ...[]T) []T {
+	total := 0
+	for _, s := range slices {
+		total += len(s)
+	}
+	result := make([]T, total)
+	var i int
+	for _, s := range slices {
+		i += copy(result[i:], s)
+	}
+	return result
+}

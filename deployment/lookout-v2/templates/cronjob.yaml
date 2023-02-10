@@ -1,31 +1,31 @@
 {{ if .Values.dbPruningEnabled}}
-apiVersion: batch/v1
+apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: lookout-db-pruner
+  name: lookout-v2-db-pruner
   labels:
-    {{- include "lookout.labels.all" . | nindent 4 }}
+    {{- include "lookout_v2.labels.all" . | nindent 4 }}
 spec:
   schedule: {{ .Values.dbPruneSchedule | default "@hourly" | quote }}
   jobTemplate:
     metadata:
-      name: lookout-db-pruner
+      name: lookout-v2-db-pruner
       labels:
-        {{- include "lookout.labels.all" . | nindent 8 }}
+        {{- include "lookout_v2.labels.all" . | nindent 8 }}
     spec:
       template:
         metadata:
-          name: lookout-db-pruner
+          name: lookout-v2-db-pruner
           labels:
-            {{- include "lookout.labels.all" . | nindent 12 }}
+            {{- include "lookout_v2.labels.all" . | nindent 12 }}
         spec:
           restartPolicy: Never
-          serviceAccountName: {{ .Values.customServiceAccount | default (include "lookout.name" .) }}
+          serviceAccountName: {{ .Values.customServiceAccount | default (include "lookout_v2.name" .) }}
           securityContext:
             runAsUser: 1000
             runAsGroup: 2000
           containers:
-            - name: lookout
+            - name: lookout-v2
               imagePullPolicy: IfNotPresent
               image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
               args:
@@ -41,7 +41,7 @@ spec:
               volumeMounts:
                 - name: user-config
                   mountPath: /config/application_config.yaml
-                  subPath: {{ include "lookout.config.filename" . }}
+                  subPath: {{ include "lookout_v2.config.filename" . }}
                   readOnly: true
                 {{- if .Values.additionalVolumeMounts }}
                 {{- toYaml .Values.additionalVolumeMounts | nindent 16 -}}
@@ -51,7 +51,7 @@ spec:
           volumes:
             - name: user-config
               secret:
-                secretName: {{ include "lookout.config.name" . }}
+                secretName: {{ include "lookout_v2.config.name" . }}
             {{- if .Values.additionalVolumes }}
             {{- toYaml .Values.additionalVolumes | nindent 12 }}
             {{- end }}
