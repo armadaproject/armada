@@ -105,7 +105,6 @@ func TestPartitionToMaxLen(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			partitions := PartitionToMaxLen(tc.input, tc.maxLen)
-			fmt.Println(tc.input, partitions)
 			for _, partition := range partitions {
 				assert.LessOrEqual(t, len(partition), tc.maxLen)
 			}

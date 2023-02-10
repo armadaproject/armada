@@ -31,6 +31,10 @@ func TestNodesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			indexById := make(map[string]int)
+			for i, node := range tc.Nodes {
+				indexById[node.Id] = i
+			}
 			nodeDb, err := createNodeDb(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
@@ -40,14 +44,17 @@ func TestNodesIterator(t *testing.T) {
 				return
 			}
 
-			expected := slices.Clone(tc.Nodes)
-			slices.SortFunc(expected, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
-
-			actual := make([]*schedulerobjects.Node, 0)
-			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, node)
+			sortedNodes := slices.Clone(tc.Nodes)
+			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+			expected := make([]int, len(sortedNodes))
+			for i, node := range sortedNodes {
+				expected[i] = indexById[node.Id]
 			}
-			slices.SortFunc(actual, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+
+			actual := make([]int, 0)
+			for node := it.NextNode(); node != nil; node = it.NextNode() {
+				actual = append(actual, indexById[node.Id])
+			}
 
 			assert.Equal(t, expected, actual)
 		})

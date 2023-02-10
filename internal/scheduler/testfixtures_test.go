@@ -456,10 +456,6 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, node := range nodes {
-		fmt.Println("upserting node", node.Id)
-	}
-
 	if err := db.UpsertMany(nodes); err != nil {
 		return nil, err
 	}

@@ -1688,10 +1688,8 @@ func TestEvictOversubscribed(t *testing.T) {
 		require.NoError(t, err)
 	}
 	nodes[0] = node
-	fmt.Println(node.AllocatableByPriorityAndResource)
 
 	it := NewInMemoryNodeIterator(nodes)
-
 	jobRepo := NewInMemoryJobRepository(testPriorityClasses)
 	jobRepo.EnqueueMany(jobs)
 	_, affectedNodesById, err := EvictOversubscribed(
