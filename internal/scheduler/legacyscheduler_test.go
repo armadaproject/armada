@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -1616,6 +1617,154 @@ func TestReschedule(t *testing.T) {
 						}
 					}
 				}
+			}
+		})
+	}
+}
+
+func BenchmarkReschedule(b *testing.B) {
+	tests := map[string]struct {
+		SchedulingConfig                      configuration.SchedulingConfig
+		Nodes                                 []*schedulerobjects.Node
+		PodReqFunc                            func(queue string, priority int32, n int) []*schedulerobjects.PodRequirements
+		NumQueues                             int
+		NumJobsPerQueue                       int
+		MinimumJobSize                        map[string]resource.Quantity
+		MinPriorityFactor                     int
+		MaxPriorityFactor                     int
+		NodePreemptibleEvictionProbability    float64
+		NodeOversubscribedEvictionProbability float64
+	}{
+		"1 node 1 queue 32 jobs": {
+			SchedulingConfig:                      testSchedulingConfig(),
+			Nodes:                                 testNCpuNode(1, testPriorities),
+			PodReqFunc:                            testNSmallCpuJob,
+			NumQueues:                             1,
+			NumJobsPerQueue:                       32,
+			MinPriorityFactor:                     1,
+			MaxPriorityFactor:                     1,
+			NodePreemptibleEvictionProbability:    0.1,
+			NodeOversubscribedEvictionProbability: 0,
+		},
+		"10 nodes 1 queue 320 jobs": {
+			SchedulingConfig:                      testSchedulingConfig(),
+			Nodes:                                 testNCpuNode(10, testPriorities),
+			PodReqFunc:                            testNSmallCpuJob,
+			NumQueues:                             1,
+			NumJobsPerQueue:                       320,
+			MinPriorityFactor:                     1,
+			MaxPriorityFactor:                     1,
+			NodePreemptibleEvictionProbability:    0.1,
+			NodeOversubscribedEvictionProbability: 0,
+		},
+		"100 nodes 1 queue 3200 jobs": {
+			SchedulingConfig:                      testSchedulingConfig(),
+			Nodes:                                 testNCpuNode(100, testPriorities),
+			PodReqFunc:                            testNSmallCpuJob,
+			NumQueues:                             1,
+			NumJobsPerQueue:                       3200,
+			MinPriorityFactor:                     1,
+			MaxPriorityFactor:                     1,
+			NodePreemptibleEvictionProbability:    0.1,
+			NodeOversubscribedEvictionProbability: 0,
+		},
+		"1000 nodes 1 queue 32000 jobs": {
+			SchedulingConfig:                      testSchedulingConfig(),
+			Nodes:                                 testNCpuNode(1000, testPriorities),
+			PodReqFunc:                            testNSmallCpuJob,
+			NumQueues:                             1,
+			NumJobsPerQueue:                       32000,
+			MinPriorityFactor:                     1,
+			MaxPriorityFactor:                     1,
+			NodePreemptibleEvictionProbability:    0.1,
+			NodeOversubscribedEvictionProbability: 0,
+		},
+		"mixed": {
+			SchedulingConfig:                      testSchedulingConfig(),
+			Nodes:                                 testNCpuNode(500, testPriorities),
+			PodReqFunc:                            testNSmallCpuJob,
+			NumQueues:                             100,
+			NumJobsPerQueue:                       256,
+			MinPriorityFactor:                     1,
+			MaxPriorityFactor:                     10,
+			NodePreemptibleEvictionProbability:    0.1,
+			NodeOversubscribedEvictionProbability: 0,
+		},
+	}
+	for name, tc := range tests {
+		b.Run(name, func(b *testing.B) {
+			reqsByQueue := make(map[string][]*schedulerobjects.PodRequirements)
+			priorityFactorByQueue := make(map[string]float64)
+			for i := 0; i < tc.NumQueues; i++ {
+				queue := fmt.Sprintf("%d", i)
+				reqsByQueue[queue] = tc.PodReqFunc(queue, 0, tc.NumJobsPerQueue)
+				priorityFactorByQueue[queue] = float64(rand.Intn(tc.MaxPriorityFactor-tc.MinPriorityFactor+1) + tc.MinPriorityFactor)
+			}
+
+			nodeDb, err := createNodeDb(tc.Nodes)
+			require.NoError(b, err)
+			repo := NewInMemoryJobRepository(testPriorityClasses)
+			usageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+
+			jobs := make([]LegacySchedulerJob, 0)
+			for queue, reqs := range reqsByQueue {
+				jobs = append(jobs, legacySchedulerJobsFromPodReqs(queue, "", reqs)...)
+			}
+			repo.EnqueueMany(jobs)
+
+			constraints := SchedulingConstraintsFromSchedulingConfig(
+				"executor",
+				"pool",
+				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
+				tc.SchedulingConfig,
+				nodeDb.totalResources,
+			)
+			preemptedJobs, scheduledJobs, _, usageByQueue, err := Reschedule(
+				context.Background(),
+				repo,
+				*constraints,
+				tc.SchedulingConfig,
+				nodeDb,
+				priorityFactorByQueue,
+				usageByQueue,
+				tc.NodePreemptibleEvictionProbability,
+				tc.NodeOversubscribedEvictionProbability,
+			)
+			require.NoError(b, err)
+			require.Equal(b, 0, len(preemptedJobs))
+
+			// Create a new job repo without the scheduled jobs.
+			scheduledJobsById := make(map[string]LegacySchedulerJob)
+			for _, job := range scheduledJobs {
+				scheduledJobsById[job.GetId()] = job
+			}
+			unscheduledJobs := make([]LegacySchedulerJob, 0)
+			for _, job := range jobs {
+				if _, ok := scheduledJobsById[job.GetId()]; !ok {
+					unscheduledJobs = append(unscheduledJobs, job)
+				}
+			}
+			repo = NewInMemoryJobRepository(testPriorityClasses)
+			repo.EnqueueMany(unscheduledJobs)
+
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				preemptedJobs, scheduledJobs, _, usageByQueue, err = Reschedule(
+					context.Background(),
+					repo,
+					*constraints,
+					tc.SchedulingConfig,
+					nodeDb,
+					priorityFactorByQueue,
+					usageByQueue,
+					tc.NodePreemptibleEvictionProbability,
+					tc.NodeOversubscribedEvictionProbability,
+				)
+				require.NoError(b, err)
+
+				// We expect the system to be in steady-state, i.e., no preempted/scheduled jobs.
+				require.Equal(b, 0, len(preemptedJobs))
+				require.Equal(b, 0, len(scheduledJobs))
 			}
 		})
 	}
