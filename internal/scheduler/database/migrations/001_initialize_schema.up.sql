@@ -34,6 +34,8 @@ ALTER TABLE jobs ALTER COLUMN submit_message SET STORAGE EXTERNAL;
 CREATE TABLE runs (
     run_id uuid PRIMARY KEY,
     job_id text NOT NULL,
+    -- used to order runs
+    created bigint NOT NULL,
     -- Needed to efficiently cancel all runs for a particular job set.
     job_set text NOT NULL,
     -- Executor this job run is assigned to.
