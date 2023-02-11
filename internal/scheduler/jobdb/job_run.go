@@ -33,7 +33,8 @@ func CreateRun(
 	succeeded bool,
 	failed bool,
 	cancelled bool,
-	returned bool) *JobRun {
+	returned bool,
+) *JobRun {
 	return &JobRun{
 		id:           id,
 		creationTime: creationTime,
@@ -74,6 +75,12 @@ func (run *JobRun) SetFailed() *JobRun {
 	return r
 }
 
+func (run *JobRun) UnsetFailed() *JobRun {
+	r := run.copy()
+	r.failed = false
+	return r
+}
+
 func (run *JobRun) GetCancelled() bool {
 	return run.cancelled
 }
@@ -94,6 +101,10 @@ func (run *JobRun) SetReturned() *JobRun {
 	return r
 }
 
+func (run *JobRun) GetCreated() int64 {
+	return run.creationTime
+}
+
 // InTerminalState returns true if the JobRun is in a terminal state
 func (run *JobRun) InTerminalState() bool {
 	return run.succeeded || run.failed || run.cancelled || run.returned
@@ -103,12 +114,13 @@ func (run *JobRun) InTerminalState() bool {
 // This is needed because when runs are stored in the JobDb they cannot be modified in-place
 func (run *JobRun) copy() *JobRun {
 	return &JobRun{
-		id:        run.id,
-		executor:  run.executor,
-		running:   run.running,
-		succeeded: run.succeeded,
-		failed:    run.failed,
-		cancelled: run.cancelled,
-		returned:  run.returned,
+		id:           run.id,
+		creationTime: run.creationTime,
+		executor:     run.executor,
+		running:      run.running,
+		succeeded:    run.succeeded,
+		failed:       run.failed,
+		cancelled:    run.cancelled,
+		returned:     run.returned,
 	}
 }

@@ -1,11 +1,13 @@
 package jobdb
 
 import (
-	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
-	"time"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // SchedulerJob is the scheduler-internal representation of a job.
@@ -53,7 +55,8 @@ func NewJob(
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
 	cancelRequested bool,
 	cancelled bool,
-	timestamp int64) *SchedulerJob {
+	timestamp int64,
+) *SchedulerJob {
 	return &SchedulerJob{
 		id:                jobId,
 		jobset:            jobset,
@@ -187,7 +190,7 @@ func (job *SchedulerJob) CreateRun(executor string) *SchedulerJob {
 		creationTime: time.Now().UnixNano(),
 		executor:     executor,
 	}
-	if run.creationTime > j.activeRunTimestamp {
+	if run.creationTime >= j.activeRunTimestamp {
 		j.activeRunTimestamp = run.creationTime
 		j.activeRun = run
 	}
@@ -198,7 +201,7 @@ func (job *SchedulerJob) CreateRun(executor string) *SchedulerJob {
 func (job *SchedulerJob) AddOrUpdateRun(run *JobRun) *SchedulerJob {
 	j := job.copy()
 	r := run.copy()
-	if run.creationTime > j.activeRunTimestamp {
+	if run.creationTime >= j.activeRunTimestamp {
 		j.activeRunTimestamp = run.creationTime
 		j.activeRun = r
 	}

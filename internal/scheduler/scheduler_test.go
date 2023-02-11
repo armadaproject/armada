@@ -3,12 +3,9 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"sync"
 	"testing"
 	"time"
-
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
@@ -17,8 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -68,6 +67,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobSucceeded []string              // ids of jobs we expect to have  produced suceeeded messages
 		expectedLeased       []string              // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedQueued       []string              // ids of jobs we expected to be queued in jobdb at the end of the cycle
+		expectedTerminal     []string              // ids of jobs we expected to be terminal in jobdb at the end of the cycle
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:          []*jobdb.SchedulerJob{queuedJob},
@@ -133,6 +133,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				},
 			},
 			expectedJobErrors: []string{leasedJob.GetId()},
+			expectedTerminal:  []string{leasedJob.GetId()},
 		},
 		"Job cancelled": {
 			initialJobs: []*jobdb.SchedulerJob{queuedJob},
@@ -146,12 +147,14 @@ func TestScheduler_TestCycle(t *testing.T) {
 				},
 			},
 			expectedJobCancelled: []string{queuedJob.GetId()},
+			expectedTerminal:     []string{queuedJob.GetId()},
 		},
 		"Lease expired": {
 			initialJobs:          []*jobdb.SchedulerJob{leasedJob},
 			staleExecutor:        true,
 			expectedJobRunErrors: []string{leasedJob.GetId()},
 			expectedJobErrors:    []string{leasedJob.GetId()},
+			expectedTerminal:     []string{leasedJob.GetId()},
 		},
 		"Job failed": {
 			initialJobs: []*jobdb.SchedulerJob{leasedJob},
@@ -166,6 +169,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				},
 			},
 			expectedJobErrors: []string{leasedJob.GetId()},
+			expectedTerminal:  []string{leasedJob.GetId()},
 		},
 		"Job succeeded": {
 			initialJobs: []*jobdb.SchedulerJob{leasedJob},
@@ -180,6 +184,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				},
 			},
 			expectedJobSucceeded: []string{leasedJob.GetId()},
+			expectedTerminal:     []string{leasedJob.GetId()},
 		},
 		"Fetch fails": {
 			initialJobs:    []*jobdb.SchedulerJob{leasedJob},
@@ -321,8 +326,13 @@ func TestScheduler_TestCycle(t *testing.T) {
 			require.NoError(t, err)
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
+			remainingTerminal := stringSet(tc.expectedTerminal)
 			for _, job := range jobs {
-				if job.GetQueued() {
+				if job.InTerminalState() {
+					_, ok := remainingTerminal[job.GetId()]
+					assert.True(t, ok)
+					delete(remainingTerminal, job.GetId())
+				} else if job.GetQueued() {
 					_, ok := remainingQueued[job.GetId()]
 					assert.True(t, ok)
 					delete(remainingQueued, job.GetId())
@@ -334,6 +344,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 			assert.Equal(t, 0, len(remainingLeased))
 			assert.Equal(t, 0, len(remainingQueued))
+			assert.Equal(t, 0, len(remainingTerminal))
 			cancel()
 		})
 	}
@@ -449,10 +460,23 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					JobID:    queuedJob.GetId(),
 					JobSet:   queuedJob.GetJobset(),
 					Executor: "test-executor",
+					Created:  123,
 				},
 			},
-			expectedUpdatedJobs: []*jobdb.SchedulerJob{queuedJob.CreateRun("test-executor")},
-			expectedJobDbIds:    []string{queuedJob.GetId()},
+			expectedUpdatedJobs: []*jobdb.SchedulerJob{
+				queuedJob.AddOrUpdateRun(
+					jobdb.CreateRun(
+						uuid.UUID{},
+						123,
+						"test-executor",
+						false,
+						false,
+						false,
+						false,
+						false)).
+					SetQueued(false),
+			},
+			expectedJobDbIds: []string{queuedJob.GetId()},
 		},
 		"job succeeded": {
 			initialJobs: []*jobdb.SchedulerJob{queuedJob},
@@ -480,6 +504,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					RunID:    leasedJob.CurrentRun().GetId(),
 					Failed:   true,
 					Returned: true,
+					Created:  leasedJob.CurrentRun().GetCreated(),
 				},
 			},
 			expectedUpdatedJobs: []*jobdb.SchedulerJob{

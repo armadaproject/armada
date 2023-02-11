@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"testing"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -229,7 +229,6 @@ func TwoCoreExecutor(name string, jobs []*jobdb.SchedulerJob, updateTime time.Ti
 }
 
 func OneCpuJob(creationTime int64) *jobdb.SchedulerJob {
-
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -261,7 +260,7 @@ func OneCpuJob(creationTime int64) *jobdb.SchedulerJob {
 		schedulingInfo,
 		false,
 		false,
-		creationTime)
+		creationTime).SetQueued(true)
 }
 
 func OneCoreRunningJob(creationTime int64, executor string) *jobdb.SchedulerJob {
