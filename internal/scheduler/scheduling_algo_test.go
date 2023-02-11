@@ -255,7 +255,7 @@ func OneCpuJob(creationTime int64) *jobdb.SchedulerJob {
 	return jobdb.NewJob(
 		util.NewULID(),
 		"testJobset",
-		"queueName",
+		queueName,
 		0,
 		schedulingInfo,
 		false,

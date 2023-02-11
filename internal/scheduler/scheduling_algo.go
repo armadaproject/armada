@@ -202,8 +202,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	updatedJobs := make([]*jobdb.SchedulerJob, len(jobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 		job := report.Job.(*jobdb.SchedulerJob)
-		job = job.SetQueued(false)
-		job.CreateRun(executor.Id)
+		job = job.SetQueued(false).CreateRun(executor.Id)
 		updatedJobs[i] = job
 	}
 	return updatedJobs, nil
