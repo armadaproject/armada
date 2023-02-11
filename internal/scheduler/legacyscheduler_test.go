@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -1493,10 +1494,7 @@ func TestReschedule(t *testing.T) {
 			repo := NewInMemoryJobRepository(testPriorityClasses)
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
-			initialUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
-			for k, v := range tc.InitialUsageByQueue {
-				initialUsageByQueue[k] = v.DeepCopy()
-			}
+			initialUsageByQueue := armadamaps.DeepCopy(tc.InitialUsageByQueue)
 			for i, round := range tc.Rounds {
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
@@ -1514,16 +1512,6 @@ func TestReschedule(t *testing.T) {
 						indexByJobId[jobId] = j
 					}
 				}
-
-				// TODO: Add separate tests for the InMemoryRepo.
-				// for _, reqs := range repo.jobsByQueue {
-				// 	expected := intRange(0, len(reqs)-1)
-				// 	actual := make([]int, 0)
-				// 	for _, req := range reqs {
-				// 		actual = append(actual, indexByJobId[req.GetId()])
-				// 	}
-				// 	assert.Equal(t, expected, actual)
-				// }
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
 				if tc.TotalResources.Resources == nil {
@@ -1633,35 +1621,14 @@ func TestReschedule(t *testing.T) {
 	}
 }
 
-// func TestLegacySchedulerJobAnnotationsMutable(t *testing.T) {
-// 	// Make an api job.
-// 	// Convert to LegacySchedulerJob.
-// 	// Mutate annotations.
-// 	// Check the api job annotations changed.
-// 	key := "foo"
-// 	value := "bar"
-// 	apiJob := &api.Job{
-// 		Annotations: map[string]string{
-// 			key: value,
-// 		},
-// 	}
-
-// 	podReq := PodRequirementFromLegacySchedulerJob(apiJob, nil)
-// 	assert.Equal(t, value, podReq.Annotations[key])
-// }
-
 type InMemoryNodeIterator struct {
 	i     int
 	nodes []*schedulerobjects.Node
 }
 
 func NewInMemoryNodeIterator(nodes []*schedulerobjects.Node) *InMemoryNodeIterator {
-	vs := make([]*schedulerobjects.Node, len(nodes))
-	for i, node := range nodes {
-		vs[i] = node
-	}
 	return &InMemoryNodeIterator{
-		nodes: vs,
+		nodes: slices.Clone(nodes),
 	}
 }
 
@@ -1711,22 +1678,6 @@ func TestEvictOversubscribed(t *testing.T) {
 			}
 		}
 	}
-}
-
-func intRange(a, b int) []int {
-	rv := make([]int, b-a+1)
-	for i := range rv {
-		rv[i] = a + i
-	}
-	return rv
-}
-
-func repeat[T any](v T, n int) []T {
-	rv := make([]T, n)
-	for i := 0; i < n; i++ {
-		rv[i] = v
-	}
-	return rv
 }
 
 func apiJobsFromPodReqs(queue string, reqs []*schedulerobjects.PodRequirements) []*api.Job {

@@ -35,6 +35,22 @@ var (
 	testIndexedNodeLabels    = []string{"largeJobsOnly", "gpu"}
 )
 
+func intRange(a, b int) []int {
+	rv := make([]int, b-a+1)
+	for i := range rv {
+		rv[i] = a + i
+	}
+	return rv
+}
+
+func repeat[T any](v T, n int) []T {
+	rv := make([]T, n)
+	for i := 0; i < n; i++ {
+		rv[i] = v
+	}
+	return rv
+}
+
 func testSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},

@@ -456,7 +456,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	var scheduledJobs []scheduler.LegacySchedulerJob
 	var nodesByJobId map[string]*schedulerobjects.Node
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
-		preemptedJobs, scheduledJobs, nodesByJobId, aggregatedUsageByQueue, err = scheduler.Reschedule(
+		preemptedJobs, scheduledJobs, nodesByJobId, _, err = scheduler.Reschedule(
 			ctx,
 			&SchedulerJobRepositoryAdapter{
 				r: q.jobRepository,
@@ -517,13 +517,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			return nil, err
 		}
 
-		// Update aggregatedUsageByQueue to include any scheduled jobs.
-		aggregatedUsageByQueue = scheduler.UpdateUsage(
-			aggregatedUsageByQueue,
-			nil,
-			scheduledJobs,
-			q.schedulingConfig.Preemption.PriorityClasses,
-		)
+		// // Update aggregatedUsageByQueue to include any scheduled jobs.
+		// aggregatedUsageByQueue = scheduler.UpdateUsage(
+		// 	aggregatedUsageByQueue,
+		// 	nil,
+		// 	scheduledJobs,
+		// 	q.schedulingConfig.Preemption.PriorityClasses,
+		// )
 	}
 
 	// Prepare preempted messages.
@@ -681,9 +681,18 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Update the usage report in-place to account for any leased jobs and write it back into Redis.
 	// This ensures resources of leased jobs are accounted for without needing to wait for feedback from the executor.
-	//
-	// TODO: This will overestimate resource usage since it includes jobs that failed to lease.
-	// It'll be corrected automatically in the next scheduler round.
+	aggregatedUsageByQueue = scheduler.UpdateUsage(
+		aggregatedUsageByQueue,
+		preemptedJobs,
+		q.schedulingConfig.Preemption.PriorityClasses,
+		scheduler.Subtract,
+	)
+	aggregatedUsageByQueue = scheduler.UpdateUsage(
+		aggregatedUsageByQueue,
+		successfullyLeasedApiJobs,
+		q.schedulingConfig.Preemption.PriorityClasses,
+		scheduler.Add,
+	)
 	executorReport, ok := reportsByExecutor[req.ClusterId]
 	if !ok || executorReport.ResourcesByQueue == nil {
 		executorReport = &schedulerobjects.ClusterResourceUsageReport{

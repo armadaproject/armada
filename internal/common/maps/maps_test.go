@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 )
 
 func TestMapKeys(t *testing.T) {
@@ -63,6 +64,27 @@ func TestMap(t *testing.T) {
 	expected := map[int]int{
 		3: 6,
 		6: 60,
+	}
+	assert.Equal(t, expected, actual)
+}
+
+type mySlice []int
+
+func (s mySlice) DeepCopy() mySlice {
+	return slices.Clone(s)
+}
+
+func TestDeepCopy(t *testing.T) {
+	m := map[string]mySlice{
+		"foo": {1, 2, 3},
+		"bar": {10, 20, 30},
+	}
+	actual := DeepCopy(m)
+	m["foo"][0] = 100
+	m["bar"] = append(m["bar"], 40)
+	expected := map[string]mySlice{
+		"foo": {1, 2, 3},
+		"bar": {10, 20, 30},
 	}
 	assert.Equal(t, expected, actual)
 }

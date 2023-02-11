@@ -742,6 +742,9 @@ func EvictPreemptible(
 	defaultPriorityClass string,
 	evictionProbability float64,
 ) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
+	if evictionProbability <= 0 {
+		return nil, nil, nil
+	}
 	log := ctxlogrus.Extract(ctx)
 	return Evict(
 		it, jobRepo, priorityClasses,
@@ -794,6 +797,9 @@ func EvictOversubscribed(
 	priorityClasses map[string]configuration.PriorityClass,
 	evictionProbability float64,
 ) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
+	if evictionProbability <= 0 {
+		return nil, nil, nil
+	}
 	log := ctxlogrus.Extract(ctx)
 	var overSubscribedPriorities map[int32]bool
 	prioritiesByName := configuration.PriorityByPriorityClassName(priorityClasses)
@@ -988,27 +994,17 @@ func Reschedule(
 	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-	nodeFairShareEvictionProbability float64,
-	nodeOversubscriptionEvictionProbability float64,
+	nodePreemptibleEvictionProbability float64,
+	nodeOversubscribedEvictionProbability float64,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "Reschedule")
-
-	// Deep-copy initialResourcesByQueueAndPriority.
-	usageByQueueAndPriority := make(
-		map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-		len(initialResourcesByQueueAndPriority),
-	)
-	for k, v := range initialResourcesByQueueAndPriority {
-		usageByQueueAndPriority[k] = v.DeepCopy()
-	}
-
-	// All evicted and scheduled jobs keyed by id.
-	evictedAndScheduledJobsById := make(map[string]LegacySchedulerJob)
+	usageByQueueAndPriority := armadamaps.DeepCopy(initialResourcesByQueueAndPriority)
 	preemptedJobsById := make(map[string]LegacySchedulerJob)
 	scheduledJobsById := make(map[string]LegacySchedulerJob)
 
-	// NodeDb snapshot prior to making any changes,
+	// NodeDb snapshot prior to making any changes.
+	// We compare against this snapshot after scheduling to detect changes.
 	txn := nodeDb.Txn(false)
 
 	// Evict preemptible jobs.
@@ -1022,7 +1018,7 @@ func Reschedule(
 		jobRepo,
 		config.Preemption.PriorityClasses,
 		config.Preemption.DefaultPriorityClass,
-		nodeFairShareEvictionProbability,
+		nodePreemptibleEvictionProbability,
 	)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -1032,9 +1028,13 @@ func Reschedule(
 	}
 	evictedJobs := maps.Values(evictedJobsById)
 	affectedNodes := maps.Values(affectedNodesById)
-	maps.Copy(evictedAndScheduledJobsById, evictedJobsById)
 	maps.Copy(preemptedJobsById, evictedJobsById)
-	usageByQueueAndPriority = UpdateUsage(usageByQueueAndPriority, evictedJobs, nil, config.Preemption.PriorityClasses)
+	usageByQueueAndPriority = UpdateUsage(
+		usageByQueueAndPriority,
+		evictedJobs,
+		config.Preemption.PriorityClasses,
+		Subtract,
+	)
 	if s := JobsSummary(evictedJobs); s != "" {
 		log.Infof("evicted for resource balancing %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(affectedNodesById), s)
 	}
@@ -1084,14 +1084,18 @@ func Reschedule(
 	}
 	sched.SchedulingRoundReport.ClearJobSpecs()
 	for _, job := range rescheduledJobs {
-		evictedAndScheduledJobsById[job.GetId()] = job
 		if _, ok := preemptedJobsById[job.GetId()]; ok {
 			delete(preemptedJobsById, job.GetId())
 		} else {
 			scheduledJobsById[job.GetId()] = job
 		}
 	}
-	usageByQueueAndPriority = UpdateUsage(usageByQueueAndPriority, nil, rescheduledJobs, config.Preemption.PriorityClasses)
+	usageByQueueAndPriority = UpdateUsage(
+		usageByQueueAndPriority,
+		rescheduledJobs,
+		config.Preemption.PriorityClasses,
+		Add,
+	)
 	if s := JobsSummary(rescheduledJobs); s != "" {
 		log.Infof("rescheduled %d jobs after eviction; %s", len(rescheduledJobs), s)
 	}
@@ -1106,7 +1110,7 @@ func Reschedule(
 		it,
 		jobRepo,
 		config.Preemption.PriorityClasses,
-		nodeOversubscriptionEvictionProbability,
+		nodeOversubscribedEvictionProbability,
 	)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -1116,9 +1120,13 @@ func Reschedule(
 	}
 	evictedJobs = maps.Values(evictedJobsById)
 	affectedNodes = maps.Values(affectedNodesById)
-	maps.Copy(evictedAndScheduledJobsById, evictedJobsById)
 	maps.Copy(preemptedJobsById, evictedJobsById)
-	usageByQueueAndPriority = UpdateUsage(usageByQueueAndPriority, evictedJobs, nil, config.Preemption.PriorityClasses)
+	usageByQueueAndPriority = UpdateUsage(
+		usageByQueueAndPriority,
+		evictedJobs,
+		config.Preemption.PriorityClasses,
+		Subtract,
+	)
 	if s := JobsSummary(evictedJobs); s != "" {
 		log.Infof("evicted %d oversubscribed jobs on nodes %v; %s", len(evictedJobs), maps.Keys(affectedNodesById), s)
 	}
@@ -1163,14 +1171,18 @@ func Reschedule(
 	}
 	sched.SchedulingRoundReport.ClearJobSpecs()
 	for _, job := range rescheduledJobs {
-		evictedAndScheduledJobsById[job.GetId()] = job
 		if _, ok := preemptedJobsById[job.GetId()]; ok {
 			delete(preemptedJobsById, job.GetId())
 		} else {
 			scheduledJobsById[job.GetId()] = job
 		}
 	}
-	usageByQueueAndPriority = UpdateUsage(usageByQueueAndPriority, nil, rescheduledJobs, config.Preemption.PriorityClasses)
+	usageByQueueAndPriority = UpdateUsage(
+		usageByQueueAndPriority,
+		rescheduledJobs,
+		config.Preemption.PriorityClasses,
+		Add,
+	)
 	if s := JobsSummary(rescheduledJobs); s != "" {
 		log.Infof("rescheduled %d jobs after priority class eviction; %s", len(rescheduledJobs), s)
 	}
@@ -1180,6 +1192,7 @@ func Reschedule(
 	// Jobs assigned to a node that weren't present earlier are scheduled.
 	//
 	// Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure it's consistent.
+	// This is only to validate that nothing unexpected happened during scheduling.
 	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -1263,13 +1276,20 @@ func JobsSummary(jobs []LegacySchedulerJob) string {
 	)
 }
 
-func UpdateUsage(
+type AddOrSubtract int
+
+const (
+	Add AddOrSubtract = iota
+	Subtract
+)
+
+func UpdateUsage[S ~[]E, E LegacySchedulerJob](
 	usage map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-	preemptedJobs []LegacySchedulerJob,
-	scheduledJobs []LegacySchedulerJob,
+	jobs S,
 	priorityClasses map[string]configuration.PriorityClass,
+	addOrSubtract AddOrSubtract,
 ) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
-	for _, job := range preemptedJobs {
+	for _, job := range jobs {
 		req := PodRequirementFromLegacySchedulerJob(job, priorityClasses)
 		requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 		queue := job.GetQueue()
@@ -1277,22 +1297,14 @@ func UpdateUsage(
 		if m == nil {
 			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
 		}
-		m.Sub(schedulerobjects.QuantityByPriorityAndResourceType{
-			req.Priority: requests,
-		})
-		usage[queue] = m
-	}
-	for _, job := range scheduledJobs {
-		req := PodRequirementFromLegacySchedulerJob(job, priorityClasses)
-		requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-		queue := job.GetQueue()
-		m := usage[queue]
-		if m == nil {
-			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
+		switch addOrSubtract {
+		case Add:
+			m.Add(schedulerobjects.QuantityByPriorityAndResourceType{req.Priority: requests})
+		case Subtract:
+			m.Sub(schedulerobjects.QuantityByPriorityAndResourceType{req.Priority: requests})
+		default:
+			panic(fmt.Sprintf("invalid operation %d", addOrSubtract))
 		}
-		m.Add(schedulerobjects.QuantityByPriorityAndResourceType{
-			req.Priority: requests,
-		})
 		usage[queue] = m
 	}
 	return usage
