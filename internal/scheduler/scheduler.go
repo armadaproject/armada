@@ -614,7 +614,7 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.SchedulerJob
 		dbJob.CancelRequested,
 		dbJob.Cancelled,
 		dbJob.Submitted,
-	)
+	), nil
 }
 
 // createSchedulerRun creates a new scheduler job run from a database job run

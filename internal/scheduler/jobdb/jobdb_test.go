@@ -175,6 +175,7 @@ func TestLookupByRun(t *testing.T) {
 		queue:     "A",
 		priority:  0,
 		timestamp: 10,
+		runsById:  map[uuid.UUID]*JobRun{},
 	}
 
 	run := &JobRun{
@@ -194,8 +195,7 @@ func TestLookupByRun(t *testing.T) {
 	assert.Nil(t, retrievedJob)
 
 	// update the job to have a run
-	updatedJob := job.DeepCopy()
-	updatedJob.runs = append(updatedJob.runs, run)
+	updatedJob := job.AddOrUpdateRun(run)
 	err = jobDb.Upsert(txn, []*SchedulerJob{updatedJob})
 	require.NoError(t, err)
 
@@ -236,28 +236,28 @@ func TestJobQueuePriorityClassIterator(t *testing.T) {
 			queue:     "A",
 			priority:  0,
 			timestamp: 0,
-			Queued:    false,
+			queued:    false,
 		},
 		{
 			id:        util.NewULID(),
 			queue:     "A",
 			priority:  0,
 			timestamp: 0,
-			Queued:    true,
+			queued:    true,
 		},
 		{
 			id:        util.NewULID(),
 			queue:     "A",
 			priority:  0,
 			timestamp: 1,
-			Queued:    true,
+			queued:    true,
 		},
 		{
 			id:        util.NewULID(),
 			queue:     "A",
 			priority:  1,
 			timestamp: 0,
-			Queued:    true,
+			queued:    true,
 		},
 
 		// Jobs on Queue B
@@ -266,7 +266,7 @@ func TestJobQueuePriorityClassIterator(t *testing.T) {
 			queue:     "B",
 			priority:  0,
 			timestamp: 0,
-			Queued:    true,
+			queued:    true,
 		},
 	}
 

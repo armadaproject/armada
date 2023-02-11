@@ -45,7 +45,6 @@ func NewJobDb() (*JobDb, error) {
 }
 
 // Upsert will insert the given jobs if they don't already exist or update the if they do
-// Any jobs passed to this function *must not* be subsequently modified
 func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*SchedulerJob) error {
 	for _, job := range jobs {
 		err := txn.Insert(jobsTable, job)
@@ -217,17 +216,17 @@ func jobDbSchema() *memdb.DBSchema {
 		idIndex: {
 			Name:    idIndex, // lookup by primary key
 			Unique:  true,
-			Indexer: &memdb.StringFieldIndex{Field: "JobId"},
+			Indexer: &memdb.StringFieldIndex{Field: "id"},
 		},
 		orderIndex: {
 			Name:   orderIndex, // lookup leased jobs for a given queue
 			Unique: false,
 			Indexer: &memdb.CompoundIndex{
 				Indexes: []memdb.Indexer{
-					&memdb.StringFieldIndex{Field: "Queue"},
-					&memdb.BoolFieldIndex{Field: "Queued"},
-					&memdb.UintFieldIndex{Field: "Priority"},
-					&memdb.IntFieldIndex{Field: "Timestamp"},
+					&memdb.StringFieldIndex{Field: "queue"},
+					&memdb.BoolFieldIndex{Field: "queued"},
+					&memdb.UintFieldIndex{Field: "priority"},
+					&memdb.IntFieldIndex{Field: "timestamp"},
 				},
 			},
 		},

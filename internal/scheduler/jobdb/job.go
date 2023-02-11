@@ -189,19 +189,20 @@ func (job *SchedulerJob) CreateRun(executor string) *SchedulerJob {
 	}
 	if run.creationTime > j.activeRunTimestamp {
 		j.activeRunTimestamp = run.creationTime
-		j.activeRun = run.copy()
-		j.runsById[run.id] = run
+		j.activeRun = run
 	}
+	j.runsById[run.id] = run
 	return j
 }
 
 func (job *SchedulerJob) AddOrUpdateRun(run *JobRun) *SchedulerJob {
 	j := job.copy()
+	r := run.copy()
 	if run.creationTime > j.activeRunTimestamp {
 		j.activeRunTimestamp = run.creationTime
-		j.activeRun = run.copy()
-		j.runsById[run.id] = run
+		j.activeRun = r
 	}
+	j.runsById[run.id] = r
 	return j
 }
 
