@@ -228,6 +228,7 @@ func ExtractServices(job *executorapi.JobRunLease, pod *v1.Pod) []*v1.Service {
 				domain.Queue:     pod.Labels[domain.Queue],
 				domain.PodNumber: pod.Labels[domain.PodNumber],
 			}
+			result = append(result, service)
 		}
 	}
 
@@ -239,15 +240,23 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 	if err != nil {
 		return nil, err
 	}
+	jobId, err := armadaevents.UlidStringFromProtoUuid(job.Job.JobId)
+	if err != nil {
+		return nil, err
+	}
+	runId, err := armadaevents.UuidStringFromProtoUuid(job.JobRunId)
+	if err != nil {
+		return nil, err
+	}
 
 	labels := util.MergeMaps(job.Job.ObjectMeta.Labels, map[string]string{
-		domain.JobId:     job.Job.JobId.String(),
+		domain.JobId:     jobId,
+		domain.JobRunId:  runId,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(0),
 		domain.PodCount:  strconv.Itoa(1),
 	})
 	annotation := util.MergeMaps(job.Job.ObjectMeta.Annotations, map[string]string{
-		domain.JobRunId: job.JobRunId.String(),
 		domain.JobSetId: job.Jobset,
 		domain.Owner:    job.User,
 	})
@@ -257,7 +266,7 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Job.JobId.String() + "-" + strconv.Itoa(0),
+			Name:        common.PodNamePrefix + jobId + "-" + strconv.Itoa(0),
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Job.ObjectMeta.Namespace,

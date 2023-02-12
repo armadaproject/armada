@@ -1263,7 +1263,10 @@
       "enum": [
         "QUEUED",
         "PENDING",
-        "RUNNING"
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "UNKNOWN"
       ]
     },
     "apiJobSubmitRequest": {

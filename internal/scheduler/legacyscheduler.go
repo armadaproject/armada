@@ -960,21 +960,25 @@ func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float6
 func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
 	for _, job := range jobs {
-		info := job.GetRequirements(priorityClasses)
-		req := PodRequirementFromJobSchedulingInfo(info)
-		if _, ok := req.Annotations[JobIdAnnotation]; !ok {
-			// Auto-populate JobIdAnnotation if not set.
-			if req.Annotations == nil {
-				req.Annotations = map[string]string{
-					JobIdAnnotation: job.GetId(),
-				}
-			} else {
-				req.Annotations[JobIdAnnotation] = job.GetId()
-			}
-		}
-		rv = append(rv, req)
+		rv = append(rv, PodRequirementsFromLegacySchedulerJob(job, priorityClasses))
 	}
 	return rv
+}
+
+func PodRequirementsFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+	info := job.GetRequirements(priorityClasses)
+	req := PodRequirementFromJobSchedulingInfo(info)
+	if _, ok := req.Annotations[JobIdAnnotation]; !ok {
+		// Auto-populate JobIdAnnotation if not set.
+		if req.Annotations == nil {
+			req.Annotations = map[string]string{
+				JobIdAnnotation: job.GetId(),
+			}
+		} else {
+			req.Annotations[JobIdAnnotation] = job.GetId()
+		}
+	}
+	return req
 }
 
 func PodRequirementsFromJobSchedulingInfos(infos []*schedulerobjects.JobSchedulingInfo) []*schedulerobjects.PodRequirements {

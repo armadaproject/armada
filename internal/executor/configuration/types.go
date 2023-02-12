@@ -42,6 +42,7 @@ type KubernetesConfiguration struct {
 	QPS                       float32
 	Burst                     int
 	Etcd                      EtcdConfiguration
+	NodeIdLabel               string
 	TrackedNodeLabels         []string
 	AvoidNodeLabelsOnRetry    []string
 	ToleratedTaints           []string
@@ -77,6 +78,7 @@ type TaskConfiguration struct {
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
 	AllocateSpareClusterCapacityInterval  time.Duration
+	PodIssueHandlingInterval              time.Duration
 	PodDeletionInterval                   time.Duration
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
