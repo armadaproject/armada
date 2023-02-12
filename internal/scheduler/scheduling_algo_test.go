@@ -34,16 +34,16 @@ var (
 )
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
-	queuedJobs := make([]*jobdb.SchedulerJob, 10)
+	queuedJobs := make([]*jobdb.Job, 10)
 	for i := 0; i < 10; i++ {
 		queuedJobs[i] = OneCpuJob(int64(i)) // ensure the queuedJobs are in the order we expect
 	}
-	runningJobs := []*jobdb.SchedulerJob{OneCoreRunningJob(1, "executor1"), OneCoreRunningJob(1, "executor1")}
+	runningJobs := []*jobdb.Job{OneCoreRunningJob(1, "executor1"), OneCoreRunningJob(1, "executor1")}
 	tests := map[string]struct {
 		executors     []*schedulerobjects.Executor
 		queues        []*database.Queue
-		queuedJobs    []*jobdb.SchedulerJob
-		runningJobs   []*jobdb.SchedulerJob
+		queuedJobs    []*jobdb.Job
+		runningJobs   []*jobdb.Job
 		perQueueLimit map[string]float64
 		expectedJobs  map[string]string // map of jobId to name of executor on which it should be scheduled
 	}{
@@ -55,10 +55,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queues:     []*database.Queue{&queue},
 			queuedJobs: queuedJobs,
 			expectedJobs: map[string]string{
-				queuedJobs[0].GetId(): "executor1",
-				queuedJobs[1].GetId(): "executor1",
-				queuedJobs[2].GetId(): "executor2",
-				queuedJobs[3].GetId(): "executor2",
+				queuedJobs[0].Id(): "executor1",
+				queuedJobs[1].Id(): "executor1",
+				queuedJobs[2].Id(): "executor2",
+				queuedJobs[3].Id(): "executor2",
 			},
 		},
 		"one executor stale": {
@@ -69,8 +69,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queues:     []*database.Queue{&queue},
 			queuedJobs: queuedJobs,
 			expectedJobs: map[string]string{
-				queuedJobs[0].GetId(): "executor1",
-				queuedJobs[1].GetId(): "executor1",
+				queuedJobs[0].Id(): "executor1",
+				queuedJobs[1].Id(): "executor1",
 			},
 		},
 		"one executor full": {
@@ -80,10 +80,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues:      []*database.Queue{&queue},
 			queuedJobs:  queuedJobs,
-			runningJobs: []*jobdb.SchedulerJob{runningJobs[0], runningJobs[1]},
+			runningJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
 			expectedJobs: map[string]string{
-				queuedJobs[0].GetId(): "executor2",
-				queuedJobs[1].GetId(): "executor2",
+				queuedJobs[0].Id(): "executor2",
+				queuedJobs[1].Id(): "executor2",
 			},
 		},
 		"user is at usage cap before scheduling": {
@@ -93,21 +93,21 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues:        []*database.Queue{&queue},
 			queuedJobs:    queuedJobs,
-			runningJobs:   []*jobdb.SchedulerJob{runningJobs[0], runningJobs[1]},
+			runningJobs:   []*jobdb.Job{runningJobs[0], runningJobs[1]},
 			perQueueLimit: map[string]float64{"cpu": 0.5},
 			expectedJobs:  map[string]string{},
 		},
 		"user hits usage cap during scheduling": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", []*jobdb.SchedulerJob{runningJobs[0]}, baseTime),
+				TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, baseTime),
 				TwoCoreExecutor("executor2", nil, baseTime),
 			},
 			queues:        []*database.Queue{&queue},
 			queuedJobs:    queuedJobs,
-			runningJobs:   []*jobdb.SchedulerJob{runningJobs[0]},
+			runningJobs:   []*jobdb.Job{runningJobs[0]},
 			perQueueLimit: map[string]float64{"cpu": 0.5},
 			expectedJobs: map[string]string{
-				queuedJobs[0].GetId(): "executor1",
+				queuedJobs[0].Id(): "executor1",
 			},
 		},
 		"no queuedJobs to schedule": {
@@ -162,17 +162,17 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			assert.Equal(t, len(tc.expectedJobs), len(scheduledJobs))
 
 			for _, job := range scheduledJobs {
-				expectedExecutor, ok := tc.expectedJobs[job.GetId()]
+				expectedExecutor, ok := tc.expectedJobs[job.Id()]
 				require.True(t, ok)
-				run := job.CurrentRun()
+				run := job.LatestRun()
 				require.NotEqual(t, t, run)
-				assert.Equal(t, expectedExecutor, run.GetExecutor())
-				assert.Equal(t, false, job.GetQueued())
+				assert.Equal(t, expectedExecutor, run.Executor())
+				assert.Equal(t, false, job.Queued())
 			}
 
 			// check all scheduled queuedJobs are up-to-date in db
 			for _, job := range scheduledJobs {
-				dbJob, err := jobDb.GetById(txn, job.GetId())
+				dbJob, err := jobDb.GetById(txn, job.Id())
 				require.NoError(t, err)
 				assert.Equal(t, job, dbJob)
 			}
@@ -180,11 +180,11 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}
 }
 
-func twoCoreNode(jobs []*jobdb.SchedulerJob) *schedulerobjects.Node {
+func twoCoreNode(jobs []*jobdb.Job) *schedulerobjects.Node {
 	usedCpu := resource.MustParse("0")
 	for _, job := range jobs {
 		cpuReq := job.
-			GetJobSchedulingInfo().
+			JobSchedulingInfo().
 			ObjectRequirements[0].
 			GetPodRequirements().
 			GetResourceRequirements().Limits["cpu"]
@@ -195,7 +195,7 @@ func twoCoreNode(jobs []*jobdb.SchedulerJob) *schedulerobjects.Node {
 	id := uuid.NewString()
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState, len(jobs))
 	for _, job := range jobs {
-		jobRunsByState[job.CurrentRun().GetId().String()] = schedulerobjects.JobRunState_RUNNING
+		jobRunsByState[job.LatestRun().Id().String()] = schedulerobjects.JobRunState_RUNNING
 	}
 	return &schedulerobjects.Node{
 		Id: id,
@@ -219,7 +219,7 @@ func twoCoreNode(jobs []*jobdb.SchedulerJob) *schedulerobjects.Node {
 	}
 }
 
-func TwoCoreExecutor(name string, jobs []*jobdb.SchedulerJob, updateTime time.Time) *schedulerobjects.Executor {
+func TwoCoreExecutor(name string, jobs []*jobdb.Job, updateTime time.Time) *schedulerobjects.Executor {
 	return &schedulerobjects.Executor{
 		Id:             name,
 		Pool:           poolName,
@@ -228,7 +228,7 @@ func TwoCoreExecutor(name string, jobs []*jobdb.SchedulerJob, updateTime time.Ti
 	}
 }
 
-func OneCpuJob(creationTime int64) *jobdb.SchedulerJob {
+func OneCpuJob(creationTime int64) *jobdb.Job {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -260,9 +260,9 @@ func OneCpuJob(creationTime int64) *jobdb.SchedulerJob {
 		schedulingInfo,
 		false,
 		false,
-		creationTime).SetQueued(true)
+		creationTime).WithQueued(true)
 }
 
-func OneCoreRunningJob(creationTime int64, executor string) *jobdb.SchedulerJob {
-	return OneCpuJob(creationTime).CreateRun(executor)
+func OneCoreRunningJob(creationTime int64, executor string) *jobdb.Job {
+	return OneCpuJob(creationTime).WithNewRun(executor)
 }

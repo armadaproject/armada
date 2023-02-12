@@ -9,7 +9,7 @@ type JobRun struct {
 	// Unique identifier for the run
 	id uuid.UUID
 	// The time the run was allocated
-	creationTime int64
+	created int64
 	// The name of the executor this run has been leased to
 	executor string
 	// True if the job has been reported as running by the executor
@@ -36,73 +36,67 @@ func CreateRun(
 	returned bool,
 ) *JobRun {
 	return &JobRun{
-		id:           id,
-		creationTime: creationTime,
-		executor:     executor,
-		running:      running,
-		succeeded:    succeeded,
-		failed:       failed,
-		cancelled:    cancelled,
-		returned:     returned,
+		id:        id,
+		created:   creationTime,
+		executor:  executor,
+		running:   running,
+		succeeded: succeeded,
+		failed:    failed,
+		cancelled: cancelled,
+		returned:  returned,
 	}
 }
 
-func (run *JobRun) GetId() uuid.UUID {
+func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
-func (run *JobRun) GetExecutor() string {
+func (run *JobRun) Executor() string {
 	return run.executor
 }
 
-func (run *JobRun) GetSucceeded() bool {
+func (run *JobRun) Succeeded() bool {
 	return run.succeeded
 }
 
-func (run *JobRun) SetSucceeded() *JobRun {
-	r := run.copy()
-	r.succeeded = true
+func (run *JobRun) WithSucceeded(succeeded bool) *JobRun {
+	r := copyRun(*run)
+	r.succeeded = succeeded
 	return r
 }
 
-func (run *JobRun) GetFailed() bool {
+func (run *JobRun) Failed() bool {
 	return run.failed
 }
 
-func (run *JobRun) SetFailed() *JobRun {
-	r := run.copy()
-	r.failed = true
+func (run *JobRun) WithFailed(failed bool) *JobRun {
+	r := copyRun(*run)
+	r.failed = failed
 	return r
 }
 
-func (run *JobRun) UnsetFailed() *JobRun {
-	r := run.copy()
-	r.failed = false
-	return r
-}
-
-func (run *JobRun) GetCancelled() bool {
+func (run *JobRun) Cancelled() bool {
 	return run.cancelled
 }
 
-func (run *JobRun) SetCancelled() *JobRun {
-	r := run.copy()
-	r.cancelled = true
+func (run *JobRun) WithCancelled(cancelled bool) *JobRun {
+	r := copyRun(*run)
+	r.cancelled = cancelled
 	return r
 }
 
-func (run *JobRun) GetReturned() bool {
+func (run *JobRun) Returned() bool {
 	return run.returned
 }
 
-func (run *JobRun) SetReturned() *JobRun {
-	r := run.copy()
-	r.returned = true
+func (run *JobRun) WithReturned(returned bool) *JobRun {
+	r := copyRun(*run)
+	r.returned = returned
 	return r
 }
 
-func (run *JobRun) GetCreated() int64 {
-	return run.creationTime
+func (run *JobRun) Created() int64 {
+	return run.created
 }
 
 // InTerminalState returns true if the JobRun is in a terminal state
@@ -110,17 +104,6 @@ func (run *JobRun) InTerminalState() bool {
 	return run.succeeded || run.failed || run.cancelled || run.returned
 }
 
-// DeepCopy deep copies the entire JobRun
-// This is needed because when runs are stored in the JobDb they cannot be modified in-place
-func (run *JobRun) copy() *JobRun {
-	return &JobRun{
-		id:           run.id,
-		creationTime: run.creationTime,
-		executor:     run.executor,
-		running:      run.running,
-		succeeded:    run.succeeded,
-		failed:       run.failed,
-		cancelled:    run.cancelled,
-		returned:     run.returned,
-	}
+func copyRun(run JobRun) *JobRun {
+	return &run
 }

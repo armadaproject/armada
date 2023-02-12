@@ -1,17 +1,16 @@
 package jobdb
 
 import (
-	"time"
-
-	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+	"time"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/google/uuid"
 )
 
-// SchedulerJob is the scheduler-internal representation of a job.
-type SchedulerJob struct {
+// Job is the scheduler-internal representation of a job.
+type Job struct {
 	// String representation of the job id
 	id string
 	// Name of the queue this job belongs to.
@@ -22,9 +21,8 @@ type SchedulerJob struct {
 	// Per-queue priority of this job.
 	priority uint32
 	// Logical timestamp indicating the order in which jobs are submitted.
-	// Jobs with identical Queue and Priority
-	// are sorted by timestamp.
-	timestamp int64
+	// Jobs with identical Queue and Priority are sorted by this.
+	created int64
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling
 	queued bool
@@ -55,9 +53,9 @@ func NewJob(
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
 	cancelRequested bool,
 	cancelled bool,
-	timestamp int64,
-) *SchedulerJob {
-	return &SchedulerJob{
+	created int64,
+) *Job {
+	return &Job{
 		id:                jobId,
 		jobset:            jobset,
 		queue:             queue,
@@ -66,103 +64,129 @@ func NewJob(
 		jobSchedulingInfo: schedulingInfo,
 		cancelRequested:   cancelRequested,
 		cancelled:         cancelled,
-		timestamp:         timestamp,
+		created:           created,
 		runsById:          map[uuid.UUID]*JobRun{},
 	}
 }
 
-// GetId returns the id of the Job.
-func (job *SchedulerJob) GetId() string {
+// Id returns the id of the Job.
+func (job *Job) Id() string {
 	return job.id
 }
 
-// GetJobset returns the jobset  the job belongs to
-func (job *SchedulerJob) GetJobset() string {
+// GetId returns the id of the Job.
+// This is needed for the LegacyJob interface.
+func (job *Job) GetId() string {
+	return job.id
+}
+
+// Jobset returns the jobset the job belongs to.
+func (job *Job) Jobset() string {
 	return job.jobset
 }
 
-// GetQueue returns the queue this job belongs to.
-func (job *SchedulerJob) GetQueue() string {
+// Queue returns the queue this job belongs to.
+func (job *Job) Queue() string {
 	return job.queue
 }
 
-// GetPriority returns the priority of the job
-func (job *SchedulerJob) GetPriority() uint32 {
+// GetQueue returns the queue this job belongs to.
+// This is needed for the LegacyJob interface.
+func (job *Job) GetQueue() string {
+	return job.queue
+}
+
+// Priority returns the priority of the job.
+func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
-// SetPriority sets the priority of the job
-func (job *SchedulerJob) SetPriority(priority uint32) *SchedulerJob {
-	copy := job.copy()
-	copy.priority = priority
-	return copy
+// WithPriority returns a copy of the job with the priority updated.
+func (job *Job) WithPriority(priority uint32) *Job {
+	j := copyJob(*job)
+	j.priority = priority
+	return j
 }
 
-func (job *SchedulerJob) GetJobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
+// JobSchedulingInfo returns the scheduling requirements associated with the job
+func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 	return job.jobSchedulingInfo
 }
 
-// GetRequirements is needed for compatibility with LegacySchedulerJob
-func (job *SchedulerJob) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
-	return job.jobSchedulingInfo
+// GetRequirements  returns the scheduling requirements associated with the job.
+// this is needed for compatibility with LegacySchedulerJob
+func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+	return job.JobSchedulingInfo()
 }
 
-func (job *SchedulerJob) GetQueued() bool {
+// Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
+func (job *Job) Queued() bool {
 	return job.queued
 }
 
-func (job *SchedulerJob) SetQueued(queued bool) *SchedulerJob {
-	copy := job.copy()
-	copy.queued = queued
-	return copy
+// WithQueued returns a copy of the job with the queued status updated.
+func (job *Job) WithQueued(queued bool) *Job {
+	j := copyJob(*job)
+	j.queued = queued
+	return j
 }
 
-func (job *SchedulerJob) GetCancelRequested() bool {
+// CancelRequested returns true if the user has requested this job be cancelled.
+func (job *Job) CancelRequested() bool {
 	return job.cancelRequested
 }
 
-func (job *SchedulerJob) SetCancelRequested() *SchedulerJob {
-	copy := job.copy()
-	copy.cancelRequested = true
-	return copy
+// WithCancelRequested returns a copy of the job with the cancelRequested status updated.
+func (job *Job) WithCancelRequested(cancelRequested bool) *Job {
+	j := copyJob(*job)
+	j.cancelRequested = cancelRequested
+	return j
 }
 
-func (job *SchedulerJob) GetCancelled() bool {
+// Cancelled Returns true if the scheduler has cancelled the job
+func (job *Job) Cancelled() bool {
 	return job.cancelled
 }
 
-func (job *SchedulerJob) SetCancelled() *SchedulerJob {
-	j := job.copy()
-	j.cancelled = true
+// WithCancelled returns a copy of the job with the cancelled status updated
+func (job *Job) WithCancelled(cancelled bool) *Job {
+	j := copyJob(*job)
+	j.cancelled = cancelled
 	return j
 }
 
-func (job *SchedulerJob) GetSucceeded() bool {
+// Succeeded Returns true if the scheduler has marked the job as succeeded
+func (job *Job) Succeeded() bool {
 	return job.succeeded
 }
 
-func (job *SchedulerJob) SetSucceeded() *SchedulerJob {
-	j := job.copy()
-	j.cancelled = true
+// WithSucceeded returns a copy of the job with the succeeded status updated.
+func (job *Job) WithSucceeded(succeeded bool) *Job {
+	j := copyJob(*job)
+	j.succeeded = succeeded
 	return j
 }
 
-func (job *SchedulerJob) GetFailed() bool {
+// Failed Returns true if the scheduler has marked the job as failed
+func (job *Job) Failed() bool {
 	return job.failed
 }
 
-func (job *SchedulerJob) SetFailed() *SchedulerJob {
-	j := job.copy()
-	j.failed = true
+// WithFailed returns a copy of the job with the failed status updated.
+func (job *Job) WithFailed(failed bool) *Job {
+	j := copyJob(*job)
+	j.failed = failed
 	return j
 }
 
-func (job *SchedulerJob) GetTimestamp() int64 {
-	return job.timestamp
+// Created Returns the creation time of the job
+func (job *Job) Created() int64 {
+	return job.created
 }
 
 // GetAnnotations returns the annotations on the job.
-func (job *SchedulerJob) GetAnnotations() map[string]string {
+// This is needed for compatibility with LegacySchedulerJob
+func (job *Job) GetAnnotations() map[string]string {
 	requirements := job.jobSchedulingInfo.GetObjectRequirements()
 	if len(requirements) == 0 {
 		return nil
@@ -174,44 +198,41 @@ func (job *SchedulerJob) GetAnnotations() map[string]string {
 }
 
 // InTerminalState returns true if the job  is in a terminal state
-func (job *SchedulerJob) InTerminalState() bool {
+func (job *Job) InTerminalState() bool {
 	return job.succeeded || job.cancelled || job.failed
 }
 
-func (job *SchedulerJob) HasCurrentRun() bool {
+// HasRuns returns true if the job has been run
+// If this is returns true then LatestRun is guaranteed to return a non-nil value.
+func (job *Job) HasRuns() bool {
 	return job.activeRun != nil
 }
 
-func (job *SchedulerJob) CreateRun(executor string) *SchedulerJob {
-	j := job.copy()
-	j.queued = false
+// WithNewRun creates a copy of the job with a new run on the given executor.
+func (job *Job) WithNewRun(executor string) *Job {
 	run := &JobRun{
-		id:           uuid.New(),
-		creationTime: time.Now().UnixNano(),
-		executor:     executor,
+		id:       uuid.New(),
+		created:  time.Now().UnixNano(),
+		executor: executor,
 	}
-	if run.creationTime >= j.activeRunTimestamp {
-		j.activeRunTimestamp = run.creationTime
+	return job.WithUpdatedRun(run)
+}
+
+// WithUpdatedRun creates a copy of the job with run details updated.
+func (job *Job) WithUpdatedRun(run *JobRun) *Job {
+	j := copyJob(*job)
+	j.runsById = maps.Clone(j.runsById)
+	if run.created >= j.activeRunTimestamp {
+		j.activeRunTimestamp = run.created
 		j.activeRun = run
 	}
 	j.runsById[run.id] = run
 	return j
 }
 
-func (job *SchedulerJob) AddOrUpdateRun(run *JobRun) *SchedulerJob {
-	j := job.copy()
-	r := run.copy()
-	if run.creationTime >= j.activeRunTimestamp {
-		j.activeRunTimestamp = run.creationTime
-		j.activeRun = r
-	}
-	j.runsById[run.id] = r
-	return j
-}
-
 // NumReturned returns the number of times this job has been returned by executors
-// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small
-func (job *SchedulerJob) NumReturned() uint {
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small.
+func (job *Job) NumReturned() uint {
 	returned := uint(0)
 	for _, run := range job.runsById {
 		if run.returned {
@@ -221,31 +242,18 @@ func (job *SchedulerJob) NumReturned() uint {
 	return returned
 }
 
-// CurrentRun returns the currently active job run or nil if there are no runs yet
-func (job *SchedulerJob) CurrentRun() *JobRun {
+// LatestRun returns the currently active job run or nil if there are no runs yet.
+// Callers should either guard against nil values explicitly or via HasRuns.
+func (job *Job) LatestRun() *JobRun {
 	return job.activeRun
 }
 
-// RunById returns the Run corresponding to the provided run id or nil if no such Run exists
-func (job *SchedulerJob) RunById(id uuid.UUID) *JobRun {
+// RunById returns the Run corresponding to the provided run id or nil if no such Run exists.
+func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
-func (job *SchedulerJob) copy() *SchedulerJob {
-	return &SchedulerJob{
-		id:                 job.id,
-		queue:              job.queue,
-		jobset:             job.jobset,
-		priority:           job.priority,
-		timestamp:          job.timestamp,
-		queued:             job.queued,
-		jobSchedulingInfo:  job.jobSchedulingInfo,
-		cancelRequested:    job.cancelRequested,
-		cancelled:          job.cancelled,
-		failed:             job.failed,
-		succeeded:          job.succeeded,
-		runsById:           maps.Clone(job.runsById),
-		activeRun:          job.activeRun,
-		activeRunTimestamp: job.activeRunTimestamp,
-	}
+// copy makes a copy of the job
+func copyJob(j Job) *Job {
+	return &j
 }

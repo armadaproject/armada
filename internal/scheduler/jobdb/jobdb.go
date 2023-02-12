@@ -23,7 +23,7 @@ const (
 // JobDb is implemented on top of https://github.com/hashicorp/go-memdb which is a simple in-memory database built on
 // immutable radix trees.
 type JobDb struct {
-	// In-memory database. Stores *SchedulerJob.
+	// In-memory database. Stores *Job.
 	// Used to efficiently iterate over jobs in sorted order.
 	Db *memdb.MemDB
 }
@@ -45,7 +45,7 @@ func NewJobDb() (*JobDb, error) {
 }
 
 // Upsert will insert the given jobs if they don't already exist or update the if they do
-func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*SchedulerJob) error {
+func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*Job) error {
 	for _, job := range jobs {
 		err := txn.Insert(jobsTable, job)
 		if err != nil {
@@ -66,22 +66,22 @@ func (jobDb *JobDb) Upsert(txn *memdb.Txn, jobs []*SchedulerJob) error {
 
 // GetById returns the job with the given Id or nil if no such job exists
 // The Job returned by this function *must not* be subsequently modified
-func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*SchedulerJob, error) {
-	var job *SchedulerJob = nil
+func (jobDb *JobDb) GetById(txn *memdb.Txn, id string) (*Job, error) {
+	var job *Job = nil
 	iter, err := txn.Get(jobsTable, idIndex, id)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	result := iter.Next()
 	if result != nil {
-		job = result.(*SchedulerJob)
+		job = result.(*Job)
 	}
 	return job, err
 }
 
 // GetByRunId returns the job with the given run id or nil if no such job exists
 // The Job returned by this function *must not* be subsequently modified
-func (jobDb *JobDb) GetByRunId(txn *memdb.Txn, runId uuid.UUID) (*SchedulerJob, error) {
+func (jobDb *JobDb) GetByRunId(txn *memdb.Txn, runId uuid.UUID) (*Job, error) {
 	iter, err := txn.Get(runsByJobTable, idIndex, runId.String())
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -105,14 +105,14 @@ func (jobDb *JobDb) HasQueuedJobs(txn *memdb.Txn, queue string) (bool, error) {
 
 // GetAll returns all jobs in the database.
 // The Jobs returned by this function *must not* be subsequently modified
-func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
+func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*Job, error) {
 	iter, err := txn.Get(jobsTable, idIndex)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	result := make([]*SchedulerJob, 0)
+	result := make([]*Job, 0)
 	for obj := iter.Next(); obj != nil; obj = iter.Next() {
-		p := obj.(*SchedulerJob)
+		p := obj.(*Job)
 		result = append(result, p)
 	}
 	return result, nil
@@ -122,7 +122,7 @@ func (jobDb *JobDb) GetAll(txn *memdb.Txn) ([]*SchedulerJob, error) {
 // ignored
 func (jobDb *JobDb) BatchDelete(txn *memdb.Txn, ids []string) error {
 	for _, id := range ids {
-		err := txn.Delete(jobsTable, &SchedulerJob{id: id})
+		err := txn.Delete(jobsTable, &Job{id: id})
 		if err != nil {
 			// this could be because the job doesn't exist
 			// unfortunately the error from memdb isn't nice for parsing, so we do an explicit check
@@ -185,13 +185,13 @@ func (it *JobQueueIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
-// NextJobItem returns the next SchedulerJob or nil if the end of the iterator has been reached
-func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
+// NextJobItem returns the next Job or nil if the end of the iterator has been reached
+func (it *JobQueueIterator) NextJobItem() *Job {
 	obj := it.it.Next()
 	if obj == nil {
 		return nil
 	}
-	jobItem, ok := obj.(*SchedulerJob)
+	jobItem, ok := obj.(*Job)
 	if !ok {
 		panic(fmt.Sprintf("expected *SchedulerNode, but got %T", obj))
 	}
@@ -204,7 +204,7 @@ func (it *JobQueueIterator) NextJobItem() *SchedulerJob {
 }
 
 // Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which
-// provides a typesafe mechanism for getting the next SchedulerJob
+// provides a typesafe mechanism for getting the next Job
 func (it *JobQueueIterator) Next() interface{} {
 	return it.NextJobItem()
 }
@@ -226,7 +226,7 @@ func jobDbSchema() *memdb.DBSchema {
 					&memdb.StringFieldIndex{Field: "queue"},
 					&memdb.BoolFieldIndex{Field: "queued"},
 					&memdb.UintFieldIndex{Field: "priority"},
-					&memdb.IntFieldIndex{Field: "timestamp"},
+					&memdb.IntFieldIndex{Field: "created"},
 				},
 			},
 		},
