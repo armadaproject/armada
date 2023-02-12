@@ -378,7 +378,7 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*j
 
 // generateUpdateMessages generates EventSequence representing the state change on a single jobs
 // If there are no state changes then nil will be returned
-func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors, txn *memdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *memdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
@@ -417,13 +417,13 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.SchedulerJob, jobRu
 			events = append(events, jobSucceeded)
 		} else if lastRun.GetFailed() {
 			job = job.SetFailed().SetQueued(false)
-			runErrors := jobRunErrors[lastRun.GetId()]
+			runError := jobRunErrors[lastRun.GetId()]
 			jobErrors := &armadaevents.EventSequence_Event{
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobErrors{
 					JobErrors: &armadaevents.JobErrors{
 						JobId:  jobId,
-						Errors: runErrors.GetErrors(),
+						Errors: []*armadaevents.Error{runError},
 					},
 				},
 			}
