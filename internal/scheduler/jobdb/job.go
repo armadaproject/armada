@@ -1,12 +1,13 @@
 package jobdb
 
 import (
-	"golang.org/x/exp/maps"
 	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/google/uuid"
 )
 
 // Job is the scheduler-internal representation of a job.
