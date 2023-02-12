@@ -64,7 +64,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunErrors []string              // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors    []string              // ids of jobs we expect to have produced jobErrors messages
 		expectedJobCancelled []string              // ids of jobs we expect to have  produced cancelled messages
-		expectedJobSucceeded []string              // ids of jobs we expect to have  produced suceeeded messages
+		expectedJobSucceeded []string              // ids of jobs we expect to have  produced succeeeded messages
 		expectedLeased       []string              // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedQueued       []string              // ids of jobs we expected to be queued in jobdb at the end of the cycle
 		expectedTerminal     []string              // ids of jobs we expected to be terminal in jobdb at the end of the cycle
@@ -572,7 +572,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 type testJobRepository struct {
 	updatedJobs           []database.Job
 	updatedRuns           []database.Run
-	errors                map[uuid.UUID]*armadaevents.JobRunErrors
+	errors                map[uuid.UUID]*armadaevents.Error
 	shouldError           bool
 	numReceivedPartitions uint32
 }
@@ -594,7 +594,7 @@ func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64
 	return t.updatedJobs, t.updatedRuns, nil
 }
 
-func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error) {
+func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	if t.shouldError {
 		return nil, errors.New("error fetching job run errors")
 	}
