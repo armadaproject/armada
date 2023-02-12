@@ -48,7 +48,7 @@ var leasedJob = jobdb.NewJob(
 	schedulingInfo,
 	false,
 	false,
-	1).WithNewRun("testExecutor")
+	1).WithQueued(false).WithNewRun("testExecutor")
 
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
@@ -644,7 +644,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb
 			if !job.Queued() {
 				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job was already leased", job.Id()))
 			}
-			job = job.WithNewRun("test-executor")
+			job = job.WithQueued(false).WithNewRun("test-executor")
 			jobs = append(jobs, job)
 		} else {
 			return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job does not exist", job.Id()))
