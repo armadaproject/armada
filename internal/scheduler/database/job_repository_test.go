@@ -2,9 +2,6 @@ package database
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/compress"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"testing"
 	"time"
 
@@ -15,8 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const defaultBatchSize = 1
