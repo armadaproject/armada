@@ -4,13 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-
-	"github.com/armadaproject/armada/internal/common/database"
-	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 func migrateDbCmd() *cobra.Command {
@@ -19,7 +17,7 @@ func migrateDbCmd() *cobra.Command {
 		Short: "migrates the scheduler database to the latest version",
 		RunE:  migrateDatabase,
 	}
-	cmd.PersistentFlags().Duration(
+	cmd.Flags().Duration(
 		"timeout",
 		5*time.Minute,
 		"Duration after which the migration will fail if it has not been created")
@@ -27,8 +25,11 @@ func migrateDbCmd() *cobra.Command {
 	return cmd
 }
 
-func migrateDatabase(_ *cobra.Command, _ []string) error {
-	timeout := viper.GetDuration("timeout")
+func migrateDatabase(cmd *cobra.Command, _ []string) error {
+	timeout, err := cmd.Flags().GetDuration("timeout")
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	config, err := loadConfig()
 	if err != nil {
