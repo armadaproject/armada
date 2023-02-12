@@ -1,10 +1,12 @@
 package jobdb
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"testing"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 var schedulingInfo = &schedulerobjects.JobSchedulingInfo{
@@ -169,7 +171,6 @@ func TestJob_TestWithUpdatedRun_AdditionalEarlierRun(t *testing.T) {
 }
 
 func TestJob_TestNumReturned(t *testing.T) {
-
 	returnedRun := func() *JobRun {
 		return &JobRun{
 			id:       uuid.New(),
