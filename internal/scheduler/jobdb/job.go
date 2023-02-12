@@ -47,7 +47,7 @@ type Job struct {
 
 // NewJob creates a new scheduler job
 func NewJob(
-	jobId string,
+	id string,
 	jobset string,
 	queue string,
 	priority uint32,
@@ -57,7 +57,7 @@ func NewJob(
 	created int64,
 ) *Job {
 	return &Job{
-		id:                jobId,
+		id:                id,
 		jobset:            jobset,
 		queue:             queue,
 		queued:            true,
@@ -254,7 +254,7 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
-// copy makes a copy of the job
+// copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
 }
