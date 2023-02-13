@@ -21,6 +21,9 @@ type Job struct {
 	jobset string
 	// Per-queue priority of this job.
 	priority uint32
+	// Requested per queue priority of this job.
+	// This is used when syncing the postgres database with the scheduler-internal database
+	requestedPriority uint32
 	// Logical timestamp indicating the order in which jobs are submitted.
 	// Jobs with identical Queue and Priority are sorted by this.
 	created int64
@@ -62,6 +65,7 @@ func NewJob(
 		queue:             queue,
 		queued:            true,
 		priority:          priority,
+		requestedPriority: priority,
 		jobSchedulingInfo: schedulingInfo,
 		cancelRequested:   cancelRequested,
 		cancelled:         cancelled,
@@ -108,10 +112,21 @@ func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
+// RequestedPriority returns the requested priority of the job.
+func (job *Job) RequestedPriority() uint32 {
+	return job.requestedPriority
+}
+
 // WithPriority returns a copy of the job with the priority updated.
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.priority = priority
+	return j
+}
+
+func (job *Job) WithRequestedPriority(priority uint32) *Job {
+	j := copyJob(*job)
+	j.requestedPriority = priority
 	return j
 }
 
