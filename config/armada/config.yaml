@@ -32,14 +32,22 @@ eventsApiRedis:
 scheduling:
   preemption:
     enabled: true
+    preemptToFairShare: true
+    nodeEvictionProbability: 1.0
+    nodeOversubscriptionEvictionProbability: 0.0
+    setNodeIdSelector: true
+    nodeIdLabel: kubernetes.io/hostname
+    setNodeName: false
     priorityClasses:
       armada-default:
         priority: 1000
+        preemptible: false
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
       armada-preemptible:
         priority: 900
+        preemptible: true
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
