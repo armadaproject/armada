@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 KIND_IMG="kindest/node:v1.21.10"
 CHART_VERSION_ARMADA="v0.3.20"
 CHART_VERSION_ARMADA_EXECUTOR_MONITORING="v0.1.9"
