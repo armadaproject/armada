@@ -135,9 +135,12 @@ func (a *ResourceList) Sub(b ResourceList) {
 	}
 }
 
-func (rl *ResourceList) DeepCopy() ResourceList {
+func (rl ResourceList) DeepCopy() ResourceList {
+	if rl.Resources == nil {
+		return ResourceList{}
+	}
 	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity),
+		Resources: make(map[string]resource.Quantity, len(rl.Resources)),
 	}
 	for t, q := range rl.Resources {
 		rv.Resources[t] = q.DeepCopy()
@@ -145,26 +148,23 @@ func (rl *ResourceList) DeepCopy() ResourceList {
 	return rv
 }
 
-func (a ResourceList) Equal(b ResourceList) bool {
-	if len(a.Resources) != len(b.Resources) {
-		return false
-	}
-	if a.Resources == nil {
-		if b.Resources == nil {
-			return true
-		} else {
+func (a ResourceList) IsZero() bool {
+	for _, q := range a.Resources {
+		if !q.IsZero() {
 			return false
 		}
 	}
-	if b.Resources == nil && a.Resources != nil {
-		return false
-	}
+	return true
+}
+
+func (a ResourceList) Equal(b ResourceList) bool {
 	for t, qa := range a.Resources {
-		if qb, ok := b.Resources[t]; ok {
-			if qa.Cmp(qb) != 0 {
-				return false
-			}
-		} else {
+		if qa.Cmp(b.Get(t)) != 0 {
+			return false
+		}
+	}
+	for t, qb := range b.Resources {
+		if qb.Cmp(a.Get(t)) != 0 {
 			return false
 		}
 	}
@@ -192,20 +192,16 @@ func (rl ResourceList) CompactString() string {
 // where alloctable resources = unused resources + resources allocated to lower-priority pods.
 type AllocatableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAllocatableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AllocatableByPriorityAndResourceType {
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) AllocatableByPriorityAndResourceType {
 	rv := make(AllocatableByPriorityAndResourceType)
 	for _, priority := range priorities {
-		m := make(map[string]resource.Quantity)
-		for t, q := range resources {
-			m[t] = q.DeepCopy()
-		}
-		rv[priority] = ResourceList{Resources: m}
+		rv[priority] = rl.DeepCopy()
 	}
 	return rv
 }
 
 func (m AllocatableByPriorityAndResourceType) DeepCopy() AllocatableByPriorityAndResourceType {
-	rv := make(AllocatableByPriorityAndResourceType)
+	rv := make(AllocatableByPriorityAndResourceType, len(m))
 	for priority, resourcesAtPriority := range m {
 		rv[priority] = resourcesAtPriority.DeepCopy()
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
@@ -82,8 +83,7 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
-	Preemption                                PreemptionConfig
-	UseProbabilisticSchedulingForAllResources bool
+	Preemption PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
 	// Minimum resources to schedule per request from an executor.
@@ -188,11 +188,30 @@ type NewSchedulerConfig struct {
 
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
+	// TODO: We should remove the enabled flag. Disabling it makes no sense now.
 	// If true, Armada will:
 	// 1. Validate that submitted pods specify no or a valid priority class.
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
+	// Whether to preempt jobs with a balanced priority class to divide resources more fairly.
+	PreemptToFairShare bool
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to balance resource usage.
+	NodeEvictionProbability float64
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on oversubscribed nodes, i.e.,
+	// nodes on which the total resource requests are greater than the available resources.
+	NodeOversubscriptionEvictionProbability float64
+	// If true, the Armada scheduler will add to scheduled pods a node selector
+	// NodeIdLabel: <value of label on node selected by scheduler>.
+	// If true, NodeIdLabel must be non-empty.
+	SetNodeIdSelector bool
+	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
+	NodeIdLabel string
+	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
+	// thus bypassing kube-scheduler entirely.
+	SetNodeName bool
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
@@ -204,6 +223,8 @@ type PreemptionConfig struct {
 
 type PriorityClass struct {
 	Priority int32
+	// If true, Armada will may preempt jobs of this class to improve fairness.
+	Preemptible bool
 	// Max fraction of resources assigned to jobs of this priority or lower.
 	// Must be non-increasing with higher priority.
 	//
@@ -219,12 +240,29 @@ type PriorityClass struct {
 	MaximalResourceFractionPerQueue map[string]float64
 }
 
-func (p PreemptionConfig) AllowedPriorities() []int32 {
-	allowedPcs := make([]int32, 0, len(p.PriorityClasses))
-	for _, v := range p.PriorityClasses {
-		allowedPcs = append(allowedPcs, v.Priority)
+func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
+	return PriorityByPriorityClassName(p.PriorityClasses)
+}
+
+func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
+	rv := make(map[string]int32, len(priorityClasses))
+	for name, pc := range priorityClasses {
+		rv[name] = pc.Priority
 	}
-	return allowedPcs
+	return rv
+}
+
+func (p PreemptionConfig) AllowedPriorities() []int32 {
+	return AllowedPriorities(p.PriorityClasses)
+}
+
+func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+	rv := make([]int32, 0, len(priorityClasses))
+	for _, v := range priorityClasses {
+		rv = append(rv, v.Priority)
+	}
+	slices.Sort(rv)
+	return slices.Compact(rv)
 }
 
 type DatabaseRetentionPolicy struct {

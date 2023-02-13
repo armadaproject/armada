@@ -54,6 +54,7 @@ type Queue struct {
 type Run struct {
 	RunID        uuid.UUID `db:"run_id"`
 	JobID        string    `db:"job_id"`
+	Created      int64     `db:"created"`
 	JobSet       string    `db:"job_set"`
 	Executor     string    `db:"executor"`
 	Cancelled    bool      `db:"cancelled"`
