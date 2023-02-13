@@ -11,12 +11,35 @@ CHART_VERSION_POSTGRES="11.9.12"
 CHART_VERSION_PULSAR="2.9.4"
 CHART_VERSION_REDIS="4.22.3"
 
+errAndExit() {
+	local MESSAGE=$1
+
+	printf "${MESSAGE}\n"
+	exit 1
+}
+
 printWrapper() {
 	local CONTENT=$1
-	printf "\n*******************************************************\n"
-	printf "${CONTENT}"
-	printf "\n*******************************************************\n"
+
+	printf "*******************************************************\n"
+	printf "${CONTENT}\n"
+	printf "*******************************************************\n"
 }
+
+checkInstallDependencies() {
+	local INSTALL_DEPENDENCIES="helm kind curl kubectl"
+
+	printWrapper "Checking all required dependencies are installed on your system"
+
+	for dep in $INSTALL_DEPENDENCIES; do
+		if ! command -v $dep > /dev/null; then
+			errAndExit "${dep} - Is not correctly installed. Please install it and try to run this script again."
+		fi
+		printf "${dep} - Is correctly installed.\n"
+	done
+}
+
+checkInstallDependencies
 
 printWrapper "Running script which will deploy a local Armada cluster"
 
