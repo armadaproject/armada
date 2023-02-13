@@ -37,10 +37,16 @@ spec:
         - name: lookout
           imagePullPolicy: IfNotPresent
           image: {{ .Values.image.repository }}:{{ required "A value is required for .Values.image.tag" .Values.image.tag }}
-          args:
-            - --migrateDatabase
-            - --config
-            - /config/application_config.yaml
+          entrypoint: []
+          cmd:
+            - |
+              ./lookout \
+              --migrateDatabase \
+              --config \
+              /config/application_config.yaml 
+            {{- if .Values.extraInitCommand }}
+              {{ .Values.extraInitCommand }}
+            {{- end }}
           {{- if .Values.env }}
           env:
             {{- toYaml .Values.env | nindent 12 -}}
