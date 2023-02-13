@@ -7,18 +7,69 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
+
+func TestInMemoryJobRepository(t *testing.T) {
+	T := time.Now()
+	jobs := []*api.Job{
+		{
+			Queue:    "A",
+			Id:       "3",
+			Priority: 1,
+			Created:  T.Add(3 * time.Second),
+		},
+		{
+			Queue:    "A",
+			Id:       "1",
+			Priority: 1,
+			Created:  T.Add(1 * time.Second),
+		},
+		{
+			Queue:    "A",
+			Id:       "2",
+			Priority: 1,
+			Created:  T.Add(2 * time.Second),
+		},
+		{
+			Queue:    "A",
+			Id:       "5",
+			Priority: 3,
+		},
+		{
+			Queue:    "A",
+			Id:       "0",
+			Priority: 0,
+		},
+		{
+			Queue:    "A",
+			Id:       "4",
+			Priority: 2,
+		},
+	}
+	legacySchedulerJobs := make([]LegacySchedulerJob, len(jobs))
+	for i, job := range jobs {
+		legacySchedulerJobs[i] = job
+	}
+	repo := NewInMemoryJobRepository(testPriorityClasses)
+	repo.EnqueueMany(legacySchedulerJobs)
+	expected := []string{"0", "1", "2", "3", "4", "5"}
+	actual, err := repo.GetQueueJobIds("A")
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}
 
 func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 5) {
+	for _, req := range testNSmallCpuJob("A", 0, 5) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
-	for _, req := range testNSmallCpuJob(0, 5) {
+	for _, req := range testNSmallCpuJob("B", 0, 5) {
 		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
 		job.Queue = "B"
 		repo.Enqueue(job)
@@ -26,13 +77,13 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	its := make([]JobIterator, 4)
+	its := make([]JobIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
 		it, err := NewQueuedJobsIterator(ctx, queue, repo)
 		if !assert.NoError(t, err) {
 			return
 		}
-		its[i+1] = it
+		its[i] = it
 	}
 	it := NewMultiJobsIterator(its...)
 
@@ -49,40 +100,10 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	require.Nil(t, v)
 }
 
-func TestMultiJobsIterator_Nils(t *testing.T) {
-	repo := newMockJobRepository()
-	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 5) {
-		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
-		job.Queue = "A"
-		repo.Enqueue(job)
-		expected = append(expected, job.Id)
-	}
-
-	ctx := context.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
-	if !assert.NoError(t, err) {
-		return
-	}
-	multiIt := NewMultiJobsIterator([]JobIterator{nil, it}...)
-
-	actual := make([]string, 0)
-	for job, err := multiIt.Next(); job != nil; job, err = multiIt.Next() {
-		if !assert.NoError(t, err) {
-			return
-		}
-		actual = append(actual, job.GetId())
-	}
-	assert.Equal(t, expected, actual)
-	v, err := it.Next()
-	require.NoError(t, err)
-	require.Nil(t, v)
-}
-
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 10) {
+	for _, req := range testNSmallCpuJob("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -107,7 +128,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 17) {
+	for _, req := range testNSmallCpuJob("A", 0, 17) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -132,7 +153,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 113) {
+	for _, req := range testNSmallCpuJob("A", 0, 113) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -157,13 +178,13 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testNSmallCpuJob(0, 10) {
+	for _, req := range testNSmallCpuJob("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
 
-	for _, req := range testNSmallCpuJob(0, 10) {
+	for _, req := range testNSmallCpuJob("B", 0, 10) {
 		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
 		repo.Enqueue(job)
 	}
@@ -185,7 +206,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 
 func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	repo := newMockJobRepository()
-	for _, req := range testNSmallCpuJob(0, 10) {
+	for _, req := range testNSmallCpuJob("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -210,7 +231,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	repo := newMockJobRepository()
-	for _, req := range testNSmallCpuJob(0, 10) {
+	for _, req := range testNSmallCpuJob("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)

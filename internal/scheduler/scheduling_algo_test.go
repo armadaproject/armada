@@ -210,9 +210,11 @@ func twoCoreNode(jobs []*jobdb.Job) *schedulerobjects.Node {
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},
-			map[string]resource.Quantity{
-				"cpu":    allocatableCpu,
-				"memory": resource.MustParse("256Gi"),
+			schedulerobjects.ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    allocatableCpu,
+					"memory": resource.MustParse("256Gi"),
+				},
 			},
 		),
 		JobRunsByState: jobRunsByState,

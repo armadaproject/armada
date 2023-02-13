@@ -96,7 +96,7 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
 	// First, check if all jobs can be scheduled individually.
 	for i, job := range jobs {
-		reqs := PodRequirementsFromLegacySchedulerJob(job, srv.priorityClasses)
+		reqs := PodRequirementFromLegacySchedulerJob(job, srv.priorityClasses)
 		canSchedule, reason := srv.check([]*schedulerobjects.PodRequirements{reqs})
 		if !canSchedule {
 			return canSchedule, fmt.Sprintf("%d-th job unschedulable:\n%s", i, reason)
@@ -197,7 +197,7 @@ func (srv *SubmitChecker) filterStaleNodeDbs(executorsById map[string]minimalExe
 func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	// Nodes to be considered by the scheduler.
 	nodeDb, err := NewNodeDb(
-		srv.priorities,
+		srv.priorityClasses,
 		srv.indexedResources,
 		srv.indexedTaints,
 		srv.indexedNodeLabels,
@@ -205,7 +205,7 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*Node
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.Upsert(nodes)
+	err = nodeDb.UpsertMany(nodes)
 	if err != nil {
 		return nil, err
 	}

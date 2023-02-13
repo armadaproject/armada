@@ -13,8 +13,13 @@ const (
 	// TargetNodeIdAnnotation if set on a pod, the value of this annotation is interpreted as the id of a node
 	// and only the node with that id will be considered for scheduling the pod.
 	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
+	// IsEvictedAnnotation, indicates a pod was evicted in this round and is currently running.
+	// Used by the scheduler to differentiate between pods from running and queued jobs.
+	IsEvictedAnnotation = "armadaproject.io/isEvicted"
 	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
 	JobIdAnnotation = "armadaproject.io/jobId"
+	// QueueAnnotation if set on a pod, indicates which queue this pod is part of.
+	QueueAnnotation = "armadaproject.io/queue"
 )
 
 type Configuration struct {

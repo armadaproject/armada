@@ -361,7 +361,6 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 	if err != nil {
 		return nil, err
 	}
-
 	var result *multierror.Error
 	jobs := make([]*api.Job, 0, len(jobResults))
 	for _, jobResult := range jobResults {
@@ -374,6 +373,11 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 		} else if jobResult.Error != nil {
 			err = errors.WithMessagef(jobResult.Error, "error getting job with id %s from database", jobResult.JobId)
 			result = multierror.Append(result, err)
+		}
+		// Ensure job.GetAnnotations() returns a pointer to an initialised map.
+		// Necessary to use the annotations to set flags when scheduling the job.
+		if jobResult.Job.Annotations == nil {
+			jobResult.Job.Annotations = make(map[string]string)
 		}
 		jobs = append(jobs, jobResult.Job)
 	}
