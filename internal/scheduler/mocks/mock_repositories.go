@@ -160,10 +160,10 @@ func (mr *MockJobRepositoryMockRecorder) CountReceivedPartitions(arg0, arg1 inte
 }
 
 // FetchJobRunErrors mocks base method.
-func (m *MockJobRepository) FetchJobRunErrors(arg0 context.Context, arg1 []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error) {
+func (m *MockJobRepository) FetchJobRunErrors(arg0 context.Context, arg1 []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobRunErrors", arg0, arg1)
-	ret0, _ := ret[0].(map[uuid.UUID]*armadaevents.JobRunErrors)
+	ret0, _ := ret[0].(map[uuid.UUID]*armadaevents.Error)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
