@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"math/rand"
 	"time"
 
@@ -111,6 +112,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
+	pulsarJobDetails := make([]*schedulerobjects.PulsarSchedulerJobDetails, 0)
+
 	for i, apiJob := range apiJobs {
 		eventTime := time.Now()
 		assignedScheduler, ok := schedulersByJobId[apiJob.Id]
@@ -121,6 +124,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 		es := legacySchedulerEvents
 		if assignedScheduler == schedulers.Pulsar {
+			pulsarJobDetails = append(pulsarJobDetails, &schedulerobjects.PulsarSchedulerJobDetails{
+				JobId:  apiJob.Id,
+				Queue:  apiJob.Queue,
+				JobSet: apiJob.JobSetId,
+			})
 			es = pulsarSchedulerEvents
 		}
 
@@ -189,6 +197,14 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 					apiJob.ClientId,
 					apiJob.GetId())
 			}
+		}
+	}
+
+	if len(pulsarJobDetails) > 0 {
+		err = srv.SubmitServer.jobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails)
+		if err != nil {
+			log.WithError(err).Error("failed store pulsar job details")
+			return nil, status.Error(codes.Internal, "failed store pulsar job details")
 		}
 	}
 
@@ -798,7 +814,7 @@ func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string
 	if err != nil {
 		return "", "", err
 	}
-	if len(jobs) >= 1 {
+	if len(jobs) > 0 && jobs[0].Error == nil {
 		return jobs[0].Job.GetQueue(), jobs[0].Job.GetJobSetId(), nil
 	}
 
