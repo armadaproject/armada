@@ -128,6 +128,9 @@ func (a ComputeResources) LimitToZero() {
 }
 
 func (a ComputeResources) IsZero() bool {
+	if len(a) == 0 {
+		return true
+	}
 	for _, value := range a {
 		if !value.IsZero() {
 			return false

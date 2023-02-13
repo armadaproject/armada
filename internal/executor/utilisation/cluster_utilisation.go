@@ -151,7 +151,9 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds b
 		available.Sub(nodesUsage[n.Name])
 
 		runningNodePods := runningPodsByNode[n.Name]
-		runningNodePodsNonArmada := util.FilterPods(runningNodePods, util.IsManagedPod)
+		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
+			return !util.IsManagedPod(pod)
+		})
 		allocated := getAllocatedResourcesByPriority(runningNodePods)
 		allocatedNonArmada := getAllocatedResourcesByPriority(runningNodePodsNonArmada)
 
@@ -223,6 +225,9 @@ func calculateReservedNodeResource(
 	reserved armadaresource.ComputeResources,
 	existingNodeResource armadaresource.ComputeResources,
 ) armadaresource.ComputeResources {
+	if reserved == nil {
+		return armadaresource.ComputeResources{}
+	}
 	reservedRemaining := reserved
 	reservedRemaining.Sub(existingNodeResource)
 	reservedRemaining.LimitToZero()
@@ -235,7 +240,7 @@ func addReservedResource(
 	resourceByPriority map[int32]api.ComputeResource,
 ) {
 	if reserved.IsValid() && !reserved.IsZero() {
-		if resourceAtPriority, present := resourceByPriority[reservedPriority]; !present {
+		if resourceAtPriority, present := resourceByPriority[reservedPriority]; present {
 			totalResource := armadaresource.ComputeResources(resourceAtPriority.Resources)
 			totalResource.Add(reserved)
 			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: totalResource}

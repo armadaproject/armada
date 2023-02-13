@@ -97,6 +97,12 @@ func TestComputeResources_IsZero(t *testing.T) {
 	}
 }
 
+func TestComputeResources_IsZero_NilAndEmpty(t *testing.T) {
+	var nilResources ComputeResources
+	assert.True(t, nilResources.IsZero())
+	assert.True(t, ComputeResources{}.IsZero())
+}
+
 func TestCalculateTotalResource(t *testing.T) {
 	resources := makeDefaultNodeResource()
 	node1 := makeNodeWithResource(resources)
