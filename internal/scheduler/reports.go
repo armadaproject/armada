@@ -102,11 +102,11 @@ func (report *SchedulingRoundReport) String() string {
 }
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
-// Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
-func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport) {
+// If updateTotals is true, automatically updates scheduled resources
+func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport, updateTotals bool) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
-	if r.UnschedulableReason == "" {
+	if updateTotals && r.UnschedulableReason == "" {
 		report.ScheduledResourcesByPriority.AddResouceList(
 			r.Req.Priority,
 			schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests),

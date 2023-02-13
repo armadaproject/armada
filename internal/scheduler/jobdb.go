@@ -80,6 +80,10 @@ func (job *SchedulerJob) GetQueue() string {
 	return job.Queue
 }
 
+func (job *SchedulerJob) GetJobSet() string {
+	return job.Jobset
+}
+
 // GetAnnotations returns the annotations on the job.
 func (job *SchedulerJob) GetAnnotations() map[string]string {
 	requirements := job.jobSchedulingInfo.GetObjectRequirements()
