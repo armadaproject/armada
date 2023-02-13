@@ -79,6 +79,7 @@ message NodeInfo {
     // Total node resources.
     // Resources available for allocation is given by the difference between this and allocated_resources.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> total_resources = 6 [(gogoproto.nullable) = false];
+    // The resources allocated to non armada pods by priority
     // Each pod is created with a priority class. Each priority class has an integer priority associated with it.
     // This is a map from priority to the total amount of resources allocated to pods with that priority.
     // It is used by the scheduler to decide whether more jobs should be sent to an executor.

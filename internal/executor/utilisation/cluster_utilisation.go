@@ -151,7 +151,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 		available.Sub(clusterUtilisationService.nodeReservedResources)
 
 		runningNodePods := runningPodsByNode[n.Name]
-		allocated := getAllocatedResourcesByPriority(runningNodePods)
+		allocated := getAllocatedResourceForNonArmadaPodsByPriority(runningNodePods)
 
 		nodes = append(nodes, api.NodeInfo{
 			Name:                 n.Name,
@@ -252,8 +252,11 @@ func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
 	return podsByNodes
 }
 
-func getAllocatedResourcesByPriority(pods []*v1.Pod) map[int32]api.ComputeResource {
+func getAllocatedResourceForNonArmadaPodsByPriority(pods []*v1.Pod) map[int32]api.ComputeResource {
 	resourceUsageByPriority := make(map[int32]api.ComputeResource)
+
+	// Exclude managed pods - as this should only include non armada pods
+	pods = util.FilterPods(pods, IsManagedPod)
 
 	podsByPriority := groupPodsByPriority(pods)
 
