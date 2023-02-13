@@ -516,14 +516,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if err != nil {
 			return nil, err
 		}
-
-		// // Update aggregatedUsageByQueue to include any scheduled jobs.
-		// aggregatedUsageByQueue = scheduler.UpdateUsage(
-		// 	aggregatedUsageByQueue,
-		// 	nil,
-		// 	scheduledJobs,
-		// 	q.schedulingConfig.Preemption.PriorityClasses,
-		// )
 	}
 
 	// Prepare preempted messages.
