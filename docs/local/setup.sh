@@ -9,16 +9,20 @@ CHART_VERSION_POSTGRES="11.9.12"
 CHART_VERSION_PULSAR="2.9.4"
 CHART_VERSION_REDIS="4.22.3"
 
-printf "\n*******************************************************\n"
-printf "Running script which will deploy a local Armada cluster"
-printf "\n*******************************************************\n"
+printWrapper() {
+	local CONTENT=$1
+	printf "\n*******************************************************\n"
+	printf "${CONTENT}"
+	printf "\n*******************************************************\n"
+}
+
+printWrapper "Running script which will deploy a local Armada cluster"
 
 #####################################################
 #                HELM CONFIGURATION                 #
 #####################################################
-printf "\n*******************************************************\n"
-printf "Registering required helm repositories ..."
-printf "\n*******************************************************\n"
+printWrapper "Registering required helm repositories ..."
+
 helm repo add dandydev https://dandydeveloper.github.io/charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add nats https://nats-io.github.io/k8s/helm/charts
@@ -30,9 +34,7 @@ helm repo update
 #####################################################
 #                  ARMADA SERVER                    #
 #####################################################
-printf "\n*******************************************************\n"
-printf "Deploying Armada server ..."
-printf "\n*******************************************************\n"
+printWrapper "Deploying Armada server ..."
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind/kind-config-server.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -65,9 +67,7 @@ SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.sta
 #####################################################
 #               ARMADA EXECUTOR 1                   #
 #####################################################
-printf "\n*******************************************************\n"
-printf "Deploying first Armada executor cluster ..."
-printf "\n*******************************************************\n"
+printWrapper "Deploying first Armada executor cluster ..."
 kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -87,9 +87,7 @@ EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpat
 #####################################################
 #               ARMADA EXECUTOR 2                   #
 #####################################################
-printf "\n*******************************************************\n"
-printf "Deploying second Armada executor cluster ..."
-printf "\n*******************************************************\n"
+printWrapper "Deploying second Armada executor cluster ..."
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -109,9 +107,7 @@ EXECUTOR_1_IP=$(kubectl get nodes quickstart-armada-executor-1-worker -o jsonpat
 #####################################################
 #                 ARMADA LOOKOUT                    #
 #####################################################
-printf "\n*******************************************************\n"
-printf "Deploying Armada Lookout UI ..."
-printf "\n*******************************************************\n"
+printWrapper "Deploying Armada Lookout UI ..."
 kind export kubeconfig --name=quickstart-armada-server
 
 # Install postgres
@@ -127,16 +123,12 @@ helm install lookout gresearch/armada-lookout --version $CHART_VERSION_ARMADA -f
 #####################################################
 #                 GRAFANA CONFIG                    #
 #####################################################
-printf "\n*******************************************************\n"
-printf "Configuring Grafana dashboard for Armada ..."
-printf "\n*******************************************************\n"
+printWrapper "Configuring Grafana dashboard for Armada ..."
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-0","type":"prometheus","url":"http://'$EXECUTOR_0_IP':30001","access":"proxy","basicAuth":false}'
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/datasources -H "Content-Type: application/json" -d '{"name":"cluster-1","type":"prometheus","url":"http://'$EXECUTOR_1_IP':30001","access":"proxy","basicAuth":false}'
 curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import --data-binary @./docs/quickstart/grafana-armada-dashboard.json -H "Content-Type: application/json"
 
-printf "\n*******************************************************\n"
-printf "Finished deploying local Armada cluster"
-printf "\n*******************************************************\n"
+printWrapper "Finished deploying local Armada cluster"
 
 bs="\033[1m"
 be="\033[0m"
