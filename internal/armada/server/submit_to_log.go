@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"math/rand"
 	"time"
 
@@ -31,6 +30,7 @@ import (
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
