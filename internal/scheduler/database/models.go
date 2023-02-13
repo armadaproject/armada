@@ -17,22 +17,22 @@ type Executor struct {
 }
 
 type Job struct {
-	JobID                      string    `db:"job_id"`
-	JobSet                     string    `db:"job_set"`
-	Queue                      string    `db:"queue"`
-	UserID                     string    `db:"user_id"`
-	Submitted                  int64     `db:"submitted"`
-	Groups                     []byte    `db:"groups"`
-	Priority                   int64     `db:"priority"`
-	CancelRequested            bool      `db:"cancel_requested"`
-	Cancelled                  bool      `db:"cancelled"`
-	CancelledByJobsetRequested bool      `db:"cancelled_by_jobset_requested"`
-	Succeeded                  bool      `db:"succeeded"`
-	Failed                     bool      `db:"failed"`
-	SubmitMessage              []byte    `db:"submit_message"`
-	SchedulingInfo             []byte    `db:"scheduling_info"`
-	Serial                     int64     `db:"serial"`
-	LastModified               time.Time `db:"last_modified"`
+	JobID                   string    `db:"job_id"`
+	JobSet                  string    `db:"job_set"`
+	Queue                   string    `db:"queue"`
+	UserID                  string    `db:"user_id"`
+	Submitted               int64     `db:"submitted"`
+	Groups                  []byte    `db:"groups"`
+	Priority                int64     `db:"priority"`
+	CancelRequested         bool      `db:"cancel_requested"`
+	Cancelled               bool      `db:"cancelled"`
+	CancelByJobsetRequested bool      `db:"cancel_by_jobset_requested"`
+	Succeeded               bool      `db:"succeeded"`
+	Failed                  bool      `db:"failed"`
+	SubmitMessage           []byte    `db:"submit_message"`
+	SchedulingInfo          []byte    `db:"scheduling_info"`
+	Serial                  int64     `db:"serial"`
+	LastModified            time.Time `db:"last_modified"`
 }
 
 type JobRunError struct {

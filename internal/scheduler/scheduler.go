@@ -640,7 +640,7 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) 
 		uint32(dbJob.Priority),
 		schedulingInfo,
 		dbJob.CancelRequested,
-		dbJob.CancelledByJobsetRequested,
+		dbJob.CancelByJobsetRequested,
 		dbJob.Cancelled,
 		dbJob.Submitted,
 	), nil
@@ -696,7 +696,7 @@ func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) *jobdb.Job {
 	if dbJob.CancelRequested && !job.CancelRequested() {
 		job = job.WithCancelRequested(true)
 	}
-	if dbJob.CancelledByJobsetRequested && !job.CancelByJobsetRequested() {
+	if dbJob.CancelByJobsetRequested && !job.CancelByJobsetRequested() {
 		job = job.WithCancelByJobsetRequested(true)
 	}
 	if dbJob.Cancelled && !job.Cancelled() {
