@@ -15,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -33,17 +34,16 @@ var (
 )
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
-	queuedJobs := make([]*SchedulerJob, 10)
+	queuedJobs := make([]*jobdb.Job, 10)
 	for i := 0; i < 10; i++ {
-		queuedJobs[i] = OneCpuJob()
-		queuedJobs[i].Timestamp = int64(i) // ensure the queuedJobs are in the order we expect
+		queuedJobs[i] = OneCpuJob(int64(i)) // ensure the queuedJobs are in the order we expect
 	}
-	runningJobs := []*SchedulerJob{OneCoreRunningJob("executor1"), OneCoreRunningJob("executor1")}
+	runningJobs := []*jobdb.Job{OneCoreRunningJob(1, "executor1"), OneCoreRunningJob(1, "executor1")}
 	tests := map[string]struct {
 		executors     []*schedulerobjects.Executor
 		queues        []*database.Queue
-		queuedJobs    []*SchedulerJob
-		runningJobs   []*SchedulerJob
+		queuedJobs    []*jobdb.Job
+		runningJobs   []*jobdb.Job
 		perQueueLimit map[string]float64
 		expectedJobs  map[string]string // map of jobId to name of executor on which it should be scheduled
 	}{
@@ -55,10 +55,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queues:     []*database.Queue{&queue},
 			queuedJobs: queuedJobs,
 			expectedJobs: map[string]string{
-				queuedJobs[0].JobId: "executor1",
-				queuedJobs[1].JobId: "executor1",
-				queuedJobs[2].JobId: "executor2",
-				queuedJobs[3].JobId: "executor2",
+				queuedJobs[0].Id(): "executor1",
+				queuedJobs[1].Id(): "executor1",
+				queuedJobs[2].Id(): "executor2",
+				queuedJobs[3].Id(): "executor2",
 			},
 		},
 		"one executor stale": {
@@ -69,8 +69,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queues:     []*database.Queue{&queue},
 			queuedJobs: queuedJobs,
 			expectedJobs: map[string]string{
-				queuedJobs[0].JobId: "executor1",
-				queuedJobs[1].JobId: "executor1",
+				queuedJobs[0].Id(): "executor1",
+				queuedJobs[1].Id(): "executor1",
 			},
 		},
 		"one executor full": {
@@ -80,10 +80,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues:      []*database.Queue{&queue},
 			queuedJobs:  queuedJobs,
-			runningJobs: []*SchedulerJob{runningJobs[0].DeepCopy(), runningJobs[1].DeepCopy()},
+			runningJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
 			expectedJobs: map[string]string{
-				queuedJobs[0].JobId: "executor2",
-				queuedJobs[1].JobId: "executor2",
+				queuedJobs[0].Id(): "executor2",
+				queuedJobs[1].Id(): "executor2",
 			},
 		},
 		"user is at usage cap before scheduling": {
@@ -93,21 +93,21 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues:        []*database.Queue{&queue},
 			queuedJobs:    queuedJobs,
-			runningJobs:   []*SchedulerJob{runningJobs[0].DeepCopy(), runningJobs[1].DeepCopy()},
+			runningJobs:   []*jobdb.Job{runningJobs[0], runningJobs[1]},
 			perQueueLimit: map[string]float64{"cpu": 0.5},
 			expectedJobs:  map[string]string{},
 		},
 		"user hits usage cap during scheduling": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", []*SchedulerJob{runningJobs[0]}, baseTime),
+				TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, baseTime),
 				TwoCoreExecutor("executor2", nil, baseTime),
 			},
 			queues:        []*database.Queue{&queue},
 			queuedJobs:    queuedJobs,
-			runningJobs:   []*SchedulerJob{runningJobs[0].DeepCopy()},
+			runningJobs:   []*jobdb.Job{runningJobs[0]},
 			perQueueLimit: map[string]float64{"cpu": 0.5},
 			expectedJobs: map[string]string{
-				queuedJobs[0].JobId: "executor1",
+				queuedJobs[0].Id(): "executor1",
 			},
 		},
 		"no queuedJobs to schedule": {
@@ -149,7 +149,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			algo.clock = clock.NewFakeClock(baseTime)
 
 			// Set up JobDb
-			jobDb, err := NewJobDb()
+			jobDb, err := jobdb.NewJobDb()
 			require.NoError(t, err)
 			txn := jobDb.WriteTxn()
 			err = jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
@@ -162,17 +162,17 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			assert.Equal(t, len(tc.expectedJobs), len(scheduledJobs))
 
 			for _, job := range scheduledJobs {
-				expectedExecutor, ok := tc.expectedJobs[job.JobId]
+				expectedExecutor, ok := tc.expectedJobs[job.Id()]
 				require.True(t, ok)
-				run := job.CurrentRun()
+				run := job.LatestRun()
 				require.NotEqual(t, t, run)
-				assert.Equal(t, expectedExecutor, run.Executor)
-				assert.Equal(t, false, job.Queued)
+				assert.Equal(t, expectedExecutor, run.Executor())
+				assert.Equal(t, false, job.Queued())
 			}
 
 			// check all scheduled queuedJobs are up-to-date in db
 			for _, job := range scheduledJobs {
-				dbJob, err := jobDb.GetById(txn, job.JobId)
+				dbJob, err := jobDb.GetById(txn, job.Id())
 				require.NoError(t, err)
 				assert.Equal(t, job, dbJob)
 			}
@@ -180,11 +180,11 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}
 }
 
-func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
+func twoCoreNode(jobs []*jobdb.Job) *schedulerobjects.Node {
 	usedCpu := resource.MustParse("0")
 	for _, job := range jobs {
 		cpuReq := job.
-			jobSchedulingInfo.
+			JobSchedulingInfo().
 			ObjectRequirements[0].
 			GetPodRequirements().
 			GetResourceRequirements().Limits["cpu"]
@@ -195,7 +195,7 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 	id := uuid.NewString()
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState, len(jobs))
 	for _, job := range jobs {
-		jobRunsByState[job.Runs[0].RunID.String()] = schedulerobjects.JobRunState_RUNNING
+		jobRunsByState[job.LatestRun().Id().String()] = schedulerobjects.JobRunState_RUNNING
 	}
 	return &schedulerobjects.Node{
 		Id: id,
@@ -221,7 +221,7 @@ func twoCoreNode(jobs []*SchedulerJob) *schedulerobjects.Node {
 	}
 }
 
-func TwoCoreExecutor(name string, jobs []*SchedulerJob, updateTime time.Time) *schedulerobjects.Executor {
+func TwoCoreExecutor(name string, jobs []*jobdb.Job, updateTime time.Time) *schedulerobjects.Executor {
 	return &schedulerobjects.Executor{
 		Id:             name,
 		Pool:           poolName,
@@ -230,45 +230,41 @@ func TwoCoreExecutor(name string, jobs []*SchedulerJob, updateTime time.Time) *s
 	}
 }
 
-func OneCpuJob() *SchedulerJob {
-	return &SchedulerJob{
-		JobId:    util.NewULID(),
-		Queue:    queueName,
-		Jobset:   "test-jobset",
-		Queued:   true,
-		Priority: 0,
-		jobSchedulingInfo: &schedulerobjects.JobSchedulingInfo{
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: &schedulerobjects.PodRequirements{
-							ResourceRequirements: v1.ResourceRequirements{
-								Limits: map[v1.ResourceName]resource.Quantity{
-									"memory": resource.MustParse("1Mi"),
-									"cpu":    resource.MustParse("1"),
-								},
-								Requests: map[v1.ResourceName]resource.Quantity{
-									"memory": resource.MustParse("1"),
-									"cpu":    resource.MustParse("1"),
-								},
+func OneCpuJob(creationTime int64) *jobdb.Job {
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						ResourceRequirements: v1.ResourceRequirements{
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("1Mi"),
+								"cpu":    resource.MustParse("1"),
 							},
-							Annotations: map[string]string{
-								JobIdAnnotation: uuid.NewString(),
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("1"),
+								"cpu":    resource.MustParse("1"),
 							},
+						},
+						Annotations: map[string]string{
+							JobIdAnnotation: uuid.NewString(),
 						},
 					},
 				},
 			},
 		},
 	}
+	return jobdb.NewJob(
+		util.NewULID(),
+		"testJobset",
+		queueName,
+		0,
+		schedulingInfo,
+		false,
+		false,
+		creationTime).WithQueued(true)
 }
 
-func OneCoreRunningJob(executor string) *SchedulerJob {
-	job := OneCpuJob()
-	job.Queued = false
-	job.Runs = []*JobRun{{
-		RunID:    uuid.New(),
-		Executor: executor,
-	}}
-	return job
+func OneCoreRunningJob(creationTime int64, executor string) *jobdb.Job {
+	return OneCpuJob(creationTime).WithNewRun(executor)
 }

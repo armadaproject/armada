@@ -69,7 +69,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 	for idx, event := range es.Events {
 		var err error = nil
 		var operationsFromEvent []DbOperation
-		switch event.GetEvent().(type) {
+		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
@@ -100,12 +100,13 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-			*armadaevents.EventSequence_Event_JobRunPreempted:
+			*armadaevents.EventSequence_Event_JobRunPreempted,
+			*armadaevents.EventSequence_Event_JobRunAssigned:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
 		default:
 			// This is an event type we haven't considered. Log a warning
-			log.Warnf("Ignoring unknown event type %T", event)
+			log.Warnf("Ignoring unknown event type %T", eventType)
 		}
 		if err != nil {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
