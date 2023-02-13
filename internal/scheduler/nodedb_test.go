@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -30,14 +31,14 @@ func TestTotalResources(t *testing.T) {
 	for _, node := range nodes {
 		expected.Add(node.TotalResources)
 	}
-	err = nodeDb.Upsert(nodes)
+	err = nodeDb.UpsertMany(nodes)
 	if !assert.NoError(t, err) {
 		return
 	}
 	assert.True(t, expected.Equal(nodeDb.totalResources))
 
 	// Upserting the same nodes again should not affect total resource count.
-	err = nodeDb.Upsert(nodes)
+	err = nodeDb.UpsertMany(nodes)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -48,7 +49,7 @@ func TestTotalResources(t *testing.T) {
 	for _, node := range nodes {
 		expected.Add(node.TotalResources)
 	}
-	err = nodeDb.Upsert(nodes)
+	err = nodeDb.UpsertMany(nodes)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -63,14 +64,15 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
 	require.NoError(t, err)
 	reqs := withAnnotationsPodReqs(
 		map[string]string{TargetNodeIdAnnotation: nodeId},
-		testNSmallCpuJob(0, 1),
+		testNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
-		report, err := db.SelectAndBindNodeToPod(req)
+		report, err := db.SelectNodeForPod(req)
 		if !assert.NoError(t, err) {
 			continue
 		}
-		assert.NotNil(t, report.Node)
+		require.NotNil(t, report.Node)
+		assert.Equal(t, nodes[0].Id, report.Node.Id)
 		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
 	}
 }
@@ -83,16 +85,50 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 	require.NoError(t, err)
 	reqs := withAnnotationsPodReqs(
 		map[string]string{TargetNodeIdAnnotation: "this node does not exist"},
-		testNSmallCpuJob(0, 1),
+		testNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
-		report, err := db.SelectAndBindNodeToPod(req)
+		report, err := db.SelectNodeForPod(req)
 		if !assert.NoError(t, err) {
 			continue
 		}
 		assert.Nil(t, report.Node)
 		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
 	}
+}
+
+func TestPodToFromNodeBinding(t *testing.T) {
+	node := testGpuNode(testPriorities)
+	req := testNGpuJob("A", 0, 1)[0]
+	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
+
+	newNode, err := BindPodToNode(req, node)
+	require.NoError(t, err)
+
+	jobId, err := JobIdFromPodRequirements(req)
+	require.NoError(t, err)
+	assert.Equal(t, []string{jobId}, maps.Keys(newNode.AllocatedByJobId))
+	assert.True(
+		t,
+		request.Equal(newNode.AllocatedByJobId[jobId]),
+	)
+
+	assert.Equal(t, []string{"A"}, maps.Keys(newNode.AllocatedByQueue))
+	assert.True(
+		t,
+		request.Equal(newNode.AllocatedByQueue["A"]),
+	)
+
+	expectedAllocatable := newNode.TotalResources.DeepCopy()
+	expectedAllocatable.Sub(request)
+	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
+
+	newNode, err = UnbindPodFromNode(req, newNode)
+	require.NoError(t, err)
+	assert.Empty(t, newNode.AllocatedByJobId)
+	assert.Empty(t, newNode.AllocatedByQueue)
+	expectedAllocatable = newNode.TotalResources.DeepCopy()
+	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
 }
 
 func TestSelectAndBindNodeToPod(t *testing.T) {
@@ -103,17 +139,17 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 	}{
 		"all jobs fit": {
 			Nodes:         testNCpuNode(1, testPriorities),
-			Reqs:          testNSmallCpuJob(0, 32),
+			Reqs:          testNSmallCpuJob("A", 0, 32),
 			ExpectSuccess: repeat(true, 32),
 		},
 		"not all jobs fit": {
 			Nodes:         testNCpuNode(1, testPriorities),
-			Reqs:          testNSmallCpuJob(0, 33),
+			Reqs:          testNSmallCpuJob("A", 0, 33),
 			ExpectSuccess: append(repeat(true, 32), repeat(false, 1)...),
 		},
 		"unavailable resource": {
 			Nodes:         testNCpuNode(1, testPriorities),
-			Reqs:          testNGpuJob(0, 1),
+			Reqs:          testNGpuJob("A", 0, 1),
 			ExpectSuccess: repeat(false, 1),
 		},
 		"unsupported resource": {
@@ -124,18 +160,18 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 						"gibberish": resource.MustParse("1"),
 					},
 				},
-				testNSmallCpuJob(0, 1),
+				testNSmallCpuJob("A", 0, 1),
 			),
 			ExpectSuccess: repeat(false, 1),
 		},
 		"preemption": {
 			Nodes:         testNCpuNode(1, testPriorities),
-			Reqs:          append(append(testNSmallCpuJob(0, 32), testNSmallCpuJob(1, 32)...), testNSmallCpuJob(0, 32)...),
+			Reqs:          append(append(testNSmallCpuJob("A", 0, 32), testNSmallCpuJob("A", 1, 32)...), testNSmallCpuJob("A", 0, 32)...),
 			ExpectSuccess: append(repeat(true, 64), repeat(false, 32)...),
 		},
 		"taints/tolerations": {
 			Nodes:         testNTaintedCpuNode(1, testPriorities),
-			Reqs:          append(append(testNSmallCpuJob(0, 1), testNGpuJob(0, 1)...), testNLargeCpuJob(0, 1)...),
+			Reqs:          append(append(testNSmallCpuJob("A", 0, 1), testNGpuJob("A", 0, 1)...), testNLargeCpuJob("A", 0, 1)...),
 			ExpectSuccess: []bool{false, false, true},
 		},
 		"node selector": {
@@ -152,7 +188,7 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 				map[string]string{
 					"key": "value",
 				},
-				testNSmallCpuJob(0, 33),
+				testNSmallCpuJob("A", 0, 33),
 			),
 			ExpectSuccess: append(repeat(true, 32), repeat(false, 1)...),
 		},
@@ -167,7 +203,7 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 				map[string]string{
 					"key": "this is the wrong value",
 				},
-				testNSmallCpuJob(0, 1),
+				testNSmallCpuJob("A", 0, 1),
 			),
 			ExpectSuccess: repeat(false, 1),
 		},
@@ -177,7 +213,7 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 				map[string]string{
 					"this label does not exist": "value",
 				},
-				testNSmallCpuJob(0, 1),
+				testNSmallCpuJob("A", 0, 1),
 			),
 			ExpectSuccess: repeat(false, 1),
 		},
@@ -203,7 +239,7 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 						},
 					},
 				},
-				testNSmallCpuJob(0, 33),
+				testNSmallCpuJob("A", 0, 33),
 			),
 			ExpectSuccess: append(repeat(true, 32), repeat(false, 1)...),
 		},
@@ -214,9 +250,7 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 			require.NoError(t, err)
 			for i, req := range tc.Reqs {
 				report, err := nodeDb.SelectAndBindNodeToPod(req)
-				if !assert.NoError(t, err) {
-					continue
-				}
+				require.NoError(t, err)
 				if !tc.ExpectSuccess[i] {
 					assert.Nil(t, report.Node)
 					continue
@@ -225,7 +259,7 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 
 				node, err := nodeDb.GetNode(report.Node.Id)
 				require.NoError(t, err)
-				jobId, err := nodeDb.JobIdFromPodRequirements(req)
+				jobId, err := JobIdFromPodRequirements(req)
 				require.NoError(t, err)
 				expected := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 				actual, ok := node.AllocatedByJobId[jobId]
@@ -248,28 +282,28 @@ func TestScheduleMany(t *testing.T) {
 	}{
 		"simple success": {
 			Nodes:         testNCpuNode(1, testPriorities),
-			Reqs:          [][]*schedulerobjects.PodRequirements{testNSmallCpuJob(0, 32)},
+			Reqs:          [][]*schedulerobjects.PodRequirements{testNSmallCpuJob("A", 0, 32)},
 			ExpectSuccess: []bool{true},
 		},
 		"simple failure": {
 			Nodes:         testNCpuNode(1, testPriorities),
-			Reqs:          [][]*schedulerobjects.PodRequirements{testNSmallCpuJob(0, 33)},
+			Reqs:          [][]*schedulerobjects.PodRequirements{testNSmallCpuJob("A", 0, 33)},
 			ExpectSuccess: []bool{false},
 		},
 		"correct rollback": {
 			Nodes: testNCpuNode(2, testPriorities),
 			Reqs: [][]*schedulerobjects.PodRequirements{
-				testNSmallCpuJob(0, 32),
-				testNSmallCpuJob(0, 33),
-				testNSmallCpuJob(0, 32),
+				testNSmallCpuJob("A", 0, 32),
+				testNSmallCpuJob("A", 0, 33),
+				testNSmallCpuJob("A", 0, 32),
 			},
 			ExpectSuccess: []bool{true, false, true},
 		},
 		"varying job size": {
 			Nodes: testNCpuNode(2, testPriorities),
 			Reqs: [][]*schedulerobjects.PodRequirements{
-				append(testNLargeCpuJob(0, 1), testNSmallCpuJob(0, 32)...),
-				testNSmallCpuJob(0, 1),
+				append(testNLargeCpuJob("A", 0, 1), testNSmallCpuJob("A", 0, 32)...),
+				testNSmallCpuJob("A", 0, 1),
 			},
 			ExpectSuccess: []bool{true, false},
 		},
@@ -303,7 +337,7 @@ func TestScheduleMany(t *testing.T) {
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	db, err := NewNodeDb(
-		testPriorities,
+		testPriorityClasses,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
@@ -313,7 +347,7 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.Upsert(nodes)
+		err := db.UpsertMany(nodes)
 		if !assert.NoError(b, err) {
 			return
 		}
@@ -326,7 +360,7 @@ func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(testNCpuNode(100000, 
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
 	db, err := NewNodeDb(
-		testPriorities,
+		testPriorityClasses,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
@@ -335,7 +369,7 @@ func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*sch
 		return
 	}
 
-	err = db.Upsert(nodes)
+	err = db.UpsertMany(nodes)
 	if !assert.NoError(b, err) {
 		return
 	}
@@ -356,7 +390,7 @@ func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*sch
 func BenchmarkSelectAndBindNodeToPodOneCpuNode(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
 		testNCpuNode(1, testPriorities),
-		testNSmallCpuJob(0, 32),
+		testNSmallCpuJob("A", 0, 32),
 		b,
 	)
 }
@@ -364,7 +398,7 @@ func BenchmarkSelectAndBindNodeToPodOneCpuNode(b *testing.B) {
 func BenchmarkSelectAndBindNodeToPod100CpuNodes(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
 		testNCpuNode(100, testPriorities),
-		testNSmallCpuJob(0, 320),
+		testNSmallCpuJob("A", 0, 320),
 		b,
 	)
 }
@@ -372,7 +406,7 @@ func BenchmarkSelectAndBindNodeToPod100CpuNodes(b *testing.B) {
 func BenchmarkSelectAndBindNodeToPod10000CpuNodes(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
 		testNCpuNode(10000, testPriorities),
-		testNSmallCpuJob(0, 32000),
+		testNSmallCpuJob("A", 0, 32000),
 		b,
 	)
 }
@@ -384,7 +418,7 @@ func BenchmarkSelectAndBindNodeToPod100CpuNodes1CpuUnused(b *testing.B) {
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testNCpuNode(100, testPriorities),
 		),
-		testNSmallCpuJob(0, 100),
+		testNSmallCpuJob("A", 0, 100),
 		b,
 	)
 }
@@ -396,7 +430,7 @@ func BenchmarkSelectAndBindNodeToPod1000CpuNodes1CpuUnused(b *testing.B) {
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testNCpuNode(1000, testPriorities),
 		),
-		testNSmallCpuJob(0, 1000),
+		testNSmallCpuJob("A", 0, 1000),
 		b,
 	)
 }
@@ -408,7 +442,7 @@ func BenchmarkSelectAndBindNodeToPod10000CpuNodes1CpuUnused(b *testing.B) {
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testNCpuNode(10000, testPriorities),
 		),
-		testNSmallCpuJob(0, 10000),
+		testNSmallCpuJob("A", 0, 10000),
 		b,
 	)
 }
@@ -421,7 +455,7 @@ func BenchmarkSelectAndBindNodeToPodResourceConstrained(b *testing.B) {
 	)
 	benchmarkSelectAndBindNodeToPod(
 		nodes,
-		testNGpuJob(0, 1),
+		testNGpuJob("A", 0, 1),
 		b,
 	)
 }
