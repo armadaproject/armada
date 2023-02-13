@@ -344,7 +344,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			if _, ok := expected[job.JobSet]; ok {
-				assert.True(t, job.CancelledByJobsetRequested)
+				assert.True(t, job.CancelByJobsetRequested)
 				numChanged++
 				jobIds = append(jobIds, job.JobID)
 			}
