@@ -69,7 +69,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedLeased           []string          // ids of jobs we expected to be leased in jobdb at the end of the cycle
 		expectedQueued           []string          // ids of jobs we expected to be queued in jobdb at the end of the cycle
 		expectedTerminal         []string          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
-		expectedJobPriority      map[string]uint32 // expected priority of jobs
+		expectedJobPriority      map[string]uint32 // expected priority of jobs at the end of the cycle
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:          []*jobdb.Job{queuedJob},
