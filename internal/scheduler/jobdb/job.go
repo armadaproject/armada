@@ -86,6 +86,12 @@ func (job *Job) Jobset() string {
 	return job.jobset
 }
 
+// GetJobSet returns the jobset the job belongs to.
+// This is needed for compatibility with legacyJob
+func (job *Job) GetJobSet() string {
+	return job.jobset
+}
+
 // Queue returns the queue this job belongs to.
 func (job *Job) Queue() string {
 	return job.queue
