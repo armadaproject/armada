@@ -119,6 +119,23 @@ func (a ComputeResources) IsValid() bool {
 	return valid
 }
 
+func (a ComputeResources) LimitToZero() {
+	for key, value := range a {
+		if value.Sign() < 0 {
+			a[key] = *resource.NewQuantity(0, resource.BinarySI)
+		}
+	}
+}
+
+func (a ComputeResources) IsZero() bool {
+	for _, value := range a {
+		if !value.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
 func (a ComputeResources) Sub(b ComputeResources) {
 	if b == nil {
 		return

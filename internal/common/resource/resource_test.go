@@ -42,6 +42,61 @@ func TestComputeResources_String(t *testing.T) {
 	assert.Equal(t, "", x.String())
 }
 
+func TestComputeResources_LimitToZero(t *testing.T) {
+	tests := map[string]struct {
+		input    int64
+		expected int64
+	}{
+		"Positive": {
+			input:    1,
+			expected: 1,
+		},
+		"Zero": {
+			input:    0,
+			expected: 0,
+		},
+		"Negative": {
+			input:    -1,
+			expected: 0,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			input := ComputeResources{"cpu": *resource.NewQuantity(tc.input, resource.BinarySI)}
+			expected := ComputeResources{"cpu": *resource.NewQuantity(tc.expected, resource.BinarySI)}
+
+			input.LimitToZero()
+			assert.Equal(t, input, expected)
+		})
+	}
+}
+
+func TestComputeResources_IsZero(t *testing.T) {
+	tests := map[string]struct {
+		input          int64
+		expectedResult bool
+	}{
+		"Positive": {
+			input:          1,
+			expectedResult: false,
+		},
+		"Zero": {
+			input:          0,
+			expectedResult: true,
+		},
+		"Negative": {
+			input:          -1,
+			expectedResult: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			input := ComputeResources{"cpu": *resource.NewQuantity(tc.input, resource.BinarySI)}
+			assert.Equal(t, input.IsZero(), tc.expectedResult)
+		})
+	}
+}
+
 func TestCalculateTotalResource(t *testing.T) {
 	resources := makeDefaultNodeResource()
 	node1 := makeNodeWithResource(resources)

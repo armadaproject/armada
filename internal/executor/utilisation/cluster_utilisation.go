@@ -25,13 +25,14 @@ type UtilisationService interface {
 }
 
 type ClusterUtilisationService struct {
-	clusterContext          context.ClusterContext
-	queueUtilisationService PodUtilisationService
-	nodeInfoService         node.NodeInfoService
-	usageClient             api.UsageClient
-	trackedNodeLabels       []string
-	nodeIdLabel             string
-	nodeReservedResources   armadaresource.ComputeResources
+	clusterContext                context.ClusterContext
+	queueUtilisationService       PodUtilisationService
+	nodeInfoService               node.NodeInfoService
+	usageClient                   api.UsageClient
+	trackedNodeLabels             []string
+	nodeIdLabel                   string
+	nodeReservedResources         armadaresource.ComputeResources
+	nodeReservedResourcesPriority int32
 }
 
 func NewClusterUtilisationService(
@@ -42,15 +43,17 @@ func NewClusterUtilisationService(
 	trackedNodeLabels []string,
 	nodeIdLabel string,
 	nodeReservedResources armadaresource.ComputeResources,
+	nodeReservedResourcesPriority int32,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
-		clusterContext:          clusterContext,
-		queueUtilisationService: queueUtilisationService,
-		nodeInfoService:         nodeInfoService,
-		usageClient:             usageClient,
-		trackedNodeLabels:       trackedNodeLabels,
-		nodeIdLabel:             nodeIdLabel,
-		nodeReservedResources:   nodeReservedResources,
+		clusterContext:                clusterContext,
+		queueUtilisationService:       queueUtilisationService,
+		nodeInfoService:               nodeInfoService,
+		usageClient:                   usageClient,
+		trackedNodeLabels:             trackedNodeLabels,
+		nodeIdLabel:                   nodeIdLabel,
+		nodeReservedResources:         nodeReservedResources,
+		nodeReservedResourcesPriority: nodeReservedResourcesPriority,
 	}
 }
 
@@ -118,13 +121,13 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 	return (*r.AvailableCapacity)[resource]
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {
-	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
+func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {
+	processingNodes, err := cls.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
+	allPods, err := cls.clusterContext.GetAllPods()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -141,27 +144,30 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
-	runIdsByNode := clusterUtilisationService.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
+	runIdsByNode := cls.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
 	for _, n := range processingNodes {
 		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
-		// sub node reserved resources if defined,
-		// if nil, behaviour is same as subtracting 0
-		available.Sub(clusterUtilisationService.nodeReservedResources)
 
 		runningNodePods := runningPodsByNode[n.Name]
+		runningNodePodsNonArmada := util.FilterPods(runningNodePods, util.IsManagedPod)
 		allocated := getAllocatedResourcesByPriority(runningNodePods)
+		allocatedNonArmada := getAllocatedResourcesByPriority(runningNodePodsNonArmada)
+
+		reserved := calculateReservedNodeResource(cls.nodeReservedResources, armadaresource.CalculateTotalResourceRequest(runningNodePodsNonArmada))
+		addReservedResource(reserved, cls.nodeReservedResourcesPriority, allocatedNonArmada)
 
 		nodes = append(nodes, api.NodeInfo{
-			Name:                 n.Name,
-			Labels:               clusterUtilisationService.filterTrackedLabels(n.Labels),
-			Taints:               n.Spec.Taints,
-			AllocatableResources: allocatable,
-			AvailableResources:   available,
-			TotalResources:       allocatable,
-			AllocatedResources:   allocated,
-			RunIdsByState:        runIdsByNode[n.Name],
+			Name:                        n.Name,
+			Labels:                      cls.filterTrackedLabels(n.Labels),
+			Taints:                      n.Spec.Taints,
+			AllocatableResources:        allocatable,
+			AvailableResources:          available,
+			TotalResources:              allocatable,
+			AllocatedResources:          allocated,
+			RunIdsByState:               runIdsByNode[n.Name],
+			NonArmadaAllocatedResources: allocatedNonArmada,
 		})
 	}
 
@@ -211,6 +217,32 @@ func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(node
 		}
 	}
 	return result
+}
+
+func calculateReservedNodeResource(
+	reserved armadaresource.ComputeResources,
+	existingNodeResource armadaresource.ComputeResources) armadaresource.ComputeResources {
+
+	reservedRemaining := reserved
+	reservedRemaining.Sub(existingNodeResource)
+	reservedRemaining.LimitToZero()
+	return reservedRemaining
+}
+
+func addReservedResource(
+	reserved armadaresource.ComputeResources,
+	reservedPriority int32,
+	resourceByPriority map[int32]api.ComputeResource) {
+
+	if reserved.IsValid() && !reserved.IsZero() {
+		if resourceAtPriority, present := resourceByPriority[reservedPriority]; !present {
+			totalResource := armadaresource.ComputeResources(resourceAtPriority.Resources)
+			totalResource.Add(reserved)
+			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: totalResource}
+		} else {
+			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: reserved}
+		}
+	}
 }
 
 func getJobRunState(pod *v1.Pod) api.JobState {
