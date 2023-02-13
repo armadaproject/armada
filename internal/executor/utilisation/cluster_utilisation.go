@@ -221,8 +221,8 @@ func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(node
 
 func calculateReservedNodeResource(
 	reserved armadaresource.ComputeResources,
-	existingNodeResource armadaresource.ComputeResources) armadaresource.ComputeResources {
-
+	existingNodeResource armadaresource.ComputeResources,
+) armadaresource.ComputeResources {
 	reservedRemaining := reserved
 	reservedRemaining.Sub(existingNodeResource)
 	reservedRemaining.LimitToZero()
@@ -232,8 +232,8 @@ func calculateReservedNodeResource(
 func addReservedResource(
 	reserved armadaresource.ComputeResources,
 	reservedPriority int32,
-	resourceByPriority map[int32]api.ComputeResource) {
-
+	resourceByPriority map[int32]api.ComputeResource,
+) {
 	if reserved.IsValid() && !reserved.IsZero() {
 		if resourceAtPriority, present := resourceByPriority[reservedPriority]; !present {
 			totalResource := armadaresource.ComputeResources(resourceAtPriority.Resources)
