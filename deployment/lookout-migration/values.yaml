@@ -15,3 +15,5 @@ customServiceAccount: null
 serviceAccount: null
 
 applicationConfig: {}
+
+extraInitCommand: ""
