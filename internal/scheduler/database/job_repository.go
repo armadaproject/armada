@@ -112,17 +112,18 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 		updatedJobs = make([]Job, len(updatedJobRows))
 		for i, row := range updatedJobRows {
 			updatedJobs[i] = Job{
-				JobID:           row.JobID,
-				JobSet:          row.JobSet,
-				Queue:           row.Queue,
-				Priority:        row.Priority,
-				Submitted:       row.Submitted,
-				CancelRequested: row.CancelRequested,
-				Cancelled:       row.Cancelled,
-				Succeeded:       row.Succeeded,
-				Failed:          row.Failed,
-				SchedulingInfo:  row.SchedulingInfo,
-				Serial:          row.Serial,
+				JobID:                   row.JobID,
+				JobSet:                  row.JobSet,
+				Queue:                   row.Queue,
+				Priority:                row.Priority,
+				Submitted:               row.Submitted,
+				CancelRequested:         row.CancelRequested,
+				Cancelled:               row.Cancelled,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Succeeded:               row.Succeeded,
+				Failed:                  row.Failed,
+				SchedulingInfo:          row.SchedulingInfo,
+				Serial:                  row.Serial,
 			}
 		}
 

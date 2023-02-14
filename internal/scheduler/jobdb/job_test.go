@@ -31,6 +31,7 @@ var baseJob = NewJob(
 	schedulingInfo,
 	false,
 	false,
+	false,
 	3)
 
 var baseRun = &JobRun{
@@ -74,6 +75,12 @@ func TestJob_TestCancelRequested(t *testing.T) {
 	newJob := baseJob.WithCancelRequested(true)
 	assert.Equal(t, false, baseJob.CancelRequested())
 	assert.Equal(t, true, newJob.CancelRequested())
+}
+
+func TestJob_TestCancelByJobsetRequested(t *testing.T) {
+	newJob := baseJob.WithCancelByJobsetRequested(true)
+	assert.Equal(t, false, baseJob.CancelByJobsetRequested())
+	assert.Equal(t, true, newJob.CancelByJobsetRequested())
 }
 
 func TestJob_TestCancelled(t *testing.T) {

@@ -611,7 +611,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 		node = node.DeepCopy()
 		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			configuration.AllowedPriorities(nodeDb.priorityClasses),
-			nodeDb.totalResources,
+			node.TotalResources,
 		)
 		err := txn.Insert("nodes", node)
 		if err != nil {
