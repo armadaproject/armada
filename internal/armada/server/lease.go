@@ -579,6 +579,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				)
 				continue
 			}
+			if apiJob.PodSpec.NodeSelector == nil {
+				apiJob.PodSpec.NodeSelector = make(map[string]string)
+			}
 			apiJob.PodSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
 		}
 	}
