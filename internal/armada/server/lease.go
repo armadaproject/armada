@@ -562,7 +562,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			if apiJob.PodSpec != nil {
+			if apiJob.PodSpec == nil {
 				log.Warnf("failed to set node id selector on job %s: missing pod spec", jobId)
 				continue
 			}
@@ -589,7 +589,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			if apiJob.PodSpec != nil {
+			if apiJob.PodSpec == nil {
 				log.Warnf("failed to set node name on job %s: missing pod spec", jobId)
 				continue
 			}
