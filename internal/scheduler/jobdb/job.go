@@ -90,6 +90,12 @@ func (job *Job) Jobset() string {
 	return job.jobset
 }
 
+// GetJobSet returns the jobset the job belongs to.
+// This is needed for compatibility with legacyJob
+func (job *Job) GetJobSet() string {
+	return job.jobset
+}
+
 // Queue returns the queue this job belongs to.
 func (job *Job) Queue() string {
 	return job.queue
@@ -270,7 +276,7 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
-// copy makes a copy of the job
+// copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
 }
