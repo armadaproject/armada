@@ -1,20 +1,18 @@
 package jobdb
 
 import (
-	"fmt"
-	"math"
-
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 )
 
 const (
-	jobsTable      = "jobs"
-	runsByJobTable = "runsByJob" // table that maps runs to jobs
-	idIndex        = "id"        // index for looking up jobs by id
-	orderIndex     = "order"     // index for looking up jobs on a given queue by the order in which they should be scheduled
-	jobIdIndex     = "jobId"     // index for looking up jobs by id
+	jobsTable       = "jobs"
+	runsByJobTable  = "runsByJob" // table that maps runs to jobs
+	idIndex         = "id"        // index for looking up jobs by id
+	orderIndex      = "order"     // index for looking up jobs on a given queue by the order in which they should be scheduled
+	jobIdIndex      = "jobId"     // index for looking up jobs by id
+	queuedJobsIndex = "queued"    // index for looking up queued/non-queued jobs
 )
 
 // JobDb is the scheduler-internal system for storing job queues.
@@ -160,55 +158,6 @@ func (jobDb *JobDb) WriteTxn() *memdb.Txn {
 	return jobDb.Db.Txn(true)
 }
 
-// JobQueueIterator is an iterator over all jobs in a given queue.
-// Jobs are sorted first by per-queue priority, and secondly by submission time.
-type JobQueueIterator struct {
-	queue string
-	it    memdb.ResultIterator
-}
-
-func NewJobQueueIterator(txn *memdb.Txn, queue string) (*JobQueueIterator, error) {
-	var minPriority uint32 = 0
-	minTimestamp := -math.MaxInt64
-	it, err := txn.LowerBound(jobsTable, orderIndex, queue, true, minPriority, minTimestamp)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return &JobQueueIterator{
-		queue: queue,
-		it:    it,
-	}, nil
-}
-
-// WatchCh is needed to implement the memdb.ResultIterator interface but is not needed for our use case
-func (it *JobQueueIterator) WatchCh() <-chan struct{} {
-	panic("not implemented")
-}
-
-// NextJobItem returns the next Job or nil if the end of the iterator has been reached
-func (it *JobQueueIterator) NextJobItem() *Job {
-	obj := it.it.Next()
-	if obj == nil {
-		return nil
-	}
-	jobItem, ok := obj.(*Job)
-	if !ok {
-		panic(fmt.Sprintf("expected *SchedulerNode, but got %T", obj))
-	}
-	if jobItem.queue != it.queue {
-		// The index is sorted by queue first.
-		// So we've seen all jobs in this queue when this comparison fails.
-		return nil
-	}
-	return jobItem
-}
-
-// Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which
-// provides a typesafe mechanism for getting the next Job
-func (it *JobQueueIterator) Next() interface{} {
-	return it.NextJobItem()
-}
-
 // jobDbSchema() creates the database schema.
 // This is a simple schema consisting of a single "jobs" table with indexes for fast lookups
 func jobDbSchema() *memdb.DBSchema {
@@ -219,7 +168,7 @@ func jobDbSchema() *memdb.DBSchema {
 			Indexer: &memdb.StringFieldIndex{Field: "id"},
 		},
 		orderIndex: {
-			Name:   orderIndex, // lookup leased jobs for a given queue
+			Name:   orderIndex, // lookup queued jobs for a given queue
 			Unique: false,
 			Indexer: &memdb.CompoundIndex{
 				Indexes: []memdb.Indexer{
@@ -227,6 +176,15 @@ func jobDbSchema() *memdb.DBSchema {
 					&memdb.BoolFieldIndex{Field: "queued"},
 					&memdb.UintFieldIndex{Field: "priority"},
 					&memdb.IntFieldIndex{Field: "created"},
+				},
+			},
+		},
+		queuedJobsIndex: {
+			Name:   queuedJobsIndex, // lookup queued/leased jobs gloablly
+			Unique: false,
+			Indexer: &memdb.CompoundIndex{
+				Indexes: []memdb.Indexer{
+					&memdb.BoolFieldIndex{Field: "queued"},
 				},
 			},
 		},

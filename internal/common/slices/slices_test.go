@@ -114,6 +114,45 @@ func TestPartitionToMaxLen(t *testing.T) {
 	}
 }
 
+func TestToMap(t *testing.T) {
+	type testStruct struct {
+		v1 string
+		v2 int
+	}
+	tests := map[string]struct {
+		input  []testStruct
+		output map[string]testStruct
+	}{
+		"one element": {
+			input:  []testStruct{{v1: "1", v2: 2}},
+			output: map[string]testStruct{"1": {v1: "1", v2: 2}},
+		},
+		"multiple elements": {
+			input: []testStruct{{v1: "1", v2: 2}, {v1: "3", v2: 4}, {v1: "5", v2: 6}},
+			output: map[string]testStruct{
+				"1": {v1: "1", v2: 2},
+				"3": {v1: "3", v2: 4},
+				"5": {v1: "5", v2: 6},
+			},
+		},
+		"empty": {
+			input:  []testStruct{},
+			output: map[string]testStruct{},
+		},
+		"nil": {
+			input:  nil,
+			output: nil,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.output, ToMap(tc.input, func(s testStruct) string {
+				return s.v1
+			}))
+		})
+	}
+}
+
 func TestGroupByFunc(t *testing.T) {
 	s := []int{1, 2, 3, 4, 5}
 	actual := GroupByFunc(s, func(e int) int { return e / 3 })

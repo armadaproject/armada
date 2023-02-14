@@ -333,6 +333,8 @@ type JobSchedulingReport struct {
 	Req *schedulerobjects.PodRequirements
 	// Executor this job was attempted to be assigned to.
 	ExecutorId string
+	// Nodes this job was attempted to be assigned to.
+	NodeName string
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string

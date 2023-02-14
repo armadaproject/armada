@@ -88,3 +88,15 @@ func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E)
 	}
 	return rv
 }
+
+// ToMap creates a map from the given slice from keyFunc(k). Duplicate keys will be overwritten
+func ToMap[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]E {
+	if s == nil {
+		return nil
+	}
+	rv := make(map[K]E, len(s))
+	for _, e := range s {
+		rv[keyFunc(e)] = e
+	}
+	return rv
+}
