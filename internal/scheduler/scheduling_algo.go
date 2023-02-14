@@ -109,11 +109,13 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, job
 		return nil, err
 	}
 
-	for job := leasedJobsIter.NextJobItem(); job != nil; {
+	job := leasedJobsIter.NextJobItem()
+	for job != nil {
 		if job.HasRuns() {
 			executor := job.LatestRun().Executor()
 			jobsByExecutor[executor] = append(jobsByExecutor[executor], job)
 		}
+		job = leasedJobsIter.NextJobItem()
 	}
 
 	// used to calculate fair share
@@ -218,7 +220,13 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	updatedJobs := make([]*jobdb.Job, len(jobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 		job := report.Job.(*jobdb.Job)
-		job = job.WithQueued(false).WithNewRun(executor.Id, report.NodeName)
+		nodeName := ""
+		if len(report.PodSchedulingReports) > 0 {
+			nodeName = report.PodSchedulingReports[0].Node.Name
+		} else {
+			log.Warnf("Could not resolve node for Job %s as no PodSchedulingReports were present", job.Id())
+		}
+		job = job.WithQueued(false).WithNewRun(executor.Id, nodeName)
 		updatedJobs[i] = job
 	}
 	return updatedJobs, nil

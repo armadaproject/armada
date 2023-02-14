@@ -38,7 +38,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		queuedJobs[i] = OneCpuJob(int64(i)) // ensure the queuedJobs are in the order we expect
 	}
-	runningJobs := []*jobdb.Job{OneCoreRunningJob(1, "executor1"), OneCoreRunningJob(1, "executor1")}
+	runningJobs := []*jobdb.Job{
+		OneCoreRunningJob(1, "executor1", "test-node"),
+		OneCoreRunningJob(1, "executor1", "test-node"),
+	}
 	tests := map[string]struct {
 		executors     []*schedulerobjects.Executor
 		queues        []*database.Queue
@@ -266,6 +269,6 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 		creationTime).WithQueued(true)
 }
 
-func OneCoreRunningJob(creationTime int64, executor string) *jobdb.Job {
-	return OneCpuJob(creationTime).WithNewRun(executor)
+func OneCoreRunningJob(creationTime int64, executor string, node string) *jobdb.Job {
+	return OneCpuJob(creationTime).WithNewRun(executor, node)
 }
