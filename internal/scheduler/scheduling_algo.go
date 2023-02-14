@@ -102,7 +102,7 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, job
 		}
 	}
 
-	// create a mpa of jobs associated with each executor
+	// create a map of jobs associated with each executor
 	jobsByExecutor := make(map[string][]*jobdb.Job)
 	leasedJobsIter, err := jobdb.NewLeasedJobsIterator(txn)
 	if err != nil {
