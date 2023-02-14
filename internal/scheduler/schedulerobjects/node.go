@@ -55,6 +55,10 @@ func (node *Node) DeepCopy() *Node {
 	for queue, rl := range allocatedByQueue {
 		allocatedByQueue[queue] = rl.DeepCopy()
 	}
+	nonArmadaAllocatedResources := maps.Clone(node.NonArmadaAllocatedResources)
+	for priority, rl := range nonArmadaAllocatedResources {
+		nonArmadaAllocatedResources[priority] = rl.DeepCopy()
+	}
 	return &Node{
 		Id:             node.Id,
 		Name:           node.Name,
@@ -68,8 +72,9 @@ func (node *Node) DeepCopy() *Node {
 		AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
-		AllocatedByJobId: allocatedByJobId,
-		AllocatedByQueue: allocatedByQueue,
+		NonArmadaAllocatedResources: nonArmadaAllocatedResources,
+		AllocatedByJobId:            allocatedByJobId,
+		AllocatedByQueue:            allocatedByQueue,
 	}
 }
 

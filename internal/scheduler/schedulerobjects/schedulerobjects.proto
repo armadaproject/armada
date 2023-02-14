@@ -56,6 +56,7 @@ message Node {
     map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
     // Resource allocated to queues on this node.
     map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
+    //Resp
     map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
 }
 

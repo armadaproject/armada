@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,8 +40,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		queuedJobs[i] = OneCpuJob(int64(i)) // ensure the queuedJobs are in the order we expect
 	}
 	runningJobs := []*jobdb.Job{
-		OneCoreRunningJob(1, "executor1", "test-node"),
-		OneCoreRunningJob(1, "executor1", "test-node"),
+		OneCoreRunningJob(1, "executor1", "executor1-node"),
+		OneCoreRunningJob(1, "executor1", "executor1-node"),
 	}
 	tests := map[string]struct {
 		executors     []*schedulerobjects.Executor
@@ -183,7 +184,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}
 }
 
-func twoCoreNode(jobs []*jobdb.Job) *schedulerobjects.Node {
+func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 	usedCpu := resource.MustParse("0")
 	for _, job := range jobs {
 		cpuReq := job.
@@ -201,7 +202,8 @@ func twoCoreNode(jobs []*jobdb.Job) *schedulerobjects.Node {
 		jobRunsByState[job.LatestRun().Id().String()] = schedulerobjects.JobRunState_RUNNING
 	}
 	return &schedulerobjects.Node{
-		Id: id,
+		Id:   id,
+		Name: name,
 		TotalResources: schedulerobjects.ResourceList{
 			Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("2"),
@@ -228,7 +230,7 @@ func TwoCoreExecutor(name string, jobs []*jobdb.Job, updateTime time.Time) *sche
 	return &schedulerobjects.Executor{
 		Id:             name,
 		Pool:           poolName,
-		Nodes:          []*schedulerobjects.Node{twoCoreNode(jobs)},
+		Nodes:          []*schedulerobjects.Node{twoCoreNode(fmt.Sprintf("%s-node", name), jobs)},
 		LastUpdateTime: updateTime,
 	}
 }
@@ -251,6 +253,7 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 						},
 						Annotations: map[string]string{
 							JobIdAnnotation: uuid.NewString(),
+							QueueAnnotation: queueName,
 						},
 					},
 				},
@@ -270,5 +273,5 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 }
 
 func OneCoreRunningJob(creationTime int64, executor string, node string) *jobdb.Job {
-	return OneCpuJob(creationTime).WithNewRun(executor, node)
+	return OneCpuJob(creationTime).WithNewRun(executor, node).WithQueued(false)
 }
