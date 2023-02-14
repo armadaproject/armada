@@ -3,13 +3,13 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"math/rand"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -234,7 +234,6 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 
 // constructNodeDb constructs a node db with all jobs bound to it
 func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
-
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
 		// Clear out node

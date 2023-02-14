@@ -180,7 +180,7 @@ func jobDbSchema() *memdb.DBSchema {
 			},
 		},
 		queuedJobsIndex: {
-			Name:   queuedJobsIndex, // lookup queued/leased jobs gloablly
+			Name:   queuedJobsIndex, // lookup queued/leased jobs globally
 			Unique: false,
 			Indexer: &memdb.CompoundIndex{
 				Indexes: []memdb.Indexer{
