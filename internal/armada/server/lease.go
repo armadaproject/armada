@@ -562,27 +562,29 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			if apiJob.PodSpec == nil {
-				log.Warnf("failed to set node id selector on job %s: missing pod spec", jobId)
-				continue
+			for _, podSpec := range apiJob.GetAllPodSpecs() {
+				if podSpec == nil {
+					log.Warnf("failed to set node id selector on job %s: missing pod spec", jobId)
+					continue
+				}
+				node := nodesByJobId[jobId]
+				if node == nil {
+					log.Warnf("failed to set node id selector on job %s: no node assigned to job", jobId)
+					continue
+				}
+				nodeId := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
+				if nodeId == "" {
+					log.Warnf(
+						"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
+						jobId, node.Name, node.Labels,
+					)
+					continue
+				}
+				if podSpec.NodeSelector == nil {
+					podSpec.NodeSelector = make(map[string]string)
+				}
+				podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
 			}
-			node := nodesByJobId[jobId]
-			if node == nil {
-				log.Warnf("failed to set node id selector on job %s: no node assigned to job", jobId)
-				continue
-			}
-			nodeId := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
-			if nodeId == "" {
-				log.Warnf(
-					"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
-					jobId, node.Name, node.Labels,
-				)
-				continue
-			}
-			if apiJob.PodSpec.NodeSelector == nil {
-				apiJob.PodSpec.NodeSelector = make(map[string]string)
-			}
-			apiJob.PodSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
 		}
 	}
 
@@ -592,16 +594,18 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			if apiJob.PodSpec == nil {
-				log.Warnf("failed to set node name on job %s: missing pod spec", jobId)
-				continue
+			for _, podSpec := range apiJob.GetAllPodSpecs() {
+				if podSpec == nil {
+					log.Warnf("failed to set node name on job %s: missing pod spec", jobId)
+					continue
+				}
+				node := nodesByJobId[jobId]
+				if node == nil {
+					log.Warnf("failed to set node name on job %s: no node assigned to job", jobId)
+					continue
+				}
+				podSpec.NodeName = node.Name
 			}
-			node := nodesByJobId[jobId]
-			if node == nil {
-				log.Warnf("failed to set node name on job %s: no node assigned to job", jobId)
-				continue
-			}
-			apiJob.PodSpec.NodeName = node.Name
 		}
 	}
 
