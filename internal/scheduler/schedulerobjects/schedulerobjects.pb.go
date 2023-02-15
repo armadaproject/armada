@@ -187,8 +187,9 @@ type Node struct {
 	// TODO: Reconcile with job_runs.
 	AllocatedByJobId map[string]ResourceList `protobuf:"bytes,10,rep,name=allocated_by_job_id,json=allocatedByJobId,proto3" json:"allocatedByJobId" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Resource allocated to queues on this node.
-	AllocatedByQueue            map[string]ResourceList `protobuf:"bytes,11,rep,name=allocated_by_queue,json=allocatedByQueue,proto3" json:"allocatedByQueue" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	NonArmadaAllocatedResources map[int32]ResourceList  `protobuf:"bytes,13,rep,name=non_armada_allocated_resources,json=nonArmadaAllocatedResources,proto3" json:"nonArmadaAllocatedResources" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	AllocatedByQueue map[string]ResourceList `protobuf:"bytes,11,rep,name=allocated_by_queue,json=allocatedByQueue,proto3" json:"allocatedByQueue" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	//Resp
+	NonArmadaAllocatedResources map[int32]ResourceList `protobuf:"bytes,13,rep,name=non_armada_allocated_resources,json=nonArmadaAllocatedResources,proto3" json:"nonArmadaAllocatedResources" protobuf_key:"varint,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (m *Node) Reset()         { *m = Node{} }
