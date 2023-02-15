@@ -146,6 +146,7 @@ func StartUpWithContext(
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.NodeReservedResources,
+		config.Kubernetes.NodeReservedResourcesPriority,
 	)
 
 	var clusterAllocationService service.ClusterAllocator
