@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -37,7 +37,7 @@ type JobRepository interface {
 
 	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 	// keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-	FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error)
+	FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
 
 	// CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding
 	// to the provided groupId.  This is used by the scheduler to determine if the database represents the state of
@@ -70,33 +70,23 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error) {
+func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	queries := New(r.db)
 	rows, err := queries.SelectRunErrorsById(ctx, runIds)
-	if err == nil {
+	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	jobRunErrors := make([]armadaevents.JobRunErrors, len(rows))
+	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(rows))
 	decompressor := compress.NewZlibDecompressor()
-	for i, row := range rows {
-		protoBytes, err := decompressor.Decompress(row.Error)
-		if err == nil {
-			return nil, err
-		}
-		jre := armadaevents.JobRunErrors{}
-		err = proto.Unmarshal(protoBytes, &jre)
-		if err == nil {
+	for _, row := range rows {
+		jobError, err := protoutil.DecompressAndUnmarshall(row.Error, &armadaevents.Error{}, decompressor)
+		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		jobRunErrors[i] = jre
+		errorsByRunId[row.RunID] = jobError
 	}
 
-	errorsById := make(map[uuid.UUID]*armadaevents.JobRunErrors, len(jobRunErrors))
-	for _, jobRunError := range jobRunErrors {
-		errorsById[armadaevents.UuidFromProtoUuid(jobRunError.RunId)] = &jobRunError
-	}
-
-	return errorsById, err
+	return errorsByRunId, err
 }
 
 // FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
@@ -121,17 +111,18 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 		updatedJobs = make([]Job, len(updatedJobRows))
 		for i, row := range updatedJobRows {
 			updatedJobs[i] = Job{
-				JobID:           row.JobID,
-				JobSet:          row.JobSet,
-				Queue:           row.Queue,
-				Priority:        row.Priority,
-				Submitted:       row.Submitted,
-				CancelRequested: row.CancelRequested,
-				Cancelled:       row.Cancelled,
-				Succeeded:       row.Succeeded,
-				Failed:          row.Failed,
-				SchedulingInfo:  row.SchedulingInfo,
-				Serial:          row.Serial,
+				JobID:                   row.JobID,
+				JobSet:                  row.JobSet,
+				Queue:                   row.Queue,
+				Priority:                row.Priority,
+				Submitted:               row.Submitted,
+				CancelRequested:         row.CancelRequested,
+				Cancelled:               row.Cancelled,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Succeeded:               row.Succeeded,
+				Failed:                  row.Failed,
+				SchedulingInfo:          row.SchedulingInfo,
+				Serial:                  row.Serial,
 			}
 		}
 

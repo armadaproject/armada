@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
@@ -280,7 +281,10 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 
 func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "getJobs")
+	log = log.WithFields(logrus.Fields{
+		"function": "getJobs",
+		"cluster":  req.ClusterId,
+	})
 	ctx = ctxlogrus.ToContext(ctx, log)
 
 	// Get the total capacity available across all clusters.
@@ -554,66 +558,54 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Optionally set node id selectors on scheduled jobs.
 	if q.schedulingConfig.Preemption.SetNodeIdSelector {
-		numSuccessfulNodeIdSelectorAssignments := 0
-		numNodeNameAssignmentsMissingPodSpec := 0
-		numNodeNameAssignmentsMissingNode := 0
-		numNodeNameAssignmentsMissingNodeId := 0
 		for jobId, apiJob := range scheduledApiJobsById {
-			if apiJob.PodSpec != nil {
-				if node := nodesByJobId[jobId]; node != nil {
-					if nodeId := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]; nodeId != "" {
-						if apiJob.PodSpec.NodeSelector == nil {
-							apiJob.PodSpec.NodeSelector = make(map[string]string)
-						}
-						apiJob.PodSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
-						numSuccessfulNodeIdSelectorAssignments++
-					} else {
-						numNodeNameAssignmentsMissingNodeId++
-					}
-				} else {
-					numNodeNameAssignmentsMissingNode++
-				}
-			} else {
-				numNodeNameAssignmentsMissingPodSpec++
+			if apiJob == nil {
+				continue
 			}
-		}
-		if numSuccessfulNodeIdSelectorAssignments != len(scheduledApiJobsById) {
-			log.Warnf(
-				"failed to set node id selectors on %d out of %d jobs; %d failures due missing pod spec, %d failures to to missing node, and %d failures due to missing node id",
-				len(scheduledApiJobsById)-numSuccessfulNodeIdSelectorAssignments,
-				len(scheduledApiJobsById),
-				numNodeNameAssignmentsMissingPodSpec,
-				numNodeNameAssignmentsMissingNode,
-				numNodeNameAssignmentsMissingNodeId,
-			)
+			for _, podSpec := range apiJob.GetAllPodSpecs() {
+				if podSpec == nil {
+					log.Warnf("failed to set node id selector on job %s: missing pod spec", jobId)
+					continue
+				}
+				node := nodesByJobId[jobId]
+				if node == nil {
+					log.Warnf("failed to set node id selector on job %s: no node assigned to job", jobId)
+					continue
+				}
+				nodeId := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
+				if nodeId == "" {
+					log.Warnf(
+						"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
+						jobId, node.Name, node.Labels,
+					)
+					continue
+				}
+				if podSpec.NodeSelector == nil {
+					podSpec.NodeSelector = make(map[string]string)
+				}
+				podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
+			}
 		}
 	}
 
 	// Optionally set node names on scheduled jobs.
 	if q.schedulingConfig.Preemption.SetNodeName {
-		numSuccessfulNodeNameAssignments := 0
-		numNodeNameAssignmentsMissingPodSpec := 0
-		numNodeNameAssignmentsMissingNode := 0
 		for jobId, apiJob := range scheduledApiJobsById {
-			if apiJob.PodSpec != nil {
-				if node := nodesByJobId[jobId]; node != nil {
-					apiJob.PodSpec.NodeName = node.Name
-					numSuccessfulNodeNameAssignments++
-				} else {
-					numNodeNameAssignmentsMissingNode++
-				}
-			} else {
-				numNodeNameAssignmentsMissingPodSpec++
+			if apiJob == nil {
+				continue
 			}
-		}
-		if numSuccessfulNodeNameAssignments != len(scheduledApiJobsById) {
-			log.Warnf(
-				"failed to set node name on %d out of %d jobs; %d failures due missing pod spec and %d failures to to missing node",
-				len(scheduledApiJobsById)-numSuccessfulNodeNameAssignments,
-				len(scheduledApiJobsById),
-				numNodeNameAssignmentsMissingPodSpec,
-				numNodeNameAssignmentsMissingNode,
-			)
+			for _, podSpec := range apiJob.GetAllPodSpecs() {
+				if podSpec == nil {
+					log.Warnf("failed to set node name on job %s: missing pod spec", jobId)
+					continue
+				}
+				node := nodesByJobId[jobId]
+				if node == nil {
+					log.Warnf("failed to set node name on job %s: no node assigned to job", jobId)
+					continue
+				}
+				podSpec.NodeName = node.Name
+			}
 		}
 	}
 
