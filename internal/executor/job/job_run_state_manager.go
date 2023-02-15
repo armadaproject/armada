@@ -33,7 +33,7 @@ func NewJobRunState(clusterContext context.ClusterContext) *JobRunStateManager {
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			stateManager.reportRunAlive(pod)
+			stateManager.reportRunActive(pod)
 		},
 	})
 
@@ -45,24 +45,19 @@ func NewJobRunState(clusterContext context.ClusterContext) *JobRunStateManager {
 	return stateManager
 }
 
-// TODO handle Missing JobRuns
-// Stuck in "Leased" with no pod for > 5 mins (should be safe - as it indicates we submitted it and it never arrived in k8s)
-// Stuck in "Live" with no pod for > 5 mins
-// - Should consider ones that have finished and had its pod deleted - possibly risky
-
 func (jrs *JobRunStateManager) reconcileStateWithKubernetes() error {
 	pods, err := jrs.clusterContext.GetAllPods()
 	if err != nil {
 		return err
 	}
 	for _, pod := range pods {
-		jrs.reportRunAlive(pod)
+		jrs.reportRunActive(pod)
 	}
 
 	return nil
 }
 
-func (jrs *JobRunStateManager) reportRunAlive(pod *v1.Pod) {
+func (jrs *JobRunStateManager) reportRunActive(pod *v1.Pod) {
 	jrs.lock.Lock()
 	defer jrs.lock.Unlock()
 
@@ -70,12 +65,10 @@ func (jrs *JobRunStateManager) reportRunAlive(pod *v1.Pod) {
 		return
 	}
 
-	// TODO handle attributes missing
-	runMeta := &RunMetaInfo{
-		RunId:  util.ExtractJobRunId(pod),
-		JobId:  util.ExtractJobId(pod),
-		JobSet: util.ExtractJobSet(pod),
-		Queue:  util.ExtractQueue(pod),
+	runMeta, err := ExtractJobRunMeta(pod)
+	if err != nil {
+		log.Errorf("Failed to record pod %s as active because %s", pod.Name, err)
+		return
 	}
 
 	currentState, present := jrs.jobRunState[runMeta.RunId]
