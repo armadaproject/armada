@@ -134,46 +134,82 @@ func TestMapAndGroupByFuncs(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-//func TestSubtract(t *testing.T) {
-//
-//	tests := map[string]struct {
-//		input          []int
-//		toSubtract     []int
-//		expectedOutput []int
-//	}{
-//		"RemovesExpectedElements": {
-//			input:          []int{1, 3, 5},
-//			toSubtract:     []int{1, 5},
-//			expectedOutput: []int{3},
-//		},
-//		"ToRemoveAndInputAreEqual": {
-//			input:          []int{1, 3, 5, 7, 9},
-//			toSubtract:     []int{1, 3, 5, 7, 9},
-//			expectedOutput: []int{},
-//		},
-//		"ToRemoveIsLargerThanInput": {
-//			input:          []int{1, 3, 5, 7, 9},
-//			toSubtract:     []int{1, 3, 5, 7, 9},
-//			expectedOutput: []int{},
-//		},
-//		"InputIsNil": {},
-//		"ToRemoveIsNil": {},
-//		"InputsAreNil": {},
-//		"InputsAreEmpty": {},
-//	}
-//	for name, tc := range tests {
-//		t.Run(name, func(t *testing.T) {
-//			output := Subtract(tc.input, tc.toSubtract)
-//			assert.Equal(t, output, tc.expectedOutput)
-//		})
-//	}
-//}
-//
-//func TestSubtract_Empty(t *testing.T) {
-//	input := []int{}
-//	toSubtract := []int{}
-//	expectedOutput := []int{}
-//
-//	output := Subtract(input, toSubtract)
-//	assert.Equal(t, output, expectedOutput)
-//}
+func TestSubtract(t *testing.T) {
+	tests := map[string]struct {
+		input          []int
+		toSubtract     []int
+		expectedOutput []int
+	}{
+		"RemovesExpectedElements": {
+			input:          []int{1, 3, 5},
+			toSubtract:     []int{1, 5},
+			expectedOutput: []int{3},
+		},
+		"ToRemoveAndInputAreEqual": {
+			input:          []int{1, 3, 5, 7, 9},
+			toSubtract:     []int{1, 3, 5, 7, 9},
+			expectedOutput: []int{},
+		},
+		"ToRemoveIsLargerThanInput": {
+			input:          []int{1, 5, 9},
+			toSubtract:     []int{1, 3, 5, 7, 9},
+			expectedOutput: []int{},
+		},
+		"InputIsNil": {
+			input:          nil,
+			toSubtract:     []int{1, 3, 5, 7, 9},
+			expectedOutput: nil,
+		},
+		"ToRemoveIsNil": {
+			input:          []int{1, 3, 5, 7, 9},
+			toSubtract:     nil,
+			expectedOutput: []int{1, 3, 5, 7, 9},
+		},
+		"AllInputsAreNil": {
+			input:          nil,
+			toSubtract:     nil,
+			expectedOutput: nil,
+		},
+		"AllInputsAreEmpty": {
+			input:          []int{},
+			toSubtract:     []int{},
+			expectedOutput: []int{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := Subtract(tc.input, tc.toSubtract)
+			assert.Equal(t, output, tc.expectedOutput)
+		})
+	}
+}
+
+func TestSubtract_Empty(t *testing.T) {
+	tests := map[string]struct {
+		input          []int
+		filter         func(input int) bool
+		expectedOutput []int
+	}{
+		"FilterKeepsAll": {
+			input:          []int{1, 3, 5},
+			filter:         func(input int) bool { return input == 3 },
+			expectedOutput: []int{3},
+		},
+		"InputIsNil": {
+			input:          nil,
+			filter:         func(input int) bool { return true },
+			expectedOutput: nil,
+		},
+		"InputIsEmpty": {
+			input:          []int{},
+			filter:         func(input int) bool { return true },
+			expectedOutput: []int{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := Filter(tc.input, tc.filter)
+			assert.Equal(t, output, tc.expectedOutput)
+		})
+	}
+}

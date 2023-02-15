@@ -137,6 +137,14 @@ func (c *SyncFakeClusterContext) SimulateDeletionEvent(pod *v1.Pod) {
 	}
 }
 
+func (c *SyncFakeClusterContext) SimulatePodAddEvent(pod *v1.Pod) {
+	for _, h := range c.podEventHandlers {
+		if h.AddFunc != nil {
+			h.AddFunc(pod)
+		}
+	}
+}
+
 func (c *SyncFakeClusterContext) SimulateClusterAddEvent(clusterEvent *v1.Event) {
 	for _, h := range c.clusterEventHandlers {
 		if h.AddFunc != nil {

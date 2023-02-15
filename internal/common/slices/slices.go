@@ -89,10 +89,13 @@ func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E)
 	return rv
 }
 
-func FilterOut[T any](list []T, excludeFn func(val T) bool) []T {
+func Filter[T any](list []T, fn func(val T) bool) []T {
+	if list == nil {
+		return nil
+	}
 	out := make([]T, 0, len(list))
 	for _, val := range list {
-		if !excludeFn(val) {
+		if fn(val) {
 			out = append(out, val)
 		}
 	}
@@ -100,6 +103,9 @@ func FilterOut[T any](list []T, excludeFn func(val T) bool) []T {
 }
 
 func Subtract[T comparable](list []T, toRemove []T) []T {
+	if list == nil {
+		return nil
+	}
 	out := make([]T, 0, len(list))
 
 	toRemoveMap := make(map[T]bool, len(toRemove))

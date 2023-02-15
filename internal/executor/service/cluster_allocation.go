@@ -212,8 +212,8 @@ func (allocationService *ClusterAllocationService) getUnassignedRunIds(capacityR
 	})...)
 
 	unassignedIds := slices.Subtract(allJobRunIds, allAssignedRunIds)
-	unassignedIds = slices.FilterOut(unassignedIds, func(val string) bool {
-		return val == ""
+	unassignedIds = slices.Filter(unassignedIds, func(val string) bool {
+		return val != ""
 	})
 
 	return util.StringUuidsToUuids(unassignedIds)
