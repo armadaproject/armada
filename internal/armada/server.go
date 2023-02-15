@@ -268,6 +268,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		usageRepository,
 		eventStore,
 		schedulingInfoRepository,
+		producer,
+		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {

@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -38,8 +37,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool:       "test-pool",
 		Nodes: []*api.NodeInfo{
 			{
-				Name:   "test-node",
-				RunIds: []string{runId1.String(), runId2.String()},
+				Name: "test-node",
+				RunIdsByState: map[string]api.JobState{
+					runId1.String(): api.JobState_RUNNING,
+					runId2.String(): api.JobState_RUNNING,
+				},
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
@@ -49,15 +51,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool: "test-pool",
 		Nodes: []*schedulerobjects.Node{
 			{
-				Id:             "test-executor-test-node",
-				TotalResources: schedulerobjects.ResourceList{},
-				JobRuns:        []string{runId1.String(), runId2.String()},
+				Id:                          "test-executor-test-node",
+				Name:                        "test-node",
+				TotalResources:              schedulerobjects.ResourceList{},
+				JobRunsByState:              map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
+				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 					1000: {
-						Resources: map[string]resource.Quantity{},
+						Resources: nil,
 					},
 					2000: {
-						Resources: map[string]resource.Quantity{},
+						Resources: nil,
 					},
 				},
 				LastSeen: testClock.Now().UTC(),
@@ -144,7 +148,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), runIds).Return(tc.runsToCancel, nil).Times(1)
+			mockJobRepository.EXPECT().FindInactiveRuns(gomock.Any(), schedulermocks.SliceMatcher[uuid.UUID]{Expected: runIds}).Return(tc.runsToCancel, nil).Times(1)
 			mockJobRepository.EXPECT().FetchJobRunLeases(gomock.Any(), tc.request.ExecutorId, maxJobsPerCall, runIds).Return(tc.leases, nil).Times(1)
 
 			// capture all sent messages

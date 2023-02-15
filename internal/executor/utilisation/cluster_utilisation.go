@@ -5,11 +5,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -27,12 +25,14 @@ type UtilisationService interface {
 }
 
 type ClusterUtilisationService struct {
-	clusterContext          context.ClusterContext
-	queueUtilisationService PodUtilisationService
-	nodeInfoService         node.NodeInfoService
-	usageClient             api.UsageClient
-	trackedNodeLabels       []string
-	nodeReservedResources   armadaresource.ComputeResources
+	clusterContext                context.ClusterContext
+	queueUtilisationService       PodUtilisationService
+	nodeInfoService               node.NodeInfoService
+	usageClient                   api.UsageClient
+	trackedNodeLabels             []string
+	nodeIdLabel                   string
+	nodeReservedResources         armadaresource.ComputeResources
+	nodeReservedResourcesPriority int32
 }
 
 func NewClusterUtilisationService(
@@ -41,15 +41,19 @@ func NewClusterUtilisationService(
 	nodeInfoService node.NodeInfoService,
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
+	nodeIdLabel string,
 	nodeReservedResources armadaresource.ComputeResources,
+	nodeReservedResourcesPriority int32,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
-		clusterContext:          clusterContext,
-		queueUtilisationService: queueUtilisationService,
-		nodeInfoService:         nodeInfoService,
-		usageClient:             usageClient,
-		trackedNodeLabels:       trackedNodeLabels,
-		nodeReservedResources:   nodeReservedResources,
+		clusterContext:                clusterContext,
+		queueUtilisationService:       queueUtilisationService,
+		nodeInfoService:               nodeInfoService,
+		usageClient:                   usageClient,
+		trackedNodeLabels:             trackedNodeLabels,
+		nodeIdLabel:                   nodeIdLabel,
+		nodeReservedResources:         nodeReservedResources,
+		nodeReservedResourcesPriority: nodeReservedResourcesPriority,
 	}
 }
 
@@ -117,13 +121,13 @@ func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) re
 	return (*r.AvailableCapacity)[resource]
 }
 
-func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {
-	processingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
+func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {
+	processingNodes, err := cls.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
+	allPods, err := cls.clusterContext.GetAllPods()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -138,28 +142,34 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	availableResource.Sub(totalPodResource)
 
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
-	podsByNodes := groupPodsByNodes(allNonCompletePodsRequiringResource)
+	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
+	runIdsByNode := cls.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
 	for _, n := range processingNodes {
 		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[n.Name])
-		// sub node reserved resources if defined,
-		// if nil, behaviour is same as subtracting 0
-		available.Sub(clusterUtilisationService.nodeReservedResources)
 
-		nodePods := podsByNodes[n.Name]
-		allocated := getAllocatedResourcesByPriority(nodePods)
+		runningNodePods := runningPodsByNode[n.Name]
+		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
+			return !util.IsManagedPod(pod)
+		})
+		allocated := getAllocatedResourcesByPriority(runningNodePods)
+		allocatedNonArmada := getAllocatedResourcesByPriority(runningNodePodsNonArmada)
+
+		reserved := calculateReservedNodeResource(cls.nodeReservedResources, armadaresource.CalculateTotalResourceRequest(runningNodePodsNonArmada))
+		addReservedResource(reserved, cls.nodeReservedResourcesPriority, allocatedNonArmada)
 
 		nodes = append(nodes, api.NodeInfo{
-			Name:                 n.Name,
-			Labels:               clusterUtilisationService.filterTrackedLabels(n.Labels),
-			Taints:               n.Spec.Taints,
-			AllocatableResources: allocatable,
-			AvailableResources:   available,
-			TotalResources:       allocatable,
-			AllocatedResources:   allocated,
-			RunIds:               getRunIds(nodePods, useLegacyIds),
+			Name:                        n.Name,
+			Labels:                      cls.filterTrackedLabels(n.Labels),
+			Taints:                      n.Spec.Taints,
+			AllocatableResources:        allocatable,
+			AvailableResources:          available,
+			TotalResources:              allocatable,
+			AllocatedResources:          allocated,
+			RunIdsByState:               runIdsByNode[n.Name],
+			NonArmadaAllocatedResources: allocatedNonArmada,
 		})
 	}
 
@@ -169,13 +179,89 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAvailableClusterC
 	}, nil
 }
 
-// This is required until we transition to the Executor API
-// The server api expects job ids whereas the executor api expects run ids
-func getRunIds(pods []*v1.Pod, useLegacyIds bool) []string {
-	if useLegacyIds {
-		util.ExtractJobIds(pods)
+// This returns all the pods assigned the node or soon to be assigned (via node-selector)
+// The server api expects job ids, the executor api expects run ids - the legacy flag controls which this returns
+func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(nodes []*v1.Node, pods []*v1.Pod, legacy bool) map[string]map[string]api.JobState {
+	nodeIdToNodeName := make(map[string]string, len(nodes))
+	for _, n := range nodes {
+		if nodeId, nodeIdPresent := n.Labels[clusterUtilisationService.nodeIdLabel]; nodeIdPresent {
+			nodeIdToNodeName[nodeId] = n.Name
+		}
 	}
-	return util.ExtractJobRunIds(pods)
+	noLongerNeedsReportingFunc := util.IsReportedDone
+
+	result := map[string]map[string]api.JobState{}
+	for _, pod := range pods {
+		// Skip pods that are not armada pods or "complete" from the servers point of view
+		if !util.IsManagedPod(pod) || noLongerNeedsReportingFunc(pod) {
+			continue
+		}
+		nodeIdNodeSelector, nodeSelectorPresent := pod.Spec.NodeSelector[clusterUtilisationService.nodeIdLabel]
+		runId := util.ExtractJobRunId(pod)
+		if legacy {
+			runId = util.ExtractJobId(pod)
+		}
+
+		nodeName := pod.Spec.NodeName
+		if nodeName == "" && nodeSelectorPresent {
+			targetedNodeName, present := nodeIdToNodeName[nodeIdNodeSelector]
+			// Not scheduled on a node, but has node selector matching the current node
+			if present {
+				nodeName = targetedNodeName
+			}
+		}
+
+		if nodeName != "" {
+			if _, present := result[nodeName]; !present {
+				result[nodeName] = map[string]api.JobState{}
+			}
+			result[nodeName][runId] = getJobRunState(pod)
+		}
+	}
+	return result
+}
+
+func calculateReservedNodeResource(
+	reserved armadaresource.ComputeResources,
+	existingNodeResource armadaresource.ComputeResources,
+) armadaresource.ComputeResources {
+	if reserved == nil {
+		return armadaresource.ComputeResources{}
+	}
+	reservedRemaining := reserved
+	reservedRemaining.Sub(existingNodeResource)
+	reservedRemaining.LimitToZero()
+	return reservedRemaining
+}
+
+func addReservedResource(
+	reserved armadaresource.ComputeResources,
+	reservedPriority int32,
+	resourceByPriority map[int32]api.ComputeResource,
+) {
+	if reserved.IsValid() && !reserved.IsZero() {
+		if resourceAtPriority, present := resourceByPriority[reservedPriority]; present {
+			totalResource := armadaresource.ComputeResources(resourceAtPriority.Resources)
+			totalResource.Add(reserved)
+			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: totalResource}
+		} else {
+			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: reserved}
+		}
+	}
+}
+
+func getJobRunState(pod *v1.Pod) api.JobState {
+	switch {
+	case pod.Status.Phase == v1.PodPending:
+		return api.JobState_PENDING
+	case pod.Status.Phase == v1.PodRunning:
+		return api.JobState_RUNNING
+	case pod.Status.Phase == v1.PodSucceeded:
+		return api.JobState_SUCCEEDED
+	case pod.Status.Phase == v1.PodFailed:
+		return api.JobState_FAILED
+	}
+	return api.JobState_UNKNOWN
 }
 
 func getAllocatedResourceByNodeName(pods []*v1.Pod) map[string]armadaresource.ComputeResources {

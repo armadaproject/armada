@@ -206,7 +206,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 	runIds := make([]uuid.UUID, 0)
 	// add all runids from nodes
 	for _, node := range req.Nodes {
-		for _, runIdStr := range node.RunIds {
+		for runIdStr := range node.RunIdsByState {
 			runId, err := uuid.Parse(runIdStr)
 			if err != nil {
 				return nil, errors.WithStack(err)
@@ -214,7 +214,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	// add all unassigned runidsreq *executorapi.LeaseRequest
+	// add all unassigned runids
 	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
 	}

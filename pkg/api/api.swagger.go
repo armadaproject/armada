@@ -1274,7 +1274,10 @@ func SwaggerJsonTemplate() string {
 		"      \"enum\": [\n" +
 		"        \"QUEUED\",\n" +
 		"        \"PENDING\",\n" +
-		"        \"RUNNING\"\n" +
+		"        \"RUNNING\",\n" +
+		"        \"SUCCEEDED\",\n" +
+		"        \"FAILED\",\n" +
+		"        \"UNKNOWN\"\n" +
 		"      ]\n" +
 		"    },\n" +
 		"    \"apiJobSubmitRequest\": {\n" +

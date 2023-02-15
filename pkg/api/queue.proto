@@ -6,12 +6,11 @@ option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/networking/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
-
-import "k8s.io/api/networking/v1/generated.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
@@ -86,10 +85,12 @@ message NodeInfo {
     // In particular, jobs may be sent to an executor even if all resources are allocated
     // if the sent jobs are of higher priority.
     map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
-    // ids of all job runs current allocated to this node
+    // All run ids of jobs on the node, mapped to their current state
     // this should be of type armadaevents.uuid, but this creates a circular loop
     // once the old scheduler has gone, we can correct this
-    repeated string  run_ids = 8 [(gogoproto.nullable) = false];
+    map<string, JobState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
+    // The amount of resource allocated to non-armada pods by priority
+    map<int32, ComputeResource> non_armada_allocated_resources = 9 [(gogoproto.nullable) = false];
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.
