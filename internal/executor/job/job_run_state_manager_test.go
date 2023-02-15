@@ -15,14 +15,12 @@ import (
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
-var (
-	defaultRunInfoMeta = &RunMetaInfo{
-		RunId:  "run-1",
-		JobId:  "job-1",
-		Queue:  "queue-1",
-		JobSet: "job-set-1",
-	}
-)
+var defaultRunInfoMeta = &RunMetaInfo{
+	RunId:  "run-1",
+	JobId:  "job-1",
+	Queue:  "queue-1",
+	JobSet: "job-set-1",
+}
 
 func TestOnStartUp_ReconcilesWithKubernetes(t *testing.T) {
 	existingPod := createPod()

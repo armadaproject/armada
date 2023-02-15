@@ -10,10 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
-func TestCreateSubmitJobFromExecutorApiJobRunLease(t *testing.T) {
-
-}
-
 func TestExtractJobRunMeta(t *testing.T) {
 	tests := map[string]struct {
 		jobId          string
