@@ -42,6 +42,8 @@ CREATE TABLE runs (
     job_set text NOT NULL,
     -- Executor this job run is assigned to.
     executor text NOT NULL,
+    -- Node this job run is assigned to.
+    node text NOT NULL,
     -- Indicates if this lease has been cancelled.
     cancelled boolean NOT NULL DEFAULT false,
     -- Set to true once a JobRunRunning messages is received for this run.

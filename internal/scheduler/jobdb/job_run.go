@@ -12,6 +12,8 @@ type JobRun struct {
 	created int64
 	// The name of the executor this run has been leased to
 	executor string
+	// The name of the nodes this run has been leased to
+	node string
 	// True if the job has been reported as running by the executor
 	running bool
 	// True if the job has been reported as succeeded by the executor
@@ -29,6 +31,7 @@ func CreateRun(
 	id uuid.UUID,
 	creationTime int64,
 	executor string,
+	node string,
 	running bool,
 	succeeded bool,
 	failed bool,
@@ -39,6 +42,7 @@ func CreateRun(
 		id:        id,
 		created:   creationTime,
 		executor:  executor,
+		node:      node,
 		running:   running,
 		succeeded: succeeded,
 		failed:    failed,
@@ -52,9 +56,14 @@ func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
-// Executor returns the exdecutor to which the JobRun is assigned.
+// Executor returns the executor to which the JobRun is assigned.
 func (run *JobRun) Executor() string {
 	return run.executor
+}
+
+// Node returns the node to which the JobRun is assigned.
+func (run *JobRun) Node() string {
+	return run.node
 }
 
 // Succeeded Returns true if the executor has reported the job run as successful

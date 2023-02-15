@@ -54,6 +54,11 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
 
+	nonArmadaAllocatedResources := make(map[int32]schedulerobjects.ResourceList)
+	for k, v := range nodeInfo.NonArmadaAllocatedResources {
+		nonArmadaAllocatedResources[k] = schedulerobjects.ResourceList{Resources: v.Resources}
+	}
+
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
 	for jobId, state := range nodeInfo.RunIdsByState {
 		jobRunsByState[jobId] = JobRunStateFromApiJobState(state)
@@ -66,6 +71,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
+		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		JobRunsByState:                   jobRunsByState,
 	}, nil
 }

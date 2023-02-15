@@ -58,6 +58,7 @@ type Run struct {
 	Created      int64     `db:"created"`
 	JobSet       string    `db:"job_set"`
 	Executor     string    `db:"executor"`
+	Node         string    `db:"node"`
 	Cancelled    bool      `db:"cancelled"`
 	Running      bool      `db:"running"`
 	Succeeded    bool      `db:"succeeded"`

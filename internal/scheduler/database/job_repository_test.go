@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -514,6 +515,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 			JobID:     util.NewULID(),
 			JobSet:    "test-jobset",
 			Executor:  "test-executor",
+			Node:      fmt.Sprintf("test-node-%d", i),
 			Cancelled: true,
 			Running:   true,
 			Succeeded: true,
@@ -528,6 +530,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 			JobID:     run.JobID,
 			JobSet:    run.JobSet,
 			Executor:  run.Executor,
+			Node:      fmt.Sprintf("test-node-%d", i),
 			Cancelled: run.Cancelled,
 			Running:   run.Running,
 			Succeeded: run.Succeeded,

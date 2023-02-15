@@ -116,11 +116,11 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor").HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-node").HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
-	jobWithRun := baseJob.WithNewRun("test-executor")
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-node")
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
@@ -128,6 +128,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 		id:       run.id,
 		created:  run.created,
 		executor: "test-executor",
+		node:     "test-node",
 	}, run)
 }
 
