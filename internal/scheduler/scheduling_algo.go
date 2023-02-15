@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -101,6 +102,22 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, job
 		}
 	}
 
+	// create a map of jobs associated with each executor
+	jobsByExecutor := make(map[string][]*jobdb.Job)
+	leasedJobsIter, err := jobdb.NewLeasedJobsIterator(txn)
+	if err != nil {
+		return nil, err
+	}
+
+	job := leasedJobsIter.NextJobItem()
+	for job != nil {
+		if job.HasRuns() {
+			executor := job.LatestRun().Executor()
+			jobsByExecutor[executor] = append(jobsByExecutor[executor], job)
+		}
+		job = leasedJobsIter.NextJobItem()
+	}
+
 	// used to calculate fair share
 	resourceUsagebyPool, err := aggregateUsage(executors, txn, jobDb)
 	if err != nil {
@@ -111,7 +128,7 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, job
 	for _, executor := range executors {
 		log.Infof("Attempting to schedule jobs on %s", executor.Id)
 		totalResourceUsageByQueue := resourceUsagebyPool[executor.Pool]
-		jobs, err := l.scheduleOnExecutor(ctx, executor, totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, txn)
+		jobs, err := l.scheduleOnExecutor(ctx, executor, jobsByExecutor[executor.Id], totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -155,6 +172,7 @@ func (it *JobQueueIteratorAdapter) Next() (LegacySchedulerJob, error) {
 func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	ctx context.Context,
 	executor *schedulerobjects.Executor,
+	leasedJobs []*jobdb.Job,
 	totalResourceUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	totalCapacity schedulerobjects.ResourceList,
 	priorityFactorByQueue map[string]float64,
@@ -162,7 +180,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 ) ([]*jobdb.Job, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	nodeDb, err := l.constructNodeDb(executor.Nodes, l.config.Preemption.PriorityClasses)
+	nodeDb, err := l.constructNodeDb(executor.Nodes, leasedJobs, l.config.Preemption.PriorityClasses)
 	if err != nil {
 		return nil, err
 	}
@@ -202,13 +220,46 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	updatedJobs := make([]*jobdb.Job, len(jobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 		job := report.Job.(*jobdb.Job)
-		job = job.WithQueued(false).WithNewRun(executor.Id)
+		nodeName := ""
+		if len(report.PodSchedulingReports) > 0 {
+			nodeName = report.PodSchedulingReports[0].Node.Name
+		} else {
+			log.Warnf("Could not resolve node for Job %s as no PodSchedulingReports were present", job.Id())
+		}
+		job = job.WithQueued(false).WithNewRun(executor.Id, nodeName)
 		updatedJobs[i] = job
 	}
 	return updatedJobs, nil
 }
 
-func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
+// constructNodeDb constructs a node db with all jobs bound to it
+func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
+	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
+	for _, node := range nodes {
+		// Clear out node
+		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
+			configuration.AllowedPriorities(priorityClasses),
+			node.TotalResources,
+		)
+		nodesByName[node.Name] = node
+	}
+
+	for _, job := range jobs {
+		if job.HasRuns() {
+			assignedNode := job.LatestRun().Node()
+			node, ok := nodesByName[assignedNode]
+			if !ok {
+				log.Warnf("Job %s assigned to node %s on executor %s but no such node found", job.Id(), assignedNode, job.LatestRun().Executor())
+				continue
+			}
+			node, err := BindPodToNode(PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo()), node)
+			if err != nil {
+				return nil, err
+			}
+			nodesByName[node.Name] = node
+		}
+	}
+
 	// Nodes to be considered by the scheduler.
 	nodeDb, err := NewNodeDb(
 		priorityClasses,
@@ -219,7 +270,8 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, p
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.UpsertMany(nodes)
+
+	err = nodeDb.UpsertMany(maps.Values(nodesByName))
 	if err != nil {
 		return nil, err
 	}

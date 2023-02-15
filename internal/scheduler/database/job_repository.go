@@ -25,6 +25,7 @@ type JobRunLease struct {
 	Queue         string
 	JobSet        string
 	UserID        string
+	Node          string
 	Groups        []byte
 	SubmitMessage []byte
 }
@@ -197,7 +198,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		}
 
 		query := `
-				SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)    
 			    JOIN jobs j
@@ -217,7 +218,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
 			if err != nil {
 				return errors.WithStack(err)
 			}
