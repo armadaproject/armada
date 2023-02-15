@@ -443,6 +443,18 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobErrors)
 		}
+	} else if job.RequestedPriority() != job.Priority() {
+		job = job.WithPriority(job.RequestedPriority())
+		jobReprioritised := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+				ReprioritisedJob: &armadaevents.ReprioritisedJob{
+					JobId:    jobId,
+					Priority: job.Priority(),
+				},
+			},
+		}
+		events = append(events, jobReprioritised)
 	}
 
 	if origJob != job {
@@ -708,6 +720,9 @@ func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) *jobdb.Job {
 	}
 	if dbJob.Failed && !job.Failed() {
 		job = job.WithFailed(true)
+	}
+	if uint32(dbJob.Priority) != job.RequestedPriority() {
+		job = job.WithRequestedPriority(uint32(dbJob.Priority))
 	}
 	return job
 }
