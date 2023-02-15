@@ -361,14 +361,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			continue
 		}
 
-		// Clear node.AllocatableByPriorityAndResource and assign pods to this node.
-		// This ensures all fields of the node are set correctly.
-		// TODO: We no longer need AllocatableByPriorityAndResource to be sent from the executor. We should make this nicer.
 		skipNode := false
-		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			allowedPriorities,
-			schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
-		)
 		for _, job := range jobs {
 			podReq := scheduler.PodRequirementFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
 
