@@ -65,6 +65,12 @@ func TestJob_TestPriority(t *testing.T) {
 	assert.Equal(t, uint32(3), newJob.Priority())
 }
 
+func TestJob_TestRequestedPriority(t *testing.T) {
+	newJob := baseJob.WithRequestedPriority(3)
+	assert.Equal(t, uint32(2), baseJob.RequestedPriority())
+	assert.Equal(t, uint32(3), newJob.RequestedPriority())
+}
+
 func TestJob_TestQueued(t *testing.T) {
 	newJob := baseJob.WithQueued(false)
 	assert.Equal(t, true, baseJob.Queued())
