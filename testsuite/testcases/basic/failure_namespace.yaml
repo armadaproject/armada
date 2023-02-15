@@ -8,7 +8,7 @@ jobs:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: failure_namespace
+        - name: failure-namespace
           imagePullPolicy: IfNotPresent
           image: alpine:3.10            
           args:
