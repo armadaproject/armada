@@ -50,7 +50,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 			Resources: nodeInfo.TotalResources,
 		},
 	)
-	for p, rs := range nodeInfo.AllocatedResources {
+	for p, rs := range nodeInfo.NonArmadaAllocatedResources {
 		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
 	}
 
