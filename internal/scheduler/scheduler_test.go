@@ -38,6 +38,7 @@ var queuedJob = jobdb.NewJob(
 	schedulingInfo,
 	false,
 	false,
+	false,
 	1)
 
 var leasedJob = jobdb.NewJob(
@@ -46,6 +47,7 @@ var leasedJob = jobdb.NewJob(
 	"testQueue",
 	uint32(10),
 	schedulingInfo,
+	false,
 	false,
 	false,
 	1).WithQueued(false).WithNewRun("testExecutor")

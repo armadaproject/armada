@@ -262,6 +262,7 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 		schedulingInfo,
 		false,
 		false,
+		false,
 		creationTime).WithQueued(true)
 }
 

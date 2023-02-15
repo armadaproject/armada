@@ -34,6 +34,8 @@ type Job struct {
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
 	// True if the user has requested this job be cancelled
 	cancelRequested bool
+	// True if the user has requested this job's jobset be cancelled
+	cancelByJobsetRequested bool
 	// True if the scheduler has cancelled the job
 	cancelled bool
 	// True if the scheduler has failed the job
@@ -50,27 +52,29 @@ type Job struct {
 
 // NewJob creates a new scheduler job
 func NewJob(
-	id string,
+	jobId string,
 	jobset string,
 	queue string,
 	priority uint32,
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
 	cancelRequested bool,
+	cancelByJobsetRequested bool,
 	cancelled bool,
 	created int64,
 ) *Job {
 	return &Job{
-		id:                id,
-		jobset:            jobset,
-		queue:             queue,
-		queued:            true,
-		priority:          priority,
-		requestedPriority: priority,
-		jobSchedulingInfo: schedulingInfo,
-		cancelRequested:   cancelRequested,
-		cancelled:         cancelled,
-		created:           created,
-		runsById:          map[uuid.UUID]*JobRun{},
+		id:                      jobId,
+		jobset:                  jobset,
+		queue:                   queue,
+		queued:                  true,
+		priority:                priority,
+		requestedPriority:       priority,
+		jobSchedulingInfo:       schedulingInfo,
+		cancelRequested:         cancelRequested,
+		cancelByJobsetRequested: cancelByJobsetRequested,
+		cancelled:               cancelled,
+		created:                 created,
+		runsById:                map[uuid.UUID]*JobRun{},
 	}
 }
 
@@ -158,10 +162,22 @@ func (job *Job) CancelRequested() bool {
 	return job.cancelRequested
 }
 
+// CancelByJobsetRequested returns true if the user has requested this job's jobset be cancelled.
+func (job *Job) CancelByJobsetRequested() bool {
+	return job.cancelByJobsetRequested
+}
+
 // WithCancelRequested returns a copy of the job with the cancelRequested status updated.
 func (job *Job) WithCancelRequested(cancelRequested bool) *Job {
 	j := copyJob(*job)
 	j.cancelRequested = cancelRequested
+	return j
+}
+
+// WithCancelByJobsetRequested returns a copy of the job with the cancelByJobsetRequested status updated.
+func (job *Job) WithCancelByJobsetRequested(cancelByJobsetRequested bool) *Job {
+	j := copyJob(*job)
+	j.cancelByJobsetRequested = cancelByJobsetRequested
 	return j
 }
 
