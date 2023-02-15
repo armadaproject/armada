@@ -57,7 +57,11 @@ type KubernetesConfiguration struct {
 	// NodeReservedResources config is used to factor in reserved resources on each node
 	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
 	NodeReservedResources armadaresource.ComputeResources
-	PodKillTimeout        time.Duration
+	// NodeReservedResourcesPriority - The priority the reserved resource is reported at
+	// All pods in kubernetes have a priority - and we report to the Armada API resource for a given priority
+	// Therefore we also need to set a priority for the reserved resource
+	NodeReservedResourcesPriority int32
+	PodKillTimeout                time.Duration
 }
 
 type EtcdConfiguration struct {
