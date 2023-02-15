@@ -3,7 +3,7 @@ batchSize: 1
 queue: e2e-test-queue
 jobs:
   - priority: 0
-    namespace: default
+    namespace: invalid-namespace
     podSpec:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
