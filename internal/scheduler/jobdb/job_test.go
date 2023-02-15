@@ -128,6 +128,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 		id:       run.id,
 		created:  run.created,
 		executor: "test-executor",
+		node:     "test-node",
 	}, run)
 }
 
