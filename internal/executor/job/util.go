@@ -19,9 +19,16 @@ func CreateSubmitJobsFromApiJobs(apiJobs []*api.Job, podDefaults *configuration.
 func CreateSubmitJobFromApiJob(apiJob *api.Job, podDefaults *configuration.PodDefaults) *SubmitJob {
 	pod := util2.CreatePod(apiJob, podDefaults, 0)
 
+	runMeta := &RunMetaInfo{
+		JobId:  apiJob.Id,
+		RunId:  "",
+		JobSet: apiJob.JobSetId,
+		Queue:  apiJob.Queue,
+	}
+
 	return &SubmitJob{
 		Meta: SubmitJobMetaInfo{
-			JobId:           apiJob.Id,
+			JobRunMeta:      runMeta,
 			Owner:           apiJob.Owner,
 			OwnershipGroups: apiJob.QueueOwnershipUserGroups,
 		},
@@ -40,14 +47,25 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 		return nil, err
 	}
 
-	jobIdString, err := armadaevents.UlidStringFromProtoUuid(jobRunLease.Job.JobId)
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunLease.Job.JobId)
 	if err != nil {
 		return nil, err
 	}
 
+	runId, err := armadaevents.UuidStringFromProtoUuid(jobRunLease.JobRunId)
+	if err != nil {
+		return nil, err
+	}
+
+	runMeta := &RunMetaInfo{
+		JobId:  jobId,
+		RunId:  runId,
+		JobSet: jobRunLease.Jobset,
+		Queue:  jobRunLease.Queue,
+	}
 	return &SubmitJob{
 		Meta: SubmitJobMetaInfo{
-			JobId:           jobIdString,
+			JobRunMeta:      runMeta,
 			Owner:           jobRunLease.User,
 			OwnershipGroups: jobRunLease.Groups,
 		},

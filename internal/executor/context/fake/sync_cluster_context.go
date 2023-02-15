@@ -15,8 +15,9 @@ import (
 )
 
 type SyncFakeClusterContext struct {
-	Pods     map[string]*v1.Pod
-	handlers []*cache.ResourceEventHandlerFuncs
+	Pods                 map[string]*v1.Pod
+	podEventHandlers     []*cache.ResourceEventHandlerFuncs
+	clusterEventHandlers []*cache.ResourceEventHandlerFuncs
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
@@ -27,11 +28,11 @@ func NewSyncFakeClusterContext() *SyncFakeClusterContext {
 func (*SyncFakeClusterContext) Stop() {}
 
 func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
+	c.podEventHandlers = append(c.podEventHandlers, &handler)
 }
 
 func (c *SyncFakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
+	c.clusterEventHandlers = append(c.clusterEventHandlers, &handler)
 }
 
 func (c *SyncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
@@ -129,9 +130,17 @@ func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *
 }
 
 func (c *SyncFakeClusterContext) SimulateDeletionEvent(pod *v1.Pod) {
-	for _, h := range c.handlers {
+	for _, h := range c.podEventHandlers {
 		if h.DeleteFunc != nil {
 			h.DeleteFunc(pod)
+		}
+	}
+}
+
+func (c *SyncFakeClusterContext) SimulateClusterAddEvent(clusterEvent *v1.Event) {
+	for _, h := range c.clusterEventHandlers {
+		if h.AddFunc != nil {
+			h.AddFunc(clusterEvent)
 		}
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
@@ -31,14 +32,16 @@ type JobEventReporter struct {
 	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
 
+	jobRunState    *job.JobRunStateManager
 	clusterContext clusterContext.ClusterContext
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventSender EventSender) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateManager, eventSender EventSender) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
 		clusterContext:   clusterContext,
+		jobRunState:      jobRunState,
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
@@ -102,13 +105,32 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 		return
 	}
 
+	preemptedRunId := ""
 	event, err := CreateJobPreemptedEvent(clusterEvent, eventReporter.clusterContext.GetClusterId())
 	if err != nil {
 		log.Errorf("Failed to create JobPreemptedEvent: %v", err)
 		return
 	}
-	// TODO work out if its possible to get JobRunId from preemption event
-	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: ""}, func(err error) {
+	// Special handling for Executor API
+	// Once we are migrated to the Executor API this should be tidied up (and probably moved out of job_event_reporter)
+	if eventReporter.jobRunState != nil {
+		preemptedRun := eventReporter.jobRunState.GetByKubernetesId(event.RunId)
+		if preemptedRun != nil && preemptedRun.Meta != nil {
+			preemptedRunId = preemptedRun.Meta.RunId
+			event.Queue = preemptedRun.Meta.Queue
+			event.JobSetId = preemptedRun.Meta.JobSet
+		} else {
+			log.Errorf("Failed to create JobPreemptedEvent for job %s because job run id could not be found", event.JobId)
+			return
+		}
+		preemptiveRun := eventReporter.jobRunState.GetByKubernetesId(event.PreemptiveRunId)
+		if preemptiveRun != nil && preemptiveRun.Meta != nil {
+			event.PreemptiveRunId = preemptiveRun.Meta.RunId
+		} else {
+			event.PreemptiveRunId = ""
+		}
+	}
+	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: preemptedRunId}, func(err error) {
 		if err != nil {
 			log.Errorf(
 				"Failed to report event JobPreemptedEvent for cluster event %s/%s: %v",
