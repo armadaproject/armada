@@ -39,8 +39,6 @@ type Configuration struct {
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
 	CyclePeriod time.Duration `validate:"required"`
-	// How long after a heartbeat an executor will be considered lost
-	ExecutorTimeout time.Duration `validate:"required"`
 	// Maximum number of rows to fetch in a given query
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar

@@ -1,5 +1,4 @@
 cyclePeriod: 10s
-executorTimeout: 1h
 databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
@@ -35,6 +34,7 @@ grpc:
     minTime: 10s
     permitWithoutStream: true
 scheduling:
+  executorTimeout: 1h
   preemption:
     enabled: true
     priorityClasses:

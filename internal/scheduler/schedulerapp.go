@@ -144,7 +144,7 @@ func Run(config Configuration) error {
 		pulsarPublisher,
 		stringInterner,
 		config.CyclePeriod,
-		config.ExecutorTimeout,
+		config.Scheduling.ExecutorTimeout,
 		config.Scheduling.MaxRetries)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
