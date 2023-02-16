@@ -183,33 +183,3 @@ func TestSubtract(t *testing.T) {
 		})
 	}
 }
-
-func TestSubtract_Empty(t *testing.T) {
-	tests := map[string]struct {
-		input          []int
-		filter         func(input int) bool
-		expectedOutput []int
-	}{
-		"FilterKeepsAll": {
-			input:          []int{1, 3, 5},
-			filter:         func(input int) bool { return input == 3 },
-			expectedOutput: []int{3},
-		},
-		"InputIsNil": {
-			input:          nil,
-			filter:         func(input int) bool { return true },
-			expectedOutput: nil,
-		},
-		"InputIsEmpty": {
-			input:          []int{},
-			filter:         func(input int) bool { return true },
-			expectedOutput: []int{},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			output := Filter(tc.input, tc.filter)
-			assert.Equal(t, output, tc.expectedOutput)
-		})
-	}
-}
