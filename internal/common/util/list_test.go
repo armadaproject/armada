@@ -18,8 +18,7 @@ func TestFilter(t *testing.T) {
 func TestFilter_ExcludeAllFilter(t *testing.T) {
 	excludeAll := func(val int) bool { return false }
 	input := []int{1, 3, 5, 7, 9}
-	expectedOutput := []int(nil)
-
+	expectedOutput := []int{}
 	output := Filter(input, excludeAll)
 	assert.Equal(t, expectedOutput, output)
 }
