@@ -290,16 +290,19 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 			log.Errorf("Failed to delete pod of running job %s because %s", issue.Issue.JobId, err)
 			return
 		}
+	} else {
+		// TODO
+		// When we have our own internal state - we don't need to wait for the pod deletion to complete
+		// We can just mark is to delete in our state and return the lease
+		jobRunAttempted := issue.Issue.Type != UnableToSchedule
+		returnLeaseEvent := reporter.CreateReturnLeaseEvent(issue.Issue.OriginalPodState, issue.Issue.Message, p.clusterContext.GetClusterId(), jobRunAttempted)
+		err := p.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: issue.Issue.RunId}})
+		if err != nil {
+			log.Errorf("Failed to return lease for job %s because %s", issue.Issue.JobId, err)
+			return
+		}
+		p.markIssuesResolved(issue.Issue)
 	}
-
-	jobRunAttempted := issue.Issue.Type != UnableToSchedule
-	returnLeaseEvent := reporter.CreateReturnLeaseEvent(issue.Issue.OriginalPodState, issue.Issue.Message, p.clusterContext.GetClusterId(), jobRunAttempted)
-	err := p.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: issue.Issue.RunId}})
-	if err != nil {
-		log.Errorf("Failed to return lease for job %s because %s", issue.Issue.JobId, err)
-		return
-	}
-	p.markIssuesResolved(issue.Issue)
 }
 
 func hasPodIssueSelfResolved(issue *issue) bool {

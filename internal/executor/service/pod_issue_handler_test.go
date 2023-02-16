@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
@@ -79,12 +80,17 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 	remainingActivePods := getActivePods(t, fakeClusterContext)
 	assert.Equal(t, []*v1.Pod{}, remainingActivePods)
 
-	// Reports UnableToSchedule and LeaseReturned
-	assert.Len(t, eventsReporter.ReceivedEvents, 2)
+	// Reports UnableToSchedule
+	assert.Len(t, eventsReporter.ReceivedEvents, 1)
 	_, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobUnableToScheduleEvent)
 	assert.True(t, ok)
 
-	_, ok = eventsReporter.ReceivedEvents[1].Event.(*api.JobLeaseReturnedEvent)
+	// Reset events
+	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
+	podIssueService.HandlePodIssues()
+
+	assert.Len(t, eventsReporter.ReceivedEvents, 1)
+	_, ok = eventsReporter.ReceivedEvents[0].Event.(*api.JobLeaseReturnedEvent)
 	assert.True(t, ok)
 }
 

@@ -735,7 +735,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true, // EventMessage_UnableToSchedule indicates a failed job.
+							Terminal: false, // EventMessage_UnableToSchedule indicates a failed job.
 							Reason: &armadaevents.Error_PodUnschedulable{
 								PodUnschedulable: &armadaevents.PodUnschedulable{
 									ObjectMeta: &armadaevents.ObjectMeta{
