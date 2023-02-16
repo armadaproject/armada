@@ -13,6 +13,7 @@ spec:
       labels:
         {{- include "lookout_v2.labels.all" . | nindent 8 }}
     spec:
+      concurrencyPolicy: Replace
       template:
         metadata:
           name: lookout-v2-db-pruner
