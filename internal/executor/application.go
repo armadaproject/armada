@@ -91,6 +91,7 @@ func StartUpWithContext(
 	}
 
 	var executorApiClient executorapi.ExecutorApiClient
+	var jobRunState *job.JobRunStateStore
 	var usageClient api.UsageClient
 	var eventSender reporter.EventSender
 	var queueClient api.AggregatedQueueClient
@@ -98,6 +99,7 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		executorApiClient = executorapi.NewExecutorApiClient(conn)
 		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
+		jobRunState = job.NewJobRunStateStore(clusterContext)
 	} else {
 		usageClient = api.NewUsageClient(conn)
 		queueClient = api.NewAggregatedQueueClient(conn)
@@ -107,6 +109,7 @@ func StartUpWithContext(
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
 		clusterContext,
+		jobRunState,
 		eventSender)
 
 	if config.Kubernetes.PendingPodChecks == nil {
@@ -158,6 +161,7 @@ func StartUpWithContext(
 			clusterContext,
 			eventReporter,
 			leaseRequester,
+			jobRunState,
 			clusterUtilisationService,
 			submitter,
 			config.Kubernetes.PodDefaults,
