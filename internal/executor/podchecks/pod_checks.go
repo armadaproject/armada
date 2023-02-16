@@ -1,6 +1,7 @@
 package podchecks
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ func (pc *PodChecks) GetAction(pod *v1.Pod, podEvents []*v1.Event, timeInState t
 
 	isAssignedToNode := pod.Spec.NodeName != ""
 	if timeInState > pc.deadlineForNodeAssignment && !isAssignedToNode {
-		return ActionRetry, NoNodeAssigned, "Pod could not been scheduled in within %s deadline. Retrying"
+		return ActionRetry, NoNodeAssigned, fmt.Sprintf("Pod could not been scheduled in within %s deadline. Retrying", pc.deadlineForNodeAssignment)
 	}
 
 	isNodeBad := pc.hasNoEventsOrStatus(pod, podEvents)
