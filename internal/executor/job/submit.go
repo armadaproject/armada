@@ -47,7 +47,7 @@ func NewSubmitter(
 }
 
 type FailedSubmissionDetails struct {
-	JobRunMeta  *RunMetaInfo
+	JobRunMeta  *RunMeta
 	Pod         *v1.Pod
 	Error       error
 	Recoverable bool
@@ -97,10 +97,10 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 		jobPods = append(jobPods, pod)
 
 		if err != nil {
-			log.Errorf("Failed to submit job %s because %s", job.Meta.JobRunMeta.JobId, err)
+			log.Errorf("Failed to submit job %s because %s", job.Meta.RunMeta.JobId, err)
 
 			errDetails := &FailedSubmissionDetails{
-				JobRunMeta:  job.Meta.JobRunMeta,
+				JobRunMeta:  job.Meta.RunMeta,
 				Pod:         pod,
 				Error:       err,
 				Recoverable: submitService.isRecoverable(err),

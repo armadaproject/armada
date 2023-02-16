@@ -32,16 +32,16 @@ type JobEventReporter struct {
 	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
 
-	jobRunState    *job.JobRunStateManager
-	clusterContext clusterContext.ClusterContext
+	jobRunStateStore *job.JobRunStateStore
+	clusterContext   clusterContext.ClusterContext
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateManager, eventSender EventSender) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateStore, eventSender EventSender) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
 		clusterContext:   clusterContext,
-		jobRunState:      jobRunState,
+		jobRunStateStore: jobRunState,
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
@@ -113,8 +113,8 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 	}
 	// Special handling for Executor API
 	// Once we are migrated to the Executor API this should be tidied up (and probably moved out of job_event_reporter)
-	if eventReporter.jobRunState != nil {
-		preemptedRun := eventReporter.jobRunState.GetByKubernetesId(event.RunId)
+	if eventReporter.jobRunStateStore != nil {
+		preemptedRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.RunId)
 		if preemptedRun != nil && preemptedRun.Meta != nil {
 			preemptedRunId = preemptedRun.Meta.RunId
 			event.Queue = preemptedRun.Meta.Queue
@@ -123,7 +123,7 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 			log.Errorf("Failed to create JobPreemptedEvent for job %s because job run id could not be found", event.JobId)
 			return
 		}
-		preemptiveRun := eventReporter.jobRunState.GetByKubernetesId(event.PreemptiveRunId)
+		preemptiveRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.PreemptiveRunId)
 		if preemptiveRun != nil && preemptiveRun.Meta != nil {
 			event.PreemptiveRunId = preemptiveRun.Meta.RunId
 		} else {

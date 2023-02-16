@@ -16,7 +16,7 @@ func TestExtractJobRunMeta(t *testing.T) {
 		runId          string
 		queue          string
 		jobSet         string
-		expectedOutput *RunMetaInfo
+		expectedOutput *RunMeta
 		expectError    bool
 	}{
 		"Valid": {
@@ -25,7 +25,7 @@ func TestExtractJobRunMeta(t *testing.T) {
 			queue:       "queue",
 			jobSet:      "job-set",
 			expectError: false,
-			expectedOutput: &RunMetaInfo{
+			expectedOutput: &RunMeta{
 				JobId:  "job-id",
 				RunId:  "run-id",
 				Queue:  "queue",

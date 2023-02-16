@@ -15,7 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
-var defaultRunInfoMeta = &RunMetaInfo{
+var defaultRunInfoMeta = &RunMeta{
 	RunId:  "run-1",
 	JobId:  "job-1",
 	Queue:  "queue-1",
@@ -63,7 +63,7 @@ func TestOnPodEvent_MovesJobRunStateToActive(t *testing.T) {
 	jobRunStateManager, executorContext := setup(t, []*v1.Pod{})
 
 	pod1 := createPod()
-	runInfo := &RunMetaInfo{
+	runInfo := &RunMeta{
 		RunId:  util.ExtractJobRunId(pod1),
 		JobId:  util.ExtractJobId(pod1),
 		Queue:  util.ExtractQueue(pod1),
@@ -128,14 +128,14 @@ func TestGetByKubernetesId(t *testing.T) {
 	assert.Equal(t, jobRun.KubernetesId, string(pod2.UID))
 }
 
-func setup(t *testing.T, existingPods []*v1.Pod) (*JobRunStateManager, *fakecontext.SyncFakeClusterContext) {
+func setup(t *testing.T, existingPods []*v1.Pod) (*JobRunStateStore, *fakecontext.SyncFakeClusterContext) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	for _, pod := range existingPods {
 		_, err := executorContext.SubmitPod(pod, "test", []string{})
 		assert.NoError(t, err)
 	}
 
-	jobRunStateManager := NewJobRunState(executorContext)
+	jobRunStateManager := NewJobRunStateStore(executorContext)
 	return jobRunStateManager, executorContext
 }
 

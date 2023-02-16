@@ -104,7 +104,7 @@ func TestJobEventReporter_SendsPreemptionEvent(t *testing.T) {
 	}
 }
 
-func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontext.SyncFakeClusterContext, *job.JobRunStateManager, *FakeEventSender) {
+func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontext.SyncFakeClusterContext, *job.JobRunStateStore, *FakeEventSender) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	for _, pod := range existingPods {
 		_, err := executorContext.SubmitPod(pod, "test", []string{})
@@ -112,7 +112,7 @@ func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontex
 	}
 
 	eventSender := NewFakeEventSender()
-	jobRunState := job.NewJobRunState(executorContext)
+	jobRunState := job.NewJobRunStateStore(executorContext)
 	jobEventReporter, _ := NewJobEventReporter(executorContext, jobRunState, eventSender)
 
 	return jobEventReporter, executorContext, jobRunState, eventSender

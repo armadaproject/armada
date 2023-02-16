@@ -23,7 +23,7 @@ func CreateSubmitJobsFromApiJobs(apiJobs []*api.Job, podDefaults *configuration.
 func CreateSubmitJobFromApiJob(apiJob *api.Job, podDefaults *configuration.PodDefaults) *SubmitJob {
 	pod := util2.CreatePod(apiJob, podDefaults, 0)
 
-	runMeta := &RunMetaInfo{
+	runMeta := &RunMeta{
 		JobId:  apiJob.Id,
 		RunId:  "",
 		JobSet: apiJob.JobSetId,
@@ -31,8 +31,8 @@ func CreateSubmitJobFromApiJob(apiJob *api.Job, podDefaults *configuration.PodDe
 	}
 
 	return &SubmitJob{
-		Meta: SubmitJobMetaInfo{
-			JobRunMeta:      runMeta,
+		Meta: SubmitJobMeta{
+			RunMeta:         runMeta,
 			Owner:           apiJob.Owner,
 			OwnershipGroups: apiJob.QueueOwnershipUserGroups,
 		},
@@ -61,15 +61,15 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 		return nil, err
 	}
 
-	runMeta := &RunMetaInfo{
+	runMeta := &RunMeta{
 		JobId:  jobId,
 		RunId:  runId,
 		JobSet: jobRunLease.Jobset,
 		Queue:  jobRunLease.Queue,
 	}
 	return &SubmitJob{
-		Meta: SubmitJobMetaInfo{
-			JobRunMeta:      runMeta,
+		Meta: SubmitJobMeta{
+			RunMeta:         runMeta,
 			Owner:           jobRunLease.User,
 			OwnershipGroups: jobRunLease.Groups,
 		},
@@ -79,7 +79,7 @@ func CreateSubmitJobFromExecutorApiJobRunLease(
 	}, nil
 }
 
-func ExtractJobRunMeta(pod *v1.Pod) (*RunMetaInfo, error) {
+func ExtractJobRunMeta(pod *v1.Pod) (*RunMeta, error) {
 	runId := util2.ExtractJobRunId(pod)
 	if runId == "" {
 		return nil, fmt.Errorf("job run id is missing")
@@ -96,7 +96,7 @@ func ExtractJobRunMeta(pod *v1.Pod) (*RunMetaInfo, error) {
 	if jobSet == "" {
 		return nil, fmt.Errorf("job set is missing")
 	}
-	return &RunMetaInfo{
+	return &RunMeta{
 		RunId:  runId,
 		JobId:  jobId,
 		JobSet: jobSet,

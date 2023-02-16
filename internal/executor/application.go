@@ -91,7 +91,7 @@ func StartUpWithContext(
 	}
 
 	var executorApiClient executorapi.ExecutorApiClient
-	var jobRunState *job.JobRunStateManager
+	var jobRunState *job.JobRunStateStore
 	var usageClient api.UsageClient
 	var eventSender reporter.EventSender
 	var queueClient api.AggregatedQueueClient
@@ -99,7 +99,7 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		executorApiClient = executorapi.NewExecutorApiClient(conn)
 		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
-		jobRunState = job.NewJobRunState(clusterContext)
+		jobRunState = job.NewJobRunStateStore(clusterContext)
 	} else {
 		usageClient = api.NewUsageClient(conn)
 		queueClient = api.NewAggregatedQueueClient(conn)

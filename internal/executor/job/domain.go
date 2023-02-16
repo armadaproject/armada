@@ -7,28 +7,28 @@ import (
 	networking "k8s.io/api/networking/v1"
 )
 
-type SubmitJobMetaInfo struct {
-	JobRunMeta      *RunMetaInfo
+type SubmitJobMeta struct {
+	RunMeta         *RunMeta
 	Owner           string
 	OwnershipGroups []string
 }
 
 type SubmitJob struct {
-	Meta      SubmitJobMetaInfo
+	Meta      SubmitJobMeta
 	Pod       *v1.Pod
 	Ingresses []*networking.Ingress
 	Services  []*v1.Service
 }
 
-type RunMetaInfo struct {
+type RunMeta struct {
 	JobId  string
 	RunId  string
 	JobSet string
 	Queue  string
 }
 
-func (r *RunMetaInfo) DeepCopy() *RunMetaInfo {
-	return &RunMetaInfo{
+func (r *RunMeta) DeepCopy() *RunMeta {
+	return &RunMeta{
 		JobId:  r.JobId,
 		RunId:  r.RunId,
 		JobSet: r.JobSet,
@@ -51,7 +51,7 @@ const (
 )
 
 type RunState struct {
-	Meta               *RunMetaInfo
+	Meta               *RunMeta
 	KubernetesId       string
 	Phase              RunPhase
 	LastTransitionTime time.Time
