@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/reporter"
 	reporter_fake "github.com/armadaproject/armada/internal/executor/reporter/fake"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
