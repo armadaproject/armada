@@ -7,13 +7,14 @@ metadata:
     {{- include "lookout_v2.labels.all" . | nindent 4 }}
 spec:
   schedule: {{ .Values.dbPruneSchedule | default "@hourly" | quote }}
+  concurrencyPolicy: Forbid
   jobTemplate:
     metadata:
       name: lookout-v2-db-pruner
       labels:
         {{- include "lookout_v2.labels.all" . | nindent 8 }}
     spec:
-      concurrencyPolicy: Replace
+      backoffLimit: 6
       template:
         metadata:
           name: lookout-v2-db-pruner
