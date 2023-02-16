@@ -361,6 +361,22 @@ func makePodsWithJobRunIds(runIds []string) []*v1.Pod {
 	return pods
 }
 
+func TestExtractQueue(t *testing.T) {
+	podWithQueue := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{domain.Queue: "queue-1"}}}
+	podWithoutQueue := &v1.Pod{}
+
+	assert.Equal(t, ExtractQueue(podWithQueue), "queue-1")
+	assert.Equal(t, ExtractQueue(podWithoutQueue), "")
+}
+
+func TestExtractJobSet(t *testing.T) {
+	podWithJobSet := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{domain.JobSetId: "job-set-1"}}}
+	podWithoutJobSet := &v1.Pod{}
+
+	assert.Equal(t, ExtractJobSet(podWithJobSet), "job-set-1")
+	assert.Equal(t, ExtractJobSet(podWithoutJobSet), "")
+}
+
 func TestIsReportingPhaseRequired(t *testing.T) {
 	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodRunning))
 	assert.Equal(t, true, IsReportingPhaseRequired(v1.PodSucceeded))
