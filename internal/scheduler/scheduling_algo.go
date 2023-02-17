@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"math/rand"
 	"time"
 
@@ -233,7 +234,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it
-func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
+func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*nodedb.NodeDb, error) {
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
 		// Clear out node
@@ -252,7 +253,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 				log.Warnf("Job %s assigned to node %s on executor %s but no such node found", job.Id(), assignedNode, job.LatestRun().Executor())
 				continue
 			}
-			node, err := BindPodToNode(PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo()), node)
+			node, err := nodedb.BindPodToNode(PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo()), node)
 			if err != nil {
 				return nil, err
 			}
@@ -261,7 +262,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 	}
 
 	// Nodes to be considered by the scheduler.
-	nodeDb, err := NewNodeDb(
+	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,
 		l.indexedResources,
 		l.config.IndexedTaints,

@@ -68,20 +68,29 @@ func NewLeasedJobsIterator(txn *memdb.Txn) (*LeasedJobsIterator, error) {
 	}, nil
 }
 
-// WatchCh is needed to implement the memdb.ResultIterator interface but is not needed for our use case
-func (it *LeasedJobsIterator) WatchCh() <-chan struct{} {
-	panic("not implemented")
-}
-
 // NextJobItem returns the next Job or nil if the end of the iterator has been reached
 func (it *LeasedJobsIterator) NextJobItem() *Job {
 	return nextJobItem(it.it)
 }
 
-// Next is needed to implement the memdb.ResultIterator interface.  External callers should use NextJobItem which
-// provides a typesafe mechanism for getting the next Job
-func (it *LeasedJobsIterator) Next() interface{} {
-	return it.NextJobItem()
+// AllJobsIterator is an iterator over all jobs
+type AllJobsIterator struct {
+	it memdb.ResultIterator
+}
+
+func NewAllJobsIterator(txn *memdb.Txn) (*AllJobsIterator, error) {
+	it, err := txn.Get(jobsTable, idIndex)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &AllJobsIterator{
+		it: it,
+	}, nil
+}
+
+// NextJobItem returns the next Job or nil if the end of the iterator has been reached
+func (it *AllJobsIterator) NextJobItem() *Job {
+	return nextJobItem(it.it)
 }
 
 func nextJobItem(it memdb.ResultIterator) *Job {

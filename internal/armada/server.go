@@ -3,6 +3,7 @@ package armada
 import (
 	"context"
 	"fmt"
+	metrics2 "github.com/armadaproject/armada/internal/common/metrics"
 	"net"
 	"time"
 
@@ -294,7 +295,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
-	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
+	metrics2.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)

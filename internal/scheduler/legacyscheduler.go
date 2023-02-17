@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"math"
 	"math/rand"
 	"reflect"
@@ -686,7 +687,7 @@ type LegacyScheduler struct {
 	CandidateGangIterator *CandidateGangIterator
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
-	NodeDb *NodeDb
+	NodeDb *nodedb.NodeDb
 }
 
 func (sched *LegacyScheduler) String() string {
@@ -736,7 +737,7 @@ func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Qu
 // EvictPreemptible evicts from all nodes any jobs of a priority class marked as preemptible.
 func EvictPreemptible(
 	ctx context.Context,
-	it NodeIterator,
+	it nodedb.NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	defaultPriorityClass string,
@@ -792,7 +793,7 @@ func EvictPreemptible(
 // at least one job could not be scheduled.
 func EvictOversubscribed(
 	ctx context.Context,
-	it NodeIterator,
+	it nodedb.NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	evictionProbability float64,
@@ -863,7 +864,7 @@ func EvictOversubscribed(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func Evict(
-	it NodeIterator,
+	it nodedb.NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	nodeFilter func(*schedulerobjects.Node) bool,
@@ -889,7 +890,7 @@ func Evict(
 			if req == nil {
 				continue
 			}
-			node, err = UnbindPodFromNode(req, node)
+			node, err = nodedb.UnbindPodFromNode(req, node)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -907,7 +908,7 @@ func NewLegacyScheduler(
 	ctx context.Context,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
-	nodeDb *NodeDb,
+	nodeDb *nodedb.NodeDb,
 	queues []*Queue,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) (*LegacyScheduler, error) {
@@ -919,11 +920,11 @@ func NewLegacyScheduler(
 			constraints.ResourceScarcity, constraints.TotalResources,
 		)
 	}
-	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, nodeDb.totalResources) == 0 {
+	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, nodeDb.TotalResources) == 0 {
 		// This refers to the resources currently considered for schedling.
 		return nil, errors.Errorf(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
-			constraints.ResourceScarcity, nodeDb.totalResources,
+			constraints.ResourceScarcity, nodeDb.TotalResources,
 		)
 	}
 
@@ -991,7 +992,7 @@ func Reschedule(
 	jobRepo JobRepository,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
-	nodeDb *NodeDb,
+	nodeDb *nodedb.NodeDb,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	nodePreemptibleEvictionProbability float64,
@@ -1008,7 +1009,7 @@ func Reschedule(
 	txn := nodeDb.Txn(false)
 
 	// Evict preemptible jobs.
-	it, err := NewNodesIterator(txn)
+	it, err := nodedb.NewNodesIterator(txn)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -1101,7 +1102,7 @@ func Reschedule(
 	}
 
 	// Evict jobs on oversubscribed nodes.
-	it, err = NewNodesIterator(nodeDb.Txn(false))
+	it, err = nodedb.NewNodesIterator(nodeDb.Txn(false))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -1193,7 +1194,7 @@ func Reschedule(
 	//
 	// Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure it's consistent.
 	// This is only to validate that nothing unexpected happened during scheduling.
-	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
+	preempted, scheduled, err := nodedb.NodeJobDiff(txn, nodeDb.Txn(false))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

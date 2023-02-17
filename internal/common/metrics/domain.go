@@ -2,10 +2,14 @@ package metrics
 
 import (
 	"fmt"
-	"time"
-
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"time"
 )
+
+type QueueMetricProvider interface {
+	GetQueuedJobMetrics(queueName string) []*QueueMetrics
+	GetRunningJobMetrics(queueName string) []*QueueMetrics
+}
 
 type QueueMetrics struct {
 	Pool          string

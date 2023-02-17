@@ -1,7 +1,8 @@
-package scheduler
+package nodedb
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler"
 	"strings"
 	"sync"
 	"text/tabwriter"
@@ -24,35 +25,35 @@ import (
 type NodeDb struct {
 	// In-memory database. Stores *SchedulerNode.
 	// Used to efficiently iterate over nodes in sorted order.
-	db *memdb.MemDB
+	Db *memdb.MemDB
 	// Allowed priority classes..
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
-	priorityClasses map[string]configuration.PriorityClass
+	PriorityClasses map[string]configuration.PriorityClass
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which indexes are created to enable efficient lookup.
-	indexedResources map[string]interface{}
+	IndexedResources map[string]interface{}
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
 	// by a pod when looking for a node a pod can be scheduled on.
 	//
 	// If not set, all taints are indexed.
-	indexedTaints map[string]interface{}
+	IndexedTaints map[string]interface{}
 	// Node labels to create indexes for.
 	// Should include node labels frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes for which these labels
 	// do not match pod node selectors when looking for a node a pod can be scheduled on.
 	//
 	// If not set, no labels are indexed.
-	indexedNodeLabels map[string]interface{}
+	IndexedNodeLabels map[string]interface{}
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
-	// Computed approximately by periodically scanning all nodes in the db.
-	totalResources schedulerobjects.ResourceList
+	// Computed approximately by periodically scanning all nodes in the Db.
+	TotalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
-	nodeTypes map[string]*schedulerobjects.NodeType
-	// Mutex to control access to totalResources and NodeTypes.
+	NodeTypes map[string]*schedulerobjects.NodeType
+	// Mutex to control access to TotalResources and NodeTypes.
 	mu sync.Mutex
 }
 
@@ -66,7 +67,7 @@ func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedRe
 	}
 	if len(priorityClasses) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "priorityClasses",
+			Name:    "PriorityClasses",
 			Value:   priorityClasses,
 			Message: "there must be at least one supported priority class",
 		})
@@ -74,7 +75,7 @@ func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedRe
 	priorityClasses = maps.Clone(priorityClasses)
 	if len(indexedResources) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "indexedResources",
+			Name:    "IndexedResources",
 			Value:   indexedResources,
 			Message: "there must be at least one indexed resource",
 		})
@@ -87,28 +88,28 @@ func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedRe
 		return rv
 	}
 	return &NodeDb{
-		priorityClasses:   priorityClasses,
-		indexedResources:  mapFromSlice(indexedResources),
-		indexedTaints:     mapFromSlice(indexedTaints),
-		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
-		nodeTypes:         make(map[string]*schedulerobjects.NodeType),
-		totalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                db,
+		PriorityClasses:   priorityClasses,
+		IndexedResources:  mapFromSlice(indexedResources),
+		IndexedTaints:     mapFromSlice(indexedTaints),
+		IndexedNodeLabels: mapFromSlice(indexedNodeLabels),
+		NodeTypes:         make(map[string]*schedulerobjects.NodeType),
+		TotalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		Db:                db,
 	}, nil
 }
 
 func (nodeDb *NodeDb) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
-	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
-	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
-	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
-	if len(nodeDb.nodeTypes) == 0 {
+	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.PriorityClasses))
+	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.IndexedResources))
+	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.IndexedTaints))
+	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.IndexedNodeLabels))
+	if len(nodeDb.NodeTypes) == 0 {
 		fmt.Fprint(w, "Node types:\tnone\n")
 	} else {
 		fmt.Fprint(w, "Node types:\n")
-		for _, nodeType := range nodeDb.nodeTypes {
+		for _, nodeType := range nodeDb.NodeTypes {
 			fmt.Fprintf(w, "  %s\n", nodeType.Id)
 		}
 	}
@@ -117,15 +118,15 @@ func (nodeDb *NodeDb) String() string {
 }
 
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
-	return nodeDb.db.Txn(write)
+	return nodeDb.Db.Txn(write)
 }
 
-// GetNode returns a node in the db with given id.
+// GetNode returns a node in the Db with given id.
 func (nodeDb *NodeDb) GetNode(id string) (*schedulerobjects.Node, error) {
 	return nodeDb.GetNodeWithTxn(nodeDb.Txn(false), id)
 }
 
-// GetNodeWithTxn returns a node in the db with given id,
+// GetNodeWithTxn returns a node in the Db with given id,
 // within the provided transactions.
 func (nodeDb *NodeDb) GetNodeWithTxn(txn *memdb.Txn, id string) (*schedulerobjects.Node, error) {
 	it, err := txn.Get("nodes", "id", id)
@@ -188,8 +189,8 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
 // TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
-	txn := nodeDb.db.Txn(true)
+func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*scheduler.PodSchedulingReport, bool, error) {
+	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
 	if ok && err == nil {
@@ -199,9 +200,9 @@ func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]
 	return reports, ok, err
 }
 
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*scheduler.PodSchedulingReport, bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	reports := make([]*PodSchedulingReport, 0, len(reqs))
+	reports := make([]*scheduler.PodSchedulingReport, 0, len(reqs))
 	for _, req := range reqs {
 		report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 		if err != nil {
@@ -230,8 +231,8 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 	return reports, true, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-	txn := nodeDb.db.Txn(true)
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
+	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
 	if err != nil {
@@ -241,7 +242,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequiremen
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
 	report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
@@ -259,12 +260,12 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
-	return nodeDb.SelectNodeForPodWithTxn(nodeDb.db.Txn(false), req)
+func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
+	return nodeDb.SelectNodeForPodWithTxn(nodeDb.Db.Txn(false), req)
 }
 
 // SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -280,7 +281,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Create a report to be returned to the caller.
-	report := &PodSchedulingReport{
+	report := &scheduler.PodSchedulingReport{
 		Timestamp:                    time.Now(),
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
@@ -290,7 +291,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// If the targetNodeIdAnnocation is set, consider only that node.
-	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
+	if nodeId, ok := req.Annotations[scheduler.TargetNodeIdAnnotation]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -360,7 +361,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	return report, nil
 }
 
-func selectNodeForPodWithIt(report *PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
+func selectNodeForPodWithIt(report *scheduler.PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		node := obj.(*schedulerobjects.Node)
 		if node == nil {
@@ -455,11 +456,11 @@ func UnbindPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobj
 }
 
 func JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, JobIdAnnotation)
+	return valueFromPodRequirements(req, scheduler.JobIdAnnotation)
 }
 
 func QueueFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, QueueAnnotation)
+	return valueFromPodRequirements(req, scheduler.QueueAnnotation)
 }
 
 func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string) (string, error) {
@@ -484,7 +485,7 @@ func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string)
 // NodeTypesMatchingPod returns a slice composed of all node types
 // a given pod could potentially be scheduled on.
 func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
-	return NodeTypesMatchingPod(nodeDb.nodeTypes, req)
+	return NodeTypesMatchingPod(nodeDb.NodeTypes, req)
 }
 
 // NodeTypesMatchingPod returns a slice composed of all node types
@@ -513,10 +514,10 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 	dominantResourceFraction := 0.0
 	for t, q := range req.ResourceRequirements.Requests {
 		// Skip any resource types that are not indexed.
-		if _, ok := nodeDb.indexedResources[string(t)]; !ok {
+		if _, ok := nodeDb.IndexedResources[string(t)]; !ok {
 			continue
 		}
-		available, ok := nodeDb.totalResources.Resources[string(t)]
+		available, ok := nodeDb.TotalResources.Resources[string(t)]
 		if !ok {
 			return string(t)
 		}
@@ -531,7 +532,7 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 }
 
 func (nodeDb *NodeDb) UpsertMany(nodes []*schedulerobjects.Node) error {
-	txn := nodeDb.db.Txn(true)
+	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	if err := nodeDb.UpsertManyWithTxn(txn, nodes); err != nil {
 		return err
@@ -568,14 +569,14 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	nodeType := schedulerobjects.NewNodeType(
 		node.GetTaints(),
 		node.GetLabels(),
-		nodeDb.indexedTaints,
-		nodeDb.indexedNodeLabels,
+		nodeDb.IndexedTaints,
+		nodeDb.IndexedNodeLabels,
 	)
 	node.NodeTypeId = nodeType.Id
 	node.NodeType = nodeType
 
 	// If this is a new node, increase the overall resource count.
-	// Note that nodeDb.totalResources isn't rolled back on txn abort.
+	// Note that nodeDb.TotalResources isn't rolled back on txn abort.
 	isNewNode := false
 	if existingNode, err := nodeDb.GetNodeWithTxn(txn, node.Id); err != nil {
 		return err
@@ -583,7 +584,7 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 		isNewNode = true
 	}
 
-	// Add the node to the db.
+	// Add the node to the Db.
 	if err := txn.Insert("nodes", node); err != nil {
 		return errors.WithStack(err)
 	}
@@ -591,9 +592,9 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	// Record time of the most recent upsert and all unique node types.
 	nodeDb.mu.Lock()
 	if isNewNode {
-		nodeDb.totalResources.Add(node.TotalResources)
+		nodeDb.TotalResources.Add(node.TotalResources)
 	}
-	nodeDb.nodeTypes[nodeType.Id] = nodeType
+	nodeDb.NodeTypes[nodeType.Id] = nodeType
 	nodeDb.mu.Unlock()
 
 	return nil
@@ -601,7 +602,7 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 
 // ClearAllocated zeroes out allocated resources on all nodes in the NodeDb.
 func (nodeDb *NodeDb) ClearAllocated() error {
-	txn := nodeDb.db.Txn(true)
+	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	it, err := NewNodesIterator(txn)
 	if err != nil {
@@ -610,7 +611,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.DeepCopy()
 		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			configuration.AllowedPriorities(nodeDb.priorityClasses),
+			configuration.AllowedPriorities(nodeDb.PriorityClasses),
 			node.TotalResources,
 		)
 		err := txn.Insert("nodes", node)

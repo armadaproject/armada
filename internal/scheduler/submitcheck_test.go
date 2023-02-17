@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 	"time"
 
@@ -34,63 +35,63 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 	}{
 		"one job schedules": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           []*api.Job{test1CoreCpuJob()},
 			expectPass:     true,
 		},
 		"multiple jobs schedule": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           []*api.Job{test1CoreCpuJob(), test1CoreCpuJob()},
 			expectPass:     true,
 		},
 		"first job schedules, second doesn't": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           []*api.Job{test1CoreCpuJob(), test100CoreCpuJob()},
 			expectPass:     false,
 		},
 		"no jobs schedule due to resources": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           []*api.Job{test100CoreCpuJob()},
 			expectPass:     false,
 		},
 		"no jobs schedule due to selector": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           []*api.Job{test1CoreCpuJobWithNodeSelector(map[string]string{"foo": "bar"})},
 			expectPass:     false,
 		},
 		"no jobs schedule due to executor timeout": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime)},
 			jobs:           []*api.Job{test1CoreCpuJob()},
 			expectPass:     false,
 		},
 		"multiple executors, 1 expired": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime), testExecutor(baseTime)},
 			jobs:           []*api.Job{test1CoreCpuJob()},
 			expectPass:     true,
 		},
 		"gang job all jobs fit": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           testNJobGang(5),
 			expectPass:     true,
 		},
 		"gang job all jobs don't fit": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			jobs:           testNJobGang(100),
 			expectPass:     false,
@@ -146,7 +147,7 @@ func testNJobGang(n int) []*api.Job {
 	gang := make([]*api.Job, n)
 	for i := 0; i < n; i++ {
 		job := test1CoreCpuJob()
-		job.Annotations = map[string]string{testGangIdAnnotation: gangId}
+		job.Annotations = map[string]string{testfixtures.TestGangIdAnnotation: gangId}
 		gang[i] = job
 	}
 	return gang
@@ -176,6 +177,6 @@ func testExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 		Id:             uuid.NewString(),
 		Pool:           "cpu",
 		LastUpdateTime: lastUpdateTime,
-		Nodes:          testCluster(),
+		Nodes:          testfixtures.TestCluster(),
 	}
 }

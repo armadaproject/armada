@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +19,7 @@ import (
 )
 
 type minimalExecutor struct {
-	nodeDb     *NodeDb
+	nodeDb     *nodedb.NodeDb
 	updateTime time.Time
 }
 
@@ -149,7 +150,7 @@ func (srv *SubmitChecker) check(reqs []*schedulerobjects.PodRequirements) (bool,
 	var sb strings.Builder
 	for id, executor := range executorById {
 		nodeDb := executor.nodeDb
-		txn := nodeDb.db.Txn(true)
+		txn := nodeDb.Db.Txn(true)
 		reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
 		txn.Abort()
 
@@ -194,9 +195,9 @@ func (srv *SubmitChecker) filterStaleNodeDbs(executorsById map[string]minimalExe
 	return rv
 }
 
-func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	// Nodes to be considered by the scheduler.
-	nodeDb, err := NewNodeDb(
+	nodeDb, err := nodedb.NewNodeDb(
 		srv.priorityClasses,
 		srv.indexedResources,
 		srv.indexedTaints,

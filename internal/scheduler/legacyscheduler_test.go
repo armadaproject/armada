@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"math/rand"
 	"testing"
 	"time"
@@ -34,11 +36,11 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 		ExpectedIndices []int
 	}{
 		"all jobs schedulable": {
-			Reqs:            testNSmallCpuJob("A", 0, 3),
+			Reqs:            testfixtures.TestNSmallCpuJob("A", 0, 3),
 			ExpectedIndices: []int{0, 1, 2},
 		},
 		"minimum job size below limit": {
-			Reqs: append(testNSmallCpuJob("A", 0, 3), testNLargeCpuJob("A", 0, 2)...),
+			Reqs: append(testfixtures.TestNSmallCpuJob("A", 0, 3), testfixtures.TestNLargeCpuJob("A", 0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
 				MinimumJobSize: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -49,14 +51,14 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{3, 4},
 		},
 		"lookback limit hit": {
-			Reqs: testNSmallCpuJob("A", 0, 10),
+			Reqs: testfixtures.TestNSmallCpuJob("A", 0, 10),
 			SchedulingConstraints: SchedulingConstraints{
 				MaxLookbackPerQueue: 4,
 			},
 			ExpectedIndices: []int{0, 1, 2, 3},
 		},
 		"minimum job size at limit": {
-			Reqs: append(testNSmallCpuJob("A", 0, 3), testNLargeCpuJob("A", 0, 2)...),
+			Reqs: append(testfixtures.TestNSmallCpuJob("A", 0, 3), testfixtures.TestNLargeCpuJob("A", 0, 2)...),
 			SchedulingConstraints: SchedulingConstraints{
 				MinimumJobSize: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -67,7 +69,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{3, 4},
 		},
 		"MaximalResourceFractionToSchedulePerQueue": {
-			Reqs: testNSmallCpuJob("A", 0, 3),
+			Reqs: testfixtures.TestNSmallCpuJob("A", 0, 3),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -82,7 +84,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0, 1},
 		},
 		"MaximalResourceFractionPerQueue": {
-			Reqs: testNSmallCpuJob("A", 0, 3),
+			Reqs: testfixtures.TestNSmallCpuJob("A", 0, 3),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -97,7 +99,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0, 1},
 		},
 		"MaximalResourceFractionPerQueue with initial usage": {
-			Reqs: testNSmallCpuJob("A", 0, 3),
+			Reqs: testfixtures.TestNSmallCpuJob("A", 0, 3),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -119,7 +121,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0},
 		},
 		"MaxConsecutiveUnschedulableJobs": {
-			Reqs: append(append(testNSmallCpuJob("A", 0, 1), testNGpuJob("A", 0, 3)...), testNSmallCpuJob("A", 0, 1)...),
+			Reqs: append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNGpuJob("A", 0, 3)...), testfixtures.TestNSmallCpuJob("A", 0, 1)...),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -135,7 +137,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			ExpectedIndices: []int{0},
 		},
 		"MaximalCumulativeResourceFractionPerQueueAndPriority": {
-			Reqs: append(append(testNSmallCpuJob("A", 9, 11), testNSmallCpuJob("A", 7, 11)...), testNSmallCpuJob("A", 3, 11)...),
+			Reqs: append(append(testfixtures.TestNSmallCpuJob("A", 9, 11), testfixtures.TestNSmallCpuJob("A", 7, 11)...), testfixtures.TestNSmallCpuJob("A", 3, 11)...),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -149,10 +151,10 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				},
 			},
 			LeaseJobs:       true,
-			ExpectedIndices: append(append(intRange(0, 9), intRange(11, 20)...), intRange(22, 31)...),
+			ExpectedIndices: append(append(testfixtures.IntRange(0, 9), testfixtures.IntRange(11, 20)...), testfixtures.IntRange(22, 31)...),
 		},
 		"MaximalCumulativeResourceFractionPerQueueAndPriority with initial usage": {
-			Reqs: append(append(testNSmallCpuJob("A", 9, 11), testNSmallCpuJob("A", 7, 11)...), testNSmallCpuJob("A", 3, 11)...),
+			Reqs: append(append(testfixtures.TestNSmallCpuJob("A", 9, 11), testfixtures.TestNSmallCpuJob("A", 7, 11)...), testfixtures.TestNSmallCpuJob("A", 3, 11)...),
 			SchedulingConstraints: SchedulingConstraints{
 				TotalResources: schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
@@ -171,7 +173,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				9: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3")}},
 			},
 			LeaseJobs:       true,
-			ExpectedIndices: append(append(intRange(0, 6), intRange(11, 18)...), intRange(22, 30)...),
+			ExpectedIndices: append(append(testfixtures.IntRange(0, 6), testfixtures.IntRange(11, 18)...), testfixtures.IntRange(22, 30)...),
 		},
 	}
 	for name, tc := range tests {
@@ -200,8 +202,8 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				ctx,
 				queuedJobsIterator,
 				tc.SchedulingConstraints.MaxLookbackPerQueue,
-				testGangIdAnnotation,
-				testGangCardinalityAnnotation,
+				testfixtures.TestGangIdAnnotation,
+				testfixtures.TestGangCardinalityAnnotation,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
@@ -258,10 +260,10 @@ func TestSchedule(t *testing.T) {
 		ExpectedIndicesByNodeIndexAndQueue map[int]map[string][]int
 	}{
 		"one queue one job": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 1),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 1),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -271,66 +273,66 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"one queue several jobs": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 32),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
-				"A": intRange(0, 31),
+				"A": testfixtures.IntRange(0, 31),
 			},
 			ExpectedIndicesByNodeIndexAndQueue: map[int]map[string][]int{
-				0: {"A": intRange(0, 31)},
+				0: {"A": testfixtures.IntRange(0, 31)},
 			},
 		},
 		"one queue some jobs do not fit": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 33),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 33),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
-				"A": intRange(0, 31),
+				"A": testfixtures.IntRange(0, 31),
 			},
 		},
 		"one queue with jobs of varying size": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 32), testNLargeCpuJob("A", 0, 1)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 32), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			ExpectedIndicesByQueue: map[string][]int{
-				"A": intRange(0, 32),
+				"A": testfixtures.IntRange(0, 32),
 			},
 		},
 		"preempt lower-priority jobs": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 1, 1)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 1, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
 			// TODO: We could optimise this by un-leasing preempted jobs.
 			ExpectedIndicesByQueue: map[string][]int{
-				"A": intRange(0, 1),
+				"A": testfixtures.IntRange(0, 1),
 			},
 		},
 		"no preemption of higher-priority jobs": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNLargeCpuJob("A", 1, 1), testNSmallCpuJob("A", 0, 1)...),
+				"A": append(testfixtures.TestNLargeCpuJob("A", 1, 1), testfixtures.TestNSmallCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -340,10 +342,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"unschedulable jobs do not block schedulable jobs": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 10)...), testNSmallCpuJob("A", 0, 1)...),
+				"A": append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 10)...), testfixtures.TestNSmallCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -353,10 +355,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"max jobs to schedule limit": {
-			SchedulingConfig: withMaxJobsToScheduleConfig(2, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 5),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -367,10 +369,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"round limits": {
-			SchedulingConfig: withRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 5),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -380,11 +382,11 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"round per-queue limits": {
-			SchedulingConfig: withPerQueueRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithPerQueueRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 5),
-				"B": testNSmallCpuJob("A", 0, 5),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 5),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -396,11 +398,11 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"overall per-queue limits": {
-			SchedulingConfig: withPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 5),
-				"B": testNSmallCpuJob("A", 0, 5),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 5),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -412,16 +414,16 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"overall per-queue limits with large memory amount": {
-			SchedulingConfig: withPerQueueLimitsConfig(
+			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(
 				map[string]float64{
 					"cpu":    2.0 / 162975640.0,
 					"memory": 0.1,
 				},
-				testSchedulingConfig()),
-			Nodes: testNCpuNode(1, testPriorities),
+				testfixtures.TestSchedulingConfig()),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 5),
-				"B": testNSmallCpuJob("A", 0, 5),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 5),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -439,11 +441,11 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"overall per-queue limits with initial usage": {
-			SchedulingConfig: withPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 5),
-				"B": testNSmallCpuJob("A", 0, 5),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 5),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 5),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -471,16 +473,16 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"per priority per-queue limits": {
-			SchedulingConfig: withPerPriorityLimitsConfig(
+			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					0: {"cpu": 1.0},
 					1: {"cpu": 0.5},
 					2: {"cpu": 0.25},
 					3: {"cpu": 0.1},
-				}, testSchedulingConfig()),
-			Nodes: testNCpuNode(1, testPriorities),
+				}, testfixtures.TestSchedulingConfig()),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 3, 5), testNSmallCpuJob("A", 0, 5)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 3, 5), testfixtures.TestNSmallCpuJob("A", 0, 5)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -491,14 +493,14 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"per priority per queue limits equal limits": {
-			SchedulingConfig: withPerPriorityLimitsConfig(
+			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					0: {"cpu": 0.9}, // 28 cpu
 					1: {"cpu": 0.9},
-				}, testSchedulingConfig()),
-			Nodes: testNCpuNode(1, testPriorities),
+				}, testfixtures.TestSchedulingConfig()),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 5), testNSmallCpuJob("A", 0, 5)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 5), testfixtures.TestNSmallCpuJob("A", 0, 5)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -522,14 +524,14 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"limit hit at higher priority doesn't block jobs at lower priority": {
-			SchedulingConfig: withPerPriorityLimitsConfig(
+			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					0: {"cpu": 0.9}, // 28 cpu
 					1: {"cpu": 0.5}, // 14 cpu
-				}, testSchedulingConfig()),
-			Nodes: testNCpuNode(1, testPriorities),
+				}, testfixtures.TestSchedulingConfig()),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 1, 1), testNSmallCpuJob("A", 0, 5)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 1, 1), testfixtures.TestNSmallCpuJob("A", 0, 5)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -553,11 +555,11 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"fairness two queues": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 32),
-				"B": testNSmallCpuJob("A", 0, 32),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -575,12 +577,12 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"fairness three queues": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 32),
-				"B": testNSmallCpuJob("A", 0, 32),
-				"C": testNSmallCpuJob("A", 0, 32),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 32),
+				"C": testfixtures.TestNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -603,11 +605,11 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"weighted fairness two queues": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(3, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 96),
-				"B": testNSmallCpuJob("A", 0, 96),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 96),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -625,12 +627,12 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"weighted fairness three queues": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(3, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 96),
-				"B": testNSmallCpuJob("A", 0, 96),
-				"C": testNSmallCpuJob("A", 0, 96),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 96),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 96),
+				"C": testfixtures.TestNSmallCpuJob("A", 0, 96),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -653,11 +655,11 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"fairness two queues with initial usage": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 32),
-				"B": testNSmallCpuJob("A", 0, 32),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
+				"B": testfixtures.TestNSmallCpuJob("A", 0, 32),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -684,18 +686,18 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"Node with no available capacity": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes: withUsedResourcesNodes(
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: testfixtures.WithUsedResourcesNodes(
 				0,
 				schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				testNCpuNode(1, testPriorities),
+				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 1),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 1),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -705,18 +707,18 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"Node with some available capacity": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes: withUsedResourcesNodes(
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: testfixtures.WithUsedResourcesNodes(
 				0,
 				schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("31"),
 					},
 				},
-				testNCpuNode(1, testPriorities),
+				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNSmallCpuJob("A", 0, 2),
+				"A": testfixtures.TestNSmallCpuJob("A", 0, 2),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -726,18 +728,18 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"preempt used resources of lower-priority jobs": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes: withUsedResourcesNodes(
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: testfixtures.WithUsedResourcesNodes(
 				0,
 				schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu": resource.MustParse("32"),
 					},
 				},
-				testNCpuNode(1, testPriorities),
+				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": testNLargeCpuJob("A", 1, 1),
+				"A": testfixtures.TestNLargeCpuJob("A", 1, 1),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -747,10 +749,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"respect taints": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNTaintedCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNTaintedCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -760,10 +762,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"minimum job size": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -776,10 +778,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"minimum job size gpu": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNGpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNGpuNode(2, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...), testNGpuJob("A", 0, 1)...),
+				"A": append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 1)...), testfixtures.TestNGpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -792,10 +794,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"minimum job size two gpu": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNGpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNGpuNode(2, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...), testNGpuJob("A", 0, 1)...),
+				"A": append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 1)...), testfixtures.TestNGpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -808,10 +810,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"taints and tolerations": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNTaintedCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNTaintedCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -821,13 +823,13 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"Node selector": {
-			SchedulingConfig: testSchedulingConfig(),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes: append(
-				testNCpuNode(1, testPriorities),
-				withLabelsNodes(map[string]string{"foo": "foo"}, testNCpuNode(1, testPriorities))...,
+				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+				testfixtures.WithLabelsNodes(map[string]string{"foo": "foo"}, testfixtures.TestNCpuNode(1, testfixtures.TestPriorities))...,
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testNLargeCpuJob("A", 0, 2)),
+				"A": testfixtures.WithNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testfixtures.TestNLargeCpuJob("A", 0, 2)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -837,10 +839,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"taints and tolerations (indexed)": {
-			SchedulingConfig: withIndexedTaintsConfig([]string{"largeJobsOnly"}, testSchedulingConfig()),
-			Nodes:            testNTaintedCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithIndexedTaintsConfig([]string{"largeJobsOnly"}, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNTaintedCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 1)...),
+				"A": append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -850,13 +852,13 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"Node selector (indexed)": {
-			SchedulingConfig: withIndexedNodeLabelsConfig([]string{"foo"}, testSchedulingConfig()),
+			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig([]string{"foo"}, testfixtures.TestSchedulingConfig()),
 			Nodes: append(
-				testNCpuNode(1, testPriorities),
-				withLabelsNodes(map[string]string{"foo": "foo"}, testNCpuNode(1, testPriorities))...,
+				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+				testfixtures.WithLabelsNodes(map[string]string{"foo": "foo"}, testfixtures.TestNCpuNode(1, testfixtures.TestPriorities))...,
 			),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testNLargeCpuJob("A", 0, 2)),
+				"A": testfixtures.WithNodeSelectorPodReqs(map[string]string{"foo": "foo"}, testfixtures.TestNLargeCpuJob("A", 0, 2)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -866,10 +868,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"QueueLeaseBatchSize Respected": {
-			SchedulingConfig: withQueueLeaseBatchSizeConfig(3, testSchedulingConfig()), // should quit after 3 unschedulable jobs
-			Nodes:            testNCpuNode(1, testPriorities),                          // 32 cores
+			SchedulingConfig: testfixtures.WithQueueLeaseBatchSizeConfig(3, testfixtures.TestSchedulingConfig()), // should quit after 3 unschedulable jobs
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),                          // 32 cores
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": append(append(testNSmallCpuJob("A", 0, 1), testNLargeCpuJob("A", 0, 3)...), testNSmallCpuJob("A", 0, 1)...),
+				"A": append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 0, 3)...), testfixtures.TestNSmallCpuJob("A", 0, 1)...),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -879,10 +881,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"gang scheduling success": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withGangAnnotationsPodReqs(testNLargeCpuJob("A", 0, 2)),
+				"A": testfixtures.WithGangAnnotationsPodReqs(testfixtures.TestNLargeCpuJob("A", 0, 2)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -892,10 +894,10 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"gang scheduling failure": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-				"A": withGangAnnotationsPodReqs(testNLargeCpuJob("A", 0, 3)),
+				"A": testfixtures.WithGangAnnotationsPodReqs(testfixtures.TestNLargeCpuJob("A", 0, 3)),
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -905,18 +907,18 @@ func TestSchedule(t *testing.T) {
 			},
 		},
 		"gang aggregated resource accounting": {
-			SchedulingConfig: withPerQueueLimitsConfig(
+			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(
 				map[string]float64{
 					"cpu": 2.0 / 32.0,
 				},
-				testSchedulingConfig(),
+				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testNCpuNode(1, testPriorities),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(append(
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1)),
-					testNSmallCpuJob("A", 0, 1)...),
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1))...,
+					testfixtures.WithAnnotationsPodReqs(map[string]string{testfixtures.TestGangIdAnnotation: "my-gang", testfixtures.TestGangCardinalityAnnotation: "2"}, testfixtures.TestNSmallCpuJob("A", 0, 1)),
+					testfixtures.TestNSmallCpuJob("A", 0, 1)...),
+					testfixtures.WithAnnotationsPodReqs(map[string]string{testfixtures.TestGangIdAnnotation: "my-gang", testfixtures.TestGangCardinalityAnnotation: "2"}, testfixtures.TestNSmallCpuJob("A", 0, 1))...,
 				),
 			},
 			PriorityFactorByQueue: map[string]float64{
@@ -944,14 +946,14 @@ func TestSchedule(t *testing.T) {
 				expectedByQueue[queue] = expected
 			}
 
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
 
 			// If not provided, set total resources equal to the aggregate over tc.Nodes.
 			if tc.TotalResources.Resources == nil {
-				tc.TotalResources = nodeDb.totalResources.DeepCopy()
+				tc.TotalResources = nodeDb.TotalResources.DeepCopy()
 			}
 
 			constraints := SchedulingConstraintsFromSchedulingConfig(
@@ -1135,43 +1137,43 @@ func TestReschedule(t *testing.T) {
 		MinimumJobSize map[string]resource.Quantity
 	}{
 		"balancing three queues": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 32),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
+						"A": testfixtures.IntRange(0, 31),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNSmallCpuJob("A", 0, 32),
+						"B": testfixtures.TestNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"B": intRange(0, 15),
+						"B": testfixtures.IntRange(0, 15),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
-							0: intRange(16, 31),
+							0: testfixtures.IntRange(16, 31),
 						},
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"C": testNSmallCpuJob("A", 0, 10),
+						"C": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"C": intRange(0, 9),
+						"C": testfixtures.IntRange(0, 9),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
-							0: intRange(11, 15),
+							0: testfixtures.IntRange(11, 15),
 						},
 						"B": {
-							1: intRange(11, 15),
+							1: testfixtures.IntRange(11, 15),
 						},
 					},
 				},
@@ -1183,27 +1185,27 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"balancing two queues weighted": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 32),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
+						"A": testfixtures.IntRange(0, 31),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNSmallCpuJob("A", 0, 32),
+						"B": testfixtures.TestNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"B": intRange(0, 20),
+						"B": testfixtures.IntRange(0, 20),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
-							0: intRange(11, 31),
+							0: testfixtures.IntRange(11, 31),
 						},
 					},
 				},
@@ -1214,23 +1216,23 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"reschedule onto same node": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 32),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
+						"A": testfixtures.IntRange(0, 31),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNSmallCpuJob("B", 0, 32),
+						"B": testfixtures.TestNSmallCpuJob("B", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"B": intRange(0, 31),
+						"B": testfixtures.IntRange(0, 31),
 					},
 				},
 			},
@@ -1240,23 +1242,23 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"reschedule onto same node reverse order": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(2, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNSmallCpuJob("B", 0, 32),
+						"B": testfixtures.TestNSmallCpuJob("B", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"B": intRange(0, 31),
+						"B": testfixtures.IntRange(0, 31),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 32),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
+						"A": testfixtures.IntRange(0, 31),
 					},
 				},
 			},
@@ -1266,23 +1268,23 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"rescheduled jobs don't count towards maxJobsToSchedule": {
-			SchedulingConfig: withMaxJobsToScheduleConfig(5, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(5, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 			},
@@ -1291,23 +1293,23 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"rescheduled jobs don't count towards maxLookbackPerQueue": {
-			SchedulingConfig: withMaxLookbackPerQueueConfig(5, testSchedulingConfig()),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.WithMaxLookbackPerQueueConfig(5, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 			},
@@ -1316,28 +1318,28 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"rescheduled jobs don't count towards MaximalResourceFractionToSchedulePerQueue": {
-			SchedulingConfig: withPerQueueRoundLimitsConfig(
+			SchedulingConfig: testfixtures.WithPerQueueRoundLimitsConfig(
 				map[string]float64{
 					"cpu": 5.0 / 32.0,
 				},
-				testSchedulingConfig(),
+				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testNCpuNode(1, testPriorities),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 			},
@@ -1346,28 +1348,28 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"rescheduled jobs don't count towards MaximalClusterFractionToSchedule": {
-			SchedulingConfig: withRoundLimitsConfig(
+			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
 				map[string]float64{
 					"cpu": 5.0 / 32.0,
 				},
-				testSchedulingConfig(),
+				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testNCpuNode(1, testPriorities),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 10),
+						"A": testfixtures.TestNSmallCpuJob("A", 0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 4),
+						"A": testfixtures.IntRange(0, 4),
 					},
 				},
 			},
@@ -1376,27 +1378,27 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"priority class preemption two classes": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNLargeCpuJob("A", 0, 1),
+						"A": testfixtures.TestNLargeCpuJob("A", 0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 0),
+						"A": testfixtures.IntRange(0, 0),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNLargeCpuJob("A", 1, 1),
+						"A": testfixtures.TestNLargeCpuJob("A", 1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 0),
+						"A": testfixtures.IntRange(0, 0),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
-							0: intRange(0, 0),
+							0: testfixtures.IntRange(0, 0),
 						},
 					},
 				},
@@ -1406,27 +1408,27 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"priority class preemption cross-queue": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNLargeCpuJob("A", 0, 1),
+						"A": testfixtures.TestNLargeCpuJob("A", 0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 0),
+						"A": testfixtures.IntRange(0, 0),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"B": testNLargeCpuJob("B", 1, 1),
+						"B": testfixtures.TestNLargeCpuJob("B", 1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"B": intRange(0, 0),
+						"B": testfixtures.IntRange(0, 0),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
-							0: intRange(0, 0),
+							0: testfixtures.IntRange(0, 0),
 						},
 					},
 				},
@@ -1437,15 +1439,15 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"priority class preemption not scheduled": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": append(testNLargeCpuJob("A", 0, 1), testNLargeCpuJob("A", 1, 1)...),
+						"A": append(testfixtures.TestNLargeCpuJob("A", 0, 1), testfixtures.TestNLargeCpuJob("A", 1, 1)...),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(1, 1),
+						"A": testfixtures.IntRange(1, 1),
 					},
 				},
 			},
@@ -1454,31 +1456,31 @@ func TestReschedule(t *testing.T) {
 			},
 		},
 		"priority class preemption four classes": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(1, testPriorities),
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []ReschedulingRound{
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 						"A": append(append(
-							testNSmallCpuJob("A", 0, 10),
-							testNSmallCpuJob("A", 1, 10)...),
-							testNSmallCpuJob("A", 2, 10)...,
+							testfixtures.TestNSmallCpuJob("A", 0, 10),
+							testfixtures.TestNSmallCpuJob("A", 1, 10)...),
+							testfixtures.TestNSmallCpuJob("A", 2, 10)...,
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 29),
+						"A": testfixtures.IntRange(0, 29),
 					},
 				},
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 3, 24),
+						"A": testfixtures.TestNSmallCpuJob("A", 3, 24),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 23),
+						"A": testfixtures.IntRange(0, 23),
 					},
 					ExpectedPreemptedIndices: map[string]map[int][]int{
 						"A": {
-							0: append(intRange(0, 19), intRange(28, 29)...),
+							0: append(testfixtures.IntRange(0, 19), testfixtures.IntRange(28, 29)...),
 						},
 					},
 				},
@@ -1490,9 +1492,9 @@ func TestReschedule(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
 			require.NoError(t, err)
-			repo := NewInMemoryJobRepository(testPriorityClasses)
+			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			initialUsageByQueue := armadamaps.DeepCopy(tc.InitialUsageByQueue)
@@ -1507,7 +1509,7 @@ func TestReschedule(t *testing.T) {
 
 				for _, reqs := range round.ReqsByQueue {
 					for j, req := range reqs {
-						jobId, err := JobIdFromPodRequirements(req)
+						jobId, err := nodedb.JobIdFromPodRequirements(req)
 						require.NoError(t, err)
 						roundByJobId[jobId] = i
 						indexByJobId[jobId] = j
@@ -1516,7 +1518,7 @@ func TestReschedule(t *testing.T) {
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
 				if tc.TotalResources.Resources == nil {
-					tc.TotalResources = nodeDb.totalResources.DeepCopy()
+					tc.TotalResources = nodeDb.TotalResources.DeepCopy()
 				}
 
 				constraints := SchedulingConstraintsFromSchedulingConfig(
@@ -1605,10 +1607,10 @@ func TestReschedule(t *testing.T) {
 				}
 
 				// We expect there to be no oversubscribed nodes.
-				prioritiesByName := configuration.PriorityByPriorityClassName(testPriorityClasses)
+				prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
 				priorities := maps.Values(prioritiesByName)
 				slices.Sort(priorities)
-				it, err := NewNodesIterator(nodeDb.Txn(false))
+				it, err := nodedb.NewNodesIterator(nodeDb.Txn(false))
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
@@ -1636,9 +1638,9 @@ func BenchmarkReschedule(b *testing.B) {
 		NodeOversubscribedEvictionProbability float64
 	}{
 		"1 node 1 queue 32 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(1, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
+			SchedulingConfig:                      testfixtures.TestSchedulingConfig(),
+			Nodes:                                 testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			PodReqFunc:                            testfixtures.TestNSmallCpuJob,
 			NumQueues:                             1,
 			NumJobsPerQueue:                       32,
 			MinPriorityFactor:                     1,
@@ -1647,9 +1649,9 @@ func BenchmarkReschedule(b *testing.B) {
 			NodeOversubscribedEvictionProbability: 0,
 		},
 		"10 nodes 1 queue 320 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(10, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
+			SchedulingConfig:                      testfixtures.TestSchedulingConfig(),
+			Nodes:                                 testfixtures.TestNCpuNode(10, testfixtures.TestPriorities),
+			PodReqFunc:                            testfixtures.TestNSmallCpuJob,
 			NumQueues:                             1,
 			NumJobsPerQueue:                       320,
 			MinPriorityFactor:                     1,
@@ -1658,9 +1660,9 @@ func BenchmarkReschedule(b *testing.B) {
 			NodeOversubscribedEvictionProbability: 0,
 		},
 		"100 nodes 1 queue 3200 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(100, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
+			SchedulingConfig:                      testfixtures.TestSchedulingConfig(),
+			Nodes:                                 testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
+			PodReqFunc:                            testfixtures.TestNSmallCpuJob,
 			NumQueues:                             1,
 			NumJobsPerQueue:                       3200,
 			MinPriorityFactor:                     1,
@@ -1669,9 +1671,9 @@ func BenchmarkReschedule(b *testing.B) {
 			NodeOversubscribedEvictionProbability: 0,
 		},
 		"1000 nodes 1 queue 32000 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(1000, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
+			SchedulingConfig:                      testfixtures.TestSchedulingConfig(),
+			Nodes:                                 testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
+			PodReqFunc:                            testfixtures.TestNSmallCpuJob,
 			NumQueues:                             1,
 			NumJobsPerQueue:                       32000,
 			MinPriorityFactor:                     1,
@@ -1680,9 +1682,9 @@ func BenchmarkReschedule(b *testing.B) {
 			NodeOversubscribedEvictionProbability: 0,
 		},
 		"mixed": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(500, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
+			SchedulingConfig:                      testfixtures.TestSchedulingConfig(),
+			Nodes:                                 testfixtures.TestNCpuNode(500, testfixtures.TestPriorities),
+			PodReqFunc:                            testfixtures.TestNSmallCpuJob,
 			NumQueues:                             100,
 			NumJobsPerQueue:                       256,
 			MinPriorityFactor:                     1,
@@ -1701,9 +1703,9 @@ func BenchmarkReschedule(b *testing.B) {
 				priorityFactorByQueue[queue] = float64(rand.Intn(tc.MaxPriorityFactor-tc.MinPriorityFactor+1) + tc.MinPriorityFactor)
 			}
 
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
 			require.NoError(b, err)
-			repo := NewInMemoryJobRepository(testPriorityClasses)
+			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 			usageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 
 			jobs := make([]LegacySchedulerJob, 0)
@@ -1717,7 +1719,7 @@ func BenchmarkReschedule(b *testing.B) {
 				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
-				nodeDb.totalResources,
+				nodeDb.TotalResources,
 			)
 			preemptedJobs, scheduledJobs, _, usageByQueue, err := Reschedule(
 				context.Background(),
@@ -1744,7 +1746,7 @@ func BenchmarkReschedule(b *testing.B) {
 					unscheduledJobs = append(unscheduledJobs, job)
 				}
 			}
-			repo = NewInMemoryJobRepository(testPriorityClasses)
+			repo = NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 			repo.EnqueueMany(unscheduledJobs)
 
 			b.ResetTimer()
@@ -1791,33 +1793,33 @@ func (it *InMemoryNodeIterator) NextNode() *schedulerobjects.Node {
 }
 
 func TestEvictOversubscribed(t *testing.T) {
-	nodes := testNCpuNode(1, testPriorities)
+	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
 	node := nodes[0]
 	var err error
 	jobs := append(
-		legacySchedulerJobsFromPodReqs("A", "priority-0", testNSmallCpuJob("A", 0, 20)),
-		legacySchedulerJobsFromPodReqs("A", "priority-1", testNSmallCpuJob("A", 1, 20))...,
+		legacySchedulerJobsFromPodReqs("A", "priority-0", testfixtures.TestNSmallCpuJob("A", 0, 20)),
+		legacySchedulerJobsFromPodReqs("A", "priority-1", testfixtures.TestNSmallCpuJob("A", 1, 20))...,
 	)
-	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testPriorityClasses)
+	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testfixtures.TestPriorityClasses)
 	for _, req := range reqs {
-		node, err = BindPodToNode(req, node)
+		node, err = nodedb.BindPodToNode(req, node)
 		require.NoError(t, err)
 	}
 	nodes[0] = node
 
 	it := NewInMemoryNodeIterator(nodes)
-	jobRepo := NewInMemoryJobRepository(testPriorityClasses)
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 	jobRepo.EnqueueMany(jobs)
 	_, affectedNodesById, err := EvictOversubscribed(
 		context.Background(),
 		it,
 		jobRepo,
-		testPriorityClasses,
+		testfixtures.TestPriorityClasses,
 		1,
 	)
 	require.NoError(t, err)
 
-	prioritiesByName := configuration.PriorityByPriorityClassName(testPriorityClasses)
+	prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
 	priorities := maps.Values(prioritiesByName)
 	slices.Sort(priorities)
 	for nodeId, node := range affectedNodesById {
@@ -1838,12 +1840,12 @@ func apiJobsFromPodReqs(queue string, reqs []*schedulerobjects.PodRequirements) 
 	return rv
 }
 
-func legacySchedulerJobsFromPodReqs(queue, priorityClassName string, reqs []*schedulerobjects.PodRequirements) []LegacySchedulerJob {
+func legacySchedulerJobsFromPodReqs(queue, _ string, reqs []*schedulerobjects.PodRequirements) []LegacySchedulerJob {
 	rv := make([]LegacySchedulerJob, len(reqs))
 	T := time.Now()
 	// TODO: This only works if each PC has a unique priority.
 	priorityClassNameByPriority := make(map[int32]string)
-	for priorityClassName, priorityClass := range testPriorityClasses {
+	for priorityClassName, priorityClass := range testfixtures.TestPriorityClasses {
 		if _, ok := priorityClassNameByPriority[priorityClass.Priority]; ok {
 			panic(fmt.Sprintf("duplicate priority %d", priorityClass.Priority))
 		}
