@@ -58,6 +58,7 @@ type jobCollector struct {
 	jobDb              jobdb.JobDb
 	executorRepository database.ExecutorRepository
 	queueRepository    database.QueueRepository
+	poolAssigner       PoolAssigner
 	clock              clock.Clock
 	state              atomic.Value
 }
@@ -114,6 +115,11 @@ func (c *jobCollector) refresh() error {
 			continue
 		}
 
+		pool, err := c.poolAssigner.assignPool(job)
+		if err != nil {
+			return err
+		}
+
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
 		resourceRequirements := job.JobSchedulingInfo().GetObjectRequirements()[0].GetPodRequirements().GetResourceRequirements().Requests
 		jobResources := make(map[string]float64)
@@ -133,8 +139,8 @@ func (c *jobCollector) refresh() error {
 		} else {
 			log.Warnf("Job %s is marked as leased but has no runs", job.Id())
 		}
-		recorder.RecordJobRuntime("", priorityClass, timeInState)
-		recorder.RecordResources("", priorityClass, jobResources)
+		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
+		recorder.RecordResources(pool, priorityClass, jobResources)
 
 		queueState.numQueuedJobs++
 		job = iter.NextJobItem()

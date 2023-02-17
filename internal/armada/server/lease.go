@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"io"
 	"math"
@@ -474,7 +475,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
-			jobIterator, err := scheduler.NewQueuedJobsIterator(
+			jobIterator, err := jobdb.NewQueuedJobsIterator(
 				ctx,
 				apiQueue.Name,
 				&SchedulerJobRepositoryAdapter{
