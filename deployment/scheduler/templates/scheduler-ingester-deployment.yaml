@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "armada-scheduler.name" . }}-ingester
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ingester.replicas }}
+  selector:
+    matchLabels:
+      {{- include "armada-scheduler.labels.identity" . | nindent 6 }}
+  {{- if .Values.ingester.strategy }}
+  strategy:
+    {{- toYaml .Values.ingester.strategy | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      name: {{ include "armada-scheduler.name" . }}-ingester
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/scheduler-ingester-secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "armada-scheduler.labels.all" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.ingester.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ .Values.ingester.customServiceAccount | default (include "armada-scheduler.name" .)-ingester }}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 2000
+      containers:
+        - name: armada-scheduler-ingester
+          imagePullPolicy: IfNotPresent
+          image: {{ .Values.ingester.image.repository }}:{{ required "A value is required for .Values.ingester.image.tag" .Values.ingester.image.tag }}
+          args:
+            - --config
+            - /config/application_config.yaml
+          {{- if .Values.ingester.env }}
+          env:
+            {{- toYaml .Values.ingester.env | nindent 12 -}}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.ingester.resources | nindent 12 }}
+          volumeMounts:
+            - name: user-config
+              mountPath: /config/application_config.yaml
+              subPath: {{ include "armada-scheduler-ingester.config.filename" . }}
+              readOnly: true
+            {{- if .Values.ingester.applicationConfig.pulsar.authenticationEnabled }}
+            - name: pulsar-token
+              mountPath: "/pulsar/tokens"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.ingester.applicationConfig.pulsar.tlsEnabled }}
+            - name: pulsar-ca
+              mountPath: "/pulsar/ca"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.ingester.additionalVolumeMounts }}
+            {{- toYaml .Values.ingester.additionalVolumeMounts | nindent 12 -}}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - {{ include "armada-scheduler.name" . }}
+                topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: user-config
+          secret:
+            secretName: {{ include "armada-scheduler-ingester.config.name" . }}
+        {{- if .Values.ingester.applicationConfig.pulsar.authenticationEnabled }}
+        - name: pulsar-token
+          secret:
+            secretName: {{ .Values.ingester.applicationConfig.pulsar.authenticationSecret | default "armada-pulsar-token-armada-admin" | quote }}
+            items:
+              - key: TOKEN
+                path: pulsar-token
+        {{- end }}
+        {{- if .Values.ingester.applicationConfig.pulsar.tlsEnabled }}
+        - name: pulsar-ca
+          secret:
+            secretName: {{ .Values.ingester.applicationConfig.pulsar.cacert | default "armada-pulsar-ca-tls" | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+        {{- if .Values.ingester.additionalVolumes }}
+        {{- toYaml .Values.ingester.additionalVolumes | nindent 8 }}
+        {{- end }}

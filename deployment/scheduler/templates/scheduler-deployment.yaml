@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.scheduler.replicas }}
+  selector:
+    matchLabels:
+      {{- include "armada-scheduler.labels.identity" . | nindent 6 }}
+  {{- if .Values.scheduler.strategy }}
+  strategy:
+    {{- toYaml .Values.scheduler.strategy | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      name: {{ include "armada-scheduler.name" . }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+      labels:
+        {{- include "armada-scheduler.labels.all" . | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.scheduler.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ .Values.scheduler.customServiceAccount | default (include "armada-scheduler.name" .) }}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 2000
+      containers:
+        - name: armada-scheduler-scheduler
+          imagePullPolicy: IfNotPresent
+          image: {{ .Values.scheduler.image.repository }}:{{ required "A value is required for .Values.scheduler.image.tag" .Values.scheduler.image.tag }}
+          args:
+            - --config
+            - /config/application_config.yaml
+          {{- if .Values.scheduler.env }}
+          env:
+            {{- toYaml .Values.scheduler.env | nindent 12 -}}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.scheduler.resources | nindent 12 }}
+          ports:
+            - containerPort:  {{ .Values.scheduler.applicationConfig.grpc.port }}
+              protocol: TCP
+              name: grpc
+          volumeMounts:
+            - name: user-config
+              mountPath: /config/application_config.yaml
+              subPath: {{ include "armada-scheduler.config.filename" . }}
+              readOnly: true
+            {{- if .Values.scheduler.applicationConfig.pulsar.authenticationEnabled }}
+            - name: pulsar-token
+              mountPath: "/pulsar/tokens"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.scheduler.applicationConfig.pulsar.tlsEnabled }}
+            - name: pulsar-ca
+              mountPath: "/pulsar/ca"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.scheduler.additionalVolumeMounts }}
+            {{- toYaml .Values.scheduler.additionalVolumeMounts | nindent 12 -}}
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: rest
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: rest
+            initialDelaySeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - {{ include "armada-scheduler.name" . }}
+                topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: user-config
+          secret:
+            secretName: {{ include "armada-scheduler.config.name" . }}
+        {{- if .Values.scheduler.applicationConfig.pulsar.authenticationEnabled }}
+        - name: pulsar-token
+          secret:
+            secretName: {{ .Values.scheduler.applicationConfig.pulsar.authenticationSecret | default "armada-pulsar-token-armada-admin" | quote }}
+            items:
+              - key: TOKEN
+                path: pulsar-token
+        {{- end }}
+        {{- if .Values.scheduler.applicationConfig.pulsar.tlsEnabled }}
+        - name: pulsar-ca
+          secret:
+            secretName: {{ .Values.scheduler.applicationConfig.pulsar.cacert | default "armada-pulsar-ca-tls" | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+        {{- if .Values.scheduler.additionalVolumes }}
+        {{- toYaml .Values.scheduler.additionalVolumes | nindent 8 }}
+        {{- end }}
