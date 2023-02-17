@@ -23,7 +23,7 @@ spec:
         {{- include "armada-scheduler.labels.all" . | nindent 8 }}
     spec:
       terminationGracePeriodSeconds: {{ .Values.ingester.terminationGracePeriodSeconds }}
-      serviceAccountName: {{ .Values.ingester.customServiceAccount | default (include "armada-scheduler.name" .)-ingester }}
+      serviceAccountName: {{ .Values.ingester.customServiceAccount | default (include "armada-scheduler-ingester.serviceaccount.name" .) }}
       securityContext:
         runAsUser: 1000
         runAsGroup: 2000
@@ -75,7 +75,7 @@ spec:
       volumes:
         - name: user-config
           secret:
-            secretName: {{ include "armada-scheduler-ingester.config.name" . }}
+            secretName: {{ include "armada-scheduler.config.name" . }}-ingester
         {{- if .Values.ingester.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:

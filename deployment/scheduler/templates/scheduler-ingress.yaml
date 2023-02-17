@@ -32,7 +32,3 @@ spec:
               port:
                 number: {{ $root.Values.scheduler.applicationConfig.grpc.port }}
   {{ end }}
-  tls:
-    - hosts:
-      {{- toYaml .Values.scheduler.hostnames  | nindent 8 }}
-      secretName: armada-scheduler-service-tls

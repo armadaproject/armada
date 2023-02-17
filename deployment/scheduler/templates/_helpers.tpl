@@ -11,8 +11,13 @@
 {{- end }}
 
 {{- define "armada-scheduler-ingester.config.filename" -}}
-{{- printf "%s%s%s" ( include "armada-scheduler.config.name" .) "ingester" ".yaml" -}}
+{{- printf "%s%s%s" ( include "armada-scheduler.config.name" .) "-ingester" ".yaml" -}}
 {{- end }}
+
+{{- define "armada-scheduler-ingester.serviceaccount.name" -}}
+{{- printf "%s%s" ( include "armada-scheduler.name" .) "-ingester" -}}
+{{- end }}
+
 
 {{/*
 Create chart name and version as used by the chart label.
