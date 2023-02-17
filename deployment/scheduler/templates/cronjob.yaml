@@ -1,0 +1,71 @@
+{{ if .Values.pruner.enabled}}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ include "armada-scheduler.name" . }}-db-pruner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler-pruner.labels.all" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.pruner.schedule | default "@hourly" | quote }}
+  jobTemplate:
+    metadata:
+      name: {{ include "armada-scheduler.name" . }}-db-pruner
+      labels:
+        {{- include "armada-scheduler-pruner.labels.all" . | nindent 8 }}
+    spec:
+      template:
+        metadata:
+          name: {{ include "armada-scheduler.name" . }}-db-pruner
+          labels:
+            {{- include "armada-scheduler-pruner.labels.all" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ .Values.scheduler.customServiceAccount | default (include "armada-scheduler.name" .) }}
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 2000
+          containers:
+            - name: armada-scheduler-db-pruner
+              imagePullPolicy: IfNotPresent
+              image: {{ .Values.scheduler.image.repository }}:{{ required "A value is required for .Values.scheduler.image.tag" .Values.scheduler.image.tag }}
+              args:
+                - pruneDatabase
+                - --config
+                - /config/application_config.yaml
+                {{- if .Values.pruner.args.timeout }}
+                - --timeout
+                - {{ .Values.pruner.args.timeout }}
+                {{- end }}
+                {{- if .Values.pruner.args.batchsize }}
+                - --batchsize
+                - {{ .Values.pruner.args.batchsize }}
+                {{- end }}
+                {{- if .Values.pruner.args.expireAfter }}
+                - --expireAfter
+                - {{ .Values.pruner.args.expireAfter }}
+                {{- end }}
+                {{- if .Values.scheduler.env }}
+              env:
+                {{- toYaml .Values.scheduler.env | nindent 16 -}}
+                {{- end }}
+              resources:
+                {{- toYaml .Values.pruner.resources | nindent 16 }}
+              volumeMounts:
+                - name: user-config
+                  mountPath: /config/application_config.yaml
+                  subPath: {{ include "armada-scheduler.config.filename" . }}
+                  readOnly: true
+                {{- if .Values.scheduler.additionalVolumeMounts }}
+                {{- toYaml .Values.scheduler.additionalVolumeMounts | nindent 16 -}}
+                {{- end }}
+              securityContext:
+                allowPrivilegeEscalation: false
+          volumes:
+            - name: user-config
+              secret:
+                secretName: {{ include "armada-scheduler.config.name" . }}
+            {{- if .Values.scheduler.additionalVolumes }}
+            {{- toYaml .Values.scheduler.additionalVolumes | nindent 12 }}
+            {{- end }}
+{{- end }}

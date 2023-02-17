@@ -25,6 +25,10 @@ scheduler:
   additionalVolumeMounts: []
   additionalVolumes: []
   terminationGracePeriodSeconds: 30
+  ingressClass: "val"
+  clusterIssuer: "thing"
+  hostnames:
+    - "test"
   ingress:
     nameOverride: ""
     annotations: {}
@@ -33,6 +37,9 @@ scheduler:
     enabled: false
     labels: {}
     scrapeInterval: 15s
+  pruner:
+    enabled: true
+    schedule: "@hourly"
 
 ingester:
   replicas: 1
@@ -59,3 +66,18 @@ ingester:
   additionalVolumeMounts: []
   additionalVolumes: []
   terminationGracePeriodSeconds: 30
+
+pruner:
+  enabled: true
+  schedule: "@hourly"
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 300m
+    requests:
+      memory: 512Mi
+      cpu: 200m
+  args:
+    timeout: 5m
+    batchsize: 10000
+    expireAfter: 2h

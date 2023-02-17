@@ -64,20 +64,6 @@ spec:
             {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: rest
-            initialDelaySeconds: 5
-            timeoutSeconds: 5
-            failureThreshold: 2
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: rest
-            initialDelaySeconds: 10
-            timeoutSeconds: 10
-            failureThreshold: 3
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

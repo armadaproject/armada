@@ -32,7 +32,6 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 
-
 {{- define "armada-scheduler.common-labels.all" -}}
 chart: {{ include "armada-scheduler.chart" . }}
 release: {{ .Release.Name }}
@@ -49,13 +48,21 @@ app: {{ include "armada-scheduler.name" . }}
 app: {{ include "armada-scheduler.name" . }}-ingester
 {{- end -}}
 
+{{- define "armada-scheduler-pruner.labels.identity" -}}
+app: {{ include "armada-scheduler.name" . }}-db-pruner
+{{- end -}}
+
 {{- define "armada-scheduler.labels.all" -}}
 {{ include "armada-scheduler.common-labels.all" . }}
 {{ include "armada-scheduler.labels.identity" . }}
 {{- end -}}
 
-
 {{- define "armada-scheduler-ingester.labels.all" -}}
 {{ include "armada-scheduler.common-labels.all" . }}
 {{ include "armada-scheduler-ingester.labels.identity" . }}
+{{- end -}}
+
+{{- define "armada-scheduler-pruner.labels.all" -}}
+{{ include "armada-scheduler.common-labels.all" . }}
+{{ include "armada-scheduler-pruner.labels.identity" . }}
 {{- end -}}
