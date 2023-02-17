@@ -4,12 +4,12 @@ metadata:
   name: {{ include "armada-scheduler.name" . }}-ingester
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+    {{- include "armada-scheduler-ingester.labels.all" . | nindent 4 }}
 spec:
   replicas: {{ .Values.ingester.replicas }}
   selector:
     matchLabels:
-      {{- include "armada-scheduler.labels.identity" . | nindent 6 }}
+      {{- include "armada-scheduler-ingester.labels.identity" . | nindent 6 }}
   {{- if .Values.ingester.strategy }}
   strategy:
     {{- toYaml .Values.ingester.strategy | nindent 4 }}
@@ -20,7 +20,7 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/scheduler-ingester-secret.yaml") . | sha256sum }}
       labels:
-        {{- include "armada-scheduler.labels.all" . | nindent 8 }}
+        {{- include "armada-scheduler-ingester.labels.all" . | nindent 8 }}
     spec:
       terminationGracePeriodSeconds: {{ .Values.ingester.terminationGracePeriodSeconds }}
       serviceAccountName: {{ .Values.ingester.customServiceAccount | default (include "armada-scheduler-ingester.serviceaccount.name" .) }}
@@ -70,7 +70,7 @@ spec:
                     - key: app
                       operator: In
                       values:
-                        - {{ include "armada-scheduler.name" . }}
+                        - {{ include "armada-scheduler-ingester.labels.identity" . }}
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config

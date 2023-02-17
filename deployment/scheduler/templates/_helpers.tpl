@@ -26,18 +26,36 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{- define "armada-scheduler.labels.identity" -}}
-app: {{ include "armada-scheduler.name" . }}
-{{- end -}}
+
 
 {{/*
 Common labels
 */}}
-{{- define "armada-scheduler.labels.all" -}}
-{{ include "armada-scheduler.labels.identity" . }}
+
+
+{{- define "armada-scheduler.common-labels.all" -}}
 chart: {{ include "armada-scheduler.chart" . }}
 release: {{ .Release.Name }}
 {{- if .Values.additionalLabels }}
 {{ toYaml .Values.additionalLabels }}
 {{- end }}
+{{- end -}}
+
+{{- define "armada-scheduler.labels.identity" -}}
+app: {{ include "armada-scheduler.name" . }}
+{{- end -}}
+
+{{- define "armada-scheduler-ingester.labels.identity" -}}
+app: {{ include "armada-scheduler.name" . }}-ingester
+{{- end -}}
+
+{{- define "armada-scheduler.labels.all" -}}
+{{ include "armada-scheduler.common-labels.all" . }}
+{{ include "armada-scheduler.labels.identity" . }}
+{{- end -}}
+
+
+{{- define "armada-scheduler-ingester.labels.all" -}}
+{{ include "armada-scheduler.common-labels.all" . }}
+{{ include "armada-scheduler-ingester.labels.identity" . }}
 {{- end -}}
