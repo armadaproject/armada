@@ -11,6 +11,7 @@ var baseJobRun = CreateRun(
 	uuid.New(),
 	5,
 	"test-executor",
+	"test-node",
 	false,
 	false,
 	false,
@@ -22,6 +23,7 @@ func TestJobRun_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJobRun.id, baseJobRun.Id())
 	assert.Equal(t, baseJobRun.created, baseJobRun.Created())
 	assert.Equal(t, baseJobRun.executor, baseJobRun.Executor())
+	assert.Equal(t, baseJobRun.node, baseJobRun.Node())
 }
 
 func TestJobRun_TestRunning(t *testing.T) {

@@ -14,7 +14,6 @@ export default class FakeGroupJobsService implements IGroupJobsService {
     take: number,
     signal: AbortSignal | undefined,
   ): Promise<GroupJobsResponse> {
-    console.log("GroupJobs called with params:", { filters, order, groupedField, aggregates, skip, take, signal })
     if (this.simulateApiWait) {
       await simulateApiWait(signal)
     }

@@ -89,6 +89,8 @@ message NodeInfo {
     // this should be of type armadaevents.uuid, but this creates a circular loop
     // once the old scheduler has gone, we can correct this
     map<string, JobState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
+    // The amount of resource allocated to non-armada pods by priority
+    map<int32, ComputeResource> non_armada_allocated_resources = 9 [(gogoproto.nullable) = false];
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.

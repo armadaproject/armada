@@ -400,6 +400,21 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			},
 		}
 		events = append(events, cancel)
+	} else if job.CancelByJobsetRequested() {
+		job = job.WithCancelled(true).WithQueued(false)
+		cancelRequest := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+			},
+		}
+		cancel := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_CancelledJob{
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+			},
+		}
+		events = append(events, cancelRequest, cancel)
 	} else if job.HasRuns() {
 		lastRun := job.LatestRun()
 		// InTerminalState states. Can only have one of these
@@ -428,6 +443,18 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobErrors)
 		}
+	} else if job.RequestedPriority() != job.Priority() {
+		job = job.WithPriority(job.RequestedPriority())
+		jobReprioritised := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+				ReprioritisedJob: &armadaevents.ReprioritisedJob{
+					JobId:    jobId,
+					Priority: job.Priority(),
+				},
+			},
+		}
+		events = append(events, jobReprioritised)
 	}
 
 	if origJob != job {
@@ -625,6 +652,7 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) 
 		uint32(dbJob.Priority),
 		schedulingInfo,
 		dbJob.CancelRequested,
+		dbJob.CancelByJobsetRequested,
 		dbJob.Cancelled,
 		dbJob.Submitted,
 	), nil
@@ -636,6 +664,7 @@ func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
 		dbRun.RunID,
 		dbRun.Created,
 		s.stringInterner.Intern(dbRun.Executor),
+		s.stringInterner.Intern(dbRun.Node),
 		dbRun.Running,
 		dbRun.Succeeded,
 		dbRun.Failed,
@@ -680,6 +709,9 @@ func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) *jobdb.Job {
 	if dbJob.CancelRequested && !job.CancelRequested() {
 		job = job.WithCancelRequested(true)
 	}
+	if dbJob.CancelByJobsetRequested && !job.CancelByJobsetRequested() {
+		job = job.WithCancelByJobsetRequested(true)
+	}
 	if dbJob.Cancelled && !job.Cancelled() {
 		job = job.WithCancelled(true)
 	}
@@ -688,6 +720,9 @@ func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) *jobdb.Job {
 	}
 	if dbJob.Failed && !job.Failed() {
 		job = job.WithFailed(true)
+	}
+	if uint32(dbJob.Priority) != job.RequestedPriority() {
+		job = job.WithRequestedPriority(uint32(dbJob.Priority))
 	}
 	return job
 }

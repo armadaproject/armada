@@ -16,6 +16,8 @@ CREATE TABLE jobs (
     cancel_requested boolean NOT NULL DEFAULT false,
     -- Indicates if this job has been cancelled
     cancelled boolean NOT NULL DEFAULT false,
+    -- Indicates if this job has has been cancelled as part of a cancel jobset op
+    cancel_by_jobset_requested boolean NOT NULL DEFAULT false,
     -- Set to true when a JobSucceeded event has been received for this job by the ingester.
     succeeded boolean NOT NULL DEFAULT false,
     -- Set to true when a terminal JobErrors event has been received for this job by the ingester.
@@ -40,6 +42,8 @@ CREATE TABLE runs (
     job_set text NOT NULL,
     -- Executor this job run is assigned to.
     executor text NOT NULL,
+    -- Node this job run is assigned to.
+    node text NOT NULL,
     -- Indicates if this lease has been cancelled.
     cancelled boolean NOT NULL DEFAULT false,
     -- Set to true once a JobRunRunning messages is received for this run.

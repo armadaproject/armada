@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -256,33 +257,35 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 
 	for i := 0; i < numJobs; i++ {
 		dbJobs[i] = Job{
-			JobID:           util.NewULID(),
-			JobSet:          "test-jobset",
-			Queue:           "test-queue",
-			Submitted:       int64(i),
-			Priority:        int64(i),
-			CancelRequested: true,
-			Cancelled:       true,
-			Succeeded:       true,
-			Failed:          true,
-			SchedulingInfo:  []byte{byte(i)},
-			SubmitMessage:   []byte{},
+			JobID:                   util.NewULID(),
+			JobSet:                  "test-jobset",
+			Queue:                   "test-queue",
+			Submitted:               int64(i),
+			Priority:                int64(i),
+			CancelRequested:         true,
+			Cancelled:               true,
+			CancelByJobsetRequested: true,
+			Succeeded:               true,
+			Failed:                  true,
+			SchedulingInfo:          []byte{byte(i)},
+			SubmitMessage:           []byte{},
 		}
 	}
 
 	for i, job := range dbJobs {
 		expectedJobs[i] = Job{
-			JobID:           job.JobID,
-			JobSet:          job.JobSet,
-			Queue:           job.Queue,
-			Submitted:       job.Submitted,
-			Priority:        job.Priority,
-			CancelRequested: job.CancelRequested,
-			Cancelled:       job.Cancelled,
-			Succeeded:       job.Succeeded,
-			Failed:          job.Failed,
-			SchedulingInfo:  job.SchedulingInfo,
-			Serial:          int64(i + 1),
+			JobID:                   job.JobID,
+			JobSet:                  job.JobSet,
+			Queue:                   job.Queue,
+			Submitted:               job.Submitted,
+			Priority:                job.Priority,
+			CancelRequested:         job.CancelRequested,
+			CancelByJobsetRequested: true,
+			Cancelled:               job.Cancelled,
+			Succeeded:               job.Succeeded,
+			Failed:                  job.Failed,
+			SchedulingInfo:          job.SchedulingInfo,
+			Serial:                  int64(i + 1),
 		}
 	}
 	return dbJobs, expectedJobs
@@ -512,6 +515,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 			JobID:     util.NewULID(),
 			JobSet:    "test-jobset",
 			Executor:  "test-executor",
+			Node:      fmt.Sprintf("test-node-%d", i),
 			Cancelled: true,
 			Running:   true,
 			Succeeded: true,
@@ -526,6 +530,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 			JobID:     run.JobID,
 			JobSet:    run.JobSet,
 			Executor:  run.Executor,
+			Node:      fmt.Sprintf("test-node-%d", i),
 			Cancelled: run.Cancelled,
 			Running:   run.Running,
 			Succeeded: run.Succeeded,

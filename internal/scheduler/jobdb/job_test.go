@@ -31,6 +31,7 @@ var baseJob = NewJob(
 	schedulingInfo,
 	false,
 	false,
+	false,
 	3)
 
 var baseRun = &JobRun{
@@ -64,6 +65,12 @@ func TestJob_TestPriority(t *testing.T) {
 	assert.Equal(t, uint32(3), newJob.Priority())
 }
 
+func TestJob_TestRequestedPriority(t *testing.T) {
+	newJob := baseJob.WithRequestedPriority(3)
+	assert.Equal(t, uint32(2), baseJob.RequestedPriority())
+	assert.Equal(t, uint32(3), newJob.RequestedPriority())
+}
+
 func TestJob_TestQueued(t *testing.T) {
 	newJob := baseJob.WithQueued(false)
 	assert.Equal(t, true, baseJob.Queued())
@@ -74,6 +81,12 @@ func TestJob_TestCancelRequested(t *testing.T) {
 	newJob := baseJob.WithCancelRequested(true)
 	assert.Equal(t, false, baseJob.CancelRequested())
 	assert.Equal(t, true, newJob.CancelRequested())
+}
+
+func TestJob_TestCancelByJobsetRequested(t *testing.T) {
+	newJob := baseJob.WithCancelByJobsetRequested(true)
+	assert.Equal(t, false, baseJob.CancelByJobsetRequested())
+	assert.Equal(t, true, newJob.CancelByJobsetRequested())
 }
 
 func TestJob_TestCancelled(t *testing.T) {
@@ -103,11 +116,11 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor").HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-node").HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
-	jobWithRun := baseJob.WithNewRun("test-executor")
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-node")
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
@@ -115,6 +128,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 		id:       run.id,
 		created:  run.created,
 		executor: "test-executor",
+		node:     "test-node",
 	}, run)
 }
 
