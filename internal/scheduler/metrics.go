@@ -121,7 +121,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		return err
 	}
 
-	err = c.poolAssigner.refresh(ctx)
+	err = c.poolAssigner.Refresh(ctx)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 			continue
 		}
 
-		pool, err := c.poolAssigner.assignPool(job)
+		pool, err := c.poolAssigner.AssignPool(job)
 		if err != nil {
 			return err
 		}
