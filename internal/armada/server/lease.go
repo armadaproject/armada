@@ -366,7 +366,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			podReq := scheduler.PodRequirementFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
 
 			// Bind pod to node, thus ensuring resources are marked allocated on the node.
-			node, err = scheduling.BindPodToNode(podReq, node)
+			node, err = scheduler.BindPodToNode(podReq, node)
 			if err != nil {
 				logging.WithStacktrace(log, err).Warnf(
 					"skipping node %s from executor %s: failed to bind job %s to node",
@@ -385,7 +385,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if len(indexedResources) == 0 {
 		indexedResources = []string{"cpu", "memory"}
 	}
-	nodeDb, err := scheduling.NewNodeDb(
+	nodeDb, err := scheduler.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
