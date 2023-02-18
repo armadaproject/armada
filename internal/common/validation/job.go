@@ -1,8 +1,9 @@
 package validation
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/scheduler"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"

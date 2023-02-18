@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"encoding/binary"
 	"fmt"
+
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"

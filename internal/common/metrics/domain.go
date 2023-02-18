@@ -2,8 +2,9 @@ package metrics
 
 import (
 	"fmt"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"time"
+
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 type QueueMetricProvider interface {

@@ -2,13 +2,15 @@ package scheduler
 
 import (
 	"context"
+	"time"
+
+	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/util/clock"
-	"time"
 )
 
 type executor struct {
@@ -30,7 +32,8 @@ type PoolAssigner struct {
 
 func NewPoolAssigner(executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
-	executorRepository database.ExecutorRepository) *PoolAssigner {
+	executorRepository database.ExecutorRepository,
+) *PoolAssigner {
 	return &PoolAssigner{
 		executorTimeout:    executorTimeout,
 		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,

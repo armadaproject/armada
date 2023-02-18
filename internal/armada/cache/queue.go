@@ -2,13 +2,13 @@ package cache
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/metrics"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"

@@ -2,11 +2,13 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common"
-	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/armadaproject/armada/internal/common"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"

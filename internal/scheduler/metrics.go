@@ -68,7 +68,8 @@ func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueRepository database.QueueRepository,
 	poolAssigner *PoolAssigner,
-	refreshPeriod time.Duration) *MetricsCollector {
+	refreshPeriod time.Duration,
+) *MetricsCollector {
 	return &MetricsCollector{
 		jobDb:           jobDb,
 		queueRepository: queueRepository,
@@ -81,14 +82,16 @@ func NewMetricsCollector(
 func (c *MetricsCollector) Run(ctx context.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)
-	c.refresh()
 	for {
 		select {
 		case <-ctx.Done():
 			log.Infof("Context cancelled, returning..")
 			return nil
 		case <-ticker.C():
-			c.refresh()
+			err := c.refresh(ctx)
+			if err != nil {
+				log.WithError(err).Warnf("error refreshing metrics state")
+			}
 		}
 	}
 }
@@ -104,11 +107,16 @@ func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 	commmonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
 }
 
-func (c *MetricsCollector) refresh() error {
+func (c *MetricsCollector) refresh(ctx context.Context) error {
 	log.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
 
 	queues, err := c.queueRepository.GetAllQueues()
+	if err != nil {
+		return err
+	}
+
+	err = c.poolAssigner.refresh(ctx)
 	if err != nil {
 		return err
 	}

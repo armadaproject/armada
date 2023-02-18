@@ -1,9 +1,8 @@
-package testfixtures
+package scheduler
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"time"
 
 	"github.com/google/uuid"
@@ -115,7 +114,7 @@ func WithIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuratio
 func WithPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for i := range nodes {
 		for _, req := range reqs[i] {
-			node, err := scheduling.BindPodToNode(req, nodes[i])
+			node, err := BindPodToNode(req, nodes[i])
 			if err != nil {
 				panic(err)
 			}
@@ -237,8 +236,8 @@ func TestSmallCpuJob(queue string, priority int32) *schedulerobjects.PodRequirem
 			},
 		},
 		Annotations: map[string]string{
-			scheduler.JobIdAnnotation: util.NewULID(),
-			scheduler.QueueAnnotation: queue,
+			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: queue,
 		},
 	}
 }
@@ -259,8 +258,8 @@ func TestLargeCpuJob(queue string, priority int32) *schedulerobjects.PodRequirem
 			},
 		},
 		Annotations: map[string]string{
-			scheduler.JobIdAnnotation: util.NewULID(),
-			scheduler.QueueAnnotation: queue,
+			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: queue,
 		},
 	}
 }
@@ -282,8 +281,8 @@ func TestGpuJob(queue string, priority int32) *schedulerobjects.PodRequirements 
 			},
 		},
 		Annotations: map[string]string{
-			scheduler.JobIdAnnotation: util.NewULID(),
-			scheduler.QueueAnnotation: queue,
+			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: queue,
 		},
 	}
 }
@@ -463,8 +462,8 @@ func TestGpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
-func CreateNodeDb(nodes []*schedulerobjects.Node) (*scheduling.NodeDb, error) {
-	db, err := scheduling.NewNodeDb(
+func CreateNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+	db, err := NewNodeDb(
 		TestPriorityClasses,
 		TestResources,
 		TestIndexedTaints,

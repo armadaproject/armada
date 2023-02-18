@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,13 +13,13 @@ import (
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	err := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources).Validate()
+	err := nodeDbSchema(TestPriorities, TestResources).Validate()
 	assert.NoError(t, err)
 }
 
 // Test the accounting of total resources across all nodes.
 func TestTotalResources(t *testing.T) {
-	nodeDb, err := testfixtures.CreateNodeDb([]*schedulerobjects.Node{})
+	nodeDb, err := CreateNodeDb([]*schedulerobjects.Node{})
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -28,7 +27,7 @@ func TestTotalResources(t *testing.T) {
 	assert.True(t, expected.Equal(nodeDb.TotalResources))
 
 	// Upserting nodes for the first time should increase the resource count.
-	nodes := testfixtures.TestNCpuNode(2, testfixtures.TestPriorities)
+	nodes := TestNCpuNode(2, TestPriorities)
 	for _, node := range nodes {
 		expected.Add(node.TotalResources)
 	}
@@ -46,7 +45,7 @@ func TestTotalResources(t *testing.T) {
 	assert.True(t, expected.Equal(nodeDb.TotalResources))
 
 	// Upserting new nodes should increase the resource count.
-	nodes = testfixtures.TestNGpuNode(3, testfixtures.TestPriorities)
+	nodes = TestNGpuNode(3, TestPriorities)
 	for _, node := range nodes {
 		expected.Add(node.TotalResources)
 	}
@@ -58,14 +57,14 @@ func TestTotalResources(t *testing.T) {
 }
 
 func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
-	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
+	nodes := TestNCpuNode(1, TestPriorities)
 	nodeId := nodes[0].Id
 	require.NotEmpty(t, nodeId)
-	db, err := testfixtures.CreateNodeDb(nodes)
+	db, err := CreateNodeDb(nodes)
 	require.NoError(t, err)
-	reqs := testfixtures.WithAnnotationsPodReqs(
+	reqs := WithAnnotationsPodReqs(
 		map[string]string{TargetNodeIdAnnotation: nodeId},
-		testfixtures.TestNSmallCpuJob("A", 0, 1),
+		TestNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
 		report, err := db.SelectNodeForPod(req)
@@ -79,14 +78,14 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
 }
 
 func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
-	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
+	nodes := TestNCpuNode(1, TestPriorities)
 	nodeId := nodes[0].Id
 	require.NotEmpty(t, nodeId)
-	db, err := testfixtures.CreateNodeDb(nodes)
+	db, err := CreateNodeDb(nodes)
 	require.NoError(t, err)
-	reqs := testfixtures.WithAnnotationsPodReqs(
+	reqs := WithAnnotationsPodReqs(
 		map[string]string{TargetNodeIdAnnotation: "this node does not exist"},
-		testfixtures.TestNSmallCpuJob("A", 0, 1),
+		TestNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
 		report, err := db.SelectNodeForPod(req)
@@ -99,8 +98,8 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 }
 
 func TestPodToFromNodeBinding(t *testing.T) {
-	node := testfixtures.TestGpuNode(testfixtures.TestPriorities)
-	req := testfixtures.TestNGpuJob("A", 0, 1)[0]
+	node := TestGpuNode(TestPriorities)
+	req := TestNGpuJob("A", 0, 1)[0]
 	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 
 	newNode, err := BindPodToNode(req, node)
@@ -139,96 +138,96 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 		ExpectSuccess []bool
 	}{
 		"all jobs fit": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          testfixtures.TestNSmallCpuJob("A", 0, 32),
-			ExpectSuccess: testfixtures.Repeat(true, 32),
+			Nodes:         TestNCpuNode(1, TestPriorities),
+			Reqs:          TestNSmallCpuJob("A", 0, 32),
+			ExpectSuccess: Repeat(true, 32),
 		},
 		"not all jobs fit": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          testfixtures.TestNSmallCpuJob("A", 0, 33),
-			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
+			Nodes:         TestNCpuNode(1, TestPriorities),
+			Reqs:          TestNSmallCpuJob("A", 0, 33),
+			ExpectSuccess: append(Repeat(true, 32), Repeat(false, 1)...),
 		},
 		"unavailable resource": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          testfixtures.TestNGpuJob("A", 0, 1),
-			ExpectSuccess: testfixtures.Repeat(false, 1),
+			Nodes:         TestNCpuNode(1, TestPriorities),
+			Reqs:          TestNGpuJob("A", 0, 1),
+			ExpectSuccess: Repeat(false, 1),
 		},
 		"unsupported resource": {
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs: testfixtures.WithRequestsPodReqs(
+			Nodes: TestNCpuNode(1, TestPriorities),
+			Reqs: WithRequestsPodReqs(
 				schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"gibberish": resource.MustParse("1"),
 					},
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				TestNSmallCpuJob("A", 0, 1),
 			),
-			ExpectSuccess: testfixtures.Repeat(false, 1),
+			ExpectSuccess: Repeat(false, 1),
 		},
 		"preemption": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          append(append(testfixtures.TestNSmallCpuJob("A", 0, 32), testfixtures.TestNSmallCpuJob("A", 1, 32)...), testfixtures.TestNSmallCpuJob("A", 0, 32)...),
-			ExpectSuccess: append(testfixtures.Repeat(true, 64), testfixtures.Repeat(false, 32)...),
+			Nodes:         TestNCpuNode(1, TestPriorities),
+			Reqs:          append(append(TestNSmallCpuJob("A", 0, 32), TestNSmallCpuJob("A", 1, 32)...), TestNSmallCpuJob("A", 0, 32)...),
+			ExpectSuccess: append(Repeat(true, 64), Repeat(false, 32)...),
 		},
 		"taints/tolerations": {
-			Nodes:         testfixtures.TestNTaintedCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNGpuJob("A", 0, 1)...), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
+			Nodes:         TestNTaintedCpuNode(1, TestPriorities),
+			Reqs:          append(append(TestNSmallCpuJob("A", 0, 1), TestNGpuJob("A", 0, 1)...), TestNLargeCpuJob("A", 0, 1)...),
 			ExpectSuccess: []bool{false, false, true},
 		},
 		"node selector": {
 			Nodes: append(
-				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-				testfixtures.WithLabelsNodes(
+				TestNCpuNode(1, TestPriorities),
+				WithLabelsNodes(
 					map[string]string{
 						"key": "value",
 					},
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					TestNCpuNode(1, TestPriorities),
 				)...,
 			),
-			Reqs: testfixtures.WithNodeSelectorPodReqs(
+			Reqs: WithNodeSelectorPodReqs(
 				map[string]string{
 					"key": "value",
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 33),
+				TestNSmallCpuJob("A", 0, 33),
 			),
-			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
+			ExpectSuccess: append(Repeat(true, 32), Repeat(false, 1)...),
 		},
 		"node selector with mismatched value": {
-			Nodes: testfixtures.WithLabelsNodes(
+			Nodes: WithLabelsNodes(
 				map[string]string{
 					"key": "value",
 				},
-				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+				TestNCpuNode(1, TestPriorities),
 			),
-			Reqs: testfixtures.WithNodeSelectorPodReqs(
+			Reqs: WithNodeSelectorPodReqs(
 				map[string]string{
 					"key": "this is the wrong value",
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				TestNSmallCpuJob("A", 0, 1),
 			),
-			ExpectSuccess: testfixtures.Repeat(false, 1),
+			ExpectSuccess: Repeat(false, 1),
 		},
 		"node selector with missing label": {
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs: testfixtures.WithNodeSelectorPodReqs(
+			Nodes: TestNCpuNode(1, TestPriorities),
+			Reqs: WithNodeSelectorPodReqs(
 				map[string]string{
 					"this label does not exist": "value",
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				TestNSmallCpuJob("A", 0, 1),
 			),
-			ExpectSuccess: testfixtures.Repeat(false, 1),
+			ExpectSuccess: Repeat(false, 1),
 		},
 		"node affinity": {
 			Nodes: append(
-				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-				testfixtures.WithLabelsNodes(
+				TestNCpuNode(1, TestPriorities),
+				WithLabelsNodes(
 					map[string]string{
 						"key": "value",
 					},
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					TestNCpuNode(1, TestPriorities),
 				)...,
 			),
-			Reqs: testfixtures.WithNodeAffinityPodReqs(
+			Reqs: WithNodeAffinityPodReqs(
 				[]v1.NodeSelectorTerm{
 					{
 						MatchExpressions: []v1.NodeSelectorRequirement{
@@ -240,14 +239,14 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 						},
 					},
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 33),
+				TestNSmallCpuJob("A", 0, 33),
 			),
-			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
+			ExpectSuccess: append(Repeat(true, 32), Repeat(false, 1)...),
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
+			nodeDb, err := CreateNodeDb(tc.Nodes)
 			require.NoError(t, err)
 			for i, req := range tc.Reqs {
 				report, err := nodeDb.SelectAndBindNodeToPod(req)
@@ -282,36 +281,36 @@ func TestScheduleMany(t *testing.T) {
 		ExpectSuccess []bool
 	}{
 		"simple success": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          [][]*schedulerobjects.PodRequirements{testfixtures.TestNSmallCpuJob("A", 0, 32)},
+			Nodes:         TestNCpuNode(1, TestPriorities),
+			Reqs:          [][]*schedulerobjects.PodRequirements{TestNSmallCpuJob("A", 0, 32)},
 			ExpectSuccess: []bool{true},
 		},
 		"simple failure": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          [][]*schedulerobjects.PodRequirements{testfixtures.TestNSmallCpuJob("A", 0, 33)},
+			Nodes:         TestNCpuNode(1, TestPriorities),
+			Reqs:          [][]*schedulerobjects.PodRequirements{TestNSmallCpuJob("A", 0, 33)},
 			ExpectSuccess: []bool{false},
 		},
 		"correct rollback": {
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes: TestNCpuNode(2, TestPriorities),
 			Reqs: [][]*schedulerobjects.PodRequirements{
-				testfixtures.TestNSmallCpuJob("A", 0, 32),
-				testfixtures.TestNSmallCpuJob("A", 0, 33),
-				testfixtures.TestNSmallCpuJob("A", 0, 32),
+				TestNSmallCpuJob("A", 0, 32),
+				TestNSmallCpuJob("A", 0, 33),
+				TestNSmallCpuJob("A", 0, 32),
 			},
 			ExpectSuccess: []bool{true, false, true},
 		},
 		"varying job size": {
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes: TestNCpuNode(2, TestPriorities),
 			Reqs: [][]*schedulerobjects.PodRequirements{
-				append(testfixtures.TestNLargeCpuJob("A", 0, 1), testfixtures.TestNSmallCpuJob("A", 0, 32)...),
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				append(TestNLargeCpuJob("A", 0, 1), TestNSmallCpuJob("A", 0, 32)...),
+				TestNSmallCpuJob("A", 0, 1),
 			},
 			ExpectSuccess: []bool{true, false},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
+			nodeDb, err := CreateNodeDb(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -338,10 +337,10 @@ func TestScheduleMany(t *testing.T) {
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	db, err := NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
+		TestPriorityClasses,
+		TestResources,
+		TestIndexedTaints,
+		TestIndexedNodeLabels,
 	)
 	if !assert.NoError(b, err) {
 		return
@@ -356,21 +355,23 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 }
 
 func BenchmarkUpsert1(b *testing.B) {
-	benchmarkUpsert(testfixtures.TestNCpuNode(1, testfixtures.TestPriorities), b)
+	benchmarkUpsert(TestNCpuNode(1, TestPriorities), b)
 }
+
 func BenchmarkUpsert1000(b *testing.B) {
-	benchmarkUpsert(testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities), b)
+	benchmarkUpsert(TestNCpuNode(1000, TestPriorities), b)
 }
+
 func BenchmarkUpsert100000(b *testing.B) {
-	benchmarkUpsert(testfixtures.TestNCpuNode(100000, testfixtures.TestPriorities), b)
+	benchmarkUpsert(TestNCpuNode(100000, TestPriorities), b)
 }
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
 	db, err := NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
+		TestPriorityClasses,
+		TestResources,
+		TestIndexedTaints,
+		TestIndexedNodeLabels,
 	)
 	if !assert.NoError(b, err) {
 		return
@@ -396,73 +397,73 @@ func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*sch
 
 func BenchmarkSelectAndBindNodeToPodOneCpuNode(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 32),
+		TestNCpuNode(1, TestPriorities),
+		TestNSmallCpuJob("A", 0, 32),
 		b,
 	)
 }
 
 func BenchmarkSelectAndBindNodeToPod100CpuNodes(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 320),
+		TestNCpuNode(100, TestPriorities),
+		TestNSmallCpuJob("A", 0, 320),
 		b,
 	)
 }
 
 func BenchmarkSelectAndBindNodeToPod10000CpuNodes(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(10000, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 32000),
+		TestNCpuNode(10000, TestPriorities),
+		TestNSmallCpuJob("A", 0, 32000),
 		b,
 	)
 }
 
 func BenchmarkSelectAndBindNodeToPod100CpuNodes1CpuUnused(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.WithUsedResourcesNodes(
+		WithUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
-			testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
+			TestNCpuNode(100, TestPriorities),
 		),
-		testfixtures.TestNSmallCpuJob("A", 0, 100),
+		TestNSmallCpuJob("A", 0, 100),
 		b,
 	)
 }
 
 func BenchmarkSelectAndBindNodeToPod1000CpuNodes1CpuUnused(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.WithUsedResourcesNodes(
+		WithUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
-			testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
+			TestNCpuNode(1000, TestPriorities),
 		),
-		testfixtures.TestNSmallCpuJob("A", 0, 1000),
+		TestNSmallCpuJob("A", 0, 1000),
 		b,
 	)
 }
 
 func BenchmarkSelectAndBindNodeToPod10000CpuNodes1CpuUnused(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.WithUsedResourcesNodes(
+		WithUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
-			testfixtures.TestNCpuNode(10000, testfixtures.TestPriorities),
+			TestNCpuNode(10000, TestPriorities),
 		),
-		testfixtures.TestNSmallCpuJob("A", 0, 10000),
+		TestNSmallCpuJob("A", 0, 10000),
 		b,
 	)
 }
 
 func BenchmarkSelectAndBindNodeToPodResourceConstrained(b *testing.B) {
 	nodes := append(append(
-		testfixtures.TestNCpuNode(500, testfixtures.TestPriorities),
-		testfixtures.TestNGpuNode(1, testfixtures.TestPriorities)...),
-		testfixtures.TestNCpuNode(499, testfixtures.TestPriorities)...,
+		TestNCpuNode(500, TestPriorities),
+		TestNGpuNode(1, TestPriorities)...),
+		TestNCpuNode(499, TestPriorities)...,
 	)
 	benchmarkSelectAndBindNodeToPod(
 		nodes,
-		testfixtures.TestNGpuJob("A", 0, 1),
+		TestNGpuJob("A", 0, 1),
 		b,
 	)
 }

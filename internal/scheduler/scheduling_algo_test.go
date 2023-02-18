@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 	"time"
 
@@ -135,9 +134,9 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			config := testfixtures.TestSchedulingConfig()
+			config := TestSchedulingConfig()
 			if tc.perQueueLimit != nil {
-				config = testfixtures.WithPerQueueLimitsConfig(tc.perQueueLimit, config)
+				config = WithPerQueueLimitsConfig(tc.perQueueLimit, config)
 			}
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -212,7 +211,7 @@ func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 			},
 		},
 		Labels: map[string]string{
-			testfixtures.TestHostnameLabel: id,
+			TestHostnameLabel: id,
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},
