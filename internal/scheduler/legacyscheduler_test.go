@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"math/rand"
@@ -195,7 +194,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			queuedJobsIterator, err := jobdb.NewQueuedJobsIterator(ctx, "A", repo)
+			queuedJobsIterator, err := NewQueuedJobsIterator(ctx, "A", repo)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -1495,7 +1494,7 @@ func TestReschedule(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
 			require.NoError(t, err)
-			repo := jobdb.NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			initialUsageByQueue := armadamaps.DeepCopy(tc.InitialUsageByQueue)
@@ -1706,7 +1705,7 @@ func BenchmarkReschedule(b *testing.B) {
 
 			nodeDb, err := testfixtures.CreateNodeDb(tc.Nodes)
 			require.NoError(b, err)
-			repo := jobdb.NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 			usageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 
 			jobs := make([]LegacySchedulerJob, 0)
@@ -1747,7 +1746,7 @@ func BenchmarkReschedule(b *testing.B) {
 					unscheduledJobs = append(unscheduledJobs, job)
 				}
 			}
-			repo = jobdb.NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+			repo = NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 			repo.EnqueueMany(unscheduledJobs)
 
 			b.ResetTimer()
@@ -1809,7 +1808,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	nodes[0] = node
 
 	it := NewInMemoryNodeIterator(nodes)
-	jobRepo := jobdb.NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 	jobRepo.EnqueueMany(jobs)
 	_, affectedNodesById, err := EvictOversubscribed(
 		context.Background(),
@@ -1985,8 +1984,8 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (jobdb.JobIterator, error) {
-	return jobdb.NewQueuedJobsIterator(ctx, queue, repo)
+func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
+	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 
 func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {

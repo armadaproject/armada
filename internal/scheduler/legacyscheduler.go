@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"math"
 	"math/rand"
@@ -103,7 +102,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 // Jobs without gangIdAnnotation are considered to be gangs of cardinality 1.
 type QueuedGangIterator struct {
 	ctx                context.Context
-	queuedJobsIterator jobdb.JobIterator
+	queuedJobsIterator JobIterator
 	// Jobs are grouped into gangs by this annotation.
 	gangIdAnnotation string
 	// Jobs in a gang must specify the total number of jobs in the gang via this annotation.
@@ -117,7 +116,7 @@ type QueuedGangIterator struct {
 	next     []LegacySchedulerJob
 }
 
-func NewQueuedGangIterator(ctx context.Context, it jobdb.JobIterator, maxLookback uint, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
+func NewQueuedGangIterator(ctx context.Context, it JobIterator, maxLookback uint, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
 	return &QueuedGangIterator{
 		ctx:                       ctx,
 		queuedJobsIterator:        it,
@@ -717,10 +716,10 @@ func (sched *LegacyScheduler) String() string {
 type Queue struct {
 	name           string
 	priorityFactor float64
-	jobIterator    jobdb.JobIterator
+	jobIterator    JobIterator
 }
 
-func NewQueue(name string, priorityFactor float64, jobIterator jobdb.JobIterator) (*Queue, error) {
+func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Queue, error) {
 	if priorityFactor <= 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "priorityFactor",
@@ -739,7 +738,7 @@ func NewQueue(name string, priorityFactor float64, jobIterator jobdb.JobIterator
 func EvictPreemptible(
 	ctx context.Context,
 	it nodedb.NodeIterator,
-	jobRepo jobdb.JobRepository,
+	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	defaultPriorityClass string,
 	evictionProbability float64,
@@ -795,7 +794,7 @@ func EvictPreemptible(
 func EvictOversubscribed(
 	ctx context.Context,
 	it nodedb.NodeIterator,
-	jobRepo jobdb.JobRepository,
+	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	evictionProbability float64,
 ) (map[string]LegacySchedulerJob, map[string]*schedulerobjects.Node, error) {
@@ -866,7 +865,7 @@ func EvictOversubscribed(
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func Evict(
 	it nodedb.NodeIterator,
-	jobRepo jobdb.JobRepository,
+	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	nodeFilter func(*schedulerobjects.Node) bool,
 	jobFilter func(LegacySchedulerJob) bool,
@@ -990,7 +989,7 @@ func NewLegacyScheduler(
 // - Total resource usage per queue, accounting for preempted/scheduled jobs.
 func Reschedule(
 	ctx context.Context,
-	jobRepo jobdb.JobRepository,
+	jobRepo JobRepository,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
 	nodeDb *nodedb.NodeDb,
@@ -1047,7 +1046,7 @@ func Reschedule(
 	if err := nodeDb.UpsertMany(affectedNodes); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	inMemoryJobRepo := jobdb.NewInMemoryJobRepository(config.Preemption.PriorityClasses)
+	inMemoryJobRepo := NewInMemoryJobRepository(config.Preemption.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	queues := make([]*Queue, 0, len(priorityFactorByQueue))
 	for queue, priorityFactor := range priorityFactorByQueue {
@@ -1055,14 +1054,14 @@ func Reschedule(
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
-		queueIt, err := jobdb.NewQueuedJobsIterator(ctx, queue, jobRepo)
+		queueIt, err := NewQueuedJobsIterator(ctx, queue, jobRepo)
 		if err != nil {
 			return nil, nil, nil, nil, err
 		}
 		queue, err := NewQueue(
 			queue,
 			priorityFactor,
-			jobdb.NewMultiJobsIterator(evictedIt, queueIt),
+			NewMultiJobsIterator(evictedIt, queueIt),
 		)
 		if err != nil {
 			return nil, nil, nil, nil, err
@@ -1137,7 +1136,7 @@ func Reschedule(
 	if err := nodeDb.UpsertMany(affectedNodes); err != nil {
 		return nil, nil, nil, nil, err
 	}
-	inMemoryJobRepo = jobdb.NewInMemoryJobRepository(config.Preemption.PriorityClasses)
+	inMemoryJobRepo = NewInMemoryJobRepository(config.Preemption.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	queues = make([]*Queue, 0, len(priorityFactorByQueue))
 	for queue, priorityFactor := range priorityFactorByQueue {
