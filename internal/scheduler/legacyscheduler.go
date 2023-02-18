@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"math"
 	"math/rand"
 	"reflect"
@@ -685,9 +684,9 @@ type LegacyScheduler struct {
 	SchedulingConstraints
 	SchedulingRoundReport *SchedulingRoundReport
 	CandidateGangIterator *CandidateGangIterator
-	// Contains all nodes to be considered for scheduling.
+	// Contains all nodes to be considered for
 	// Used for matching pods with nodes.
-	NodeDb *nodedb.NodeDb
+	NodeDb *NodeDb
 }
 
 func (sched *LegacyScheduler) String() string {
@@ -737,7 +736,7 @@ func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Qu
 // EvictPreemptible evicts from all nodes any jobs of a priority class marked as preemptible.
 func EvictPreemptible(
 	ctx context.Context,
-	it nodedb.NodeIterator,
+	it NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	defaultPriorityClass string,
@@ -793,7 +792,7 @@ func EvictPreemptible(
 // at least one job could not be scheduled.
 func EvictOversubscribed(
 	ctx context.Context,
-	it nodedb.NodeIterator,
+	it NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	evictionProbability float64,
@@ -864,7 +863,7 @@ func EvictOversubscribed(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func Evict(
-	it nodedb.NodeIterator,
+	it NodeIterator,
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	nodeFilter func(*schedulerobjects.Node) bool,
@@ -890,7 +889,7 @@ func Evict(
 			if req == nil {
 				continue
 			}
-			node, err = nodedb.UnbindPodFromNode(req, node)
+			node, err = UnbindPodFromNode(req, node)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -908,13 +907,13 @@ func NewLegacyScheduler(
 	ctx context.Context,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
-	nodeDb *nodedb.NodeDb,
+	nodeDb *NodeDb,
 	queues []*Queue,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) (*LegacyScheduler, error) {
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, constraints.TotalResources) == 0 {
 		// This refers to resources available across all clusters, i.e.,
-		// it may include resources not currently considered for scheduling.
+		// it may include resources not currently considered for
 		return nil, errors.Errorf(
 			"no resources with non-zero weight available for scheduling on any cluster: resource scarcity %v, total resources %v",
 			constraints.ResourceScarcity, constraints.TotalResources,
@@ -992,7 +991,7 @@ func Reschedule(
 	jobRepo JobRepository,
 	constraints SchedulingConstraints,
 	config configuration.SchedulingConfig,
-	nodeDb *nodedb.NodeDb,
+	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	nodePreemptibleEvictionProbability float64,
@@ -1009,7 +1008,7 @@ func Reschedule(
 	txn := nodeDb.Txn(false)
 
 	// Evict preemptible jobs.
-	it, err := nodedb.NewNodesIterator(txn)
+	it, err := NewNodesIterator(txn)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -1102,7 +1101,7 @@ func Reschedule(
 	}
 
 	// Evict jobs on oversubscribed nodes.
-	it, err = nodedb.NewNodesIterator(nodeDb.Txn(false))
+	it, err = NewNodesIterator(nodeDb.Txn(false))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -1193,8 +1192,8 @@ func Reschedule(
 	// Jobs assigned to a node that weren't present earlier are scheduled.
 	//
 	// Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure it's consistent.
-	// This is only to validate that nothing unexpected happened during scheduling.
-	preempted, scheduled, err := nodedb.NodeJobDiff(txn, nodeDb.Txn(false))
+	// This is only to validate that nothing unexpected happened during
+	preempted, scheduled, err := NodeJobDiff(txn, nodeDb.Txn(false))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

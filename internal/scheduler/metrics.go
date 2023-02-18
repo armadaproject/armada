@@ -1,4 +1,4 @@
-package metrics
+package scheduler
 
 import (
 	"sync/atomic"

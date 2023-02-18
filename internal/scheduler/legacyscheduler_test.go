@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"math/rand"
 	"testing"
@@ -1509,7 +1508,7 @@ func TestReschedule(t *testing.T) {
 
 				for _, reqs := range round.ReqsByQueue {
 					for j, req := range reqs {
-						jobId, err := nodedb.JobIdFromPodRequirements(req)
+						jobId, err := scheduling.JobIdFromPodRequirements(req)
 						require.NoError(t, err)
 						roundByJobId[jobId] = i
 						indexByJobId[jobId] = j
@@ -1610,7 +1609,7 @@ func TestReschedule(t *testing.T) {
 				prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
 				priorities := maps.Values(prioritiesByName)
 				slices.Sort(priorities)
-				it, err := nodedb.NewNodesIterator(nodeDb.Txn(false))
+				it, err := scheduling.NewNodesIterator(nodeDb.Txn(false))
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
 					for _, p := range priorities {
@@ -1802,7 +1801,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	)
 	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testfixtures.TestPriorityClasses)
 	for _, req := range reqs {
-		node, err = nodedb.BindPodToNode(req, node)
+		node, err = scheduling.BindPodToNode(req, node)
 		require.NoError(t, err)
 	}
 	nodes[0] = node

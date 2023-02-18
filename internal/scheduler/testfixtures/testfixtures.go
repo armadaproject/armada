@@ -4,7 +4,6 @@ package testfixtures
 import (
 	"fmt"
 	"github.com/armadaproject/armada/internal/scheduler"
-	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,7 +115,7 @@ func WithIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuratio
 func WithPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for i := range nodes {
 		for _, req := range reqs[i] {
-			node, err := nodedb.BindPodToNode(req, nodes[i])
+			node, err := scheduling.BindPodToNode(req, nodes[i])
 			if err != nil {
 				panic(err)
 			}
@@ -464,8 +463,8 @@ func TestGpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
-func CreateNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	db, err := nodedb.NewNodeDb(
+func CreateNodeDb(nodes []*schedulerobjects.Node) (*scheduling.NodeDb, error) {
+	db, err := scheduling.NewNodeDb(
 		TestPriorityClasses,
 		TestResources,
 		TestIndexedTaints,

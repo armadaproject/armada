@@ -1,8 +1,7 @@
-package nodedb
+package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"strings"
 	"sync"
 	"text/tabwriter"
@@ -189,7 +188,7 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
 // TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*scheduler.PodSchedulingReport, bool, error) {
+func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
 	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
@@ -200,9 +199,9 @@ func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]
 	return reports, ok, err
 }
 
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*scheduler.PodSchedulingReport, bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	reports := make([]*scheduler.PodSchedulingReport, 0, len(reqs))
+	reports := make([]*PodSchedulingReport, 0, len(reqs))
 	for _, req := range reqs {
 		report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 		if err != nil {
@@ -231,7 +230,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 	return reports, true, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 	txn := nodeDb.Db.Txn(true)
 	defer txn.Abort()
 	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
@@ -242,7 +241,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequiremen
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 	report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
@@ -260,12 +259,12 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 	return nodeDb.SelectNodeForPodWithTxn(nodeDb.Db.Txn(false), req)
 }
 
 // SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*scheduler.PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
 	// Collect all node types that could potentially schedule the pod.
 	nodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -281,7 +280,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Create a report to be returned to the caller.
-	report := &scheduler.PodSchedulingReport{
+	report := &PodSchedulingReport{
 		Timestamp:                    time.Now(),
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
@@ -291,7 +290,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// If the targetNodeIdAnnocation is set, consider only that node.
-	if nodeId, ok := req.Annotations[scheduler.TargetNodeIdAnnotation]; ok {
+	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -361,7 +360,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	return report, nil
 }
 
-func selectNodeForPodWithIt(report *scheduler.PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
+func selectNodeForPodWithIt(report *PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		node := obj.(*schedulerobjects.Node)
 		if node == nil {
@@ -456,11 +455,11 @@ func UnbindPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobj
 }
 
 func JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, scheduler.JobIdAnnotation)
+	return valueFromPodRequirements(req, JobIdAnnotation)
 }
 
 func QueueFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, scheduler.QueueAnnotation)
+	return valueFromPodRequirements(req, QueueAnnotation)
 }
 
 func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string) (string, error) {

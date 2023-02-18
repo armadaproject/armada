@@ -1,12 +1,10 @@
-package metrics
+package scheduler
 
 import (
 	"context"
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -14,7 +12,7 @@ import (
 )
 
 type executor struct {
-	nodeDb         *nodedb.NodeDb
+	nodeDb         *NodeDb
 	minimumJobSize schedulerobjects.ResourceList
 }
 
@@ -52,7 +50,7 @@ func (p *PoolAssigner) refresh(ctx context.Context) error {
 }
 
 func (p *PoolAssigner) assignPool(j *jobdb.Job) (string, error) {
-	req := scheduler.PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
+	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
 			nodeDb := e.nodeDb
@@ -70,9 +68,9 @@ func (p *PoolAssigner) assignPool(j *jobdb.Job) (string, error) {
 	return "", nil
 }
 
-func (srv *PoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+func (srv *PoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	// Nodes to be considered by the scheduler.
-	nodeDb, err := nodedb.NewNodeDb(
+	nodeDb, err := NewNodeDb(
 		srv.priorityClasses,
 		srv.indexedResources,
 		srv.indexedTaints,

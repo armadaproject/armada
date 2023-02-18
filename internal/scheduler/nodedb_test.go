@@ -1,7 +1,6 @@
-package nodedb
+package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"testing"
 
@@ -65,7 +64,7 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
 	db, err := testfixtures.CreateNodeDb(nodes)
 	require.NoError(t, err)
 	reqs := testfixtures.WithAnnotationsPodReqs(
-		map[string]string{scheduler.TargetNodeIdAnnotation: nodeId},
+		map[string]string{TargetNodeIdAnnotation: nodeId},
 		testfixtures.TestNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
@@ -86,7 +85,7 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 	db, err := testfixtures.CreateNodeDb(nodes)
 	require.NoError(t, err)
 	reqs := testfixtures.WithAnnotationsPodReqs(
-		map[string]string{scheduler.TargetNodeIdAnnotation: "this node does not exist"},
+		map[string]string{TargetNodeIdAnnotation: "this node does not exist"},
 		testfixtures.TestNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {

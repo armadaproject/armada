@@ -1,4 +1,4 @@
-package nodedb
+package scheduler
 
 import (
 	"bytes"
