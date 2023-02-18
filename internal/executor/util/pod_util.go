@@ -107,6 +107,14 @@ func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
 }
 
+func ExtractQueue(pod *v1.Pod) string {
+	return pod.Labels[domain.Queue]
+}
+
+func ExtractJobSet(pod *v1.Pod) string {
+	return pod.Annotations[domain.JobSetId]
+}
+
 func ExtractJobRunIds(pods []*v1.Pod) []string {
 	runIds := make([]string, 0, len(pods))
 
