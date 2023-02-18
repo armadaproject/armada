@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	commmonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -9,7 +10,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"testing"
@@ -19,6 +20,11 @@ import (
 func TestMetricsCollector_TestCollect(t *testing.T) {
 
 	baseTime := time.Now().UTC()
+
+	testQueue := &database.Queue{
+		Name:   "testQueue",
+		Weight: 100,
+	}
 
 	queuedJob := jobdb.NewJob(
 		util.NewULID(),
@@ -31,7 +37,7 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 				{
 					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: testSmallCpuJob("test-queue", 1),
+						PodRequirements: testSmallCpuJob(testQueue.Name, 1),
 					},
 				},
 			},
@@ -41,22 +47,22 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 		false,
 		baseTime.UnixNano())
 
-	testQueue := &database.Queue{
-		Name:   "testQueue",
-		Weight: 100,
-	}
-
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
 		poolMappings map[string]string
 		queues       []*database.Queue
-		expected     prometheus.Metric
+		expected     []prometheus.Metric
 	}{
-		"foo": {
+		"queued metrics": {
 			initialJobs: []*jobdb.Job{queuedJob},
 			queues:      []*database.Queue{testQueue},
 			poolMappings: map[string]string{
 				queuedJob.Id(): "test-pool",
+			},
+			expected: []prometheus.Metric{
+				prometheus.MustNewConstMetric(commmonmetrics.QueueSizeDesc, prometheus.GaugeValue, 1.0, testQueue.Name),
+				prometheus.MustNewConstHistogram(
+					commmonmetrics.QueueDurationDesc, 1, 1, map[float64]uint64{}, "test-pool", "test-priority", testQueue.Name),
 			},
 		},
 	}
@@ -87,14 +93,16 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			)
 			collector.clock = testClock
 			collector.refresh(ctx)
-			reg := prometheus.NewRegistry()
-			reg.MustRegister(collector)
-			result, err := reg.Gather()
+			metricChan := make(chan prometheus.Metric, 1000)
+			collector.Collect(metricChan)
+			close(metricChan)
+			actual := make([]prometheus.Metric, 0)
+			for m := range metricChan {
+				actual = append(actual, m)
+			}
 			require.NoError(t, err)
 
-			for _, r := range result {
-				log.Infof("%+v", r)
-			}
+			assert.Equal(t, tc.expected[1], actual[1])
 		})
 	}
 }
