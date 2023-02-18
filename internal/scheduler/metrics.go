@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
@@ -54,35 +55,56 @@ func (m metricsState) numQueuedJobs() map[string]int {
 	return queueCounts
 }
 
-type jobCollector struct {
-	jobDb              jobdb.JobDb
-	executorRepository database.ExecutorRepository
-	queueRepository    database.QueueRepository
-	poolAssigner       PoolAssigner
-	clock              clock.Clock
-	state              atomic.Value
+type MetricsCollector struct {
+	jobDb           *jobdb.JobDb
+	queueRepository database.QueueRepository
+	poolAssigner    *PoolAssigner
+	refreshPeriod   time.Duration
+	clock           clock.Clock
+	state           atomic.Value
 }
 
-func NewJobCollector(jobDb jobdb.JobDb, queueRepository database.QueueRepository) prometheus.Collector {
-	return &jobCollector{
+func NewMetricsCollector(
+	jobDb *jobdb.JobDb,
+	queueRepository database.QueueRepository,
+	poolAssigner *PoolAssigner,
+	refreshPeriod time.Duration) *MetricsCollector {
+	return &MetricsCollector{
 		jobDb:           jobDb,
 		queueRepository: queueRepository,
+		poolAssigner:    poolAssigner,
+		refreshPeriod:   refreshPeriod,
 		clock:           clock.RealClock{},
 	}
 }
 
+func (c *MetricsCollector) Run(ctx context.Context) error {
+	ticker := c.clock.NewTicker(c.refreshPeriod)
+	log.Infof("Will update metrics every %s", c.refreshPeriod)
+	c.refresh()
+	for {
+		select {
+		case <-ctx.Done():
+			log.Infof("Context cancelled, returning..")
+			return nil
+		case <-ticker.C():
+			c.refresh()
+		}
+	}
+}
+
 // Describe returns all descriptions of the collector.
-func (c *jobCollector) Describe(out chan<- *prometheus.Desc) {
+func (c *MetricsCollector) Describe(out chan<- *prometheus.Desc) {
 	commmonmetrics.Describe(out)
 }
 
 // Collect returns the current state of all metrics of the collector.
-func (c *jobCollector) Collect(metrics chan<- prometheus.Metric) {
+func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 	state := c.state.Load().(metricsState)
 	commmonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
 }
 
-func (c *jobCollector) refresh() error {
+func (c *MetricsCollector) refresh() error {
 	log.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
 

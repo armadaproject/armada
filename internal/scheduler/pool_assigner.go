@@ -28,6 +28,22 @@ type PoolAssigner struct {
 	clock              clock.Clock
 }
 
+func NewPoolAssigner(executorTimeout time.Duration,
+	schedulingConfig configuration.SchedulingConfig,
+	executorRepository database.ExecutorRepository) *PoolAssigner {
+	return &PoolAssigner{
+		executorTimeout:    executorTimeout,
+		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,
+		executorsByPool:    map[string][]*executor{},
+		priorities:         schedulingConfig.Preemption.AllowedPriorities(),
+		indexedResources:   schedulingConfig.IndexedResources,
+		indexedTaints:      schedulingConfig.IndexedTaints,
+		indexedNodeLabels:  schedulingConfig.IndexedNodeLabels,
+		executorRepository: executorRepository,
+		clock:              clock.RealClock{},
+	}
+}
+
 func (p *PoolAssigner) refresh(ctx context.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
