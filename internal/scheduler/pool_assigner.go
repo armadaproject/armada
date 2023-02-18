@@ -18,6 +18,8 @@ type executor struct {
 	minimumJobSize schedulerobjects.ResourceList
 }
 
+// PoolAssigner allows jobs to be assigned to a pool
+// Note that this is intended only for use with metrics calculation
 type PoolAssigner struct {
 	executorTimeout    time.Duration
 	priorityClasses    map[string]configuration.PriorityClass
@@ -47,7 +49,8 @@ func NewPoolAssigner(executorTimeout time.Duration,
 	}
 }
 
-func (p *PoolAssigner) refresh(ctx context.Context) error {
+// Refresh updates executor state
+func (p *PoolAssigner) Refresh(ctx context.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
 	if err != nil {
@@ -68,7 +71,8 @@ func (p *PoolAssigner) refresh(ctx context.Context) error {
 	return nil
 }
 
-func (p *PoolAssigner) assignPool(j *jobdb.Job) (string, error) {
+// AssignPool returns the pool associated with the job or the empty string if no pool is valid
+func (p *PoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {

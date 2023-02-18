@@ -15,12 +15,14 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
+// stores the metrics state associated with a queue
 type queueState struct {
 	numQueuedJobs      int
 	queuedJobRecorder  *commmonmetrics.JobMetricsRecorder
 	runningJobRecorder *commmonmetrics.JobMetricsRecorder
 }
 
+// a snapshot of metrics.  Implements QueueMetricProvider
 type metricsState struct {
 	queues      []*database.Queue
 	queueStates map[string]*queueState
@@ -55,6 +57,8 @@ func (m metricsState) numQueuedJobs() map[string]int {
 	return queueCounts
 }
 
+// MetricsCollector is a Prometheus Collector that handles scheduler metrics.
+// The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
 	jobDb           *jobdb.JobDb
 	queueRepository database.QueueRepository
@@ -79,6 +83,7 @@ func NewMetricsCollector(
 	}
 }
 
+// Run enters s a loop which updates the metrics every refreshPeriod until the supplied comtext is cancelled
 func (c *MetricsCollector) Run(ctx context.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)
@@ -141,7 +146,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 	for job != nil {
 		queueState, ok := metricsState.queueStates[job.Queue()]
 		if !ok {
-			log.Warn("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
+			log.Warnf("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
 			continue
 		}
 
