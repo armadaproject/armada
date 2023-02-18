@@ -554,7 +554,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			defer cancel()
 
 			// Test objects
-			// Test objects
 			jobRepo := &testJobRepository{
 				updatedJobs: tc.jobUpdates,
 				updatedRuns: tc.runUpdates,

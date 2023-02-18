@@ -13,14 +13,19 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+// PoolAssigner allows jobs to be assigned to a pool
+// Note that this is intended only for use with metrics calculation
+type PoolAssigner interface {
+	Refresh(ctx context.Context) error
+	AssignPool(j *jobdb.Job) (string, error)
+}
+
 type executor struct {
 	nodeDb         *NodeDb
 	minimumJobSize schedulerobjects.ResourceList
 }
 
-// PoolAssigner allows jobs to be assigned to a pool
-// Note that this is intended only for use with metrics calculation
-type PoolAssigner struct {
+type DefaultPoolAssigner struct {
 	executorTimeout    time.Duration
 	priorityClasses    map[string]configuration.PriorityClass
 	priorities         []int32
@@ -35,8 +40,8 @@ type PoolAssigner struct {
 func NewPoolAssigner(executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
-) *PoolAssigner {
-	return &PoolAssigner{
+) *DefaultPoolAssigner {
+	return &DefaultPoolAssigner{
 		executorTimeout:    executorTimeout,
 		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,
 		executorsByPool:    map[string][]*executor{},
@@ -50,7 +55,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 }
 
 // Refresh updates executor state
-func (p *PoolAssigner) Refresh(ctx context.Context) error {
+func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
 	if err != nil {
@@ -72,12 +77,12 @@ func (p *PoolAssigner) Refresh(ctx context.Context) error {
 }
 
 // AssignPool returns the pool associated with the job or the empty string if no pool is valid
-func (p *PoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
+func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
 			nodeDb := e.nodeDb
-			txn := nodeDb.Db.Txn(true)
+			txn := nodeDb.db.Txn(true)
 			report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 			txn.Abort()
 			if err != nil {
@@ -91,13 +96,13 @@ func (p *PoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	return "", nil
 }
 
-func (srv *PoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	// Nodes to be considered by the scheduler.
 	nodeDb, err := NewNodeDb(
-		srv.priorityClasses,
-		srv.indexedResources,
-		srv.indexedTaints,
-		srv.indexedNodeLabels,
+		p.priorityClasses,
+		p.indexedResources,
+		p.indexedTaints,
+		p.indexedNodeLabels,
 	)
 	if err != nil {
 		return nil, err

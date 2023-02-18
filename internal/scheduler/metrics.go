@@ -62,7 +62,7 @@ func (m metricsState) numQueuedJobs() map[string]int {
 type MetricsCollector struct {
 	jobDb           *jobdb.JobDb
 	queueRepository database.QueueRepository
-	poolAssigner    *PoolAssigner
+	poolAssigner    PoolAssigner
 	refreshPeriod   time.Duration
 	clock           clock.Clock
 	state           atomic.Value
@@ -71,7 +71,7 @@ type MetricsCollector struct {
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueRepository database.QueueRepository,
-	poolAssigner *PoolAssigner,
+	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
 ) *MetricsCollector {
 	return &MetricsCollector{
@@ -80,6 +80,7 @@ func NewMetricsCollector(
 		poolAssigner:    poolAssigner,
 		refreshPeriod:   refreshPeriod,
 		clock:           clock.RealClock{},
+		state:           atomic.Value{},
 	}
 }
 
@@ -108,8 +109,10 @@ func (c *MetricsCollector) Describe(out chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector.
 func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
-	state := c.state.Load().(metricsState)
-	commmonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
+	state, ok := c.state.Load().(metricsState)
+	if ok {
+		commmonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
+	}
 }
 
 func (c *MetricsCollector) refresh(ctx context.Context) error {
@@ -144,6 +147,10 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 	}
 	job := iter.NextJobItem()
 	for job != nil {
+		// Don't calculate metrics for dead jobs
+		if job.InTerminalState() {
+			continue
+		}
 		queueState, ok := metricsState.queueStates[job.Queue()]
 		if !ok {
 			log.Warnf("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
@@ -166,7 +173,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		var timeInState time.Duration
 		if job.Queued() {
 			recorder = queueState.queuedJobRecorder
-			timeInState = currentTime.Sub(time.UnixMicro(job.Created()))
+			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
 		} else if job.HasRuns() {
 			run := job.LatestRun()
 			timeInState = currentTime.Sub(time.UnixMicro(run.Created()))

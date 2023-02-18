@@ -919,11 +919,11 @@ func NewLegacyScheduler(
 			constraints.ResourceScarcity, constraints.TotalResources,
 		)
 	}
-	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, nodeDb.TotalResources) == 0 {
+	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, nodeDb.totalResources) == 0 {
 		// This refers to the resources currently considered for schedling.
 		return nil, errors.Errorf(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
-			constraints.ResourceScarcity, nodeDb.TotalResources,
+			constraints.ResourceScarcity, nodeDb.totalResources,
 		)
 	}
 

@@ -16,26 +16,26 @@ import (
 )
 
 const (
-	TestGangIdAnnotation          = "armada.io/gangId"
-	TestGangCardinalityAnnotation = "armada.io/gangCardinality"
-	TestHostnameLabel             = "kubernetes.io/hostname"
+	testGangIdAnnotation          = "armada.io/gangId"
+	testGangCardinalityAnnotation = "armada.io/gangCardinality"
+	testHostnameLabel             = "kubernetes.io/hostname"
 )
 
 var (
-	TestPriorityClasses = map[string]configuration.PriorityClass{
+	testPriorityClasses = map[string]configuration.PriorityClass{
 		"priority-0": {0, true, nil},
 		"priority-1": {1, true, nil},
 		"priority-2": {2, true, nil},
 		"priority-3": {3, false, nil},
 	}
-	TestDefaultPriorityClass = "priority-3"
-	TestPriorities           = []int32{0, 1, 2, 3}
-	TestResources            = []string{"cpu", "memory", "gpu"}
-	TestIndexedTaints        = []string{"largeJobsOnly", "gpu"}
-	TestIndexedNodeLabels    = []string{"largeJobsOnly", "gpu"}
+	testDefaultPriorityClass = "priority-3"
+	testPriorities           = []int32{0, 1, 2, 3}
+	testResources            = []string{"cpu", "memory", "gpu"}
+	testIndexedTaints        = []string{"largeJobsOnly", "gpu"}
+	testIndexedNodeLabels    = []string{"largeJobsOnly", "gpu"}
 )
 
-func IntRange(a, b int) []int {
+func intRange(a, b int) []int {
 	rv := make([]int, b-a+1)
 	for i := range rv {
 		rv[i] = a + i
@@ -43,7 +43,7 @@ func IntRange(a, b int) []int {
 	return rv
 }
 
-func Repeat[T any](v T, n int) []T {
+func repeat[T any](v T, n int) []T {
 	rv := make([]T, n)
 	for i := 0; i < n; i++ {
 		rv[i] = v
@@ -51,31 +51,31 @@ func Repeat[T any](v T, n int) []T {
 	return rv
 }
 
-func TestSchedulingConfig() configuration.SchedulingConfig {
+func testSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
 		Preemption: configuration.PreemptionConfig{
-			PriorityClasses:      maps.Clone(TestPriorityClasses),
-			DefaultPriorityClass: TestDefaultPriorityClass,
+			PriorityClasses:      maps.Clone(testPriorityClasses),
+			DefaultPriorityClass: testDefaultPriorityClass,
 		},
 		IndexedResources:          []string{"cpu", "memory"},
-		GangIdAnnotation:          TestGangIdAnnotation,
-		GangCardinalityAnnotation: TestGangCardinalityAnnotation,
+		GangIdAnnotation:          testGangIdAnnotation,
+		GangCardinalityAnnotation: testGangCardinalityAnnotation,
 		ExecutorTimeout:           15 * time.Minute,
 	}
 }
 
-func WithRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalClusterFractionToSchedule = limits
 	return config
 }
 
-func WithPerQueueLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withPerQueueLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalResourceFractionPerQueue = limits
 	return config
 }
 
-func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withPerPriorityLimitsConfig(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	for k, v := range config.Preemption.PriorityClasses {
 		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
 			Priority:                        v.Priority,
@@ -85,33 +85,33 @@ func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config con
 	return config
 }
 
-func WithPerQueueRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withPerQueueRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalResourceFractionToSchedulePerQueue = limits
 	return config
 }
 
-func WithMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximumJobsToSchedule = n
 	return config
 }
 
-func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	// For legacy reasons, it's called QueueLeaseBatchSize in config.
 	config.QueueLeaseBatchSize = n
 	return config
 }
 
-func WithIndexedTaintsConfig(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withIndexedTaintsConfig(indexedTaints []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.IndexedTaints = append(config.IndexedTaints, indexedTaints...)
 	return config
 }
 
-func WithIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.IndexedNodeLabels = append(config.IndexedNodeLabels, indexedNodeLabels...)
 	return config
 }
 
-func WithPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+func withPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for i := range nodes {
 		for _, req := range reqs[i] {
 			node, err := BindPodToNode(req, nodes[i])
@@ -124,19 +124,19 @@ func WithPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []
 	return nodes
 }
 
-func WithQueueLeaseBatchSizeConfig(queueLeasebatchSize uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withQueueLeaseBatchSizeConfig(queueLeasebatchSize uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.QueueLeaseBatchSize = queueLeasebatchSize
 	return config
 }
 
-func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+func withUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)
 	}
 	return nodes
 }
 
-func WithLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+func withLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		if node.Labels == nil {
 			node.Labels = maps.Clone(labels)
@@ -147,14 +147,14 @@ func WithLabelsNodes(labels map[string]string, nodes []*schedulerobjects.Node) [
 	return nodes
 }
 
-func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+func withNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		req.NodeSelector = maps.Clone(selector)
 	}
 	return reqs
 }
 
-func WithNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+func withNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		if req.Affinity == nil {
 			req.Affinity = &v1.Affinity{}
@@ -173,16 +173,16 @@ func WithNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*sc
 	return reqs
 }
 
-func WithGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+func withGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))
-	return WithAnnotationsPodReqs(
-		map[string]string{TestGangIdAnnotation: gangId, TestGangCardinalityAnnotation: gangCardinality},
+	return withAnnotationsPodReqs(
+		map[string]string{testGangIdAnnotation: gangId, testGangCardinalityAnnotation: gangCardinality},
 		reqs,
 	)
 }
 
-func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+func withAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		if req.Annotations == nil {
 			req.Annotations = make(map[string]string)
@@ -192,7 +192,7 @@ func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobje
 	return reqs
 }
 
-func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+func withRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		maps.Copy(
 			req.ResourceRequirements.Requests,
@@ -202,31 +202,31 @@ func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobje
 	return reqs
 }
 
-func TestNSmallCpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
+func testNSmallCpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = TestSmallCpuJob(queue, priority)
+		rv[i] = testSmallCpuJob(queue, priority)
 	}
 	return rv
 }
 
-func TestNLargeCpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
+func testNLargeCpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = TestLargeCpuJob(queue, priority)
+		rv[i] = testLargeCpuJob(queue, priority)
 	}
 	return rv
 }
 
-func TestNGpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
+func testNGpuJob(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = TestGpuJob(queue, priority)
+		rv[i] = testGpuJob(queue, priority)
 	}
 	return rv
 }
 
-func TestSmallCpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
+func testSmallCpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
@@ -242,7 +242,7 @@ func TestSmallCpuJob(queue string, priority int32) *schedulerobjects.PodRequirem
 	}
 }
 
-func TestLargeCpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
+func testLargeCpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
@@ -264,7 +264,7 @@ func TestLargeCpuJob(queue string, priority int32) *schedulerobjects.PodRequirem
 	}
 }
 
-func TestGpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
+func testGpuJob(queue string, priority int32) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
 		Priority: priority,
 		ResourceRequirements: v1.ResourceRequirements{
@@ -287,7 +287,7 @@ func TestGpuJob(queue string, priority int32) *schedulerobjects.PodRequirements 
 	}
 }
 
-func TestCluster() []*schedulerobjects.Node {
+func testCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:         "node1",
@@ -305,7 +305,7 @@ func TestCluster() []*schedulerobjects.Node {
 				},
 			},
 			Labels: map[string]string{
-				TestHostnameLabel: "node1",
+				testHostnameLabel: "node1",
 			},
 		},
 		{
@@ -324,7 +324,7 @@ func TestCluster() []*schedulerobjects.Node {
 				},
 			},
 			Labels: map[string]string{
-				TestHostnameLabel: "node2",
+				testHostnameLabel: "node2",
 			},
 		},
 		{
@@ -343,37 +343,37 @@ func TestCluster() []*schedulerobjects.Node {
 				},
 			},
 			Labels: map[string]string{
-				TestHostnameLabel: "node3",
+				testHostnameLabel: "node3",
 			},
 		},
 	}
 }
 
-func TestNCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
+func testNCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
-		rv[i] = TestCpuNode(priorities)
+		rv[i] = testCpuNode(priorities)
 	}
 	return rv
 }
 
-func TestNTaintedCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
+func testNTaintedCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
-		rv[i] = TestTaintedCpuNode(priorities)
+		rv[i] = testTaintedCpuNode(priorities)
 	}
 	return rv
 }
 
-func TestNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
+func testNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
 	rv := make([]*schedulerobjects.Node, n)
 	for i := 0; i < n; i++ {
-		rv[i] = TestGpuNode(priorities)
+		rv[i] = testGpuNode(priorities)
 	}
 	return rv
 }
 
-func TestCpuNode(priorities []int32) *schedulerobjects.Node {
+func testCpuNode(priorities []int32) *schedulerobjects.Node {
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
 		Id: id,
@@ -393,12 +393,12 @@ func TestCpuNode(priorities []int32) *schedulerobjects.Node {
 			},
 		),
 		Labels: map[string]string{
-			TestHostnameLabel: id,
+			testHostnameLabel: id,
 		},
 	}
 }
 
-func TestTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
+func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 	id := uuid.NewString()
 	taints := []v1.Taint{
 		{
@@ -408,7 +408,7 @@ func TestTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 		},
 	}
 	labels := map[string]string{
-		TestHostnameLabel: id,
+		testHostnameLabel: id,
 		"largeJobsOnly":   "true",
 	}
 	return &schedulerobjects.Node{
@@ -433,10 +433,10 @@ func TestTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
-func TestGpuNode(priorities []int32) *schedulerobjects.Node {
+func testGpuNode(priorities []int32) *schedulerobjects.Node {
 	id := uuid.NewString()
 	labels := map[string]string{
-		TestHostnameLabel: id,
+		testHostnameLabel: id,
 		"gpu":             "true",
 	}
 	return &schedulerobjects.Node{
@@ -462,12 +462,12 @@ func TestGpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
-func CreateNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	db, err := NewNodeDb(
-		TestPriorityClasses,
-		TestResources,
-		TestIndexedTaints,
-		TestIndexedNodeLabels,
+		testPriorityClasses,
+		testResources,
+		testIndexedTaints,
+		testIndexedNodeLabels,
 	)
 	if err != nil {
 		return nil, err
