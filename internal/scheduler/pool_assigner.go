@@ -73,6 +73,7 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 			})
 		}
 	}
+	p.executorsByPool = executorsByPool
 	return nil
 }
 
