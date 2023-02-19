@@ -61,8 +61,7 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			},
 			expected: []prometheus.Metric{
 				prometheus.MustNewConstMetric(commmonmetrics.QueueSizeDesc, prometheus.GaugeValue, 1.0, testQueue.Name),
-				prometheus.MustNewConstHistogram(
-					commmonmetrics.QueueDurationDesc, 1, 1, map[float64]uint64{}, "test-pool", "test-priority", testQueue.Name),
+				prometheus.MustNewConstHistogram(commmonmetrics.QueueDurationDesc, 1, 1, map[float64]uint64{}, "test-pool", "test-priority", testQueue.Name),
 			},
 		},
 	}
