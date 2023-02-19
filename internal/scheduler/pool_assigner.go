@@ -81,16 +81,22 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
+
 		for _, e := range executors {
-			nodeDb := e.nodeDb
-			txn := nodeDb.db.Txn(true)
-			report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
-			txn.Abort()
-			if err != nil {
-				return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
-			}
-			if report.Node != nil {
-				return pool, nil
+			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
+				req.GetResourceRequirements().Requests,
+			), e.minimumJobSize)
+			if minReqsMet {
+				nodeDb := e.nodeDb
+				txn := nodeDb.db.Txn(true)
+				report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
+				txn.Abort()
+				if err != nil {
+					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
+				}
+				if report.Node != nil {
+					return pool, nil
+				}
 			}
 		}
 	}
