@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	commmonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -69,23 +69,23 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			queues:      []*database.Queue{testQueue},
 			defaultPool: "test-pool",
 			expected: []prometheus.Metric{
-				commmonmetrics.NewQueueSizeMetric(3.0, testQueue.Name),
-				commmonmetrics.NewQueueDuration(3, 300,
+				commonmetrics.NewQueueSizeMetric(3.0, testQueue.Name),
+				commonmetrics.NewQueueDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
 					"test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMinQueueDuration(0, "test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMaxQueueDuration(200, "test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMedianQueueDuration(100, "test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewQueueResources(3, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewMinQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewMaxQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewMedianQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewCountQueueResources(3, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewQueueResources(1024*1024*1024*12, "test-pool", "test-priority", testQueue.Name, "memory"),
-				commmonmetrics.NewMinQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
-				commmonmetrics.NewMaxQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
-				commmonmetrics.NewMedianQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
-				commmonmetrics.NewCountQueueResources(3, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMinQueueDuration(0, "test-pool", "test-priority", testQueue.Name),
+				commonmetrics.NewMaxQueueDuration(200, "test-pool", "test-priority", testQueue.Name),
+				commonmetrics.NewMedianQueueDuration(100, "test-pool", "test-priority", testQueue.Name),
+				commonmetrics.NewQueueResources(3, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewMinQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewMaxQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewMedianQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewCountQueueResources(3, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewQueueResources(1024*1024*1024*12, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMinQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMaxQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMedianQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewCountQueueResources(3, "test-pool", "test-priority", testQueue.Name, "memory"),
 			},
 		},
 		"running metrics": {
@@ -93,19 +93,19 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			queues:      []*database.Queue{testQueue},
 			defaultPool: "test-pool",
 			expected: []prometheus.Metric{
-				commmonmetrics.NewQueueSizeMetric(0.0, testQueue.Name),
-				commmonmetrics.NewJobRunRunDuration(3, 300,
+				commonmetrics.NewQueueSizeMetric(0.0, testQueue.Name),
+				commonmetrics.NewJobRunRunDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
 					"test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMinJobRunDuration(0, "test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMaxJobRunDuration(200, "test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMedianJobRunDuration(100, "test-pool", "test-priority", testQueue.Name),
-				commmonmetrics.NewMinQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewMaxQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewMedianQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
-				commmonmetrics.NewMinQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
-				commmonmetrics.NewMaxQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
-				commmonmetrics.NewMedianQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMinJobRunDuration(0, "test-pool", "test-priority", testQueue.Name),
+				commonmetrics.NewMaxJobRunDuration(200, "test-pool", "test-priority", testQueue.Name),
+				commonmetrics.NewMedianJobRunDuration(100, "test-pool", "test-priority", testQueue.Name),
+				commonmetrics.NewMinQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewMaxQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewMedianQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commonmetrics.NewMinQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMaxQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commonmetrics.NewMedianQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
 			},
 		},
 	}

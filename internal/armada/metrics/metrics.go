@@ -6,7 +6,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
-	commmonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -17,7 +17,7 @@ func ExposeDataMetrics(
 	jobRepository repository.JobRepository,
 	usageRepository repository.UsageRepository,
 	schedulingInfoRepository repository.SchedulingInfoRepository,
-	queueMetrics commmonmetrics.QueueMetricProvider,
+	queueMetrics commonmetrics.QueueMetricProvider,
 ) *QueueInfoCollector {
 	collector := &QueueInfoCollector{
 		queueRepository:          queueRepository,
@@ -35,11 +35,11 @@ type QueueInfoCollector struct {
 	jobRepository            repository.JobRepository
 	usageRepository          repository.UsageRepository
 	schedulingInfoRepository repository.SchedulingInfoRepository
-	queueMetrics             commmonmetrics.QueueMetricProvider
+	queueMetrics             commonmetrics.QueueMetricProvider
 }
 
 func (c *QueueInfoCollector) Describe(desc chan<- *prometheus.Desc) {
-	commmonmetrics.Describe(desc)
+	commonmetrics.Describe(desc)
 }
 
 func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
@@ -61,7 +61,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		queueCounts[queues[i].Name] = int(count)
 	}
 
-	commmonmetrics.CollectQueueMetrics(queueCounts, c.queueMetrics, metrics)
+	commonmetrics.CollectQueueMetrics(queueCounts, c.queueMetrics, metrics)
 
 	usageReports, e := c.usageRepository.GetClusterUsageReports()
 	if e != nil {
@@ -86,7 +86,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		}
 		queuePriority := scheduling.CalculateQueuesPriorityInfo(poolPriorities, poolReports, queue.QueuesToAPI(queues))
 		for queue, priority := range queuePriority {
-			metrics <- prometheus.MustNewConstMetric(commmonmetrics.QueuePriorityDesc, prometheus.GaugeValue, priority.Priority, pool, queue.Name)
+			metrics <- prometheus.MustNewConstMetric(commonmetrics.QueuePriorityDesc, prometheus.GaugeValue, priority.Priority, pool, queue.Name)
 		}
 	}
 
@@ -101,7 +101,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 				for _, queueReport := range nodeTypeUsage.Queues {
 					for resourceType, value := range queueReport.Resources {
 						metrics <- prometheus.MustNewConstMetric(
-							commmonmetrics.QueueAllocatedDesc,
+							commonmetrics.QueueAllocatedDesc,
 							prometheus.GaugeValue,
 							armadaresource.QuantityAsFloat64(value),
 							cluster,
@@ -112,7 +112,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 					}
 					for resourceType, value := range queueReport.ResourcesUsed {
 						metrics <- prometheus.MustNewConstMetric(
-							commmonmetrics.QueueUsedDesc,
+							commonmetrics.QueueUsedDesc,
 							prometheus.GaugeValue,
 							armadaresource.QuantityAsFloat64(value),
 							cluster,
@@ -123,7 +123,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 					}
 					for phase, count := range queueReport.CountOfPodsByPhase {
 						metrics <- prometheus.MustNewConstMetric(
-							commmonmetrics.QueueLeasedPodCountDesc,
+							commonmetrics.QueueLeasedPodCountDesc,
 							prometheus.GaugeValue,
 							float64(count),
 							cluster,
@@ -138,7 +138,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 			for _, queueReport := range report.Queues {
 				for resourceType, value := range queueReport.Resources {
 					metrics <- prometheus.MustNewConstMetric(
-						commmonmetrics.QueueAllocatedDesc,
+						commonmetrics.QueueAllocatedDesc,
 						prometheus.GaugeValue,
 						armadaresource.QuantityAsFloat64(value),
 						cluster,
@@ -149,7 +149,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 				}
 				for resourceType, value := range queueReport.ResourcesUsed {
 					metrics <- prometheus.MustNewConstMetric(
-						commmonmetrics.QueueUsedDesc,
+						commonmetrics.QueueUsedDesc,
 						prometheus.GaugeValue,
 						armadaresource.QuantityAsFloat64(value),
 						cluster,
@@ -169,7 +169,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 			for _, nodeTypeUsage := range report.NodeTypeUsageReports {
 				for resourceType, value := range nodeTypeUsage.Capacity {
 					metrics <- prometheus.MustNewConstMetric(
-						commmonmetrics.ClusterCapacityDesc,
+						commonmetrics.ClusterCapacityDesc,
 						prometheus.GaugeValue,
 						armadaresource.QuantityAsFloat64(value),
 						cluster,
@@ -179,7 +179,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 				}
 				for resourceType, value := range nodeTypeUsage.AvailableCapacity {
 					metrics <- prometheus.MustNewConstMetric(
-						commmonmetrics.ClusterAvailableCapacity,
+						commonmetrics.ClusterAvailableCapacity,
 						prometheus.GaugeValue,
 						armadaresource.QuantityAsFloat64(value),
 						cluster,
@@ -190,7 +190,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 
 				// Add metrics for the number of nodes and the number of nodes available to accept jobs
 				metrics <- prometheus.MustNewConstMetric(
-					commmonmetrics.ClusterCapacityDesc,
+					commonmetrics.ClusterCapacityDesc,
 					prometheus.GaugeValue,
 					float64(nodeTypeUsage.TotalNodes),
 					cluster,
@@ -199,7 +199,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 					nodeTypeUsage.NodeType.Id)
 
 				metrics <- prometheus.MustNewConstMetric(
-					commmonmetrics.ClusterAvailableCapacity,
+					commonmetrics.ClusterAvailableCapacity,
 					prometheus.GaugeValue,
 					float64(nodeTypeUsage.SchedulableNodes),
 					cluster,
@@ -210,7 +210,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 		} else {
 			for resourceType, value := range report.ClusterCapacity {
 				metrics <- prometheus.MustNewConstMetric(
-					commmonmetrics.ClusterCapacityDesc,
+					commonmetrics.ClusterCapacityDesc,
 					prometheus.GaugeValue,
 					armadaresource.QuantityAsFloat64(value),
 					cluster,
@@ -221,7 +221,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 
 			for resourceType, value := range report.ClusterAvailableCapacity {
 				metrics <- prometheus.MustNewConstMetric(
-					commmonmetrics.ClusterAvailableCapacity,
+					commonmetrics.ClusterAvailableCapacity,
 					prometheus.GaugeValue,
 					armadaresource.QuantityAsFloat64(value),
 					cluster,
@@ -234,22 +234,22 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 }
 
 func recordInvalidMetrics(metrics chan<- prometheus.Metric, e error) {
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.QueueSizeDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.QueuePriorityDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.QueueResourcesDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.QueueAllocatedDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.QueueDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MinQueueDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MaxQueueDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MedianQueueDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MinQueueResourcesDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MaxQueueResourcesDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MedianQueueResourcesDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.JobRunDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MinJobRunDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MaxJobRunDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MedianJobRunDurationDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MinQueueAllocatedDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MaxQueueAllocatedDesc, e)
-	metrics <- prometheus.NewInvalidMetric(commmonmetrics.MedianQueueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.QueueSizeDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.QueuePriorityDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.QueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.QueueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.QueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MinQueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MaxQueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MedianQueueDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MinQueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MaxQueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MedianQueueResourcesDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.JobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MinJobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MaxJobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MedianJobRunDurationDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MinQueueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MaxQueueAllocatedDesc, e)
+	metrics <- prometheus.NewInvalidMetric(commonmetrics.MedianQueueAllocatedDesc, e)
 }

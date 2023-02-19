@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	commmonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -18,8 +18,8 @@ import (
 // stores the metrics state associated with a queue
 type queueState struct {
 	numQueuedJobs      int
-	queuedJobRecorder  *commmonmetrics.JobMetricsRecorder
-	runningJobRecorder *commmonmetrics.JobMetricsRecorder
+	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
+	runningJobRecorder *commonmetrics.JobMetricsRecorder
 }
 
 // a snapshot of metrics.  Implements QueueMetricProvider
@@ -28,7 +28,7 @@ type metricsState struct {
 	queueStates map[string]*queueState
 }
 
-func (m metricsState) GetQueuedJobMetrics(queueName string) []*commmonmetrics.QueueMetrics {
+func (m metricsState) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
 	state, ok := m.queueStates[queueName]
 	if ok {
 		return state.queuedJobRecorder.Metrics()
@@ -36,7 +36,7 @@ func (m metricsState) GetQueuedJobMetrics(queueName string) []*commmonmetrics.Qu
 	return nil
 }
 
-func (m metricsState) GetRunningJobMetrics(queueName string) []*commmonmetrics.QueueMetrics {
+func (m metricsState) GetRunningJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
 	state, ok := m.queueStates[queueName]
 	if ok {
 		return state.runningJobRecorder.Metrics()
@@ -104,14 +104,14 @@ func (c *MetricsCollector) Run(ctx context.Context) error {
 
 // Describe returns all descriptions of the collector.
 func (c *MetricsCollector) Describe(out chan<- *prometheus.Desc) {
-	commmonmetrics.Describe(out)
+	commonmetrics.Describe(out)
 }
 
 // Collect returns the current state of all metrics of the collector.
 func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 	state, ok := c.state.Load().(metricsState)
 	if ok {
-		commmonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
+		commonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
 	}
 }
 
@@ -135,8 +135,8 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 	}
 	for _, queue := range queues {
 		metricsState.queueStates[queue.Name] = &queueState{
-			queuedJobRecorder:  commmonmetrics.NewJobMetricsRecorder(),
-			runningJobRecorder: commmonmetrics.NewJobMetricsRecorder(),
+			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
+			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
 		}
 	}
 
@@ -169,7 +169,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 			jobResources[string(key)] = resource.QuantityAsFloat64(value)
 		}
 
-		var recorder *commmonmetrics.JobMetricsRecorder
+		var recorder *commonmetrics.JobMetricsRecorder
 		var timeInState time.Duration
 		if job.Queued() {
 			recorder = queueState.queuedJobRecorder
