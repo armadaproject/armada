@@ -2,9 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
@@ -13,14 +10,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPoolAssigner_AssignPool(t *testing.T) {
 	defaultTimeout := 15 * time.Minute
 	baseTime = time.Now().UTC()
-	//expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
+	// expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
 
 	cpuJob := jobdb.NewJob(
 		util.NewULID(),

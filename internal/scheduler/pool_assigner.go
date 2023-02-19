@@ -81,7 +81,6 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
-
 		for _, e := range executors {
 			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
 				req.GetResourceRequirements().Requests,

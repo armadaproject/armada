@@ -2,23 +2,24 @@ package scheduler
 
 import (
 	"context"
+	"testing"
+	"time"
+
+	"github.com/golang/mock/gomock"
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/clock"
+
 	commmonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/golang/mock/gomock"
-	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/clock"
-	"testing"
-	"time"
 )
 
 func TestMetricsCollector_TestCollect(t *testing.T) {
-
 	baseTime := time.Now().UTC()
 
 	testQueue := &database.Queue{
