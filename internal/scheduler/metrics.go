@@ -174,17 +174,16 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		if job.Queued() {
 			recorder = queueState.queuedJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
+			queueState.numQueuedJobs++
 		} else if job.HasRuns() {
 			run := job.LatestRun()
-			timeInState = currentTime.Sub(time.UnixMicro(run.Created()))
+			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 			recorder = queueState.runningJobRecorder
 		} else {
 			log.Warnf("Job %s is marked as leased but has no runs", job.Id())
 		}
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
-
-		queueState.numQueuedJobs++
 		job = iter.NextJobItem()
 	}
 	c.state.Store(metricsState)

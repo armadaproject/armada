@@ -9,8 +9,8 @@ import (
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/golang/mock/gomock"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"testing"
@@ -26,42 +26,85 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 		Weight: 100,
 	}
 
-	queuedJob := jobdb.NewJob(
-		util.NewULID(),
-		"testJobset",
-		"testQueue",
-		uint32(10),
-		&schedulerobjects.JobSchedulingInfo{
-			PriorityClassName: "test-priority",
-			SubmitTime:        baseTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: testSmallCpuJob(testQueue.Name, 1),
+	queuedJobs := make([]*jobdb.Job, 3)
+	for i := 0; i < len(queuedJobs); i++ {
+		queuedJobs[i] = jobdb.NewJob(
+			util.NewULID(),
+			"testJobset",
+			"testQueue",
+			uint32(10),
+			&schedulerobjects.JobSchedulingInfo{
+				PriorityClassName: "test-priority",
+				SubmitTime:        baseTime,
+				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+					{
+						Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+							PodRequirements: testSmallCpuJob(testQueue.Name, 1),
+						},
 					},
 				},
 			},
-		},
-		false,
-		false,
-		false,
-		baseTime.UnixNano())
+			false,
+			false,
+			false,
+			baseTime.Add(-time.Duration(100*i)*time.Second).UnixNano())
+	}
+
+	runningJobs := make([]*jobdb.Job, 3)
+	for i := 0; i < len(queuedJobs); i++ {
+		startTime := baseTime.Add(-time.Duration(100*i) * time.Second).UnixNano()
+		runningJobs[i] = queuedJobs[i].WithQueued(false).WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
+	}
 
 	tests := map[string]struct {
 		initialJobs  []*jobdb.Job
+		defaultPool  string
 		poolMappings map[string]string
 		queues       []*database.Queue
 		expected     []prometheus.Metric
 	}{
 		"queued metrics": {
-			initialJobs: []*jobdb.Job{queuedJob},
+			initialJobs: queuedJobs,
 			queues:      []*database.Queue{testQueue},
-			poolMappings: map[string]string{
-				queuedJob.Id(): "test-pool",
-			},
+			defaultPool: "test-pool",
 			expected: []prometheus.Metric{
-				prometheus.MustNewConstMetric(commmonmetrics.QueueSizeDesc, prometheus.GaugeValue, 1.0, testQueue.Name),
-				prometheus.MustNewConstHistogram(commmonmetrics.QueueDurationDesc, 1, 1, map[float64]uint64{}, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewQueueSizeMetric(3.0, testQueue.Name),
+				commmonmetrics.NewQueueDuration(3, 300,
+					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
+					"test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMinQueueDuration(0, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMaxQueueDuration(200, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMedianQueueDuration(100, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewQueueResources(3, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewMinQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewMaxQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewMedianQueueResources(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewCountQueueResources(3, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewQueueResources(1024*1024*1024*12, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commmonmetrics.NewMinQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commmonmetrics.NewMaxQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commmonmetrics.NewMedianQueueResources(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commmonmetrics.NewCountQueueResources(3, "test-pool", "test-priority", testQueue.Name, "memory"),
+			},
+		},
+		"running metrics": {
+			initialJobs: runningJobs,
+			queues:      []*database.Queue{testQueue},
+			defaultPool: "test-pool",
+			expected: []prometheus.Metric{
+				commmonmetrics.NewQueueSizeMetric(0.0, testQueue.Name),
+				commmonmetrics.NewJobRunRunDuration(3, 300,
+					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
+					"test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMinJobRunDuration(0, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMaxJobRunDuration(200, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMedianJobRunDuration(100, "test-pool", "test-priority", testQueue.Name),
+				commmonmetrics.NewMinQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewMaxQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewMedianQueueAllocated(1, "test-pool", "test-priority", testQueue.Name, "cpu"),
+				commmonmetrics.NewMinQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commmonmetrics.NewMaxQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
+				commmonmetrics.NewMedianQueueAllocated(1024*1024*1024*4, "test-pool", "test-priority", testQueue.Name, "memory"),
 			},
 		},
 	}
@@ -82,7 +125,7 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 
 			queueRepository := schedulermocks.NewMockQueueRepository(ctrl)
 			queueRepository.EXPECT().GetAllQueues().Return(tc.queues, nil).Times(1)
-			poolAssigner := &MockPoolAssigner{tc.poolMappings}
+			poolAssigner := &MockPoolAssigner{tc.defaultPool, tc.poolMappings}
 
 			collector := NewMetricsCollector(
 				jobDb,
@@ -91,7 +134,8 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 				2*time.Second,
 			)
 			collector.clock = testClock
-			collector.refresh(ctx)
+			err = collector.refresh(ctx)
+			require.NoError(t, err)
 			metricChan := make(chan prometheus.Metric, 1000)
 			collector.Collect(metricChan)
 			close(metricChan)
@@ -100,20 +144,29 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 				actual = append(actual, m)
 			}
 			require.NoError(t, err)
-
-			assert.Equal(t, tc.expected[1], actual[1])
+			for i := 0; i < len(tc.expected); i++ {
+				println(i)
+				a1 := actual[i]
+				e1 := tc.expected[i]
+				require.Equal(t, e1, a1)
+			}
 		})
 	}
 }
 
 type MockPoolAssigner struct {
-	poolsById map[string]string
+	defaultPool string
+	poolsById   map[string]string
 }
 
-func (m MockPoolAssigner) Refresh(ctx context.Context) error {
+func (m MockPoolAssigner) Refresh(_ context.Context) error {
 	return nil
 }
 
 func (m MockPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
-	return m.poolsById[j.Id()], nil
+	pool, ok := m.poolsById[j.Id()]
+	if !ok {
+		pool = m.defaultPool
+	}
+	return pool, nil
 }

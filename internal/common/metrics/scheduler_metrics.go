@@ -1,6 +1,10 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
+)
 
 const MetricPrefix = "armada_"
 
@@ -200,26 +204,30 @@ func Describe(out chan<- *prometheus.Desc) {
 
 func CollectQueueMetrics(queueCounts map[string]int, metricsProvider QueueMetricProvider, metrics chan<- prometheus.Metric) {
 	for q, count := range queueCounts {
-		metrics <- prometheus.MustNewConstMetric(QueueSizeDesc, prometheus.GaugeValue, float64(count), q)
+		metrics <- NewQueueSizeMetric(count, q)
 		queuedJobMetrics := metricsProvider.GetQueuedJobMetrics(q)
 		runningJobMetrics := metricsProvider.GetRunningJobMetrics(q)
 		for _, m := range queuedJobMetrics {
 			queueDurations := m.Durations
 			if queueDurations.GetCount() > 0 {
-				metrics <- prometheus.MustNewConstHistogram(QueueDurationDesc, m.Durations.GetCount(),
-					queueDurations.GetSum(), queueDurations.GetBuckets(), m.Pool, m.PriorityClass, q)
-				metrics <- prometheus.MustNewConstMetric(MinQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMin(), m.Pool, m.PriorityClass, q)
-				metrics <- prometheus.MustNewConstMetric(MaxQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMax(), m.Pool, m.PriorityClass, q)
-				metrics <- prometheus.MustNewConstMetric(MedianQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMedian(), m.Pool, m.PriorityClass, q)
+				metrics <- NewQueueDuration(m.Durations.GetCount(), queueDurations.GetSum(), queueDurations.GetBuckets(), m.Pool, m.PriorityClass, q)
+				metrics <- NewMinQueueDuration(queueDurations.GetMin(), m.Pool, m.PriorityClass, q)
+				metrics <- NewMaxQueueDuration(queueDurations.GetMax(), m.Pool, m.PriorityClass, q)
+				metrics <- NewMedianQueueDuration(queueDurations.GetMedian(), m.Pool, m.PriorityClass, q)
 			}
 
-			for resourceType, amount := range m.Resources {
+			// Sort the keys so we get a predicatable output order
+			resources := maps.Keys(m.Resources)
+			slices.Sort(resources)
+
+			for _, resourceType := range resources {
+				amount := m.Resources[resourceType]
 				if amount.GetCount() > 0 {
-					metrics <- prometheus.MustNewConstMetric(QueueResourcesDesc, prometheus.GaugeValue, amount.GetSum(), m.Pool, m.PriorityClass, q, resourceType)
-					metrics <- prometheus.MustNewConstMetric(MinQueueResourcesDesc, prometheus.GaugeValue, amount.GetMin(), m.Pool, m.PriorityClass, q, resourceType)
-					metrics <- prometheus.MustNewConstMetric(MaxQueueResourcesDesc, prometheus.GaugeValue, amount.GetMax(), m.Pool, m.PriorityClass, q, resourceType)
-					metrics <- prometheus.MustNewConstMetric(MedianQueueResourcesDesc, prometheus.GaugeValue, amount.GetMedian(), m.Pool, m.PriorityClass, q, resourceType)
-					metrics <- prometheus.MustNewConstMetric(CountQueueResourcesDesc, prometheus.GaugeValue, float64(amount.GetCount()), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewQueueResources(amount.GetSum(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewMinQueueResources(amount.GetMin(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewMaxQueueResources(amount.GetMax(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewMedianQueueResources(amount.GetMedian(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewCountQueueResources(amount.GetCount(), m.Pool, m.PriorityClass, q, resourceType)
 				}
 			}
 		}
@@ -227,20 +235,96 @@ func CollectQueueMetrics(queueCounts map[string]int, metricsProvider QueueMetric
 		for _, m := range runningJobMetrics {
 			runningJobDurations := m.Durations
 			if runningJobDurations.GetCount() > 0 {
-				metrics <- prometheus.MustNewConstHistogram(JobRunDurationDesc, runningJobDurations.GetCount(),
-					runningJobDurations.GetSum(), runningJobDurations.GetBuckets(), m.Pool, m.PriorityClass, q)
-				metrics <- prometheus.MustNewConstMetric(MinJobRunDurationDesc, prometheus.GaugeValue, runningJobDurations.GetMin(), m.Pool, m.PriorityClass, q)
-				metrics <- prometheus.MustNewConstMetric(MaxJobRunDurationDesc, prometheus.GaugeValue, runningJobDurations.GetMax(), m.Pool, m.PriorityClass, q)
-				metrics <- prometheus.MustNewConstMetric(MedianJobRunDurationDesc, prometheus.GaugeValue, runningJobDurations.GetMedian(), m.Pool, m.PriorityClass, q)
+				metrics <- NewJobRunRunDuration(m.Durations.GetCount(), runningJobDurations.GetSum(), runningJobDurations.GetBuckets(), m.Pool, m.PriorityClass, q)
+				metrics <- NewMinJobRunDuration(runningJobDurations.GetMin(), m.Pool, m.PriorityClass, q)
+				metrics <- NewMaxJobRunDuration(runningJobDurations.GetMax(), m.Pool, m.PriorityClass, q)
+				metrics <- NewMedianJobRunDuration(runningJobDurations.GetMedian(), m.Pool, m.PriorityClass, q)
 			}
 
-			for resourceType, amount := range m.Resources {
+			// Sort the keys so we get a predicatable output order
+			resources := maps.Keys(m.Resources)
+			slices.Sort(resources)
+
+			for _, resourceType := range resources {
+				amount := m.Resources[resourceType]
 				if amount.GetCount() > 0 {
-					metrics <- prometheus.MustNewConstMetric(MinQueueAllocatedDesc, prometheus.GaugeValue, amount.GetMin(), m.Pool, m.PriorityClass, q, resourceType)
-					metrics <- prometheus.MustNewConstMetric(MaxQueueAllocatedDesc, prometheus.GaugeValue, amount.GetMax(), m.Pool, m.PriorityClass, q, resourceType)
-					metrics <- prometheus.MustNewConstMetric(MedianQueueAllocatedDesc, prometheus.GaugeValue, amount.GetMedian(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewMinQueueAllocated(amount.GetMin(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewMaxQueueAllocated(amount.GetMax(), m.Pool, m.PriorityClass, q, resourceType)
+					metrics <- NewMedianQueueAllocated(amount.GetMedian(), m.Pool, m.PriorityClass, q, resourceType)
 				}
 			}
 		}
 	}
+}
+
+func NewQueueSizeMetric(value int, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueSizeDesc, prometheus.GaugeValue, float64(value), queue)
+}
+
+func NewQueuePriorityMetric(value float64, pool string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueuePriorityDesc, prometheus.GaugeValue, value, pool, queue)
+}
+
+func NewQueueDuration(count uint64, sum float64, buckets map[float64]uint64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstHistogram(QueueDurationDesc, count, sum, buckets, pool, priorityClass, queue)
+}
+
+func NewQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+}
+
+func NewMaxQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+}
+
+func NewMinQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+}
+
+func NewMedianQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MedianQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+}
+
+func NewCountQueueResources(value uint64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(CountQueueResourcesDesc, prometheus.GaugeValue, float64(value), pool, priorityClass, queue, resource)
+}
+
+func NewMinQueueDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueueDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewMaxQueueDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueueDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewMedianQueueDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MedianQueueDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewMinJobRunDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinJobRunDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewMaxJobRunDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxJobRunDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewMedianJobRunDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxJobRunDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+}
+
+func NewJobRunRunDuration(count uint64, sum float64, buckets map[float64]uint64, pool string, priorityClass string, queue string) prometheus.Metric {
+	return prometheus.MustNewConstHistogram(JobRunDurationDesc, count, sum, buckets, pool, priorityClass, queue)
+}
+
+func NewMinQueueAllocated(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MinQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+}
+
+func NewMaxQueueAllocated(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MaxQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+}
+
+func NewMedianQueueAllocated(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(MedianQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
 }

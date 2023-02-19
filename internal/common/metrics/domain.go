@@ -65,7 +65,7 @@ func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, pritorityClass str
 			Pool:             pool,
 			PriorityClass:    pritorityClass,
 			resourceRecorder: NewResourceMetricsRecorder(),
-			durationRecorder: NewFloatMetricsRecorder(),
+			durationRecorder: NewDefaultJobDurationMetricsRecorder(),
 		}
 		r.recordersByPoolAndPriorityClass[recorderKey] = qmr
 	}
