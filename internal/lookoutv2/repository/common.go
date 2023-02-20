@@ -798,6 +798,9 @@ func (qb *QueryBuilder) getQueryAggregators(aggregates []string, queryTables map
 			return nil, err
 		}
 		qc, err := qb.getQueryColumn(col, queryTables)
+		if err != nil {
+			return nil, err
+		}
 		aggregateType, err := qb.lookoutTables.GroupAggregateForCol(col)
 		if err != nil {
 			return nil, err

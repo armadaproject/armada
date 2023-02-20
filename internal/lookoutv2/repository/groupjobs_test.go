@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"

@@ -2,17 +2,17 @@ package repository
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/jackc/pgtype"
 	"math"
 	"time"
 
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
