@@ -26,13 +26,10 @@ const (
 	poolName  = "pool1"
 )
 
-var (
-	queue = database.Queue{
-		Name:   queueName,
-		Weight: 100,
-	}
-	baseTime time.Time
-)
+var queue = database.Queue{
+	Name:   queueName,
+	Weight: 100,
+}
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	queuedJobs := make([]*jobdb.Job, 10)

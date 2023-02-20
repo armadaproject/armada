@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -18,51 +17,9 @@ import (
 )
 
 func TestPoolAssigner_AssignPool(t *testing.T) {
-	defaultTimeout := 15 * time.Minute
-	baseTime = time.Now().UTC()
-	// expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
-
-	cpuJob := jobdb.NewJob(
-		util.NewULID(),
-		"testJobset",
-		"testQueue",
-		uint32(10),
-		&schedulerobjects.JobSchedulingInfo{
-			PriorityClassName: "test-priority",
-			SubmitTime:        baseTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: testSmallCpuJob("testQueue", testPriorities[0]),
-					},
-				},
-			},
-		},
-		false,
-		false,
-		false,
-		1)
-
-	gpuJob := jobdb.NewJob(
-		util.NewULID(),
-		"testJobset",
-		"testQueue",
-		uint32(10),
-		&schedulerobjects.JobSchedulingInfo{
-			PriorityClassName: "test-priority",
-			SubmitTime:        baseTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: testGpuJob("testQueue", testPriorities[0]),
-					},
-				},
-			},
-		},
-		false,
-		false,
-		false,
-		1)
+	executorTimeout := 15 * time.Minute
+	cpuJob := testQueuedJobDbJob()
+	gpuJob := WithJobDbJobPodRequirements(testQueuedJobDbJob(), testGpuJob(testQueue, testPriorities[0]))
 
 	tests := map[string]struct {
 		executorTimout time.Duration
@@ -72,14 +29,14 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 		expectedPool   string
 	}{
 		"matches pool": {
-			executorTimout: defaultTimeout,
+			executorTimout: executorTimeout,
 			config:         testSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			job:            cpuJob,
 			expectedPool:   "cpu",
 		},
 		"doesn't match pool": {
-			executorTimout: defaultTimeout,
+			executorTimout: executorTimeout,
 			config:         testSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
 			job:            gpuJob,

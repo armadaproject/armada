@@ -3,6 +3,8 @@ package scheduler
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,12 +18,16 @@ import (
 )
 
 const (
+	testJobset                    = "testJobset"
+	testQueue                     = "testQueue"
+	testPool                      = "testPool"
 	testGangIdAnnotation          = "armada.io/gangId"
 	testGangCardinalityAnnotation = "armada.io/gangCardinality"
 	testHostnameLabel             = "kubernetes.io/hostname"
 )
 
 var (
+	baseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	testPriorityClasses = map[string]configuration.PriorityClass{
 		"priority-0": {0, true, nil},
 		"priority-1": {1, true, nil},
@@ -287,6 +293,22 @@ func testGpuJob(queue string, priority int32) *schedulerobjects.PodRequirements 
 	}
 }
 
+func testUnitReqs(priority int32) *schedulerobjects.PodRequirements {
+	return &schedulerobjects.PodRequirements{
+		Priority: priority,
+		ResourceRequirements: v1.ResourceRequirements{
+			Requests: v1.ResourceList{
+				"cpu":    resource.MustParse("1"),
+				"memory": resource.MustParse("1Gi"),
+			},
+		},
+		Annotations: map[string]string{
+			JobIdAnnotation: util.NewULID(),
+			QueueAnnotation: testQueue,
+		},
+	}
+}
+
 func testCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
@@ -462,6 +484,13 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
+func testDbQueue() *database.Queue {
+	return &database.Queue{
+		Name:   testQueue,
+		Weight: 100,
+	}
+}
+
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	db, err := NewNodeDb(
 		testPriorityClasses,
@@ -476,4 +505,43 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func testQueuedJobDbJob() *jobdb.Job {
+	return jobdb.
+		EmptyJob(util.NewULID()).
+		WithQueue(testQueue).
+		WithJobset(testJobset).
+		WithQueued(true).
+		WithCreated(baseTime.UnixNano()).
+		WithJobSchedulingInfo(&schedulerobjects.JobSchedulingInfo{
+			PriorityClassName: testDefaultPriorityClass,
+			SubmitTime:        baseTime,
+			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+				{
+					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+						PodRequirements: testUnitReqs(1),
+					},
+				},
+			},
+		})
+}
+
+func WithJobDbJobPodRequirements(job *jobdb.Job, reqs *schedulerobjects.PodRequirements) *jobdb.Job {
+	return job.WithJobSchedulingInfo(&schedulerobjects.JobSchedulingInfo{
+		PriorityClassName: job.JobSchedulingInfo().PriorityClassName,
+		SubmitTime:        job.JobSchedulingInfo().SubmitTime,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: reqs,
+				},
+			},
+		},
+	})
+}
+
+func testRunningJobDbJob(startTime int64) *jobdb.Job {
+	return testQueuedJobDbJob().
+		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
 }
