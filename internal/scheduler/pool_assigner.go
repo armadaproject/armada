@@ -32,6 +32,7 @@ type DefaultPoolAssigner struct {
 	indexedResources   []string
 	indexedTaints      []string
 	indexedNodeLabels  []string
+	poolByExecutorId   map[string]string
 	executorsByPool    map[string][]*executor
 	executorRepository database.ExecutorRepository
 	clock              clock.Clock
@@ -58,11 +59,13 @@ func NewPoolAssigner(executorTimeout time.Duration,
 func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
+	poolByExecutorId := map[string]string{}
 	if err != nil {
 		return err
 	}
 	for _, e := range executors {
 		if p.clock.Since(e.LastUpdateTime) < p.executorTimeout {
+			poolByExecutorId[e.Id] = e.Pool
 			nodeDb, err := p.constructNodeDb(e.Nodes)
 			if err != nil {
 				return errors.WithMessagef(err, "could not construct node db for executor %s", e.Id)
@@ -74,6 +77,7 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 		}
 	}
 	p.executorsByPool = executorsByPool
+	p.poolByExecutorId = poolByExecutorId
 	return nil
 }
 
@@ -81,6 +85,12 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
+
+		// If Job is running then use the pool associated with the executor it was assigned to
+		if !j.Queued() && j.HasRuns() {
+			return p.poolByExecutorId[j.LatestRun().Executor()], nil
+		}
+
 		for _, e := range executors {
 			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
 				req.GetResourceRequirements().Requests,
