@@ -11,6 +11,7 @@ import {
   DEFAULT_GROUPING,
   JobTableColumn,
   JOB_COLUMNS,
+  DEFAULT_FILTERS,
 } from "../../utils/jobsTableColumns"
 
 export interface JobsTablePreferences {
@@ -28,12 +29,12 @@ export interface JobsTablePreferences {
 export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   allColumnsInfo: JOB_COLUMNS,
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
+  filterState: DEFAULT_FILTERS,
   groupedColumns: DEFAULT_GROUPING,
   expandedState: {},
   pageIndex: 0,
   pageSize: 50,
   sortingState: [{ id: "jobId", desc: true }],
-  filterState: [],
   sidebarJobId: undefined,
 }
 

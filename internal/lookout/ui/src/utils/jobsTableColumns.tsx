@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 
 import { Checkbox } from "@mui/material"
+import { ColumnFiltersState } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
 import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
@@ -284,6 +285,10 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   },
   {},
 )
+
+export const DEFAULT_FILTERS: ColumnFiltersState = [
+  { id: StandardColumnId.State, value: [JobState.Queued, JobState.Pending, JobState.Running] },
+]
 
 export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 
