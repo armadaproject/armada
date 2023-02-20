@@ -644,7 +644,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if _, err := q.jobRepository.DeleteJobs(preemptedApiJobs); err != nil {
 		logging.WithStacktrace(log, err).Errorf(
 			"failed to delete preempted jobs: %v",
-			armadaslices.Map(preemptedApiJobs, func(job *api.Job) string { return job.GetId() }),
+			util.Map(preemptedApiJobs, func(job *api.Job) string { return job.GetId() }),
 		)
 	}
 
