@@ -84,14 +84,14 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 
 // AssignPool returns the pool associated with the job or the empty string if no pool is valid
 func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
+	// If Job is running then use the pool associated with the executor it was assigned to
+	if !j.Queued() && j.HasRuns() {
+		return p.poolByExecutorId[j.LatestRun().Executor()], nil
+	}
+
+	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
 	for pool, executors := range p.executorsByPool {
-
-		// If Job is running then use the pool associated with the executor it was assigned to
-		if !j.Queued() && j.HasRuns() {
-			return p.poolByExecutorId[j.LatestRun().Executor()], nil
-		}
-
 		for _, e := range executors {
 			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
 				req.GetResourceRequirements().Requests,
