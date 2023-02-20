@@ -389,11 +389,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			continue
 		}
 		nodes = append(nodes, node)
-
-		log.Info(
-			"[node] id: %s, AllocatableByPriorityAndResource: %s, JobRunsByState: %s",
-			node.Id, node.AllocatableByPriorityAndResource, node.JobRunsByState,
-		)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
 	if len(indexedResources) == 0 {
