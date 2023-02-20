@@ -70,7 +70,7 @@ spec:
                     - key: app
                       operator: In
                       values:
-                        - {{ include "armada-scheduler-ingester.labels.identity" . }}
+                      - {{ include "armada-scheduler.name" . }}-ingester
                 topologyKey: kubernetes.io/hostname
       volumes:
         - name: user-config

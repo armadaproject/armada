@@ -18,4 +18,11 @@ spec:
       {{- if .Values.scheduler.nodePort }}
       nodePort: {{ .Values.scheduler.nodePort }}
       {{- end }}
+    - name: metrics
+      protocol: TCP
+      port: {{ .Values.scheduler.applicationConfig.metrics.port }}
+      {{- if .Values.scheduler.nodePort }}
+      nodePort: {{ .Values.scheduler.nodePort }}
+      {{- end }}
+
 

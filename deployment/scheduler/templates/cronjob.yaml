@@ -35,15 +35,15 @@ spec:
                 - /config/application_config.yaml
                 {{- if .Values.pruner.args.timeout }}
                 - --timeout
-                - {{ .Values.pruner.args.timeout }}
+                - {{ .Values.pruner.args.timeout | quote }}
                 {{- end }}
                 {{- if .Values.pruner.args.batchsize }}
                 - --batchsize
-                - {{ .Values.pruner.args.batchsize }}
+                - {{ .Values.pruner.args.batchsize | quote  }}
                 {{- end }}
                 {{- if .Values.pruner.args.expireAfter }}
                 - --expireAfter
-                - {{ .Values.pruner.args.expireAfter }}
+                - {{ .Values.pruner.args.expireAfter | quote  }}
                 {{- end }}
                 {{- if .Values.scheduler.env }}
               env:

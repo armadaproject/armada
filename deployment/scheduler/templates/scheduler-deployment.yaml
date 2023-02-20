@@ -32,6 +32,7 @@ spec:
           imagePullPolicy: IfNotPresent
           image: {{ .Values.scheduler.image.repository }}:{{ required "A value is required for .Values.scheduler.image.tag" .Values.scheduler.image.tag }}
           args:
+            - run
             - --config
             - /config/application_config.yaml
           {{- if .Values.scheduler.env }}
@@ -44,6 +45,9 @@ spec:
             - containerPort:  {{ .Values.scheduler.applicationConfig.grpc.port }}
               protocol: TCP
               name: grpc
+            - containerPort: {{ .Values.scheduler.applicationConfig.metrics.port }}
+              protocol: TCP
+              name: metrics
           volumeMounts:
             - name: user-config
               mountPath: /config/application_config.yaml
