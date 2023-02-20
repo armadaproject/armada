@@ -281,7 +281,7 @@ func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.Can
 }
 
 func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionMarker, created time.Time) ([]DbOperation, error) {
-	return []DbOperation{InsertPartitionMarker{
+	return []DbOperation{&InsertPartitionMarker{
 		markers: []*schedulerdb.Marker{
 			{
 				GroupID:     armadaevents.UuidFromProtoUuid(pm.GroupId),
