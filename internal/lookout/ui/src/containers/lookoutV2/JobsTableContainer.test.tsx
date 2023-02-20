@@ -380,7 +380,8 @@ describe("JobsTableContainer", () => {
 
       // Check table is updated as expected
       await assertNumDataRowsShown(1)
-      await findByText("queue-1 (1)")
+      await findByText("queue-1")
+      await findByText("1")
 
       // Refresh the data
       await triggerRefresh()
@@ -388,7 +389,8 @@ describe("JobsTableContainer", () => {
 
       // Check table is in the same state
       await assertNumDataRowsShown(1)
-      await findByText("queue-1 (1)")
+      await findByText("queue-1")
+      await findByText("1")
     })
   })
 
