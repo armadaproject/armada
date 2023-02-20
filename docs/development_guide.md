@@ -7,7 +7,6 @@ Before starting, please ensure you have installed [Go](https://go.dev/doc/instal
 Then, use the following commands to setup a local Armada system.
 ```bash
 # Download Go dependencies.
-go get
 go mod tidy
 
 # Install necessary tooling.
@@ -16,6 +15,9 @@ mage BootstrapTools
 # Compile .pb.go files from .proto files
 # (only necessary after changing a .proto file).
 mage proto
+
+# Build a Docker image containing all Armada components.
+mage buildDockers "bundle"
 
 # Setup up a kind (i.e., Kubernetes-in-Docker) cluster; see
 # https://kind.sigs.k8s.io/ for details.
@@ -30,10 +32,9 @@ docker-compose up -d redis postgres pulsar eventingester
 # (check that redis, stan, postgres, and pulsar are all up).
 docker ps
 
-# Build a Docker image containing the Armada server and executor
-# and run them in separate containers.
+# Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
-# e.g., through your IDE; see below for more information.
+# e.g., through your IDE; see below for details.
 mage buildDockers "bundle"
 docker-compose up -d server executor
 ```
@@ -75,10 +76,8 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "mode": "auto",
             "env": {
                 "CGO_ENABLED": "0",
-                // Necessary config overrides.
                 "ARMADA_REDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSREDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4222",
+                "ARMADA_EVENTSAPIREDIS_ADDRS": "localhost:6379",
                 "ARMADA_EVENTAPI_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
@@ -96,6 +95,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "mode": "auto",
             "env": {
                 "CGO_ENABLED": "0",
+                "ARMADA_HTTPPORT": "8081",
                 "ARMADA_APICONNECTION_ARMADAURL": "localhost:50051",
                 "KUBECONFIG": "${workspaceFolder}/.kube/external/config"
             },
@@ -112,6 +112,6 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
           "configurations": ["server", "executor"],
           "stopAll": true
         }
-      ]    
+    ]    
 }
 ```
