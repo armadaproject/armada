@@ -163,8 +163,6 @@ export class JobsTablePreferencesService {
         ...prefsQueryParams,
       }
 
-      console.log({ mergedQueryParams })
-
       this.historyService.push({
         search: qs.stringify(mergedQueryParams, {
           encodeValuesOnly: true,
