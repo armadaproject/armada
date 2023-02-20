@@ -1,100 +1,203 @@
 package service
 
 import (
-	"context"
-	"io"
+	"fmt"
 	"time"
 
-	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/pkg/errors"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/encoding/gzip"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
-	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/common/slices"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-type LeaseRequester interface {
-	LeaseJobRuns(availableResource *armadaresource.ComputeResources, nodes []*api.NodeInfo, unassignedJobRunIds []armadaevents.Uuid) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error)
+type JobRequester struct {
+	leaseRequester     LeaseRequester
+	eventReporter      reporter.EventReporter
+	utilisationService utilisation.UtilisationService
+	clusterId          context.ClusterIdentity
+	podDefaults        *configuration.PodDefaults
+	jobRunStateStore   *job.JobRunStateStore
 }
 
-type JobLeaseRequester struct {
-	executorApiClient executorapi.ExecutorApiClient
-	clusterIdentity   clusterContext.ClusterIdentity
-	minimumJobSize    armadaresource.ComputeResources
-}
-
-func NewJobLeaseRequester(
-	executorApiClient executorapi.ExecutorApiClient,
-	clusterIdentity clusterContext.ClusterIdentity,
-	minimumJobSize armadaresource.ComputeResources,
-) *JobLeaseRequester {
-	return &JobLeaseRequester{
-		executorApiClient: executorApiClient,
-		clusterIdentity:   clusterIdentity,
-		minimumJobSize:    minimumJobSize,
+func NewJobRequester(
+	clusterId context.ClusterIdentity,
+	eventReporter reporter.EventReporter,
+	leaseRequester LeaseRequester,
+	jobRunStateStore *job.JobRunStateStore,
+	utilisationService utilisation.UtilisationService,
+	podDefaults *configuration.PodDefaults) *JobRequester {
+	return &JobRequester{
+		leaseRequester:     leaseRequester,
+		eventReporter:      eventReporter,
+		utilisationService: utilisationService,
+		jobRunStateStore:   jobRunStateStore,
+		clusterId:          clusterId,
+		podDefaults:        podDefaults,
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(
-	availableResource *armadaresource.ComputeResources,
-	nodes []*api.NodeInfo,
-	unassignedJobRunIds []armadaevents.Uuid,
-) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
+func (r *JobRequester) RequestJobs() {
+	leaseRequest, err := r.createLeaseRequest()
 	if err != nil {
-		return nil, nil, err
+		log.Errorf("Failed to request new jobs leases as because %s", err)
+		return
 	}
-	leaseRequest := &executorapi.LeaseRequest{
-		ExecutorId:          requester.clusterIdentity.GetClusterId(),
-		Pool:                requester.clusterIdentity.GetClusterPool(),
-		MinimumJobSize:      requester.minimumJobSize,
-		Resources:           *availableResource,
+	newJobRuns, runsToCancel, err := r.leaseRequester.LeaseJobRuns(leaseRequest)
+	logAvailableResources(leaseRequest.AvailableResource, len(newJobRuns))
+
+	jobs, failedJobCreations := r.createSubmitJobs(newJobRuns)
+	r.markJobRunsAsLeased(jobs)
+	r.markJobRunsAsCancelled(runsToCancel)
+	r.handleFailedJobCreation(failedJobCreations)
+}
+
+func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
+	capacityReport, err := r.utilisationService.GetAvailableClusterCapacity(false)
+	if err != nil {
+		return nil, err
+	}
+
+	unassignedRunIds, err := r.getUnassignedRunIds(capacityReport)
+	if err != nil {
+		return nil, err
+	}
+
+	nodes := make([]*api.NodeInfo, 0, len(capacityReport.Nodes))
+	for i := range capacityReport.Nodes {
+		nodes = append(nodes, &capacityReport.Nodes[i])
+	}
+
+	return &LeaseRequest{
+		AvailableResource:   *capacityReport.AvailableCapacity,
 		Nodes:               nodes,
-		UnassignedJobRunIds: unassignedJobRunIds,
-	}
-	if err := stream.Send(leaseRequest); err != nil {
-		return nil, nil, errors.WithStack(err)
+		UnassignedJobRunIds: unassignedRunIds,
+	}, nil
+}
+
+// Returns the RunIds of all managed pods that haven't been assigned to a node
+func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAvailableCapacityReport) ([]armadaevents.Uuid, error) {
+	allAssignedRunIds := []string{}
+	allJobRunIds := []string{}
+
+	for _, node := range capacityReport.Nodes {
+		allAssignedRunIds = append(allAssignedRunIds, maps.Keys(node.RunIdsByState)...)
 	}
 
-	jobRuns := make([]*executorapi.JobRunLease, 0, 10)
-	jobsToCancel := make([]*armadaevents.Uuid, 0, 10)
-	for {
-		shouldEndStreamCall := false
-		select {
-		case <-ctx.Done():
-			if ctx.Err() == context.DeadlineExceeded {
-				shouldEndStreamCall = true
-			} else {
-				return nil, nil, ctx.Err()
-			}
-		default:
-			res, err := stream.Recv()
-			if err == io.EOF {
-				shouldEndStreamCall = true
-			} else if err != nil {
-				return nil, nil, err
-			}
+	// We make the assumption here that JobRunStateStore knows about all job runs and don't reconcile again against kubernetes
+	// This should be a safe assumption - and would be a bug if it was ever not true
+	allJobRuns := r.jobRunStateStore.GetAll()
+	allJobRunIds = append(allJobRunIds, slices.Map(allJobRuns, func(val *job.RunState) string {
+		return val.Meta.RunId
+	})...)
 
-			switch typed := res.GetEvent().(type) {
-			case *executorapi.LeaseStreamMessage_Lease:
-				jobRuns = append(jobRuns, typed.Lease)
-			case *executorapi.LeaseStreamMessage_CancelRuns:
-				jobsToCancel = append(jobsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
-			case *executorapi.LeaseStreamMessage_End:
-				shouldEndStreamCall = true
-			}
+	unassignedIds := slices.Subtract(allJobRunIds, allAssignedRunIds)
+	unassignedIds = util2.Filter(unassignedIds, func(val string) bool {
+		return val != ""
+	})
+
+	return util.StringUuidsToUuids(unassignedIds)
+}
+
+type failedJobCreationDetails struct {
+	JobRunMeta *job.RunMeta
+	Error      error
+}
+
+func (r *JobRequester) createSubmitJobs(newJobRuns []*executorapi.JobRunLease) ([]*job.SubmitJob, []*failedJobCreationDetails) {
+	submitJobs := make([]*job.SubmitJob, 0, len(newJobRuns))
+	failedJobCreations := []*failedJobCreationDetails{}
+	for _, jobToSubmit := range newJobRuns {
+		jobMeta, err := extractEssentialJobMetadata(jobToSubmit)
+		if err != nil {
+			log.Errorf("received invalid job - %s", err)
+			continue
 		}
 
-		if shouldEndStreamCall {
-			break
+		submitJob, err := job.CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, r.podDefaults)
+		if err != nil {
+			failedJobCreations = append(failedJobCreations, &failedJobCreationDetails{
+				JobRunMeta: jobMeta,
+				Error:      err,
+			})
+		} else {
+			submitJobs = append(submitJobs, submitJob)
 		}
 	}
 
-	return jobRuns, jobsToCancel, nil
+	return submitJobs, failedJobCreations
+}
+
+func (r *JobRequester) markJobRunsAsLeased(jobs []*job.SubmitJob) {
+	for _, j := range jobs {
+		r.jobRunStateStore.ReportRunLeased(j.Meta.RunMeta)
+	}
+}
+
+func (r *JobRequester) markJobRunsAsCancelled(runsToRemove []*armadaevents.Uuid) {
+	for _, runToCancelId := range runsToRemove {
+		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
+		if err != nil {
+			log.Errorf("Skipping removing run because %s", err)
+			continue
+		}
+		// TODO mark job run as cancelled
+	}
+}
+
+func (r *JobRequester) handleFailedJobCreation(failedJobCreationDetails []*failedJobCreationDetails) {
+	for _, failedCreateDetails := range failedJobCreationDetails {
+		failedEvent := &api.JobFailedEvent{
+			JobId:             failedCreateDetails.JobRunMeta.JobId,
+			JobSetId:          failedCreateDetails.JobRunMeta.JobSet,
+			Queue:             failedCreateDetails.JobRunMeta.Queue,
+			Created:           time.Now(),
+			ClusterId:         r.clusterId.GetClusterId(),
+			Reason:            failedCreateDetails.Error.Error(),
+			ExitCodes:         map[string]int32{},
+			ContainerStatuses: []*api.ContainerStatus{},
+			Cause:             api.Cause_Error,
+		}
+		err := r.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: failedCreateDetails.JobRunMeta.RunId}})
+		if err == nil {
+			// TODO Report submission invalid
+			r.jobRunStateStore.ReportFailedSubmission(failedCreateDetails.JobRunMeta)
+		} else {
+			log.Errorf("Failed to report job creation failed for job %s (run id %s) because %s",
+				failedCreateDetails.JobRunMeta.JobId, failedCreateDetails.JobRunMeta.RunId, err)
+		}
+	}
+}
+
+func extractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.Job.JobId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract jobId because %s", err)
+	}
+	runId, err := armadaevents.UuidStringFromProtoUuid(jobRun.JobRunId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to extract runId because %s", err)
+	}
+	if jobRun.Queue == "" {
+		return nil, fmt.Errorf("job is invalid, queue is empty")
+	}
+	if jobRun.Jobset == "" {
+		return nil, fmt.Errorf("job is invalid, jobset is empty")
+	}
+
+	return &job.RunMeta{
+		JobId:  jobId,
+		RunId:  runId,
+		Queue:  jobRun.Queue,
+		JobSet: jobRun.Jobset,
+	}, nil
 }

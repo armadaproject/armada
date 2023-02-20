@@ -81,22 +81,49 @@ func (stateStore *JobRunStateStore) reportRunActive(pod *v1.Pod) {
 
 	currentState.Phase = Active
 	currentState.KubernetesId = string(pod.UID)
+	currentState.Job = nil // Now that the job is active, remove the object to save memory
 	currentState.LastTransitionTime = time.Now()
 }
 
-func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *RunMeta) {
+func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *RunMeta, job *SubmitJob) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 	_, present := stateStore.jobRunState[runMeta.RunId]
 	if !present {
 		state := &RunState{
 			Meta:               runMeta,
+			Job:                job,
 			Phase:              Leased,
+			CancelRequested:    false,
 			LastTransitionTime: time.Now(),
 		}
 		stateStore.jobRunState[runMeta.RunId] = state
 	} else {
 		log.Warnf("run unexpectedly reported as leased (runId=%s, jobId=%s), state already exists", runMeta.RunId, runMeta.JobId)
+	}
+}
+func (stateStore *JobRunStateStore) ReportInvalid(runMeta *RunMeta) {
+	stateStore.lock.Lock()
+	defer stateStore.lock.Unlock()
+	_, present := stateStore.jobRunState[runMeta.RunId]
+	if !present {
+		state := &RunState{
+			Meta:               runMeta,
+			Phase:              Invalid,
+			CancelRequested:    false,
+			LastTransitionTime: time.Now(),
+		}
+		stateStore.jobRunState[runMeta.RunId] = state
+	} else {
+		log.Warnf("run unexpectedly reported as invalid (runId=%s, jobId=%s), state already exists", runMeta.RunId, runMeta.JobId)
+	}
+}
+
+func (stateStore *JobRunStateStore) SetCancelRequested(runId string) {
+	stateStore.lock.Lock()
+	defer stateStore.lock.Unlock()
+	if run, present := stateStore.jobRunState[runId]; present {
+		run.CancelRequested = true
 	}
 }
 
