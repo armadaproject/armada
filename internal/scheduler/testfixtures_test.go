@@ -3,8 +3,6 @@ package scheduler
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +12,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

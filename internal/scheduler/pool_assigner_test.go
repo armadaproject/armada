@@ -9,11 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPoolAssigner_AssignPool(t *testing.T) {
