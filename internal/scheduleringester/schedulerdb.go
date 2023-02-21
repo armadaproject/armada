@@ -159,7 +159,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			i++
 		}
 		return database.Upsert(ctx, s.db, "job_run_errors", records)
-	case InsertPartitionMarker:
+	case *InsertPartitionMarker:
 		for _, marker := range o.markers {
 			err := queries.InsertMarker(ctx, schedulerdb.InsertMarkerParams{
 				GroupID:     marker.GroupID,
