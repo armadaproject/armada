@@ -232,7 +232,6 @@ func (it *QueueCandidateGangIterator) Clear() error {
 }
 
 func (it *QueueCandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
-	var consecutiveUnschedulableJobs uint
 	for gang, err := it.queuedGangIterator.Peek(); gang != nil; gang, err = it.queuedGangIterator.Peek() {
 		if err != nil {
 			return nil, err
@@ -245,7 +244,6 @@ func (it *QueueCandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
 		if err := it.queuedGangIterator.Clear(); err != nil {
 			return nil, err
 		}
-		consecutiveUnschedulableJobs++
 	}
 	return nil, nil
 }
@@ -267,7 +265,7 @@ func (it *QueueCandidateGangIterator) f(gang []LegacySchedulerJob) ([]*JobSchedu
 	}
 	if unschedulableReason != "" {
 		for _, report := range reports {
-			it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
+			it.QueueSchedulingRoundReport.AddJobSchedulingReport(report, false)
 		}
 	}
 	return reports, unschedulableReason == "", nil
@@ -284,10 +282,11 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 	// Create the scheduling reports and calculate the total requests of the gang
 	// We consider the total resource requests of a gang
 	// to be the sum of the requests over all jobs in the gang.
+	allGangJobsEvicted := true
 	reports := make([]*JobSchedulingReport, len(jobs))
-	gangTotalResourceRequests := totalResourceRequestsFromJobs(jobs, it.PriorityClasses)
 	timestamp := time.Now()
 	for i, job := range jobs {
+		allGangJobsEvicted = allGangJobsEvicted && isEvictedJob(job)
 		jobId, err := uuidFromUlidString(job.GetId())
 		if err != nil {
 			return nil, err
@@ -305,6 +304,12 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 		}
 	}
 
+	// Perform no checks for evicted jobs.
+	// Since we don't want to preempt already running jobs if we, e.g., change MinimumJobSize.
+	if allGangJobsEvicted {
+		return reports, nil
+	}
+
 	// Set the unschedulableReason of all reports before returning.
 	// If any job in a gang fails to schedule,
 	// we assign the unschedulable reason of that job to all jobs in the gang.
@@ -320,6 +325,7 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 	priority := reports[0].Req.Priority
 
 	// Check that the job is large enough for this executor.
+	gangTotalResourceRequests := totalResourceRequestsFromJobs(jobs, it.PriorityClasses)
 	if ok, reason := jobIsLargeEnough(gangTotalResourceRequests, it.MinimumJobSize); !ok {
 		unschedulableReason = reason
 		return reports, nil
@@ -327,7 +333,7 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 
 	// MaximalResourceFractionToSchedulePerQueue check.
 	roundQueueResourcesByPriority := it.QueueSchedulingRoundReport.ScheduledResourcesByPriority.DeepCopy()
-	roundQueueResourcesByPriority.AddResouceList(priority, gangTotalResourceRequests)
+	roundQueueResourcesByPriority.AddResourceList(priority, gangTotalResourceRequests)
 	if exceeded, reason := exceedsResourceLimits(
 		ctx,
 		roundQueueResourcesByPriority.AggregateByResource(),
@@ -339,8 +345,8 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 	}
 
 	// MaximalResourceFractionPerQueue check.
-	totalQueueResourcesByPriority := it.QueueSchedulingRoundReport.InitialResourcesByPriority.DeepCopy()
-	totalQueueResourcesByPriority.Add(roundQueueResourcesByPriority)
+	totalQueueResourcesByPriority := it.QueueSchedulingRoundReport.ResourcesByPriority.DeepCopy()
+	totalQueueResourcesByPriority.AddResourceList(priority, gangTotalResourceRequests)
 	if exceeded, reason := exceedsResourceLimits(
 		ctx,
 		totalQueueResourcesByPriority.AggregateByResource(),
@@ -498,10 +504,11 @@ func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueueCandidateG
 	for i, report := range reports {
 		gang[i] = report.Job
 	}
-	initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].InitialResourcesByPriority
-	scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
-	totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
-	totalResourcesForQueue.Add(scheduledResourcesForQueue)
+	// initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ResourcesByPriority
+	// scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
+	// totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
+	// totalResourcesForQueue.Add(scheduledResourcesForQueue)
+	totalResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ResourcesByPriority
 	totalResourcesForQueueWithGang := totalResourcesForQueue.AggregateByResource()
 	totalResourcesForQueueWithGang.Add(totalResourceRequestsFromJobs(gang, it.PriorityClasses))
 	fairShare := it.weightByQueue[queue] / it.weightSum
@@ -589,6 +596,10 @@ func (it *CandidateGangIterator) f(reports []*JobSchedulingReport) ([]*JobSchedu
 	totalScheduledResources := it.SchedulingRoundReport.ScheduledResourcesByPriority.AggregateByResource()
 	gangResourceRequests := schedulerobjects.ResourceList{}
 	for _, report := range reports {
+		if isEvictedJob(report.Job) {
+			// Evicted jobs don't count towards per-round scheduling limits.
+			continue
+		}
 		gangResourceRequests.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
 	}
 	totalScheduledResources.Add(gangResourceRequests)
@@ -934,6 +945,7 @@ func NewLegacyScheduler(
 	schedulingRoundReport := NewSchedulingRoundReport(
 		constraints.TotalResources,
 		priorityFactorByQueue,
+		// armadamaps.DeepCopy(initialResourcesByQueueAndPriority),
 		initialResourcesByQueueAndPriority,
 	)
 
@@ -1383,10 +1395,8 @@ func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 			}
 		} else {
 			for _, r := range reports {
-				// Rescheduled jobs should not count towards limits on shceduled jobs.
-				updateTotals := !isEvictedJob(r.Job)
 				jobsToLeaseByQueue[r.Job.GetQueue()] = append(jobsToLeaseByQueue[r.Job.GetQueue()], r.Job)
-				sched.SchedulingRoundReport.AddJobSchedulingReport(r, updateTotals)
+				sched.SchedulingRoundReport.AddJobSchedulingReport(r, isEvictedJob(r.Job))
 			}
 			numJobsToLease += len(reports)
 		}
