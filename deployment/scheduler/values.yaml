@@ -27,10 +27,6 @@ scheduler:
   additionalVolumeMounts: []
   additionalVolumes: []
   terminationGracePeriodSeconds: 30
-  ingressClass: "val"
-  clusterIssuer: "thing"
-  hostnames:
-    - "test"
   ingress:
     nameOverride: ""
     annotations: {}
