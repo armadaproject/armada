@@ -581,14 +581,18 @@ func (s *Scheduler) now() *time.Time {
 // we should be  able to make it load active jobs/runs only
 func (s *Scheduler) initialise(ctx context.Context) error {
 	for {
-		_, err := s.syncState(ctx)
-		if err != nil {
-			log.WithError(err).Error("Error initialising")
-		} else {
-			break
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			_, err := s.syncState(ctx)
+			if err == nil {
+				return nil
+			}
+			log.WithError(err).Error("Error initialising. Sleeping for 1 second before trying again")
+			time.Sleep(1 * time.Second)
 		}
 	}
-	return nil
 }
 
 // ensureDbUpToDate  blocks until that the database state contains all Pulsar messages sent *before* this
