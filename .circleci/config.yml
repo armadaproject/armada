@@ -97,6 +97,8 @@ commands:
           helm package deployment/lookout-ingester/ -d charts/armada/
           helm package deployment/lookout-ingester-v2/ -d charts/armada/
           helm package deployment/event-ingester/ -d charts/armada/
+          helm package deployment/scheduler/ -d charts/armada/
+          helm package deployment/scheduler-migration/ -d charts/armada/
           helm repo index charts/
 
     - run:
@@ -226,6 +228,12 @@ jobs:
 
             docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
             docker push gresearchdev/armada-jobservice-dev:${TAG}
+            
+            docker tag armada-scheduler gresearchdev/armada-scheduler-dev:${TAG}
+            docker push gresearchdev/armada-scheduler-dev:${TAG}
+            
+            docker tag armada-scheduler-ingester gresearchdev/armada-scheduler-ingester-dev:${TAG}
+            docker push gresearchdev/armada-scheduler-ingester-dev:${TAG}
 
 
   release-armadactl:
@@ -333,6 +341,14 @@ jobs:
             docker pull gresearchdev/armada-event-ingester-dev:${TAG}
             docker tag gresearchdev/armada-event-ingester-dev:${TAG} gresearchdev/armada-event-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-event-ingester:${RELEASE_TAG}
+            
+            docker pull gresearchdev/armada-scheduler-dev:${TAG}
+            docker tag gresearchdev/armada-scheduler-dev:${TAG} gresearchdev/armada-scheduler:${RELEASE_TAG}
+            docker push gresearchdev/armada-scheduler:${RELEASE_TAG}
+            
+            docker pull gresearchdev/armada-scheduler-ingester-dev:${TAG}
+            docker tag gresearchdev/armada-scheduler-ingester-dev:${TAG} gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
+            docker push gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
 
   release-charts:
     machine:
