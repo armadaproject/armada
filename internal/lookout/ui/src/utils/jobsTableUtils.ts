@@ -1,12 +1,12 @@
 import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
-import { JobRow, JobGroupRow, JobTableRow } from "models/jobsTableModels"
+import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
-import { getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
-import { RowIdParts, toRowId, RowId, findRowInData } from "./reactTableUtils"
+import { ColumnId, getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
+import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
   parentRowId: RowId | "ROOT"
@@ -41,13 +41,11 @@ export const pendingDataForAllVisibleData = (
 }
 
 export const convertRowPartsToFilters = (expandedRowIdParts: RowIdParts[]): JobFilter[] => {
-  const filters: JobFilter[] = expandedRowIdParts.map(({ type, value }) => ({
+  return expandedRowIdParts.map(({ type, value }) => ({
     field: type,
     value,
     match: Match.Exact,
   }))
-
-  return filters
 }
 
 export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, columns: JobTableColumn[]): JobFilter[] => {
@@ -87,14 +85,7 @@ export const fetchJobGroups = async (
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {
-  const { filters, skip, take } = rowRequest
-  let { order } = rowRequest
-
-  // API only supports grouping by the group's job count for now
-  order = {
-    field: "count",
-    direction: "DESC",
-  }
+  const { filters, skip, take, order } = rowRequest
 
   return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
 }
@@ -111,10 +102,10 @@ export const jobsToRows = (jobs: Job[]): JobRow[] => {
 export const groupsToRows = (
   groups: JobGroup[],
   baseRowId: RowId | undefined,
-  groupingField: string,
+  groupingField: ColumnId,
 ): JobGroupRow[] => {
-  return groups.map(
-    (group): JobGroupRow => ({
+  return groups.map((group): JobGroupRow => {
+    const row: JobGroupRow = {
       rowId: toRowId({ type: groupingField, value: group.name, parentRowId: baseRowId }),
       [groupingField]: group.name,
       groupedField: groupingField,
@@ -125,8 +116,21 @@ export const groupsToRows = (
       // Will be set later if expanded
       subRowCount: undefined,
       subRows: [],
-    }),
-  )
+    }
+    for (const [key, val] of Object.entries(group.aggregates)) {
+      switch (key) {
+        case "submitted":
+          row.submitted = val as string
+          break
+        case "lastTransitionTime":
+          row.lastTransitionTime = val as string
+          break
+        default:
+          break
+      }
+    }
+    return row
+  })
 }
 
 export const diffOfKeys = <K extends string | number | symbol>(

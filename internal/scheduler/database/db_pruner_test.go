@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/common/slices"
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 )
 
@@ -114,7 +113,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 				testClock := clock.NewFakeClock(baseTime)
 
 				// Set up db
-				jobsToInsert := slices.Map(tc.jobs, populateRequiredJobFields)
+				jobsToInsert := commonutil.Map(tc.jobs, populateRequiredJobFields)
 				err := removeTriggers(ctx, db)
 				require.NoError(t, err)
 				err = database.Upsert(ctx, db, "jobs", jobsToInsert)

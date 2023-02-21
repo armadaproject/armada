@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
@@ -36,6 +36,7 @@ export const ReprioritiseDialog = ({
   getJobsService,
   updateJobsService,
 }: ReprioritiseDialogProps) => {
+  const mounted = useRef(false)
   // State
   const [isLoadingJobs, setIsLoadingJobs] = useState(true)
   const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
@@ -51,10 +52,18 @@ export const ReprioritiseDialog = ({
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
+    if (!mounted.current) {
+      return
+    }
+
     setIsLoadingJobs(true)
 
     const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToReprioritise, (job) => job.jobId, "desc")
+
+    if (!mounted.current) {
+      return
+    }
 
     setSelectedJobs(sortedJobs)
     setIsLoadingJobs(false)
@@ -91,7 +100,11 @@ export const ReprioritiseDialog = ({
 
   // On opening the dialog
   useEffect(() => {
+    mounted.current = true
     fetchSelectedJobs().catch(console.error)
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   // Event handlers
