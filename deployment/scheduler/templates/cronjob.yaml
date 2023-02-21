@@ -8,12 +8,14 @@ metadata:
     {{- include "armada-scheduler-pruner.labels.all" . | nindent 4 }}
 spec:
   schedule: {{ .Values.pruner.schedule | default "@hourly" | quote }}
+  concurrencyPolicy: Forbid
   jobTemplate:
     metadata:
       name: {{ include "armada-scheduler.name" . }}-db-pruner
       labels:
         {{- include "armada-scheduler-pruner.labels.all" . | nindent 8 }}
     spec:
+      backoffLimit: 6
       template:
         metadata:
           name: {{ include "armada-scheduler.name" . }}-db-pruner
