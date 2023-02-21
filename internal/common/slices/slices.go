@@ -7,14 +7,6 @@ import (
 	goslices "golang.org/x/exp/slices"
 )
 
-func Map[T any, U any](list []T, fn func(val T) U) []U {
-	out := make([]U, len(list))
-	for i, val := range list {
-		out[i] = fn(val)
-	}
-	return out
-}
-
 // PartitionToLen partitions the elements of s into non-overlapping slices,
 // such that each such slice contains at most maxLen elements.
 func PartitionToMaxLen[S ~[]E, E any](s S, maxLen int) []S {

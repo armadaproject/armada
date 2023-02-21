@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/common/schedulers"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -17,7 +15,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/schedulers"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -112,7 +111,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err = stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancel: slices.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
+					JobRunIdsToCancel: util.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
 						return armadaevents.ProtoUuidFromUuid(x)
 					}),
 				},
@@ -195,7 +194,7 @@ func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorap
 		Nodes:          nodes,
 		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: srv.clock.Now().UTC(),
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(x armadaevents.Uuid) string {
+		UnassignedJobRuns: util.Map(req.UnassignedJobRunIds, func(x armadaevents.Uuid) string {
 			return strings.ToLower(armadaevents.UuidFromProtoUuid(&x).String())
 		}),
 	}
