@@ -227,3 +227,40 @@ func TestJob_TestRunsById(t *testing.T) {
 		assert.Equal(t, runs[i], job.runsById[runs[i].id])
 	}
 }
+
+func TestJob_TestWithJobset(t *testing.T) {
+	newJob := baseJob.WithJobset("fish")
+	assert.Equal(t, "test-jobset", baseJob.Jobset())
+	assert.Equal(t, "fish", newJob.Jobset())
+}
+
+func TestJob_TestWithQueue(t *testing.T) {
+	newJob := baseJob.WithQueue("fish")
+	assert.Equal(t, "test-queue", baseJob.Queue())
+	assert.Equal(t, "fish", newJob.Queue())
+}
+
+func TestJob_TestWithCreated(t *testing.T) {
+	newJob := baseJob.WithCreated(456)
+	assert.Equal(t, 3, baseJob.Queue())
+	assert.Equal(t, 456, newJob.Queue())
+}
+
+func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
+	newSchedInfo := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							"fish": "chips",
+						},
+					},
+				},
+			},
+		},
+	}
+	newJob := baseJob.WithJobSchedulingInfo(newSchedInfo)
+	assert.Equal(t, schedulingInfo, baseJob.Queue())
+	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
+}
