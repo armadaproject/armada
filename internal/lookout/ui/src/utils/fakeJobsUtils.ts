@@ -41,7 +41,7 @@ export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> 
   })
 }
 
-export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100): Job[] {
+export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
@@ -68,7 +68,7 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
       annotations: createAnnotations(annotationKeys, uuid),
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
-      state: randomProperty(JobState, rand),
+      state: state ? state : randomProperty(JobState, rand),
       lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
     })
   }
