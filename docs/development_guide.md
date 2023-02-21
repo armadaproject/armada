@@ -29,7 +29,7 @@ mage Kind
 docker-compose up -d redis postgres pulsar eventingester
 
 # Verify that dependencies started successfully.
-# You may need to run docker-compose up again if some component failed to start, e.g., due to timeout.
+# You may need to run docker-compose up again if some component failed to start, e.g., due to a timeout.
 docker ps
 
 # Start the Armada server and executor.
