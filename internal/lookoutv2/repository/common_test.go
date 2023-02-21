@@ -253,6 +253,7 @@ func TestQueryBuilder_GroupByEmpty(t *testing.T) {
 		[]*model.Filter{},
 		nil,
 		"jobSet",
+		[]string{},
 		0,
 		10,
 	)
@@ -275,6 +276,7 @@ func TestQueryBuilder_GroupBy(t *testing.T) {
 			Field:     "count",
 		},
 		"jobSet",
+		[]string{},
 		0,
 		10,
 	)
@@ -293,6 +295,75 @@ func TestQueryBuilder_GroupBy(t *testing.T) {
 			GROUP BY j.jobset
 			ORDER BY count DESC
 			LIMIT 10 OFFSET 0
+		`),
+		splitByWhitespace(query.Sql))
+	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+}
+
+func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
+	query, err := NewQueryBuilder(NewTables()).GroupBy(
+		testFilters,
+		&model.Order{
+			Direction: "ASC",
+			Field:     "submitted",
+		},
+		"jobSet",
+		[]string{
+			"submitted",
+		},
+		20,
+		100,
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, splitByWhitespace(`
+			SELECT j.jobset, COUNT(*) AS count, MAX(j.submitted) AS submitted
+			FROM job AS j
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
+				GROUP BY job_id
+				HAVING COUNT(*) = 2
+			) AS aft ON j.job_id = aft.job_id
+			WHERE j.queue = $5 AND j.owner LIKE $6
+			GROUP BY j.jobset
+			ORDER BY submitted ASC
+			LIMIT 100 OFFSET 20
+		`),
+		splitByWhitespace(query.Sql))
+	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+}
+
+func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
+	query, err := NewQueryBuilder(NewTables()).GroupBy(
+		testFilters,
+		&model.Order{
+			Direction: "DESC",
+			Field:     "lastTransitionTime",
+		},
+		"jobSet",
+		[]string{
+			"lastTransitionTime",
+			"submitted",
+		},
+		20,
+		100,
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, splitByWhitespace(`
+			SELECT j.jobset, COUNT(*) AS count, AVG(j.last_transition_time_seconds) AS last_transition_time_seconds, MAX(j.submitted) AS submitted
+			FROM job AS j
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
+				GROUP BY job_id
+				HAVING COUNT(*) = 2
+			) AS aft ON j.job_id = aft.job_id
+			WHERE j.queue = $5 AND j.owner LIKE $6
+			GROUP BY j.jobset
+			ORDER BY last_transition_time_seconds DESC
+			LIMIT 100 OFFSET 20
 		`),
 		splitByWhitespace(query.Sql))
 	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)

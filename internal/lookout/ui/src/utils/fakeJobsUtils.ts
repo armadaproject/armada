@@ -41,7 +41,7 @@ export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> 
   })
 }
 
-export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100): Job[] {
+export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
@@ -60,7 +60,7 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
       owner: uuid(),
       priority: randomInt(0, 1000, rand),
       runs: runs,
-      submitted: "2022-12-13T11:57:25.733Z",
+      submitted: randomDate(new Date("2022-12-13T11:57:25.733Z"), new Date("2022-12-27T11:57:25.733Z")),
       cpu: randomInt(2, 200, rand) * 100,
       ephemeralStorage: 34359738368,
       memory: 134217728,
@@ -68,8 +68,8 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
       annotations: createAnnotations(annotationKeys, uuid),
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
-      state: randomProperty(JobState, rand),
-      lastTransitionTime: "2022-12-13T12:19:14.956Z",
+      state: state ? state : randomProperty(JobState, rand),
+      lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
     })
   }
 
@@ -166,4 +166,8 @@ export function compareValues(valueA: any, valueB: any, direction: SortDirection
     val = -val
   }
   return val
+}
+
+function randomDate(start: Date, end: Date): string {
+  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
 }
