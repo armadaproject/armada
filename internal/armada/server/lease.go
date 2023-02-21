@@ -309,7 +309,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		return nil, err
 	}
 	aggregatedUsageByQueue := q.aggregateUsage(reportsByExecutor, req.Pool)
-	log.Info("aggregated resource usage prior to scheduling: %v", aggregatedUsageByQueue)
+	log.Infof("aggregated resource usage prior to scheduling: %v", aggregatedUsageByQueue)
 
 	// Collect all allowed priorities.
 	allowedPriorities := q.schedulingConfig.Preemption.AllowedPriorities()
@@ -709,7 +709,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	aggregatedUsageByQueue = q.aggregateUsage(reportsByExecutor, req.Pool)
-	log.Info("aggregated resource usage after scheduling: %v", aggregatedUsageByQueue)
+	log.Infof("aggregated resource usage after scheduling: %v", aggregatedUsageByQueue)
 
 	return successfullyLeasedApiJobs, nil
 }

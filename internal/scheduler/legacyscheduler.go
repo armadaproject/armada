@@ -1002,7 +1002,7 @@ func Reschedule(
 	usageByQueueAndPriority := armadamaps.DeepCopy(initialUsageByQueueAndPriority)
 	preemptedJobsById := make(map[string]LegacySchedulerJob)
 	scheduledJobsById := make(map[string]LegacySchedulerJob)
-	log.Info("starting rescheduling with total resources %s", constraints.TotalResources.CompactString())
+	log.Infof("starting rescheduling with total resources %s", constraints.TotalResources.CompactString())
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
