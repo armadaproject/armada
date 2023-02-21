@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -617,6 +618,10 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 }
 
 func logQuery(query *Query) {
-	log.Debug(query.Sql)
+	log.Debug(removeNewlinesAndTabs(query.Sql))
 	log.Debugf("%v", query.Args)
+}
+
+func removeNewlinesAndTabs(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\t", "")
 }

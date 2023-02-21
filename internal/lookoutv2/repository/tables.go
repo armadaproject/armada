@@ -8,6 +8,10 @@ import (
 )
 
 const (
+	stateField              = "state"
+	submittedField          = "submitted"
+	lastTransitionTimeField = "lastTransitionTime"
+
 	jobTable                  = "job"
 	jobRunTable               = "job_run"
 	userAnnotationLookupTable = "user_annotation_lookup"
@@ -32,6 +36,14 @@ const (
 	annotationValueCol = "value"
 )
 
+type AggregateType int
+
+const (
+	Unknown AggregateType = -1
+	Max                   = 0
+	Average               = 1
+)
+
 type LookoutTables struct {
 	// field name -> column name
 	fieldColumnMap map[string]string
@@ -48,6 +60,8 @@ type LookoutTables struct {
 	tablePrecedence []string
 	// columns that can be grouped by
 	groupableColumns map[string]bool
+	// map from column to aggregate that can be performed on it
+	groupAggregates map[string]AggregateType
 }
 
 func NewTables() *LookoutTables {
@@ -63,7 +77,6 @@ func NewTables() *LookoutTables {
 			"ephemeralStorage":   ephemeralStorageCol,
 			"gpu":                gpuCol,
 			"submitted":          submittedCol,
-			"timeInState":        lastTransitionTimeCol,
 			"lastTransitionTime": lastTransitionTimeCol,
 		},
 		columnsTableMap: map[string]map[string]bool{
@@ -110,6 +123,10 @@ func NewTables() *LookoutTables {
 			jobSetCol,
 			stateCol,
 		}),
+		groupAggregates: map[string]AggregateType{
+			submittedCol:          Max,
+			lastTransitionTimeCol: Average,
+		},
 	}
 }
 
@@ -163,4 +180,12 @@ func (c *LookoutTables) TablePrecedence() []string {
 func (c *LookoutTables) IsGroupable(col string) bool {
 	_, ok := c.groupableColumns[col]
 	return ok
+}
+
+func (c *LookoutTables) GroupAggregateForCol(col string) (AggregateType, error) {
+	aggregate, ok := c.groupAggregates[col]
+	if !ok {
+		return Unknown, errors.Errorf("no aggregate found for column %s", col)
+	}
+	return aggregate, nil
 }

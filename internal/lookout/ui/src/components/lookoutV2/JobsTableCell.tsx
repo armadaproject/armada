@@ -77,10 +77,9 @@ export interface BodyCellProps {
   rowIsGroup: boolean
   rowIsExpanded: boolean
   onExpandedChange: () => void
-  subCount: number | undefined
 }
-export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, subCount }: BodyCellProps) => {
-  const columnMetadata = getColumnMetadata(cell.column)
+export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: BodyCellProps) => {
+  const columnMetadata = getColumnMetadata(cell.column.columnDef)
   const cellHasValue = cell.renderValue()
   const isRightAligned = columnMetadata.isRightAligned ?? false
   return (
@@ -101,7 +100,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, su
               <KeyboardArrowRight fontSize="small" aria-label="Expand row" aria-hidden="false" />
             )}
           </IconButton>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())} ({subCount})
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </Box>
       ) : cell.getIsAggregated() ? (
         // If the cell is aggregated, use the Aggregated
