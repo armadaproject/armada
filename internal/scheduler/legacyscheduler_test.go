@@ -1576,6 +1576,14 @@ func TestReschedule(t *testing.T) {
 						"A": append(intRange(0, 4), intRange(32, 41)...),
 					},
 				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 32),
+							testNSmallCpuJob("A", 0, 32)...,
+						),
+					},
+				},
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1673,6 +1681,31 @@ func TestReschedule(t *testing.T) {
 				{
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 						"A": testNSmallCpuJob("A", 0, 64),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"MaximalResourceFractionPerQueue": {
+			SchedulingConfig: withPerQueueLimitsConfig(
+				map[string]float64{"cpu": 0.5},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
 					},
 				},
 			},
