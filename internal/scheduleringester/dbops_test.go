@@ -29,6 +29,31 @@ func TestMerge(t *testing.T) {
 	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
 }
 
+func TestMerge_InsertPartitionMarker(t *testing.T) {
+	marker1 := &InsertPartitionMarker{markers: []*schedulerdb.Marker{
+		{
+			PartitionID: int32(1),
+		},
+	}}
+	marker2 := &InsertPartitionMarker{markers: []*schedulerdb.Marker{
+		{
+			PartitionID: int32(2),
+		},
+	}}
+	expectedOutput := &InsertPartitionMarker{markers: []*schedulerdb.Marker{
+		{
+			PartitionID: int32(1),
+		},
+		{
+			PartitionID: int32(2),
+		},
+	}}
+
+	marker1.Merge(marker2)
+
+	assert.Equal(t, expectedOutput, marker1)
+}
+
 // Test that db op optimisation
 // 1. produces the expected number of ops after optimisations and
 // 2. results in the same end state as if no optimisation had been applied.
@@ -142,7 +167,7 @@ func TestDbOperationOptimisation(t *testing.T) {
 		}},
 		"InsertPartitionMarker": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			InsertPartitionMarker{markers: []*schedulerdb.Marker{}},   // 2
+			&InsertPartitionMarker{markers: []*schedulerdb.Marker{}},  // 2
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 1
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 1
 		}},

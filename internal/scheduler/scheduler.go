@@ -599,7 +599,7 @@ func (s *Scheduler) initialise(ctx context.Context) error {
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
 // database until all messages have been written.
 func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Duration) error {
-	var groupId uuid.UUID
+	groupId := uuid.New()
 	var numSent uint32
 	var err error
 
