@@ -1023,16 +1023,6 @@ func TestSchedule(t *testing.T) {
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Started)
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Finished)
 
-				// TODO: InitialUsage has been changed to account for all resources.
-				// // Check that initial usage is correct.
-				// assert.Equal(t, len(tc.PriorityFactorByQueue), len(schedulingRoundReport.QueueSchedulingRoundReports))
-				// for queue, usage := range tc.InitialUsageByQueue {
-				// 	queueSchedulingRoundReport := sched.SchedulingRoundReport.QueueSchedulingRoundReports[queue]
-				// 	if assert.NotNil(t, queueSchedulingRoundReport) {
-				// 		assert.True(t, usage.Equal(queueSchedulingRoundReport.ResourcesByPriority))
-				// 	}
-				// }
-
 				// Check that scheduling round report scheduled resources is set correctly.
 				for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
 					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
