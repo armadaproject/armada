@@ -303,12 +303,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
 	}
 
-	// Load and aggregate usage cross executor clusters.
+	// Load and aggregate usage across executor clusters.
 	reportsByExecutor, err := q.usageRepository.GetClusterQueueResourceUsage()
 	if err != nil {
 		return nil, err
 	}
 	aggregatedUsageByQueue := q.aggregateUsage(reportsByExecutor, req.Pool)
+	log.Infof("aggregated resource usage prior to scheduling: %v", aggregatedUsageByQueue)
 
 	// Collect all allowed priorities.
 	allowedPriorities := q.schedulingConfig.Preemption.AllowedPriorities()
@@ -418,7 +419,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	})
 	if err != nil {
 		// This is not fatal because we can still schedule if it doesn't happen.
-		log.WithError(err).Warnf("Could not store executor details for cluster %s", req.ClusterId)
+		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
 	// Map queue names to priority factor for all active queues, i.e.,
@@ -706,6 +707,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, executorReport); err != nil {
 		logging.WithStacktrace(log, err).Errorf("failed to update cluster usage")
 	}
+
+	aggregatedUsageByQueue = q.aggregateUsage(reportsByExecutor, req.Pool)
+	log.Infof("aggregated resource usage after scheduling: %v", aggregatedUsageByQueue)
 
 	return successfullyLeasedApiJobs, nil
 }
