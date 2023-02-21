@@ -59,6 +59,7 @@ type IngestionPipeline[T HasPulsarMessageIds] struct {
 	pulsarSubscriptionName string
 	pulsarBatchSize        int
 	pulsarBatchDuration    time.Duration
+	pulsarSubscriptionType pulsar.SubscriptionType
 	msgFilter              func(msg pulsar.Message) bool
 	converter              InstructionConverter[T]
 	sink                   Sink[T]
@@ -71,6 +72,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 	pulsarSubscriptionName string,
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,
+	pulsarSubscriptionType pulsar.SubscriptionType,
 	converter InstructionConverter[T],
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
@@ -81,6 +83,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 		pulsarSubscriptionName,
 		pulsarBatchSize,
 		pulsarBatchDuration,
+		pulsarSubscriptionType,
 		func(_ pulsar.Message) bool { return true },
 		converter,
 		sink,
@@ -96,6 +99,7 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 	pulsarSubscriptionName string,
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,
+	pulsarSubscriptionType pulsar.SubscriptionType,
 	msgFilter func(msg pulsar.Message) bool,
 	converter InstructionConverter[T],
 	sink Sink[T],
@@ -109,6 +113,7 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 		pulsarSubscriptionName: pulsarSubscriptionName,
 		pulsarBatchSize:        pulsarBatchSize,
 		pulsarBatchDuration:    pulsarBatchDuration,
+		pulsarSubscriptionType: pulsarSubscriptionType,
 		msgFilter:              msgFilter,
 		converter:              converter,
 		sink:                   sink,
@@ -223,7 +228,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
 		Topic:                       ingester.pulsarConfig.JobsetEventsTopic,
 		SubscriptionName:            ingester.pulsarSubscriptionName,
-		Type:                        pulsar.KeyShared,
+		Type:                        ingester.pulsarSubscriptionType,
 		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {

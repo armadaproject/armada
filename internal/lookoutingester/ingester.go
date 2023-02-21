@@ -1,6 +1,7 @@
 package lookoutingester
 
 import (
+	"github.com/apache/pulsar-client-go/pulsar"
 	"os"
 
 	"github.com/pkg/errors"
@@ -59,6 +60,7 @@ func Run(config *configuration.LookoutIngesterConfiguration) {
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,
+		pulsar.KeyShared,
 		converter,
 		lookoutDb,
 		config.Metrics,

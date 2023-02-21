@@ -1,6 +1,7 @@
 package scheduleringester
 
 import (
+	"github.com/apache/pulsar-client-go/pulsar"
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/schedulers"
@@ -38,6 +39,7 @@ func Run(config Configuration) {
 		config.SubscriptionName,
 		config.BatchSize,
 		config.BatchDuration,
+		pulsar.Failover,
 		schedulers.ForPulsarScheduler,
 		converter,
 		schedulerDb,

@@ -1,6 +1,7 @@
 package eventingester
 
 import (
+	"github.com/apache/pulsar-client-go/pulsar"
 	"regexp"
 	"time"
 
@@ -53,7 +54,16 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	converter := convert.NewEventConverter(compressor, uint(config.BatchSize), metrics)
 
 	ingester := ingest.
-		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)
+		NewIngestionPipeline(
+			config.Pulsar,
+			config.SubscriptionName,
+			config.BatchSize,
+			config.BatchDuration,
+			pulsar.KeyShared,
+			converter,
+			eventDb,
+			config.Metrics,
+			metrics)
 	err = ingester.Run(app.CreateContextWithShutdown())
 
 	if err != nil {
