@@ -154,7 +154,7 @@ func TestConvertSequence(t *testing.T) {
 		"PositionMarker": {
 			events: []*armadaevents.EventSequence_Event{f.PartitionMarker},
 			expected: []DbOperation{
-				InsertPartitionMarker{markers: []*schedulerdb.Marker{
+				&InsertPartitionMarker{markers: []*schedulerdb.Marker{
 					{
 						GroupID:     f.PartitionMarkerGroupIdUuid,
 						PartitionID: f.PartitionMarkerPartitionId,
