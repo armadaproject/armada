@@ -1,17 +1,15 @@
 package eventingester
 
 import (
-	"github.com/apache/pulsar-client-go/pulsar"
 	"regexp"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/armadaproject/armada/internal/common/app"
-
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"

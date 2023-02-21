@@ -1,9 +1,9 @@
 package lookoutingester
 
 import (
-	"github.com/apache/pulsar-client-go/pulsar"
 	"os"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
