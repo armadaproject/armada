@@ -28,14 +28,12 @@ mage Kind
 # in docker-compose.yaml to be kezhenxu94/pulsar.
 docker-compose up -d redis postgres pulsar eventingester
 
-# Verify that dependencies started successfully
-# (check that redis, stan, postgres, and pulsar are all up).
+# Verify that dependencies started successfully.
+# You may need to run docker-compose up again if some component failed to start, e.g., due to timeout.
 docker ps
 
 # Start the Armada server and executor.
-# Alternatively, run the Armada server and executor directly on the host,
-# e.g., through your IDE; see below for details.
-mage buildDockers "bundle"
+# Alternatively, run the Armada server and executor directly on the host, e.g., through your IDE; see below for details.
 docker-compose up -d server executor
 ```
 
