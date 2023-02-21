@@ -993,15 +993,16 @@ func Reschedule(
 	config configuration.SchedulingConfig,
 	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
-	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	initialUsageByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	nodePreemptibleEvictionProbability float64,
 	nodeOversubscribedEvictionProbability float64,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "Reschedule")
-	usageByQueueAndPriority := armadamaps.DeepCopy(initialResourcesByQueueAndPriority)
+	usageByQueueAndPriority := armadamaps.DeepCopy(initialUsageByQueueAndPriority)
 	preemptedJobsById := make(map[string]LegacySchedulerJob)
 	scheduledJobsById := make(map[string]LegacySchedulerJob)
+	log.Info("starting rescheduling with total resources %s", constraints.TotalResources.CompactString())
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
@@ -1159,7 +1160,7 @@ func Reschedule(
 		config,
 		nodeDb,
 		queues,
-		initialResourcesByQueueAndPriority,
+		initialUsageByQueueAndPriority,
 	)
 	if err != nil {
 		return nil, nil, nil, nil, err
