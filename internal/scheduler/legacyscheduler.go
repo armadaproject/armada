@@ -1289,8 +1289,14 @@ func UpdateUsage[S ~[]E, E LegacySchedulerJob](
 	priorityClasses map[string]configuration.PriorityClass,
 	addOrSubtract AddOrSubtract,
 ) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+	if usage == nil {
+		usage = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+	}
 	for _, job := range jobs {
 		req := PodRequirementFromLegacySchedulerJob(job, priorityClasses)
+		if req == nil {
+			continue
+		}
 		requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 		queue := job.GetQueue()
 		m := usage[queue]
