@@ -44,19 +44,19 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 			Message: "nodeInfo.Name is empty",
 		})
 	}
+
 	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(
 		allowedPriorities,
 		schedulerobjects.ResourceList{
 			Resources: nodeInfo.TotalResources,
 		},
 	)
-	for p, rs := range nodeInfo.NonArmadaAllocatedResources {
-		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
+	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
+		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rl.Resources})
 	}
-
 	nonArmadaAllocatedResources := make(map[int32]schedulerobjects.ResourceList)
-	for k, v := range nodeInfo.NonArmadaAllocatedResources {
-		nonArmadaAllocatedResources[k] = schedulerobjects.ResourceList{Resources: v.Resources}
+	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
+		nonArmadaAllocatedResources[p] = schedulerobjects.ResourceList{Resources: rl.Resources}
 	}
 
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)

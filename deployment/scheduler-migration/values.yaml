@@ -1,0 +1,19 @@
+image:
+  repository: gresearchdev/armada-scheduler
+  tag: LATEST
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 200m
+  requests:
+    memory: 128Mi
+    cpu: 100m
+additionalLabels: {}
+additionalVolumeMounts: []
+additionalVolumes: []
+customServiceAccount: null
+serviceAccount: null
+args:
+  timeout: 5m
+
+applicationConfig: {}

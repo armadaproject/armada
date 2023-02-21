@@ -1213,6 +1213,39 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"balancing two queues weighted with inactive queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 20),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(11, 31),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 2,
+				"B": 1,
+				"C": 1,
+				"D": 100,
+			},
+		},
 		"reschedule onto same node": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1480,6 +1513,74 @@ func TestReschedule(t *testing.T) {
 						"A": {
 							0: append(intRange(0, 19), intRange(28, 29)...),
 						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"per-priority class limits": {
+			SchedulingConfig: withPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					0: {"cpu": 60.0 / 64.0},
+					1: {"cpu": 20.0 / 64.0},
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 64),
+							testNSmallCpuJob("A", 0, 64)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": append(intRange(0, 19), intRange(64, 103)...),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"per-priority class limits multiple rounds": {
+			SchedulingConfig: withPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					0: {"cpu": 30.0 / 32.0},
+					1: {"cpu": 10.0 / 32.0},
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 5),
+							testNSmallCpuJob("A", 0, 10)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 14),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 32),
+							testNSmallCpuJob("A", 0, 32)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": append(intRange(0, 4), intRange(32, 41)...),
 					},
 				},
 			},

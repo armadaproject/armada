@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.scheduler.ingress.nameOverride | default (include "armada-scheduler.name" .) }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    kubernetes.io/ingress.class: {{ required "A value is required for .Values.scheduler.ingressClass" .Values.scheduler.ingressClass }}
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.scheduler.clusterIssuer" .Values.scheduler.clusterIssuer }}
+    cert-manager.io/cluster-issuer: {{ required "A value is required for .Values.scheduler.clusterIssuer" .Values.scheduler.clusterIssuer }}
+    {{- if .Values.scheduler.ingress.annotations }}
+    {{- toYaml .Values.scheduler.ingress.annotations | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+    {{- if .Values.scheduler.ingress.labels }}
+    {{- toYaml .Values.scheduler.ingress.labels | nindent 4 }}
+    {{- end }}
+spec:
+  rules:
+  {{- $root := . -}}
+  {{  range required "A value is required for .Values.scheduler.hostnames" .Values.scheduler.hostnames }}
+  - host: {{ . }}
+    http:
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: {{ include "armada-scheduler.name" $root }}
+              port:
+                number: {{ $root.Values.scheduler.applicationConfig.grpc.port }}
+  {{ end }}

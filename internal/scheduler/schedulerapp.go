@@ -39,10 +39,10 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
-	defer db.Close()
 	if err != nil {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
+	defer db.Close()
 	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
