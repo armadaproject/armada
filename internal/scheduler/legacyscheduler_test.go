@@ -1739,6 +1739,7 @@ func TestReschedule(t *testing.T) {
 					tc.PriorityFactorByQueue,
 					initialUsageByQueue,
 					1, 1,
+					nil,
 				)
 				require.NoError(t, err)
 
@@ -1941,6 +1942,7 @@ func BenchmarkReschedule(b *testing.B) {
 				usageByQueue,
 				tc.NodePreemptibleEvictionProbability,
 				tc.NodeOversubscribedEvictionProbability,
+				nil,
 			)
 			require.NoError(b, err)
 			require.Equal(b, 0, len(preemptedJobs))
@@ -1971,6 +1973,7 @@ func BenchmarkReschedule(b *testing.B) {
 					usageByQueue,
 					tc.NodePreemptibleEvictionProbability,
 					tc.NodeOversubscribedEvictionProbability,
+					nil,
 				)
 				require.NoError(b, err)
 

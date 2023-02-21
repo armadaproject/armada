@@ -1008,6 +1008,7 @@ func Reschedule(
 	initialUsageByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	nodePreemptibleEvictionProbability float64,
 	nodeOversubscribedEvictionProbability float64,
+	schedulingReportsRepository *SchedulingReportsRepository,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "Reschedule")
@@ -1096,6 +1097,9 @@ func Reschedule(
 		return nil, nil, nil, nil, err
 	}
 	sched.SchedulingRoundReport.ClearJobSpecs()
+	if schedulingReportsRepository != nil {
+		schedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+	}
 	for _, job := range rescheduledJobs {
 		if _, ok := preemptedJobsById[job.GetId()]; ok {
 			delete(preemptedJobsById, job.GetId())
@@ -1183,6 +1187,9 @@ func Reschedule(
 		return nil, nil, nil, nil, err
 	}
 	sched.SchedulingRoundReport.ClearJobSpecs()
+	if schedulingReportsRepository != nil {
+		schedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+	}
 	for _, job := range rescheduledJobs {
 		if _, ok := preemptedJobsById[job.GetId()]; ok {
 			delete(preemptedJobsById, job.GetId())
