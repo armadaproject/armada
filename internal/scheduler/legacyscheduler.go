@@ -504,10 +504,6 @@ func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueueCandidateG
 	for i, report := range reports {
 		gang[i] = report.Job
 	}
-	// initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ResourcesByPriority
-	// scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
-	// totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
-	// totalResourcesForQueue.Add(scheduledResourcesForQueue)
 	totalResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ResourcesByPriority
 	totalResourcesForQueueWithGang := totalResourcesForQueue.AggregateByResource()
 	totalResourcesForQueueWithGang.Add(totalResourceRequestsFromJobs(gang, it.PriorityClasses))
@@ -945,7 +941,6 @@ func NewLegacyScheduler(
 	schedulingRoundReport := NewSchedulingRoundReport(
 		constraints.TotalResources,
 		priorityFactorByQueue,
-		// armadamaps.DeepCopy(initialResourcesByQueueAndPriority),
 		initialResourcesByQueueAndPriority,
 	)
 

@@ -72,12 +72,6 @@ func NewSchedulingRoundReport(
 ) *SchedulingRoundReport {
 	queueSchedulingRoundReports := make(map[string]*QueueSchedulingRoundReport)
 	for queue := range priorityFactorByQueue {
-		// initialResourcesByPriority := initialResourcesByQueueAndPriority[queue]
-		// if initialResourcesByPriority == nil {
-		// 	initialResourcesByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
-		// } else {
-		// 	initialResourcesByPriority = initialResourcesByPriority.DeepCopy()
-		// }
 		queueSchedulingRoundReports[queue] = NewQueueSchedulingRoundReport(
 			priorityFactorByQueue[queue],
 			initialResourcesByQueueAndPriority[queue],
