@@ -72,7 +72,15 @@ func NewSubmitChecker(
 
 func (srv *SubmitChecker) Run(ctx context.Context) error {
 	srv.updateExecutors(ctx)
-	return nil
+	ticker := time.NewTicker(1 * time.Minute)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			srv.updateExecutors(ctx)
+		}
+	}
 }
 
 func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
