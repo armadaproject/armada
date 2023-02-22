@@ -107,8 +107,6 @@ scheduling:
     - memory
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
-  gangIdAnnotation: armadaproject.io/gangId
-  gangCardinalityAnnotation: armadaproject.io/gangCardinality
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
