@@ -1481,9 +1481,7 @@ func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S
 func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	info := job.GetRequirements(priorityClasses)
 	req := PodRequirementFromJobSchedulingInfo(info)
-	if req.Annotations == nil {
-		req.Annotations = make(map[string]string)
-	}
+	req.Annotations = make(map[string]string)
 	for _, key := range configuration.ArmadaManagedAnnotations {
 		if value, present := job.GetAnnotations()[key]; present {
 			req.GetAnnotations()[key] = value

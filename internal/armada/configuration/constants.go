@@ -8,7 +8,7 @@ const GangIdAnnotation = "armadaproject.io/gangId"
 // The cardinality should be expressed as an integer, e.g., "3".
 const GangCardinalityAnnotation = "armadaproject.io/gangCardinality"
 
-var ArmadaManagedAnnotations = []string {
+var ArmadaManagedAnnotations = []string{
 	GangIdAnnotation,
 	GangCardinalityAnnotation,
 }
