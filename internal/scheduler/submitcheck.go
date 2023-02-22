@@ -8,13 +8,13 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -150,7 +150,7 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 
 func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
 	overwriteAnnotations(reqs)
-	reqsHash, err := hashstructure.Hash(reqs, hashstructure.FormatV2, nil)
+	reqsHash, err := util.Hash(reqs, util.FormatV2, nil)
 	if err != nil {
 		return schedulingResult{isSchedulable: false, reason: err.Error()}
 	}
