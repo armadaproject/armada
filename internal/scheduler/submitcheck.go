@@ -9,6 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/mitchellh/hashstructure/v2"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -53,7 +54,7 @@ func NewSubmitChecker(
 ) *SubmitChecker {
 	jobRequirementSchedulingResults, err := lru.New(maxJobSchedulingResults)
 	if err != nil {
-		panic(err)
+		panic(errors.WithStack(err))
 	}
 	return &SubmitChecker{
 		executorTimeout:           executorTimeout,
