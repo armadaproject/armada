@@ -49,3 +49,7 @@ We expect readers of the documentation to have a basic understanding of Docker a
 
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
+
+## Discussion
+
+Get engage with us on [Armada slack](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
