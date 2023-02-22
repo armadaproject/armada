@@ -243,6 +243,8 @@ func TestSubmitCancelJobs(t *testing.T) {
 			return nil
 		}
 
+		// Workaround to let jobs get through pulsar into redis before cancelling - otherwise cancel does nothing
+		time.Sleep(2 * time.Second)
 		// Cancel the jobs
 		for _, r := range res.JobResponseItems {
 			ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
@@ -313,6 +315,9 @@ func TestSubmitCancelJobSet(t *testing.T) {
 		if ok := assert.Equal(t, numJobs, len(res.JobResponseItems)); !ok {
 			return nil
 		}
+
+		// Workaround to let jobs get through pulsar into redis before cancelling - otherwise cancel does nothing
+		time.Sleep(time.Second * 2)
 
 		ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
 		_, err = client.CancelJobs(ctxWithTimeout, &api.JobCancelRequest{
