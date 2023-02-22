@@ -1,4 +1,4 @@
-httpPort: 8080
+httpPort: 8098
 application:
   clusterId : "Cluster1"
   pool: "default"
@@ -18,7 +18,7 @@ task:
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
 apiConnection:
-  armadaUrl: "server:50051"
+  armadaUrl: "localhost:50051"
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:

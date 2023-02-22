@@ -5,6 +5,7 @@ option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "google/api/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -60,6 +61,7 @@ message JobSubmitRequest {
     string queue = 1;
     string job_set_id = 2;
     repeated JobSubmitRequestItem job_request_items = 3;
+    map<string, google.protobuf.Struct> meta = 21;
 }
 
 // swagger:model
@@ -88,7 +90,7 @@ enum JobState {
     PENDING = 1;
     RUNNING = 2;
     SUCCEEDED = 3;
-    FAILED = 4;    
+    FAILED = 4;
     UNKNOWN = 5;
 }
 

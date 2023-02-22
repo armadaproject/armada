@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -32,6 +33,12 @@ func DeleteQueue(submitClient api.SubmitClient, name string) error {
 }
 
 func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	AddClientIds(request.JobRequestItems)
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	return submitClient.SubmitJobs(ctx, request)
+}
+func SubmitJobsWithCtx(ctx context.Context, submitClient api.SubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	AddClientIds(request.JobRequestItems)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()

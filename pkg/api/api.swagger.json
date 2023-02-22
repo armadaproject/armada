@@ -671,6 +671,12 @@
             "type": "string"
           }
         },
+        "meta": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
         "namespace": {
           "type": "string"
         },
@@ -1281,6 +1287,12 @@
         },
         "jobSetId": {
           "type": "string"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
         },
         "queue": {
           "type": "string"

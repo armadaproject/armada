@@ -507,6 +507,7 @@ func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uin
 				UserId:     sequence.UserId,
 				Groups:     sequence.Groups,
 				Events:     nil,
+				Meta:       sequence.Meta,
 			})
 			lastSequenceEventSize = 0
 		}

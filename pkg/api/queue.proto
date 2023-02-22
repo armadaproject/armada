@@ -10,6 +10,7 @@ import "k8s.io/api/networking/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "pkg/api/submit.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
@@ -41,6 +42,7 @@ message Job {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 20;
+    map<string, google.protobuf.Struct> meta = 21;
 }
 
 // For the bidirectional streaming job lease request service.
@@ -52,9 +54,9 @@ message StreamingLeaseRequest {
     string cluster_id = 1;
     // Nodes are split into pools. This field indicates for which pool jobs are leased.
     string pool = 2;
-    // Total resources available for scheduling across all nodes.    
+    // Total resources available for scheduling across all nodes.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
-    // For each queue, the total resources allocated to jobs from that queue.    
+    // For each queue, the total resources allocated to jobs from that queue.
     ClusterLeasedReport cluster_leased_report = 4 [(gogoproto.nullable) = false];
     // Jobs submitted to this executor must require at least this amount of resources.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 5 [(gogoproto.nullable) = false];

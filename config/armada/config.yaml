@@ -1,5 +1,5 @@
 grpcPort: 50051
-httpPort: 8080
+httpPort: 8099
 metricsPort: 9000
 corsAllowedOrigins:
   - http://localhost:3000
@@ -19,13 +19,13 @@ grpc:
     permitWithoutStream: true
 redis:
   addrs:
-    - redis:6379
+    - localhost:6379
   password: ""
   db: 0
   poolSize: 1000
 eventsApiRedis:
   addrs:
-    - redis:6379
+    - localhost:6379
   password: ""
   db: 1
   poolSize: 1000
@@ -113,7 +113,7 @@ eventRetention:
 metrics:
   refreshInterval: 5m
 pulsar:
-  URL: "pulsar://pulsar:6650"
+  URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   hostnameSuffix: "svc"
@@ -130,7 +130,7 @@ postgres:
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: postgres
+    host: localhost
     port: 5432
     user: postgres
     password: psw

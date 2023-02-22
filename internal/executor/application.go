@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"net/http"
 	"os"
 	"strings"
@@ -234,8 +235,8 @@ func createConnectionToApi(config configuration.ExecutorConfiguration) (*grpc.Cl
 	return client.CreateApiConnectionWithCallOptions(
 		&config.ApiConnection,
 		[]grpc.CallOption{grpc.MaxCallRecvMsgSize(config.Client.MaxMessageSizeBytes)},
-		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor(), grpc_prometheus.UnaryClientInterceptor),
+		grpc.WithChainStreamInterceptor(otelgrpc.StreamClientInterceptor(), grpc_prometheus.StreamClientInterceptor),
 		grpc.WithKeepaliveParams(config.GRPC),
 	)
 }

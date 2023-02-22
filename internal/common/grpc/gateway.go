@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"net/http"
 	"path"
 	"strings"
@@ -42,7 +43,13 @@ func CreateGatewayHandler(
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
-	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(
+		connectionCtx,
+		grpcAddress,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
 	if err != nil {
 		panic(err)
 	}

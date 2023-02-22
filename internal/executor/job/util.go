@@ -24,6 +24,7 @@ func CreateSubmitJobFromApiJob(apiJob *api.Job, podDefaults *configuration.PodDe
 			JobId:           apiJob.Id,
 			Owner:           apiJob.Owner,
 			OwnershipGroups: apiJob.QueueOwnershipUserGroups,
+			JobMeta:         apiJob.Meta,
 		},
 		Pod:       pod,
 		Ingresses: apiJob.K8SIngress,

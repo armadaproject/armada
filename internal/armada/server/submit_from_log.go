@@ -3,6 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/tracing"
+	"github.com/gogo/protobuf/types"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"reflect"
 	"time"
 
@@ -156,7 +160,16 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 // To maintain ordering, we only do so for subsequences of consecutive events of equal type.
 // The returned bool indicates if the corresponding Pulsar message should be ack'd or not.
 func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadaevents.EventSequence) bool {
-	log := ctxlogrus.Extract(ctx)
+	ctx, _ = tracing.ExtractTraceCtx(ctx, sequence.Meta["carrier"])
+	ctx, span := otel.Tracer("server").Start(ctx, "SubmitFromLog.ProcessSequence")
+	span.SetAttributes(
+		attribute.String("jobSetName", sequence.JobSetName),
+		attribute.String("queue", sequence.Queue),
+		attribute.String("userId", sequence.UserId),
+		attribute.StringSlice("groups", sequence.Groups),
+	)
+	defer span.End()
+	log := ctxlogrus.Extract(ctx).WithContext(ctx)
 
 	// Sub-functions should always increment the events index unless they experience a transient error.
 	// However, if a permanent error is mis-categorised as transient, we may get stuck forever.
@@ -201,6 +214,14 @@ func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadae
 //
 // Not all events are handled by this processor since the legacy scheduler writes some transitions directly to the db.
 func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequence *armadaevents.EventSequence) (j int, err error) {
+	ctx, span := otel.Tracer("server").Start(ctx, fmt.Sprintf("SubmitFromLog.ProcessSubSequence-%d", i))
+	span.SetAttributes(
+		attribute.String("jobSetName", sequence.JobSetName),
+		attribute.String("queue", sequence.Queue),
+		attribute.String("userId", sequence.UserId),
+		attribute.StringSlice("groups", sequence.Groups),
+	)
+	defer span.End()
 	j = i // Initially, the next event to be processed is i.
 	if i < 0 || i >= len(sequence.Events) {
 		err = &armadaerrors.ErrInvalidArgument{
@@ -209,6 +230,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 			Message: fmt.Sprintf("tried to index into a list composed of %d elements", len(sequence.Events)),
 		}
 		err = errors.WithStack(err)
+		span.RecordError(err)
 		return
 	}
 
@@ -217,7 +239,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 	switch sequence.Events[i].Event.(type) {
 	case *armadaevents.EventSequence_Event_SubmitJob:
 		es := collectJobSubmitEvents(ctx, i, sequence)
-		ok, err = srv.SubmitJobs(ctx, sequence.UserId, sequence.Groups, sequence.Queue, sequence.JobSetName, es)
+		ok, err = srv.SubmitJobs(ctx, sequence.UserId, sequence.Groups, sequence.Queue, sequence.JobSetName, es, sequence.Meta)
 		if ok {
 			j = i + len(es)
 		}
@@ -267,6 +289,8 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 // collectJobSubmitEvents (and the corresponding functions for other types below)
 // return a slice of events starting at index i in the sequence with equal type.
 func collectJobSubmitEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.SubmitJob {
+	ctx, span := otel.Tracer("server").Start(ctx, "collectJobSubmitEvents")
+	defer span.End()
 	result := make([]*armadaevents.SubmitJob, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if e, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_SubmitJob); ok {
@@ -359,7 +383,11 @@ func (srv *SubmitFromLog) SubmitJobs(
 	queueName string,
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
+	meta map[string]*types.Struct,
 ) (bool, error) {
+	tracer := otel.Tracer("server")
+	ctx, span := otel.Tracer("server").Start(ctx, "SubmitFromLog.SubmitJobs")
+	defer span.End()
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
@@ -369,7 +397,8 @@ func (srv *SubmitFromLog) SubmitJobs(
 		return true, err
 	}
 
-	log := srv.getLogger()
+	log := srv.getLogger().WithContext(ctx)
+	log.Infof("submitting jobs from log")
 	compressor, err := srv.SubmitServer.compressorPool.BorrowObject(context.Background())
 	if err != nil {
 		return false, err
@@ -377,6 +406,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
 		if err != nil {
+			span.RecordError(err)
 			log.WithError(err).Errorf("Error returning compressor to pool")
 		}
 	}(srv.SubmitServer.compressorPool, context.Background(), compressor)
@@ -386,8 +416,26 @@ func (srv *SubmitFromLog) SubmitJobs(
 		return true, err
 	}
 	for _, job := range jobs {
-		job.QueueOwnershipUserGroups = nil
-		job.CompressedQueueOwnershipUserGroups = compressedOwnershipGroups
+		if err := func(job *api.Job) error {
+			ctx, span := tracer.Start(
+				ctx,
+				fmt.Sprintf("SubmitFromLog.SubmitJobs.JobSetId-%s.JobId-%s", job.JobSetId, job.Id),
+			)
+			defer span.End()
+			span.SetAttributes(attribute.String("jobSetId", job.JobSetId), attribute.String("jobId", job.Id))
+			carrier, err := tracing.SerializeTrace(ctx)
+			if err != nil {
+				span.RecordError(err)
+				return err
+			}
+			job.Meta = map[string]*types.Struct{"carrier": carrier}
+			job.QueueOwnershipUserGroups = nil
+			job.CompressedQueueOwnershipUserGroups = compressedOwnershipGroups
+			return nil
+		}(job); err != nil {
+			span.RecordError(err)
+			return false, err
+		}
 	}
 
 	// Submit the jobs by writing them to the database.
@@ -401,6 +449,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 		reportErr := reportFailed(srv.SubmitServer.eventStore, "", jobFailures)
 		if reportErr != nil {
 			err = errors.WithMessage(err, reportErr.Error())
+			span.RecordError(err)
 		}
 		return true, err
 	}

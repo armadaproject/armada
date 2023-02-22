@@ -4,6 +4,10 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/tracing"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"math/rand"
 	"time"
 
@@ -66,10 +70,31 @@ type PulsarSubmitServer struct {
 }
 
 func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	ctx, span := otel.Tracer("server").Start(ctx, "SubmitToLog.SubmitJobs")
+	span.SetAttributes(attribute.String("queue", req.Queue), attribute.String("jobSetId", req.JobSetId))
+	defer span.End()
+
+	logger := log.WithContext(ctx)
+
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
+	span.SetAttributes(attribute.String("userId", userId), attribute.StringSlice("groups", groups))
+
+	m0, _ := baggage.NewMember("jobSetId", req.JobSetId)
+	m1, _ := baggage.NewMember("queue", req.Queue)
+	m2, _ := baggage.NewMember("userId", userId)
+	b, _ := baggage.New(m0, m1, m2)
+	ctx = baggage.ContextWithBaggage(ctx, b)
+
+	carrier, err := tracing.SerializeTrace(ctx)
+	if err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	meta := map[string]*types.Struct{"carrier": carrier}
 
 	// Prepare an event sequence to be submitted to the log
 	pulsarSchedulerEvents := &armadaevents.EventSequence{
@@ -78,6 +103,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		UserId:     userId,
 		Groups:     groups,
 		Events:     make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems)),
+		Meta:       meta,
 	}
 
 	legacySchedulerEvents := &armadaevents.EventSequence{
@@ -86,20 +112,24 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		UserId:     userId,
 		Groups:     groups,
 		Events:     make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems)),
+		Meta:       meta,
 	}
 
 	// Create legacy API jobs from the requests.
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
 	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
 	schedulersByJobId, err := srv.assignScheduler(apiJobs)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -108,6 +138,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 	originalIds, err := srv.getOriginalJobIds(ctx, apiJobs)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 
@@ -115,8 +146,10 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		eventTime := time.Now()
 		assignedScheduler, ok := schedulersByJobId[apiJob.Id]
 		if !ok {
+			err := errors.Errorf("Didn't allocate a scheduler for job %s", apiJob.Id)
+			span.RecordError(err)
 			// This should never happen as if we can't find a scheduler we would have errored earlier
-			return nil, errors.Errorf("Didn't allocate a scheduler for job %s", apiJob.Id)
+			return nil, err
 		}
 
 		es := legacySchedulerEvents
@@ -133,6 +166,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// We only need this here because we're re-using code that was previously called by the executor.
 		err = eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{})
 		if err != nil {
+			span.RecordError(err)
 			return nil, err
 		}
 
@@ -143,6 +177,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// The log accept a different type of job.
 		logJob, err := eventutil.LogSubmitJobFromApiJob(apiJob)
 		if err != nil {
+			span.RecordError(err)
 			return nil, err
 		}
 
@@ -150,6 +185,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		// The log consumer will do this again; we do it here to ensure that any errors are noticed immediately.
 		_, err = eventutil.ApiJobFromLogSubmitJob(userId, groups, req.Queue, req.JobSetId, time.Now(), logJob)
 		if err != nil {
+			span.RecordError(err)
 			return nil, err
 		}
 
@@ -169,6 +205,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 			if found && originalId != "" {
 				oldJobId, err := armadaevents.ProtoUuidFromUlidString(originalIds[apiJob.GetId()])
 				if err != nil {
+					span.RecordError(err)
 					return nil, status.Error(codes.Internal, "error marshalling oldJobId")
 				}
 				es.Events = append(es.Events, &armadaevents.EventSequence_Event{
@@ -184,7 +221,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 				// The job shouldn't be submitted twice. Move on to the next job.
 				continue
 			} else {
-				log.Warnf(
+				logger.Warnf(
 					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
 					apiJob.ClientId,
 					apiJob.GetId())
@@ -195,7 +232,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	if len(pulsarSchedulerEvents.Events) > 0 {
 		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerEvents}, schedulers.Pulsar)
 		if err != nil {
-			log.WithError(err).Error("failed send pulsar scheduler events to Pulsar")
+			span.RecordError(err)
+			logger.WithError(err).Error("failed send pulsar scheduler events to Pulsar")
 			return nil, status.Error(codes.Internal, "Failed to send message")
 		}
 	}
@@ -203,7 +241,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	if len(legacySchedulerEvents.Events) > 0 {
 		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerEvents}, schedulers.Legacy)
 		if err != nil {
-			log.WithError(err).Error("failed send legacy scheduler events to Pulsar")
+			span.RecordError(err)
+			logger.WithError(err).Error("failed send legacy scheduler events to Pulsar")
 			return nil, status.Error(codes.Internal, "Failed to send message")
 		}
 	}
@@ -571,7 +610,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 	}, nil
 }
 
-// Authorize authorises a user request to submit a state transition message to the log.
+// Authorize authorizes a user request to submit a state transition message to the log.
 // User information used for authorization is extracted from the provided context.
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
@@ -581,11 +620,18 @@ func (srv *PulsarSubmitServer) Authorize(
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
 ) (userId string, groups []string, err error) {
+	ctx, span := otel.Tracer("server").Start(ctx, "PulsarSubmitServer.Authorize")
+	span.SetAttributes(attribute.String("permission", string(perm)))
+	defer span.End()
+
 	principal := authorization.GetPrincipal(ctx)
 	userId = principal.GetName()
 	groups = principal.GetGroupNames()
+	span.SetAttributes(attribute.String("userId", userId), attribute.StringSlice("groups", groups))
+
 	q, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
+		span.RecordError(err)
 		return
 	}
 	if !srv.Permissions.UserHasPermission(ctx, anyPerm) {
@@ -597,6 +643,7 @@ func (srv *PulsarSubmitServer) Authorize(
 				Message:    "",
 			}
 			err = errors.WithStack(err)
+			span.RecordError(err)
 			return
 		}
 	}
@@ -628,7 +675,7 @@ func principalHasQueuePermissions(principal authorization.Principal, q queue.Que
 	return false
 }
 
-// Fallback methods. Calls into an embedded server.SubmitServer.
+// CreateQueue is a Fallback method. Calls into an embedded server.SubmitServer.
 func (srv *PulsarSubmitServer) CreateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.CreateQueue(ctx, req)
 }
@@ -659,6 +706,9 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 
 // PublishToPulsar sends pulsar messages async
 func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
+	ctx, span := otel.Tracer("server").Start(ctx, "PulsarSubmitServer.publishToPulsar")
+	defer span.End()
+
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -673,6 +723,9 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
 func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
+	traceCtx, span := otel.Tracer("server").Start(ctx, "getOriginalJobIds")
+	defer span.End()
+
 	// If we don't have a KV store, then just return original mappings
 	if srv.KVStore == nil {
 		ret := make(map[string]string, len(apiJobs))
@@ -703,7 +756,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 
 	// If we have any client Ids add them to store
 	if len(kvs) > 0 {
-		addedKvs, err := srv.KVStore.LoadOrStoreBatch(ctx, kvs)
+		addedKvs, err := srv.KVStore.LoadOrStoreBatch(traceCtx, kvs)
 		if err != nil {
 			return nil, err
 		}

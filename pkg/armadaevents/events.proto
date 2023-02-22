@@ -6,6 +6,7 @@ option csharp_namespace = "ArmadaProject.Io.ArmadaEvents";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
@@ -101,6 +102,7 @@ message EventSequence {
     repeated string groups = 4;
     // For efficiency, we bundle several events (i.e., state transitions) in a single log message.
     repeated Event events = 5;
+    map<string, google.protobuf.Struct> meta = 6;
 }
 
 // Resource usage of a particular k8s object created as part of a job.
