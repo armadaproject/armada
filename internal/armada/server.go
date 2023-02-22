@@ -191,18 +191,18 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 
 	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:                           producer,
-		QueueRepository:                    queueRepository,
-		Permissions:                        permissions,
-		SubmitServer:                       submitServer,
-		MaxAllowedMessageSize:              config.Pulsar.MaxAllowedMessageSize,
-		PulsarSchedulerSubmitChecker:       pulsarSchedulerSubmitChecker,
-		LegacySchedulerSubmitChecker:       legacySchedulerSubmitChecker,
-		PulsarSchedulerEnabled:             config.PulsarSchedulerEnabled,
-		ProbabilityOdfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
-		Rand:                               util.NewThreadsafeRand(time.Now().UnixNano()),
-		GangIdAnnotation:                   config.Scheduling.GangIdAnnotation,
-		IgnoreJobSubmitChecks:              config.IgnoreJobSubmitChecks,
+		Producer:                          producer,
+		QueueRepository:                   queueRepository,
+		Permissions:                       permissions,
+		SubmitServer:                      submitServer,
+		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
+		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
+		LegacySchedulerSubmitChecker:      legacySchedulerSubmitChecker,
+		PulsarSchedulerEnabled:            config.PulsarSchedulerEnabled,
+		ProbabilityOfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
+		Rand:                              util.NewThreadsafeRand(time.Now().UnixNano()),
+		GangIdAnnotation:                  config.Scheduling.GangIdAnnotation,
+		IgnoreJobSubmitChecks:             config.IgnoreJobSubmitChecks,
 	}
 	submitServerToRegister := pulsarSubmitServer
 
