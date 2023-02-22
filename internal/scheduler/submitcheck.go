@@ -126,7 +126,7 @@ func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
 			continue
 		}
 		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, srv.priorityClasses)
-		schedulingResult := srv.getSchedulingResult(reqs)
+		schedulingResult := srv.check(reqs)
 		if !schedulingResult.isSchedulable {
 			return schedulingResult.isSchedulable, fmt.Sprintf("gang %s is unschedulable:\n%s", gangId, schedulingResult.reason)
 		}
@@ -148,6 +148,7 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 }
 
 func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
+	overwriteAnnotations(reqs)
 	reqsHash, err := hashstructure.Hash(reqs, hashstructure.FormatV2, nil)
 	if err != nil {
 		return schedulingResult{isSchedulable: false, reason: err.Error()}
@@ -161,6 +162,17 @@ func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequir
 	}
 
 	return result
+}
+
+// overwriteAnnotations This sets all annotations to a constant value
+// This is needed to reduce the cardinality of PodRequirements - so they hash more consistently
+// To allow our caching to work effectively
+func overwriteAnnotations(reqs []*schedulerobjects.PodRequirements) {
+	for _, req := range reqs {
+		for key := range req.GetAnnotations() {
+			req.Annotations[key] = "submission-check"
+		}
+	}
 }
 
 // Check if a set of pods can be scheduled onto some cluster.
