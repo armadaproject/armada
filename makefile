@@ -473,8 +473,6 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-a || true
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
-	docker logs executor
-
 .ONESHELL:
 tests-e2e-no-setup: gotestsum
 	function printApplicationLogs {
