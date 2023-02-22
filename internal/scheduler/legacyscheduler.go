@@ -952,8 +952,8 @@ func NewLegacyScheduler(
 			ctx,
 			queue.jobIterator,
 			config.QueueLeaseBatchSize,
-			config.GangIdAnnotation,
-			config.GangCardinalityAnnotation,
+			configuration.GangIdAnnotation,
+			configuration.GangCardinalityAnnotation,
 		)
 
 		// Enforce per-queue constraints.
@@ -1481,10 +1481,12 @@ func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S
 func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	info := job.GetRequirements(priorityClasses)
 	req := PodRequirementFromJobSchedulingInfo(info)
-	if req.Annotations == nil {
-		req.Annotations = make(map[string]string)
+	req.Annotations = make(map[string]string)
+	for _, key := range configuration.ArmadaManagedAnnotations {
+		if value, present := job.GetAnnotations()[key]; present {
+			req.GetAnnotations()[key] = value
+		}
 	}
-	maps.Copy(req.Annotations, job.GetAnnotations())
 	req.Annotations[JobIdAnnotation] = job.GetId()
 	req.Annotations[QueueAnnotation] = job.GetQueue()
 	return req

@@ -202,8 +202,8 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				ctx,
 				queuedJobsIterator,
 				tc.SchedulingConstraints.MaxLookbackPerQueue,
-				testGangIdAnnotation,
-				testGangCardinalityAnnotation,
+				configuration.GangIdAnnotation,
+				configuration.GangCardinalityAnnotation,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
@@ -916,9 +916,9 @@ func TestSchedule(t *testing.T) {
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(append(
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1)),
+					withAnnotationsPodReqs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1)),
 					testNSmallCpuJob("A", 0, 1)...),
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1))...,
+					withAnnotationsPodReqs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1))...,
 				),
 			},
 			PriorityFactorByQueue: map[string]float64{
@@ -2026,6 +2026,56 @@ func (it *InMemoryNodeIterator) NextNode() *schedulerobjects.Node {
 	v := it.nodes[it.i]
 	it.i++
 	return v
+}
+
+func TestPodRequirementFromLegacySchedulerJob(t *testing.T) {
+	resourceLimit := v1.ResourceList{
+		"cpu":               resource.MustParse("1"),
+		"memory":            resource.MustParse("128Mi"),
+		"ephemeral-storage": resource.MustParse("8Gi"),
+	}
+	requirements := v1.ResourceRequirements{
+		Limits:   resourceLimit,
+		Requests: resourceLimit,
+	}
+
+	j := &api.Job{
+		Id:       util.NewULID(),
+		Queue:    "test",
+		JobSetId: "set1",
+		Priority: 1,
+		Annotations: map[string]string{
+			"something":                             "test",
+			configuration.GangIdAnnotation:          "gang-id",
+			configuration.GangCardinalityAnnotation: "1",
+		},
+		PodSpecs: []*v1.PodSpec{
+			{
+				Containers: []v1.Container{
+					{
+						Resources: requirements,
+					},
+				},
+				PriorityClassName: "armada-default",
+			},
+		},
+	}
+
+	expected := &schedulerobjects.PodRequirements{
+		Priority:             1,
+		PreemptionPolicy:     string(v1.PreemptLowerPriority),
+		ResourceRequirements: requirements,
+		Annotations: map[string]string{
+			configuration.GangIdAnnotation:          "gang-id",
+			configuration.GangCardinalityAnnotation: "1",
+			JobIdAnnotation:                         j.Id,
+			QueueAnnotation:                         j.Queue,
+		},
+	}
+
+	result := PodRequirementFromLegacySchedulerJob(j, map[string]configuration.PriorityClass{"armada-default": {Priority: int32(1)}})
+
+	assert.Equal(t, expected, result)
 }
 
 func TestEvictOversubscribed(t *testing.T) {
