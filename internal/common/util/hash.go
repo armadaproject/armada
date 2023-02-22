@@ -154,8 +154,10 @@ type visitOpts struct {
 	StructField string
 }
 
-var timeType = reflect.TypeOf(time.Time{})
-var quantityType = reflect.TypeOf(resource.Quantity{})
+var (
+	timeType     = reflect.TypeOf(time.Time{})
+	quantityType = reflect.TypeOf(resource.Quantity{})
+)
 
 func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 	t := reflect.TypeOf(0)
@@ -442,7 +444,6 @@ func (w *walker) visit(v reflect.Value, opts *visitOpts) (uint64, error) {
 	default:
 		return 0, fmt.Errorf("unknown kind to hash: %s", k)
 	}
-
 }
 
 func hashUpdateOrdered(h hash.Hash64, a, b uint64) uint64 {
