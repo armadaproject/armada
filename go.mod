@@ -94,6 +94,7 @@ require (
 	github.com/kyleconroy/sqlc v1.16.0
 	github.com/magefile/mage v1.14.0
 	github.com/matryer/moq v0.3.0
+	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/openconfig/goyang v1.2.0
 	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
 	github.com/prometheus/common v0.37.0
@@ -272,7 +273,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
-	github.com/mitchellh/hashstructure/v2 v2.0.2 // indirect
 	github.com/mitchellh/iochan v1.0.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
