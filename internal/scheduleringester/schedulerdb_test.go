@@ -202,7 +202,7 @@ func TestWriteOps(t *testing.T) {
 			},
 		}},
 		"Insert PositionMarkers": {Ops: []DbOperation{
-			InsertPartitionMarker{
+			&InsertPartitionMarker{
 				markers: []*schedulerdb.Marker{
 					{
 						GroupID:     uuid.New(),
@@ -509,7 +509,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, expected, actual)
-	case InsertPartitionMarker:
+	case *InsertPartitionMarker:
 		actual, err := queries.SelectAllMarkers(ctx)
 		require.NoError(t, err)
 		require.Equal(t, len(expected.markers), len(actual))

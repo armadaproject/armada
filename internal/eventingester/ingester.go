@@ -4,13 +4,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/armadaproject/armada/internal/common/app"
-
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
@@ -53,7 +52,16 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	converter := convert.NewEventConverter(compressor, uint(config.BatchSize), metrics)
 
 	ingester := ingest.
-		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)
+		NewIngestionPipeline(
+			config.Pulsar,
+			config.SubscriptionName,
+			config.BatchSize,
+			config.BatchDuration,
+			pulsar.KeyShared,
+			converter,
+			eventDb,
+			config.Metrics,
+			metrics)
 	err = ingester.Run(app.CreateContextWithShutdown())
 
 	if err != nil {

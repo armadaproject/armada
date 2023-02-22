@@ -146,7 +146,7 @@ func testNJobGang(n int) []*api.Job {
 	gang := make([]*api.Job, n)
 	for i := 0; i < n; i++ {
 		job := test1CoreCpuJob()
-		job.Annotations = map[string]string{testGangIdAnnotation: gangId}
+		job.Annotations = map[string]string{configuration.GangIdAnnotation: gangId}
 		gang[i] = job
 	}
 	return gang

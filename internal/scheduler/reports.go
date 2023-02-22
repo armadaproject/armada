@@ -103,18 +103,18 @@ func (report *SchedulingRoundReport) String() string {
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // If updateTotals is true, automatically updates scheduled resources
-func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport, updateTotals bool) {
+func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport, isEvictedJob bool) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
-	if updateTotals && r.UnschedulableReason == "" {
-		report.ScheduledResourcesByPriority.AddResouceList(
+	if !isEvictedJob && r.UnschedulableReason == "" {
+		report.ScheduledResourcesByPriority.AddResourceList(
 			r.Req.Priority,
 			schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests),
 		)
 		report.NumScheduledJobs++
 	}
 	if queueReport := report.QueueSchedulingRoundReports[r.Job.GetQueue()]; queueReport != nil {
-		queueReport.AddJobSchedulingReport(r)
+		queueReport.AddJobSchedulingReport(r, isEvictedJob)
 	}
 }
 
@@ -145,7 +145,7 @@ type QueueSchedulingRoundReport struct {
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactor float64
 	// Resources assigned to the queue across all clusters at the start of the scheduling cycle.
-	InitialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
+	ResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Reports for all successful job scheduling attempts.
@@ -166,7 +166,7 @@ func NewQueueSchedulingRoundReport(priorityFactor float64, initialResourcesByPri
 	}
 	return &QueueSchedulingRoundReport{
 		PriorityFactor:                   priorityFactor,
-		InitialResourcesByPriority:       initialResourcesByPriority,
+		ResourcesByPriority:              initialResourcesByPriority,
 		ScheduledResourcesByPriority:     make(schedulerobjects.QuantityByPriorityAndResourceType),
 		SuccessfulJobSchedulingReports:   make(map[uuid.UUID]*JobSchedulingReport),
 		UnsuccessfulJobSchedulingReports: make(map[uuid.UUID]*JobSchedulingReport),
@@ -175,22 +175,28 @@ func NewQueueSchedulingRoundReport(priorityFactor float64, initialResourcesByPri
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
-func (report *QueueSchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport) {
+func (report *QueueSchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport, isEvictedJob bool) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
 	if r.UnschedulableReason == "" {
-		report.SuccessfulJobSchedulingReports[r.JobId] = r
-		report.addScheduledResources(r.Req)
-		report.NumScheduledJobs++
+		// Always update ResourcesByPriority.
+		// Since ResourcesByPriority is used to order queues by fraction of fair share.
+		rl := report.ResourcesByPriority[r.Req.Priority]
+		rl.Add(schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests))
+		report.ResourcesByPriority[r.Req.Priority] = rl
+
+		// Only if the job is not evicted, update ScheduledResourcesByPriority.
+		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
+		if !isEvictedJob {
+			report.SuccessfulJobSchedulingReports[r.JobId] = r
+			report.NumScheduledJobs++
+			rl := report.ScheduledResourcesByPriority[r.Req.Priority]
+			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests))
+			report.ScheduledResourcesByPriority[r.Req.Priority] = rl
+		}
 	} else {
 		report.UnsuccessfulJobSchedulingReports[r.JobId] = r
 	}
-}
-
-func (report *QueueSchedulingRoundReport) addScheduledResources(req *schedulerobjects.PodRequirements) {
-	rl := report.ScheduledResourcesByPriority[req.Priority]
-	rl.Add(schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests))
-	report.ScheduledResourcesByPriority[req.Priority] = rl
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
