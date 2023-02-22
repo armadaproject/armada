@@ -52,7 +52,7 @@ func NewSubmitChecker(
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
 ) *SubmitChecker {
-	jobRequirementSchedulingResults, err := lru.New(maxJobSchedulingResults)
+	jobSchedulingResultsCache, err := lru.New(maxJobSchedulingResults)
 	if err != nil {
 		panic(errors.WithStack(err))
 	}
@@ -67,7 +67,7 @@ func NewSubmitChecker(
 		indexedNodeLabels:         schedulingConfig.IndexedNodeLabels,
 		executorRepository:        executorRepository,
 		clock:                     clock.RealClock{},
-		jobSchedulingResultsCache: jobRequirementSchedulingResults,
+		jobSchedulingResultsCache: jobSchedulingResultsCache,
 	}
 }
 
