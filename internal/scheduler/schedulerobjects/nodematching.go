@@ -18,7 +18,7 @@ type UntoleratedTaint struct {
 }
 
 func (r *UntoleratedTaint) String() string {
-	return fmt.Sprintf("taint %s=%s not tolerated", r.Taint.Key, r.Taint.Value)
+	return fmt.Sprintf("taint %s=%s:%s not tolerated", r.Taint.Key, r.Taint.Value, r.Taint.Effect)
 }
 
 type MissingLabel struct {
