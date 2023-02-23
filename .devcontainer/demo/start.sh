@@ -1,3 +1,5 @@
+#!/bin/bash
+
 cd ../../internal/lookout/ui
 yarn install
 yarn run openapi
