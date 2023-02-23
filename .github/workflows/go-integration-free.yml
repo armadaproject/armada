@@ -19,9 +19,7 @@ jobs:
         # both versions in the matrix -- this will lead to them overwriting
         # each other.
         go: [ '1.18' ]
-    # As of December 2022, using 8vcpu runners is slower overall,
-    # due to longer queue times.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest-16-cores
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
       ARMADA_EXECUTOR_INGRESS_PORT: 5001
