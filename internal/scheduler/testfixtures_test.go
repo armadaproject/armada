@@ -26,11 +26,12 @@ var (
 		"priority-2": {2, true, nil},
 		"priority-3": {3, false, nil},
 	}
-	testDefaultPriorityClass = "priority-3"
-	testPriorities           = []int32{0, 1, 2, 3}
-	testResources            = []string{"cpu", "memory", "gpu"}
-	testIndexedTaints        = []string{"largeJobsOnly", "gpu"}
-	testIndexedNodeLabels    = []string{"largeJobsOnly", "gpu"}
+	testDefaultPriorityClass         = "priority-3"
+	testPriorities                   = []int32{0, 1, 2, 3}
+	testMaxExtraNodesToConsider uint = 1
+	testResources                    = []string{"cpu", "memory", "gpu"}
+	testIndexedTaints                = []string{"largeJobsOnly", "gpu"}
+	testIndexedNodeLabels            = []string{"largeJobsOnly", "gpu"}
 )
 
 func intRange(a, b int) []int {
@@ -461,6 +462,7 @@ func testGpuNode(priorities []int32) *schedulerobjects.Node {
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	db, err := NewNodeDb(
 		testPriorityClasses,
+		testMaxExtraNodesToConsider,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
