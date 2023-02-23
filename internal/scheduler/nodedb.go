@@ -380,7 +380,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(report *PodSchedulingReport, it mem
 		if err != nil {
 			return nil, err
 		} else if matches {
-			if score >= selectedNodeScore {
+			if selectedNode == nil || score > selectedNodeScore {
 				selectedNode = node
 				selectedNodeScore = score
 				if selectedNodeScore == schedulerobjects.SCHEDULABLE_BEST_SCORE {
