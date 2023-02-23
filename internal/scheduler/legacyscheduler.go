@@ -779,7 +779,7 @@ func EvictPreemptible(
 				log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
 				return
 			}
-			// Add annotations to this pod that indicate to the scheduler
+			// Add annotations to this job that indicate to the scheduler
 			// - that this pod was evicted and
 			// - which node it was evicted from.
 			annotations[TargetNodeIdAnnotation] = node.Id
@@ -846,7 +846,7 @@ func EvictOversubscribed(
 			// TODO: This is only necessary for jobs not shceduled in this cycle.
 			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
 			//
-			// Add annotations to this pod that indicate to the scheduler
+			// Add annotations to this job that indicate to the scheduler
 			// - that this pod was evicted and
 			// - which node it was evicted from.
 			annotations[TargetNodeIdAnnotation] = node.Id
@@ -1225,8 +1225,8 @@ func Reschedule(
 	nodesByJobId := make(map[string]*schedulerobjects.Node, len(preempted)+len(scheduled))
 	preemptedJobs := make([]LegacySchedulerJob, 0, len(scheduledJobsById))
 	for jobId, node := range preempted {
+		nodesByJobId[jobId] = node
 		if job, ok := preemptedJobsById[jobId]; ok {
-			nodesByJobId[jobId] = node
 			preemptedJobs = append(preemptedJobs, job)
 		} else {
 			log.Errorf("inconsistent NodeDb: didn't expect job %s to be preempted", jobId)
@@ -1234,8 +1234,8 @@ func Reschedule(
 	}
 	scheduledJobs := make([]LegacySchedulerJob, 0, len(preemptedJobsById))
 	for jobId, node := range scheduled {
+		nodesByJobId[jobId] = node
 		if job, ok := scheduledJobsById[jobId]; ok {
-			nodesByJobId[jobId] = node
 			scheduledJobs = append(scheduledJobs, job)
 		} else {
 			log.Errorf("inconsistent NodeDb: didn't expect job %s to be scheduled", jobId)
@@ -1483,7 +1483,12 @@ func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityC
 	req := PodRequirementFromJobSchedulingInfo(info)
 	req.Annotations = make(map[string]string)
 	for _, key := range configuration.ArmadaManagedAnnotations {
-		if value, present := job.GetAnnotations()[key]; present {
+		if value, ok := job.GetAnnotations()[key]; ok {
+			req.GetAnnotations()[key] = value
+		}
+	}
+	for _, key := range ArmadaSchedulerManagedAnnotations {
+		if value, ok := job.GetAnnotations()[key]; ok {
 			req.GetAnnotations()[key] = value
 		}
 	}
