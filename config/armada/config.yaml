@@ -53,6 +53,7 @@ scheduling:
           cpu: 0.99
     defaultPriorityClass: armada-default
   queueLeaseBatchSize: 1000
+  maxExtraNodesToConsider: 1
   minimumResourceToSchedule:
     memory: 1000000 # 1Mb
     cpu: 0.1

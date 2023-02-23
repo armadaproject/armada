@@ -1265,6 +1265,45 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"reschedule onto same node with PC preemption": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 1, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(0, 31),
+						},
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 		"reschedule onto same node reverse order": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1722,6 +1761,7 @@ func TestReschedule(t *testing.T) {
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			initialUsageByQueue := armadamaps.DeepCopy(tc.InitialUsageByQueue)
+			expectedNodeIdByJobId := make(map[string]string)
 			log := logrus.NewEntry(logrus.New())
 			for i, round := range tc.Rounds {
 				jobs := make([]LegacySchedulerJob, 0)
@@ -1790,16 +1830,34 @@ func TestReschedule(t *testing.T) {
 				}
 				assert.Equal(t, initialUsageByQueue, updatedUsageByQueue)
 
-				// Test that all jobs are mapped to a node.
+				// Test that jobs are mapped to nodes correctly.
 				for _, job := range preemptedJobs {
 					node, ok := nodesByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotNil(t, node)
+
+					// Check that preempted jobs are preempted from the node they were previously scheduled onto.
+					nodeId, ok := expectedNodeIdByJobId[job.GetId()]
+					assert.True(t, ok)
+					assert.Equal(t, nodeId, node.Id, "job %s preempted from unexpected node", job.GetId())
 				}
 				for _, job := range scheduledJobs {
 					node, ok := nodesByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotNil(t, node)
+
+					// Check that scheduled jobs are consistently assigned to the same node.
+					// (We don't allow moving jobs between nodes.)
+					if nodeId, ok := expectedNodeIdByJobId[job.GetId()]; ok {
+						assert.Equal(t, nodeId, node.Id, "job %s scheduled onto unexpected node", job.GetId())
+					} else {
+						expectedNodeIdByJobId[job.GetId()] = node.Id
+					}
+				}
+				for jobId, node := range nodesByJobId {
+					if nodeId, ok := expectedNodeIdByJobId[jobId]; ok {
+						assert.Equal(t, nodeId, node.Id, "job %s preempted from/scheduled onto unexpected node", jobId)
+					}
 				}
 
 				// Expected scheduled jobs.
