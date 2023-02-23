@@ -52,4 +52,6 @@ We expect readers of the documentation to have a basic understanding of Docker a
 
 ## Discussion
 
-Get engage with us on [Armada slack](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+If you are interested in discussing Armada you can find us on  [![slack](https://img.shields.io/badge/slack-armada-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+
+
