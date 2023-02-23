@@ -170,12 +170,6 @@ type SchedulingConfig struct {
 	// Should normally not be set greater than single-digit minutes,
 	// since cancellation and preemption may need to wait for this amount of time.
 	MaxTerminationGracePeriod time.Duration
-	// Jobs with equal value for this annotation make up a gang.
-	// All jobs in a gang are guaranteed to be scheduled onto the same cluster at the same time.
-	GangIdAnnotation string
-	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
-	// The cardinality should be expressed as an integer, e.g., "3".
-	GangCardinalityAnnotation string
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
 	ExecutorTimeout time.Duration
 }
