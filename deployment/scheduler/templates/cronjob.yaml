@@ -56,7 +56,7 @@ spec:
               volumeMounts:
                 - name: user-config
                   mountPath: /config/application_config.yaml
-                  subPath: {{ include "armada-scheduler.config.filename" . }}
+                  subPath: {{ include "armada-scheduler-pruner.config.filename" . }}
                   readOnly: true
                 {{- if .Values.scheduler.additionalVolumeMounts }}
                 {{- toYaml .Values.scheduler.additionalVolumeMounts | nindent 16 -}}
@@ -66,7 +66,7 @@ spec:
           volumes:
             - name: user-config
               secret:
-                secretName: {{ include "armada-scheduler.config.name" . }}
+                secretName: {{ include "armada-scheduler-pruner.config.name" . }}
             {{- if .Values.scheduler.additionalVolumes }}
             {{- toYaml .Values.scheduler.additionalVolumes | nindent 12 }}
             {{- end }}

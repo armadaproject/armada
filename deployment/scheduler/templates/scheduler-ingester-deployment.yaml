@@ -75,7 +75,7 @@ spec:
       volumes:
         - name: user-config
           secret:
-            secretName: {{ include "armada-scheduler.config.name" . }}-ingester
+            secretName: {{ include "armada-scheduler-ingester.config.name" . }}
         {{- if .Values.ingester.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:
