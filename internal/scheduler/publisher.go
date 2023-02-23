@@ -19,8 +19,10 @@ import (
 )
 
 // This is half the default pulsar BatchingMaxSize
-const defaultMaxMessageBatchSize = 64 * 1024
-const explicitPartitionKey = "armada_pulsar_partition"
+const (
+	defaultMaxMessageBatchSize = 64 * 1024
+	explicitPartitionKey       = "armada_pulsar_partition"
+)
 
 // Publisher is an interface to be implemented by structs that handle publishing messages to pulsar
 type Publisher interface {
