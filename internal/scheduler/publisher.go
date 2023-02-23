@@ -18,6 +18,8 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
+// This is half the default pulsar BatchingMaxSize
+const defaultMaxMessageBatchSize = 64 * 1024
 const explicitPartitionKey = "armada_pulsar_partition"
 
 // Publisher is an interface to be implemented by structs that handle publishing messages to pulsar
@@ -59,10 +61,14 @@ func NewPulsarPublisher(
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	maxMessageBatchSize := producerOptions.BatchingMaxSize / 2
+	if maxMessageBatchSize <= 0 {
+		maxMessageBatchSize = defaultMaxMessageBatchSize
+	}
 	return &PulsarPublisher{
 		producer:            producer,
 		pulsarSendTimeout:   pulsarSendTimeout,
-		maxMessageBatchSize: 2 * 1024 * 1024, // max pulsar message size is 4MB, so we use 2MB here to be safe
+		maxMessageBatchSize: maxMessageBatchSize,
 		numPartitions:       len(partitions),
 	}, nil
 }
