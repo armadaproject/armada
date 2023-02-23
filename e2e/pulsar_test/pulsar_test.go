@@ -243,8 +243,6 @@ func TestSubmitCancelJobs(t *testing.T) {
 			return nil
 		}
 
-		// Workaround to let jobs get through pulsar into redis before cancelling - otherwise cancel does nothing
-		time.Sleep(2 * time.Second)
 		// Cancel the jobs
 		for _, r := range res.JobResponseItems {
 			ctxWithTimeout, _ = context.WithTimeout(context.Background(), time.Second)
@@ -327,10 +325,19 @@ func TestSubmitCancelJobSet(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return nil
 		}
+		eventFilter := func(e *armadaevents.EventSequence_Event) bool {
+			switch e.GetEvent().(type) {
+			case *armadaevents.EventSequence_Event_SubmitJob,
+				*armadaevents.EventSequence_Event_CancelJob,
+				*armadaevents.EventSequence_Event_CancelledJob:
+				return true
+			}
+			return false
+		}
 
 		// Test that we get submit, cancel job set, and cancelled messages.
 		numEventsExpected := numJobs + numJobs + numJobs
-		sequences, err := receiveJobSetSequences(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout)
+		sequences, err := receiveJobSetSequencesWithEventFilter(ctx, consumer, armadaQueueName, req.JobSetId, numEventsExpected, defaultPulsarTimeout, eventFilter)
 		if err != nil {
 			return err
 		}
@@ -855,9 +862,6 @@ func countObjectTypes(objects []*armadaevents.KubernetesObject) map[string]int {
 	}
 	return result
 }
-
-// receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
-// The events contained in the remaining messages are collected in a single sequence, which is returned.
 func receiveJobSetSequences(
 	ctx context.Context,
 	consumer pulsar.Consumer,
@@ -865,6 +869,21 @@ func receiveJobSetSequences(
 	jobSetName string,
 	maxEvents int,
 	timeout time.Duration,
+) (sequences []*armadaevents.EventSequence, err error) {
+	acceptAllFilter := func(event *armadaevents.EventSequence_Event) bool { return true }
+	return receiveJobSetSequencesWithEventFilter(ctx, consumer, queue, jobSetName, maxEvents, timeout, acceptAllFilter)
+}
+
+// receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
+// The events contained in the remaining messages are collected in a single sequence, which is returned.
+func receiveJobSetSequencesWithEventFilter(
+	ctx context.Context,
+	consumer pulsar.Consumer,
+	queue string,
+	jobSetName string,
+	maxEvents int,
+	timeout time.Duration,
+	eventFilterFunc func(*armadaevents.EventSequence_Event) bool,
 ) (sequences []*armadaevents.EventSequence, err error) {
 	sequences = make([]*armadaevents.EventSequence, 0)
 	numEvents := 0
@@ -895,6 +914,14 @@ func receiveJobSetSequences(
 			continue
 		}
 
+		filteredEvents := []*armadaevents.EventSequence_Event{}
+		for _, e := range sequence.Events {
+			if eventFilterFunc(e) {
+				filteredEvents = append(filteredEvents, e)
+			}
+		}
+
+		sequence.Events = filteredEvents
 		numEvents += len(sequence.Events)
 		sequences = append(sequences, sequence)
 	}
