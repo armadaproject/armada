@@ -397,6 +397,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 	nodeDb, err := scheduler.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
+		q.schedulingConfig.MaxExtraNodesToConsider,
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,

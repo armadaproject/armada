@@ -128,6 +128,12 @@ type SchedulingConfig struct {
 	PoolResourceScarcity map[string]map[string]float64
 	MaxPodSpecSizeBytes  uint
 	MinJobResources      v1.ResourceList
+	// Once a node has been found on which a pod can be scheduled,
+	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
+	// The scheduler selects the node with the best score out of the considered nodes.
+	// In particular, the score expresses whether preemption is necessary to schedule a pod.
+	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
+	MaxExtraNodesToConsider uint
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.

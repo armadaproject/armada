@@ -263,6 +263,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 	// Nodes to be considered by the scheduler.
 	nodeDb, err := NewNodeDb(
 		priorityClasses,
+		l.config.MaxExtraNodesToConsider,
 		l.indexedResources,
 		l.config.IndexedTaints,
 		l.config.IndexedNodeLabels,
