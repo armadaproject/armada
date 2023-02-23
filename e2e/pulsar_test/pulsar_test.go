@@ -862,6 +862,7 @@ func countObjectTypes(objects []*armadaevents.KubernetesObject) map[string]int {
 	}
 	return result
 }
+
 func receiveJobSetSequences(
 	ctx context.Context,
 	consumer pulsar.Consumer,
