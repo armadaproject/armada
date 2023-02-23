@@ -213,12 +213,12 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := legacyScheduler.Schedule()
+	_, err = legacyScheduler.Schedule()
 	if err != nil {
 		return nil, err
 	}
-	updatedJobs := make([]*jobdb.Job, len(jobs))
-	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
+	updatedJobs := make([]*jobdb.Job, 0, len(legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports()))
+	for _, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 		job := report.Job.(*jobdb.Job)
 		nodeName := ""
 		if len(report.PodSchedulingReports) > 0 {
@@ -227,7 +227,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 			log.Warnf("Could not resolve node for Job %s as no PodSchedulingReports were present", job.Id())
 		}
 		job = job.WithQueued(false).WithNewRun(executor.Id, nodeName)
-		updatedJobs[i] = job
+		updatedJobs = append(updatedJobs, job)
 	}
 	return updatedJobs, nil
 }
