@@ -12,7 +12,7 @@ The first step is to clone the Armada repository to your local machine. You can 
 
 #### bash
 
-git clone https://github.com/armadaplatform/armada.git
+git clone https://github.com/armadaproject/armada.git
 
 ## Step 2: Create an AKS Cluster
 
