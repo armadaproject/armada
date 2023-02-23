@@ -16,9 +16,7 @@ import (
 )
 
 const (
-	testGangIdAnnotation          = "armada.io/gangId"
-	testGangCardinalityAnnotation = "armada.io/gangCardinality"
-	testHostnameLabel             = "kubernetes.io/hostname"
+	testHostnameLabel = "kubernetes.io/hostname"
 )
 
 var (
@@ -58,10 +56,8 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 			PriorityClasses:      maps.Clone(testPriorityClasses),
 			DefaultPriorityClass: testDefaultPriorityClass,
 		},
-		IndexedResources:          []string{"cpu", "memory"},
-		GangIdAnnotation:          testGangIdAnnotation,
-		GangCardinalityAnnotation: testGangCardinalityAnnotation,
-		ExecutorTimeout:           15 * time.Minute,
+		IndexedResources: []string{"cpu", "memory"},
+		ExecutorTimeout:  15 * time.Minute,
 	}
 }
 
@@ -177,7 +173,7 @@ func withGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*sch
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))
 	return withAnnotationsPodReqs(
-		map[string]string{testGangIdAnnotation: gangId, testGangCardinalityAnnotation: gangCardinality},
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
 		reqs,
 	)
 }
