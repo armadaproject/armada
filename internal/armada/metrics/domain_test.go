@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/stretchr/testify/assert"
+
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 func TestRecordJobRuntime_ShouldReportRuntimeDurations(t *testing.T) {
