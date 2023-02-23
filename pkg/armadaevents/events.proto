@@ -271,6 +271,7 @@ message JobRunLeased {
     Uuid job_id = 2;
     // Each cluster is represented by an executor.
     string executor_id = 3;
+    string node_id = 4;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

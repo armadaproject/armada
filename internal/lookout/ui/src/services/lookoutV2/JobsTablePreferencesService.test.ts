@@ -1,7 +1,12 @@
 import { createMemoryHistory, History } from "history"
 import { ColumnId, createAnnotationColumn, JOB_COLUMNS } from "utils/jobsTableColumns"
 
-import { DEFAULT_PREFERENCES, JobsTablePreferences, JobsTablePreferencesService } from "./JobsTablePreferencesService"
+import {
+  BLANK_PREFERENCES,
+  DEFAULT_PREFERENCES,
+  JobsTablePreferences,
+  JobsTablePreferencesService,
+} from "./JobsTablePreferencesService"
 
 describe("JobsTablePreferencesService", () => {
   let history: History, service: JobsTablePreferencesService
@@ -16,20 +21,17 @@ describe("JobsTablePreferencesService", () => {
       expect(service.getInitialUserPrefs()).toStrictEqual(DEFAULT_PREFERENCES)
     })
 
-    it("merges defaults with provided query params", () => {
+    it("merges blank config with provided query params", () => {
       history.push({
         search: `?page=3&g[0]=state&sort[0][id]=jobId&sort[0][desc]=false`,
       })
 
       expect(service.getInitialUserPrefs()).toMatchObject<Partial<JobsTablePreferences>>({
+        ...BLANK_PREFERENCES,
         // From query string above
         pageIndex: 3,
         groupedColumns: ["state" as ColumnId],
         sortingState: [{ id: "jobId", desc: false }],
-
-        // Some defaults not provided via query string
-        pageSize: 50,
-        allColumnsInfo: JOB_COLUMNS,
       })
     })
   })
@@ -40,7 +42,7 @@ describe("JobsTablePreferencesService", () => {
         search: "?debug&someOtherKey=test",
       })
 
-      service.saveNewPrefs(DEFAULT_PREFERENCES)
+      service.saveNewPrefs(BLANK_PREFERENCES)
 
       expect(history.location.search).toContain("debug")
       expect(history.location.search).toContain("someOtherKey=test")
@@ -180,7 +182,7 @@ describe("JobsTablePreferencesService", () => {
 
   const savePrefWithDefaults = (prefsToSave: Partial<JobsTablePreferences>) => {
     service.saveNewPrefs({
-      ...DEFAULT_PREFERENCES,
+      ...BLANK_PREFERENCES,
       ...prefsToSave,
     })
   }

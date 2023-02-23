@@ -35,6 +35,7 @@ grpc:
     minTime: 10s
     permitWithoutStream: true
 scheduling:
+  executorTimeout: 10m
   preemption:
     enabled: true
     priorityClasses:

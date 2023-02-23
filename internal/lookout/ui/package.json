@@ -1,10 +1,14 @@
 {
   "name": "lookout",
   "private": true,
+  "jest" : {
+        "coverageReporters": ["text",
+        "cobertura"]
+    },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "react-scripts test --coverage",
     "eject": "react-scripts eject",
     "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh",
     "lint": "eslint ./src/**/*.{js,ts,tsx} --max-warnings 0 --no-error-on-unmatched-pattern",
@@ -31,8 +35,8 @@
     "@types/react-router-dom": "^5.1.6",
     "@types/react-virtualized": "^9.21.10",
     "@types/uuid": "^8.3.0",
-    "@typescript-eslint/eslint-plugin": "^4.24.0",
-    "@typescript-eslint/parser": "^4.24.0",
+    "@typescript-eslint/eslint-plugin": "^5.52.0",
+    "@typescript-eslint/parser": "^5.52.0",
     "@visx/mock-data": "^1.0.0",
     "@visx/stats": "^1.4.0",
     "@visx/visx": "^1.4.0",

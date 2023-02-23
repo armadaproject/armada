@@ -38,9 +38,9 @@ For an overview of the architecture and design of Armada, and instructions for s
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 
-There are two methods of setting Armada up for local development:
-- [Images with ad-hoc compilation](./docs/developer.md)
-- [Pre-built images or running on host](./docs/development_guide.md)
+To set up Armada for local development, see:
+
+- [Development guide](./docs/development_guide.md)
 
 For API reference, see:
 - [API Documentation](./docs/api.md)
@@ -49,3 +49,9 @@ We expect readers of the documentation to have a basic understanding of Docker a
 
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
+
+## Discussion
+
+If you are interested in discussing Armada you can find us on  [![slack](https://img.shields.io/badge/slack-armada-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+
+

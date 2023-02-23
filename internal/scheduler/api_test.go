@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -52,15 +51,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		Pool: "test-pool",
 		Nodes: []*schedulerobjects.Node{
 			{
-				Id:             "test-executor-test-node",
-				TotalResources: schedulerobjects.ResourceList{},
-				JobRunsByState: map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
+				Id:                          "test-executor-test-node",
+				Name:                        "test-node",
+				TotalResources:              schedulerobjects.ResourceList{},
+				JobRunsByState:              map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
+				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
 				AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 					1000: {
-						Resources: map[string]resource.Quantity{},
+						Resources: nil,
 					},
 					2000: {
-						Resources: map[string]resource.Quantity{},
+						Resources: nil,
 					},
 				},
 				LastSeen: testClock.Now().UTC(),
