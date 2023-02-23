@@ -76,3 +76,4 @@ pruner:
     timeout: 5m
     batchsize: 10000
     expireAfter: 2h
+  applicationConfig: {}
