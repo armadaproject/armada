@@ -30,6 +30,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  ColumnResizeMode,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
@@ -90,6 +91,7 @@ export const JobsTableContainer = ({
         .filter((colId) => columnVisibility[colId]),
     [columnVisibility],
   )
+  const [columnResizeMode, setColumnResizeMode] = React.useState<ColumnResizeMode>("onChange")
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(initialPrefs.groupedColumns)
@@ -329,6 +331,7 @@ export const JobsTableContainer = ({
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.rowId,
     getSubRows: (row) => (isJobGroupRow(row) && row.subRows) || undefined,
+    columnResizeMode: columnResizeMode,
 
     // Selection
     enableRowSelection: true,
@@ -365,8 +368,8 @@ export const JobsTableContainer = ({
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
   return (
-    <Box sx={{ display: "flex" }}>
-      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em" }}>
+    <Box sx={{ display: "flex", width: "100%" }}>
+      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em", width: "100%" }}>
         <JobsTableActionBar
           isLoading={rowsToFetch.length > 0}
           allColumns={columnsForSelect}
@@ -381,12 +384,23 @@ export const JobsTableContainer = ({
           updateJobsService={updateJobsService}
         />
         <TableContainer component={Paper}>
-          <Table sx={{ tableLayout: "fixed" }} aria-label="Jobs table">
+          <Table
+            sx={{ tableLayout: "fixed" }}
+            aria-label="Jobs table"
+            style={{
+              width: table.getCenterTotalSize(),
+            }}
+          >
             <TableHead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <HeaderCell header={header} key={header.id} />
+                    <HeaderCell
+                      header={header}
+                      key={header.id}
+                      columnResizeMode={columnResizeMode}
+                      deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                    />
                   ))}
                 </TableRow>
               ))}

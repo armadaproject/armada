@@ -1,10 +1,11 @@
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
-import { Cell, flexRender, Header } from "@tanstack/react-table"
+import { Cell, ColumnResizeMode, flexRender, Header } from "@tanstack/react-table"
 import { JobRow } from "models/jobsTableModels"
 import { Match } from "models/lookoutV2Models"
 import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
+import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 
 const sharedCellStyle = {
@@ -17,8 +18,10 @@ const sharedCellStyle = {
 
 export interface HeaderCellProps {
   header: Header<JobRow, unknown>
+  columnResizeMode: ColumnResizeMode
+  deltaOffset: number
 }
-export const HeaderCell = ({ header }: HeaderCellProps) => {
+export const HeaderCell = ({ header, columnResizeMode, deltaOffset }: HeaderCellProps) => {
   const id = toColId(header.id)
   const columnDef = header.column.columnDef
 
@@ -32,42 +35,72 @@ export const HeaderCell = ({ header }: HeaderCellProps) => {
     <TableCell
       key={id}
       align={isRightAligned ? "right" : "left"}
-      sx={{
-        width: `${header.column.getSize()}px`,
-        ...sharedCellStyle,
-      }}
       aria-label={metadata.displayName}
+      sx={{ ...sharedCellStyle }}
+      style={{
+        width: `${header.column.getSize()}px`,
+        height: "100%",
+      }}
     >
-      {header.isPlaceholder ? null : header.column.getCanSort() ? (
-        <TableSortLabel
-          active={Boolean(sortDirection)}
-          direction={sortDirection || defaultSortDirection}
-          onClick={() => {
-            const desc = sortDirection ? sortDirection === "asc" : false
-            header.column.toggleSorting(desc)
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "row",
+          justifyContent: "space-between",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
           }}
-          aria-label={"Toggle sort"}
         >
-          {flexRender(columnDef.header, header.getContext())}
-          {header.column.getIsGrouped() && <> (# Jobs)</>}
-        </TableSortLabel>
-      ) : (
-        <>
-          {flexRender(columnDef.header, header.getContext())}
-          {header.column.getIsGrouped() && <> (# Jobs)</>}
-        </>
-      )}
+          {header.isPlaceholder ? null : header.column.getCanSort() ? (
+            <TableSortLabel
+              active={Boolean(sortDirection)}
+              direction={sortDirection || defaultSortDirection}
+              onClick={() => {
+                const desc = sortDirection ? sortDirection === "asc" : false
+                header.column.toggleSorting(desc)
+              }}
+              aria-label={"Toggle sort"}
+            >
+              {flexRender(columnDef.header, header.getContext())}
+              {header.column.getIsGrouped() && <> (# Jobs)</>}
+            </TableSortLabel>
+          ) : (
+            flexRender(columnDef.header, header.getContext())
+          )}
 
-      {header.column.getCanFilter() && metadata.filterType && (
-        <JobsTableFilter
-          id={header.id}
-          currentFilter={header.column.getFilterValue() as string | string[]}
-          filterType={metadata.filterType}
-          matchType={metadata.defaultMatchType ?? Match.Exact}
-          enumFilterValues={metadata.enumFitlerValues}
-          onFilterChange={header.column.setFilterValue}
-        />
-      )}
+          {header.column.getCanFilter() && metadata.filterType && (
+            <JobsTableFilter
+              id={header.id}
+              currentFilter={header.column.getFilterValue() as string | string[]}
+              filterType={metadata.filterType}
+              matchType={metadata.defaultMatchType ?? Match.Exact}
+              enumFilterValues={metadata.enumFitlerValues}
+              onFilterChange={header.column.setFilterValue}
+            />
+          )}
+        </div>
+        {!header.isPlaceholder && (
+          <div
+            {...{
+              onMouseDown: header.getResizeHandler(),
+              onTouchStart: header.getResizeHandler(),
+              className: (header.column.getIsResizing() ? [styles.resizer, styles.isResizing] : [styles.resizer]).join(
+                " ",
+              ),
+              style: {
+                transform:
+                  columnResizeMode === "onEnd" && header.column.getIsResizing() ? `translateX(${deltaOffset}px)` : "",
+              },
+            }}
+          />
+        )}
+      </div>
     </TableCell>
   )
 }
