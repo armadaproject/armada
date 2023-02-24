@@ -136,6 +136,7 @@ var Leased = &armadaevents.EventSequence_Event{
 			RunId:      RunIdProto,
 			JobId:      JobIdProto,
 			ExecutorId: ExecutorId,
+			NodeId:     NodeName,
 		},
 	},
 }
