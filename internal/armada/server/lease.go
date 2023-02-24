@@ -166,12 +166,6 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
-	// Return no jobs if we don't have enough work.
-	var res armadaresource.ComputeResources = req.Resources
-	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
-		return nil
-	}
-
 	// Get jobs to be leased.
 	jobs, err := q.getJobs(stream.Context(), req)
 	if err != nil {
