@@ -262,7 +262,6 @@ func TestAddNodeSelector(t *testing.T) {
 			addNodeSelector(tc.input, tc.key, tc.value)
 			assert.Equal(t, tc.expected, tc.input)
 		})
-
 	}
 }
 
