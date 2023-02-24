@@ -49,6 +49,11 @@ message CancelRuns{
   repeated armadaevents.Uuid job_run_ids_to_cancel = 1;
 }
 
+// indicates that the given job run ids should be preempted
+message PreemptRuns{
+  repeated armadaevents.Uuid job_run_ids_to_preempt = 1;
+}
+
 // indicates the end of the lease stream
 message EndMarker{}
 
@@ -57,6 +62,7 @@ message LeaseStreamMessage{
     JobRunLease lease = 1;
     CancelRuns cancel_runs = 2;
     EndMarker end = 3;
+    PreemptRuns preempt_runs = 4;
   }
 }
 
