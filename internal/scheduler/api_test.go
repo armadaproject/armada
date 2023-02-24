@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -24,13 +25,14 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
+const nodeIdName = "kubernetes.io/hostname"
+
 func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	const maxJobsPerCall = uint(100)
 	testClock := clock.NewFakeClock(time.Now())
 	runId1 := uuid.New()
 	runId2 := uuid.New()
 	runId3 := uuid.New()
-	submit, compressedSubmit := submitMsg(t)
 	groups, compressedGroups := groups(t)
 	defaultRequest := &executorapi.LeaseRequest{
 		ExecutorId: "test-executor",
@@ -72,13 +74,25 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 		UnassignedJobRuns: []string{runId3.String()},
 	}
 
+	submit, compressedSubmit := submitMsg(t, "node-id")
 	defaultLease := &database.JobRunLease{
 		RunID:         uuid.New(),
 		Queue:         "test-queue",
 		JobSet:        "test-jobset",
 		UserID:        "test-user",
+		Node:          "node-id",
 		Groups:        compressedGroups,
 		SubmitMessage: compressedSubmit,
+	}
+
+	submitWithoutNodeSelector, compressedSubmitNoNodeSelector := submitMsg(t, "")
+	leaseWithoutNode := &database.JobRunLease{
+		RunID:         uuid.New(),
+		Queue:         "test-queue",
+		JobSet:        "test-jobset",
+		UserID:        "test-user",
+		Groups:        compressedGroups,
+		SubmitMessage: compressedSubmitNoNodeSelector,
 	}
 
 	tests := map[string]struct {
@@ -107,6 +121,26 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						User:     defaultLease.UserID,
 						Groups:   groups,
 						Job:      submit,
+					}},
+				},
+				{
+					Event: &executorapi.LeaseStreamMessage_End{End: &executorapi.EndMarker{}},
+				},
+			},
+		},
+		"no node selector when missing in lease": {
+			request:          defaultRequest,
+			leases:           []*database.JobRunLease{leaseWithoutNode},
+			expectedExecutor: defaultExpectedExecutor,
+			expectedMsgs: []*executorapi.LeaseStreamMessage{
+				{
+					Event: &executorapi.LeaseStreamMessage_Lease{Lease: &executorapi.JobRunLease{
+						JobRunId: armadaevents.ProtoUuidFromUuid(leaseWithoutNode.RunID),
+						Queue:    leaseWithoutNode.Queue,
+						Jobset:   leaseWithoutNode.JobSet,
+						User:     leaseWithoutNode.UserID,
+						Groups:   groups,
+						Job:      submitWithoutNodeSelector,
 					}},
 				},
 				{
@@ -165,6 +199,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				maxJobsPerCall,
+				"kubernetes.io/hostname",
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -174,6 +209,60 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			assert.Equal(t, tc.expectedMsgs, capturedEvents)
 			cancel()
 		})
+	}
+}
+
+func TestAddNodeSelector(t *testing.T) {
+	withNodeSelector := &armadaevents.PodSpecWithAvoidList{
+		PodSpec: &v1.PodSpec{
+			NodeSelector: map[string]string{nodeIdName: "node-1"},
+		},
+	}
+
+	tests := map[string]struct {
+		input    *armadaevents.PodSpecWithAvoidList
+		expected *armadaevents.PodSpecWithAvoidList
+		key      string
+		value    string
+	}{
+		"Sets node selector": {
+			input:    &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{}},
+			expected: withNodeSelector,
+			key:      nodeIdName,
+			value:    "node-1",
+		},
+		"input is nil": {
+			input:    nil,
+			expected: nil,
+			key:      nodeIdName,
+			value:    "node-1",
+		},
+		"podspec is nil": {
+			input:    &armadaevents.PodSpecWithAvoidList{},
+			expected: &armadaevents.PodSpecWithAvoidList{},
+			key:      nodeIdName,
+			value:    "node-1",
+		},
+		"key is not set": {
+			input:    &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{}},
+			expected: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{}},
+			key:      "",
+			value:    "node-1",
+		},
+		"value is not set": {
+			input:    &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{}},
+			expected: &armadaevents.PodSpecWithAvoidList{PodSpec: &v1.PodSpec{}},
+			key:      nodeIdName,
+			value:    "",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			addNodeSelector(tc.input, tc.key, tc.value)
+			assert.Equal(t, tc.expected, tc.input)
+		})
+
 	}
 }
 
@@ -237,6 +326,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
 				100,
+				"kubernetes.io/hostname",
 			)
 
 			require.NoError(t, err)
@@ -250,9 +340,21 @@ func TestExecutorApi_Publish(t *testing.T) {
 	}
 }
 
-func submitMsg(t *testing.T) (*armadaevents.SubmitJob, []byte) {
+func submitMsg(t *testing.T, nodeName string) (*armadaevents.SubmitJob, []byte) {
+	podSpec := &v1.PodSpec{}
+	if nodeName != "" {
+		podSpec.NodeSelector = map[string]string{}
+		podSpec.NodeSelector[nodeIdName] = nodeName
+	}
 	submitMsg := &armadaevents.SubmitJob{
 		JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+		MainObject: &armadaevents.KubernetesMainObject{
+			Object: &armadaevents.KubernetesMainObject_PodSpec{
+				PodSpec: &armadaevents.PodSpecWithAvoidList{
+					PodSpec: podSpec,
+				},
+			},
+		},
 	}
 	bytes, err := proto.Marshal(submitMsg)
 	require.NoError(t, err)
